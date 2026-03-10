@@ -8,6 +8,7 @@ const state = {
   requirements: [],
   reviewEntries: [],
   reviewSelectedKind: "",
+  reviewShowRecommendedSourceOnly: false,
   reviewActiveEntryId: "",
   reviewPdfBaseUrl: "",
   reviewPdfCurrentPage: 1,
@@ -21,6 +22,7 @@ const state = {
   reviewPreviewPollHandle: null,
   exportStatusMessage: "",
   exportStatusTone: "",
+  tableViewByTableId: {},
 };
 
 const el = {
@@ -66,6 +68,7 @@ const el = {
   reviewKindFilter: document.querySelector("#review-kind-filter"),
   reviewSectionFilter: document.querySelector("#review-section-filter"),
   reviewKeywordFilter: document.querySelector("#review-keyword-filter"),
+  reviewSourceRecommendedBtn: document.querySelector("#review-source-recommended-btn"),
   reviewRefreshPreviewBtn: document.querySelector("#review-refresh-preview-btn"),
   reviewDiagnosticCards: document.querySelector("#review-diagnostic-cards"),
   reviewSectionOverviewBody: document.querySelector("#review-section-overview-body"),
@@ -143,9 +146,11 @@ function bindEvents() {
   el.reviewKindFilter?.addEventListener("change", onReviewKindFilterChanged);
   el.reviewSectionFilter?.addEventListener("input", renderReviewEntries);
   el.reviewKeywordFilter?.addEventListener("input", renderReviewEntries);
+  el.reviewSourceRecommendedBtn?.addEventListener("click", toggleReviewRecommendedSourceOnly);
   el.reviewRefreshPreviewBtn?.addEventListener("click", wrap(onRefreshReviewPreview));
   el.reviewTableBody?.addEventListener("change", wrap(onReviewTableChanged));
-  el.reviewTableBody?.addEventListener("click", onReviewTableClicked);
+  el.reviewTableBody?.addEventListener("click", wrap(onReviewTableClicked));
+  el.tableBody?.addEventListener("click", onRequirementTableClicked);
   el.reviewPdfToggle?.addEventListener("click", onReviewPdfToggleClicked);
   el.reviewOpenPdfBtn?.addEventListener("click", openReviewPdfInNewWindow);
   window.addEventListener("message", onReviewPdfViewerMessage);
@@ -179,6 +184,7 @@ async function onProjectChanged() {
   state.reviewPreview = null;
   state.exportStatusMessage = "";
   state.exportStatusTone = "";
+  state.tableViewByTableId = {};
   el.sorUploadResult.textContent = "";
   el.kbUploadResult.textContent = "";
   setAnalyzeStatus("");
@@ -202,6 +208,7 @@ async function onSorDocumentChanged() {
   state.reviewPreview = null;
   state.exportStatusMessage = "";
   state.exportStatusTone = "";
+  state.tableViewByTableId = {};
   await loadWorkspace();
 }
 
@@ -497,6 +504,7 @@ async function loadWorkspace() {
     state.requirements = [];
     state.reviewEntries = [];
     state.reviewSelectedKind = "";
+    state.reviewShowRecommendedSourceOnly = false;
     state.reviewActiveEntryId = "";
     state.reviewPdfDrawerOpen = false;
     initReviewPdfViewer();
@@ -515,6 +523,7 @@ async function loadWorkspace() {
   state.requirements = Array.isArray(workspace.requirements) ? workspace.requirements : [];
   state.reviewEntries = [];
   state.reviewSelectedKind = "";
+  state.reviewShowRecommendedSourceOnly = false;
   state.reviewActiveEntryId = "";
   state.reviewPdfDrawerOpen = false;
   initReviewPdfViewer();
@@ -535,6 +544,7 @@ async function loadReviewPreview() {
   if (!state.projectId || !state.currentSorDocumentId) {
     state.reviewPreview = null;
     state.reviewEntries = [];
+    state.reviewShowRecommendedSourceOnly = false;
     renderReviewDiagnostics();
     renderReviewKindFilter();
     renderReviewEntries();
@@ -548,6 +558,7 @@ async function loadReviewPreview() {
     );
     state.reviewPreview = previewPayload;
     state.reviewEntries = Array.isArray(previewPayload.review_entries) ? previewPayload.review_entries : [];
+    state.reviewShowRecommendedSourceOnly = false;
     renderReviewDiagnostics();
     renderReviewKindFilter();
     renderReviewEntries();
@@ -829,6 +840,7 @@ function renderReviewEntries() {
       const span = pageStart > 0 ? `${pageStart}-${pageEnd || pageStart}` : "-";
       const entryId = escapeHtml(getReviewEntryKey(row) || `entry-${index}`);
       const activeClass = state.reviewActiveEntryId === getReviewEntryKey(row) ? "is-active" : "";
+      const summary = renderTableDecisionSummary(row);
       return `<tr class="${activeClass}" data-review-entry-id="${entryId}" data-pdf-page="${pageStart}">
         <td><input type="checkbox" data-review-keep="${entryId}" ${keep} /></td>
         <td>
@@ -839,12 +851,13 @@ function renderReviewEntries() {
           </select>
         </td>
         <td class="parent-section">${renderParentSectionLabel(row)}</td>
-        <td class="req-text">${renderRequirementContent(row)}</td>
+        <td class="req-text">${summary}${renderRequirementContent(row)}</td>
         <td>${escapeHtml(span)}</td>
       </tr>`;
     })
     .join("");
   syncReviewPdfDrawer();
+  syncReviewSelectionButtons();
 }
 
 function filterReviewEntries(rows) {
@@ -863,8 +876,57 @@ function filterReviewEntries(rows) {
     if (keyword && !searchText.includes(keyword)) {
       return false;
     }
+    if (state.reviewShowRecommendedSourceOnly && !rowHasRecommendedSource(row)) {
+      return false;
+    }
     return true;
   });
+}
+
+function rowHasRecommendedSource(row) {
+  return (Array.isArray(row?.table_refs) ? row.table_refs : []).some(
+    (ref) => String(ref?.recommended_export_variant || "").trim().toLowerCase() === "source"
+  );
+}
+
+function renderTableDecisionSummary(row) {
+  const refs = Array.isArray(row?.table_refs) ? row.table_refs : [];
+  if (!refs.length) {
+    return "";
+  }
+  const recommendedSource = refs.filter(
+    (ref) => String(ref?.recommended_export_variant || "").trim().toLowerCase() === "source"
+  ).length;
+  const selectedSource = refs.filter((ref) => String(ref?.export_variant || "").trim().toLowerCase() === "source").length;
+  const reasons = Array.from(
+    new Set(
+      refs
+        .flatMap((ref) => (Array.isArray(ref?.export_variant_reasons) ? ref.export_variant_reasons : []))
+        .map((item) => String(item || "").trim())
+        .filter(Boolean)
+    )
+  ).slice(0, 3);
+  const chips = [
+    `<span class="table-export-badge">${
+      recommendedSource > 0 ? `推荐截图 ${recommendedSource}/${refs.length}` : `默认表格 ${refs.length}/${refs.length}`
+    }</span>`,
+    `<span class="table-export-chip">当前截图 ${selectedSource}/${refs.length}</span>`,
+    ...reasons.map((reason) => `<span class="table-export-chip is-reason">${escapeHtml(reason)}</span>`),
+  ];
+  return `<div class="table-export-summary">${chips.join("")}</div>`;
+}
+
+function toggleReviewRecommendedSourceOnly() {
+  state.reviewShowRecommendedSourceOnly = !state.reviewShowRecommendedSourceOnly;
+  syncReviewSelectionButtons();
+  renderReviewEntries();
+}
+
+function syncReviewSelectionButtons() {
+  if (!el.reviewSourceRecommendedBtn) {
+    return;
+  }
+  el.reviewSourceRecommendedBtn.textContent = state.reviewShowRecommendedSourceOnly ? "显示全部条目" : "仅看推荐截图";
 }
 
 async function onReviewTableChanged(event) {
@@ -904,9 +966,13 @@ async function onReviewTableChanged(event) {
   }
 }
 
-function onReviewTableClicked(event) {
+async function onReviewTableClicked(event) {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  if (await handleReviewTableViewToggle(target)) {
+    event.preventDefault();
     return;
   }
   if (target.closest("input") || target.closest("select")) {
@@ -919,6 +985,110 @@ function onReviewTableClicked(event) {
   const entryId = String(row.getAttribute("data-review-entry-id") || "").trim();
   const page = Number(row.getAttribute("data-pdf-page") || 0);
   focusReviewPdf(entryId, page);
+}
+
+async function handleReviewTableViewToggle(target) {
+  const button = target.closest("button[data-table-variant]");
+  if (!(button instanceof HTMLButtonElement)) {
+    return false;
+  }
+  const tableId = String(button.getAttribute("data-table-id") || "").trim();
+  const nextVariant = String(button.getAttribute("data-table-variant") || "").trim() === "source" ? "source" : "slice";
+  if (!tableId) {
+    return true;
+  }
+  const affected = setReviewTableExportVariant(tableId, nextVariant);
+  state.tableViewByTableId[tableId] = nextVariant;
+  
+  if (affected) {
+    const ref = (Array.isArray(affected.table_refs) ? affected.table_refs : []).find(r => String(r.table_id) === tableId);
+    if (ref) {
+      document.querySelectorAll(`div.table-asset-switcher[data-table-id="${tableId}"]`).forEach(el => {
+        el.outerHTML = renderTableRef(ref);
+      });
+    }
+  }
+
+  if (!affected) {
+    return true;
+  }
+  saveReviewEntry(affected).catch((error) => {
+    setReviewTableExportVariant(tableId, affected.previousVariant);
+    renderReviewEntries();
+    renderRequirements(state.requirements);
+    setReviewStatus(normalizeApiError(error, "导出表格选择保存失败，请稍后重试。"), "error");
+  });
+  return true;
+}
+
+function setReviewTableExportVariant(tableId, nextVariant) {
+  const normalized = nextVariant === "source" ? "source" : "slice";
+  let affected = null;
+  [state.reviewEntries, state.requirements].forEach((rows) => {
+    (rows || []).forEach((row) => {
+      let touched = false;
+      (Array.isArray(row?.table_refs) ? row.table_refs : []).forEach((ref) => {
+        if (String(ref?.table_id || "").trim() !== tableId) {
+          return;
+        }
+        if (!affected) {
+          affected = {
+            ...row,
+            previousVariant: String(ref.export_variant || "").trim().toLowerCase() || "slice",
+          };
+        }
+        ref.export_variant = normalized;
+        ref.export_variant_overridden =
+          normalized !== String(ref.recommended_export_variant || "slice").trim().toLowerCase();
+        touched = true;
+      });
+      if (touched && affected && String(row?.req_code || "") === String(affected.req_code || "")) {
+        affected = { ...row, previousVariant: affected.previousVariant };
+      }
+    });
+  });
+  return affected;
+}
+
+function onRequirementTableClicked(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  if (handleTableViewToggle(target)) {
+    event.preventDefault();
+    renderRequirements(state.requirements);
+  }
+}
+
+function handleTableViewToggle(target) {
+  const button = target.closest("button[data-table-variant]");
+  if (!(button instanceof HTMLButtonElement)) {
+    return false;
+  }
+  const tableId = String(button.getAttribute("data-table-id") || "").trim();
+  const variant = String(button.getAttribute("data-table-variant") || "").trim();
+  if (!tableId) {
+    return true;
+  }
+  state.tableViewByTableId[tableId] = variant === "source" ? "source" : "slice";
+  
+  let refFound = null;
+  (state.requirements || []).forEach(row => {
+    (Array.isArray(row.table_refs) ? row.table_refs : []).forEach(ref => {
+      if (String(ref.table_id) === tableId) {
+        refFound = ref;
+      }
+    });
+  });
+  
+  if (refFound) {
+    document.querySelectorAll(`div.table-asset-switcher[data-table-id="${tableId}"]`).forEach(el => {
+      el.outerHTML = renderTableRef(refFound);
+    });
+  }
+  
+  return true;
 }
 
 async function saveReviewEntry(row) {
@@ -1253,9 +1423,27 @@ function mergeSavedReviewEntry(savedEntry) {
     return;
   }
   const key = getReviewEntryKey(savedEntry);
-  let index = key ? state.reviewEntries.findIndex((item) => getReviewEntryKey(item) === key) : -1;
+  mergeSavedEntryIntoRows(state.reviewEntries, savedEntry, key);
+  const reqCode = String(savedEntry.req_code || "").trim();
+  if (reqCode) {
+    const requirementIndex = state.requirements.findIndex((item) => String(item?.req_code || "").trim() === reqCode);
+    if (requirementIndex >= 0) {
+      state.requirements[requirementIndex] = {
+        ...state.requirements[requirementIndex],
+        ...savedEntry,
+      };
+    }
+  }
+}
+
+function getReviewEntryKey(row) {
+  return String(row?.entry_id || row?.req_code || "").trim();
+}
+
+function mergeSavedEntryIntoRows(rows, savedEntry, key) {
+  let index = key ? rows.findIndex((item) => getReviewEntryKey(item) === key) : -1;
   if (index < 0) {
-    index = state.reviewEntries.findIndex(
+    index = rows.findIndex(
       (item) =>
         String(item?.source_anchor || "").trim() === String(savedEntry.source_anchor || "").trim() &&
         String(item?.raw_text || item?.requirement_text || "").trim() ===
@@ -1263,19 +1451,15 @@ function mergeSavedReviewEntry(savedEntry) {
     );
   }
   if (index >= 0) {
-    state.reviewEntries[index] = {
-      ...state.reviewEntries[index],
+    rows[index] = {
+      ...rows[index],
       ...savedEntry,
     };
     return;
   }
   if (key) {
-    state.reviewEntries.push({ ...savedEntry });
+    rows.push({ ...savedEntry });
   }
-}
-
-function getReviewEntryKey(row) {
-  return String(row?.entry_id || row?.req_code || "").trim();
 }
 
 function setAnalyzeStatus(message, tone = "") {
@@ -1509,28 +1693,94 @@ function renderTableRef(ref) {
   if (!ref) {
     return "";
   }
+  const tableId = String(ref.table_id || "").trim();
+  const variant = activeTableVariant(ref);
   const headers = Array.isArray(ref.inherited_headers) ? ref.inherited_headers : [];
   const rows = Array.isArray(ref.slice_rows) ? ref.slice_rows.filter((row) => Array.isArray(row)) : [];
-  if (String(ref.slice_render_mode || "") === "structured" && headers.length) {
-    return renderStructuredTable(headers, rows);
+  const sliceLabel =
+    String(ref.slice_render_mode || "") === "structured" && headers.length ? "结构化切片" : "切片快照";
+  let content = "";
+  if (variant === "source" && ref.source_snapshot_url) {
+    content = renderTableSnapshot(ref.source_snapshot_url, "source table snapshot");
+  } else if (String(ref.slice_render_mode || "") === "structured" && headers.length) {
+    content = renderStructuredTable(headers, rows);
+  } else if (ref.slice_snapshot_url) {
+    content = renderTableSnapshot(ref.slice_snapshot_url, "table snapshot");
+  } else {
+    content = `<div class="md-text-block">${escapeHtml(String(ref.slice_ai_projection || "")).replaceAll("\n", "<br>")}</div>`;
   }
-  if (ref.slice_snapshot_url) {
-    return `<div class="asset-snapshot-wrap"><img class="asset-snapshot" src="${escapeHtml(
-      ref.slice_snapshot_url
-    )}" alt="table snapshot" loading="lazy" /></div>`;
+  if (!ref.source_snapshot_url || !tableId) {
+    return `${content}`;
   }
-  return `<div class="md-text-block">${escapeHtml(String(ref.slice_ai_projection || "")).replaceAll("\n", "<br>")}</div>`;
+  return `
+    <div class="table-asset-switcher" data-table-id="${escapeHtml(tableId)}">
+      <div class="table-view-toolbar">
+        <span class="table-view-label">导出内容</span>
+        <button type="button" class="table-view-btn${variant === "slice" ? " is-active" : ""}" data-table-id="${escapeHtml(
+          tableId
+        )}" data-table-variant="slice">表格</button>
+        <button type="button" class="table-view-btn${variant === "source" ? " is-active" : ""}" data-table-id="${escapeHtml(
+          tableId
+        )}" data-table-variant="source">原文截图</button>
+      </div>
+      ${content}
+    </div>
+  `;
+}
+
+function activeTableVariant(ref) {
+  const tableId = String(ref?.table_id || "").trim();
+  if (!tableId) {
+    return ref?.source_snapshot_url ? "source" : "slice";
+  }
+  const preferred = state.tableViewByTableId[tableId];
+  if (preferred === "source" || preferred === "slice") {
+    if (preferred === "source" && !ref?.source_snapshot_url) {
+      return "slice";
+    }
+    return preferred;
+  }
+  const dbVariant = String(ref?.export_variant || "").trim().toLowerCase();
+  if (dbVariant === "source" || dbVariant === "slice") {
+    if (dbVariant === "source" && !ref?.source_snapshot_url) {
+      return "slice";
+    }
+    return dbVariant;
+  }
+  return ref?.source_snapshot_url ? "source" : "slice";
+}
+
+function renderTableSnapshot(url, altText) {
+  return `<div class="asset-snapshot-wrap"><img class="asset-snapshot" src="${escapeHtml(
+    url
+  )}" alt="${escapeHtml(altText)}" loading="lazy" /></div>`;
 }
 
 function renderStructuredTable(headers, rows) {
-  const head = headers.map((cell) => `<th>${escapeHtml(String(cell || ""))}</th>`).join("");
-  const body = rows
+  const colCount = Math.max(
+    Array.isArray(headers) ? headers.length : 0,
+    ...rows.map((row) => (Array.isArray(row) ? row.length : 0)),
+    0
+  );
+  if (!colCount) {
+    return "";
+  }
+  const normalizedHeaders = Array.from({ length: colCount }, (_, idx) => String((headers && headers[idx]) || "").trim());
+  const normalizedRows = rows.map((row) =>
+    Array.from({ length: colCount }, (_, idx) => String((row && row[idx]) || "").trim())
+  );
+  const colPercents = computeMarkdownTableColumnPercents(normalizedHeaders, normalizedRows, colCount);
+  const colgroup = colPercents.length
+    ? `<colgroup>${colPercents.map((pct) => `<col style="width:${pct.toFixed(2)}%">`).join("")}</colgroup>`
+    : "";
+  const head = normalizedHeaders.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("");
+  const body = normalizedRows
     .map(
       (row) =>
         `<tr>${row.map((cell) => `<td>${escapeHtml(String(cell || ""))}</td>`).join("")}</tr>`
     )
     .join("");
-  return `<div class="md-table-wrap asset-table-wrap"><table class="md-table asset-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="md-table-wrap asset-table-wrap"><table class="md-table asset-table md-table-accurate">${colgroup}<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function looksLikeMarkdownTableRow(line) {
@@ -1613,43 +1863,205 @@ function renderMarkdownTable(lines) {
 }
 
 function buildMarkdownColgroup(head, body, colCount) {
-  const cols = Number(colCount || 0);
-  if (!cols) {
+  const percents = computeMarkdownTableColumnPercents(head, body, colCount);
+  if (!percents.length) {
     return "";
   }
+  return `<colgroup>${percents.map((value) => `<col style="width:${value.toFixed(2)}%">`).join("")}</colgroup>`;
+}
+
+function computeMarkdownTableColumnPercents(head, body, colCount) {
+  const cols = Number(colCount) || 0;
+  if (!cols) {
+    return [];
+  }
   const labels = Array.from({ length: cols }, (_, idx) => String((head && head[idx]) || "").trim());
-  const weights = Array.from({ length: cols }, (_, idx) => {
-    const texts = [labels[idx], ...body.map((row) => String((row && row[idx]) || "").trim()).slice(0, 24)];
-    let score = 6;
-    texts.forEach((text) => {
+  const rows = Array.isArray(body) ? body.slice(0, 40) : [];
+  const weights = Array.from({ length: cols }, (_, col) => {
+    const label = labels[col] || "";
+    let maxLen = estimateCellVisualLength(label);
+    let sumLen = maxLen;
+    let count = label ? 1 : 0;
+    rows.forEach((row) => {
+      const text = String((row && row[col]) || "").trim();
       if (!text) {
         return;
       }
-      score = Math.max(score, estimateTextWidth(text));
+      const len = estimateCellVisualLength(text);
+      maxLen = Math.max(maxLen, len);
+      sumLen += len;
+      count += 1;
     });
-    if (idx === 0 && /^(?:序号|no\.?|编号|id)$/i.test(labels[idx] || "")) {
-      return 6;
+    const avgLen = count ? sumLen / count : maxLen;
+    let weight = maxLen * 0.72 + avgLen * 0.55 + 6;
+
+    if (isSerialColumn(label, col)) {
+      weight = cols >= 8 ? 4.2 : 5.2;
+    } else if (isDetailColumn(label)) {
+      weight *= 2.15;
+    } else if (isItemColumn(label)) {
+      weight *= 1.05;
+    } else if (isTerseColumn(label)) {
+      weight *= 0.85;
     }
-    if (/(?:要求|描述|内容|requirements?|remark|备注|evidence)/i.test(labels[idx] || "")) {
-      return score * 1.8;
-    }
-    if (/(?:项目|item|test item)/i.test(labels[idx] || "")) {
-      return score * 1.1;
-    }
-    return score;
+
+    return Math.max(3.8, Math.min(80, weight));
   });
-  const total = weights.reduce((sum, value) => sum + value, 0) || 1;
-  const percents = weights.map((value) => Math.max(7, Math.min(46, (value / total) * 100)));
-  const normalized = percents.map((value) => (value / percents.reduce((sum, item) => sum + item, 0)) * 100);
-  return `<colgroup>${normalized.map((value) => `<col style="width:${value.toFixed(2)}%">`).join("")}</colgroup>`;
+
+  const total = weights.reduce((acc, item) => acc + item, 0) || 1;
+  const minPct = cols >= 10 ? 4.2 : cols >= 8 ? 5.0 : 6.0;
+  const maxPct = cols >= 10 ? 33 : 40;
+  const itemMaxPct = cols >= 10 ? 14 : cols >= 8 ? 16 : cols >= 6 ? 20 : 28;
+  let percents = weights.map((w) => (w / total) * 100);
+  percents = percents.map((pct, idx) => {
+    if (isSerialColumn(labels[idx], idx)) {
+      return Math.max(3.8, Math.min(8.0, pct));
+    }
+    if (isItemColumn(labels[idx])) {
+      return Math.max(minPct, Math.min(itemMaxPct, pct));
+    }
+    return Math.max(minPct, Math.min(maxPct, pct));
+  });
+
+  const detailIndexes = labels
+    .map((label, idx) => (isDetailColumn(label) ? idx : -1))
+    .filter((idx) => idx >= 0);
+  if (detailIndexes.length) {
+    const targetCombined = Math.min(detailIndexes.length * (cols >= 10 ? 18 : cols >= 8 ? 20 : 22), 62);
+    const currentCombined = detailIndexes.reduce((acc, idx) => acc + percents[idx], 0);
+    if (currentCombined < targetCombined) {
+      const deficit = targetCombined - currentCombined;
+      const donorIndexes = labels
+        .map((label, idx) => ({ idx, label }))
+        .filter(({ idx }) => !detailIndexes.includes(idx) && !isSerialColumn(labels[idx], idx))
+        .map(({ idx }) => idx);
+      const available = donorIndexes.map((idx) => {
+        const floor = isTerseColumn(labels[idx]) ? Math.max(4.0, minPct - 1.0) : minPct;
+        return Math.max(0, percents[idx] - floor);
+      });
+      const totalAvailable = available.reduce((acc, item) => acc + item, 0);
+      if (totalAvailable > 0.01) {
+        donorIndexes.forEach((idx, offset) => {
+          percents[idx] -= deficit * (available[offset] / totalAvailable);
+        });
+        const extraPerDetail = deficit / detailIndexes.length;
+        detailIndexes.forEach((idx) => {
+          percents[idx] += extraPerDetail;
+        });
+      }
+    }
+  }
+
+  rebalanceContentColumns(percents, labels, minPct, maxPct);
+
+  let sum = percents.reduce((acc, item) => acc + item, 0) || 1;
+  if (Math.abs(sum - 100) < 0.01) {
+    return percents;
+  }
+  const adjustable = percents
+    .map((pct, idx) => ({ idx, pct, serial: isSerialColumn(labels[idx], idx) }))
+    .filter((item) => !item.serial);
+  if (!adjustable.length) {
+    return percents.map((pct) => (pct / sum) * 100);
+  }
+  const delta = 100 - sum;
+  const perCol = delta / adjustable.length;
+  adjustable.forEach((item) => {
+    const next = percents[item.idx] + perCol;
+    const bounded = Math.max(minPct, Math.min(maxPct, next));
+    percents[item.idx] = bounded;
+  });
+  sum = percents.reduce((acc, item) => acc + item, 0) || 1;
+  return percents.map((pct) => (pct / sum) * 100);
 }
 
-function estimateTextWidth(text) {
+function estimateCellVisualLength(text) {
   let score = 0;
   for (const ch of String(text || "")) {
     score += /[\u4e00-\u9fff]/.test(ch) ? 2 : 1;
   }
   return score;
+}
+
+function isSerialColumn(label, index) {
+  const value = String(label || "").trim().toLowerCase();
+  if (index === 0) {
+    return true;
+  }
+  return /^(?:序号|编号|no\.?|id)$/.test(value);
+}
+
+function isDetailColumn(label) {
+  const value = String(label || "").trim().toLowerCase();
+  return /(要求|描述|内容|说明|备注|方法|条件|requirements?|description|detail|method|procedure|测试条件|试验内容|试验方法)/i.test(
+    value
+  );
+}
+
+function isItemColumn(label) {
+  const value = String(label || "").trim().toLowerCase();
+  return /(项目|item|测试项目|试验项目|类别|category|test item)/i.test(value);
+}
+
+function isTerseColumn(label) {
+  const value = String(label || "").trim().toLowerCase();
+  return /(次数|时间|天|结果|状态|结论|周期|sample|qty|数量|顺序|对象|责任方|样件|dv\/pv|标准)/i.test(value);
+}
+
+function rebalanceContentColumns(percents, labels, minPct) {
+  const detailIndexes = labels
+    .map((label, idx) => (isDetailColumn(label) ? idx : -1))
+    .filter((idx) => idx >= 0);
+  if (!detailIndexes.length) {
+    return;
+  }
+
+  const primaryIndexes = labels
+    .map((label, idx) => (isPrimaryDetailColumn(label) ? idx : -1))
+    .filter((idx) => idx >= 0);
+  const donorIndexes = labels
+    .map((label, idx) => idx)
+    .filter((idx) => !detailIndexes.includes(idx) && !isSerialColumn(labels[idx], idx));
+  if (!donorIndexes.length) {
+    return;
+  }
+
+  const desiredDetailMin = detailIndexes.length >= 2 ? 46 : 30;
+  const desiredPrimaryMin = primaryIndexes.length >= 2 ? 36 : primaryIndexes.length ? 22 : 0;
+  shiftWidthToTargets(percents, labels, donorIndexes, detailIndexes, desiredDetailMin, minPct);
+  shiftWidthToTargets(percents, labels, donorIndexes, primaryIndexes, desiredPrimaryMin, minPct);
+}
+
+function shiftWidthToTargets(percents, labels, donorIndexes, targetIndexes, desiredMin, minPct) {
+  if (!targetIndexes.length) {
+    return;
+  }
+  const current = targetIndexes.reduce((acc, idx) => acc + percents[idx], 0);
+  if (current >= desiredMin) {
+    return;
+  }
+  const deficit = desiredMin - current;
+  const availability = donorIndexes.map((idx) => {
+    const floor = isTerseColumn(labels[idx]) ? Math.max(4.0, minPct - 1.0) : minPct;
+    return Math.max(0, percents[idx] - floor);
+  });
+  const totalAvailable = availability.reduce((acc, item) => acc + item, 0);
+  if (totalAvailable <= 0.01) {
+    return;
+  }
+  donorIndexes.forEach((idx, offset) => {
+    percents[idx] -= deficit * (availability[offset] / totalAvailable);
+  });
+  const targetWeights = targetIndexes.map((idx) => (isPrimaryDetailColumn(labels[idx]) ? 1.2 : 1.0));
+  const targetTotal = targetWeights.reduce((acc, item) => acc + item, 0) || 1;
+  targetIndexes.forEach((idx, offset) => {
+    percents[idx] += deficit * (targetWeights[offset] / targetTotal);
+  });
+}
+
+function isPrimaryDetailColumn(label) {
+  const value = String(label || "").trim().toLowerCase();
+  return /(试验方法|测试方法|方法|procedure|method|要求|需求|criteria|requirement)/i.test(value);
 }
 
 function escapeHtml(value) {

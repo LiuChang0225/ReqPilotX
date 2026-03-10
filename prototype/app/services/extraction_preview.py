@@ -258,6 +258,7 @@ def build_extraction_preview(
         complete_entries,
         document_id=table_document_id,
         snapshot_root=table_snapshot_root,
+        source_file_path=file_path,
     )
     complete_entries_raw = [dict(row) for row in complete_entries]
     complete_entries, dedupe_stats = _build_section_unified_entries(complete_entries)
@@ -265,6 +266,7 @@ def build_extraction_preview(
         complete_entries,
         document_id=table_document_id,
         snapshot_root=table_snapshot_root,
+        source_file_path=file_path,
     )
     table_assets = deduped_table_assets or table_assets
 

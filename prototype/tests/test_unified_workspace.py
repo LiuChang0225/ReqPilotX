@@ -7,11 +7,13 @@ from contextlib import ExitStack
 from pathlib import Path
 from unittest.mock import patch
 
+import fitz
 from fastapi import HTTPException
 from openpyxl import load_workbook
+from PIL import Image as PILImage
 
 from app import db, main
-from app.services import preview_cache
+from app.services import exporter, preview_cache, table_assets
 from app.services.exporter import export_compliance_matrix
 
 
@@ -187,6 +189,69 @@ def _fake_preview_with_table_markdown() -> dict:
     }
 
 
+def _fake_preview_with_single_row_slice_table() -> dict:
+    table_text = (
+        "1 外观检查\n"
+        "|1|外观检查|-|目视外观检查|表面无划伤|DV/PV|供应商|6件/OTS|1天|"
+    )
+    return {
+        "summary": {"dedupe_version": "heading_requirement_v1"},
+        "sections": [],
+        "complete_requirement_entries": [
+            {
+                "entry_id": "REQ0040",
+                "req_code": "REQ0040",
+                "entry_kind": "REQUIREMENT",
+                "display_text": table_text,
+                "raw_text": table_text,
+                "requirement_text": table_text,
+                "source_page": 20,
+                "source_page_end": 20,
+                "source_anchor": "Appendix Y > 1",
+                "parent_section_code": "Y.1",
+                "parent_section_title": "用电器试验大纲",
+                "parent_section_label": "Y.1 用电器试验大纲",
+                "requirement_type": "FUNCTIONAL",
+                "priority": "MEDIUM",
+            }
+        ],
+        "complete_requirement_entries_raw": [],
+    }
+
+
+def _fake_preview_with_complex_table_markdown() -> dict:
+    table_text = (
+        "5.7 整车用电器与线束匹配评估表\n\n"
+        "| Group | Item |\n"
+        "| --- | --- |\n"
+        "| 测试分组 | Test Groups |\n"
+        "| 整车用电器与线束匹配评估表 | 评估项 |"
+    )
+    return {
+        "summary": {"dedupe_version": "heading_requirement_v1"},
+        "sections": [],
+        "complete_requirement_entries": [
+            {
+                "entry_id": "REQ0057",
+                "req_code": "REQ0057",
+                "entry_kind": "REQUIREMENT",
+                "display_text": table_text,
+                "raw_text": table_text,
+                "requirement_text": table_text,
+                "source_page": 1,
+                "source_page_end": 2,
+                "source_anchor": "Main > 5.7",
+                "parent_section_code": "5.7",
+                "parent_section_title": "整车用电器与线束匹配评估表",
+                "parent_section_label": "5.7 整车用电器与线束匹配评估表",
+                "requirement_type": "FUNCTIONAL",
+                "priority": "MEDIUM",
+            }
+        ],
+        "complete_requirement_entries_raw": [],
+    }
+
+
 class UnifiedWorkspaceTests(unittest.TestCase):
     def setUp(self) -> None:
         self.tmpdir = tempfile.TemporaryDirectory()
@@ -211,6 +276,44 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             file_type="txt",
             file_path=str(sample_path),
             extracted_text="sample",
+        )
+        return project, document
+
+    def _create_project_with_pdf_document(self, suffix: str = "") -> tuple[dict, dict]:
+        pdf_path = self.tmp_path / f"sample{suffix}.pdf"
+        pdf = fitz.open()
+        for label in ("5.7 整车用电器与线束匹配评估表", "测试分组 / Test Groups"):
+            page = pdf.new_page()
+            page.insert_text((72, 72), label, fontsize=18)
+            page.insert_text((92, 150), f"Source snapshot page: {label}", fontsize=12)
+            x_positions = [72, 180, 300, 420, 520]
+            y_positions = [180, 225, 270, 315, 360, 405, 450]
+            for x in x_positions:
+                page.draw_line((x, y_positions[0]), (x, y_positions[-1]), color=(0.2, 0.4, 0.7), width=1)
+            for y in y_positions:
+                page.draw_line((x_positions[0], y), (x_positions[-1], y), color=(0.2, 0.4, 0.7), width=1)
+            headers = ["Group", "Item", "Method", "Req"]
+            for idx, header in enumerate(headers):
+                page.insert_text((x_positions[idx] + 8, y_positions[0] + 20), header, fontsize=10)
+            for row_index in range(1, 6):
+                values = [
+                    f"G{row_index}",
+                    "测试分组" if row_index == 1 else f"条目 {row_index}",
+                    "Visual",
+                    "Pass",
+                ]
+                base_y = y_positions[row_index] + 20
+                for col_index, value in enumerate(values):
+                    page.insert_text((x_positions[col_index] + 8, base_y), value, fontsize=10)
+        pdf.save(pdf_path)
+        pdf.close()
+        project = db.create_project(name=f"Workspace PDF Test{suffix}", customer_name="Customer")
+        document = db.add_sor_document(
+            project_id=project["id"],
+            file_name=f"sample{suffix}.pdf",
+            file_type="pdf",
+            file_path=str(pdf_path),
+            extracted_text="sample pdf",
         )
         return project, document
 
@@ -681,11 +784,34 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(len(requirement["table_refs"]), 1)
         self.assertEqual(requirement["table_refs"][0]["table_id"], review_entry["table_refs"][0]["table_id"])
         self.assertEqual(requirement["table_refs"][0]["row_range"], [1, 2])
-        self.assertTrue(requirement["table_refs"][0]["slice_snapshot_url"].endswith("/snapshot"))
+        self.assertIn("/snapshot", requirement["table_refs"][0]["slice_snapshot_url"])
+        self.assertEqual(requirement["table_refs"][0]["recommended_export_variant"], "slice")
+        self.assertEqual(requirement["table_refs"][0]["export_variant"], "slice")
+        self.assertEqual(requirement["table_refs"][0]["export_variant_reasons"], [])
         self.assertEqual(
             [block["kind"] for block in requirement["content_blocks"]],
             ["paragraph", "table"],
         )
+
+    def test_table_ref_recommendation_prefers_source_for_snapshot_only_with_images(self) -> None:
+        ref = table_assets._normalize_table_ref(
+            {
+                "table_id": "tbl_complex",
+                "slice_render_mode": "snapshot_only",
+                "source_snapshot_path": str(self.tmp_path / "source.png"),
+                "source_page": 5,
+                "source_page_end": 6,
+                "source_image_block_count": 1,
+                "inherited_headers": ["项目", "要求"],
+                "slice_rows": [["测试分组", "含图片和复杂布局"]],
+                "inherited_notes": ["跨页续表"],
+            }
+        )
+
+        self.assertEqual(ref["recommended_export_variant"], "source")
+        self.assertEqual(ref["export_variant"], "source")
+        self.assertIn("含图片", ref["export_variant_reasons"])
+        self.assertIn("结构低置信", ref["export_variant_reasons"])
 
     def test_table_asset_api_returns_asset_and_snapshot(self) -> None:
         project, document = self._create_project_with_document("-table-api")
@@ -700,8 +826,239 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(asset["table_id"], table_id)
         self.assertEqual(asset["headers"], ["Item", "Condition"])
         self.assertEqual(asset["rows"], [["Voltage", "12V"], ["Current", "3A"]])
-        self.assertTrue(asset["snapshot_url"].endswith("/snapshot"))
+        self.assertIn("/snapshot", asset["snapshot_url"])
         self.assertTrue(Path(snapshot.path).exists())
+
+    def test_table_asset_api_exposes_source_snapshot_for_pdf_page_span(self) -> None:
+        project, document = self._create_project_with_pdf_document("-source-snapshot")
+        with patch.object(main, "build_extraction_preview", return_value=_fake_preview_with_complex_table_markdown()):
+            main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
+
+        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=False)
+        table_ref = workspace["requirements"][0]["table_refs"][0]
+        table_id = table_ref["table_id"]
+
+        asset = main.get_document_table_asset(project["id"], document["id"], table_id)
+        source_snapshot = main.get_document_table_asset_source_snapshot(project["id"], document["id"], table_id)
+
+        self.assertIn("/source-snapshot", table_ref["source_snapshot_url"])
+        self.assertIn("/source-snapshot", asset["source_snapshot_url"])
+        self.assertTrue(Path(source_snapshot.path).exists())
+        with PILImage.open(source_snapshot.path) as image:
+            self.assertGreater(image.width, 0)
+            self.assertGreater(image.height, image.width)
+            self.assertLess(image.height, 1500)
+
+    def test_review_entry_save_persists_table_export_variant_override(self) -> None:
+        project, document = self._create_project_with_pdf_document("-table-choice")
+        with patch.object(main, "build_extraction_preview", return_value=_fake_preview_with_complex_table_markdown()):
+            main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
+
+        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=True)
+        row = workspace["review_entries"][0]
+        table_ref = dict(row["table_refs"][0], export_variant="slice")
+        payload = main.ReviewedRequirementEntry(
+            entry_id=row["entry_id"],
+            req_code=row["req_code"],
+            entry_kind=row["entry_kind"],
+            source_page=row["source_page"],
+            source_page_end=row["source_page_end"],
+            source_anchor=row["source_anchor"],
+            requirement_text=row["requirement_text"],
+            display_text=row["display_text"],
+            raw_text=row["raw_text"],
+            requirement_type=row["requirement_type"],
+            priority=row["priority"],
+            text_relation=row.get("text_relation") or "distinct",
+            is_deduped=bool(row.get("is_deduped")),
+            heading_text=row.get("heading_text") or "",
+            parent_section_code=row.get("parent_section_code") or "",
+            parent_section_title=row.get("parent_section_title") or "",
+            parent_section_label=row.get("parent_section_label") or "",
+            merged_from_req_codes=row.get("merged_from_req_codes") or [],
+            merged_from_entry_ids=row.get("merged_from_entry_ids") or [],
+            dedupe_version=row.get("dedupe_version") or "",
+            table_refs=[table_ref],
+            content_blocks=row.get("content_blocks") or [],
+            has_table_asset=bool(row.get("has_table_asset")),
+            table_render_mode=row.get("table_render_mode") or "",
+            keep=True,
+        )
+
+        main.save_review_entry(project["id"], document["id"], payload)
+        refreshed = main.get_document_workspace(project["id"], document["id"], include_preview=True)
+        refreshed_ref = refreshed["review_entries"][0]["table_refs"][0]
+
+        self.assertEqual(refreshed_ref["export_variant"], "slice")
+        self.assertTrue(refreshed_ref["export_variant_overridden"])
+        self.assertEqual(refreshed_ref["recommended_export_variant"], "source")
+
+    def test_row_slice_bbox_matches_merged_cell_slice_with_shared_prefix_and_suffix(self) -> None:
+        candidate = {
+            "bbox": (0.0, 0.0, 240.0, 250.0),
+            "rows_text": [
+                ["7", "机械振动和冲击", "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤", "PV", "5", "C Sample"],
+                ["连接器或端子插拔 Connector and/or Terminal Cycling", "USCAR-2 Rev 6 5.1.7", "完成一对连接器或端子的10次插拔", "连接器无变形等外观损伤", "PV", "5", "C Sample"],
+                ["干电路电阻 Dry Circuit Resistance", "U5SC3AR12REV6", "测量和记录之间的电阻", "电阻值满足5.3.2.4的要求", "PV", "5", "C Sample"],
+                ["电压降 Voltage Drop", "U5SC3AR22REV6", "测量并记录测试点之间的毫伏电压降", "电压降满足5.3.2.4的要求", "PV", "5", "C Sample"],
+                ["外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤", "PV", "5", "C Sample"],
+            ],
+            "row_bboxes": [
+                (0.0, 0.0, 240.0, 50.0),
+                (0.0, 50.0, 240.0, 100.0),
+                (0.0, 100.0, 240.0, 150.0),
+                (0.0, 150.0, 240.0, 200.0),
+                (0.0, 200.0, 240.0, 250.0),
+            ],
+        }
+
+        bbox = table_assets._match_row_slice_bbox(
+            candidate,
+            headers=[],
+            slice_rows=[
+                ["7", "机械振动和冲击", "连接器或端子插拔 Connector and/or Terminal Cycling", "USCAR-2 Rev 6 5.1.7", "完成一对连接器或端子的10次插拔", "连接器无变形等外观损伤", "PV", "5", "C Sample"],
+                ["7", "机械振动和冲击", "干电路电阻 Dry Circuit Resistance", "USCAR-2 Rev 6 5.3.1", "测量和记录之间的电阻", "电阻值满足5.3.2.4的要求", "PV", "5", "C Sample"],
+                ["7", "机械振动和冲击", "电压降 Voltage Drop", "USCAR-2 Rev 6 5.3.2", "测量并记录测试点之间的毫伏电压降", "电压降满足5.3.2.4的要求", "PV", "5", "C Sample"],
+                ["7", "机械振动和冲击", "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤", "PV", "5", "C Sample"],
+            ],
+        )
+
+        self.assertEqual(bbox, (0.0, 50.0, 240.0, 250.0))
+
+    def test_row_slice_bbox_includes_first_group_row_when_slice_starts_with_item_one(self) -> None:
+        candidate = {
+            "bbox": (0.0, 0.0, 240.0, 200.0),
+            "rows_text": [
+                ["1", "连接器结合力", "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤", "PV", "15/OTS"],
+                ["连接器插入力 Connector-Connector Mating Force", "U5SC4AR22REV6", "插拔速度50mm/Min", "插入力 / Engage force：75N Max.", "PV", "15/OTS"],
+                ["连接器拔出力 Connector-Connector Unmating Force", "U5SC4AR22REV6", "破坏卡扣插拔速度50mm/Min", "拔出力 / Disengage force：15N~75N", "PV", "5/OTS"],
+                ["主锁解锁力 Lock Deflection", "U5SC4AR22REV6", "向主锁施加解锁力至最大51N", "解锁力 / Unlock force：6N~51N", "PV", "5/OTS"],
+            ],
+            "row_bboxes": [
+                (0.0, 0.0, 240.0, 50.0),
+                (0.0, 50.0, 240.0, 100.0),
+                (0.0, 100.0, 240.0, 150.0),
+                (0.0, 150.0, 240.0, 200.0),
+            ],
+        }
+
+        bbox = table_assets._match_row_slice_bbox(
+            candidate,
+            headers=[],
+            slice_rows=[
+                ["1", "连接器结合力", "连接器插入力 Connector-Connector Mating Force", "USCAR-2 Rev 6 5.4.2", "插拔速度50mm/Min", "插入力 / Engage force：75N Max.", "PV", "15/OTS"],
+                ["1", "连接器结合力", "连接器拔出力 Connector-Connector Unmating Force", "USCAR-2 Rev 6 5.4.2", "破坏卡扣插拔速度50mm/Min", "拔出力 / Disengage force：15N~75N", "PV", "5/OTS"],
+                ["1", "连接器结合力", "主锁解锁力 Lock Deflection", "USCAR-2 Rev 6 5.4.2", "向主锁施加解锁力至最大51N", "解锁力 / Unlock force：6N~51N", "PV", "5/OTS"],
+            ],
+        )
+
+        self.assertEqual(bbox, (0.0, 0.0, 240.0, 200.0))
+
+    def test_row_slice_bbox_uses_full_section_span_for_blank_leading_continuations(self) -> None:
+        candidate = {
+            "bbox": (0.0, 0.0, 240.0, 200.0),
+            "rows_text": [
+                ["62", "耐化学试液", "USCAR-2 Rev 6 5.1.8", "目视检查"],
+                [None, None, "USCAR-2 Rev 6 5.5.1", "绝缘电阻"],
+                [None, None, "USCAR-2 Rev 6 5.6.4", "耐化学试液"],
+                [None, None, "USCAR-2 Rev 6 5.5.1", "绝缘电阻"],
+            ],
+            "row_bboxes": [
+                (0.0, 0.0, 240.0, 50.0),
+                (0.0, 50.0, 240.0, 100.0),
+                (0.0, 100.0, 240.0, 150.0),
+                (0.0, 150.0, 240.0, 200.0),
+            ],
+        }
+
+        bbox = table_assets._match_row_slice_bbox(
+            candidate,
+            headers=["62", "耐化学试液", "USCAR-2 Rev 6 5.1.8", "目视检查"],
+            slice_rows=[
+                ["62", "耐化学试液", "USCAR-2 Rev 6 5.5.1", "绝缘电阻"],
+                ["62", "耐化学试液", "USCAR-2 Rev 6 5.6.4", "耐化学试液"],
+                ["62", "耐化学试液", "USCAR-2 Rev 6 5.5.1", "绝缘电阻"],
+            ],
+        )
+
+        self.assertEqual(bbox, (0.0, 0.0, 240.0, 200.0))
+
+    def test_row_slice_bbox_skips_full_standalone_table_sequences(self) -> None:
+        candidate = {
+            "bbox": (0.0, 0.0, 240.0, 250.0),
+            "rows_text": [
+                ["1", "基本尺寸", "要求一"],
+                ["2", "电磁阀", "要求二"],
+                ["3", "空簧接口", "要求三"],
+                ["4", "下叉臂接口", "要求四"],
+                ["5", "活塞杆接口", "要求五"],
+            ],
+            "row_bboxes": [
+                (0.0, 0.0, 240.0, 50.0),
+                (0.0, 50.0, 240.0, 100.0),
+                (0.0, 100.0, 240.0, 150.0),
+                (0.0, 150.0, 240.0, 200.0),
+                (0.0, 200.0, 240.0, 250.0),
+            ],
+        }
+
+        bbox = table_assets._match_row_slice_bbox(
+            candidate,
+            headers=["序号", "项目", "要求"],
+            slice_rows=[
+                ["1", "基本尺寸", "要求一"],
+                ["2", "电磁阀", "要求二"],
+                ["3", "空簧接口", "要求三"],
+                ["4", "下叉臂接口", "要求四"],
+                ["5", "活塞杆接口", "要求五"],
+            ],
+        )
+
+        self.assertIsNone(bbox)
+
+    def test_context_anchor_prefers_later_page_for_before_context(self) -> None:
+        page_lines = {
+            0: [
+                {
+                    "text": "[√]前减振器、蓄能器等需供应商发货",
+                    "norm": "前减振器蓄能器等需供应商发货",
+                    "bbox": (0.0, 500.0, 120.0, 510.0),
+                }
+            ],
+            1: [
+                {
+                    "text": "前减振器",
+                    "norm": "前减振器",
+                    "bbox": (0.0, 180.0, 80.0, 190.0),
+                }
+            ],
+        }
+
+        def fake_load_lines(document, *, source_key, page_index, detection_cache):
+            return page_lines.get(page_index, [])
+
+        with patch.object(table_assets, "_load_pdf_page_line_records", side_effect=fake_load_lines):
+            anchor = table_assets._find_context_anchor(
+                object(),
+                source_key="dummy",
+                page_indices=[0, 1],
+                candidates=table_assets._build_context_anchor_fragments("前减振器", from_end=True),
+                detection_cache={},
+                prefer_last=True,
+            )
+
+        self.assertIsNotNone(anchor)
+        self.assertEqual(anchor["page_index"], 1)
+        self.assertEqual(anchor["text"], "前减振器")
+
+    def test_context_anchor_fragments_include_short_label_prefix(self) -> None:
+        fragments = table_assets._build_context_anchor_fragments(
+            "备注：0、该表格零部件号与OEM系统内零部件号一致。",
+            from_end=False,
+        )
+        values = [value for value, _ in fragments]
+
+        self.assertIn("备注", values)
 
     def test_exporter_uses_table_refs_without_markdown_roundtrip(self) -> None:
         _, file_path = export_compliance_matrix(
@@ -744,6 +1101,90 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertIsNone(sheet["C5"].value)
         self.assertEqual(len(sheet._images), 1)
         self.assertEqual(meta["TableImageCount"], 1)
+        self.assertGreater(sheet.column_dimensions["C"].width or 0, 170)
+
+    def test_table_ref_snapshot_prefers_source_variant(self) -> None:
+        slice_path = self.tmp_path / "slice.png"
+        source_path = self.tmp_path / "source.png"
+        PILImage.new("RGB", (120, 120), "red").save(slice_path)
+        PILImage.new("RGB", (280, 90), "blue").save(source_path)
+
+        buffer, image_width, image_height, warning = exporter._table_ref_snapshot(
+            {
+                "export_variant": "source",
+                "slice_render_mode": "snapshot_only",
+                "slice_snapshot_path": str(slice_path),
+                "source_snapshot_path": str(source_path),
+                "inherited_headers": [],
+                "slice_rows": [],
+            },
+            640,
+        )
+
+        self.assertIsNotNone(buffer)
+        self.assertEqual((image_width, image_height), (280, 90))
+        self.assertEqual(warning, "")
+
+    def test_exporter_records_warning_when_source_snapshot_missing(self) -> None:
+        _, file_path = export_compliance_matrix(
+            project_name="Workspace Test",
+            customer_name="Customer",
+            requirements=[
+                {
+                    "display_req_code": "REQ0200",
+                    "req_code": "REQ0200",
+                    "parent_section_label": "9.2 Source Fallback",
+                    "raw_text": "导出应回退。",
+                    "content_blocks": [
+                        {"kind": "paragraph", "text": "导出应回退。"},
+                        {"kind": "table", "table_id": "tbl_source_fallback"},
+                    ],
+                    "table_refs": [
+                        {
+                            "table_id": "tbl_source_fallback",
+                            "row_range": [1, 1],
+                            "inherited_headers": ["Item", "Condition"],
+                            "slice_rows": [["Voltage", "12V"]],
+                            "slice_render_mode": "structured",
+                            "slice_ai_projection": "table_id: tbl_source_fallback",
+                            "export_variant": "source",
+                            "recommended_export_variant": "source",
+                            "source_snapshot_path": "",
+                        }
+                    ],
+                    "has_table_asset": True,
+                    "table_render_mode": "structured",
+                    "final_decision": "ACCEPT",
+                    "engineer_reason": "Fallback",
+                }
+            ],
+            export_dir=self.tmp_path / "exports",
+        )
+
+        workbook = load_workbook(file_path)
+        meta = self._version_meta_values(workbook)
+
+        self.assertEqual(meta["TableExportWarningCount"], 1)
+        self.assertIn("source snapshot missing", str(meta["TableExportWarnings"]))
+
+    def test_single_row_pipe_table_slice_is_materialized_as_table_asset(self) -> None:
+        project, document = self._create_project_with_document("-single-row-slice")
+        with patch.object(main, "build_extraction_preview", return_value=_fake_preview_with_single_row_slice_table()):
+            main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
+            workspace = main.get_document_workspace(project["id"], document["id"], include_preview=True)
+
+        requirement = workspace["requirements"][0]
+        self.assertTrue(requirement["has_table_asset"])
+        self.assertEqual(requirement["table_render_mode"], "structured")
+        self.assertEqual(len(requirement["table_refs"]), 1)
+        self.assertEqual(
+            requirement["table_refs"][0]["inherited_headers"],
+            ["序号", "项目", "参考标准", "试验方法", "要求", "DV/PV", "责任方", "样件", "周期"],
+        )
+        self.assertEqual(
+            requirement["table_refs"][0]["slice_rows"],
+            [["1", "外观检查", "-", "目视外观检查", "表面无划伤", "DV/PV", "供应商", "6件/OTS", "1天"]],
+        )
 
     def test_export_requires_locked_extraction(self) -> None:
         project, document = self._create_project_with_document("-export-lock")

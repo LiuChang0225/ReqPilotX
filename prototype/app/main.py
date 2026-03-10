@@ -335,6 +335,15 @@ def get_document_table_asset_snapshot(project_id: str, document_id: str, table_i
     return FileResponse(snapshot_path, media_type="image/png", filename=f"{table_id}.png")
 
 
+@app.get("/api/projects/{project_id}/sor-documents/{document_id}/table-assets/{table_id}/source-snapshot")
+def get_document_table_asset_source_snapshot(project_id: str, document_id: str, table_id: str) -> FileResponse:
+    asset = get_document_table_asset(project_id, document_id, table_id)
+    snapshot_path = Path(str(asset.get("source_snapshot_path") or "").strip())
+    if not snapshot_path.exists():
+        raise HTTPException(status_code=404, detail="Table source snapshot not found.")
+    return FileResponse(snapshot_path, media_type="image/png", filename=f"{table_id}_source.png")
+
+
 @app.post("/api/projects/{project_id}/sor-documents/{document_id}/refresh-preview")
 def refresh_document_preview(project_id: str, document_id: str) -> dict:
     _require_project(project_id)
@@ -618,6 +627,7 @@ def save_review_entry(project_id: str, document_id: str, payload: ReviewedRequir
         normalized,
         document_id=document_id,
         snapshot_root=_table_snapshot_root(document_id),
+        source_file_path=str(document.get("file_path") or ""),
     )
     matched = _find_requirement_for_review_entry(current_requirements, normalized)
     action = "noop"
@@ -856,6 +866,7 @@ def export_project(project_id: str, payload: ExportRequest | None = None) -> dic
     file_name, file_path = export_compliance_matrix(
         project_name=project["name"],
         customer_name=project["customer_name"],
+        source_file_name=str(document.get("file_name") or "") if document else "",
         requirements=requirements,
         export_dir=EXPORTS_DIR,
         version_label=version_label,
@@ -1277,10 +1288,34 @@ def _materialize_document_table_assets(
     *,
     sor_document_id: str,
 ) -> tuple[list[dict], list[dict]]:
+    source_file_path = ""
+    copied_rows = [dict(item) for item in rows]
+    document = db.get_sor_document(sor_document_id)
+    if document:
+        source_file_path = str(document.get("file_path") or "").strip()
+        preview, _ = load_cached_preview(document)
+        preview_spans = {
+            str(item.get("req_code") or "").strip(): item
+            for item in _build_analysis_rows_from_preview(preview or {})
+            if str(item.get("req_code") or "").strip()
+        }
+        for row in copied_rows:
+            req_code = str(row.get("req_code") or "").strip()
+            preview_row = preview_spans.get(req_code)
+            if not preview_row:
+                continue
+            if _coerce_positive_int(row.get("source_page")) <= 0 and _coerce_positive_int(preview_row.get("source_page")) > 0:
+                row["source_page"] = preview_row.get("source_page")
+            if _coerce_positive_int(row.get("source_page_end")) <= 0:
+                preview_end = _coerce_positive_int(preview_row.get("source_page_end"))
+                preview_start = _coerce_positive_int(preview_row.get("source_page"))
+                if preview_end > 0 or preview_start > 0:
+                    row["source_page_end"] = preview_end or preview_start
     return enrich_entries_with_table_assets(
-        [dict(item) for item in rows],
+        copied_rows,
         document_id=sor_document_id,
         snapshot_root=_table_snapshot_root(sor_document_id),
+        source_file_path=source_file_path,
     )
 
 
