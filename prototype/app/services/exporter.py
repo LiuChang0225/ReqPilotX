@@ -27,7 +27,14 @@ _TABLE_CELL_PADDING_Y = 8
 _TABLE_LINE_SPACING = 4
 _TABLE_UNIT_PX = 7
 _TABLE_MIN_COLUMN_UNITS = 10
-_REQUIREMENT_AREA_TOTAL_WIDTH = 88.0
+_FULL_HD_VIEWPORT_WIDTH_PX = 1920
+_REQUIREMENT_FIXED_COLUMN_WIDTHS = {
+    "A": 14.0,
+    "B": 24.0,
+    "D": 18.0,
+    "E": 40.0,
+}
+_MIN_REQUIREMENT_AREA_TOTAL_WIDTH = 88.0
 
 
 @dataclass
@@ -55,6 +62,7 @@ class _WorkbookFormats:
 def export_compliance_matrix(
     project_name: str,
     customer_name: str,
+    source_file_name: str,
     requirements: list[dict[str, Any]],
     export_dir: Path,
     *,
@@ -76,15 +84,18 @@ def export_compliance_matrix(
     ws.hide_gridlines(2)
     ws.freeze_panes(3, 0)
     ws.autofilter(2, 0, 2, 4)
-    ws.set_column("A:A", 14)
-    ws.set_column("B:B", 24)
-    ws.set_column("C:C", _REQUIREMENT_AREA_TOTAL_WIDTH)
-    ws.set_column("D:D", 18)
-    ws.set_column("E:E", 40)
-    requirement_area_width_px = _excel_column_width_to_pixels(_REQUIREMENT_AREA_TOTAL_WIDTH)
+    requirement_area_total_width = _full_hd_requirement_area_width()
+    ws.set_column("A:A", _REQUIREMENT_FIXED_COLUMN_WIDTHS["A"])
+    ws.set_column("B:B", _REQUIREMENT_FIXED_COLUMN_WIDTHS["B"])
+    ws.set_column("C:C", requirement_area_total_width)
+    ws.set_column("D:D", _REQUIREMENT_FIXED_COLUMN_WIDTHS["D"])
+    ws.set_column("E:E", _REQUIREMENT_FIXED_COLUMN_WIDTHS["E"])
+    requirement_area_width_px = _excel_column_width_to_pixels(requirement_area_total_width)
 
     ws.write(0, 0, f"Project: {project_name}", formats.meta_fill)
     ws.write(0, 1, f"Customer: {customer_name}", formats.meta_fill)
+    if source_file_name:
+        ws.write(0, 2, f"File: {source_file_name}", formats.meta_fill)
     ws.set_row(0, 22)
 
     headers = [
@@ -100,8 +111,9 @@ def export_compliance_matrix(
     current_row = 3
     table_image_count = 0
     table_fallback_text_count = 0
+    table_export_warnings: list[str] = []
     for block_index, item in enumerate(requirements, start=1):
-        current_row, block_table_images, block_table_fallbacks = _append_requirement_block(
+        current_row, block_table_images, block_table_fallbacks, block_warnings = _append_requirement_block(
             ws=ws,
             row_index=current_row,
             item=item,
@@ -114,6 +126,7 @@ def export_compliance_matrix(
         )
         table_image_count += block_table_images
         table_fallback_text_count += block_table_fallbacks
+        table_export_warnings.extend(block_warnings)
 
     meta = workbook.add_worksheet("VersionMeta")
     meta.hide_gridlines(2)
@@ -140,6 +153,8 @@ def export_compliance_matrix(
         ),
         ("TableImageCount", table_image_count),
         ("TableFallbackTextCount", table_fallback_text_count),
+        ("TableExportWarningCount", len(table_export_warnings)),
+        ("TableExportWarnings", "\n".join(table_export_warnings)),
     ]
     for row_idx, (label, value) in enumerate(meta_rows):
         meta.write(row_idx, 0, label, formats.meta_label)
@@ -267,7 +282,7 @@ def _append_requirement_block(
     requirement_area_width_px: int,
     row_formats: dict[str, Any],
     decision_format: Any,
-) -> tuple[int, int, int]:
+) -> tuple[int, int, int, list[str]]:
     split = _split_requirement_blocks(_display_requirement_text(item))
     blocks = export_blocks_from_requirement(item) or split.blocks or [("paragraph", "")]
 
@@ -311,6 +326,7 @@ def _append_requirement_block(
     cursor = start_row
     table_image_count = 0
     table_fallback_text_count = split.table_fallback_text_count
+    warnings: list[str] = []
     for kind, payload in blocks:
         if kind == "paragraph":
             text = str(payload or "")
@@ -321,7 +337,14 @@ def _append_requirement_block(
 
         if kind == "table_ref":
             ws.write_blank(cursor, requirement_col, None, row_formats["paragraph"])
-            image_buffer, image_width_px, image_height_px = _table_ref_snapshot(payload, requirement_area_width_px)
+            image_buffer, image_width_px, image_height_px, warning_text = _table_ref_snapshot(
+                payload,
+                requirement_area_width_px,
+            )
+            if warning_text:
+                warnings.append(
+                    f"{str(item.get('display_req_code') or item.get('req_code') or 'UNKNOWN')} / {str(payload.get('table_id') or '')}: {warning_text}"
+                )
             if image_buffer is None:
                 fallback_text = _table_ref_to_text(payload)
                 ws.write(cursor, requirement_col, fallback_text, row_formats["paragraph"])
@@ -375,17 +398,35 @@ def _append_requirement_block(
             table_image_count += 1
         cursor += 1
 
-    return end_row + 1, table_image_count, table_fallback_text_count
+    return end_row + 1, table_image_count, table_fallback_text_count, warnings
 
 
-def _table_ref_snapshot(payload: dict[str, Any], max_width_px: int) -> tuple[BytesIO | None, int, int]:
+def _table_ref_snapshot(payload: dict[str, Any], max_width_px: int) -> tuple[BytesIO | None, int, int, str]:
+    export_variant = str(payload.get("export_variant") or "").strip().lower()
+    if export_variant not in {"slice", "source"}:
+        export_variant = "source" if str(payload.get("source_snapshot_path") or "").strip() else "slice"
+    if export_variant == "source":
+        source_snapshot_path = str(payload.get("source_snapshot_path") or "").strip()
+        if source_snapshot_path:
+            try:
+                raw = load_snapshot_bytes(source_snapshot_path)
+                buffer = BytesIO(raw)
+                image = PILImage.open(BytesIO(raw))
+                return buffer, int(image.width), int(image.height), ""
+            except Exception:
+                pass
+        export_variant = "slice"
+        warning_text = "source snapshot missing, fell back to slice"
+    else:
+        warning_text = ""
+
     snapshot_path = str(payload.get("slice_snapshot_path") or "").strip()
-    if snapshot_path:
+    if snapshot_path and str(payload.get("slice_render_mode") or "").strip().lower() != "structured":
         try:
             raw = load_snapshot_bytes(snapshot_path)
             buffer = BytesIO(raw)
             image = PILImage.open(BytesIO(raw))
-            return buffer, int(image.width), int(image.height)
+            return buffer, int(image.width), int(image.height), warning_text
         except Exception:
             pass
 
@@ -400,10 +441,10 @@ def _table_ref_snapshot(payload: dict[str, Any], max_width_px: int) -> tuple[Byt
             raw = render_table_png(headers, rows, max_width_px=max_width_px)
             buffer = BytesIO(raw)
             image = PILImage.open(BytesIO(raw))
-            return buffer, int(image.width), int(image.height)
+            return buffer, int(image.width), int(image.height), warning_text
         except Exception:
-            return None, 0, 0
-    return None, 0, 0
+            return None, 0, 0, warning_text
+    return None, 0, 0, warning_text
 
 
 def _table_ref_to_text(payload: dict[str, Any]) -> str:
@@ -554,6 +595,20 @@ def _display_requirement_text(item: dict[str, Any]) -> str:
 
 def _excel_column_width_to_pixels(width: float) -> int:
     return int(width * 7 + 5)
+
+
+def _pixels_to_excel_column_width(pixels: int) -> float:
+    return round(max(1, pixels - 5) / 7.0, 2)
+
+
+def _full_hd_requirement_area_width() -> float:
+    fixed_width_px = sum(
+        _excel_column_width_to_pixels(width)
+        for width in _REQUIREMENT_FIXED_COLUMN_WIDTHS.values()
+    )
+    minimum_width_px = _excel_column_width_to_pixels(_MIN_REQUIREMENT_AREA_TOTAL_WIDTH)
+    requirement_width_px = max(minimum_width_px, _FULL_HD_VIEWPORT_WIDTH_PX - fixed_width_px)
+    return _pixels_to_excel_column_width(requirement_width_px)
 
 
 def _pixels_to_row_height_points(pixels: int) -> float:

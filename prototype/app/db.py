@@ -78,6 +78,17 @@ def _normalize_requirement_record(item: dict[str, Any]) -> dict[str, Any]:
     item["merged_from_entry_ids"] = _decode_json_list(item.get("merged_from_entry_ids"))
     item["dedupe_version"] = str(item.get("dedupe_version") or "")
     item["table_refs"] = _decode_json_payload(item.get("table_refs"), default=[])
+    
+    # Force legacy DB entries that defaulted to slice to source if source snapshot exists
+    for ref in item["table_refs"]:
+        if isinstance(ref, dict):
+            export_variant = str(ref.get("export_variant") or "").strip().lower()
+            has_source = bool(str(ref.get("source_snapshot_path") or "").strip())
+            if export_variant == "slice" and has_source:
+                ref["export_variant"] = "source"
+            if str(ref.get("recommended_export_variant") or "").strip().lower() == "slice" and has_source:
+                ref["recommended_export_variant"] = "source"
+                
     item["content_blocks"] = _decode_json_payload(item.get("content_blocks"), default=[])
     item["has_table_asset"] = bool(int(item.get("has_table_asset") or 0))
     item["table_render_mode"] = str(item.get("table_render_mode") or "")

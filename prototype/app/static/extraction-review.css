@@ -169,9 +169,9 @@ body {
   white-space: normal;
   min-width: 0;
   max-width: 100%;
-  word-break: break-word;
-  overflow-wrap: anywhere;
-  line-height: 1.45;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.48;
 }
 
 .req-text .md-text-block {
@@ -233,8 +233,9 @@ body {
   text-align: left;
   vertical-align: top;
   white-space: normal;
-  word-break: break-word;
-  overflow-wrap: anywhere;
+  word-break: normal;
+  overflow-wrap: break-word;
+  line-height: 1.48;
   min-width: 0;
 }
 
@@ -256,6 +257,96 @@ body {
   display: block;
   width: 100%;
   height: auto;
+}
+
+.req-text .table-asset-switcher {
+  margin-top: 6px;
+}
+
+.req-text .table-export-summary {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  margin-bottom: 8px;
+}
+
+.req-text .table-view-toolbar {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+  margin-bottom: 6px;
+}
+
+.req-text .table-view-label {
+  color: #5b6b80;
+  font-size: 0.72rem;
+  font-weight: 600;
+}
+
+.req-text .table-view-recommendation {
+  display: inline-flex;
+  flex-wrap: wrap;
+  gap: 6px;
+  align-items: center;
+}
+
+.req-text .table-export-badge,
+.req-text .table-export-chip {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 3px 9px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+}
+
+.req-text .table-export-badge {
+  color: #0f4e97;
+  background: #e8f2ff;
+  border: 1px solid #bfdbff;
+}
+
+.req-text .table-export-badge.is-slice {
+  color: #22623b;
+  background: #eaf8ef;
+  border: 1px solid #bfe2ca;
+}
+
+.req-text .table-export-chip {
+  color: #41556d;
+  background: #f4f7fb;
+  border: 1px solid #d9e3f0;
+}
+
+.req-text .table-export-chip.is-reason {
+  color: #6b4d00;
+  background: #fff4d9;
+  border-color: #efdaa5;
+}
+
+.req-text .table-view-btn {
+  appearance: none;
+  border: 1px solid #cbd9ea;
+  border-radius: 999px;
+  background: #f5f9ff;
+  color: #214770;
+  font-size: 0.72rem;
+  font-weight: 600;
+  line-height: 1;
+  padding: 6px 10px;
+  cursor: pointer;
+}
+
+.req-text .table-view-btn:hover {
+  background: #eaf3ff;
+}
+
+.req-text .table-view-btn.is-active {
+  border-color: #5b91d6;
+  background: #dfeeff;
+  color: #123d68;
 }
 
 #section-overview-body td:first-child {

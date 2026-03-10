@@ -9,6 +9,7 @@ const state = {
   reviewEntriesRaw: [],
   selectedReq: {},
   showSelectedOnly: false,
+  showRecommendedSourceOnly: false,
   showRawDuplicateRows: false,
   selectedKinds: new Set(),
   rawViewByEntryId: {},
@@ -18,9 +19,10 @@ const state = {
   pdfViewerReady: false,
   pendingPdfCommand: null,
   pdfDrawerOpen: false,
+  tableViewByTableId: {},
 };
-const FRONTEND_BUILD = "20260306-3";
-const PDF_VIEWER_VERSION = "20260306-3";
+const FRONTEND_BUILD = "20260310-2";
+const PDF_VIEWER_VERSION = "20260310-2";
 
 const el = {
   projectSelect: document.querySelector("#project-select"),
@@ -36,6 +38,7 @@ const el = {
   selectAllBtn: document.querySelector("#select-all-btn"),
   unselectAllBtn: document.querySelector("#unselect-all-btn"),
   toggleSelectedBtn: document.querySelector("#toggle-selected-btn"),
+  toggleSourceRecommendedBtn: document.querySelector("#toggle-source-recommended-btn"),
   applyReviewedBtn: document.querySelector("#apply-reviewed-btn"),
   lockReviewedBtn: document.querySelector("#lock-reviewed-btn"),
   selectionStatus: document.querySelector("#selection-status"),
@@ -72,6 +75,9 @@ function bindEvents() {
   el.selectAllBtn.addEventListener("click", () => bulkSelect(true));
   el.unselectAllBtn.addEventListener("click", () => bulkSelect(false));
   el.toggleSelectedBtn.addEventListener("click", toggleSelectedOnly);
+  if (el.toggleSourceRecommendedBtn) {
+    el.toggleSourceRecommendedBtn.addEventListener("click", toggleRecommendedSourceOnly);
+  }
   if (el.applyReviewedBtn) {
     el.applyReviewedBtn.addEventListener("click", wrap(onApplyReviewedExtraction));
   }
@@ -82,7 +88,7 @@ function bindEvents() {
     el.rawRowsToggle.addEventListener("change", onRawRowsToggleChanged);
   }
   el.requirementBody.addEventListener("change", onRequirementSelectionChanged);
-  el.requirementBody.addEventListener("click", onRequirementTableClicked);
+  el.requirementBody.addEventListener("click", wrap(onRequirementTableClicked));
   if (el.openPdfBtn) {
     el.openPdfBtn.addEventListener("click", openPdfInNewWindow);
   }
@@ -158,6 +164,7 @@ async function onProjectChanged() {
   state.documentId = "";
   state.workspace = null;
   state.preview = null;
+  state.tableViewByTableId = {};
   await loadDocuments();
   clearRendered();
 }
@@ -165,6 +172,7 @@ async function onProjectChanged() {
 function onDocumentChanged() {
   state.documentId = el.documentSelect.value;
   state.preview = null;
+  state.tableViewByTableId = {};
   clearRendered();
 }
 
@@ -271,7 +279,9 @@ function clearRendered() {
   state.reviewEntriesRaw = [];
   state.selectedReq = {};
   state.showSelectedOnly = false;
+  state.showRecommendedSourceOnly = false;
   state.showRawDuplicateRows = false;
+  state.showRecommendedSourceOnly = false;
   state.selectedKinds = new Set();
   state.rawViewByEntryId = {};
   state.activeEntryId = "";
@@ -870,6 +880,9 @@ function renderFilteredRequirements() {
         return false;
       }
     }
+    if (state.showRecommendedSourceOnly && !rowHasRecommendedSource(row)) {
+      return false;
+    }
     return true;
   });
 
@@ -894,6 +907,7 @@ function renderFilteredRequirements() {
       const textValue = getRowDisplayText(row);
       const canToggleRaw = canToggleRawText(row);
       const toggleLabel = isRowShowingRaw(entryId, row) ? "查看增量" : "查看原文";
+      const summary = renderTableDecisionSummary(row);
       return `<tr class="${activeClass} ${headingClass}" data-entry-id="${escapeHtml(
         entryId
       )}" data-pdf-page="${escapeHtml(pageAttr)}">
@@ -913,7 +927,12 @@ function renderFilteredRequirements() {
                 entryId
               )}">${toggleLabel}</button></div>`
             : ""
-        }${renderRequirementContent({ ...row, raw_text: textValue, display_text: textValue, requirement_text: textValue })}</td>
+        }${summary}${renderRequirementContent({
+          ...row,
+          raw_text: textValue,
+          display_text: textValue,
+          requirement_text: textValue,
+        })}</td>
         <td>${escapeHtml(span || "-")}</td>
       </tr>`;
     })
@@ -949,6 +968,27 @@ function filterReviewEntries(rows, { sectionFilter = "", keyword = "" } = {}) {
     }
     return true;
   });
+}
+
+function rowHasRecommendedSource(row) {
+  return (Array.isArray(row?.table_refs) ? row.table_refs : []).some(
+    (ref) => String(ref?.recommended_export_variant || "").trim().toLowerCase() === "source"
+  );
+}
+
+function renderTableDecisionSummary(row) {
+  const refs = Array.isArray(row?.table_refs) ? row.table_refs : [];
+  if (!refs.length) {
+    return "";
+  }
+  const selectedSource = refs.filter((ref) => {
+    return String(ref?.export_variant || "source").trim().toLowerCase() === "source" && ref?.source_snapshot_url;
+  }).length;
+  const summaryChips = [
+    `<span class="table-export-badge">共 ${refs.length} 个表格</span>`,
+    `<span class="table-export-chip">当前快照 ${selectedSource}/${refs.length}</span>`,
+  ];
+  return `<div class="table-export-summary">${summaryChips.join("")}</div>`;
 }
 
 function updateSelectionStatus(filteredRows, allRows) {
@@ -1072,6 +1112,12 @@ function toggleSelectedOnly() {
   renderFilteredRequirements();
 }
 
+function toggleRecommendedSourceOnly() {
+  state.showRecommendedSourceOnly = !state.showRecommendedSourceOnly;
+  syncSelectionButtons();
+  renderFilteredRequirements();
+}
+
 function onRawRowsToggleChanged(event) {
   const target = event.target;
   if (!(target instanceof HTMLInputElement)) {
@@ -1184,6 +1230,9 @@ function syncSelectionButtons() {
     return;
   }
   el.toggleSelectedBtn.textContent = state.showSelectedOnly ? "显示全部" : "仅看保留";
+  if (el.toggleSourceRecommendedBtn) {
+    el.toggleSourceRecommendedBtn.textContent = state.showRecommendedSourceOnly ? "显示全部条目" : "仅看推荐截图";
+  }
 }
 
 function syncWorkspaceStageActions() {
@@ -1249,9 +1298,13 @@ function syncEntryKindAcrossViews(entryId, nextKind) {
   });
 }
 
-function onRequirementTableClicked(event) {
+async function onRequirementTableClicked(event) {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  if (await handleTableViewToggle(target)) {
+    event.preventDefault();
     return;
   }
   const toggleBtn = target.closest("button[data-toggle-raw]");
@@ -1273,6 +1326,157 @@ function onRequirementTableClicked(event) {
   const entryId = row.getAttribute("data-entry-id") || "";
   const pageNo = Number(row.getAttribute("data-pdf-page") || 0);
   focusRequirementPdf(entryId, pageNo);
+}
+
+async function handleTableViewToggle(target) {
+  const button = target.closest("button[data-table-variant]");
+  if (!(button instanceof HTMLButtonElement)) {
+    return false;
+  }
+  const tableId = String(button.getAttribute("data-table-id") || "").trim();
+  const variant = String(button.getAttribute("data-table-variant") || "").trim();
+  if (!tableId) {
+    return true;
+  }
+  const nextVariant = variant === "slice" ? "slice" : "source";
+  const affected = await setTableExportVariantAcrossViews(tableId, nextVariant);
+  state.tableViewByTableId[tableId] = nextVariant;
+
+  if (affected && affected.updated_requirement) {
+    const ref = (Array.isArray(affected.updated_requirement.table_refs) ? affected.updated_requirement.table_refs : []).find(r => String(r.table_id) === tableId);
+    if (ref) {
+      document.querySelectorAll(`div.table-asset-switcher[data-table-id="${tableId}"]`).forEach(el => {
+        el.outerHTML = renderTableRef(ref);
+      });
+      document.querySelectorAll(`div.table-export-summary-container[data-req-id="${affected.updated_requirement.id}"]`).forEach(el => {
+        el.innerHTML = renderTableDecisionSummary(affected.updated_requirement);
+      });
+    }
+  }
+  if (!affected) {
+    return true;
+  }
+  try {
+    await saveReviewEntry(affected);
+  } catch (error) {
+    restoreTableExportVariantAcrossViews(tableId, affected.previousVariant);
+    renderFilteredRequirements();
+    if (el.statusLine) {
+      el.statusLine.textContent = normalizeApiError(error, "导出表格选择保存失败，请稍后重试。");
+    }
+  }
+  return true;
+}
+
+function setTableExportVariantAcrossViews(tableId, nextVariant) {
+  const normalized = nextVariant === "source" ? "source" : "slice";
+  let affected = null;
+  [state.reviewEntries, state.reviewEntriesRaw].forEach((rows) => {
+    (rows || []).forEach((row) => {
+      let touched = false;
+      (Array.isArray(row?.table_refs) ? row.table_refs : []).forEach((ref) => {
+        if (String(ref?.table_id || "").trim() !== tableId) {
+          return;
+        }
+        if (!affected) {
+          affected = {
+            entryId: String(row.entry_id || ""),
+            previousVariant: String(ref.export_variant || "").trim().toLowerCase() || "slice",
+            row,
+          };
+        }
+        ref.export_variant = normalized;
+        ref.export_variant_overridden =
+          normalized !== String(ref.recommended_export_variant || "slice").trim().toLowerCase();
+        touched = true;
+      });
+      if (touched) {
+        row.has_table_asset = Boolean(row.has_table_asset);
+      }
+    });
+  });
+  return affected?.row || null;
+}
+
+function restoreTableExportVariantAcrossViews(tableId, previousVariant) {
+  const normalized = previousVariant === "source" ? "source" : "slice";
+  [state.reviewEntries, state.reviewEntriesRaw].forEach((rows) => {
+    (rows || []).forEach((row) => {
+      (Array.isArray(row?.table_refs) ? row.table_refs : []).forEach((ref) => {
+        if (String(ref?.table_id || "").trim() !== tableId) {
+          return;
+        }
+        ref.export_variant = normalized;
+        ref.export_variant_overridden =
+          normalized !== String(ref.recommended_export_variant || "slice").trim().toLowerCase();
+      });
+    });
+  });
+  state.tableViewByTableId[tableId] = normalized;
+}
+
+async function saveReviewEntry(row) {
+  if (!state.projectId || !state.documentId) {
+    return;
+  }
+  const result = await api(`/api/projects/${state.projectId}/sor-documents/${state.documentId}/review-entry`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      entry_id: row.entry_id || "",
+      req_code: row.req_code || "",
+      entry_kind: row.entry_kind || "REQUIREMENT",
+      source_page: Number(row.source_page || 0) || null,
+      source_page_end: Number(row.source_page_end || 0) || null,
+      source_anchor: row.source_anchor || "",
+      requirement_text: row.raw_text || row.requirement_text || row.display_text || "",
+      display_text: row.display_text || row.requirement_text || row.raw_text || "",
+      raw_text: row.raw_text || row.requirement_text || row.display_text || "",
+      requirement_type: row.requirement_type || "FUNCTIONAL",
+      priority: row.priority || "MEDIUM",
+      text_relation: row.text_relation || "distinct",
+      is_deduped: Boolean(row.is_deduped),
+      heading_text: row.heading_text || "",
+      parent_section_code: row.parent_section_code || "",
+      parent_section_title: row.parent_section_title || "",
+      parent_section_label: row.parent_section_label || "",
+      merged_from_req_codes: Array.isArray(row.merged_from_req_codes) ? row.merged_from_req_codes : [],
+      merged_from_entry_ids: Array.isArray(row.merged_from_entry_ids) ? row.merged_from_entry_ids : [],
+      table_refs: Array.isArray(row.table_refs) ? row.table_refs : [],
+      content_blocks: Array.isArray(row.content_blocks) ? row.content_blocks : [],
+      has_table_asset: Boolean(row.has_table_asset),
+      table_render_mode: row.table_render_mode || "",
+      dedupe_version: row.dedupe_version || "",
+      keep: Boolean(row.keep ?? true),
+    }),
+  });
+  state.workspace = {
+    ...(state.workspace || {}),
+    project: result.project || state.workspace?.project,
+    document: result.document || state.workspace?.document,
+    summary: result.summary || state.workspace?.summary,
+    actions: result.actions || state.workspace?.actions,
+  };
+  mergeSavedReviewEntry(result.saved_entry || null);
+  if (el.statusLine) {
+    el.statusLine.textContent = "导出表格选择已保存。";
+  }
+}
+
+function mergeSavedReviewEntry(savedEntry) {
+  if (!savedEntry || typeof savedEntry !== "object") {
+    return;
+  }
+  const key = String(savedEntry.entry_id || savedEntry.req_code || "").trim();
+  [state.reviewEntries, state.reviewEntriesRaw].forEach((rows) => {
+    const index = (rows || []).findIndex((item) => String(item?.entry_id || item?.req_code || "").trim() === key);
+    if (index >= 0) {
+      rows[index] = {
+        ...rows[index],
+        ...savedEntry,
+      };
+    }
+  });
 }
 
 function toggleEntryRawView(entryId) {
@@ -1484,28 +1688,94 @@ function renderTableRef(ref) {
   if (!ref) {
     return "";
   }
+  const tableId = String(ref.table_id || "").trim();
+  const variant = activeTableVariant(ref);
   const headers = Array.isArray(ref.inherited_headers) ? ref.inherited_headers : [];
   const rows = Array.isArray(ref.slice_rows) ? ref.slice_rows.filter((row) => Array.isArray(row)) : [];
-  if (String(ref.slice_render_mode || "") === "structured" && headers.length) {
-    return renderStructuredTable(headers, rows);
+  const sliceLabel =
+    String(ref.slice_render_mode || "") === "structured" && headers.length ? "结构化切片" : "切片快照";
+  let content = "";
+  if (variant === "source" && ref.source_snapshot_url) {
+    content = renderTableSnapshot(ref.source_snapshot_url, "source table snapshot");
+  } else if (String(ref.slice_render_mode || "") === "structured" && headers.length) {
+    content = renderStructuredTable(headers, rows);
+  } else if (ref.slice_snapshot_url) {
+    content = renderTableSnapshot(ref.slice_snapshot_url, "table snapshot");
+  } else {
+    content = `<div class="md-text-block">${escapeHtml(String(ref.slice_ai_projection || "")).replaceAll("\n", "<br>")}</div>`;
   }
-  if (ref.slice_snapshot_url) {
-    return `<div class="asset-snapshot-wrap"><img class="asset-snapshot" src="${escapeHtml(
-      ref.slice_snapshot_url
-    )}" alt="table snapshot" loading="lazy" /></div>`;
+  if (!ref.source_snapshot_url || !tableId) {
+    return `${content}`;
   }
-  return `<div class="md-text-block">${escapeHtml(String(ref.slice_ai_projection || "")).replaceAll("\n", "<br>")}</div>`;
+  return `
+    <div class="table-asset-switcher" data-table-id="${escapeHtml(tableId)}">
+      <div class="table-view-toolbar">
+        <span class="table-view-label">导出内容</span>
+        <button type="button" class="table-view-btn${variant === "slice" ? " is-active" : ""}" data-table-id="${escapeHtml(
+          tableId
+        )}" data-table-variant="slice">表格</button>
+        <button type="button" class="table-view-btn${variant === "source" ? " is-active" : ""}" data-table-id="${escapeHtml(
+          tableId
+        )}" data-table-variant="source">原文截图</button>
+      </div>
+      ${content}
+    </div>
+  `;
+}
+
+function activeTableVariant(ref) {
+  const tableId = String(ref?.table_id || "").trim();
+  if (!tableId) {
+    return ref?.source_snapshot_url ? "source" : "slice";
+  }
+  const preferred = state.tableViewByTableId[tableId];
+  if (preferred === "source" || preferred === "slice") {
+    if (preferred === "source" && !ref?.source_snapshot_url) {
+      return "slice";
+    }
+    return preferred;
+  }
+  const dbVariant = String(ref?.export_variant || "").trim().toLowerCase();
+  if (dbVariant === "source" || dbVariant === "slice") {
+    if (dbVariant === "source" && !ref?.source_snapshot_url) {
+      return "slice";
+    }
+    return dbVariant;
+  }
+  return ref?.source_snapshot_url ? "source" : "slice";
+}
+
+function renderTableSnapshot(url, altText) {
+  return `<div class="asset-snapshot-wrap"><img class="asset-snapshot" src="${escapeHtml(
+    url
+  )}" alt="${escapeHtml(altText)}" loading="lazy" /></div>`;
 }
 
 function renderStructuredTable(headers, rows) {
-  const head = headers.map((cell) => `<th>${escapeHtml(String(cell || ""))}</th>`).join("");
-  const body = rows
+  const colCount = Math.max(
+    Array.isArray(headers) ? headers.length : 0,
+    ...rows.map((row) => (Array.isArray(row) ? row.length : 0)),
+    0
+  );
+  if (!colCount) {
+    return "";
+  }
+  const normalizedHeaders = Array.from({ length: colCount }, (_, idx) => String((headers && headers[idx]) || "").trim());
+  const normalizedRows = rows.map((row) =>
+    Array.from({ length: colCount }, (_, idx) => String((row && row[idx]) || "").trim())
+  );
+  const colPercents = computeMarkdownTableColumnPercents(normalizedHeaders, normalizedRows, colCount);
+  const colgroup = colPercents.length
+    ? `<colgroup>${colPercents.map((pct) => `<col style="width:${pct.toFixed(2)}%">`).join("")}</colgroup>`
+    : "";
+  const head = normalizedHeaders.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("");
+  const body = normalizedRows
     .map(
       (row) =>
         `<tr>${row.map((cell) => `<td>${escapeHtml(String(cell || ""))}</td>`).join("")}</tr>`
     )
     .join("");
-  return `<div class="md-table-wrap asset-table-wrap"><table class="md-table asset-table"><thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  return `<div class="md-table-wrap asset-table-wrap"><table class="md-table asset-table md-table-accurate">${colgroup}<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
 }
 
 function looksLikeMarkdownTableRow(line) {
@@ -1679,7 +1949,7 @@ function computeMarkdownTableColumnPercents(head, body, colCount) {
 
   const total = weights.reduce((acc, item) => acc + item, 0) || 1;
   const minPct = cols >= 10 ? 4.2 : cols >= 8 ? 5.0 : 6.0;
-  const maxPct = cols >= 10 ? 35 : 42;
+  const maxPct = cols >= 10 ? 33 : 40;
   const itemMaxPct = cols >= 10 ? 14 : cols >= 8 ? 16 : cols >= 6 ? 20 : 28;
   let percents = weights.map((w) => (w / total) * 100);
   percents = percents.map((pct, idx) => {
@@ -1691,6 +1961,37 @@ function computeMarkdownTableColumnPercents(head, body, colCount) {
     }
     return Math.max(minPct, Math.min(maxPct, pct));
   });
+
+  const detailIndexes = labels
+    .map((label, idx) => (isDetailColumn(label) ? idx : -1))
+    .filter((idx) => idx >= 0);
+  if (detailIndexes.length) {
+    const targetCombined = Math.min(detailIndexes.length * (cols >= 10 ? 18 : cols >= 8 ? 20 : 22), 62);
+    const currentCombined = detailIndexes.reduce((acc, idx) => acc + percents[idx], 0);
+    if (currentCombined < targetCombined) {
+      const deficit = targetCombined - currentCombined;
+      const donorIndexes = labels
+        .map((label, idx) => ({ idx, label }))
+        .filter(({ idx }) => !detailIndexes.includes(idx) && !isSerialColumn(labels[idx], idx))
+        .map(({ idx }) => idx);
+      const available = donorIndexes.map((idx) => {
+        const floor = isTerseColumn(labels[idx]) ? Math.max(4.0, minPct - 1.0) : minPct;
+        return Math.max(0, percents[idx] - floor);
+      });
+      const totalAvailable = available.reduce((acc, item) => acc + item, 0);
+      if (totalAvailable > 0.01) {
+        donorIndexes.forEach((idx, offset) => {
+          percents[idx] -= deficit * (available[offset] / totalAvailable);
+        });
+        const extraPerDetail = deficit / detailIndexes.length;
+        detailIndexes.forEach((idx) => {
+          percents[idx] += extraPerDetail;
+        });
+      }
+    }
+  }
+
+  rebalanceContentColumns(percents, labels, minPct, maxPct);
 
   let sum = percents.reduce((acc, item) => acc + item, 0) || 1;
   if (Math.abs(sum - 100) < 0.01) {
@@ -1736,7 +2037,9 @@ function isSerialColumn(label, index) {
 
 function isDetailColumn(label) {
   const value = String(label || "").trim().toLowerCase();
-  return /(要求|描述|内容|说明|备注|requirements?|description|detail|测试条件|试验内容)/i.test(value);
+  return /(要求|描述|内容|说明|备注|方法|条件|requirements?|description|detail|method|procedure|测试条件|试验内容|试验方法)/i.test(
+    value
+  );
 }
 
 function isItemColumn(label) {
@@ -1746,7 +2049,82 @@ function isItemColumn(label) {
 
 function isTerseColumn(label) {
   const value = String(label || "").trim().toLowerCase();
-  return /(次数|时间|天|结果|状态|结论|周期|sample|qty|数量|顺序|对象)/i.test(value);
+  return /(次数|时间|天|结果|状态|结论|周期|sample|qty|数量|顺序|对象|责任方|样件|dv\/pv|标准)/i.test(value);
+}
+
+function rebalanceContentColumns(percents, labels, minPct, maxPct) {
+  const detailIndexes = labels
+    .map((label, idx) => (isDetailColumn(label) ? idx : -1))
+    .filter((idx) => idx >= 0);
+  if (!detailIndexes.length) {
+    return;
+  }
+
+  const primaryIndexes = labels
+    .map((label, idx) => (isPrimaryDetailColumn(label) ? idx : -1))
+    .filter((idx) => idx >= 0);
+  const donorIndexes = labels
+    .map((label, idx) => idx)
+    .filter((idx) => !detailIndexes.includes(idx) && !isSerialColumn(labels[idx], idx));
+  if (!donorIndexes.length) {
+    return;
+  }
+
+  const desiredDetailMin = detailIndexes.length >= 2 ? 46 : 30;
+  const desiredPrimaryMin = primaryIndexes.length >= 2 ? 36 : primaryIndexes.length ? 22 : 0;
+  shiftWidthToTargets(percents, labels, donorIndexes, detailIndexes, desiredDetailMin, minPct);
+  shiftWidthToTargets(percents, labels, donorIndexes, primaryIndexes, desiredPrimaryMin, minPct);
+
+  percents.forEach((pct, idx) => {
+    if (isPrimaryDetailColumn(labels[idx])) {
+      percents[idx] = Math.min(maxPct, Math.max(colsAwareFloor(labels.length, idx, labels), pct));
+    }
+  });
+}
+
+function shiftWidthToTargets(percents, labels, donorIndexes, targetIndexes, desiredMin, minPct) {
+  if (!targetIndexes.length) {
+    return;
+  }
+  const current = targetIndexes.reduce((acc, idx) => acc + percents[idx], 0);
+  if (current >= desiredMin) {
+    return;
+  }
+  const deficit = desiredMin - current;
+  const availability = donorIndexes.map((idx) => {
+    const floor = isTerseColumn(labels[idx]) ? Math.max(4.0, minPct - 1.0) : minPct;
+    return Math.max(0, percents[idx] - floor);
+  });
+  const totalAvailable = availability.reduce((acc, item) => acc + item, 0);
+  if (totalAvailable <= 0.01) {
+    return;
+  }
+  donorIndexes.forEach((idx, offset) => {
+    percents[idx] -= deficit * (availability[offset] / totalAvailable);
+  });
+  const targetWeights = targetIndexes.map((idx) => (isPrimaryDetailColumn(labels[idx]) ? 1.2 : 1.0));
+  const targetTotal = targetWeights.reduce((acc, item) => acc + item, 0) || 1;
+  targetIndexes.forEach((idx, offset) => {
+    percents[idx] += deficit * (targetWeights[offset] / targetTotal);
+  });
+}
+
+function colsAwareFloor(colCount, index, labels) {
+  if (isSerialColumn(labels[index], index)) {
+    return 3.8;
+  }
+  if (isPrimaryDetailColumn(labels[index])) {
+    return colCount >= 10 ? 14 : colCount >= 8 ? 16 : 18;
+  }
+  if (isDetailColumn(labels[index])) {
+    return colCount >= 10 ? 10 : colCount >= 8 ? 12 : 14;
+  }
+  return colCount >= 10 ? 4.2 : colCount >= 8 ? 5 : 6;
+}
+
+function isPrimaryDetailColumn(label) {
+  const value = String(label || "").trim().toLowerCase();
+  return /(试验方法|测试方法|方法|procedure|method|要求|需求|criteria|requirement)/i.test(value);
 }
 
 function detectMergeColumns(head) {
