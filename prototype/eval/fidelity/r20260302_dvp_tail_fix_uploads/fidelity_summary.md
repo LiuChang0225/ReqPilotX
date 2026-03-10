@@ -1,6 +1,6 @@
 # Fidelity Benchmark
 
-- PDF dir: `/Users/liuchang/Documents/New project/prototype/storage/uploads`
+- PDF dir: `/Users/liuchang/Documents/ReqPilotX/prototype/storage/uploads`
 - Target docs: `8`
 - Checks: `128/128`
 - Score: `100.00%`
