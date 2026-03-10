@@ -1,0 +1,187 @@
+from __future__ import annotations
+
+import json
+import logging
+import threading
+from concurrent.futures import ThreadPoolExecutor
+from datetime import datetime, timezone
+from pathlib import Path
+from typing import Any
+
+from app import db
+from app.services.extraction_preview import build_extraction_preview
+
+logger = logging.getLogger(__name__)
+
+_PREVIEW_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="preview-cache")
+_PREVIEW_LOCK = threading.Lock()
+_ACTIVE_REFRESHES: set[str] = set()
+
+
+def _now_iso() -> str:
+    return datetime.now(timezone.utc).isoformat()
+
+
+def _preview_dir() -> Path:
+    path = db.STORAGE_DIR / "previews"
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def preview_cache_path(document_id: str) -> Path:
+    return _preview_dir() / f"{document_id}.json"
+
+
+def _source_mtime_token(file_path: str) -> str:
+    path = Path(str(file_path or "").strip())
+    try:
+        return str(path.stat().st_mtime_ns)
+    except OSError:
+        return ""
+
+
+def get_preview_cache_state(document: dict | None) -> dict[str, Any]:
+    if not isinstance(document, dict):
+        return {
+            "preview_status": "NOT_READY",
+            "preview_generated_at": "",
+            "preview_cache_hit": False,
+            "preview_error": "",
+            "preview_file_mtime": "",
+        }
+
+    document_id = str(document.get("id") or "").strip()
+    file_path = str(document.get("file_path") or "").strip()
+    stored_status = str(document.get("preview_status") or "NOT_READY").strip().upper() or "NOT_READY"
+    stored_generated_at = str(document.get("preview_generated_at") or "")
+    stored_error = str(document.get("preview_error") or "")
+    stored_token = str(document.get("preview_file_mtime") or "")
+    current_token = _source_mtime_token(file_path)
+    cache_path = preview_cache_path(document_id) if document_id else None
+    cache_exists = bool(cache_path and cache_path.exists())
+
+    status = stored_status
+    if current_token and stored_token and current_token != stored_token:
+        status = "STALE"
+    elif cache_exists and stored_status in {"NOT_READY", "FAILED"}:
+        status = stored_status
+    elif not cache_exists and stored_status == "READY":
+        status = "STALE"
+
+    return {
+        "preview_status": status,
+        "preview_generated_at": stored_generated_at,
+        "preview_cache_hit": cache_exists,
+        "preview_error": stored_error,
+        "preview_file_mtime": current_token or stored_token,
+    }
+
+
+def load_cached_preview(document: dict | None) -> tuple[dict | None, dict[str, Any]]:
+    meta = get_preview_cache_state(document)
+    if not isinstance(document, dict):
+        return None, meta
+
+    document_id = str(document.get("id") or "").strip()
+    if not document_id:
+        return None, meta
+
+    cache_path = preview_cache_path(document_id)
+    if not cache_path.exists():
+        meta["preview_cache_hit"] = False
+        return None, meta
+
+    try:
+        preview = json.loads(cache_path.read_text(encoding="utf-8"))
+    except Exception as exc:  # pragma: no cover - corrupted cache path is rare but must fail safe
+        logger.warning("Failed to read cached preview for %s: %s", document_id, exc)
+        meta["preview_status"] = "FAILED"
+        meta["preview_cache_hit"] = False
+        meta["preview_error"] = f"cached preview read failed: {exc}"
+        return None, meta
+
+    meta["preview_cache_hit"] = True
+    return preview, meta
+
+
+def persist_preview_cache(document: dict | None, preview: dict[str, Any]) -> dict[str, Any]:
+    if not isinstance(document, dict):
+        return {}
+    document_id = str(document.get("id") or "").strip()
+    file_path = str(document.get("file_path") or "").strip()
+    if not document_id or not file_path:
+        return {}
+
+    cache_path = preview_cache_path(document_id)
+    temp_path = cache_path.with_suffix(".tmp")
+    temp_path.write_text(json.dumps(preview, ensure_ascii=False), encoding="utf-8")
+    temp_path.replace(cache_path)
+    generated_at = _now_iso()
+    token = _source_mtime_token(file_path)
+    return db.update_sor_document_preview_state(
+        document_id,
+        preview_status="READY",
+        preview_generated_at=generated_at,
+        preview_file_mtime=token,
+        preview_error="",
+    )
+
+
+def mark_preview_stale(document: dict | None) -> dict[str, Any]:
+    if not isinstance(document, dict):
+        return {}
+    document_id = str(document.get("id") or "").strip()
+    if not document_id:
+        return {}
+    return db.update_sor_document_preview_state(
+        document_id,
+        preview_status="STALE",
+        preview_error="",
+    )
+
+
+def request_preview_refresh(document: dict | None, *, force: bool = False) -> dict[str, Any]:
+    if not isinstance(document, dict):
+        return {"accepted": False, "preview_status": "NOT_READY"}
+    document_id = str(document.get("id") or "").strip()
+    file_path = str(document.get("file_path") or "").strip()
+    if not document_id or not file_path:
+        return {"accepted": False, "preview_status": "FAILED", "preview_error": "Missing preview source file."}
+
+    meta = get_preview_cache_state(document)
+    status = str(meta.get("preview_status") or "NOT_READY").upper()
+    if not force and status == "BUILDING":
+        return {"accepted": False, **meta}
+
+    with _PREVIEW_LOCK:
+        if document_id in _ACTIVE_REFRESHES:
+            current = db.update_sor_document_preview_state(document_id, preview_status="BUILDING", preview_error="")
+            current_meta = get_preview_cache_state(current or document)
+            return {"accepted": False, **current_meta}
+        _ACTIVE_REFRESHES.add(document_id)
+
+    current = db.update_sor_document_preview_state(document_id, preview_status="BUILDING", preview_error="")
+    _PREVIEW_EXECUTOR.submit(_run_preview_refresh, document_id, file_path)
+    return {"accepted": True, **get_preview_cache_state(current or document)}
+
+
+def _run_preview_refresh(document_id: str, file_path: str) -> None:
+    try:
+        preview = build_extraction_preview(
+            file_path,
+            document_id=document_id,
+            snapshot_root=db.STORAGE_DIR / "table_snapshots" / document_id,
+        )
+        document = db.get_sor_document(document_id)
+        if document:
+            persist_preview_cache(document, preview)
+    except Exception as exc:  # pragma: no cover - failure path is integration-level
+        logger.exception("Preview refresh failed for %s", document_id)
+        db.update_sor_document_preview_state(
+            document_id,
+            preview_status="FAILED",
+            preview_error=str(exc)[:500],
+        )
+    finally:
+        with _PREVIEW_LOCK:
+            _ACTIVE_REFRESHES.discard(document_id)

@@ -1,0 +1,10 @@
+pdf_name,issue_type,severity,section_code,detail
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,suspicious_heading,medium,5.1.8.2.2,table_like_title
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,suspicious_heading,medium,5.1.8.2.3,table_like_title
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,suspicious_heading,medium,4.5,table_like_title
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,suspicious_heading,medium,14.5,table_like_title
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.6,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.7,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.8,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,1.1.3,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,1.1.4,late_low_major

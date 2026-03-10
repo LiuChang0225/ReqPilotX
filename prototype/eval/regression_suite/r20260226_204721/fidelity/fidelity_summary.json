@@ -1,0 +1,15 @@
+{
+  "pdf_dir": "/Users/liuchang/Downloads/Test pdf",
+  "target_docs": 2,
+  "skipped_docs_count": 5,
+  "checks_passed": 26,
+  "checks_total": 26,
+  "score_pct": 100.0,
+  "failed_docs": 0,
+  "matched_profiles": [
+    "q_jly_core",
+    "sor_baic_core"
+  ],
+  "missing_profiles": [],
+  "overall_pass": true
+}

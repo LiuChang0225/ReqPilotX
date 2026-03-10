@@ -1,0 +1,21 @@
+{
+  "pdf_dir": "/private/tmp/strict_reg_pack",
+  "target_docs": 3,
+  "skipped_docs_count": 0,
+  "checks_passed": 64,
+  "checks_total": 66,
+  "score_pct": 96.97,
+  "failed_docs": 1,
+  "matched_profiles": [
+    "pds_de_active_damper_v1_0",
+    "q_jly_core",
+    "sor_baic_core"
+  ],
+  "missing_profiles": [
+    "esigned_emc_88033918",
+    "esigned_et_88033919",
+    "pds_de_oil_pump_v1_1",
+    "qc_t_1067_monitor"
+  ],
+  "overall_pass": false
+}

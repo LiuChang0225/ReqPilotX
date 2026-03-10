@@ -1,0 +1,14 @@
+{
+  "pdf_dir": "/Users/liuchang/Documents/New project/prototype/storage/uploads",
+  "docs": 9,
+  "checks_passed": 41,
+  "checks_total": 46,
+  "gate_score_pct": 89.13,
+  "high_severity_issues": 26,
+  "gate_pass": false,
+  "gate_failure_reasons": [
+    "gate_score_pct=89.13 < 95.00",
+    "high_severity_issues=26 > 0"
+  ],
+  "split_metric_confidence": null
+}

@@ -1,0 +1,70 @@
+{
+  "defaults": {
+    "late_low_major_page_threshold": 30,
+    "max_duplicate_code_count": 2,
+    "max_suspicious_heading_ratio": 0.03,
+    "max_sibling_gap_alerts": 3,
+    "min_outline_count": 20,
+    "require_strict_merge_mode": true,
+    "max_line_injection_count": 0,
+    "max_line_reorder_count": 0
+  },
+  "profiles": [
+    {
+      "name": "q_jly_2024",
+      "file_name_regex": "Q-JLY\\s+J7111029E-2024",
+      "required_codes": [
+        "3.1",
+        "3.2",
+        "3.3",
+        "3.4",
+        "3.5",
+        "3.6",
+        "3.7",
+        "3.8",
+        "3.9",
+        "4.6.2",
+        "4.6.4",
+        "4.6.5",
+        "4.6.6",
+        "4.6.7",
+        "4.6.8"
+      ],
+      "guard_sections": [
+        "5.1.12.2",
+        "5.1.14.2",
+        "5.3.9.4.3"
+      ]
+    },
+    {
+      "name": "pds_de_active_damper_v1_0",
+      "file_name_regex": "全主动减振器总成-V1\\.0-20251127",
+      "required_codes": [
+        "1",
+        "1.1",
+        "2",
+        "2.1",
+        "3",
+        "3.1",
+        "3.2.1",
+        "3.2.2",
+        "4",
+        "4.1",
+        "5",
+        "5.7",
+        "6",
+        "6.9",
+        "T:1",
+        "U:1",
+        "U:63",
+        "Y:1",
+        "Y:17"
+      ],
+      "guard_sections": [
+        "3.2.2",
+        "5.7",
+        "6.9"
+      ]
+    }
+  ]
+}

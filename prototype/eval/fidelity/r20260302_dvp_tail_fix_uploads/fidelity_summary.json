@@ -1,0 +1,21 @@
+{
+  "pdf_dir": "/Users/liuchang/Documents/New project/prototype/storage/uploads",
+  "target_docs": 8,
+  "skipped_docs_count": 0,
+  "checks_passed": 128,
+  "checks_total": 128,
+  "score_pct": 100.0,
+  "failed_docs": 0,
+  "matched_profiles": [
+    "pds_de_active_damper_v1_0",
+    "q_jly_core",
+    "sor_baic_core"
+  ],
+  "missing_profiles": [
+    "esigned_emc_88033918",
+    "esigned_et_88033919",
+    "pds_de_oil_pump_v1_1",
+    "qc_t_1067_monitor"
+  ],
+  "overall_pass": true
+}

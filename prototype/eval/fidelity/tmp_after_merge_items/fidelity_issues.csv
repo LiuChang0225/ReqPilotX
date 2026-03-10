@@ -1,0 +1,22 @@
+pdf_name,profile,issue_type,severity,appendix_scope,section_code,detail
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,section_count_too_low,high,,,sections=1 min=30
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,requirement_count_too_low,high,,,requirements=1 min=28
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,section_count_drift,medium,,,sections=1 expected=34 drift=33
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,requirement_count_drift,medium,,,requirements=1 expected=32 drift=31
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,required_code_missing,high,,1.4.1,required scoped code missing
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,required_code_missing,high,,1.4.2,required scoped code missing
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,required_code_missing,high,,1.4.2.1,required scoped code missing
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,required_code_missing,high,,1.5,required scoped code missing
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,required_code_missing,high,,1.6,required scoped code missing
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,required_code_missing,high,,1.7,required scoped code missing
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,required_code_missing,high,,1.8,required scoped code missing
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,required_code_missing,high,,1.9.2,required scoped code missing
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,required_title_missing_code,high,,1.4.1,title check missing code; need contains 'Sample concept'
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,required_title_missing_code,high,,1.4.2,title check missing code; need contains 'Voltage Ranges'
+eSigned_ET_88033919_FIL_000_AA 3.pdf,esigned_et_88033919,required_title_missing_code,high,,1.9.2,title check missing code; need contains 'Tolerance Definition'
+产品设计规格说明书（PDS）-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,requirement_count_too_low,high,,,requirements=225 min=300
+产品设计规格说明书（PDS）-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,requirement_count_drift,medium,,,requirements=225 expected=331 drift=106
+产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,section_count_too_low,high,,,sections=52 min=80
+产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,requirement_count_too_low,high,,,requirements=45 min=70
+产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,section_count_drift,medium,,,sections=52 expected=91 drift=39
+产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,requirement_count_drift,medium,,,requirements=45 expected=151 drift=106

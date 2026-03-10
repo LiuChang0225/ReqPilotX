@@ -1,0 +1,4 @@
+Platform startup latency in cold condition is 120ms P95, target can be negotiated to 150ms with customer agreement.
+CAN interface supports 500kbps and 1Mbps modes in current hardware.
+Safety artifacts follow ISO 26262 workflow for ASIL-B and ASIL-C projects.
+OTA update module supports rollback after validation failure.

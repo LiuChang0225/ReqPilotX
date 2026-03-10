@@ -1,0 +1,75 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>Phase-0 条目拆解标注台</title>
+    <link rel="stylesheet" href="/assets/styles.css" />
+    <link rel="stylesheet" href="/assets/phase0-review.css" />
+  </head>
+  <body>
+    <main class="page phase0-page">
+      <header class="hero">
+        <h1>Phase-0 标注工作台（准确率优先）</h1>
+        <p>只需标注条目是否真实需求、拆分是否正确、类型是否正确。支持批量保存和刷新基线报告。</p>
+      </header>
+
+      <section class="panel controls-panel">
+        <div class="controls-grid">
+          <label>
+            Phase0 目录
+            <input id="phase0-dir" value="eval/iterations/r27" />
+          </label>
+          <label>
+            Top Pages
+            <input id="top-pages" type="number" min="1" max="200" value="30" />
+          </label>
+          <label>
+            标注人
+            <input id="annotator" placeholder="你的名字" />
+          </label>
+          <label class="inline-check">
+            <input id="include-done" type="checkbox" />
+            显示已完成条目
+          </label>
+        </div>
+        <div class="actions">
+          <button id="reload-btn" type="button">加载队列</button>
+          <button id="save-btn" type="button">保存变更</button>
+          <button id="refresh-report-btn" type="button">刷新基线报告</button>
+        </div>
+        <p class="hint" id="status-text"></p>
+      </section>
+
+      <section class="panel progress-panel">
+        <h2>进度</h2>
+        <div id="progress-text" class="hint"></div>
+      </section>
+
+      <section class="panel">
+        <h2>条目标注</h2>
+        <div class="table-wrap">
+          <table id="review-table">
+            <thead>
+              <tr>
+                <th>Sample</th>
+                <th>来源</th>
+                <th>条目文本</th>
+                <th>自动类型</th>
+                <th>真实需求</th>
+                <th>拆分正确</th>
+                <th>类型正确</th>
+                <th>错误标签</th>
+                <th>备注</th>
+                <th>快捷</th>
+              </tr>
+            </thead>
+            <tbody></tbody>
+          </table>
+        </div>
+      </section>
+    </main>
+
+    <script type="module" src="/assets/phase0-review.js"></script>
+  </body>
+</html>

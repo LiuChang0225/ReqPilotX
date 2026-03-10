@@ -1,0 +1,14 @@
+{
+  "pdf_dir": "/Users/liuchang/Downloads/Test pdf",
+  "docs": 6,
+  "checks_passed": 25,
+  "checks_total": 26,
+  "gate_score_pct": 96.15,
+  "split_metric_confidence": {
+    "n": 8,
+    "k": 8,
+    "point_estimate": 1.0,
+    "wilson_low": 0.6755843804891231,
+    "wilson_high": 1.0
+  }
+}

@@ -1,0 +1,3 @@
+old_item_id,new_item_id,sample_id,section_old,section_new,old_span,new_span,old_type,new_type,text_similarity,old_split_label,old_type_label,notes
+SF01BE62BDF-I001,SF01BE62BDF-I001,SF01BE62BDF,3.8,3.8,19-20,19-21,PERFORMANCE,TEST,0.7109,1,1,正确。只不过还是之前的问题，表格图片的提取功能。
+SFA4D68B149-I001,SFA4D68B149-I006,SFA4D68B149,5.1.16.2,5.1.16.2,43-44,43-44,PERFORMANCE,TEST,0.7488,1,0,拆分正确，文字提取正确，问题还是在表格提取功能

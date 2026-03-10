@@ -1,0 +1,68 @@
+/* 
+  Custom Overrides for Apple Aesthetic
+  (Most layout is handled by Tailwind CSS in HTML, this is for specific effects)
+*/
+
+:root {
+  --apple-accent: #0077ed;
+  --apple-accent-dark: #0066cc;
+}
+
+/* Base Body tweaks */
+body {
+  -webkit-font-smoothing: antialiased;
+  -moz-osx-font-smoothing: grayscale;
+}
+
+/* Glassmorphism Classes */
+.glass-nav {
+  background: rgba(255, 255, 255, 0.75);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+.glass-panel {
+  background: rgba(255, 255, 255, 0.85);
+  backdrop-filter: saturate(180%) blur(20px);
+  -webkit-backdrop-filter: saturate(180%) blur(20px);
+}
+
+/* Micro-interactions */
+.bento-card {
+  box-shadow: 0 4px 24px -6px rgba(0, 0, 0, 0.04);
+}
+.bento-card:hover {
+  box-shadow: 0 12px 32px -4px rgba(0, 0, 0, 0.08);
+  transform: translateY(-2px);
+}
+
+.apple-btn-primary {
+  box-shadow: 0 4px 14px 0 rgba(0, 0, 0, 0.1);
+  transition: all 0.2s cubic-bezier(0.25, 1, 0.5, 1);
+}
+.apple-btn-primary:hover {
+  box-shadow: 0 6px 20px rgba(0, 0, 0, 0.15);
+}
+
+/* Lenis/Smooth Scroll reset if needed */
+html.lenis {
+  height: auto;
+}
+.lenis.lenis-smooth {
+  scroll-behavior: auto;
+}
+
+/* Hide scrollbar for a cleaner look sometimes preferred */
+::-webkit-scrollbar {
+  width: 8px;
+}
+::-webkit-scrollbar-track {
+  background: transparent;
+}
+::-webkit-scrollbar-thumb {
+  background: #d1d1d6;
+  border-radius: 4px;
+}
+::-webkit-scrollbar-thumb:hover {
+  background: #8e8e93;
+}

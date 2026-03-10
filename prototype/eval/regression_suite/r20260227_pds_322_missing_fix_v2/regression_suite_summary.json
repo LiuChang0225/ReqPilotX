@@ -1,0 +1,31 @@
+{
+  "run_id": "r20260227_pds_322_missing_fix_v2",
+  "timestamp": "2026-02-27T15:32:12",
+  "pdf_dir": "/Users/liuchang/Downloads/Test pdf",
+  "exclude_name_regex": [
+    "(?i)print_21033420",
+    "PRINT_21033420"
+  ],
+  "paths": {
+    "quality_summary_json": "/Users/liuchang/Documents/New project/prototype/eval/regression_suite/r20260227_pds_322_missing_fix_v2/quality_gate/structural_quality_summary.json",
+    "fidelity_summary_json": "/Users/liuchang/Documents/New project/prototype/eval/regression_suite/r20260227_pds_322_missing_fix_v2/fidelity/fidelity_summary.json",
+    "quality_summary_md": "/Users/liuchang/Documents/New project/prototype/eval/regression_suite/r20260227_pds_322_missing_fix_v2/quality_gate/structural_quality_summary.md",
+    "fidelity_summary_md": "/Users/liuchang/Documents/New project/prototype/eval/regression_suite/r20260227_pds_322_missing_fix_v2/fidelity/fidelity_summary.md"
+  },
+  "quality_gate": {
+    "docs": 7,
+    "checks_passed": 30,
+    "checks_total": 30,
+    "gate_score_pct": 100.0,
+    "high_severity_issues": 0,
+    "gate_pass": true
+  },
+  "fidelity_gate": {
+    "target_docs": 7,
+    "checks_passed": 105,
+    "checks_total": 105,
+    "score_pct": 100.0,
+    "failed_docs": 0,
+    "overall_pass": true
+  }
+}

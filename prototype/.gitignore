@@ -1,0 +1,10 @@
+.venv/
+__pycache__/
+*.pyc
+
+storage/app.db
+storage/exports/
+storage/uploads/
+storage/knowledge/
+
+tmp_demo/

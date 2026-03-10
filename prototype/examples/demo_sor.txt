@@ -1,0 +1,4 @@
+1. The ECU shall support wake-up time less than 100ms under -20C condition.
+2. The system shall provide CAN 500kbps and 1Mbps interface compatibility.
+3. Product must comply with ISO 26262 ASIL-B process requirements.
+4. The software should provide OTA update rollback strategy.

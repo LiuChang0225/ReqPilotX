@@ -1,0 +1,2 @@
+pdf_name,profile,outline_count,checks_passed,checks_total,score_pct,duplicate_code_count,suspicious_heading_count,suspicious_heading_ratio,sibling_gap_alert_count,required_missing_count,guard_violation_count,check_outline_count_min,detail_outline_count_min,check_duplicate_code_limit,detail_duplicate_code_limit,check_suspicious_heading_ratio_limit,detail_suspicious_heading_ratio_limit,check_sibling_gap_alert_limit,detail_sibling_gap_alert_limit
+baic.pdf,,273,4,4,100.0,0,0,0.0,0,0,0,1,outline_count=273,1,duplicate_codes=0,1,suspicious_ratio=0.0000,1,sibling_gap_alerts=0

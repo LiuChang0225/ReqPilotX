@@ -1,0 +1,70 @@
+.phase0-page {
+  width: min(1440px, 96vw);
+}
+
+.controls-grid {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.inline-check {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  margin-top: 20px;
+}
+
+.inline-check input[type="checkbox"] {
+  width: 18px;
+  height: 18px;
+}
+
+#review-table {
+  min-width: 1580px;
+}
+
+#review-table td {
+  font-size: 0.86rem;
+}
+
+.source {
+  font-size: 0.78rem;
+  color: #536060;
+}
+
+.item-text {
+  max-width: 520px;
+  white-space: pre-wrap;
+}
+
+.tag-input,
+.note-input {
+  min-width: 190px;
+}
+
+.quick-buttons {
+  display: flex;
+  gap: 6px;
+}
+
+.quick-buttons button {
+  background: #1f7b7b;
+  padding: 6px 8px;
+  font-size: 0.78rem;
+  border-radius: 8px;
+}
+
+tr.changed {
+  background: #fff6e8;
+}
+
+tr.done-row {
+  background: #f2f9f6;
+}
+
+@media (max-width: 960px) {
+  .controls-grid {
+    grid-template-columns: 1fr;
+  }
+}

@@ -1,0 +1,3913 @@
+sample_id,file_name,file_path,page_no,total_pages,parse_has_text,parse_char_count,parse_line_count,raw_noise_ratio,auto_predicted_item_count,raw_text_preview,cleaned_text_preview,is_page_readable,gold_total_requirements,gold_noise_lines_pct,annotator,notes
+S3CDE4048F8,PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,/Users/liuchang/Downloads/Test pdf/PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,2,30,1,39,5,0.5,0,"023-41819066 023-41819319 023-41819067
+1 SOR PEF16C02
+2
+3 SOR
+SOR(
+)
+4 SOR SOR
+SOR
+5 100
+6","1 SOR PEF16C02
+3 SOR
+SOR(
+4 SOR SOR
+SOR",,,,,
+S3E2EC327DA,PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,/Users/liuchang/Downloads/Test pdf/PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,4,30,0,0,0,0.8913,0,"023-41819066 023-41819070 023-41819067
+2 28
+5.5DV/PV/IPT ......................................................................................................... 15
+5.5.1 ............................................................................................... 15
+5.5.2 / .................................................................................... 16
+5.6 ............................................................................................................................ 17
+6.0 ....................................................................................................... 17
+6.1 .........................................................................................",,,,,,
+S69822A0E73,PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,/Users/liuchang/Downloads/Test pdf/PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,8,30,1,126,14,0.6,0,"023-41819066 023-41819070 023-41819067
+6 28
+19 A R
+20 PPAP A/S R
+Key
+R=Responsible
+A= Approval
+S= Support
+I= Inform
+C= Consult
+1.5
+2
+2
+21033420
+PEF16C02
+21033430
+PEF16C02
+1
+2
+3
+4
+5
+6
+7 3D
+8
+9
+10
+11 2D
+12 3D
+13
+14
+15
+16 DFMEA
+17
+18","19 A R
+20 PPAP A/S R
+Key
+R=Responsible
+A= Approval
+S= Support
+I= Inform
+C= Consult
+PEF16C02
+PEF16C02
+7 3D
+11 2D
+12 3D
+16 DFMEA",,,,,
+SF8E5CBC2EB,PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,/Users/liuchang/Downloads/Test pdf/PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,10,30,1,38,3,0.44,0,"023-41819066 023-41819070 023-41819067
+8 28
+12 ISO 16750-4-2023 4
+13 GB/T 42284.3-2022
+3
+14 GB/T 18488-2024
+15 ISO 16750-3-2012 3
+16 DG-00.28.03-001 CAMDS
+17 UL94
+18 Q/JZ 12107
+19 QC/T 1067.1-2017 1
+20 Q/JZ 2035D
+21 Q/JZ 2016.1 1
+22 Q/JZ 20554
+23 Q/JZ 1704.1
+24 GB/T 7258
+25 Q/JZ 1108
+26 Q/JZ 20372D
+27 Q/JZ 20316
+28 TR
+29
+2.0
+18103712170yangang@tsingshan.com
+STA STA 19923350397qiuhao@tsingshan.com
+15334520743 renquan@tsingshan.com","16 DG-00.28.03-001 CAMDS
+17 UL94
+28 TR",,,,,
+S4A651BEB31,PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,/Users/liuchang/Downloads/Test pdf/PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,14,30,1,263,12,0.6364,0,"023-41819066 023-41819070 023-41819067
+12 28
+C A
+5.4.8
+5.4.8.1
+ISO 16750-2-20234.12 500V 60s
+100M C
+A
+5.4.8.2
+ISO 16750-2-20234.11 500V AC 60s
+0.2mA C
+5.4.9
+GB/T
+33014
+VWTL81000CISPR25
+ECE R10GB/T 18387GB/T 18655GB/T 36282GB/T 34660 EMC
+EN_BT-LAH-Modul_EMV-HighVolt_E-Drive_CSP31-26.03.2025-V2.20_Mai-
+2023 EN_BT-LAH-Modul_EMV-LowVolt_E-Drive_CSP31-26.03.2025-V2.20_Mai-2023
+class5 EMC
+EMC
+5.4.10
+5.4.11
+20500rpm
+5.4.12
+1.1 2min
+A
+5.4.13
+15 30
+5.4.14
+5.4.14.1
+ISO 16750-4-20235.1.1.2 -40 96h
+A
+5.4.14.2","C A
+100M C
+0.2mA C
+GB/T
+VWTL81000CISPR25
+ECE R10GB/T 18387GB/T 18655GB/T 36282GB/T 34660 EMC
+EN_BT-LAH-Modul_EMV-HighVolt_E-Drive_CSP31-26.03.2025-V2.20_Mai-
+2023 EN_BT-LAH-Modul_EMV-LowVolt_E-Drive_CSP31-26.03.2025-V2.20_Mai-2023
+class5 EMC
+EMC
+20500rpm
+1.1 2min",,,,,
+S5F0181E465,PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,/Users/liuchang/Downloads/Test pdf/PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,16,30,1,183,15,0.4643,0,"023-41819066 023-41819070 023-41819067
+14 28
+1 PSD 2
+5.4.15
+GB/T 42284.3-20224.2.1.2 GB/T
+12673 X Y Z
+5V 4
+A
+5.4.16
+ISO 16750-3-20124.3 1.0m 0.05m
+2 6
+A
+5.4.17
+QC/T 1067.1-2017
+5.4.18
+1 CAMDS
+DG-00.28.03-001CAMDS
+CAMDS IMDS/CAMDS IMDS/MDB-
+/ CAMDS CAMDS
+PPAP (PSW)
+CNAS )
+PPAP (PSW)
+IPT 1
+2
+VCTC
+"" ""ELV GB/T 30512
+VW91101 IMDS
+(LCA) (DFR) (PIR)","1 PSD 2
+12673 X Y Z
+5V 4
+1 CAMDS
+DG-00.28.03-001CAMDS
+CAMDS IMDS/CAMDS IMDS/MDB-
+/ CAMDS CAMDS
+PPAP (PSW)
+CNAS )
+PPAP (PSW)
+IPT 1
+VCTC
+"" ""ELV GB/T 30512
+VW91101 IMDS
+(LCA) (DFR) (PIR)",,,,,
+SEBC902D64A,PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,/Users/liuchang/Downloads/Test pdf/PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,20,30,1,57,7,0.65,0,"023-41819066 023-41819070 023-41819067
+18 28
+6.5
+6.5.1
+/ / / /
+/ / / /
+/ / / /
+6.5.2
+/
+/ / / /
+/ / / /
+/ / / /
+6.6 CAD
+6.6.1 CAD
+NX7.5 CREO8.0
+SOR
+6.6.2
+NX7.5 CREO8.0
+PDF
+PDM","6.6 CAD
+6.6.1 CAD
+NX7.5 CREO8.0
+SOR
+NX7.5 CREO8.0
+PDF
+PDM",,,,,
+SA5209A3748,PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,/Users/liuchang/Downloads/Test pdf/PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,22,30,1,30,5,0.6667,0,"023-41819066 023-41819070 023-41819067
+20 28
+PPAP
+/
+9.0
+TIR TIR
+PPAP
+DVP
+10.0 ( )
+10.1
+10.2
+10.3
+10.4
+,
+10.5","PPAP
+TIR TIR
+PPAP
+DVP
+10.0 ( )",,,,,
+SD23CFB599D,PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,/Users/liuchang/Downloads/Test pdf/PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,26,30,1,22,5,0.8421,0,"023-41819066 023-41819070 023-41819067
+24 28
+14.6.2
+14.7
+14.8
+1)
+2)
+1.5 TR
+3 /
+.
+14.9
+,
+14.10
+3D 2D
+14.11
+STA
+15.0
+15.1
+1.","1)
+2)
+1.5 TR
+3D 2D
+STA",,,,,
+SC33D450012,PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,/Users/liuchang/Downloads/Test pdf/PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,28,30,1,41,6,0.65,0,"023-41819066 023-41819070 023-41819067
+26 28
+16.3
+/ /
+6
+SOR Q/JZ 1589
+STA
+1 2
+3
+16.4
+17.0
+17.1
+17.2
+SOR
+SOR
+18.0
+Q/JZ 2016.1 1
+Q/JZ
+2016.1 1
+Q/JZ 20554","SOR Q/JZ 1589
+STA
+SOR
+SOR
+Q/JZ
+Q/JZ 20554",,,,,
+S4E6DBC2C55,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,2,137,1,11,2,0.6111,0,"Q/JLY J7111029E-2024
+I
+目次
+Contents
+前言 Foreword .................................................................................................................................................II
+1 范围 Scope..................................................................................................................................................1
+2 规范性引用文件 Normative References....................................................................................................1
+3 术语和定义 Terms and Definitions............................................................................................................2
+4 通用要求 General Requirements....................................................","目次
+Contents",,,,,
+SC694B2499B,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,5,137,1,405,6,0.6667,0,"Q/JLY J7111029E-2024
+IV
+The second revision was issued in Mar.31, 2020 as Q/JLY J7111029C-2020, main drafter(s):Tianfa Su.
+——Q/JLY J7111029B-2017，原编制人：魏展风（2017年09月04日第一次修订） 。
+The first revision was issued in Sep.04, 2017 as Q/JLY J7111029B-2017,main drafter(s):Zhanfeng Wei.
+——Q/JLY J7111029A-2016，原编制人：徐杰明（2016年11月30日首次发布） 。
+The first edition was issued in on Nov.30, 2016 as Q/JLY J7111029A-2016,main drafter(s): Jieming Xu.
+TO：Others jun-liang.liu@vitesco.com
+TO：Others jun-liang.liu@vitesco.com
+OF：纬湃汽车电子（长春）有限公司
+OF：纬湃汽车电子（长春）有限公司
+BY：Decan.Zhu@geely.com
+BY：Decan.Zhu@geely.com
+AT：2025-11-21 13:51
+AT：2025-11-21 13:51","IV
+The second revision was issued in Mar.31, 2020 as Q/JLY J7111029C-2020, main drafter(s):Tianfa Su.
+——Q/JLY J7111029B-2017，原编制人：魏展风（2017年09月04日第一次修订） 。
+The first revision was issued in Sep.04, 2017 as Q/JLY J7111029B-2017,main drafter(s):Zhanfeng Wei.
+——Q/JLY J7111029A-2016，原编制人：徐杰明（2016年11月30日首次发布） 。
+The first edition was issued in on Nov.30, 2016 as Q/JLY J7111029A-2016,main drafter(s): Jieming Xu.",,,,,
+S5E40E39032,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,8,137,1,1829,36,0.3208,0,"Q/JLY J7111029E-2024
+2
+ISO 16750-5-2023 道路车辆电气和电子设备的环境条件和测试第5部分：化学负荷(Road
+vehicles-- Environmental conditions and testing for electrical and electronic equipment--Part 5: Chemical loads)
+Q/JL J160004 乘用车非金属零部件耐光老化性能技术要求(Light aging resistance technical
+requirements of automotive non-metallic components)
+Q/JLY J7111825A-2022 电子电气零部件寿命加速试验计算规范(Code for calculation of accelerated
+life test of electronic and electrical components)
+Q/JLY J8110111 可靠性工程开发第7部分：系统或零部件健壮性测试规范（Reliability
+engineering development- Part 7: System or component robustness test specification）
+3 术语和定义 Terms and Definitions
+下列术语和定义适用于本标准。
+For the purpose of this standard, the following terms and definitions apply.
+3.1
+标称电流（额...","ISO 16750-5-2023 道路车辆电气和电子设备的环境条件和测试第5部分：化学负荷(Road
+vehicles-- Environmental conditions and testing for electrical and electronic equipment--Part 5: Chemical loads)
+Q/JL J160004 乘用车非金属零部件耐光老化性能技术要求(Light aging resistance technical
+requirements of automotive non-metallic components)
+Q/JLY J7111825A-2022 电子电气零部件寿命加速试验计算规范(Code for calculation of accelerated
+life test of electronic and electrical components)
+Q/JLY J8110111 可靠性工程开发第7部分：系统或零部件健壮性测试规范（Reliability
+engineering development- Part 7: System or component robustness test specification）
+3 术语和定义 Terms and Definitions
+下列术语和定义适用于本标准。
+For the purpose of this standard, the following terms and definitions apply.
+标称电流（额定电流） nominal current IN
+用于描...",,,,,
+SB35C30EA99,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,11,137,1,601,51,0.4494,0,"Q/JLY J7111029E-2024
+5
+图1 零部件分布位置
+Figure 1 Distribution range of parts
+表3 汽车零件的要求范围和类型
+Table 3 Required range and type of automotive parts
+工作温度范
+围℃
+Operating
+temperature
+range℃
+存储温度范
+围℃
+Storage
+temperature
+range℃
+安装位置
+Mounting location
+规定转换时间的温
+度循环次数
+The number of
+temperature cycles
+the transition time
+耐试剂稳定性（试剂见表58）
+Reagent stability(see Table 58)
+防水密封性
+water tightness
+1a -40～125 -40～130
+前舱
+Forebay
+300 1)2)3)5)6)7)8)9)10)11)12)13)14)15)17)
+18)19)20)24)25)27)28)31)33)
+IPX4K
+1b -40～90 -40～90
+外部件
+mounting on the exterior
+100 15)16)17)18)19)20)22)23)24)26)
+27)31)33)
+IPX4K
+2 -40～125 -40～140
+前舱
+Forebay
+300 1)2)3)5)6)7)8)9)10)11)12)13)14)15)17)
+18)19)20)24)25)27)28)31)33)
+IPX4K
+-40～140 -40～140
+前舱
+...","图1 零部件分布位置
+Figure 1 Distribution range of parts
+表3 汽车零件的要求范围和类型
+Table 3 Required range and type of automotive parts
+工作温度范
+围℃
+Operating
+temperature
+range℃
+存储温度范
+围℃
+Storage
+temperature
+range℃
+安装位置
+Mounting location
+规定转换时间的温
+度循环次数
+The number of
+temperature cycles
+the transition time
+耐试剂稳定性（试剂见表58）
+Reagent stability(see Table 58)
+防水密封性
+water tightness
+前舱
+Forebay
+IPX4K
+外部件
+mounting on the exterior
+IPX4K
+前舱
+Forebay
+IPX4K
+前舱
+Forebay
+IPX4K
+电驱系统
+Electric drive system
+IPX7/IPX9K
+外部件
+mounting on the exterior
+IPX4K
+乘客舱
+passenger compartment
+乘客舱
+passenger compartment
+外部件
+mounting on the exterior
+IPX4K
+表3(续)",,,,,
+S067FA88065,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,14,137,1,1892,59,0.1594,5,"Q/JLY J7111029E-2024
+8
+工作模式4.2： 系统/组件带电压UA和UNHV行并控制在典型运行模式（如需要带载荷，通常为额定载
+荷）。
+Operating Mode 4.2: System/components operate with voltage U A and U NHV,and controlled in typical
+operating mode（if load is required，it is usually rated load）.
+工作模式4.3： 系统/组件带电压UA和UNHV行并控制在最小负载运行模式（如需要带载荷，通常为最
+小载荷）。
+Operating Mode 4.3: System/components operate with voltage U A and UNHV,and controlled in minimum
+load（if load is required，it is usually minimum load）
+工作模式4.4： 系统/组件带电压UA和UNHV运行并控制在最大负载运行模式（如需要带载荷，通常为
+最大载荷）。
+Operating Mode 4.4: System/components operate with voltage U A and UNHV,and controlled in maximum
+load（if load is required，it is usually maximum load）
+备注1：对于所有电压系统，为了防止DUT过热或者难以实现（不可行）的测试设置，经客户与供应商协...","工作模式4.2： 系统/组件带电压UA和UNHV行并控制在典型运行模式（如需要带载荷，通常为额定载
+荷）。
+Operating Mode 4.2: System/components operate with voltage U A and U NHV,and controlled in typical
+operating mode（if load is required，it is usually rated load）.
+工作模式4.3： 系统/组件带电压UA和UNHV行并控制在最小负载运行模式（如需要带载荷，通常为最
+小载荷）。
+Operating Mode 4.3: System/components operate with voltage U A and UNHV,and controlled in minimum
+load（if load is required，it is usually minimum load）
+工作模式4.4： 系统/组件带电压UA和UNHV运行并控制在最大负载运行模式（如需要带载荷，通常为
+最大载荷）。
+Operating Mode 4.4: System/components operate with voltage U A and UNHV,and controlled in maximum
+load（if load is required，it is usually maximum load）
+备注1：对于所有电压系统，为了防止DUT过热或者难以实现（不可行）的测试设置，经客户与供应商协商同意后，
+可以将工作模式4.4模式切换到4....",,,,,
+S11D357B48E,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,18,137,1,2048,41,0.1961,11,"Q/JLY J7111029E-2024
+12
+Functional tests defined see below:
+a)功能测试1：1点功能检查。
+Functional test 1: 1-Point Functional/Parametric Check.
+目的：单一温度，单一电压下，检查被测组件所有功能参数。
+Purpose: Under single temperature and single voltage, check all functional parameters of the
+components under test.
+适用场景：工作模式2.1(在休眠模式/关闭模式下确认功能)/3.2/4.2。
+Applicability：Operating Type2.1 (to confirm functionality in Sleep Mode/OFF mode)/3.2/4.2.
+监控--按以下方法执行：1点功能/参数检查应在工作模式2.1的U B 进行；和3.2/4.2工作类型
+的U A，除非Q/JLY J7111029E DUT试验计划中另有规定。
+Monitoring-- As defined in the following procedure：The 1-Point Functional/Parametric Check
+shall be performed at Troom, UB for Operating Type 2.1, UA for Operating Type 3.2/4.2, unless
+otherwise specified i...","Functional tests defined see below:
+a)功能测试1：1点功能检查。
+Functional test 1: 1-Point Functional/Parametric Check.
+目的：单一温度，单一电压下，检查被测组件所有功能参数。
+Purpose: Under single temperature and single voltage, check all functional parameters of the
+components under test.
+适用场景：工作模式2.1(在休眠模式/关闭模式下确认功能)/3.2/4.2。
+Applicability：Operating Type2.1 (to confirm functionality in Sleep Mode/OFF mode)/3.2/4.2.
+监控--按以下方法执行：1点功能/参数检查应在工作模式2.1的U B 进行；和3.2/4.2工作类型
+的U A，除非Q/JLY J7111029E DUT试验计划中另有规定。
+Monitoring-- As defined in the following procedure：The 1-Point Functional/Parametric Check
+shall be performed at Troom, UB for Operating Type 2.1, UA for Operating Type 3.2/4.2, unless
+otherwise specified in the Q/JLY J7111029E DU...",,,,,
+SA920C4E0E8,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,21,137,1,1309,63,0.2907,2,"Q/JLY J7111029E-2024
+15
+5 试验方法和技术要求 Test Method And Technical Requirements
+5.1 电气负荷 Electrical loads
+5.1.1 通用要求 General requirement
+对DUT进行测试的试验条件、试验方法、技术要求应符合本标准规定的要求。
+The test conditions，methods and technical Requirement for testing DUT shall meet the requirements
+specified in this standard.
+5.1.2 测试矩阵 Test matrix
+具有不同电气特性和功能组件状态的零部件适用于不同的测试项目，零部件的测试矩阵见表6。
+Components with different electrical characteristics and functional component status suitable for different
+test items. Test matrix of components see Table 6 below.
+表 6 电气测试矩阵
+Table 6 Electrical test matrix
+序号
+No.
+测试项目
+Test item
+应用范围
+Applicable scope
+备注
+Note
+测试前
+Before test
+五点功能检测
+Five point function test
+所有零部件
+All components
+无
+None
+1
+启动脉...","5 试验方法和技术要求 Test Method And Technical Requirements
+5.1 电气负荷 Electrical loads
+5.1.1 通用要求 General requirement
+对DUT进行测试的试验条件、试验方法、技术要求应符合本标准规定的要求。
+The test conditions，methods and technical Requirement for testing DUT shall meet the requirements
+specified in this standard.
+5.1.2 测试矩阵 Test matrix
+具有不同电气特性和功能组件状态的零部件适用于不同的测试项目，零部件的测试矩阵见表6。
+Components with different electrical characteristics and functional component status suitable for different
+test items. Test matrix of components see Table 6 below.
+表 6 电气测试矩阵
+Table 6 Electrical test matrix
+序号
+No.
+测试项目
+Test item
+应用范围
+Applicable scope
+备注
+Note
+测试前
+Before test
+五点功能检测
+Five point function test
+所有零部件
+All components
+None
+启动脉冲
+Start pulses
+通过 12V 电源系统供电...",,,,,
+SA81EE7D60A,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,24,137,1,775,29,0.2564,2,"Q/JLY J7111029E-2024
+18
+5.1.4.3 试验方法 Test methods
+按照4.8.2.1章节中的表5的规定执行测试。
+Perform the test as specified in functional test 2 in section table 5.
+5.1.4.4 技术要求 Technical Requirement
+功能状态应符合A级要求。
+Functional state meets the requirements of class A.
+5.1.5 启动脉冲 Start pulses
+5.1.5.1 试验目的 Test aim
+此测试验证DUT在启动期间和启动之后的行为。
+This test verifies the behavior of a DUT during and after cranking.
+5.1.5.2 试验参数 Test parameters
+试验参数见表8：
+Test parameters see Table 8 below.
+表8 试验参数-启动脉冲
+Table 8 Test parameters--Start pulses
+项目/Item 要求/Requirement
+试件的工作模式/DUT operating mode 工作模式2.2/Operating mode 2.2
+启动类型/ Starting type 冷启动/Cold starting 热启动/Thermal starting
+UN 12V 12V
+US 6V 8V
+UA 6.5V 9.5V
+tr 5ms 5ms
+t6 15ms 15ms
+t...","5.1.4.3 试验方法 Test methods
+按照4.8.2.1章节中的表5的规定执行测试。
+Perform the test as specified in functional test 2 in section table 5.
+5.1.4.4 技术要求 Technical Requirement
+功能状态应符合A级要求。
+Functional state meets the requirements of class A.
+5.1.5 启动脉冲 Start pulses
+5.1.5.1 试验目的 Test aim
+此测试验证DUT在启动期间和启动之后的行为。
+This test verifies the behavior of a DUT during and after cranking.
+5.1.5.2 试验参数 Test parameters
+试验参数见表8：
+Test parameters see Table 8 below.
+表8 试验参数-启动脉冲
+Table 8 Test parameters--Start pulses
+项目/Item 要求/Requirement
+试件的工作模式/DUT operating mode 工作模式2.2/Operating mode 2.2
+启动类型/ Starting type 冷启动/Cold starting 热启动/Thermal starting
+UN 12V 12V
+US 6V 8V
+UA 6.5V 9.5V
+tr 5ms 5ms
+t6 15ms 15ms
+t7 50ms 50ms
+t8 10s 1s
+tf...",,,,,
+S735D07CB2B,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,27,137,1,1510,38,0.2245,2,"Q/JLY J7111029E-2024
+21
+5.1.6.4 技术要求 Technical Requirement
+在欠压和过压情况下各功能要求具体见图3，从欠压或过压过渡到工作电压范围时试样应自动地恢
+复正常功能，如有≤0.5V的迟滞是允许的，有>0.5V迟滞需要反馈给负责人进行判定。在过压或欠压期
+间试样进入保护状态， 不允许状态不确定。 功能限制应在经规定程序批准的图纸或其他技术文件中说明。
+Function requirements of undervoltage and overvoltage conditions are shown in Figure 3，The DUT
+should automatically return to normal function when transiting from undervoltage or overvoltage to the operating
+voltage range，If there is hysteresis ≤0.5V is allowed, hysteresis >0.5V needs to be fedback to responsible
+person for judgment. The DUT enters the protected state during overvoltage or undervoltage, and the state
+uncertainty is not allowed. Functional limitations should be explained in the...","5.1.6.4 技术要求 Technical Requirement
+在欠压和过压情况下各功能要求具体见图3，从欠压或过压过渡到工作电压范围时试样应自动地恢
+复正常功能，如有≤0.5V的迟滞是允许的，有>0.5V迟滞需要反馈给负责人进行判定。在过压或欠压期
+间试样进入保护状态， 不允许状态不确定。 功能限制应在经规定程序批准的图纸或其他技术文件中说明。
+Function requirements of undervoltage and overvoltage conditions are shown in Figure 3，The DUT
+should automatically return to normal function when transiting from undervoltage or overvoltage to the operating
+voltage range，If there is hysteresis ≤0.5V is allowed, hysteresis >0.5V needs to be fedback to responsible
+person for judgment. The DUT enters the protected state during overvoltage or undervoltage, and the state
+uncertainty is not allowed. Functional limitations should be explained in the drawings or the other t...",,,,,
+S5020F88E66,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,30,137,1,1498,40,0.24,1,"Q/JLY J7111029E-2024
+24
+c)针对反极性测试的稳定性，从0V起到表12和表13中指定的最大电压值之后，任意的电压
+值都视为有效。
+The test must be performed at various voltages between 0V and the maximum values specified in
+Table 12 and Table 13.
+表11 试验参数--反极性
+Table 11 Test parameters--Reverse polarity
+项目/Item 要求/Requirement
+试件的工作模式/DUT operating mode
+静态反极性：工作模式3.1/Operating mode3.1
+动态反极性：工作模式3.2或4.2/Operating mode3.2 or 4.2
+循环次数/Number of cycles 见表12和表13/ See Table 12 and Table 13
+5.1.8.2.2 测试用例1-静态反极性 Test case 1–Static reverse polarity
+这个测试用例（见表12和图4 a）检查组件在不同反向极性电压下的特性，这些电压可能会随着车
+辆状态的不同而出现。
+This test case (see Table 12 and Figure 4 a ) checks the robustness of the component at various reverse
+polarity voltages that can arise depending on th...","c)针对反极性测试的稳定性，从0V起到表12和表13中指定的最大电压值之后，任意的电压
+值都视为有效。
+The test must be performed at various voltages between 0V and the maximum values specified in
+Table 12 and Table 13.
+表11 试验参数--反极性
+Table 11 Test parameters--Reverse polarity
+项目/Item 要求/Requirement
+试件的工作模式/DUT operating mode
+静态反极性：工作模式3.1/Operating mode3.1
+动态反极性：工作模式3.2或4.2/Operating mode3.2 or 4.2
+循环次数/Number of cycles 见表12和表13/ See Table 12 and Table 13
+5.1.8.2.2 测试用例1-静态反极性 Test case 1–Static reverse polarity
+这个测试用例（见表12和图4 a）检查组件在不同反向极性电压下的特性，这些电压可能会随着车
+辆状态的不同而出现。
+This test case (see Table 12 and Figure 4 a ) checks the robustness of the component at various reverse
+polarity voltages that can arise depending on the vehicle state.
+表12 试验参...",,,,,
+SA3C949E1E4,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,33,137,1,1888,39,0.2245,2,"Q/JLY J7111029E-2024
+27
+DUT置于T max 温度工况下至少保持2h，然后将DUT工作模式设定为3.2或4.2，依据不同DUT
+的类型（参照表14）选择对应的过高电流数值（通过电子负载设备或者模拟负载）及加载时间进行测
+试。
+Place the DUT under Tmax temperature condition for at 2h，then set the DUT working mode to 3.2 or 4.2，
+select the corresponding over-current value （through electronic load equipment or simulated load）and
+loading time for testing according to different DUT types（refer to table 14）.
+5.1.9.4 技术要求 Technical Requirement
+试验应符合下列功能状态要求：
+The test shall meet the following functional status requirements:
+a)无保险丝保护的机械零部件满足功能状态A的要求。如果保险丝在负载循环中可用，应将其
+去除；
+Functional status A for mechanical components without fuse. If fuse elements are available in the
+load circuit, it should be remove...","DUT置于T max 温度工况下至少保持2h，然后将DUT工作模式设定为3.2或4.2，依据不同DUT
+的类型（参照表14）选择对应的过高电流数值（通过电子负载设备或者模拟负载）及加载时间进行测
+试。
+Place the DUT under Tmax temperature condition for at 2h，then set the DUT working mode to 3.2 or 4.2，
+select the corresponding over-current value （through electronic load equipment or simulated load）and
+loading time for testing according to different DUT types（refer to table 14）.
+5.1.9.4 技术要求 Technical Requirement
+试验应符合下列功能状态要求：
+The test shall meet the following functional status requirements:
+a)无保险丝保护的机械零部件满足功能状态A的要求。如果保险丝在负载循环中可用，应将其
+去除；
+Functional status A for mechanical components without fuse. If fuse elements are available in the
+load circuit, it should be removed;
+b)采用过载识别（电流、电压、温度）的电子...",,,,,
+S4C32287E8E,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,37,137,1,1372,26,0.3056,1,"Q/JLY J7111029E-2024
+31
+图7 试验参数：电源电压的缓降和缓升
+Figure 7 Test parameters: Slow decrease and increase of the supply voltage
+5.1.12.3 试验方法 Test methods
+DUT按照以下步骤进行测试：
+DUT shall be tested according to the following steps：
+a) DUT工作模式设定为2.2或4.2，按表17及图7执行测试，测试后检查DUT能否自动恢复正常功
+能。
+Set the DUT operating mode to 2.2 or 4.2，perform the test according toTable 17 and Figure 7，
+After the test，check whether the DUT can automatically return to normal function.
+b) DUT工作模式设定为2.1（如DUT无2.1模式则无需测试），按表17及图7执行测试，测试过程
+中监测DUT是否有唤醒现象出现并记录在测试报告中，测试后对DUT进行功能检查。
+Set the DUT operating mode to 2.1（if the DUT does not have mode 2.1，no test is required），
+perform the test according to Table 17 and Figure 7，during the test，monitor ...","图7 试验参数：电源电压的缓降和缓升
+Figure 7 Test parameters: Slow decrease and increase of the supply voltage
+5.1.12.3 试验方法 Test methods
+DUT按照以下步骤进行测试：
+DUT shall be tested according to the following steps：
+a) DUT工作模式设定为2.2或4.2，按表17及图7执行测试，测试后检查DUT能否自动恢复正常功
+能。
+Set the DUT operating mode to 2.2 or 4.2，perform the test according toTable 17 and Figure 7，
+After the test，check whether the DUT can automatically return to normal function.
+b) DUT工作模式设定为2.1（如DUT无2.1模式则无需测试），按表17及图7执行测试，测试过程
+中监测DUT是否有唤醒现象出现并记录在测试报告中，测试后对DUT进行功能检查。
+Set the DUT operating mode to 2.1（if the DUT does not have mode 2.1，no test is required），
+perform the test according to Table 17 and Figure 7，during the test，monitor whether the DUT
+wakes up...",,,,,
+S0C8B130158,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,40,137,1,882,32,0.2381,2,"Q/JLY J7111029E-2024
+34
+表19 试验参数--清零重设行为
+Table 19 Test parameters--Reset behavior
+项目/Item 要求/Requirement
+试件的工作模式DUT operating mode
+工作模式2.1和工作模式3.2或4.2
+/Operating mode 2.1 and 3.2 or 4.2
+Umax UBmin （0%, -4%）
+Uth 6 V
+ΔU1 (UBmin to 6V) 0.5 V
+ΔU2 (6 V to 0 V) 0.2 V
+t2 — DUT on
+≥10s，至少要满足被测样件的所有功能完全恢复并能完成所有
+功能状态检测（所有系统都能无故障的高负荷运转）
+≥10s, At least the function of DUT shall be fully restored and all
+function tests shall be completed (all systems rebooted without
+error).
+tr ≤10ms
+tf ≤10ms
+测试工况1 /Test case 1 t1 =5s
+测试工况2 /Test case 2 t1 =100ms
+1个循环，工作模式2.1和测试工况1
+1 cycle with Operating mode 2.1 and test case 1
+1个循环，工作模式3.2或4.2和测试工况1
+1 cycle with Operating mode 3.2 or 4.2 and test case 1
+1个循环，工作模式2.1和测试...","表19 试验参数--清零重设行为
+Table 19 Test parameters--Reset behavior
+项目/Item 要求/Requirement
+试件的工作模式DUT operating mode
+工作模式2.1和工作模式3.2或4.2
+/Operating mode 2.1 and 3.2 or 4.2
+Umax UBmin （0%, -4%）
+Uth 6 V
+ΔU1 (UBmin to 6V) 0.5 V
+ΔU2 (6 V to 0 V) 0.2 V
+t2 — DUT on
+≥10s，至少要满足被测样件的所有功能完全恢复并能完成所有
+功能状态检测（所有系统都能无故障的高负荷运转）
+≥10s, At least the function of DUT shall be fully restored and all
+function tests shall be completed (all systems rebooted without
+error).
+tr ≤10ms
+tf ≤10ms
+测试工况1 /Test case 1 t1 =5s
+测试工况2 /Test case 2 t1 =100ms
+1个循环，工作模式2.1和测试工况1
+1 cycle with Operating mode 2.1 and test case 1
+1个循环，工作模式3.2或4.2和测试工况1
+1 cycle with Operating mode 3.2 or 4.2 and test case 1
+1个循环，工作模式2.1和测试工况2
+1 cycle with Operati...",,,,,
+SFA4D68B149,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,43,137,1,1086,26,0.2778,1,"Q/JLY J7111029E-2024
+37
+说明：L—负载； E—输入； A—输出； PWR— U 输出；GND—输入/输出 T.31
+Note: L-Load；E-Input；A-Output；PWR-U Output；GND-Input/Output T.31
+图10 信号线和负载回路的短路保护
+Figure 10 Short circuit in signal circuit and load circuits
+5.1.15.3 试验方法 Test methods
+DUT工作模式设定为3.2或4.2，按表20及图10执行测试。
+Set the DUT operating mode to 3.2 or 4.2，perform the test according to Table 20 and Figure 10.
+5.1.15.4 技术要求 Technical Requirement
+试验应符合下列功能状态要求：
+The test shall meet the following functional status requirements:
+a)信号线短路保护：功能等级C；
+Short circuit in signal circuit：functional status C;
+b)在输入和输出端（E和A）：功能状态C；
+For inputs and outputs (E and A): functional status C;
+c)在供给电压（PWR）处：功能状态D；
+For looped-through supply voltages (PWR): functi...","说明：L—负载； E—输入； A—输出； PWR— U 输出；GND—输入/输出 T.31
+Note: L-Load；E-Input；A-Output；PWR-U Output；GND-Input/Output T.31
+图10 信号线和负载回路的短路保护
+Figure 10 Short circuit in signal circuit and load circuits
+5.1.15.3 试验方法 Test methods
+DUT工作模式设定为3.2或4.2，按表20及图10执行测试。
+Set the DUT operating mode to 3.2 or 4.2，perform the test according to Table 20 and Figure 10.
+5.1.15.4 技术要求 Technical Requirement
+试验应符合下列功能状态要求：
+The test shall meet the following functional status requirements:
+a)信号线短路保护：功能等级C；
+Short circuit in signal circuit：functional status C;
+b)在输入和输出端（E和A）：功能状态C；
+For inputs and outputs (E and A): functional status C;
+c)在供给电压（PWR）处：功能状态D；
+For looped-through supply voltages (PWR): functional status D;
+d)在设备接地（G...",,,,,
+S3D7EED98FE,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,46,137,1,839,41,0.25,1,"Q/JLY J7111029E-2024
+40
+5.1.18.2 试验参数 Test parameters
+引脚断路试验参数要求见表23和图11。
+Pin interruption test parameters see Table 23 and Figure 11 below.
+表23 试验参数--Pin断路
+Table 23 Test parameters--Pin interruption
+项目/Item 要求/Requirement
+样件工作模式
+DUT operating mode
+工作模式2.1和工作模式3.2或4.2
+Operating mode 2.1 and operating mode 3.2 or 4.2
+Z1
+条件1：引脚连接
+Condition 1: pin connected
+Z2
+条件2：引脚中断
+Condition 2: pin interrupted
+tr ≤（0.1*t1）
+tf ≤（0.1*t1）
+循环次数
+Number of cycles
+每种工作模式运行3次
+Each operating mode operate 3 cycles
+测试工况1
+Test case 1
+每个引脚应移除T＝10 s，然后替换（慢间隔）
+Each pin must be removed for t = 10 s and then replaced (slow interval)
+测试工况2
+Test case 2
+快速移除引脚以模拟接触不良（图11）
+Burst on each pin in order to simulate a loose contact ...","5.1.18.2 试验参数 Test parameters
+引脚断路试验参数要求见表23和图11。
+Pin interruption test parameters see Table 23 and Figure 11 below.
+表23 试验参数--Pin断路
+Table 23 Test parameters--Pin interruption
+项目/Item 要求/Requirement
+样件工作模式
+DUT operating mode
+工作模式2.1和工作模式3.2或4.2
+Operating mode 2.1 and operating mode 3.2 or 4.2
+Z1
+条件1：引脚连接
+Condition 1: pin connected
+Z2
+条件2：引脚中断
+Condition 2: pin interrupted
+tr ≤（0.1*t1）
+tf ≤（0.1*t1）
+循环次数
+Number of cycles
+每种工作模式运行3次
+Each operating mode operate 3 cycles
+测试工况1
+Test case 1
+每个引脚应移除T＝10 s，然后替换（慢间隔）
+Each pin must be removed for t = 10 s and then replaced (slow interval)
+测试工况2
+Test case 2
+快速移除引脚以模拟接触不良（图11）
+Burst on each pin in order to simulate a loose contact (Figure 11)
+t2 波形在突发脉冲中次...",,,,,
+SC0004F33EA,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,49,137,1,1045,22,0.3125,2,"Q/JLY J7111029E-2024
+43
+图12 试验参数：重叠的交流电压
+Figure 12 Test parameters: Superimposed alternating voltage
+5.1.19.3 试验方法 Test methods
+DUT工作模式设定为3.2或4.2，按表25及图12执行测试。如测试过程中发现DUT有啸叫现象
+记录并反馈。
+Set the DUT operating mode to 3.2 or 4.2，perform the test according to Table 25 and Figure 12. If the
+DUT squeaks during the test，record and feed back.
+5.1.19.4 技术要求 Technical Requirement
+功能状态应满足A级要求。
+Functional status A shall be met.
+5.1.20 接地偏移 Ground offset
+5.1.20.1 试验目的 Test aim
+模拟整车电器部件不同接地点之间或者电器部件接地点和整车接地点之间存在的电势差对电器部
+件的影响。
+Simulate the influence of electricomotive force on electrical components between different grounding
+points of electrical components of the whole vehicle or between the grounding point...","图12 试验参数：重叠的交流电压
+Figure 12 Test parameters: Superimposed alternating voltage
+5.1.19.3 试验方法 Test methods
+DUT工作模式设定为3.2或4.2，按表25及图12执行测试。如测试过程中发现DUT有啸叫现象
+记录并反馈。
+Set the DUT operating mode to 3.2 or 4.2，perform the test according to Table 25 and Figure 12. If the
+DUT squeaks during the test，record and feed back.
+5.1.19.4 技术要求 Technical Requirement
+功能状态应满足A级要求。
+Functional status A shall be met.
+5.1.20 接地偏移 Ground offset
+5.1.20.1 试验目的 Test aim
+模拟整车电器部件不同接地点之间或者电器部件接地点和整车接地点之间存在的电势差对电器部
+件的影响。
+Simulate the influence of electricomotive force on electrical components between different grounding
+points of electrical components of the whole vehicle or between the grounding points of electrical componen...",,,,,
+SC5EAFE2206,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,53,137,1,1887,39,0.2041,1,"Q/JLY J7111029E-2024
+47
+5.1.22.3 试验方法 Test methods
+DUT工作模式设定为3.2或4.2，按照表28及图15执行测试。
+Set the DUT operating mode to 3.2 or 4.2，perform the test according to Table 28 and Figure 15.
+5.1.22.4 技术要求 Technical Requirement
+依据零部件的功能重要性评估测试结果，区分条件如下：
+The test results are evaluated according to the functional importance of the parts, The distinguishing
+conditions are as follows：
+a） 对车辆的操作和控制起决定性作用且失效后可能影响到车辆行驶安全或者影响到道路上行人
+的安全的零部件：功能状态B；
+Components that play a decisive role in the operation and control of the vehicle and may affect the driving
+safety of the vehicle or the safety of pedestrians on the road after failure : Functional status B.
+b）对于其他所有的零部件：功能状态C。
+For all other components: Functional statu...","5.1.22.3 试验方法 Test methods
+DUT工作模式设定为3.2或4.2，按照表28及图15执行测试。
+Set the DUT operating mode to 3.2 or 4.2，perform the test according to Table 28 and Figure 15.
+5.1.22.4 技术要求 Technical Requirement
+依据零部件的功能重要性评估测试结果，区分条件如下：
+The test results are evaluated according to the functional importance of the parts, The distinguishing
+conditions are as follows：
+a） 对车辆的操作和控制起决定性作用且失效后可能影响到车辆行驶安全或者影响到道路上行人
+的安全的零部件：功能状态B；
+Components that play a decisive role in the operation and control of the vehicle and may affect the driving
+safety of the vehicle or the safety of pedestrians on the road after failure : Functional status B.
+b）对于其他所有的零部件：功能状态C。
+For all other components: Functional status C
+5.1.23 智能控制的电压波形 Vol...",,,,,
+S229B88923D,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,56,137,1,1535,41,0.2157,2,"Q/JLY J7111029E-2024
+50
+功能状态满足A级要求。在测试期间，所有重要的输出都应该保持在规定的限制范围，在测试持续
+过程中都应满足此要求。
+Functional status A shall be met. All important outputs should remain within the defined limits during the
+test.
+5.1.25 短暂的断路 Short interruptions
+5.1.25.1 试验目的 Test aim
+此测试模拟不同时长的供电短时中断后零部件的工作状态，这样的短时中断可能是由继电器跳跃、
+线路缺陷等事件引起的。
+This test simulates the working state of components after short interruptions of power supply for different
+periods of time，such short interruptions may be caused by events such as relay jumps and line defects.
+5.1.25.2 试验参数 Test parameters
+短暂的断路的试验参数见表31和图18，测试电路原理见图19。
+Short interruptions test parameters see Table 31 and Figure 18, schematic circuit principle see Figure 19.
+表31 试验参数--短暂的断路
+...","功能状态满足A级要求。在测试期间，所有重要的输出都应该保持在规定的限制范围，在测试持续
+过程中都应满足此要求。
+Functional status A shall be met. All important outputs should remain within the defined limits during the
+test.
+5.1.25 短暂的断路 Short interruptions
+5.1.25.1 试验目的 Test aim
+此测试模拟不同时长的供电短时中断后零部件的工作状态，这样的短时中断可能是由继电器跳跃、
+线路缺陷等事件引起的。
+This test simulates the working state of components after short interruptions of power supply for different
+periods of time，such short interruptions may be caused by events such as relay jumps and line defects.
+5.1.25.2 试验参数 Test parameters
+短暂的断路的试验参数见表31和图18，测试电路原理见图19。
+Short interruptions test parameters see Table 31 and Figure 18, schematic circuit principle see Figure 19.
+表31 试验参数--短暂的断路
+Table 31 Test parameters...",,,,,
+S4ACB387D86,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,59,137,1,1729,33,0.2326,0,"Q/JLY J7111029E-2024
+53
+DUT可视化外观应正常（如DUT无裂纹、无破裂、各部分组件完整无缺失、无松动、无缺镀，无
+腐蚀等）；DUT电路板无异常情况，电气试验后PCBA板无过热而碳化，无元器件鼓包，无炸裂，无残
+留物现象。
+The visual appearance is normal (For example，the DUT no crack, no crack, integrity of components no
+missing, no looseness, no lack of plating, no corrosion, etc.); The DUT circuit board has no abnormality. After
+the electrical test, the PCBA board has no overheating and carbonization, no component bulge, no crack and no
+residue.
+5.2 机械负荷试验 Mechanical loads test
+5.2.1 温度循环振动 Temperature cycle vibration
+5.2.1.1 试验1-乘用车燃油发动机上轻型和小型DUT Test 1- Light and small DUTs on
+passenger car fuel engines
+5.2.1.1.1 试验目的 Test aim
+主要用于检查轻型和小型样件是否因振动引起故障和破损；
+Mainly used to check whether lig...","DUT可视化外观应正常（如DUT无裂纹、无破裂、各部分组件完整无缺失、无松动、无缺镀，无
+腐蚀等）；DUT电路板无异常情况，电气试验后PCBA板无过热而碳化，无元器件鼓包，无炸裂，无残
+留物现象。
+The visual appearance is normal (For example，the DUT no crack, no crack, integrity of components no
+missing, no looseness, no lack of plating, no corrosion, etc.); The DUT circuit board has no abnormality. After
+the electrical test, the PCBA board has no overheating and carbonization, no component bulge, no crack and no
+residue.
+5.2 机械负荷试验 Mechanical loads test
+5.2.1 温度循环振动 Temperature cycle vibration
+5.2.1.1 试验1-乘用车燃油发动机上轻型和小型DUT Test 1- Light and small DUTs on
+passenger car fuel engines
+5.2.1.1.1 试验目的 Test aim
+主要用于检查轻型和小型样件是否因振动引起故障和破损；
+Mainly used to check whether lightweight and small sampl...",,,,,
+SD3528F600E,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,62,137,1,2007,37,0.26,2,"Q/JLY J7111029E-2024
+56
+试验方法安装ISO 16750-3-2023中的4.1.2.2.3执行。
+The test method shall be implemented according to 4.1.2.2.3 in ISO 16750-3-2023.
+将样品按照装车状态固定在试验台上，每个轴向持续的时间是30h；加速度均方根值应为181m/s 2，
+加速度功率谱密度和频率见表33和图21所示；
+Fix the sample on the test bench according to the loading state, and the duration of each axial direction is
+30h; The acceleration root mean square value shall be 181m/s2, and the acceleration power spectral density and
+frequency are shown in Table 33 and Figure 21;
+5.2.1.1.4 技术要求 Technical Requirement
+不允许出现损坏，上电工作模式满足功能状态A，其他工作模式满足功能状态C；
+No damage is allowed. Power on working mode meets functional state A, while other working modes meet
+functional state C;
+5.2.1.2 试验2–乘用车燃油发动机变速箱...","试验方法安装ISO 16750-3-2023中的4.1.2.2.3执行。
+The test method shall be implemented according to 4.1.2.2.3 in ISO 16750-3-2023.
+将样品按照装车状态固定在试验台上，每个轴向持续的时间是30h；加速度均方根值应为181m/s 2，
+加速度功率谱密度和频率见表33和图21所示；
+Fix the sample on the test bench according to the loading state, and the duration of each axial direction is
+30h; The acceleration root mean square value shall be 181m/s2, and the acceleration power spectral density and
+frequency are shown in Table 33 and Figure 21;
+5.2.1.1.4 技术要求 Technical Requirement
+不允许出现损坏，上电工作模式满足功能状态A，其他工作模式满足功能状态C；
+No damage is allowed. Power on working mode meets functional state A, while other working modes meet
+functional state C;
+5.2.1.2 试验2–乘用车燃油发动机变速箱上轻型和小型DUT Test 2- Light ...",,,,,
+S57A84F076F,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,65,137,1,1276,29,0.2821,1,"Q/JLY J7111029E-2024
+59
+-由发动机其他振动方式引起的随机振动，例如阀门关闭;
+- random vibration due to all other vibration schemes of an engine, e.g. closing of valves;
+-由于粗糙路况的影响而产生的随机振动
+- random vibration due to the influence of rough-road conditions.
+5.2.1.3.2 试验参数 Test parameters
+动力总成的振动是由曲轴旋转和发动机燃烧引起的正弦随机振动。 单独的测试条件包括来自路面的
+随机振动。测试持续时间应至少为确保被测件热稳定性所需的一个温度循环。
+The vibration of the powertrain is a sinusoidal random vibration caused by crankshaft rotation and engine
+combustion. The individual testing conditions include random vibrations from the road surface. The test duration
+should be at least one temperature cycle required to ensure the thermal stability of the test piece.
+试验温度：温度参数及循环参考5.3.6规定变化率的温度循环；
+Test tempe...","-由发动机其他振动方式引起的随机振动，例如阀门关闭;
+- random vibration due to all other vibration schemes of an engine, e.g. closing of valves;
+-由于粗糙路况的影响而产生的随机振动
+- random vibration due to the influence of rough-road conditions.
+5.2.1.3.2 试验参数 Test parameters
+动力总成的振动是由曲轴旋转和发动机燃烧引起的正弦随机振动。 单独的测试条件包括来自路面的
+随机振动。测试持续时间应至少为确保被测件热稳定性所需的一个温度循环。
+The vibration of the powertrain is a sinusoidal random vibration caused by crankshaft rotation and engine
+combustion. The individual testing conditions include random vibrations from the road surface. The test duration
+should be at least one temperature cycle required to ensure the thermal stability of the test piece.
+试验温度：温度参数及循环参考5.3.6规定变化率的温度循环；
+Test temperature: refer to the tem...",,,,,
+SFA866551E4,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,68,137,1,661,26,0.2778,0,"Q/JLY J7111029E-2024
+62
+5.2.1.4.2 试验参数 Test parameters
+持续时间：每轴向20h；
+Duration: 20h per axis;
+试验温度：温度参数及循环参考5.3.6规定变化率的温度循环；
+Test temperature: refer to the temperature cycle with the change rate specified in 5.3.6 for temperature
+parameters and cycles;
+工作模式：工作模式按照规定变化率的温度循环要求执行；
+Working mode: The working mode is executed according to the temperature cycle requirements of the
+specified rate of change;
+加速度有效值分别为：
+The effective acceleration values are:
+X：38.9m/s2；
+Y：24.5m/s2；
+Z：39m/s2；
+加速度和频率如图26和表38；
+Acceleration and frequency are shown in Figure 26 and Table 38；
+注 Note：
+Y： PSD (m/s 2)2/Hz
+f：频率 Hz
+f: Frequency Hz
+1：X轴曲线
+1: X-axis curve
+2：Y轴曲线
+2: Y-axis curve
+3：Z轴曲线
+3: Z-axis curve
+TO：Others jun-...","5.2.1.4.2 试验参数 Test parameters
+持续时间：每轴向20h；
+Duration: 20h per axis;
+试验温度：温度参数及循环参考5.3.6规定变化率的温度循环；
+Test temperature: refer to the temperature cycle with the change rate specified in 5.3.6 for temperature
+parameters and cycles;
+工作模式：工作模式按照规定变化率的温度循环要求执行；
+Working mode: The working mode is executed according to the temperature cycle requirements of the
+specified rate of change;
+加速度有效值分别为：
+The effective acceleration values are:
+X：38.9m/s2；
+Y：24.5m/s2；
+Z：39m/s2；
+加速度和频率如图26和表38；
+Acceleration and frequency are shown in Figure 26 and Table 38；
+注 Note：
+Y： PSD (m/s 2)2/Hz
+f：频率 Hz
+f: Frequency Hz
+1：X轴曲线
+1: X-axis curve
+2：Y轴曲线
+2: Y-axis curve
+3：Z轴曲线
+3: Z-axis curve",,,,,
+SF48872B80C,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,72,137,1,1178,27,0.2973,0,"Q/JLY J7111029E-2024
+66
+注：
+Note:
+X：频率Hz；
+X: frequency Hz;
+f：加速度（m/s2）2/Hz；
+f: Acceleration (M / S2) 2 / Hz;
+图28 频率和最大加速度
+Figure 28 Frequency and maximum acceleration
+5.2.1.6.3 试验方法 Test methods
+试验方法参考ISO 16750-3-2023的4.1.15.2执行；
+Refer to 4.1.15.2 of ISO 16750-3-2023 for the test method;
+将样品按照装车状态固定在试验台上，以不大于0.5oct/min的速率进行扫频，样件每个轴向的试验
+持续时间30h，加速度幅值和频率按图28和表40执行。
+Fix the sample on the test bench according to the loading state, and sweep the frequency at a rate not greater
+than 0.5oct/min. The test duration of each axis of the sample is 30h, and the acceleration amplitude and frequency
+are as shown in Figure 28 and Table 40.
+5.2.1.6.4 技术要求 Technical Requirement
+不允许出现损坏，上电工作模式满足功能状态A，其他工作模式满足功能...","注：
+Note:
+X：频率Hz；
+X: frequency Hz;
+f：加速度（m/s2）2/Hz；
+f: Acceleration (M / S2) 2 / Hz;
+图28 频率和最大加速度
+Figure 28 Frequency and maximum acceleration
+5.2.1.6.3 试验方法 Test methods
+试验方法参考ISO 16750-3-2023的4.1.15.2执行；
+Refer to 4.1.15.2 of ISO 16750-3-2023 for the test method;
+将样品按照装车状态固定在试验台上，以不大于0.5oct/min的速率进行扫频，样件每个轴向的试验
+持续时间30h，加速度幅值和频率按图28和表40执行。
+Fix the sample on the test bench according to the loading state, and sweep the frequency at a rate not greater
+than 0.5oct/min. The test duration of each axis of the sample is 30h, and the acceleration amplitude and frequency
+are as shown in Figure 28 and Table 40.
+5.2.1.6.4 技术要求 Technical Requirement
+不允许出现损坏，上电工作模式满足功能状态A，其他工作模式满足功能状态C；
+No damage is allowe...",,,,,
+S11CFAB7BFC,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,75,137,1,668,19,0.4857,1,"Q/JLY J7111029E-2024
+69
+表42 振幅和频率
+Table 42 Amplitude and frequency
+频率Hz PSD（m/s2）2/Hz
+20 200
+40 200
+300 0.5
+800 0.5
+1000 3
+2000 3
+注：
+Note:
+X：频率Hz；
+X: Frequency Hz;
+Y：加速度（m/s2）2/Hz；
+Y: Acceleration (m / s2) 2 / Hz;
+图30 频率和最大加速度
+Figure 30 Frequency and maximum acceleration
+5.2.1.8.3 试验方法 Test methods
+试验方法参考ISO 16750-3-2023中的4.1.12.2执行。
+Refer to 4.1.12.2 in ISO 16750-3-2023 for the test method.
+将样品按照装车状态固定在试验台上，每个轴向持续的时间是8h；加速度均方根值应为107.3m/s 2，
+加速度功率谱密度和频率见表42和图30所示；
+Fix the sample on the test bench according to the loading state, and the duration of each axial direction is
+8h; The acceleration root mean square value shall be 107.3m/s2, and the acceleration power spectral density and
+frequency ...","表42 振幅和频率
+Table 42 Amplitude and frequency
+频率Hz PSD（m/s2）2/Hz
+注：
+Note:
+X：频率Hz；
+X: Frequency Hz;
+Y：加速度（m/s2）2/Hz；
+Y: Acceleration (m / s2) 2 / Hz;
+图30 频率和最大加速度
+Figure 30 Frequency and maximum acceleration
+5.2.1.8.3 试验方法 Test methods
+试验方法参考ISO 16750-3-2023中的4.1.12.2执行。
+Refer to 4.1.12.2 in ISO 16750-3-2023 for the test method.
+将样品按照装车状态固定在试验台上，每个轴向持续的时间是8h；加速度均方根值应为107.3m/s 2，
+加速度功率谱密度和频率见表42和图30所示；
+Fix the sample on the test bench according to the loading state, and the duration of each axial direction is
+8h; The acceleration root mean square value shall be 107.3m/s2, and the acceleration power spectral density and
+frequency are shown in Table 42 and Figure 30;",,,,,
+S343EE3A2F4,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,78,137,1,149,10,0.6538,0,"Q/JLY J7111029E-2024
+72
+表44 振幅和频率
+Table 44 Amplitude and Frequency
+频率Hz PSD (m/s2)2/Hz
+10 10
+100 10
+150 0.1
+700 0.1
+800 10
+2000 10
+注:
+Note：
+Y：PSD
+f：频率 Hz
+f: Frequency Hz
+图32 频率和加速度
+Figure 32 Frequency and Acceleration
+TO：Others jun-liang.liu@vitesco.com
+TO：Others jun-liang.liu@vitesco.com
+OF：纬湃汽车电子（长春）有限公司
+OF：纬湃汽车电子（长春）有限公司
+BY：Decan.Zhu@geely.com
+BY：Decan.Zhu@geely.com
+AT：2025-11-21 13:51
+AT：2025-11-21 13:51","表44 振幅和频率
+Table 44 Amplitude and Frequency
+频率Hz PSD (m/s2)2/Hz
+注:
+Note：
+Y：PSD
+f：频率 Hz
+f: Frequency Hz
+图32 频率和加速度
+Figure 32 Frequency and Acceleration",,,,,
+S4BFB362FA8,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,81,137,1,267,14,0.5806,0,"Q/JLY J7111029E-2024
+75
+表45 振幅与频率
+Table 45 Amplitude and Frequency
+频率Hz 振幅mm 最大加速度m/s2
+50 0.3 -
+160 0.3 -
+2000 - 300
+注：
+Note:
+Y：最大加速度m/s2；
+Y: Maximum acceleration m/s2;
+f：频率Hz
+f: Frequency Hz
+图34 最大加速度与频率
+Figure 34 Maximum Acceleration and Frequency
+表46 最大加速度与频率
+Table 46 Maximum Acceleration and Frequency
+频率Hz 最大加速度m/s2
+125 60
+250 60
+260 40
+500 40
+TO：Others jun-liang.liu@vitesco.com
+TO：Others jun-liang.liu@vitesco.com
+OF：纬湃汽车电子（长春）有限公司
+OF：纬湃汽车电子（长春）有限公司
+BY：Decan.Zhu@geely.com
+BY：Decan.Zhu@geely.com
+AT：2025-11-21 13:51
+AT：2025-11-21 13:51","表45 振幅与频率
+Table 45 Amplitude and Frequency
+频率Hz 振幅mm 最大加速度m/s2
+注：
+Note:
+Y：最大加速度m/s2；
+Y: Maximum acceleration m/s2;
+f：频率Hz
+f: Frequency Hz
+图34 最大加速度与频率
+Figure 34 Maximum Acceleration and Frequency
+表46 最大加速度与频率
+Table 46 Maximum Acceleration and Frequency
+频率Hz 最大加速度m/s2",,,,,
+S91EEF20CC3,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,84,137,1,1529,46,0.2623,1,"Q/JLY J7111029E-2024
+78
+5.2.2.1.2 试验参数 Test parameters
+工作模式：1.2；
+Working mode: 1.2;
+冲击波形：半正弦波；
+Shock waveform: half sine wave;
+加速度及冲击次数见表48。
+See Table 48for acceleration and impact times.
+表48 冲击次数
+Table 48 Impact Times
+冲击严酷度1
+Impact severity 1
+冲击严酷度2
+Impact severity 2
+冲击次数
+Number of impacts
+安装位置
+Installation position
+500m/s2，11ms 300m/s2，6ms
+驾驶员门、行李箱门
+Driver's door, trunk door
+24000 184000
+乘客门
+Passenger’s doors
+11000 92000
+行李箱盖、尾门
+Trunk lid, tailgate
+4400 55000
+发动机罩
+Engine hood
+1320 5500
+电动汽车充电设备存放于前后备箱
+Electric vehicle charging equipment is
+stored in the front and rear spare boxes
+580 2400
+注：
+Note:
+除非另有协议，否则应使用严酷度2；
+Unless otherwise agreed, severity 2 shall be used;
+加速度作用方向与样件装车使用发生冲击加速度的方向...","5.2.2.1.2 试验参数 Test parameters
+工作模式：1.2；
+Working mode: 1.2;
+冲击波形：半正弦波；
+Shock waveform: half sine wave;
+加速度及冲击次数见表48。
+See Table 48for acceleration and impact times.
+表48 冲击次数
+Table 48 Impact Times
+冲击严酷度1
+Impact severity 1
+冲击严酷度2
+Impact severity 2
+冲击次数
+Number of impacts
+安装位置
+Installation position
+500m/s2，11ms 300m/s2，6ms
+驾驶员门、行李箱门
+Driver's door, trunk door
+乘客门
+Passenger’s doors
+行李箱盖、尾门
+Trunk lid, tailgate
+发动机罩
+Engine hood
+电动汽车充电设备存放于前后备箱
+Electric vehicle charging equipment is
+stored in the front and rear spare boxes
+注：
+Note:
+除非另有协议，否则应使用严酷度2；
+Unless otherwise agreed, severity 2 shall be used;
+加速度作用方向与样件装车使用发生冲击加速度的方向相同，若不确定方向，按照三轴向六方向进行试验；
+The direction of acceleration is the same as the direct...",,,,,
+SD7514D2417,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,88,137,1,2197,38,0.2083,1,"Q/JLY J7111029E-2024
+82
+次，大于10kg的样品，针对可能收到冲击的面和角进行跌落。跌落距离见表49，冲击面：混凝土地
+面或钢板。
+The test method shall refer to 4.3.2.1 in ISO 16750-3-2023. If there are no special requirements, it shall
+be carried out at room temperature, with at least 3 samples and a working mode of 1.1. For small or light
+samples weighing less than 10kg, each sample shall be dropped once in the opposite direction of the same axis.
+For samples weighing more than 10kg, the drop shall be made on the surface and angle that may be impacted.
+The drop distance is shown in Table 49, and the impact surface is concrete ground or steel plate.
+5.2.3.4 技术要求 Technical Requirement
+试验后不允许出现隐形损坏，晃动无异响，功能状态满足C，若出现明显损坏，由吉利工程师进
+行最终判定是否接受。若产品文件定...","次，大于10kg的样品，针对可能收到冲击的面和角进行跌落。跌落距离见表49，冲击面：混凝土地
+面或钢板。
+The test method shall refer to 4.3.2.1 in ISO 16750-3-2023. If there are no special requirements, it shall
+be carried out at room temperature, with at least 3 samples and a working mode of 1.1. For small or light
+samples weighing less than 10kg, each sample shall be dropped once in the opposite direction of the same axis.
+For samples weighing more than 10kg, the drop shall be made on the surface and angle that may be impacted.
+The drop distance is shown in Table 49, and the impact surface is concrete ground or steel plate.
+5.2.3.4 技术要求 Technical Requirement
+试验后不允许出现隐形损坏，晃动无异响，功能状态满足C，若出现明显损坏，由吉利工程师进
+行最终判定是否接受。若产品文件定义为易碎零件，允许不执行该试验
+After th...",,,,,
+SA10FA6EA1E,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,91,137,1,873,28,0.2895,0,"Q/JLY J7111029E-2024
+85
+满足功能状态A。
+Meet functional status A.
+5.3.5 温度梯度试验 Temperature step test
+5.3.5.1 试验目的 Test aim
+检查在工作温度范围的一小部分范围内可能发生的机械和电气设备故障(包括在不同工作模式之间
+不能正确转换)。
+Check for mechanical and electrical equipment malfunctions that may occur within a small range
+of operating temperatures (including incorrect switching between different operating modes).
+注：该试验主要适用于小型和轻型部件，供需双方达成一致，也可用于大型和重型部件。
+Note: This test is mainly applicable to small and light components, and can also be used for large and
+heavy components as agreed upon by both the supply and demand parties.
+5.3.5.3 试验参数 Test parameters
+试验温度：Tmin～Tmax;
+Test temperature: Tmin ~ Tmax;
+温度梯度：5℃；
+Temperature gradient: 5 ℃;
+温度持续时间：60min或样品温度...","满足功能状态A。
+Meet functional status A.
+5.3.5 温度梯度试验 Temperature step test
+5.3.5.1 试验目的 Test aim
+检查在工作温度范围的一小部分范围内可能发生的机械和电气设备故障(包括在不同工作模式之间
+不能正确转换)。
+Check for mechanical and electrical equipment malfunctions that may occur within a small range
+of operating temperatures (including incorrect switching between different operating modes).
+注：该试验主要适用于小型和轻型部件，供需双方达成一致，也可用于大型和重型部件。
+Note: This test is mainly applicable to small and light components, and can also be used for large and
+heavy components as agreed upon by both the supply and demand parties.
+5.3.5.3 试验参数 Test parameters
+试验温度：Tmin～Tmax;
+Test temperature: Tmin ~ Tmax;
+温度梯度：5℃；
+Temperature gradient: 5 ℃;
+温度持续时间：60min或样品温度稳定；
+Temperature duration...",,,,,
+SA164F7C451,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,94,137,1,552,16,0.4231,0,"Q/JLY J7111029E-2024
+88
+注：
+Note:
+T：温度，单位℃； t：时间，单位min；
+T: Temperature, in ℃; t: Time, unit: min;
+1：环境温度 2：DUT温度
+1: Environmental temperature 2: DUT temperature
+Tx：Tmin 和T max 持续时间 a：工作模式3.3或4.3下测试功能；
+Tx: Tmin and Tmax duration a: Test function in working mode 3.3 or 4.3;
+b：工作模式3.3或4.3 c：工作模式3.4或4.4
+b: Working mode 3.3 or 4.3 c: Working mode 3.4 or 4.4
+d：工作模式2.1 e：工作模式3.4或4.4下测试功能
+d: Working mode 2.1 e: Test function in working mode 3.4 or 4.4
+f：一个循环
+f: One cycle
+图38重型和大型DUT规定变化率的温度循环
+Fig. 38 Temperature cycling with specified rate of change for heavy-duty and large DUTs
+TO：Others jun-liang.liu@vitesco.com
+TO：Others jun-liang.liu@vitesco.com
+OF：纬湃汽车电子（长春）有限公司
+OF：纬湃汽车电子（长春）有限公司
+BY：Decan.Zhu@ge...","注：
+Note:
+T：温度，单位℃； t：时间，单位min；
+T: Temperature, in ℃; t: Time, unit: min;
+1：环境温度 2：DUT温度
+1: Environmental temperature 2: DUT temperature
+Tx：Tmin 和T max 持续时间 a：工作模式3.3或4.3下测试功能；
+Tx: Tmin and Tmax duration a: Test function in working mode 3.3 or 4.3;
+b：工作模式3.3或4.3 c：工作模式3.4或4.4
+b: Working mode 3.3 or 4.3 c: Working mode 3.4 or 4.4
+d：工作模式2.1 e：工作模式3.4或4.4下测试功能
+d: Working mode 2.1 e: Test function in working mode 3.4 or 4.4
+f：一个循环
+f: One cycle
+图38重型和大型DUT规定变化率的温度循环
+Fig. 38 Temperature cycling with specified rate of change for heavy-duty and large DUTs",,,,,
+SC3EEC02398,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,97,137,1,2112,41,0.2157,1,"Q/JLY J7111029E-2024
+91
+表52 规定转换时间的温度快速变化参数
+Table52: fast temperature change parameters for specified switching time
+最低温度Minimum temperature Tmin
+最高温度maximum temperature Tmax
+转换时间Conversion time: ＜30S
+最低和最高温度分别持续时间Duration of minimum and
+maximum temperature respectively
+样品温度稳定+15min（或者至少1h）Stable sample
+temperature+15min (or at least 1h)
+工作模式Working mode 1.2
+5.3.7.3 试验方法 Test methods
+试验方法参考ISO 16750-4-2023中的5.3.2.2执行。
+The test method shall be carried out in accordance with 5.3.2.2 of ISO 16750-4-2023.
+样品存放在环境箱中， 试验参数见表52， 从Tmin 转换到T max 的时间小于30S， 环境箱温度应在10%
+的暴露时间内达到稳定，样品需要在T min 和T max 环境下样品达到稳定状态后暴露15min（总暴露时间
+不低于30min） ，若不能证明样品达到温度稳定的时间，需要暴露至少一小时。循环次数见表3。
+The samples are stored in an envir...","表52 规定转换时间的温度快速变化参数
+Table52: fast temperature change parameters for specified switching time
+最低温度Minimum temperature Tmin
+最高温度maximum temperature Tmax
+转换时间Conversion time: ＜30S
+最低和最高温度分别持续时间Duration of minimum and
+maximum temperature respectively
+样品温度稳定+15min（或者至少1h）Stable sample
+temperature+15min (or at least 1h)
+工作模式Working mode 1.2
+5.3.7.3 试验方法 Test methods
+试验方法参考ISO 16750-4-2023中的5.3.2.2执行。
+The test method shall be carried out in accordance with 5.3.2.2 of ISO 16750-4-2023.
+样品存放在环境箱中， 试验参数见表52， 从Tmin 转换到T max 的时间小于30S， 环境箱温度应在10%
+的暴露时间内达到稳定，样品需要在T min 和T max 环境下样品达到稳定状态后暴露15min（总暴露时间
+不低于30min） ，若不能证明样品达到温度稳定的时间，需要暴露至少一小时。循环次数见表3。
+The samples are stored in an environmental chamber, with t...",,,,,
+S2C2EEB7895,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,100,137,1,2279,42,0.2115,1,"Q/JLY J7111029E-2024
+94
+5.3.8.2.2 试验方法 Test methods
+试验方法参考ISO 16750-4-2023中的5.4.2.1执行。
+The test method shall be carried out in accordance with 5.4.2.1 of ISO 16750-4-2023.
+适用于安装在涉水线以上的样品，按照以下顺序作为一个循环执行，若喷水和加热是同一个设备，
+可以跳过c和g步骤以及转换时间：
+Applicable to samples installed above the waterline, executed as a cycle in the following order. If the water
+spray and heating are the same equipment, steps c and g and conversion time can be skipped:
+a、样品以1.2的工作模式在T max 的温度箱中达到温度稳定（持续时间不低于30min）或者存
+放1h；
+a. The sample should reach temperature stability (lasting no less than 30 minutes) or be stored for 1 hour in
+a Tmax temperature box in a working mode of 1.2;
+b、在最后15min，工作模式切换为3.2或4.2；
+b. In the last 15 minutes...","5.3.8.2.2 试验方法 Test methods
+试验方法参考ISO 16750-4-2023中的5.4.2.1执行。
+The test method shall be carried out in accordance with 5.4.2.1 of ISO 16750-4-2023.
+适用于安装在涉水线以上的样品，按照以下顺序作为一个循环执行，若喷水和加热是同一个设备，
+可以跳过c和g步骤以及转换时间：
+Applicable to samples installed above the waterline, executed as a cycle in the following order. If the water
+spray and heating are the same equipment, steps c and g and conversion time can be skipped:
+a、样品以1.2的工作模式在T max 的温度箱中达到温度稳定（持续时间不低于30min）或者存
+放1h；
+a. The sample should reach temperature stability (lasting no less than 30 minutes) or be stored for 1 hour in
+a Tmax temperature box in a working mode of 1.2;
+b、在最后15min，工作模式切换为3.2或4.2；
+b. In the last 15 minutes, switch the working mod...",,,,,
+S65DA8D5F1B,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,104,137,1,1144,26,0.3056,2,"Q/JLY J7111029E-2024
+98
+注：
+Note:
+t：时间，单位：h； a：工作模式3.2；
+t: Time, unit: H; a: Working mode 3.2;
+b：工作模式1.2； c：打开喷雾；
+b: Working mode 1.2; c: Turn on spray;
+d：关闭喷雾； e：一个循环；
+d: Turn off spray; e: One cycle;
+图40 盐雾试验循环
+Figure 40 Salt Spray Test Cycle
+5.3.9.2.3 试验方法 Test methods
+试验方法参考标准ISO 16750-4-2023中的5.5.3.4执行。
+The test method shall be carried out in accordance with 5.5.3.4 of the standard ISO 16750-4-2023.
+将样品按照实车安装方式，放置在试验箱中，依据图40执行，一个循环持续24h，对样品进行连
+续喷雾8h，暂停16h，在一个循环的第4和第5个小时之间以3.2或4.2的工作模式进行运行，共进行
+6个循环。
+Place the sample in the test chamber according to the real vehicle installation method, and execute
+according to Figure 40. A cycle lasts for 24 hours. Conduct continuous spray on the sample f...","注：
+Note:
+t：时间，单位：h； a：工作模式3.2；
+t: Time, unit: H; a: Working mode 3.2;
+b：工作模式1.2； c：打开喷雾；
+b: Working mode 1.2; c: Turn on spray;
+d：关闭喷雾； e：一个循环；
+d: Turn off spray; e: One cycle;
+图40 盐雾试验循环
+Figure 40 Salt Spray Test Cycle
+5.3.9.2.3 试验方法 Test methods
+试验方法参考标准ISO 16750-4-2023中的5.5.3.4执行。
+The test method shall be carried out in accordance with 5.5.3.4 of the standard ISO 16750-4-2023.
+将样品按照实车安装方式，放置在试验箱中，依据图40执行，一个循环持续24h，对样品进行连
+续喷雾8h，暂停16h，在一个循环的第4和第5个小时之间以3.2或4.2的工作模式进行运行，共进行
+6个循环。
+Place the sample in the test chamber according to the real vehicle installation method, and execute
+according to Figure 40. A cycle lasts for 24 hours. Conduct continuous spray on the sample for 8 hours, pause
+for 16...",,,,,
+SDB7E550646,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,107,137,1,1162,19,0.3448,2,"Q/JLY J7111029E-2024
+101
+盐水配置：在温度（25±2）℃时，pH值6.5～7.2，氯化钠浓度（50±5）g/L，密度1.029～1.036
+之间。
+Brine configuration: at the temperature of (25 ± 2) ℃, the pH value is 6.5 ~ 7.2, the concentration of
+sodium chloride is (50 ± 5) g / L, and the density is between 1.029 ~ 1.036.
+5.3.9.4.3 试验方法 Test methods
+试验方法参考ISO 16750-4-2023中的5.5.5.4执行。
+The test method shall be carried out in accordance with 5.5.5.4 of ISO 16750-4-2023.
+将样品按照实车安装方式，放置在试验箱中，工作模式1.2，执行如图42所示的测试循环，严酷
+度等级按照表53和图43选择。一个循环的持续时间为8小时，在（35±1）℃的条件下喷雾2h，然
+后在温度（60±1）℃、相对湿度（20~30）%RH的条件下干燥4h，最后在（50±1）℃、相对湿度大
+于95%RH的条件下存放2h。
+Place the sample in the test chamber according to the actual vehicle installation method, operate in mode
+1.2, and perform th...","盐水配置：在温度（25±2）℃时，pH值6.5～7.2，氯化钠浓度（50±5）g/L，密度1.029～1.036
+之间。
+Brine configuration: at the temperature of (25 ± 2) ℃, the pH value is 6.5 ~ 7.2, the concentration of
+sodium chloride is (50 ± 5) g / L, and the density is between 1.029 ~ 1.036.
+5.3.9.4.3 试验方法 Test methods
+试验方法参考ISO 16750-4-2023中的5.5.5.4执行。
+The test method shall be carried out in accordance with 5.5.5.4 of ISO 16750-4-2023.
+将样品按照实车安装方式，放置在试验箱中，工作模式1.2，执行如图42所示的测试循环，严酷
+度等级按照表53和图43选择。一个循环的持续时间为8小时，在（35±1）℃的条件下喷雾2h，然
+后在温度（60±1）℃、相对湿度（20~30）%RH的条件下干燥4h，最后在（50±1）℃、相对湿度大
+于95%RH的条件下存放2h。
+Place the sample in the test chamber according to the actual vehicle installation method, operate in mode
+1.2, and perform the test cycle shown in Fig...",,,,,
+SE5F980E78D,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,110,137,1,1913,63,0.1622,1,"Q/JLY J7111029E-2024
+104
+表54 腐蚀试验周期
+Table 54 Corrosion Test Cycles
+试验名称
+Test name
+腐蚀试验5.3.9.1
+Corrosion test 5.3.9.1
+组合循环盐雾5.3.9.4
+Combined cycle salt spray 5.3.9.4
+材料
+material
+未定义
+Undefined
+钢
+steel
+铝合金
+aluminium alloy
+严酷等级4
+Method 4
+336h（2个循环）
+336 h (2 cycles)
+84h（11个循环）
+84 h (11 cycles)
+224h（28个循环）
+224 h (28 cycles)
+测试持续时间
+（测试周期）
+Test duration
+(test cycles)
+严酷等级5
+Method 5
+672h（4个循环）
+672 h (4 cycles)
+168h（21个循环）
+168 h (21 cycles)
+448h（56个循环）
+448 h (56 cycles)
+5.3.9.4.4 技术要求 Technical Requirement
+不得有任何可能损害正常性能的变化，如密封功能、标记和标签应保持清晰可见。上电工作模式
+应满足功能状态A，其他工作模式满足功能状态C，外观要求，可以由技术文件定义。
+There shall be no changes that may impair normal performance, such as sealing function, markings, and
+labels, which ...","表54 腐蚀试验周期
+Table 54 Corrosion Test Cycles
+试验名称
+Test name
+腐蚀试验5.3.9.1
+Corrosion test 5.3.9.1
+组合循环盐雾5.3.9.4
+Combined cycle salt spray 5.3.9.4
+材料
+material
+未定义
+Undefined
+steel
+铝合金
+aluminium alloy
+严酷等级4
+Method 4
+336h（2个循环）
+336 h (2 cycles)
+84h（11个循环）
+84 h (11 cycles)
+224h（28个循环）
+224 h (28 cycles)
+测试持续时间
+（测试周期）
+Test duration
+(test cycles)
+严酷等级5
+Method 5
+672h（4个循环）
+672 h (4 cycles)
+168h（21个循环）
+168 h (21 cycles)
+448h（56个循环）
+448 h (56 cycles)
+5.3.9.4.4 技术要求 Technical Requirement
+不得有任何可能损害正常性能的变化，如密封功能、标记和标签应保持清晰可见。上电工作模式
+应满足功能状态A，其他工作模式满足功能状态C，外观要求，可以由技术文件定义。
+There shall be no changes that may impair normal performance, such as sealing function, markings, and
+labels, which shall be kept clear and vis...",,,,,
+S9D607EA066,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,113,137,1,758,20,0.3333,0,"Q/JLY J7111029E-2024
+107
+5.3.11 结露试验 Dewing test
+5.3.11.1 试验目的 Test aim
+模拟样件用于高湿条件，失效模式为因潮湿引起的电气故障，例如：印制电路板因潮湿产生的漏
+电流，附件失效模式为壳内潮气流动的“呼吸”效应，当样件壳内空气温度下降时，外部高湿气体就
+会被吸入。
+The simulated sample is used in high humidity conditions. The failure mode is electrical failure caused by
+humidity, such as leakage current of printed circuit board due to humidity. The failure mode of accessories is
+the ""breathing"" effect of moisture flow in the shell. When the air temperature in the shell of the sample drops,
+the external high humidity gas will be sucked in.
+5.3.11.2 试验参数 Test parameters
+工作模式：2.1；
+Working mode: 2.1;
+最高温度：+（80±3）℃；
+Maximum temperature: + （80±3） ℃;
+最低温度：+（25±3）℃；
+Minimum temperature: + （25±3） ℃...","5.3.11 结露试验 Dewing test
+5.3.11.1 试验目的 Test aim
+模拟样件用于高湿条件，失效模式为因潮湿引起的电气故障，例如：印制电路板因潮湿产生的漏
+电流，附件失效模式为壳内潮气流动的“呼吸”效应，当样件壳内空气温度下降时，外部高湿气体就
+会被吸入。
+The simulated sample is used in high humidity conditions. The failure mode is electrical failure caused by
+humidity, such as leakage current of printed circuit board due to humidity. The failure mode of accessories is
+the ""breathing"" effect of moisture flow in the shell. When the air temperature in the shell of the sample drops,
+the external high humidity gas will be sucked in.
+5.3.11.2 试验参数 Test parameters
+工作模式：2.1；
+Working mode: 2.1;
+最高温度：+（80±3）℃；
+Maximum temperature: + （80±3） ℃;
+最低温度：+（25±3）℃；
+Minimum temperature: + （25±3） ℃;
+循环次数：5个循环；
+Cycle times:...",,,,,
+S12D34D9FBA,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,116,137,1,2063,75,0.2553,0,"Q/JLY J7111029E-2024
+110
+5.3.13 冷凝试验 Condensation test
+5.3.13.1 试验目的 Test aim
+通过温度和湿度的快速变化模拟冷凝，例如当车辆从寒冷的空气中，进入温暖的地库中；或者当
+打开车窗时，湿热的空气流入由空调冷区或干燥的室内，可能会发生的冷凝；常见的失效模式是由于
+受潮，PCB或外部连接器的端子之间会出现漏电流和腐蚀，引起电器件失效故障；也可能由于环境温
+度的变化而发生冷凝，长期暴漏在潮湿空气中，呼吸效应积累的湿气会产生类似的内部腐蚀（如PCB
+或元器件表面的电化学迁移） 。
+Simulate condensation through rapid changes in temperature and humidity, such as when a vehicle enters
+a warm basement from cold air; Or when the car window is opened, humid and hot air may flow into the cold
+or dry indoor area of the air conditioner, which may cause condensation; The common failure mode is due to
+moisture, which can cause leakage current and corrosion between the terminals of the PCB or external
+connector...","5.3.13 冷凝试验 Condensation test
+5.3.13.1 试验目的 Test aim
+通过温度和湿度的快速变化模拟冷凝，例如当车辆从寒冷的空气中，进入温暖的地库中；或者当
+打开车窗时，湿热的空气流入由空调冷区或干燥的室内，可能会发生的冷凝；常见的失效模式是由于
+受潮，PCB或外部连接器的端子之间会出现漏电流和腐蚀，引起电器件失效故障；也可能由于环境温
+度的变化而发生冷凝，长期暴漏在潮湿空气中，呼吸效应积累的湿气会产生类似的内部腐蚀（如PCB
+或元器件表面的电化学迁移） 。
+Simulate condensation through rapid changes in temperature and humidity, such as when a vehicle enters
+a warm basement from cold air; Or when the car window is opened, humid and hot air may flow into the cold
+or dry indoor area of the air conditioner, which may cause condensation; The common failure mode is due to
+moisture, which can cause leakage current and corrosion between the terminals of the PCB or external
+connector, leading to the failure ...",,,,,
+S1CDE250E28,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,119,137,1,2500,42,0.2115,1,"Q/JLY J7111029E-2024
+113
+5.3.13.3 试验方法 Test methods
+试验方法参考ISO 16750-4-2023中的5.8.2执行。
+The test method shall be carried out in accordance with 5.8.2 of ISO 16750-4-2023.
+依据表55进行选择试验条件，在第一个循环开始前，先检查样品是否有冷凝，根据表55参数进
+行测试，试验循环A如图46所示，试验循环B如图47所示；
+According to Table 55, select the test conditions. Before the start of the first cycle, check whether the
+sample has condensation. Test according to the parameters in Table 55. Test cycle A is shown in Figure 46,
+and test cycle B is shown in Figure 47;
+在高温高湿阶段，需要监控样品表面温度，若未达到设定值，可以延长高温高湿阶段的时间，达
+到样品表面冷凝；在下一个循环开始前，若样品表面未干燥，应延长高温高湿阶段（A型）或除湿阶
+段（B型） 。
+In the high temperature and high humidity stage, it is necessary to monitor the surface temperature of the
+sam...","5.3.13.3 试验方法 Test methods
+试验方法参考ISO 16750-4-2023中的5.8.2执行。
+The test method shall be carried out in accordance with 5.8.2 of ISO 16750-4-2023.
+依据表55进行选择试验条件，在第一个循环开始前，先检查样品是否有冷凝，根据表55参数进
+行测试，试验循环A如图46所示，试验循环B如图47所示；
+According to Table 55, select the test conditions. Before the start of the first cycle, check whether the
+sample has condensation. Test according to the parameters in Table 55. Test cycle A is shown in Figure 46,
+and test cycle B is shown in Figure 47;
+在高温高湿阶段，需要监控样品表面温度，若未达到设定值，可以延长高温高湿阶段的时间，达
+到样品表面冷凝；在下一个循环开始前，若样品表面未干燥，应延长高温高湿阶段（A型）或除湿阶
+段（B型） 。
+In the high temperature and high humidity stage, it is necessary to monitor the surface temperature of the
+sample. If the set value is ...",,,,,
+SD780B4F0FE,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,123,137,1,2572,53,0.2,1,"Q/JLY J7111029E-2024
+117
+表56 （续）
+Table 56 (Continued)
+防水等级
+Waterproo
+f grade
+防护含义
+Meaning of
+protection
+试验方法
+Test methods
+3
+防淋水
+Waterproof
+当被试产品的尺寸和形状能容纳于图50所示的半径不超过1m的摆管下时。试验条件：
+水压约为80kPa（0.8bar)，每孔流量0.1L/min±5%。摆管在中心点两边60°角的弧段内布
+有孔径0.4mm的喷水孔，并固定在垂直位置上。被试产品置于转台上并靠近半圆摆管的
+中心，转台绕其垂直轴线以适当的角度转动，使产品各部分在试验中均被淋湿。外壳与
+摆管的最大距离为200mm，试验持续时间至少10min（在一个位置进行5min，沿水平
+线旋转90°在进行 5min） 。
+When the size and shape of the tested product can be accommodated under the swing tube with
+a radius not exceeding 1m as shown in Figure 50. Test conditions: the water pressure is about
+80kPa (0.8bar), and the flow rate of each hole is 0.1L/min ± 5%. Water spray holes with a
+diameter of 0.4mm are arranged in the arc segment o...","表56 （续）
+Table 56 (Continued)
+防水等级
+Waterproo
+f grade
+防护含义
+Meaning of
+protection
+试验方法
+Test methods
+防淋水
+Waterproof
+当被试产品的尺寸和形状能容纳于图50所示的半径不超过1m的摆管下时。试验条件：
+水压约为80kPa（0.8bar)，每孔流量0.1L/min±5%。摆管在中心点两边60°角的弧段内布
+有孔径0.4mm的喷水孔，并固定在垂直位置上。被试产品置于转台上并靠近半圆摆管的
+中心，转台绕其垂直轴线以适当的角度转动，使产品各部分在试验中均被淋湿。外壳与
+摆管的最大距离为200mm，试验持续时间至少10min（在一个位置进行5min，沿水平
+线旋转90°在进行 5min） 。
+When the size and shape of the tested product can be accommodated under the swing tube with
+a radius not exceeding 1m as shown in Figure 50. Test conditions: the water pressure is about
+80kPa (0.8bar), and the flow rate of each hole is 0.1L/min ± 5%. Water spray holes with a
+diameter of 0.4mm are arranged in the arc segment of 60 ° on both sides of the...",,,,,
+S607DCDCE3C,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,126,137,1,796,13,0.4348,1,"Q/JLY J7111029E-2024
+120
+注：D=6.3mm（防护等级5和6K） ，D=12.5mm（防护等级6）
+Note: D = 6.3mm (protection grade 5 and 6K), d = 12.5mm (protection grade 6)
+图51 高速喷嘴（防护等级5、6和6K）
+Fig. 51 High speed nozzle (protection class 5, 6 and 6K)
+注：1：喷嘴；2：被测样品；3：转盘；4：转轴；5：样品柱面参考点；6～9：喷嘴位置
+Note: 1: nozzle; 2: Tested sample; 3: Turntable; 4: Rotating shaft; 5: Sample cylindrical reference point; 6 ~ 9: nozzle position
+图52 高压/蒸汽喷射试验装置（防护等级9K）
+Figure 52 High pressure/steam injection test device (protection class 9K)
+5.3.15.3 试验方法 Test methods
+试验方法参考GB/T 30038-2013执行，样品按照实车安装方式固定在试验台上，防护等级参考表3执
+行，若无特殊要求，试验应在室温条件下执行，水温与样品的温差不大于5℃，试验参数见表56。
+The test method was carried out according to GB/T 30038-2013, and the sample was fixed o...","注：D=6.3mm（防护等级5和6K） ，D=12.5mm（防护等级6）
+Note: D = 6.3mm (protection grade 5 and 6K), d = 12.5mm (protection grade 6)
+图51 高速喷嘴（防护等级5、6和6K）
+Fig. 51 High speed nozzle (protection class 5, 6 and 6K)
+注：1：喷嘴；2：被测样品；3：转盘；4：转轴；5：样品柱面参考点；6～9：喷嘴位置
+Note: 1: nozzle; 2: Tested sample; 3: Turntable; 4: Rotating shaft; 5: Sample cylindrical reference point; 6 ~ 9: nozzle position
+图52 高压/蒸汽喷射试验装置（防护等级9K）
+Figure 52 High pressure/steam injection test device (protection class 9K)
+5.3.15.3 试验方法 Test methods
+试验方法参考GB/T 30038-2013执行，样品按照实车安装方式固定在试验台上，防护等级参考表3执
+行，若无特殊要求，试验应在室温条件下执行，水温与样品的温差不大于5℃，试验参数见表56。
+The test method was carried out according to GB/T 30038-2013, and the sample was fixed on the test bench in
+accor...",,,,,
+SB328912492,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,129,137,1,1088,20,0.3548,2,"Q/JLY J7111029E-2024
+123
+5.3.18.2 试验方法 test method
+矩阵试验后需进行拆解检查， 使用专用或通用工具， 打开壳体， 使用至少40倍的放大镜检查内部PCB
+板及pin针是否有晶须生长，若有晶须生长，使用放大倍数更高的专用设备进行测量晶须的长度，设备
+精度至少达到1μm。
+After the matrix test, disassemble and check. Use special or general tools to open the shell. Use a
+magnifying glass of at least 40 times to check whether there is whisker growth on the internal PCB board and
+pin pin. If there is whisker growth, use a special device with higher magnification to measure the length of the
+whisker. The accuracy of the device shall be at least 1 μ m.
+5.3.18.3 技术要求 Technical Requirement
+若有晶须生长需明确记录晶须生长位置及晶须长度。
+If there is whisker growth, the location and length of whisker should be clearly recorded.
+注：晶须检查仅...","5.3.18.2 试验方法 test method
+矩阵试验后需进行拆解检查， 使用专用或通用工具， 打开壳体， 使用至少40倍的放大镜检查内部PCB
+板及pin针是否有晶须生长，若有晶须生长，使用放大倍数更高的专用设备进行测量晶须的长度，设备
+精度至少达到1μm。
+After the matrix test, disassemble and check. Use special or general tools to open the shell. Use a
+magnifying glass of at least 40 times to check whether there is whisker growth on the internal PCB board and
+pin pin. If there is whisker growth, use a special device with higher magnification to measure the length of the
+whisker. The accuracy of the device shall be at least 1 μ m.
+5.3.18.3 技术要求 Technical Requirement
+若有晶须生长需明确记录晶须生长位置及晶须长度。
+If there is whisker growth, the location and length of whisker should be clearly recorded.
+注：晶须检查仅适用于表49中的第一、二组试验后拆解检查。
+Not...",,,,,
+S69000550A6,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,132,137,1,2246,62,0.2973,2,"Q/JLY J7111029E-2024
+126
+5.4.3 试验方法 Test methods
+试验方法参考ISO 16750-5-2023执行.
+根据样品的安装位置，按照表3和表58选择化学试剂，依据表58的方法代码选择表59的润湿方法，
+对每种试剂使用不同样品。
+Refer to ISO 16750-5-2010 for the test method. According to the installation position of the sample, select
+the chemical reagent according to Table 3 and Table 55, and select the wetting method in Table 56 according to
+the method code in Table 55. Use different samples for each reagent.
+除非另有说明，试验应在室温条件下进行,每个样品用一种试剂进行一个循环试验，应使用所有可
+能接触到的试剂进行测试，但可以通过书面证据证明不受污染且不需要测试的材料除外。
+Unless otherwise specified, the test shall be conducted at room temperature. Each sample shall be subject
+to one cycle test with one reagent. All the reagents that may be contacted shall be use...","5.4.3 试验方法 Test methods
+试验方法参考ISO 16750-5-2023执行.
+根据样品的安装位置，按照表3和表58选择化学试剂，依据表58的方法代码选择表59的润湿方法，
+对每种试剂使用不同样品。
+Refer to ISO 16750-5-2010 for the test method. According to the installation position of the sample, select
+the chemical reagent according to Table 3 and Table 55, and select the wetting method in Table 56 according to
+the method code in Table 55. Use different samples for each reagent.
+除非另有说明，试验应在室温条件下进行,每个样品用一种试剂进行一个循环试验，应使用所有可
+能接触到的试剂进行测试，但可以通过书面证据证明不受污染且不需要测试的材料除外。
+Unless otherwise specified, the test shall be conducted at room temperature. Each sample shall be subject
+to one cycle test with one reagent. All the reagents that may be contacted shall be used for the test, except fo...",,,,,
+SFB32970349,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,135,137,1,1176,51,0.4494,1,"Q/JLY J7111029E-2024
+129
+5.5.4 技术要求 Technical Requirement
+上电工作模式满足功能状态A，其他工作模式满足功能状态C；
+The power on working mode meets functional state A, while other working modes meet functional state C;
+技术要求按经规定程序批准的图纸或其他技术文件执行。
+The technical requirements shall be implemented according to the drawings or other technical documents
+approved according to the specified procedures.
+5.6 机械、气候、化学、寿命试验矩阵 Mechanical, climatic, chemical and life test matrix
+DV/ECV试验顺序及分组参考表62执行，分组要求详见备注。
+Refer to Table 62for DV/ECV test sequence and grouping. See remarks for grouping requirements.
+表62 机械、气候、化学、寿命试验矩阵
+Table 62 Mechanical, Climatic, Chemical and Life Test Matrix
+分组
+grouping
+序号
+Serial number
+试验项目
+Test items
+条款号
+Claus...","5.5.4 技术要求 Technical Requirement
+上电工作模式满足功能状态A，其他工作模式满足功能状态C；
+The power on working mode meets functional state A, while other working modes meet functional state C;
+技术要求按经规定程序批准的图纸或其他技术文件执行。
+The technical requirements shall be implemented according to the drawings or other technical documents
+approved according to the specified procedures.
+5.6 机械、气候、化学、寿命试验矩阵 Mechanical, climatic, chemical and life test matrix
+DV/ECV试验顺序及分组参考表62执行，分组要求详见备注。
+Refer to Table 62for DV/ECV test sequence and grouping. See remarks for grouping requirements.
+表62 机械、气候、化学、寿命试验矩阵
+Table 62 Mechanical, Climatic, Chemical and Life Test Matrix
+分组
+grouping
+序号
+Serial number
+试验项目
+Test items
+条款号
+Clause No.:
+五点功能测试
+Five point ...",,,,,
+S0A0351FEA6,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,2,60,1,397,18,0.15,0,"中华人民共和国工业和信息化部
+公
+主七
+r=t
+2017 年第 2 号
+工业和信息化部批准《超导磁选机》等 426 项行业标准（标准编
+号、名称、主要内容及实施日期晃附件），其中机械行主标准 249 璜、
+汽车行业标准 42 项、制药装备行业棕准 10 项、轻工行业栋准 106 项、
+冶金行业标准 4 项、化工行业标准 2 项、电子行韭标准 7 项、通信行业
+标准 6 项。
+以上机械行业标准由机械工业出版社出服，汽车行业标准由科
+学按术文献出族社出版曹制药装备行业标准由中国计划出族社出版曹
+轻工行业标准由中国轻工业出版社出援，冶金行业栋准由冶金工业
+出版社出跋苦化工行业标准由化工出版社出族，电子行业标准自工业
+亲信息化部电子工业标准化研究院组织出族？通信行盘标准由人民
+邮电出版社出援。
+附件： 42 项汽车行业标准辑号、标准名称和实施自茹
+中华人民共和国工业和信息化部
+二。一七年一月九日
+Uncontrolled copy: Liu, Chang (2025-09-04) - Vitesco / Schaeffler internal use only!","中华人民共和国工业和信息化部
+主七
+r=t
+2017 年第 2 号
+工业和信息化部批准《超导磁选机》等 426 项行业标准（标准编
+号、名称、主要内容及实施日期晃附件），其中机械行主标准 249 璜、
+汽车行业标准 42 项、制药装备行业棕准 10 项、轻工行业栋准 106 项、
+冶金行业标准 4 项、化工行业标准 2 项、电子行韭标准 7 项、通信行业
+标准 6 项。
+以上机械行业标准由机械工业出版社出服，汽车行业标准由科
+学按术文献出族社出版曹制药装备行业标准由中国计划出族社出版曹
+轻工行业标准由中国轻工业出版社出援，冶金行业栋准由冶金工业
+出版社出跋苦化工行业标准由化工出版社出族，电子行业标准自工业
+亲信息化部电子工业标准化研究院组织出族？通信行盘标准由人民
+邮电出版社出援。
+附件： 42 项汽车行业标准辑号、标准名称和实施自茹
+中华人民共和国工业和信息化部
+二。一七年一月九日",,,,,
+S0F4FA77AAC,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,5,60,1,522,20,0.3103,0,"序号栋准辅号标激名称被代替栋激撞号实施E 黯
+汽车电线束和电气设备琦连接
+283 QC/T 1067 .1-2017 器声在 1 部分＝定义、试验方法 QC/T 417.1-2001 2017翩。7响。1
+租一般整能要求
+汽车电钱束和电气设备用连接 QC/T 417. 3-2001
+284 QC/T 1067.2-2017 器第2 部分z 插头撞子的型式 QC/T 417.4… 2001 2017翩。7-01
+和尺寸 QC/T 417.5-2001
+汽车电钱束和电气设备用连接 QCn 29010-1991
+285 QC/T 1067. 3-2017 器第 3 部分：电线接头的型 QCn 29011-1991 2017”。7”。1
+式、尺寸和特殊要求 QCn 29013-1991
+286 QC/T 1068-2017 电动汽车用异步驱动电机系统 2017-07唰 01
+287 QC/T 1069-2017
+电功汽车用永磁同步驱动电机
+2017-07-01
+系统
+288 QC／丁 1070-2017
+汽车零部件再制造产品技术规
+2017-07幡 01
+范气缸体总成
+289 QC/T 1071-2017
+汽车发动机气缸蘸气道稳态流
+2017币。7”。1
+动特性挺试方法
+290 QC/T 772-2017 汽车用柴捕法请器试验方法 QC/T 772-2006 2017-07唰 01
+291 QC/T 771… 2017
+汽车柴油机纸肆攘芯柴油细攘
+器总成技术条件
+QC／丁 771-2006 2017懈。7时01
+Uncontrolled copy: Liu, Chang (2025-0...","序号栋准辅号标激名称被代替栋激撞号实施E黯
+汽车电线束和电气设备琦连接
+283 QC/T 1067 .1-2017 器声在 1 部分＝定义、试验方法 QC/T 417.1-2001 2017翩。7响。1
+租一般整能要求
+汽车电钱束和电气设备用连接 QC/T 417. 3-2001
+284 QC/T 1067.2-2017 器第 2部分z插头撞子的型式 QC/T 417.4…2001 2017翩。7-01
+和尺寸 QC/T 417.5-2001
+汽车电钱束和电气设备用连接 QCn 29010-1991
+285 QC/T 1067. 3-2017 器第 3 部分：电线接头的型 QCn 29011-1991 2017”。7”。1
+式、尺寸和特殊要求 QCn 29013-1991
+286 QC/T 1068-2017 电动汽车用异步驱动电机系统 2017-07唰01
+电功汽车用永磁同步驱动电机
+系统
+汽车零部件再制造产品技术规
+范气缸体总成
+汽车发动机气缸蘸气道稳态流
+动特性挺试方法
+290 QC/T 772-2017 汽车用柴捕法请器试验方法 QC/T 772-2006 2017-07唰01
+汽车柴油机纸肆攘芯柴油细攘
+器总成技术条件",,,,,
+S8190006B4D,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,8,60,1,360,10,0.2308,0,"QC/T 1067. 1-2017
+一……媳老化试墟中热老化时向由 100 h 改为 1 008 h（或由供需政方离定） ;
+一一取消了服来的信怠型附放 A 租费录日，增加了巍道能附录 A 和商录自及资料型陪录 Co
+本标准参搜采用了 ISO 8092. 2 : 2005 及 USCAR 2(Revison 6 ）。
+本栋准不静及专科。
+本标准由全国汽卒标准化技术樊员会（SAC／丁c 114）提出并阳口。
+本标准起草事单位z 河南天海电器有摄公带、中国汽车技术研究中心、长拾汽车电器研究所、重庆
+长安汽车股街有摄公司、一向海马汽车有限公商、北京汽车殷镑有眼公司、安徽江淮汽卒股铃有摄公
+司、重庆力帆乘用车有限公词、上海大众汽卒有限公司。
+本标雄主要起草人z 王荣喜 、王国堂、许鸯香、胡梦脏、李伟摇、剖举刷、周成勇、痛
+利伟、英永平、郑为明、卢军波、杨捡、罗承建。
+孩踹
+Uncontrolled copy: Liu, Chang (2025-09-04) - Vitesco / Schaeffler internal use only!","一……媳老化试墟中热老化时向由 100 h改为 1 008 h（或由供需政方离定）;
+一一取消了服来的信怠型附放 A租费录日，增加了巍道能附录 A和商录自及资料型陪录 Co
+本标准参搜采用了 ISO 8092. 2 : 2005 及 USCAR 2(Revison 6）。
+本栋准不静及专科。
+本标准由全国汽卒标准化技术樊员会（SAC／丁c 114）提出并阳口。
+本标准起草事单位z河南天海电器有摄公带、中国汽车技术研究中心、长拾汽车电器研究所、重庆
+长安汽车股街有摄公司、一向海马汽车有限公商、北京汽车殷镑有眼公司、安徽江淮汽卒股铃有摄公
+司、重庆力帆乘用车有限公词、上海大众汽卒有限公司。
+本标雄主要起草人z 王荣喜 、王国堂、许鸯香、胡梦脏、李伟摇、剖举刷、周成勇、痛
+利伟、英永平、郑为明、卢军波、杨捡、罗承建。",,,,,
+SDCB7A8D7F9,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,11,60,1,744,27,0.2895,2,"QC/T 1067. 1 2017
+3.5
+黠错结构 polariz挝ion feature
+连接器上防止发生错误连接的装置或站梢。
+3.6
+连接器孔位蠕号 connector cavity number
+连接器上可视的、有瑛蝇的、对孔位进夺标兹的编号。
+3.7
+攘攘连接器 in-line connector
+在导线闰形成电气连接的连接器。
+3.8
+设备连接器｛播接｝ device connector (male)
+与设备商部进行连接的辑出端连接器。
+3.9
+设备虫在接器｛擂靡｝ device connector (female)
+与设备连接器（插头〉进行连接的输入墙〈镜柬端）连接器。
+3. 10
+3. 11
+3. 12
+攘子二次锁.11:. 辑辑 terminal position assurance （丁PA}
+确保蠕予安装到位并单数提供端子镀止力的机构。
+端手一皮锁止2日强者l构 primary lock reinforcemer剖PLR)
+确保端予一次锁止锚梅每持在iE 确位置的棋掏。
+连接器二次锁在挠鞠 connector position assurance (CPA)
+椒连接器的锁止机构上穰外增加的一种锁止机构。
+4 试慧和要求
+4. 1 样品旗处理
+在所有试验开始前，都应将样品放提到室挂在（23 士 5 ）℃，相对渥度 45% ～75% 的环境下保
+持M ho
+4. 1. 1 试验主要求。
+庚有试验都应在室渥（23 丈 5 ）℃环境下进行。连接器的所有孔位都应进行试鉴。
+挣钱应符合 GB/T 25085 的要求，或由供需双方商定。所使用的导线应记录在试验报告中。...","黠错结构 polariz挝ion feature
+连接器上防止发生错误连接的装置或站梢。
+连接器孔位蠕号 connector cavity number
+连接器上可视的、有瑛蝇的、对孔位进夺标兹的编号。
+攘攘连接器 in-line connector
+在导线闰形成电气连接的连接器。
+设备连接器｛播接｝ device connector (male)
+与设备商部进行连接的辑出端连接器。
+设备虫在接器｛擂靡｝ device connector (female)
+与设备连接器（插头〉进行连接的输入墙〈镜柬端）连接器。
+攘子二次锁.11:.辑辑 terminal position assurance（丁PA}
+确保蠕予安装到位并单数提供端子镀止力的机构。
+端手一皮锁止2日强者l构 primary lock reinforcemer剖PLR)
+确保端予一次锁止锚梅每持在iE确位置的棋掏。
+连接器二次锁在挠鞠 connector position assurance (CPA)
+椒连接器的锁止机构上穰外增加的一种锁止机构。
+4 试慧和要求
+4. 1 样品旗处理
+在所有试验开始前，都应将样品放提到室挂在（23 士 5）℃，相对渥度 45%～75%的环境下保
+持M ho
+4. 1. 1 试验主要求。
+庚有试验都应在室渥（23丈5）℃环境下进行。连接器的所有孔位都应进行试鉴。
+挣钱应符合 GB/T 25085 的要求，或由供需双方商定。所使用的导线应记录在试验报告中。
+各项试斡及各试验样品不能相互影响。倒卖日，在高温箱5挺试撞样品相互间要铿持一定距离，不
+能梧互接触及堆放。
+在赘个试验过程中，不...",,,,,
+SE17F998687,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,14,60,1,456,31,0.25,0,"QC/T 1067. 1-2017
+表 6 低压连接器试瞌盟序
+试验分组
+章节试验项臼
+A B c D E F G 日 I J K
+4. 1 样品预处理 1' 1 1 1 1 1 1 1 1 1 1
+4.2 外观 2,4 2,4 2,5 2,4 2,7 2,4 2,5 2,5 2,5 2,4 2,4
+4.3 插拔循环 3
+4.4 端子至端子的插入力和拔出力 3
+4. 5 端子抗弯力 3
+4.9 电流锯环 4
+端子对护套的销人力、止推
+4.11 3
+力、保持为
+连接糕的接合力、分离力及锁
+4. 12 5
+止装置强度〈无助力毅〉
+助力型连接器始接合力、分离
+4. 13 5
+力及锁止装登强度
+4. 14 连接捺防错结构 3
+TPA（包括 PLR）的插入力和
+4.15 3
+拨出力
+4. 16 CPA 的插入力和拨出力 4
+4. 18 连接器对插到位声响 3
+4. 1 争跌寻惠 4
+4.20 端子孔强度 3
+4.21 端子、端子孔的防错结构 4
+4.22 固定结构机械强度 4
+4.23 助:fJ 机掏机械强度 3
+密封件的保持力〈未配合的连
+4.24 3
+接器〉
+密封件的保持为（配合的连接
+4.25 6
+糯〉
+4.2岳板端插针保持力 3
+§
+Uncontrolled copy: Liu, Chang (2025-09-04) - Vitesco / Schaeffler internal use only!","表 6 低压连接器试瞌盟序
+试验分组
+章节试验项臼
+A B c D E F G 日 I J K
+4. 1 样品预处理 1' 1 1 1 1 1 1 1 1 1 1
+4.2 外观 2,4 2,4 2,5 2,4 2,7 2,4 2,5 2,5 2,5 2,4 2,4
+4.3 插拔循环 3
+4.4 端子至端子的插入力和拔出力 3
+4. 5 端子抗弯力 3
+4.9 电流锯环 4
+端子对护套的销人力、止推
+力、保持为
+连接糕的接合力、分离力及锁
+止装置强度〈无助力毅〉
+助力型连接器始接合力、分离
+力及锁止装登强度
+4. 14 连接捺防错结构 3
+TPA（包括 PLR）的插入力和
+拨出力
+4. 16 CPA的插入力和拨出力 4
+4. 18 连接器对插到位声响 3
+4. 1争跌寻惠 4
+4.20 端子孔强度 3
+4.21 端子、端子孔的防错结构 4
+4.22 固定结构机械强度 4
+4.23 助:fJ机掏机械强度 3
+密封件的保持力〈未配合的连
+接器〉
+密封件的保持为（配合的连接
+糯〉
+4.2岳板端插针保持力 3",,,,,
+S57383978D2,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,17,60,1,613,33,0.3906,2,"褒 7 高压连接器试瑜顺赌〈鳞）
+章节试验项目
+L
+4. 1 样品预处理 1
+4.2 外观 2,7
+4.3 撩拨循环 3
+4.8 电压烽 6
+端子对护套的插入力、i仨
+4.11
+推力、保持力
+4. 17 振动／机械冲击 4
+4.27 绝缘电阻 5
+绝缘介电强度（商压连接
+4.28.2
+器〉
+4.29 然冲击
+4.30 温度／湿凌赣环
+4.31 热老化
+4.32 耐化学试液
+4.33 水密性
+4.34 气磁性
+4.36.2 室主委在试验〈高压连接器〉
+注： .表格中的离校伯数字表示试验步骤。
+各试验 R,S电丁、U 为路选一。
+4.2 外现
+4. 2. 1 设备。
+照相机、录像机、放大镜（如需要L
+4.2.2 方法。
+试验耀序如下z
+试验分组
+M N o~ Q
+1 1 1 1 1
+2,8 2,9 2,8 2,5 2,6
+3 3 3
+5 5 5
+8
+6 岳 4 4
+7 7 7 5
+4
+4
+二J_ 4
+3
+3
+QC/T 1067. 1… 2017
+：卡斗干
+Rb
+1
+2,9 2,11 2,9 2,10
+3 3 3 3
+10
+5,7 5,8 5,8
+毡 9 9
+4 6
+4 6
+6 6
+4,7 4,7
+1 ）试验前，自视检查试验样品，记录哥哥适量和材料缺蝠，如裂缝、色变、毛刺等。对试验样品拍照、
+录镰婆为每个试验结准备→个不做试珑的样品，以便试验后对比试样。
+2 ）试辑后，吕视检查每个试载过的梓品秀运录费者能现察到的变化，将试验后的样品与上述
+绑 1 ）步中未经试验的样品、照片或最穰进抒对比，并在试验报告中记录贤在的差芳号。
+4.2.3 要求。
+样品不应出现膨胀、腐蚀、色变、触点镀层靡损...","褒 7 高压连接器试瑜顺赌〈鳞）
+试验分组
+章节试验项目
+L M N o~ Q Rb ：卡斗干
+4. 1 样品预处理 1 1 1 1 1 1 1
+4.3 撩拨循环 3 3 3 3 3 3 3 3
+4.8 电压烽 6 5 5 5
+端子对护套的插入力、i仨
+推力、保持力
+4. 17 振动／机械冲击 4
+4.27 绝缘电阻 5 6 岳 4 4 5,7 5,8 5,8
+绝缘介电强度（商压连接
+器〉
+4.29 然冲击 4
+4.30 温度／湿凌赣环 4 4 6
+4.31 热老化二J_ 4 6
+4.32 耐化学试液 3
+4.33 水密性 6 6
+4.34 气磁性 4,7 4,7
+4.36.2 室主委在试验〈高压连接器〉 3
+注： .表格中的离校伯数字表示试验步骤。
+各试验R,S电丁、U为路选一。
+4.2 外现
+4. 2. 1 设备。
+照相机、录像机、放大镜（如需要L
+4.2.2 方法。
+试验耀序如下z
+1）试验前，自视检查试验样品，记录哥哥适量和材料缺蝠，如裂缝、色变、毛刺等。对试验样品拍照、
+录镰婆为每个试验结准备→个不做试珑的样品，以便试验后对比试样。
+2）试辑后，吕视检查每个试载过的梓品秀运录费者能现察到的变化，将试验后的样品与上述
+绑 1）步中未经试验的样品、照片或最穰进抒对比，并在试验报告中记录贤在的差芳号。
+4.2.3 要求。
+样品不应出现膨胀、腐蚀、色变、触点镀层靡损、物理变形、开辈革等影响产品功能的缺珞e",,,,,
+S52E8F04C19,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,21,60,1,302,18,0.28,0,"检测导线
+QC/T 1067. 1… 2017
+检草草导线
+T飞
+检测导线
+τ王
+(75念3) mm a (75土3) mm a
+b d
+e
+？仁、T，一一涎黛点”一一推荐距离山一一导线电钮 Rh;c一一连接电题 Re;
+d 与李线电阻 Rd;e一…测量也阻 Re
+圈 7 微电捷连接电阻黯噩｛绕一锦连接｝
+参考点 (75±3) mm a
+参考点
+b c d
+e
+1 、飞…一测量点；a一…推荐距离山一…插针电阻 Rb(b 的推荐距离为 30 mm ~ 50 mm);
+c…一连接电阻 Reid～一导线电阻 Rd ； ε………测景也阪 Re
+图 8 微电流连接电醒摇撞｛钱一板端连接｝
+检泌导线
+4 ）将端子固定在不导电的工作商上，措端予中心线对插端子，并确保有效插入深度大于 1 mm
+（茵功。
+5 ）计算微电流连接电翻：Re= Re-Rb- Rdo
+13
+Uncontrolled copy: Liu, Chang (2025-09-04) - Vitesco / Schaeffler internal use only!","检草草导线
+检测导线
+(75念3) mm a (75土3) mm a
+T飞
+？仁、T，一一涎黛点”一一推荐距离山一一导线电钮Rh;c一一连接电题Re;
+d 与李线电阻Rd;e一…测量也阻Re
+圈 7 微电捷连接电阻黯噩｛绕一锦连接｝
+检泌导线
+检测导线 (75±3) mm a
+参考点
+参考点
+τ王
+b c d
+1、飞…一测量点；a一…推荐距离山一…插针电阻Rb(b的推荐距离为30 mm~ 50 mm);
+图 8 微电流连接电醒摇撞｛钱一板端连接｝
+4）将端子固定在不导电的工作商上，措端予中心线对插端子，并确保有效插入深度大于 1 mm
+（茵功。
+5）计算微电流连接电翻：Re= Re-Rb- Rdo",,,,,
+SBF57FFAEA2,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,24,60,1,584,25,0.1071,0,"QC/T 1067. 1-2017
+4）蹲第 3 ）步中确定的试验电流，测量并记最长度为 150 mm 导线的电压萍。对于板端连接器，
+摇撞并记录长度为 75 mm 挣钱的电压降。
+5 ）对导线醋建点进行锡焊。将捡削与李钱连接至［ Ti 、 T2 （图？、留别。
+6 ）调节电雪慧至第 3 ）步中巍定的电流植并至少等待 30 min ，使试验电流稳定在该数值。
+7 ）摇摆并记录飞和飞之间的电压痒。
+端子电压器＝ Ti ～T2 的电压降…导线的电盟辞。
+连接电黠口端子电压跨÷试验电流。
+4.8.3 要求。
+连接电阻见表 9 ，表中未列出的端子规格的连接电阻崩插值法计算。
+4.9 电流键环
+4. 9. 1 设备。
+数字式万用隶、商定时器控制鸪直撞电掘、分蔬器、热电偶、数据远录仪。
+4.9.2 方法。
+16
+试验颠浮如下z
+1) F哥端子选用的最小规格租最薄绝缘腔的导线攘各 10 对端子。
+2 ）对导线翻景点进行锡搏。将检测导线连接至 1 、飞（图 7 、嚣的。
+引用端于最大载攘〈端子最大就流能力试脸方法见酣禁 A）的 90% ，草草量 150 mm 导线的电压
+薛。对于极端连接器，测量 75 mm 导线的电压降。
+的按图 12 搭建试验电路，按留 13 放置试验样品。用端子最大载流的 90%设定电酶，使电摞接
+通 45 min ，断开 15 min.
+数字式万用表
+热也偶
+端于对＃
+/""..../ 不导也约3萨面
+圈 12 电流循环试赣酶躇
+Uncontrolled copy: Liu, Chang (2025-09-04) - Vitesco / Schaeffler intern...","4）蹲第 3）步中确定的试验电流，测量并记最长度为 150 mm 导线的电压萍。对于板端连接器，
+摇撞并记录长度为 75 mm挣钱的电压降。
+5）对导线醋建点进行锡焊。将捡削与李钱连接至［ Ti、T2（图？、留别。
+6）调节电雪慧至第 3）步中巍定的电流植并至少等待 30 min，使试验电流稳定在该数值。
+7）摇摆并记录飞和飞之间的电压痒。
+端子电压器＝Ti～T2 的电压降…导线的电盟辞。
+连接电黠口端子电压跨÷试验电流。
+4.8.3 要求。
+连接电阻见表9，表中未列出的端子规格的连接电阻崩插值法计算。
+4.9 电流键环
+4. 9. 1 设备。
+数字式万用隶、商定时器控制鸪直撞电掘、分蔬器、热电偶、数据远录仪。
+4.9.2 方法。
+试验颠浮如下z
+1) F哥端子选用的最小规格租最薄绝缘腔的导线攘各 10对端子。
+2）对导线翻景点进行锡搏。将检测导线连接至 1、飞（图 7、嚣的。
+引用端于最大载攘〈端子最大就流能力试脸方法见酣禁 A）的 90%，草草量 150 mm 导线的电压
+薛。对于极端连接器，测量 75 mm导线的电压降。
+的按图 12搭建试验电路，按留 13 放置试验样品。用端子最大载流的 90%设定电酶，使电摞接
+通 45 min，断开 15 min.
+数字式万用表
+热也偶
+端于对＃
+/""..../ 不导也约3萨面
+圈 12 电流循环试赣酶躇",,,,,
+S955CE0FAD9,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,27,60,1,1044,37,0.075,2,"QC/T 1067. 1-2017
+达到规定值塑料踱损或端子搞坏。
+备选方案：A. 将揭子盟接在离心金属棒上，翻最端子的捶人力和止推力。
+B.J,A绝绿应接处皆霸导线，用一个与导钱蓝径接近的棒，锥遗留在端子路部的
+导线。
+的记录端子在未到达预期前停止住室苗插入护套所髓的梅锺力〈即撞人力）和端子豁达预崩捧
+止位置后护套所承受的力（即止推力）。
+4.11.2.2 密封垫式整体攒甜连接器的端子插入力、止推力。
+试验！疆序如r:
+1) 用端子适用的最大魏格季到最霹绝缘层的导线准备 2 组样品，用端子适用的最小规格和最薄
+绝缘层的尊钱准费 1 组样品。端子租护辈能数麓览，我 10.
+2 ）对每个护套和每个端子孔进行编号。
+引用夹具圈定护套。
+的用力测试仪在距绝维支撑 20mm 处夹持导绩。
+引用最大规格导钱的一组样品，以 50 mm/min 的均勾速度把端子直线插入茧护套中。在未到
+达预期的停止位盟前，持续施加力览室表 12 中规定的值。每个端子孔测试究之后移除
+导线。
+6 ）窍最大旗格导钱的另一组样品，~ 50 mm/min 拇均匀速度把端子直线插入蓝护牵中。在未
+到达旗期的停止位置搓，持缓施加力直莞我 12 中规定的撞。每个端子孔捷§试完之后不移除
+导线。端子插入的摄周是z 费最后一个插入的端子王军可能赴于中心位堂堂。记录端子孔编号、
+端子插入力和端子插入ft顶序。
+7 ）用最小规格特钱的样品重复第 6 ）步的操作。
+的记录端子在未到达预期的停止位置前插入护套所需的峰值力（即插入力〉和端子到达预期得
+止位置后护奉军所承受的力〈即止推力）。
+4.11.2.3 辈辈子保持力。
+试验j膜序...","达到规定值塑料踱损或端子搞坏。
+备选方案：A.将揭子盟接在离心金属棒上，翻最端子的捶人力和止推力。
+B.J,A绝绿应接处皆霸导线，用一个与导钱蓝径接近的棒，锥遗留在端子路部的
+导线。
+的记录端子在未到达预期前停止住室苗插入护套所髓的梅锺力〈即撞人力）和端子豁达预崩捧
+止位置后护套所承受的力（即止推力）。
+4.11.2.2 密封垫式整体攒甜连接器的端子插入力、止推力。
+试验！疆序如r:
+1) 用端子适用的最大魏格季到最霹绝缘层的导线准备 2 组样品，用端子适用的最小规格和最薄
+绝缘层的尊钱准费 1 组样品。端子租护辈能数麓览，我 10.
+2）对每个护套和每个端子孔进行编号。
+引用夹具圈定护套。
+的用力测试仪在距绝维支撑 20mm处夹持导绩。
+引用最大规格导钱的一组样品，以 50 mm/min 的均勾速度把端子直线插入茧护套中。在未到
+达预期的停止位盟前，持续施加力览室表 12 中规定的值。每个端子孔测试究之后移除
+导线。
+6）窍最大旗格导钱的另一组样品，~ 50 mm/min 拇均匀速度把端子直线插入蓝护牵中。在未
+到达旗期的停止位置搓，持缓施加力直莞我 12 中规定的撞。每个端子孔捷§试完之后不移除
+导线。端子插入的摄周是z费最后一个插入的端子王军可能赴于中心位堂堂。记录端子孔编号、
+端子插入力和端子插入ft顶序。
+7）用最小规格特钱的样品重复第 6）步的操作。
+的记录端子在未到达预期的停止位置前插入护套所需的峰值力（即插入力〉和端子到达预期得
+止位置后护奉军所承受的力〈即止推力）。
+4.11.2.3 辈辈子保持力。
+试验j膜序如亨z
+1) 周瑜子选用的最大巍格军在最犀绝缘嚣的...",,,,,
+S1694288F61,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,30,60,1,872,36,0.0638,1,"QC/T 1067. 1… 2017
+5) JU. 50 mm/min 的建匀速度增如接合力，直至连接器究企盟会。
+的记录辑对连接器对捶至锁定位置是常薯的雄值力（接合力〉。
+4. 12.2.2 连接器的分离力和锁止装盟强度
+试验顺序如下：
+1 ）准备 15 对配合好的连接器样品（CPA 不班啃合），平均分为 3 组2
+第 1 辑：5 对不装盟端子的连接器z
+第 2 组： 5 x才毒草配竭子的连接器p
+第 3 组： 5 ）（才装配端子的连接器。
+2）南第 1 组样品，把－?X锁止结梅克企啃合的连接器固定在力测试仪的夹具中。调擦夹具使
+分离力能直接均匀地施加到连接糯主体上，调整力测试仪使其确保连接器能带轴线直线
+分离。
+3 ）以 50 mm/min 的均匀速度增加分满力，直至连接器完余分离。
+的记录每对连接器的分离力，部曾是生装紫强度。
+引用第 2 组样品，解除连接器一夜镇企机构，重复第 2）～3 ）步的操作，记录分离力。
+的用第 3 辑样品，由锁止结掬持镀施加解锁力直至解锁（解横过程不应损坏任何部件）。记录
+解锁力。
+4. 12. 3 要求。
+连接器的接合力和分离力应小于或等于 75 N 或自供需攻方商定，镀止装置强度晃表 16 ，解镀力
+应为 6 到～51 N.,
+褒 16 锁止装童强度
+端子规格
+(1 ～2）孔
+口lffi
+~0.64 二主80 N
+>0.64~<2.8 二主SON
+>2.8 二三100N
+注2 对于混合连接器，按最大端予魏格和护套孔数在表中找对应值。
+4. 13 勤力型连接器的接合力、分离力及锁止装置强度
+4. 13. 1 设备。
+具有波峰读数特征的力测试仪...","5) JU. 50 mm/min 的建匀速度增如接合力，直至连接器究企盟会。
+的记录辑对连接器对捶至锁定位置是常薯的雄值力（接合力〉。
+4. 12.2.2 连接器的分离力和锁止装盟强度
+试验顺序如下：
+1）准备 15 对配合好的连接器样品（CPA不班啃合），平均分为3 组2
+第 1 辑：5对不装盟端子的连接器z
+第 2组：5 x才毒草配竭子的连接器p
+第 3 组：5 ）（才装配端子的连接器。
+2）南第 1 组样品，把－?X锁止结梅克企啃合的连接器固定在力测试仪的夹具中。调擦夹具使
+分离力能直接均匀地施加到连接糯主体上，调整力测试仪使其确保连接器能带轴线直线
+分离。
+3）以 50 mm/min 的均匀速度增加分满力，直至连接器完余分离。
+的记录每对连接器的分离力，部曾是生装紫强度。
+引用第 2组样品，解除连接器一夜镇企机构，重复第 2）～3）步的操作，记录分离力。
+的用第 3辑样品，由锁止结掬持镀施加解锁力直至解锁（解横过程不应损坏任何部件）。记录
+解锁力。
+4. 12. 3 要求。
+连接器的接合力和分离力应小于或等于75 N或自供需攻方商定，镀止装置强度晃表 16，解镀力
+应为 6 到～51 N.,
+褒 16 锁止装童强度
+端子规格
+(1～2）孔 (3～6）孔 >6孔
+口lffi
+~0.64 二主80 N 二~80 N 二注100 N
+>0.64~<2.8 二主SON 三~100N 二注120N
+>2.8 二三100N 注120N 二注120N
+注2 对于混合连接器，按最大端予魏格和护套孔数在表中找对应值。
+4. 13 勤力型连接器的接合力、分离力及锁止装置强度
+4. 13. ...",,,,,
+SFDE093BC4F,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,33,60,1,1112,37,0.075,2,"QC/T 1067. 1-2017
+4.15.2.5 丁PA 从镀11: 位置第一次捧鼓所锚的力。
+准备 10 套装满端子的连接器，将 TPA 装配到锁止位置〈可捷肆 4. 15.2.2 璜试翰后的摔品h把
+连接器醋定在央具中；以 50 mm/min 的均匀速度从班接器上豆豆钱分离 TPA，直至究成第一次释放；
+记录蜂古董力。
+4. 15. 3 主要求。
+要求如下1
+1) TPA 从预装位置分离需要的力至少为 20 N 戒自供需~方商定a
+2 ）当所有靖子都正确装配到遍接器中，TPA 装配到银止住鼓需要的力最大为 60 N.
+D 护套中不装配端子时，TPA 装起到锁止位置需要的力至少为 15 N.
+的当一个端子没有装配到镇定位置时，TPA 装配到辙止位置需要的力至少为“ N.
+5 ）丁PA 从镜止位置释放所需的力应为 18 N ~ 60 N 或由棋需双方商定。
+4. 16 CPA 的插人力如撞出力
+4. 16. 1 设备。
+具有被蜂读数特征的力潜试仪。
+4. 16.2 方法。
+4.16.2.1 当连接器正确配合后，CPA 的插入力和拔出力。
+准备 10 对连接器，据连接器对插到j 捡，爵时 CPA 装配到亲装位殷（如适蔚〉，以 50mm/min 的均
+匀速搜捷 CPA 插入到楼止位置，记录蜂信力；以 50 mm/min 的均匀速搜担 CPA 从锁止位置拔出，
+记录蜡值力。
+4.16.2.2 3写连接器设有霞合时，CPA 的插入力。
+准备 10 套未配合的连接器，挺 CPA 装配到旗装金堂（如适用），以 50 mm/mi杂的均匀速度沿
+CPA 的锁止方由施加力直至 CPA 装配到...","4.15.2.5 丁PA从镀11:位置第一次捧鼓所锚的力。
+准备 10 套装满端子的连接器，将 TPA装配到锁止位置〈可捷肆 4. 15.2.2 璜试翰后的摔品h把
+连接器醋定在央具中；以 50 mm/min 的均匀速度从班接器上豆豆钱分离 TPA，直至究成第一次释放；
+记录蜂古董力。
+4. 15. 3 主要求。
+要求如下1
+1) TPA从预装位置分离需要的力至少为 20 N戒自供需~方商定a
+2）当所有靖子都正确装配到遍接器中，TPA装配到银止住鼓需要的力最大为 60 N.
+D 护套中不装配端子时，TPA装起到锁止位置需要的力至少为 15 N.
+的当一个端子没有装配到镇定位置时，TPA装配到辙止位置需要的力至少为“ N.
+5）丁PA从镜止位置释放所需的力应为 18 N~ 60 N或由棋需双方商定。
+4. 16 CPA 的插人力如撞出力
+4. 16. 1 设备。
+具有被蜂读数特征的力潜试仪。
+4. 16.2 方法。
+4.16.2.1 当连接器正确配合后，CPA 的插入力和拔出力。
+准备 10对连接器，据连接器对插到j捡，爵时CPA装配到亲装位殷（如适蔚〉，以 50mm/min 的均
+匀速搜捷 CPA 插入到楼止位置，记录蜂信力；以 50 mm/min 的均匀速搜担 CPA从锁止位置拔出，
+记录蜡值力。
+4.16.2.2 3写连接器设有霞合时，CPA 的插入力。
+准备 10 套未配合的连接器，挺 CPA 装配到旗装金堂（如适用），以 50 mm/mi杂的均匀速度沿
+CPA 的锁止方由施加力直至 CPA装配到j锁止住毁，记录峰植力纷
+4. 16. 2. 3 CPA 在预装位置的拨出...",,,,,
+SF183C444AB,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,36,60,1,555,29,0.1515,1,"QC/T 1067. 1-2017
+4. 17. 4 要求。
+试验样品应能按试验顺序表完成相关试验并符合试验要求F 试验过程中，端子连接电阻连续大
+于 70 的时间不应超过 1ρ，如图 20 所示。
+国咀搓您
+可接受
+7Q
+不可接受
+时问
+图 20 瞬断测量法
+4. 18 连接器对插到位声响
+4. 18. 1 设备。
+分贝测量仪。
+4. 18. 2 方法。
+试验顺序如下2
+1 ）准备 16 对不装配端子的连接器，平均分为 2 组。装配 TPA、密封件等附件（如适用）。
+2）测量并记录环境声音等级。环境声音等级应为 30 dB ~ 50 dB。
+3 ）把分贝测量仪放置到距连接器（600 ±SO)mm 处。
+的手工对插第一组连接器，测量连接器锁合产生的声音等级。
+5 ）将第 2 组连接器潮湿处理（温度 40 ℃、相对湿度 95% ～98% 中保持 6 h）后，30 min 内重复上
+述第 2 ）～4）步。
+4. 18. 3 要求。
+连接器对插到位产生的声音等级应高于环境声音：潮湿前 7 dB ，潮湿后 5 dB ；或由供需双方
+商定。
+4. 19 跌落
+4. 19. 1 设备。
+米尺。
+4. 19. 2 方法。
+试验顺序如下：
+1 ）准备 18 个护套，将 TPA、 CPA、控制杆或滑杆置于预装位置（如适用）。
+2 ）把护套平均分为 6 组，在 X、 Y、 Z3 个方向上进行试验。
+28
+Uncontrolled copy: Liu, Chang (2025-09-04) - Vitesco / Schaeffler internal use only!","4. 17. 4 要求。
+试验样品应能按试验顺序表完成相关试验并符合试验要求F试验过程中，端子连接电阻连续大
+于 70 的时间不应超过 1ρ，如图 20 所示。
+可接受
+不可接受
+7Q
+时问
+图 20 瞬断测量法
+4. 18 连接器对插到位声响
+4. 18. 1 设备。
+分贝测量仪。
+4. 18. 2 方法。
+试验顺序如下2
+1）准备 16 对不装配端子的连接器，平均分为 2组。装配 TPA、密封件等附件（如适用）。
+2）测量并记录环境声音等级。环境声音等级应为 30 dB~ 50 dB。
+3）把分贝测量仪放置到距连接器（600±SO)mm处。
+的手工对插第一组连接器，测量连接器锁合产生的声音等级。
+5）将第 2 组连接器潮湿处理（温度 40 ℃、相对湿度 95%～98%中保持6 h）后，30 min 内重复上
+述第 2）～4）步。
+4. 18. 3 要求。
+连接器对插到位产生的声音等级应高于环境声音：潮湿前 7 dB，潮湿后 5 dB；或由供需双方
+商定。
+4. 19 跌落
+4. 19. 1 设备。
+米尺。
+4. 19. 2 方法。
+试验顺序如下：
+1）准备 18 个护套，将 TPA、CPA、控制杆或滑杆置于预装位置（如适用）。
+2）把护套平均分为 6组，在 X、Y、Z3 个方向上进行试验。",,,,,
+SBEF7F0E5A3,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,39,60,1,293,17,0.1905,1,"4.22 固定站构就械强度〈形式及尺寸见衙录。
+4. 22. 1 设备。
+具有被峰读数特征的力撒试仪。
+4.22.2 方法。
+试验JI腐草如下z
+1) 准备 30 个样品，每个方向 5 个。
+QC/T 1067. 1… 2017
+2）把连接器安装到能与连接器固定结构相配合前文架上（如图 23 ）。不应额外加强连接器的商
+定结持。
+图 23 安璇支架举倒
+盯在 Fl 方向，以 50 mm/min 的均句速度对连接器撞如力直至 50 N 或固定结构磁坏。此力应
+施船在连接器尾部边雏 S mm 处，以便产生最大的力姐（见图 24 、图 2日。
+支架 ”
+固定结掏
+Fl …- 1 能 R
+喝一一一… F3
+E士士1
+F2
+器 24 1在祺圄
+31
+Uncontrolled copy: Liu, Chang (2025-09-04) - Vitesco / Schaeffler internal use only!","4.22 固定站构就械强度〈形式及尺寸见衙录。
+4. 22. 1 设备。
+具有被峰读数特征的力撒试仪。
+4.22.2 方法。
+试验JI腐草如下z
+1) 准备30个样品，每个方向 5 个。
+2）把连接器安装到能与连接器固定结构相配合前文架上（如图 23）。不应额外加强连接器的商
+定结持。
+图 23 安璇支架举倒
+盯在 Fl 方向，以 50 mm/min 的均句速度对连接器撞如力直至 50 N或固定结构磁坏。此力应
+施船在连接器尾部边雏 S mm处，以便产生最大的力姐（见图 24、图 2日。
+支架
+固定结掏
+Fl …- 1 能 R 喝一一一… F3
+E士士1
+F2
+器 24 1在祺圄",,,,,
+S6DBC7BCD71,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,43,60,1,777,30,0.0938,1,"QC/T 1067. 1 2017
+题 28 绝镰电题饿验中辱钱的连接方法
+4.27.3 要求。
+相邻蠕子之间的绝缘电盟主至少为 100 MO.
+4.28 绝镰分电强度
+4.28. 1 绝缘介电强度（能Bi连接器〉。
+4.28. 1. 1 设备。
+高2至溺试装置。
+4.28. 1. 2 方法。
+本试验用做过潮握娃理的或做过拮染物入侵试瞌盾的迎接器。
+对于非密封连接器，在做过环撞试验之后，应将样品放罩在震温（23 土 5 ）℃环境下至少 3 头。
+对于密如连接器，在做过潜蘸处理或污染辑〈耐化学试撤除外〉人侵试翰后 1 h 内究成绝镣介电
+强度试验。
+试输服序如下z
+1) 将高压据试装置连接至如商 28 庚款的导线末蝶，使相邻的端子有相反的极性。
+2 ）将离服测试装置设策为 1 000 V 交捷电（50 Hz 或60 日z）或 1600 V 直流电，并使相部的端子
+之间承受规定的电压翌少 60 s ，记通电蔬泄漏鳝况。
+3 ）将连接器的并壳期金属稽包裹起来，金属摸不能接触到任何端子和导线。
+别将高压测试装置的负极连接至金崩铺上，将正被连接至所有导或末端。
+5 ）将高压提试装置设景为 1 ODO V 交流电（50 Hz 或 60 Hz）或 1 600 V 直曾在屯，并使金腐恼与所
+有辱钱来辑之剖承受规定的电压茧.1> 60 s ，记录电撞撞漏情况。
+4. 28. 1. 3 要求。
+试验中连接器任何两个端子孔之间和端子孔与连接器外究之间不能有分质断辈革或击穿现象，电
+流淮鳝应小子或等于 1 mA.
+4.28.2 绝缘介电强皮（高压连接器）。
+4.28.2. 1 设备。
+高崖割试装寰。...","(cid:157)
+题 28 绝镰电题饿验中辱钱的连接方法
+4.27.3 要求。
+相邻蠕子之间的绝缘电盟主至少为 100 MO.
+4.28 绝镰分电强度
+4.28. 1 绝缘介电强度（能Bi连接器〉。
+4.28. 1. 1 设备。
+高2至溺试装置。
+4.28. 1. 2 方法。
+本试验用做过潮握娃理的或做过拮染物入侵试瞌盾的迎接器。
+对于非密封连接器，在做过环撞试验之后，应将样品放罩在震温（23土5）℃环境下至少3 头。
+对于密如连接器，在做过潜蘸处理或污染辑〈耐化学试撤除外〉人侵试翰后 1 h 内究成绝镣介电
+强度试验。
+试输服序如下z
+1) 将高压据试装置连接至如商 28 庚款的导线末蝶，使相邻的端子有相反的极性。
+2）将离服测试装置设策为 1 000 V交捷电（50 Hz或60 日z）或 1600 V直流电，并使相部的端子
+之间承受规定的电压翌少 60 s，记通电蔬泄漏鳝况。
+3）将连接器的并壳期金属稽包裹起来，金属摸不能接触到任何端子和导线。
+别将高压测试装置的负极连接至金崩铺上，将正被连接至所有导或末端。
+5）将高压提试装置设景为 1 ODO V交流电（50 Hz或60 Hz）或 1 600 V直曾在屯，并使金腐恼与所
+有辱钱来辑之剖承受规定的电压茧.1>60 s，记录电撞撞漏情况。
+4. 28. 1. 3 要求。
+试验中连接器任何两个端子孔之间和端子孔与连接器外究之间不能有分质断辈革或击穿现象，电
+流淮鳝应小子或等于 1 mA.
+4.28.2 绝缘介电强皮（高压连接器）。
+4.28.2. 1 设备。
+高崖割试装寰。
+4 ‘ 28.2.2 方法。
+对于非密封连接器，在...",,,,,
+S068E31EB59,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,46,60,1,792,34,0.1,2,"QC/T 1067. 1 2017
+2. 5 h 内把温／湿皮箱内温度降到（－40 土 2 ）℃；
+一→揉持辈革／温度箱内温度〈…40 士2 ）℃， 2 h;
+I.Sh 内，将温／摄度箱由温度M.C 一－ 40 士和它升高到表 2 中选主慧的最高温度：
+一…保持温／湿度箱内渥度在我 2 中选定的最离槌度，2 h;
+1. 5 h 内将温／眼皮箱内温度恢复到（23 土5 ）℃。
+在…段键环结束时，试验可以中麟，中断期间，试样成放在温度（23 士5 ）℃、相对温度 45% ～75%
+的条件下进智提存，中断时间蓝纪录在试验报告中。
+4.30.3 费求。
+试跪样品应能接试验j睫序表究成相关试验并符合试验要求。
+4.31 热老化
+4. 31. 1 设备a
+法主皮箱（ -40 ℃～175 ℃）.
+4.31.2 方法。
+试尊金顺序如下＝
+1 ）用端子适用的最小规格和最薄绝缘嚣的导线准备 10 对连接器，连接器应包括店有能件，如
+TPA、 CPA、密封件等。对锦对连接器进行蝙悖。
+2）能温度籍设置为表 2 中选定温度等载的最商温度并使温度稳烧。
+3 ）将挥品放量在温度箱内保持 1 008 以或揭供需Xlt 方离定〉，样品之间不应相互接触。
+4.31.3 要求
+试瞬样品应能按试验顺序表完成相关武雄并符合试验要求。
+4.32 耐化学试液
+本战验仅适用于帘封建事级为 S2 和 S3 的连接器。因为同种材料可生产多种连接器，所以本试验
+可镀踊间种材料的历史试验数据。
+4 届 32. 1 设备。
+不锈钢容器或耐熟麓璃烧杯。
+4.32.2 方法。
+38
+试瞌颇序如下z
+1) 用端子适用的最小旗格在最薄绝辈...","(cid:157)
+2. 5 h 内把温／湿皮箱内温度降到（－40土2）℃；
+一→揉持辈革／温度箱内温度〈…40士2）℃，2 h;
+I.Sh 内，将温／摄度箱由温度M.C一－40士和它升高到表2 中选主慧的最高温度：
+一…保持温／湿度箱内渥度在我 2 中选定的最离槌度，2 h;
+1. 5 h 内将温／眼皮箱内温度恢复到（23土5）℃。
+在…段键环结束时，试验可以中麟，中断期间，试样成放在温度（23士5）℃、相对温度 45%～75%
+的条件下进智提存，中断时间蓝纪录在试验报告中。
+4.30.3 费求。
+试跪样品应能接试验j睫序表究成相关试验并符合试验要求。
+4.31 热老化
+4. 31. 1 设备a
+法主皮箱（ -40 ℃～175 ℃）.
+4.31.2 方法。
+试尊金顺序如下＝
+1）用端子适用的最小规格和最薄绝缘嚣的导线准备 10 对连接器，连接器应包括店有能件，如
+TPA、CPA、密封件等。对锦对连接器进行蝙悖。
+2）能温度籍设置为表 2 中选定温度等载的最商温度并使温度稳烧。
+3）将挥品放量在温度箱内保持 1 008 以或揭供需Xlt方离定〉，样品之间不应相互接触。
+4.31.3 要求
+试瞬样品应能按试验顺序表完成相关武雄并符合试验要求。
+4.32 耐化学试液
+本战验仅适用于帘封建事级为 S2 和 S3 的连接器。因为同种材料可生产多种连接器，所以本试验
+可镀踊间种材料的历史试验数据。
+4届32. 1 设备。
+不锈钢容器或耐熟麓璃烧杯。
+4.32.2 方法。
+试瞌颇序如下z
+1) 用端子适用的最小旗格在最薄绝辈辈嚣的与手续准备 8 对连接器，连接器应包括所有附件，如
+τPA、...",,,,,
+S82650EE6D8,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,49,60,1,400,20,0.2174,1,"QC/T 1067. 1-2017
+4.35.2 方法。
+试验顺序如下z
+o 捕端子适用的最小规格和最薄嬉镰层的导钱准备 10 玲连接器，连接器应包括所有附件，如
+τPA、 CPA、密封件等。对每对连接器进有编号。
+2 ）把样品匮定到试睦台上，使连接器商对喷嘴放置。
+3 ）悻摇着旋转台的转萄，按表 22 规定的参数军在商 31 麓定的位囊，喷嘴从 00 开始对连接器进行
+喷射，每个位置喷射 30 s.
+4）从试段箱中取串样品，擦干样品外表，立即执好 4.27 绝橡电阻试验。
+囊 22 高压睛射试输参数
+液盏水底水源喷射时随
+设备喷射要求
+L/min kPa ℃ 30 s
+1) 旋转台速度（5 士。rpm
+喷嘴 2）位置角度（0° ,30。， 60。，”。〉士 s· 14~ M 靠 000～10 000 80 土 5 每个位置
+3）距离 100 mm ~ 150 mm
+喷嘴
+试样
+位置4
+基准点（0°, 30°, 60°, 90°)
+留 31 礁嘴及试验台布景
+41
+Uncontrolled copy: Liu, Chang (2025-09-04) - Vitesco / Schaeffler internal use only!","4.35.2 方法。
+试验顺序如下z
+o 捕端子适用的最小规格和最薄嬉镰层的导钱准备 10 玲连接器，连接器应包括所有附件，如
+τPA、CPA、密封件等。对每对连接器进有编号。
+2）把样品匮定到试睦台上，使连接器商对喷嘴放置。
+3）悻摇着旋转台的转萄，按表22规定的参数军在商 31 麓定的位囊，喷嘴从 00开始对连接器进行
+喷射，每个位置喷射30 s.
+4）从试段箱中取串样品，擦干样品外表，立即执好4.27绝橡电阻试验。
+囊 22 高压睛射试输参数
+液盏水底水源喷射时随
+设备喷射要求
+L/min kPa ℃ 30 s
+1) 旋转台速度（5士。rpm
+喷嘴 2）位置角度（0°,30。，60。，”。〉士s- 14 ~ M 靠000～10 000 80土5 每个位置
+3）距离 100 mm 150 mm
+喷嘴
+试样
+位置4
+基准点（0°, 30°, 60°, 90°)
+留 31 礁嘴及试验台布景",,,,,
+S0E81313F93,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,52,60,1,582,22,0.12,1,"QC/T 1067. 1-2017
+44
+醋录 A
+｛麓范性酣最｝
+罐子载捷能力试验方法
+本附录给掘了端子最大载流能力的试撞方法，步辍如下z
+1) m端子的最大设计电流，翻量 150 mm 单线的电压撑。对于板端连接器，溺盘 75 mm 导钱的
+电压降。
+2 ）按罔 12 搭建试撞电路，按爵 13 政章是试雄样品，最少使黑 10 x才端子。又专导线割露点进有锦
+埠，将按测导线连接至 T1 、飞（商 7 、商的。环境温度传感器的精鼓点租试撞样品在同一平
+描，使探针正对着发熬源。
+3 ）接通电源、数字式万用程和数据记录艇。
+的缓懂地增如电器的输出电挠，直至它撞向被试验端子提供最大设诗电流的 50% 为止。
+5 ）等待至少 15 血in ，使电路的滥度达到稳定状恋。然后记录环境温度、每对端予接触嚣的温
+度、每对端子上的蠢侠电居降（圈 11 中 1～T2 的毫伏电压降，减去等线的毫伏电压降）。然
+腊计算靖子的连接电眶。
+6）以小于端予最大设计电璋的 10% 为单位增加试验电器，然后建复第 5 ）步。
+盯重复第 5 ）步和第的步直至发生下题 3 种状态中的 i 种为止z
+一～一端子接触面能温升超过 55 ℃；
+十一端子的连接电阻超过了表 9 的规定手
+一一…端子出现了不符合外现拴蜜的要求。
+此时的电流定义为端子的最大载施。
+们在 X 轴上表示电珑，在 Y 轴上表示温升，用阁表的形式表示市所有规格导绒的溢升租电瓷的
+曲线商。
+Uncontrolled copy: Liu, Chang (2025-09-04) - Vitesco / Schaeffler internal use only...","醋录 A
+｛麓范性酣最｝
+罐子载捷能力试验方法
+本附录给掘了端子最大载流能力的试撞方法，步辍如下z
+1) m端子的最大设计电流，翻量 150 mm 单线的电压撑。对于板端连接器，溺盘 75 mm导钱的
+电压降。
+2）按罔 12 搭建试撞电路，按爵 13 政章是试雄样品，最少使黑 10 x才端子。又专导线割露点进有锦
+埠，将按测导线连接至 T1 、飞（商 7、商的。环境温度传感器的精鼓点租试撞样品在同一平
+描，使探针正对着发熬源。
+3）接通电源、数字式万用程和数据记录艇。
+的缓懂地增如电器的输出电挠，直至它撞向被试验端子提供最大设诗电流的 50%为止。
+5）等待至少 15 血in，使电路的滥度达到稳定状恋。然后记录环境温度、每对端予接触嚣的温
+度、每对端子上的蠢侠电居降（圈 11 中 1～T2 的毫伏电压降，减去等线的毫伏电压降）。然
+腊计算靖子的连接电眶。
+6）以小于端予最大设计电璋的 10%为单位增加试验电器，然后建复第 5）步。
+盯重复第 5）步和第的步直至发生下题3 种状态中的 i 种为止z
+一～一端子接触面能温升超过 55 ℃；
+十一端子的连接电阻超过了表 9 的规定手
+一一…端子出现了不符合外现拴蜜的要求。
+此时的电流定义为端子的最大载施。
+们在 X轴上表示电珑，在 Y轴上表示温升，用阁表的形式表示市所有规格导绒的溢升租电瓷的
+曲线商。",,,,,
+S4DDC199B35,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,55,60,1,276,20,0.5192,0,"QC/T 1067. 1-2017
+
+一
+－～一一→」一一甲一…」←一←＿； '
+白山：r:
+：川
+‘r ~ m … t ·J<
+…弘一← 二二二仁
+、
+”－＋一一
+\ J
+t一
+\/
+」
+主迪之
+100
+10
+［NEKP
+的＼
+g
+）号。
+ωι
+1000 100
+频率/Hz
+0.1
+10
+V3 随机振动 PSD 与频率
+V3 随机振动 PSD 与频率
+圄 8.4
+表 8.4
+频率 PSD 频率 PSD
+Hz (m/s2)2/Hz Hz (m/s2 沪／Hz
+10 10 500 20
+100 10 2 000 20
+300 0. 51
+250
+（NmEZ
+副蜡黑
+50
+100 500
+频率/Hz
+V4 正弦振动加速度与频率
+V4 正弦振动加速度与频率
+图 8.5
+表 8.5
+频率加速度频率加速度
+Hz m/s2 Hz m/s2
+100 100 240 300
+150 150 270 100
+200 300 440 150
+47
+Uncontrolled copy: Liu, Chang (2025-09-04) - Vitesco / Schaeffler internal use only!","100 (cid:157) －～一一→」一一甲一」…←一←＿； '
+一白山：r:
+：川
+N［ 10
+E ‘r ~ m… t -J< …弘一←二二二仁
+K ”－＋一一
+P g 的 ＼ 、 \ J
+。ω t一主迪之
+ι 」
+频率/Hz
+圄 8.4 V3 随机振动 PSD 与频率
+表 8.4 V3 随机振动 PSD 与频率
+频率 PSD 频率 PSD
+Hz (m/s2)2/Hz Hz (m/s2沪／Hz
+副Z
+频率/Hz
+图 8.5 V4 正弦振动加速度与频率
+表 8.5 V4 正弦振动加速度与频率
+频率加速度频率加速度
+Hz m/s2 Hz m/s2",,,,,
+S4B28B4AA70,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,/Users/liuchang/Downloads/Test pdf/QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,58,60,1,95,9,0.5263,0,"QC/T 1067. 1-2017
+A A 0.3士0.1气。
+H节－
+A I
+机3
+、。
+m
+－－
+CH
+节∞．也【
+A
+l 土0.1
+9.15 ~I
+6.1 土0.1
+4土0.1
+N
+与连接器“A”型固定结构E配的卡拥型式及尺寸圄 C.2
+50
+Uncontrolled copy: Liu, Chang (2025-09-04) - Vitesco / Schaeffler internal use only!","气 0.3士0.1 A A
+节H A I(cid:157)
+C－
+节H 机3
+l土0.1
+9.15 ~I
+6.1土0.1
+4土0.1
+圄 C.2 与连接器“A”型固定结构E配的卡拥型式及尺寸",,,,,
+SB279EFF7BC,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,/Users/liuchang/Downloads/Test pdf/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,2,35,1,2,1,1.0,0,II,II,,,,,
+SF29C121EF5,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,/Users/liuchang/Downloads/Test pdf/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,5,35,1,3,1,0.0,0,"III
+11.4 风险责任的承担 ................................................................. 8
+11.5 下级配套件的限定 ............................................................... 8
+12 同步工程 ............................................................................ 8
+13 问题通报 ............................................................................ 8
+14 供应商质量要求 ...................................................................... 8
+14.1 总体要求 ....................................................................... 8
+14.2 质量体系认证 ................................................................... 9
+14.3 产品先期质量策划（APQP） ....................................................... 9
+14.4 工装样件（OTS） .....................",III,,,,,
+S4BA444E78D,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,/Users/liuchang/Downloads/Test pdf/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,8,35,1,1247,36,0.0541,3,"2
+1.3.3 供应商为北汽动力提供的本 SOR 下的技术服务及向北汽动力交付的工作成果不得侵犯任何第三方
+的商标权、著作权、专利权或其他知识产权，以及商业秘密等权利或公共利益。如发生第三方指控供应商
+为北汽动力提供的技术服务或向北汽动力交付的工作成果侵犯其合法权益时，供应商应当承担全部责任，
+并赔偿北汽动力因此而造成的直接和间接损失。本条款永久有效，不受本 SOR 的有效期的影响。
+1.3.4 对于供应商在履行本 SOR 过程中所产生或者因履行本SOR 所产生的所有发明、创造以及设计创新
+等（以下称“智力成果” ） ，北汽动力享有该智力成果的知识产权申请权及相关知识产权。供应商应向北汽
+动力提供与之相关的全部信息，并为北汽动力对该智力成果的知识产权的申请和使用提供必要的协助。北
+汽动力有权出于本 SOR的目的利用乙方按照本 SOR 约定提供的工作成果，并对上述工作成果进行后续改
+进。由此产生的具有实质性或创造性技术进步特征的新的技术成果及其权利仅归北汽动力所有。
+2 工程联系方式
+为确保本 SOR 所设计零件同步开发和相关工作的顺利实施，北汽动力指定产品工程师作为相应的工程
+联系人，任何与工程相关的工作都可以与该产品工程师联系协调，具体联系方式详见附件A《设计职责及责
+任分工表》。
+3 项目管理
+3.1 项目信息
+为使供应商了解项目概况、合理配备资源，北汽动力提供本 SOR 涉及的项目基本信息，具体内容详见附
+件 B《项目一般描述》 。
+3.2 项目管理要求
+3.2.1 双方应各自建立有效的项目开发团队，由各自指定的“项目负责人”负责，并依据附件 A《设计职
+责及责任分工表》...","1.3.3 供应商为北汽动力提供的本SOR下的技术服务及向北汽动力交付的工作成果不得侵犯任何第三方
+的商标权、著作权、专利权或其他知识产权，以及商业秘密等权利或公共利益。如发生第三方指控供应商
+为北汽动力提供的技术服务或向北汽动力交付的工作成果侵犯其合法权益时，供应商应当承担全部责任，
+并赔偿北汽动力因此而造成的直接和间接损失。本条款永久有效，不受本SOR的有效期的影响。
+1.3.4 对于供应商在履行本SOR过程中所产生或者因履行本SOR所产生的所有发明、创造以及设计创新
+等（以下称“智力成果”），北汽动力享有该智力成果的知识产权申请权及相关知识产权。供应商应向北汽
+动力提供与之相关的全部信息，并为北汽动力对该智力成果的知识产权的申请和使用提供必要的协助。北
+汽动力有权出于本SOR的目的利用乙方按照本SOR约定提供的工作成果，并对上述工作成果进行后续改
+进。由此产生的具有实质性或创造性技术进步特征的新的技术成果及其权利仅归北汽动力所有。
+2 工程联系方式
+为确保本 SOR 所设计零件同步开发和相关工作的顺利实施，北汽动力指定产品工程师作为相应的工程
+联系人，任何与工程相关的工作都可以与该产品工程师联系协调，具体联系方式详见附件A《设计职责及责
+任分工表》。
+3 项目管理
+3.1 项目信息
+为使供应商了解项目概况、合理配备资源，北汽动力提供本SOR涉及的项目基本信息，具体内容详见附
+件B《项目一般描述》。
+3.2 项目管理要求
+3.2.1 双方应各自建立有效的项目开发团队，由各自指定的“项目负责人”负责，并依据附件A《设计职
+责及责任分工表》进行管理。
+3.2.2 供应商提供的团...",,,,,
+S3335BF210C,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,/Users/liuchang/Downloads/Test pdf/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,35,1,1040,40,0.0488,4,"5
+6.3 对供应商设计数据的要求
+6.3.1 由供应商设计的零件，供应商应交付北汽动力以下设计数据：
+a) 三维数模；
+b) 详细的零部件清单（包括总成及总成下一级关键零部件）；
+c) 技术认可图样；
+d) DFMEA 文档；
+e) CAE 分析报告。
+6.3.2 供应商提供的设计数据应在设计冻结日期之前提交给北汽动力，以使北汽动力进行虚拟装配和零
+部件设计。
+6.3.3 北汽动力根据不同的零部件提供相应的技术规范文件，用于规范零部件的需求。
+6.3.4 供应商应提供总成及总成下一级关键零部件的清单，以使北汽动力进行认可图样的质量管控。
+6.3.5 三维 CAD 数据：供应商必须具备与北汽动力的 CAD 信息进行接口的能力，要求的CAD 数据格式为
+所使用软件的兼容格式，具体要求详见附件 E《工程设计要求》。
+a) 提供的 CAD数模必须采用北汽动力指定的正版三维设计软件；
+b) CAD 数模应在整车/整机坐标系统中正确定位；
+c) CAD 数模最后的安装条件是几何尺寸应与整车/整机的安装位置相匹配，不应显示任何运输保护的
+零部件（例如孔盖）。
+6.3.6 技术认可图样：必须包含所有的规范和测试要求，包含但不限于下列内容：
+a) 接口范围有充分的尺寸和公差；
+b) 北汽动力相关尺寸和公差；
+c) 使用的所有规范；
+d) 零部件质量；
+e) 焊接规范；
+f) 工装控制数据；
+g) 适用的产品特殊特性。
+6.3.7 DFMEA 文档：
+a) 供应商负责编制零部件的 DFMEA，同时考虑到所有零部件的变量；
+b) DFMEA 的电子版文档应提交给北汽动力。
+6.4 环保设计要求
+供...","6.3 对供应商设计数据的要求
+6.3.1 由供应商设计的零件，供应商应交付北汽动力以下设计数据：
+a) 三维数模；
+b) 详细的零部件清单（包括总成及总成下一级关键零部件）；
+c) 技术认可图样；
+d) DFMEA文档；
+e) CAE分析报告。
+6.3.2 供应商提供的设计数据应在设计冻结日期之前提交给北汽动力，以使北汽动力进行虚拟装配和零
+部件设计。
+6.3.3 北汽动力根据不同的零部件提供相应的技术规范文件，用于规范零部件的需求。
+6.3.4 供应商应提供总成及总成下一级关键零部件的清单，以使北汽动力进行认可图样的质量管控。
+6.3.5 三维CAD数据：供应商必须具备与北汽动力的CAD信息进行接口的能力，要求的CAD数据格式为
+所使用软件的兼容格式，具体要求详见附件E《工程设计要求》。
+a) 提供的CAD数模必须采用北汽动力指定的正版三维设计软件；
+b) CAD数模应在整车/整机坐标系统中正确定位；
+c) CAD 数模最后的安装条件是几何尺寸应与整车/整机的安装位置相匹配，不应显示任何运输保护的
+零部件（例如孔盖）。
+6.3.6 技术认可图样：必须包含所有的规范和测试要求，包含但不限于下列内容：
+a) 接口范围有充分的尺寸和公差；
+b) 北汽动力相关尺寸和公差；
+c) 使用的所有规范；
+d) 零部件质量；
+e) 焊接规范；
+f) 工装控制数据；
+g) 适用的产品特殊特性。
+6.3.7 DFMEA文档：
+a) 供应商负责编制零部件的DFMEA，同时考虑到所有零部件的变量；
+b) DFMEA的电子版文档应提交给北汽动力。
+6.4 环保设计要求
+供应商应负责确保其产品满足任何潜...",,,,,
+S68335158CA,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,/Users/liuchang/Downloads/Test pdf/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,14,35,1,1219,35,0.0278,4,"8
+变更告知不及时，未按照北汽动力要求通知或完成验证造成的质量事故、停线等损失由供应商全部承担，
+同时影响供应商的未来订单份额；对北汽动力造成严重损失/影响的，除北汽动力有权要求供应商赔偿损
+失外，仍有权要求供应商承担其他违约责任。
+11.3 节点要求
+供应商必须遵守北汽动力发放的时间节点以保证满足北汽动力的项目总进度。
+11.4 风险责任的承担
+11.4.1 供应商在产品开发过程中，因出现无法克服的技术困难，导致产品无法满足北汽动力的要求，由
+此造成的风险损失由供应商负担，具体按《北汽动力供应商考核管理办法》执行。
+11.4.2 如果在项目进行过程中供应商继续进行将无法取得预期的结果，北汽动力有权停止实施项目进
+行，在这种情况下，则协议双方应就供应商已做出的努力和已经取得的开发成果编写一份总结报告，如果
+项目停止是由于供应商方案缺陷或供应商其他原因所致，则供应商需向北汽动力提供相应赔偿。
+11.4.3 终止本项目应不损害和影响北汽动力已经采取或将要采取的补救措施的权利。
+11.5 下级配套件的限定
+11.5.1 供应商应将零部件产品开发要求说明及时传递至下级供应商。
+11.5.2 供应商应提供零部件的下级供应商清单。对于北汽动力要求限定的下级供应商，见附件 E。
+12 同步工程
+12.1 供应商应定期向北汽动力汇报相关的设计输入因素并提供工程支持。如果和指定的规范要求之间存
+在有非一致性的因素，供应商应与北汽动力共同工作以解决问题。供应商还必须为北汽动力提供胜任的现
+场服务人员，从而在动力总成启动阶段，支持北汽动力解决在动力总成装配上所产生的与供应商零件相关
+联的问题。
+12...","变更告知不及时，未按照北汽动力要求通知或完成验证造成的质量事故、停线等损失由供应商全部承担，
+同时影响供应商的未来订单份额；对北汽动力造成严重损失/影响的，除北汽动力有权要求供应商赔偿损
+失外，仍有权要求供应商承担其他违约责任。
+11.3 节点要求
+供应商必须遵守北汽动力发放的时间节点以保证满足北汽动力的项目总进度。
+11.4 风险责任的承担
+11.4.1 供应商在产品开发过程中，因出现无法克服的技术困难，导致产品无法满足北汽动力的要求，由
+此造成的风险损失由供应商负担，具体按《北汽动力供应商考核管理办法》执行。
+11.4.2 如果在项目进行过程中供应商继续进行将无法取得预期的结果，北汽动力有权停止实施项目进
+行，在这种情况下，则协议双方应就供应商已做出的努力和已经取得的开发成果编写一份总结报告，如果
+项目停止是由于供应商方案缺陷或供应商其他原因所致，则供应商需向北汽动力提供相应赔偿。
+11.4.3 终止本项目应不损害和影响北汽动力已经采取或将要采取的补救措施的权利。
+11.5 下级配套件的限定
+11.5.1 供应商应将零部件产品开发要求说明及时传递至下级供应商。
+11.5.2 供应商应提供零部件的下级供应商清单。对于北汽动力要求限定的下级供应商，见附件E。
+12 同步工程
+12.1 供应商应定期向北汽动力汇报相关的设计输入因素并提供工程支持。如果和指定的规范要求之间存
+在有非一致性的因素，供应商应与北汽动力共同工作以解决问题。供应商还必须为北汽动力提供胜任的现
+场服务人员，从而在动力总成启动阶段，支持北汽动力解决在动力总成装配上所产生的与供应商零件相关
+联的问题。
+12.2 ...",,,,,
+S3682115330,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,/Users/liuchang/Downloads/Test pdf/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,18,35,1,429,17,0.0556,0,"12
+15.3.4 根据零部件自身的特性和供应距离，零部件供应到北汽动力指定的收货地点有三种供货方式:
+a) 准时化（JIT）零部件供货模式：供应商（含总成和模块化产品）需按照北汽动力生产的需求信息
+同步交货至北汽动力的厂内缓冲库的指定地点。
+b) 按需供货零部件模式:供应商按照北汽动力物料需求计划所规定的到货时间和数量，供货至北汽动
+力指定仓库地点。
+c) 取货零部件供货模式： 供应商按照北汽动力的物料需求计划所规定的取货时间和数量做准备， 由北
+汽动力委托物流服务商进行取货。
+15.4 物流成本
+供应商按照包装运输模式，完成零部件物流费用、包装费用的报价，在北汽动力的商务报价单中如实填
+报各项物流、包装费用。
+16 售后备件
+16.1 售后备件明细
+售后备件的明细参照生产零部件的明细。
+16.2 售后备件开发及物流相关要求
+参照生产零部件的相关要求，无需额外管控。
+17 质量索赔
+索赔项指标要求：质量问题 QIS 12 天， 3CS不良率 PPM20 。","15.3.4 根据零部件自身的特性和供应距离，零部件供应到北汽动力指定的收货地点有三种供货方式:
+a) 准时化（JIT）零部件供货模式：供应商（含总成和模块化产品）需按照北汽动力生产的需求信息
+同步交货至北汽动力的厂内缓冲库的指定地点。
+b) 按需供货零部件模式:供应商按照北汽动力物料需求计划所规定的到货时间和数量，供货至北汽动
+力指定仓库地点。
+c) 取货零部件供货模式：供应商按照北汽动力的物料需求计划所规定的取货时间和数量做准备，由北
+汽动力委托物流服务商进行取货。
+15.4 物流成本
+供应商按照包装运输模式，完成零部件物流费用、包装费用的报价，在北汽动力的商务报价单中如实填
+报各项物流、包装费用。
+16 售后备件
+16.1 售后备件明细
+售后备件的明细参照生产零部件的明细。
+16.2 售后备件开发及物流相关要求
+参照生产零部件的相关要求，无需额外管控。
+17 质量索赔
+索赔项指标要求：质量问题QIS 12 天， 3CS不良率 PPM20 。",,,,,
+SA3CF3054E8,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,/Users/liuchang/Downloads/Test pdf/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,21,35,1,544,28,0.1875,0,"15
+附件 B 项目一般描述
+1 报价零部件清单
+零部件报价信息表。
+2 项目信息
+N82KS-E01项目整车匹配A156T4发动机。北京汽车动力总成有限公司混动中心为完成该项目中有关产
+品设计的工程责任而编制了此份零部件产品开发要求说明（以下简称SOR），并具体负责在SOR中提供零部
+件和子系统的工程与产品设计、图纸或数模、以及相关的技术规范与要求。
+3 项目进度表
+3.1 项目主要时间节点见下表。
+序号工作内容计划完成时间
+1 项目启动 2025.10.31
+2 方案批准G7 /
+3 设计批准G6 2026.4.30
+4 设计发布G5 /
+5 产品发布G4 2026.12.20
+6 预试生产G3 /
+7 试生产G2 /
+8 正式生产（SOP）G1 2027.6.30
+3.2 随着项目的开展以上节点可能有所变化，任何变动都将与供应商进行沟通，并应以书面形式进行确
+认。
+3.3 生产纲领：
+（具体的需求时间与数量，请以采购订单为准）
+车型 2027 年/台 2028 年/台 2029 年/台 2030 年/台 2031 年/台总计（台）
+N82KS-E01
+增程版 2341 6259 8172 10522 8524 35818
+4 手工样件试制
+4.1 样件的品质要求
+手工样件阶段：
+1) 样件状态：改制件或工装件；
+序号层级零部件编号零部件名称单台数量匹配机型图纸版本数模版本采购级别
+1 / T00007918 氮氧传感器 1 N82KS-E01 / / 采购级","附件B 项目一般描述
+1 报价零部件清单
+零部件报价信息表。
+序号层级零部件编号零部件名称单台数量匹配机型图纸版本数模版本采购级别
+1 / T00007918 氮氧传感器 1 N82KS-E01 / / 采购级
+2 项目信息
+N82KS-E01项目整车匹配A156T4发动机。北京汽车动力总成有限公司混动中心为完成该项目中有关产
+品设计的工程责任而编制了此份零部件产品开发要求说明（以下简称SOR），并具体负责在SOR中提供零部
+件和子系统的工程与产品设计、图纸或数模、以及相关的技术规范与要求。
+3 项目进度表
+3.1 项目主要时间节点见下表。
+序号工作内容计划完成时间
+2 方案批准G7 /
+4 设计发布G5 /
+6 预试生产G3 /
+7 试生产G2 /
+8 正式生产（SOP）G1 2027.6.30
+3.2 随着项目的开展以上节点可能有所变化，任何变动都将与供应商进行沟通，并应以书面形式进行确
+认。
+3.3 生产纲领：
+（具体的需求时间与数量，请以采购订单为准）
+车型 2027年/台 2028年/台 2029年/台 2030年/台 2031年/台总计（台）
+N82KS-E01
+增程版
+4 手工样件试制
+4.1 样件的品质要求
+手工样件阶段：
+1) 样件状态：改制件或工装件；",,,,,
+S4EAF35BAEE,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,/Users/liuchang/Downloads/Test pdf/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,24,35,1,563,23,0.1538,3,"18
+附件 C 法规及规范要求
+1 法规要求
+1.1 中国的强制性法规
+供应商必须确保开发的零部件符合相关强制性标准要求。
+序号标准号标准名称备注
+1 GB 34660 《道路车辆电磁兼容性要求和试验方法》 /
+2 GB/T 30512 《汽车禁用物质要求》 /
+1.2 北汽动力的指定要求
+1.2.1 该车型拟出口地区的强制性标准或一些特殊要求，供应商必须满足的潜在市场所在国家法规的要
+求。
+1.2.2 部分市场的相关法律法规要求见下表，供应商必须根据 SOR 中目标市场要求进行分析设计，并设
+计能满足目标市场的要求和目标市场的相关认证。
+序号标准号标准名称备注
+/ / / /
+2 规范
+该零部件必须执行具体的产品标准、工程规范和要求（含适用的北汽动力技术管理标准和规范）。包
+括企业标准、行业标准、国家标准、国际标准等。
+序号标准号标准内容标准类别备注
+1 Q/BAIC C310001-2025 《汽车产品禁限用物质要求》 企业标准 /
+2 Q/BAIC C210063—2021 《汽车用电线束低压连接器技术条件》 企业标准 /
+3 Q/BAIC C130006-2021 《汽车产品零部件条形码规范》 企业标准 /
+4 Q/BAIC C220026—2023
+《汽车电气及电子设备电磁兼容性
+（EMC）性能要求及其试验方法》
+企业标准 /","附件C 法规及规范要求
+1 法规要求
+1.1 中国的强制性法规
+供应商必须确保开发的零部件符合相关强制性标准要求。
+序号标准号标准名称备注
+1 GB 34660 《道路车辆电磁兼容性要求和试验方法》 /
+2 GB/T 30512 《汽车禁用物质要求》 /
+1.2 北汽动力的指定要求
+1.2.1 该车型拟出口地区的强制性标准或一些特殊要求，供应商必须满足的潜在市场所在国家法规的要
+求。
+1.2.2 部分市场的相关法律法规要求见下表，供应商必须根据SOR中目标市场要求进行分析设计，并设
+计能满足目标市场的要求和目标市场的相关认证。
+序号标准号标准名称备注
+2 规范
+该零部件必须执行具体的产品标准、工程规范和要求（含适用的北汽动力技术管理标准和规范）。包
+括企业标准、行业标准、国家标准、国际标准等。
+序号标准号标准内容标准类别备注
+1 Q/BAIC C310001-2025 《汽车产品禁限用物质要求》 企业标准 /
+2 Q/BAIC C210063—2021 《汽车用电线束低压连接器技术条件》 企业标准 /
+3 Q/BAIC C130006-2021 《汽车产品零部件条形码规范》 企业标准 /
+《汽车电气及电子设备电磁兼容性
+4 Q/BAIC C220026—2023 企业标准 /
+（EMC）性能要求及其试验方法》",,,,,
+S5E7A72DAD7,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,/Users/liuchang/Downloads/Test pdf/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,27,35,1,322,14,0.125,0,"21
+注：不同开发阶段递交物根据项目的要求进行适当调整，不限于上述表格提到的内容。
+26 边界样件，如需要
+27 PPAP 样件
+28 量检具、检测设备清单
+29 检具及检查辅具评审文件
+30 CCC 证书的复印件，如适用
+31
+北汽动力要求提交的其他文件
+如：分供方PSW，问题清单（开发全过程，内外部问题） ，关键分供方
+特殊特性清单，特殊工艺评审报告，产品结构对比报告(设计/材料/工艺
+等与北汽动力其他机型及其他主机厂对比)，防错/防误清单，过去机改
+善履历反应与否(过去机问题点风险排查)，生产线人员能力矩阵表，出
+厂检验标准，PPAP-RUN 时的生产节拍统计数据，物流包装认可的相关
+资料，软件发布说明等相关文件
+32 散装材料检查清单，如适用","26 边界样件，如需要
+27 PPAP样件
+28 量检具、检测设备清单
+29 检具及检查辅具评审文件
+30 CCC证书的复印件，如适用
+北汽动力要求提交的其他文件
+如：分供方PSW，问题清单（开发全过程，内外部问题），关键分供方
+特殊特性清单，特殊工艺评审报告，产品结构对比报告(设计/材料/工艺
+31 等与北汽动力其他机型及其他主机厂对比)，防错/防误清单，过去机改
+善履历反应与否(过去机问题点风险排查)，生产线人员能力矩阵表，出
+厂检验标准，PPAP-RUN时的生产节拍统计数据，物流包装认可的相关
+资料，软件发布说明等相关文件
+32 散装材料检查清单，如适用
+注：不同开发阶段递交物根据项目的要求进行适当调整，不限于上述表格提到的内容。",,,,,
+S4C293B29E5,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,/Users/liuchang/Downloads/Test pdf/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,30,35,1,1031,36,0.0789,6,"24
+2.6 供应商应提供系统标定计划和标定工具给北汽动力，并与北汽动力一起完成实车上的系统标定。
+2.7 工程签署前，供应商需对在设计、试验、试装中发现的所有问题进行免费整改，且时间需满足北汽
+动力要求。
+2.8 供应商需完成所有目标市场的相关认证且无额外费用，并向北汽动力提交相关证书以支持北汽动力
+整机认证。
+3 外观、光泽、颜色
+零部件应符合产品图样中的表面处理技术要求，同时不可有气泡、损伤、边面缺陷或其他缺陷，总成外
+表面应无明显的伤痕、磕碰、拉毛和毛刺等缺陷，涂、镀层应无裂纹、脱落、流挂、露底等缺陷。
+4 双方数据交换的要求
+4.1 供应商交付北汽动力的产品数据要求
+供应商为本项目进行产品设计必须采用北汽动力指定的正版三维设计软件。供应商向北汽动力提交的
+最终产品数据应为电子文档，要求提供的产品数据包含三维数据和二维数据，并且格式满足以下条款的要
+求：
+a) 三维数据格式必须为 Pro/E、CATIA或 UG 版软件完成的 .stp 格式。
+b) 二维数据（含产品零件图和装配图）格式采用 AutoCAD或 UG 版的 pdf 格式。
+4.2 北汽动力提供给供应商三维数据的格式要求
+北汽动力根据供应商拥有的三维设计软件，相应提供给供应商格式为 CATIA、Pro/E 版的 .stp 格式的
+三维数据。
+4.3 供应商提供技术认可图要求
+4.3.1 供应商应提交经组织内部审签并加盖供应商有效印章的纸质技术认可图样一式两份于 2025
+年 12 月 31 日前给北汽动力进行技术认可。
+4.3.2 如技术认可图存在问题应与供应商沟通，必要时可将问题图样予以驳回，供应商进行完善...","标准编号标准名称备注
+2.6 供应商应提供系统标定计划和标定工具给北汽动力，并与北汽动力一起完成实车上的系统标定。
+2.7 工程签署前，供应商需对在设计、试验、试装中发现的所有问题进行免费整改，且时间需满足北汽
+动力要求。
+2.8 供应商需完成所有目标市场的相关认证且无额外费用，并向北汽动力提交相关证书以支持北汽动力
+整机认证。
+3 外观、光泽、颜色
+零部件应符合产品图样中的表面处理技术要求，同时不可有气泡、损伤、边面缺陷或其他缺陷，总成外
+表面应无明显的伤痕、磕碰、拉毛和毛刺等缺陷，涂、镀层应无裂纹、脱落、流挂、露底等缺陷。
+4 双方数据交换的要求
+4.1 供应商交付北汽动力的产品数据要求
+供应商为本项目进行产品设计必须采用北汽动力指定的正版三维设计软件。供应商向北汽动力提交的
+最终产品数据应为电子文档，要求提供的产品数据包含三维数据和二维数据，并且格式满足以下条款的要
+求：
+a) 三维数据格式必须为 Pro/E、CATIA或UG 版软件完成的 .stp 格式。
+b) 二维数据（含产品零件图和装配图）格式采用AutoCAD或UG 版的 pdf 格式。
+4.2 北汽动力提供给供应商三维数据的格式要求
+北汽动力根据供应商拥有的三维设计软件，相应提供给供应商格式为 CATIA、Pro/E 版的 .stp格式的
+三维数据。
+4.3 供应商提供技术认可图要求
+4.3.1 供应商应提交经组织内部审签并加盖供应商有效印章的纸质技术认可图样一式两份于 2025
+年 12 月 31 日前给北汽动力进行技术认可。
+4.3.2 如技术认可图存在问题应与供应商沟通，必要时可将问题图样予以驳回，供应商...",,,,,
+SC7F0045738,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,/Users/liuchang/Downloads/Test pdf/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,33,35,1,666,52,0.236,0,"27
+序号测试项
+目测试说明试验标准号目标要求验收方式
+4
+工业环
+境试验
+测试燃油：高硫燃油
+硫添加总量：188g
+试验时间：6天
+尾气温度：200℃（怠速运行）
+/ 产品性能正常 DV
+5
+机油成
+分灵敏
+度试验
+废气温度：400℃/ 30min，700℃/30min
+测试时间：450h
+测试油耗：8.5L/h
+机油添加剂含量：P=40g，Ca=51g
+/ 产品性能正常 DV
+6
+3D振动
+试验
+电压：14V
+时间：50h
+最大加速度：1300m/s
+2
+/ 产品性能正常 DV
+7
+随机振
+动试验
+加速度：1300m/s
+2
+（峰值）
+测试时间：24h
+环境温度：25±3℃
+/ 产品性能正常 DV
+8
+导线拉
+力试验
+安装好的传感器承受施加在线束上 53N
+轴向力1min。
+/ 产品性能正常 DV
+9
+跌落试
+验
+使传感器从 1m 高的地方掉落到混泥土
+地上1次
+/ 产品性能正常 DV
+10
+湿热循
+环
+湿度1：83%@23℃
+湿度2：92%@40℃
+时间：10天
+/ 产品性能正常 DV
+11
+温度冲
+击振动
+试验
+温度：环境温度，500℃
+电压：14V
+最大加速度：500m/s
+2
+(300m/s
+2
+@2kHz-
+3kHz)
+频率：50~3kHz
+时间：3×60h
+/
+产品性能正常 DV
+12
+喷射/浸
+没试验
+传感器安装位置加热到400℃±20℃
+测试电压：14V
+接插件系统不放在水中
+试验循环：50次
+/ 产品性能正常 DV
+13
+高压清
+洗试验
+测试压力：100bar
+角度：0°，30°，60°，90°
+测试时间：120s(30s/角度)
+压力喷嘴到传感器的距离：...","测试项
+序号测试说明试验标准号目标要求验收方式
+测试燃油：高硫燃油
+工业环硫添加总量：188g
+4 / 产品性能正常 DV
+境试验试验时间：6天
+尾气温度：200℃（怠速运行）
+废气温度：400℃/ 30min，700℃/30min
+机油成
+测试时间：450h
+5 分灵敏 / 产品性能正常 DV
+测试油耗：8.5L/h
+度试验
+机油添加剂含量：P=40g，Ca=51g
+电压：14V
+3D振动
+6 时间：50h / 产品性能正常 DV
+试验
+最大加速度：1300m/s2
+加速度：1300m/s2（峰值）
+随机振
+7 测试时间：24h / 产品性能正常 DV
+动试验
+环境温度：25±3℃
+导线拉安装好的传感器承受施加在线束上 53N
+8 / 产品性能正常 DV
+力试验轴向力1min。
+跌落试使传感器从 1m 高的地方掉落到混泥土
+9 / 产品性能正常 DV
+验地上1次
+湿度1：83%@23℃
+湿热循
+10 湿度2：92%@40℃ / 产品性能正常 DV
+时间：10天
+温度：环境温度，500℃
+电压：14V
+温度冲
+11 击振动 / 产品性能正常 DV
+3kHz)
+试验
+频率：50~3kHz
+时间：3×60h
+传感器安装位置加热到400℃±20℃
+喷射/浸测试电压：14V
+12 / 产品性能正常 DV
+没试验接插件系统不放在水中
+试验循环：50次
+测试压力：100bar
+高压清角度：0°，30°，60°，90°
+13 / 产品性能正常 DV
+洗试验测试时间：120s(30s/角度)
+压力喷嘴到传感器的距离：100mm",,,,,
+S2A097EA2BC,eSigned_EMC_88033918_FIL_000_AA 4.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_EMC_88033918_FIL_000_AA 4.pdf,1,21,1,911,21,0.2759,0,"Version AA confidential Date Department Sign
+Oct. 2023 QL LAB EMC/ET TSR eSign:
+Oct. 2023 P CE EE CN 3 50817760
+Designed by Andrei-Ovidiu Neiconi Phone: -
+Released by Li Bo Phone: -
+Designation Project:
+EMC Test Specification G1.0p Smart NOx sensor
+Document key 88033918_FIL_000_AA.pdf Pages 1 of 20
+Regensburg (RBG) Copyright ( C ) Vitesco Technologies
+Die in diesem Dokument enthaltenen Informationen sind lediglich eine technische Beschreibung des Produktes. Sie
+stellt keine Beschaffenheits- oder Haltbarkeitsgarantie dar.
+The information contained in this document is merely a technical description of the product. This information is
+not meant or intended to be a special guarantee for a partic...","Die in diesem Dokument enthaltenen Informationen sind lediglich eine technische Beschreibung des Produktes. Sie
+stellt keine Beschaffenheits- oder Haltbarkeitsgarantie dar.
+The information contained in this document is merely a technical description of the product. This information is
+not meant or intended to be a special guarantee for a particular quality or a particular durability.
+Document Name: Smart NO Sensor for 12V System EMC Test
+Specification
+Document Identification No.: 88033918
+Version: AA
+Project: G1.0p Smart NOx Sensor
+Revision Date: 18.10.2023
+Customer: 12V Platform
+ECD: -
+Author Andrei-Ovidiu Neiconi QL LAB EMC/ET TSR - Oct. 2023
+Check 1/
+Li Bo P CE EE CN 3 - Oct. 2023 5081776...",,,,,
+SD24D91E09E,eSigned_EMC_88033918_FIL_000_AA 4.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_EMC_88033918_FIL_000_AA 4.pdf,4,21,1,1213,30,0.1667,1,"Version AA confidential Date Department Sign
+Oct. 2023 QL LAB EMC/ET TSR eSign:
+Oct. 2023 P CE EE CN 3 50817760
+Designed by Andrei-Ovidiu Neiconi Phone: -
+Released by Li Bo Phone: -
+Designation Project:
+EMC Test Specification G1.0p Smart NOx sensor
+Document key 88033918_FIL_000_AA.pdf Pages 4 of 20
+Regensburg (RBG) Copyright ( C ) Vitesco Technologies
+1 General
+1.1 Related Documents
+Standard Release Comments
+1 CISPR 25 Edition 4.0 2016-10 EMV von KFZ-Elektronikbauteilen
+2 ISO 11452-2 2004-11 Absorber-lined shielded enclosure
+3 ISO 11452-4 2011-12 Bulk Current Injection
+4 ISO 11452-8 2007-07 Immunity to magnetic fields
+5 ISO 7637-2 2011-03 Transients on supply lines
+6 ISO 7637-3 2007-07 Trans...","1 General
+1.1 Related Documents
+Standard Release Comments
+1 CISPR 25 Edition 4.0 2016-10 EMV von KFZ-Elektronikbauteilen
+2 ISO 11452-2 2004-11 Absorber-lined shielded enclosure
+3 ISO 11452-4 2011-12 Bulk Current Injection
+4 ISO 11452-8 2007-07 Immunity to magnetic fields
+5 ISO 7637-2 2011-03 Transients on supply lines
+6 ISO 7637-3 2007-07 Transients on others than supply lines
+7 ISO 10605 2008-07 Electrostatic discharge
+1.2 Terms and Abbreviations
+Description
+DUT Device under test.
+EUT Equipment under test.
+LISN Line impedance stabilization network.
+U Nominal voltage, value used to describe the electrical system of a vehicle.
+PCB Printed circuit board.
+1.3 Test Conditions
+Tests and limits in...",,,,,
+S4734A51C37,eSigned_EMC_88033918_FIL_000_AA 4.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_EMC_88033918_FIL_000_AA 4.pdf,7,21,1,823,31,0.3261,1,"Version AA confidential Date Department Sign
+Oct. 2023 QL LAB EMC/ET TSR eSign:
+Oct. 2023 P CE EE CN 3 50817760
+Designed by Andrei-Ovidiu Neiconi Phone: -
+Released by Li Bo Phone: -
+Designation Project:
+EMC Test Specification G1.0p Smart NOx sensor
+Document key 88033918_FIL_000_AA.pdf Pages 7 of 20
+Regensburg (RBG) Copyright ( C ) Vitesco Technologies
+3 Measurement Methods
+3.1 Radiated Emission Antenna (ALSE)
+Frequency range 0,1 to 3000 MHz
+Position of DUT
+DUT is placed on a 50mm insulating support (styrodur)
+Sensing element is fixed to a metal block and placed on GND
+DUT connector shows in antenna direction
+LISN setup +LISN: Ubatt
+- LISN: GND
+Operating mode(s) 2 (working mode)
+Settings Use ...","3 Measurement Methods
+3.1 Radiated Emission Antenna (ALSE)
+Frequency range 0,1 to 3000 MHz
+DUT is placed on a 50mm insulating support (styrodur)
+Position of DUT Sensing element is fixed to a metal block and placed on GND
+DUT connector shows in antenna direction
++LISN: Ubatt
+LISN setup
+- LISN: GND
+Operating mode(s) 2 (working mode)
+Settings Use FFT method
+Documentation Generate one plot for 9k and one for 120k BW.
+Test Setup
+styrodur
+DUT
+Sensorblock
+Scan table
+Step Size = BW/2 Dwell time [ms]
+Frequency
+range Remarks
+[MHz]
+BW [kHz] PK QP *1) AV
+Antenna position
+middle of harness
+1567 – 1616 9 --- --- 10
+Antenna position at
+*1) Note: only areas with limits shall be measured
+Version AA confident...",,,,,
+S1EA4C2FC3E,eSigned_EMC_88033918_FIL_000_AA 4.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_EMC_88033918_FIL_000_AA 4.pdf,9,21,1,255,8,0.6522,0,"Version AA confidential Date Department Sign
+Oct. 2023 QL LAB EMC/ET TSR eSign:
+Oct. 2023 P CE EE CN 3 50817760
+Designed by Andrei-Ovidiu Neiconi Phone: -
+Released by Li Bo Phone: -
+Designation Project:
+EMC Test Specification G1.0p Smart NOx sensor
+Document key 88033918_FIL_000_AA.pdf Pages 9 of 20
+Regensburg (RBG) Copyright ( C ) Vitesco Technologies
+TETRA 420 – 430 40 - 22
+RKE 420 – 450 32 - 18
+Analogue UHF 820 – 960 44 31 24
+GSM 800 860 – 895 44 - 24
+GSM 900 925 – 960 44 - 24
+GPS L1 1567 – 1583 - - 10
+GLONASS L1 1591 – 1616 - - 10
+GSM 1800 1803 – 1882 44 - 24
+GSM 1900 1850 – 1990 44 - 24
+3G 1900 – 1992 44 - 24
+3G 2010 – 2025 44 - 24
+3G 2108 – 2172 44 - 24
+BT / 802.11 2400 – 3000 44 - 24
+S...","TETRA 420 – 430 40 - 22
+Analogue UHF 820 – 960 44 31 24
+GPS L1 1567 – 1583 - - 10
+GLONASS L1 1591 – 1616 - - 10
+Version AA confidential Date Department Sign
+Oct. 2023 P CE EE CN 3 50817760
+Designation Project:
+EMC Test Specification G1.0p Smart NOx sensor",,,,,
+SC9E9839E78,eSigned_EMC_88033918_FIL_000_AA 4.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_EMC_88033918_FIL_000_AA 4.pdf,12,21,1,856,25,0.3421,0,"Version AA confidential Date Department Sign
+Oct. 2023 QL LAB EMC/ET TSR eSign:
+Oct. 2023 P CE EE CN 3 50817760
+Designed by Andrei-Ovidiu Neiconi Phone: -
+Released by Li Bo Phone: -
+Designation Project:
+EMC Test Specification G1.0p Smart NOx sensor
+Document key 88033918_FIL_000_AA.pdf Pages 12 of 20
+Regensburg (RBG) Copyright ( C ) Vitesco Technologies
+3.3 Radiated Immunity Antenna (ALSE)
+Frequency range 200 to 3200 MHz
+Position of DUT
+DUT is placed on a 50mm insulating support (styrodur)
+Sensing element is fixed to a metal block and placed on GND
+DUT connector shows in antenna direction
+LISN + LISN: Ubatt
+- LISN: GND
+Operating mode 2 (working mode)
+Dwell time 2s
+Documentation
+• Show failure...","3.3 Radiated Immunity Antenna (ALSE)
+Frequency range 200 to 3200 MHz
+DUT is placed on a 50mm insulating support (styrodur)
+Position of DUT Sensing element is fixed to a metal block and placed on GND
+DUT connector shows in antenna direction
++ LISN: Ubatt
+LISN
+- LISN: GND
+Operating mode 2 (working mode)
+Dwell time 2s
+- Show failure curve.
+Documentation - Provide detailed description of DUT behavior during failures.
+- Show calculated field strength in the plot.
+Test Setup
+1700 + 3
+styrodur
+DUT
+Sensorblock
+DUT and Antenna position
+f < 1000 MHz: Antenna position in the middle of the harness, horizontal and vertical polarization.
+f > 1000 MHz: Antenna position at the DUT, horizontal and vertical p...",,,,,
+S4097863416,eSigned_EMC_88033918_FIL_000_AA 4.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_EMC_88033918_FIL_000_AA 4.pdf,14,21,1,1395,39,0.1591,1,"Version AA confidential Date Department Sign
+Oct. 2023 QL LAB EMC/ET TSR eSign:
+Oct. 2023 P CE EE CN 3 50817760
+Designed by Andrei-Ovidiu Neiconi Phone: -
+Released by Li Bo Phone: -
+Designation Project:
+EMC Test Specification G1.0p Smart NOx sensor
+Document key 88033918_FIL_000_AA.pdf Pages 14 of 20
+Regensburg (RBG) Copyright ( C ) Vitesco Technologies
+3.4 BCI – Closed loop Method
+Frequency range 1 MHz to 400 MHz
+Position of DUT DUT is placed on a 50mm insulating support (styrodur)
+Sensing element is fixed to a metal block and placed on GND
+LISN +LISN: Ubatt
+- LISN: GND
+Operating mode 2 (working mode)
+Dwell time 2s
+Documentation
+• Show failure curve
+• Provide detailed description of DUT beha...","3.4 BCI – Closed loop Method
+Frequency range 1 MHz to 400 MHz
+DUT is placed on a 50mm insulating support (styrodur)
+Position of DUT
+Sensing element is fixed to a metal block and placed on GND
++LISN: Ubatt
+LISN
+- LISN: GND
+Operating mode 2 (working mode)
+Dwell time 2s
+- Show failure curve
+- Provide detailed description of DUT behavior during failures
+- Show power forward, power reflected, generator power and VSWR in the
+plot
+Documentation - Maximum frequency step: 5% for 1MHz-100MHz and 2% for 100MHz-400
+MHz
+- A harness of length 1 m, linear over its complete length shall be used. The
+test harness must be placed on a 50 mm thick insulating
+- If status A is reached with the higher level, the o...",,,,,
+SAC8B7FB1E2,eSigned_EMC_88033918_FIL_000_AA 4.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_EMC_88033918_FIL_000_AA 4.pdf,17,21,1,1127,27,0.1875,1,"Version AA confidential Date Department Sign
+Oct. 2023 QL LAB EMC/ET TSR eSign:
+Oct. 2023 P CE EE CN 3 50817760
+Designed by Andrei-Ovidiu Neiconi Phone: -
+Released by Li Bo Phone: -
+Designation Project:
+EMC Test Specification G1.0p Smart NOx sensor
+Document key 88033918_FIL_000_AA.pdf Pages 17 of 20
+Regensburg (RBG) Copyright ( C ) Vitesco Technologies
+3.7 ESD Unpowered
+This test is applicable for electronic with plastic and metal housing
+Operating mode DUT not connected to harness
+Discharge points See pictures below
+FPCS Status A after reconnection
+Discharge network 150pF / 330 Ω
+Discharge type contact ±4kV & ±6kV
+discharge points: 1, 7 (only on metal surface)
+Discharge type air ±8kV & ±15k...","3.7 ESD Unpowered
+This test is applicable for electronic with plastic and metal housing
+Operating mode DUT not connected to harness
+Discharge points See pictures below
+FPCS Status A after reconnection
+Discharge network 150pF / 330 Ω
+±4kV & ±6kV
+Discharge type contact
+discharge points: 1, 7 (only on metal surface)
+±8kV & ±15kV
+Discharge type air
+discharge points: 2, 3, 4, 5, 6 (only on plastic surface)
+Discharges per polarity 10
+Time between discharges 5 s to 10 s.
+- Result table with all levels and discharge points.
+Documentation - Provide all measured values of the functionality check.
+- Relative humidity shall be below 40%.
+Test sequence
+(1) Connect DUT to the NOx checkbox and ensure prope...",,,,,
+SF01BE62BDF,eSigned_EMC_88033918_FIL_000_AA 4.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_EMC_88033918_FIL_000_AA 4.pdf,20,21,1,797,26,0.2927,2,"Version AA confidential Date Department Sign
+Oct. 2023 QL LAB EMC/ET TSR eSign:
+Oct. 2023 P CE EE CN 3 50817760
+Designed by Andrei-Ovidiu Neiconi Phone: -
+Released by Li Bo Phone: -
+Designation Project:
+EMC Test Specification G1.0p Smart NOx sensor
+Document key 88033918_FIL_000_AA.pdf Pages 20 of 20
+Regensburg (RBG) Copyright ( C ) Vitesco Technologies
+Test setup
+Test procedure
+• For this test a Field Coupling Strip shall be used.
+• Use optical CAN communication.
+• Be sure the Checkbox is not disturbed by ESD pulses.
+• Activate beeper of NOx Checkbox as failure indicator, test beeper before test by removing CAN lines.
+(beep should occur every 2 Seconds)
+Test parameters
+Discharge points Type ...","Test setup
+Test procedure
+- For this test a Field Coupling Strip shall be used.
+- Use optical CAN communication.
+- Be sure the Checkbox is not disturbed by ESD pulses.
+- Activate beeper of NOx Checkbox as failure indicator, test beeper before test by removing CAN lines.
+(beep should occur every 2 Seconds)
+Test parameters
+Discharge points Type Level Discharges Required
+per polarity FPCS
+Discharge points on A
+field coupling strip Contact ±4kV & ±8kV 10
+(FCS)
+±4kV & ±8kV A
+2,4,5 Plastic part of housing Air 10
+±15kV B
+±4kV & ±8kV A
+Middle of the sensor harness
+6 Air 10
+(harness on GND plane) ±15kV B
+7 Sensor Contact ±4kV & ±8kV 10 A
+END OF DOCUMENT.
+Version AA confidential Date Department Sign
+O...",,,,,
+SB499A2F663,eSigned_ET_88033919_FIL_000_AA 3.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_ET_88033919_FIL_000_AA 3.pdf,2,28,1,779,16,0.2692,0,"Date Department Sign
+Designed by Andrei-Ovidiu Neiconi 2023-10-19 QL LAB EMC/ET TSR 50817761
+Released by Li Bo 2023-10-19 P CE EE CN 3
+Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Document key
+88033919_FIL_000_AA.pdf
+Pages
+2 of 27
+For internal use only Copyright © Vitesco Technologies
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communi...","Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Pages
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communication of its contents to others
+without express authorization are prohibited. Offenders will be held liable for the payment of damages. All rights
+reserved in the event of the grant of a patent, utility model or design.
+Ver. Previous
+...",,,,,
+S7FB379921A,eSigned_ET_88033919_FIL_000_AA 3.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_ET_88033919_FIL_000_AA 3.pdf,5,28,1,1060,25,0.2,0,"Date Department Sign
+Designed by Andrei-Ovidiu Neiconi 2023-10-19 QL LAB EMC/ET TSR 50817761
+Released by Li Bo 2023-10-19 P CE EE CN 3
+Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Document key
+88033919_FIL_000_AA.pdf
+Pages
+5 of 27
+For internal use only Copyright © Vitesco Technologies
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communi...","Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Pages
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communication of its contents to others
+without express authorization are prohibited. Offenders will be held liable for the payment of damages. All rights
+reserved in the event of the grant of a patent, utility model or design.
+1.2 Applicable...",,,,,
+S5BF2E38619,eSigned_ET_88033919_FIL_000_AA 3.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_ET_88033919_FIL_000_AA 3.pdf,8,28,1,1331,53,0.1803,0,"Date Department Sign
+Designed by Andrei-Ovidiu Neiconi 2023-10-19 QL LAB EMC/ET TSR 50817761
+Released by Li Bo 2023-10-19 P CE EE CN 3
+Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Document key
+88033919_FIL_000_AA.pdf
+Pages
+8 of 27
+For internal use only Copyright © Vitesco Technologies
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communi...","Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Pages
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communication of its contents to others
+without express authorization are prohibited. Offenders will be held liable for the payment of damages. All rights
+reserved in the event of the grant of a patent, utility model or design.
+1.5 General Pr...",,,,,
+S8F937E9032,eSigned_ET_88033919_FIL_000_AA 3.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_ET_88033919_FIL_000_AA 3.pdf,11,28,1,1966,27,0.1429,1,"Date Department Sign
+Designed by Andrei-Ovidiu Neiconi 2023-10-19 QL LAB EMC/ET TSR 50817761
+Released by Li Bo 2023-10-19 P CE EE CN 3
+Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Document key
+88033919_FIL_000_AA.pdf
+Pages
+11 of 27
+For internal use only Copyright © Vitesco Technologies
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the commun...","Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Pages
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communication of its contents to others
+without express authorization are prohibited. Offenders will be held liable for the payment of damages. All rights
+reserved in the event of the grant of a patent, utility model or design.
+1.9 Monitoring...",,,,,
+SC7A44F93B0,eSigned_ET_88033919_FIL_000_AA 3.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_ET_88033919_FIL_000_AA 3.pdf,14,28,1,1061,33,0.1429,0,"Date Department Sign
+Designed by Andrei-Ovidiu Neiconi 2023-10-19 QL LAB EMC/ET TSR 50817761
+Released by Li Bo 2023-10-19 P CE EE CN 3
+Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Document key
+88033919_FIL_000_AA.pdf
+Pages
+14 of 27
+For internal use only Copyright © Vitesco Technologies
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the commun...","Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Pages
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communication of its contents to others
+without express authorization are prohibited. Offenders will be held liable for the payment of damages. All rights
+reserved in the event of the grant of a patent, utility model or design.
+1.10 Test Setu...",,,,,
+SFCCA77863F,eSigned_ET_88033919_FIL_000_AA 3.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_ET_88033919_FIL_000_AA 3.pdf,17,28,1,1235,43,0.1373,0,"Date Department Sign
+Designed by Andrei-Ovidiu Neiconi 2023-10-19 QL LAB EMC/ET TSR 50817761
+Released by Li Bo 2023-10-19 P CE EE CN 3
+Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Document key
+88033919_FIL_000_AA.pdf
+Pages
+17 of 27
+For internal use only Copyright © Vitesco Technologies
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the commun...","Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Pages
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communication of its contents to others
+without express authorization are prohibited. Offenders will be held liable for the payment of damages. All rights
+reserved in the event of the grant of a patent, utility model or design.
+2.2 Jump Start...",,,,,
+SF940854727,eSigned_ET_88033919_FIL_000_AA 3.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_ET_88033919_FIL_000_AA 3.pdf,20,28,1,1326,40,0.3051,0,"Date Department Sign
+Designed by Andrei-Ovidiu Neiconi 2023-10-19 QL LAB EMC/ET TSR 50817761
+Released by Li Bo 2023-10-19 P CE EE CN 3
+Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Document key
+88033919_FIL_000_AA.pdf
+Pages
+20 of 27
+For internal use only Copyright © Vitesco Technologies
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the commun...","Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Pages
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communication of its contents to others
+without express authorization are prohibited. Offenders will be held liable for the payment of damages. All rights
+reserved in the event of the grant of a patent, utility model or design.
+2.5 Reset beha...",,,,,
+S351A583690,eSigned_ET_88033919_FIL_000_AA 3.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_ET_88033919_FIL_000_AA 3.pdf,23,28,1,1619,50,0.1864,0,"Date Department Sign
+Designed by Andrei-Ovidiu Neiconi 2023-10-19 QL LAB EMC/ET TSR 50817761
+Released by Li Bo 2023-10-19 P CE EE CN 3
+Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Document key
+88033919_FIL_000_AA.pdf
+Pages
+23 of 27
+For internal use only Copyright © Vitesco Technologies
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the commun...","Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Pages
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communication of its contents to others
+without express authorization are prohibited. Offenders will be held liable for the payment of damages. All rights
+reserved in the event of the grant of a patent, utility model or design.
+2.7 Load Dump ...",,,,,
+SEC23B1C19B,eSigned_ET_88033919_FIL_000_AA 3.pdf,/Users/liuchang/Downloads/Test pdf/eSigned_ET_88033919_FIL_000_AA 3.pdf,26,28,1,1566,39,0.1064,1,"Date Department Sign
+Designed by Andrei-Ovidiu Neiconi 2023-10-19 QL LAB EMC/ET TSR 50817761
+Released by Li Bo 2023-10-19 P CE EE CN 3
+Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Document key
+88033919_FIL_000_AA.pdf
+Pages
+26 of 27
+For internal use only Copyright © Vitesco Technologies
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the commun...","Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+Pages
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communication of its contents to others
+without express authorization are prohibited. Offenders will be held liable for the payment of damages. All rights
+reserved in the event of the grant of a patent, utility model or design.
+3 ANNEX
+3.1 DU...",,,,,

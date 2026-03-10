@@ -1,0 +1,41 @@
+{
+  "pdf_path": "/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+  "summary": {
+    "passed_checks": 4,
+    "total_checks": 4,
+    "score_pct": 100.0,
+    "outline_count": 430,
+    "requirements_count": 404,
+    "passed": true
+  },
+  "checks": [
+    {
+      "name": "required_codes_present",
+      "passed": true,
+      "detail": {
+        "missing_required_codes": []
+      }
+    },
+    {
+      "name": "no_suspicious_global_rows",
+      "passed": true,
+      "detail": {
+        "suspicious_global_rows": []
+      }
+    },
+    {
+      "name": "no_suspicious_rows_near_guard_sections",
+      "passed": true,
+      "detail": {
+        "suspicious_near_guard_sections": []
+      }
+    },
+    {
+      "name": "default_requirement_candidate_is_true",
+      "passed": true,
+      "detail": {
+        "non_default_candidate_rows": 0
+      }
+    }
+  ]
+}

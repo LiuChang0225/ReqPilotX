@@ -1,0 +1,10 @@
+pdf_name,issue_type,severity,appendix_scope,section_code,detail
+a9eb5739089144a999718e28046091d5_产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,required_code_missing,high,T,1,profile=pds_de_active_damper_v1_0
+a9eb5739089144a999718e28046091d5_产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,required_code_missing,high,U,1,profile=pds_de_active_damper_v1_0
+a9eb5739089144a999718e28046091d5_产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,required_code_missing,high,U,63,profile=pds_de_active_damper_v1_0
+a9eb5739089144a999718e28046091d5_产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,required_code_missing,high,Y,1,profile=pds_de_active_damper_v1_0
+a9eb5739089144a999718e28046091d5_产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,required_code_missing,high,Y,17,profile=pds_de_active_damper_v1_0
+ce27a1d3d68b4b5fab0001875c782290_Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,line_reorder_count_limit,high,,,line_reorder_count=14 max=0
+ce27a1d3d68b4b5fab0001875c782290_Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,order_integrity_violation,high,,,order_integrity_ok=False
+ce27a1d3d68b4b5fab0001875c782290_Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,suspicious_heading,medium,,5.1.8.2.2,table_like_title
+ce27a1d3d68b4b5fab0001875c782290_Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,suspicious_heading,medium,,5.1.8.2.3,table_like_title

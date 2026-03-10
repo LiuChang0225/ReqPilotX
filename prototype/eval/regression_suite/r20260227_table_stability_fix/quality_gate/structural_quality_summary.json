@@ -1,0 +1,11 @@
+{
+  "pdf_dir": "/Users/liuchang/Downloads/Test pdf",
+  "docs": 7,
+  "checks_passed": 30,
+  "checks_total": 30,
+  "gate_score_pct": 100.0,
+  "high_severity_issues": 0,
+  "gate_pass": true,
+  "gate_failure_reasons": [],
+  "split_metric_confidence": null
+}

@@ -1,0 +1,131 @@
+pdf_name,issue_type,severity,section_code,detail
+PRINT_21033420PEF16C02-JYA-0226~PEF16C02-电涡流_SOR~A.pdf,sibling_gap_alert,medium,5.4,"missing=['5.4.8', '5.4.10', '5.4.11', '5.4.12', '5.4.13', '5.4.14', '5.4.15', '5.4.17']"
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,3.4,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,4.2,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,4.8.2.1,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.2.1,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.2.2,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.2.3,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.1,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.10,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.12,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.13,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.14,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.15,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.16,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.17,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,high,5.3.18,duplicate_count=3
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.2,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.3,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.4,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.5,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.6,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.7,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.8,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.9,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.3.9.2.3,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.4,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,5.5,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,6.3,duplicate_count=2
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,suspicious_heading,medium,5.1.8.2.2,table_like_title
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,suspicious_heading,medium,5.1.8.2.3,table_like_title
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,suspicious_heading,medium,6,table_like_title
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,medium,2,duplicate_count=2
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,3,duplicate_count=32
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4,duplicate_count=31
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.11,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.2,duplicate_count=7
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.20,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,medium,4.21,duplicate_count=2
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.22,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,medium,4.23,duplicate_count=2
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,medium,4.24,duplicate_count=2
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,medium,4.26,duplicate_count=2
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.27,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,medium,4.28.2,duplicate_count=2
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.29,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.3,duplicate_count=5
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.30,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.31,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.32,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.33,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.34,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,medium,4.35,duplicate_count=2
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,medium,4.36.2,duplicate_count=2
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,medium,4.37,duplicate_count=2
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.4,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.5,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,medium,4.6,duplicate_count=2
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.8,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,4.9,duplicate_count=3
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,5,duplicate_count=10
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,high,6,duplicate_count=4
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,duplicate_section_code,medium,7,duplicate_count=2
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,suspicious_heading,medium,4.28.2,noisy_title
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,suspicious_heading,medium,3,table_like_title
+QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,suspicious_heading,medium,4.5,table_like_title
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,1,duplicate_count=5
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,1.1,duplicate_count=3
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,1.1.1,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,1.1.2,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,1.2,duplicate_count=4
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,1.2.1,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,1.2.2,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,1.3,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,10,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,11,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,11.3,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,12,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,13,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,14,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,15,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,16,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,16.2,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,2,duplicate_count=8
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,2.1,duplicate_count=4
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,2.2,duplicate_count=4
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,2.3,duplicate_count=3
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,2.4,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,2.5,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,3,duplicate_count=6
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,3.1,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,3.2,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,4,duplicate_count=6
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,4.1,duplicate_count=3
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,4.2,duplicate_count=3
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,4.3,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,4.4,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,5,duplicate_count=5
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,5.1,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,5.2,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,6,duplicate_count=4
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,6.1,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,6.1.1,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,6.1.2,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,6.2,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,7,duplicate_count=3
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,7.1,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,7.2,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,high,8,duplicate_count=3
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,9,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.6,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.7,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.8,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,1.1.1,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,1.1.2,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,1.1.3,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,1.1.4,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.1,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.2,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.3,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.4,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.5,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,1,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,1.1,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,1.2,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.1,late_low_major
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,suspicious_heading,high,2.2,late_low_major
+eSigned_EMC_88033918_FIL_000_AA 4.pdf,duplicate_section_code,medium,3.8,duplicate_count=2
+eSigned_ET_88033919_FIL_000_AA 3.pdf,duplicate_section_code,medium,3.2.2,duplicate_count=2

@@ -1,0 +1,11 @@
+pdf_name,profile,issue_type,severity,appendix_scope,section_code,detail
+产品设计规格说明书（PDS）-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,section_count_too_low,high,,,sections=65 min=85
+产品设计规格说明书（PDS）-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,requirement_count_too_low,high,,,requirements=54 min=60
+产品设计规格说明书（PDS）-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,section_count_drift,medium,,,sections=65 expected=95 drift=30
+产品设计规格说明书（PDS）-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,requirement_count_drift,medium,,,requirements=54 expected=69 drift=15
+产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,section_count_too_low,high,,,sections=108 min=145
+产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,requirement_count_too_low,high,,,requirements=101 min=130
+产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,section_count_drift,medium,,,sections=108 expected=159 drift=51
+产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,requirement_count_drift,medium,,,requirements=101 expected=140 drift=39
+产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,required_title_mismatch,high,,1,title '概述' does not contain '低温存储'
+产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,required_title_mismatch,high,,2,title '供应商能力要求及设计责任' does not contain '高温存储'

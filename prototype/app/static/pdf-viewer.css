@@ -1,0 +1,111 @@
+:root {
+  color-scheme: light;
+}
+
+html,
+body {
+  margin: 0;
+  padding: 0;
+  height: 100%;
+  width: 100%;
+  overflow: hidden;
+  background: #f5f7fb;
+  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+}
+
+.pdf-viewer-page {
+  height: 100%;
+  width: 100%;
+  display: grid;
+  grid-template-rows: auto auto 1fr;
+}
+
+.toolbar {
+  display: flex;
+  justify-content: space-between;
+  align-items: center;
+  gap: 8px;
+  padding: 8px 10px;
+  border-bottom: 1px solid #d8e1ef;
+  background: #ffffff;
+}
+
+.meta {
+  display: flex;
+  gap: 10px;
+  align-items: center;
+  min-width: 0;
+}
+
+#status-text {
+  color: #5f6f84;
+  font-size: 12px;
+  white-space: nowrap;
+  overflow: hidden;
+  text-overflow: ellipsis;
+}
+
+#page-text {
+  color: #24384f;
+  font-size: 12px;
+  font-weight: 600;
+}
+
+.actions {
+  display: flex;
+  gap: 6px;
+}
+
+.actions button {
+  width: 28px;
+  height: 28px;
+  border-radius: 8px;
+  border: 1px solid #cdd9ea;
+  background: #fff;
+  color: #23405e;
+  font-weight: 700;
+  cursor: pointer;
+}
+
+.actions button:disabled {
+  opacity: 0.45;
+  cursor: not-allowed;
+}
+
+.error-box {
+  margin: 8px;
+  padding: 10px;
+  border-radius: 10px;
+  border: 1px solid #f3c2c2;
+  background: #fff1f1;
+  color: #902d2d;
+  font-size: 13px;
+}
+
+.error-box p {
+  margin: 0 0 8px;
+}
+
+.error-box a {
+  color: #0a4d9f;
+  text-decoration: none;
+  font-weight: 600;
+}
+
+.hidden {
+  display: none;
+}
+
+.canvas-wrap {
+  overflow: auto;
+  display: grid;
+  place-items: start center;
+  padding: 10px;
+}
+
+#pdf-canvas {
+  display: block;
+  background: #fff;
+  box-shadow: 0 6px 20px rgba(40, 70, 110, 0.14);
+  border-radius: 4px;
+}

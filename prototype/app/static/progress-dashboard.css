@@ -1,0 +1,278 @@
+@import url("/assets/apple-system.css");
+
+.layout {
+  width: min(1360px, 95vw);
+  margin: 24px auto 48px;
+  display: grid;
+  gap: 14px;
+}
+
+.hero {
+  padding: 24px;
+  display: flex;
+  justify-content: space-between;
+  gap: 18px;
+  align-items: flex-start;
+  background: linear-gradient(180deg, #ffffff, #fafafd);
+}
+
+.eyebrow {
+  margin: 0;
+  color: #4a4a4f;
+  letter-spacing: 0.09em;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+h1 {
+  margin: 5px 0 8px;
+  font-size: clamp(1.35rem, 2.2vw, 2.1rem);
+}
+
+h2 {
+  margin: 0;
+  font-size: 1.03rem;
+}
+
+.hero-text {
+  margin: 0;
+  color: var(--apple-muted);
+  line-height: 1.55;
+  max-width: 760px;
+}
+
+.hero-tools {
+  display: grid;
+  gap: 8px;
+  justify-items: end;
+}
+
+.panel {
+  padding: 16px;
+}
+
+.panel-title-row {
+  display: flex;
+  justify-content: space-between;
+  gap: 12px;
+  align-items: baseline;
+  margin-bottom: 10px;
+}
+
+.kpi-grid {
+  display: grid;
+  grid-template-columns: repeat(4, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.kpi-card {
+  border-radius: 14px;
+  border: 1px solid #ececf1;
+  padding: 12px;
+  background: #fff;
+}
+
+.kpi-label {
+  margin: 0;
+  color: var(--apple-muted);
+  font-size: 0.83rem;
+}
+
+.kpi-value {
+  margin: 6px 0 0;
+  font-size: clamp(1.2rem, 2vw, 1.6rem);
+  font-weight: 700;
+}
+
+.kpi-foot {
+  margin: 6px 0 0;
+  font-size: 0.8rem;
+  color: var(--apple-muted);
+}
+
+.kpi-good .kpi-value {
+  color: var(--apple-green);
+}
+
+.kpi-warning .kpi-value {
+  color: var(--apple-amber);
+}
+
+.kpi-risk .kpi-value {
+  color: var(--apple-red);
+}
+
+.chart-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 14px;
+}
+
+.chart-card {
+  min-height: 340px;
+}
+
+.chart {
+  width: 100%;
+  height: 280px;
+  border: 1px solid #e5e5ea;
+  border-radius: 12px;
+  background: #fff;
+}
+
+table {
+  min-width: 1100px;
+}
+
+.inline-actions {
+  display: flex;
+  gap: 8px;
+  align-items: flex-end;
+  flex-wrap: wrap;
+}
+
+.inline-actions label {
+  min-width: 150px;
+}
+
+.inline-actions select {
+  min-width: 170px;
+}
+
+.form-grid {
+  display: grid;
+  grid-template-columns: 1.2fr 1fr;
+  gap: 14px;
+}
+
+.event-form {
+  display: grid;
+  gap: 10px;
+}
+
+.inline-fields {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 10px;
+}
+
+.timeline-list,
+.next-actions {
+  display: grid;
+  gap: 10px;
+}
+
+.timeline-item {
+  border: 1px solid #ececf1;
+  border-radius: 12px;
+  padding: 11px;
+  background: #fff;
+}
+
+.timeline-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: center;
+}
+
+.timeline-title {
+  margin: 0;
+  font-weight: 700;
+}
+
+.timeline-detail {
+  margin: 7px 0 0;
+  color: var(--apple-muted);
+  white-space: pre-wrap;
+}
+
+.tag {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 2px 8px;
+  font-size: 0.74rem;
+  font-weight: 700;
+}
+
+.tag-DONE {
+  color: #0f7d48;
+  background: #def6e8;
+}
+
+.tag-INFO {
+  color: #1a4f94;
+  background: #e8f1ff;
+}
+
+.tag-RISK {
+  color: #9f1e33;
+  background: #ffe2e7;
+}
+
+.tag-BLOCKED {
+  color: #8f6100;
+  background: #ffefcf;
+}
+
+.next-action {
+  border: 1px solid #ececf1;
+  border-radius: 12px;
+  padding: 10px;
+  background: #fff;
+}
+
+.next-action h3 {
+  margin: 0;
+  font-size: 0.98rem;
+}
+
+.progress-bar {
+  margin-top: 8px;
+  height: 8px;
+  border-radius: 999px;
+  overflow: hidden;
+  background: #ececf1;
+}
+
+.progress-bar > span {
+  display: block;
+  height: 100%;
+  background: var(--apple-accent);
+}
+
+.empty {
+  margin: 10px 0 0;
+  color: var(--apple-muted);
+  font-size: 0.84rem;
+}
+
+@media (max-width: 1140px) {
+  .hero {
+    flex-direction: column;
+  }
+
+  .hero-tools {
+    justify-items: start;
+  }
+
+  .kpi-grid {
+    grid-template-columns: repeat(2, minmax(0, 1fr));
+  }
+
+  .chart-grid,
+  .form-grid {
+    grid-template-columns: 1fr;
+  }
+}
+
+@media (max-width: 760px) {
+  .kpi-grid {
+    grid-template-columns: 1fr;
+  }
+
+  .inline-fields {
+    grid-template-columns: 1fr;
+  }
+}

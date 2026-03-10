@@ -1,0 +1,11 @@
+round_id,auto_predicted_items,parse_coverage_pct,pages_with_items,split_accuracy_pct,labeled_predicted_items,section_reg_passed,section_reg_score_pct,section_missing_required_count,section_suspicious_global_count,section_suspicious_near_guard_count,section_candidate_violation_count
+r16,281,100.00,94/100,90.00,18,1,100.0,0,0,0,0
+r17,281,100.00,94/100,90.00,18,1,100.0,0,0,0,0
+r18,281,100.00,94/100,90.00,18,1,100.0,0,0,0,0
+r19,281,100.00,94/100,90.00,18,1,100.0,0,0,0,0
+r20,281,100.00,94/100,90.00,18,1,100.0,0,0,0,0
+r21,281,100.00,94/100,90.00,18,1,100.0,0,0,0,0
+r22,281,100.00,94/100,90.00,18,1,100.0,0,0,0,0
+r23,281,100.00,94/100,90.00,18,1,100.0,0,0,0,0
+r24,281,100.00,94/100,90.00,18,1,100.0,0,0,0,0
+r25,281,100.00,94/100,90.00,18,1,100.0,0,0,0,0

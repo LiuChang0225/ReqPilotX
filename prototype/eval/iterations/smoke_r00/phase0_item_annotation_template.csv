@@ -1,0 +1,2902 @@
+sample_id,item_id,file_name,page_no,source_type,source_page_start,source_page_end,source_anchor,auto_requirement_text,auto_requirement_type,auto_priority,is_true_requirement,is_split_correct,is_type_correct,gold_requirement_text,gold_requirement_type,error_tags,annotator,notes
+S91DEF1DAE7,S91DEF1DAE7-I001,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,9,predicted,9,10,Page 9 | Section 4.1.1,"4.1.1 在零部件软硬件设计开发时应充分解读识别本标准的要求，零部件的软硬件设计开发应能满足
+本标准要求。零部件满足本标准的要求意味着其获得了可以搭载整车的资质。如果零部件搭载的整车在
+测试阶段出现涉及本标准要求且与其有关的问题， 零部件供应商有责任和义务配合对其零部件进行设计
+整改。
+The requirements of this standard shall be fully understood and indentified during the development and design
+of the software and hardware of components，the software and hardware design and development of
+components shall meet the requirements of this standard. If the components meet the requirements of this
+standard，it means that they have obtained the qualification to carry the whole vehicle。If the whole vehicle
+carried by the components has problems related to the requirements of this standard during the whole vehicle
+test，the components supplier has the responsibility and obligation to cooperate with the design and rectification
+of its components.
+4.1.2 试验至少用3个试件。
+Tests need to select at least 3 parts.
+4.1.3 如果没有其他要求，试验温度为 TRT，相对湿度为 25%～75%。
+Test temperature is TRT, relative humidity is 25%～75% without special regulations and requirements.
+4.1.4 试验电压按表1，缺少检测精度说明的，以基本要求为准。
+Test voltage see Table 1, and should subject to basic requirements if lack of detection accuracy.
+表1 试验电压
+Table 1 Test voltage
+|O 汽 l y<br>T e<br>试验电压1) /Test voltage e|误差/Tolerance|
+|UB<br>F：<br>.Zh<br> 3:|（12±0.2）V<br><br><br>|
+|注：1)试件的试验电压。<br>Note:1)Part’s test voltage.<br>O<br>Decan<br>-21 1|注：1)试件的试验电压。<br>Note:1)Part’s test voltage.<br>O<br>Decan<br>-21 1|",PERFORMANCE,HIGH,,,,,,,,
+SCB10255CD2,SCB10255CD2-I001,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,26,predicted,26,26,Page 26 | Section 5.1.6,"5.1.6 在欠压和过压情况下的功能 Function requirements of undervoltage and overvoltage
+conditions",PERFORMANCE,LOW,,,,,,,,
+SCB10255CD2,SCB10255CD2-I002,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,26,predicted,26,26,Page 26 | Section 5.1.6.2,"5.1.6.2 试验参数 Test parameters
+按下表9参数执行测试。
+Perform the test according to the following Table 9 parameters.
+表9 试验参数--在欠压和过压情况下的功能
+Table 9 Test parameters--function requirements of undervoltage and overvoltage conditions
+项目/Item 要求/Requirement
+试件的工作模式/DUT operating mode 工作模式3.2/Operating mode 3.2
+起始电压/Start voltage UBmin
+欠压通信中断时的电压
+the voltage when undervoltage communication interruption.
+U low
+过压通信中断时的电压
+the voltage when overvoltage communication interruption.
+U high
+测试电压步进/Test voltage step 0.1V
+结束电压/ End voltage U Bmax",TEST,LOW,,,,,,,,
+SCB10255CD2,SCB10255CD2-I003,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,26,predicted,26,26,Page 26 | Section 5.1.6.3,"5.1.6.3 试验方法 Test methods
+a)在U Bmin 电压下检测DUT的所有功能，然后将DUT供电电压以0.1V的步进从U Bmin 降低到
+Ulow，记录DUT欠压功能异常时的电压值，记录DUT欠压通信中断时的电压U low。
+Test all functions of DUT under UBmin voltage，then reduce the power supply voltage of the DUT
+from UBmin to Ulow in steps of 0.1V，record the voltage value when the DUT undervoltage function
+is abnormal，record the voltage Ulow when DUT undervoltage communication is interrelated",TEST,LOW,,,,,,,,
+SCB10255CD2,SCB10255CD2-I004,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,26,predicted,26,26,Page 26 | Section 5.1.6.3,"5.1.6.3 试验方法 Test methods
+b)以0.1V的电压步进将DUT供电电压从U low 升高到U Bmin，记录DUT恢复功能正常时的电压
+值。
+Increase the power supply voltage of the DUT from Ulow to UBmin to in steps of 0.1V，record the
+voltage value when the DUT recovers to normal function",TEST,LOW,,,,,,,,
+SCB10255CD2,SCB10255CD2-I005,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,26,predicted,26,26,Page 26 | Section 5.1.6.3,"5.1.6.3 试验方法 Test methods
+c)在U Bmax 电压下检测DUT的所有功能，然后将DUT供电电压以0.1V的步进从U Bmax 升高到
+Uhigh，记录DUT过压功能异常时的电压值，记录DUT过压通信中断时的电压U high。
+Test all functions of DUT under UBmax voltage，then increase the power supply voltage of the DUT
+from UBmax to Uhigh in steps of 0.1V，record the voltage value when the DUT overvoltage function
+is abnormal，record the voltage Uhigh when DUT overvoltage communication is interrelated.",TEST,LOW,,,,,,,,
+SCB10255CD2,SCB10255CD2-I006,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,26,predicted,26,26,Page 26 | Section 5.1.6.3,"5.1.6.3 试验方法 Test methods
+d)以0.1V的电压步进将DUT供电电压从U high 降低到U Bmax，记录DUT恢复功能正常时的电压
+值。
+Reduce the power supply voltage of the DUT from Uhigh to UBmax to in steps of 0.1V，record the
+voltage value when the DUT recovers to normal function.",TEST,LOW,,,,,,,,
+SFA4D68B149,SFA4D68B149-I001,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,43,predicted,43,43,Page 43 | Section 5.1.15.3,"5.1.15.3 试验方法 Test methods
+DUT工作模式设定为3.2或4.2，按表20及图10执行测试。
+Set the DUT operating mode to 3.2 or 4.2，perform the test according to Table 20 and Figure 10.",TEST,LOW,,,,,,,,
+SFA4D68B149,SFA4D68B149-I002,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,43,predicted,43,43,Page 43 | Section 5.1.15.4,"5.1.15.4 技术要求 Technical Requirement
+a)信号线短路保护：功能等级C；
+Short circuit in signal circuit：functional status C;",PERFORMANCE,LOW,,,,,,,,
+SFA4D68B149,SFA4D68B149-I003,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,43,predicted,43,43,Page 43 | Section 5.1.15.4,"5.1.15.4 技术要求 Technical Requirement
+b)在输入和输出端（E和A）：功能状态C；
+For inputs and outputs (E and A): functional status C;",PERFORMANCE,LOW,,,,,,,,
+SFA4D68B149,SFA4D68B149-I004,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,43,predicted,43,43,Page 43 | Section 5.1.15.4,"5.1.15.4 技术要求 Technical Requirement
+c)在供给电压（PWR）处：功能状态D；
+For looped-through supply voltages (PWR): functional status D;",PERFORMANCE,LOW,,,,,,,,
+SFA4D68B149,SFA4D68B149-I005,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,43,predicted,43,43,Page 43 | Section 5.1.15.4,"5.1.15.4 技术要求 Technical Requirement
+d)在设备接地（GND）处：功能状态E。
+For device ground (GND): functional status E.",PERFORMANCE,LOW,,,,,,,,
+SFA4D68B149,SFA4D68B149-I006,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,43,predicted,43,44,Page 43 | Section 5.1.16.2,"5.1.16.2 试验参数 Test parameters
+耐电压的试验参数见表21。
+Withstand voltage test parameters see Table 21 below.
+表21 试验参数--耐电压
+|Table 21 Tes|st parameters--Withstand voltage om|
+|项目 <br>Item<br>|要求 <br>Requirement<br> sco.co|
+|试件的工作模式 <br>DUT operating mode<br> <br>|工作模式1.1<br>Operating mode 1.1<br> @vite<br>公司|
+|测试电压 <br>Test voltage Ueff<br> <br>|Ueff=500V AC，50Hz<br> ang.liu<br>有限|
+|测试时间 <br>Test duration<br> jun<br>|60s<br> -li<br>长春）|
+|测试点<br>Test points<br> <br>TO：Others<br>OF：纬湃汽车<br>BY：Decan.Zhu<br>2025-11-|在下列情况时，供给电压：<br>Application of the test voltage:<br>——相互没有电气连接的pin 之间；<br> Between pins that are not electrically connected to each other;<br>——与金属壳体没有电气连接的pin 和壳体之间；<br>Between connection pins and conducting housing without galvanic<br>connection;<br>——pin 和非金属壳体之间；测试时壳体需覆盖铝箔或铜箔；<br>Between connection pins and an electrode around the housing if the<br>housing is non-conducting;<br>——其它和专业科室确定的测试点。<br>Other test points identified by professional departments.<br> m<br> <br>电子（<br>@geely.com<br>21 13:51|
+|循环次数 <br>Number of cycles<br> <br><br>AT：|至少进行一个循环，在此循环中，每个上述点至少要进行一次检测。<br>1 cycle must be performed, in which each of the points defined above must be<br>tested at least once.<br> vitesco.co<br>司<br>|",TEST,HIGH,1,1,0,,,拆分正确，文字提取正确，问题还是在表格提取功能,刘畅,
+S72B812A8E0,S72B812A8E0-I001,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,60,predicted,59,61,Page 59 | Section 5.2.1.1.2,"5.2.1.1.2 试验参数 Test parameters
+试验温度：温度参数及循环参考5.3.6规定变化率的温度循环；
+Test temperature: refer to the temperature cycle with the change rate specified in 5.3.6 for temperature
+parameters and cycles;
+持续时间：正弦振动、随机振动每个轴向30h；
+Duration: 30h for each axial direction of sinusoidal vibration and random vibration;
+工作模式：工作模式按照规定变化率的温度循环要求执行；
+Working mode: The working mode is executed according to the temperature cycle requirements of the
+specified rate of change;
+正弦振动加速度幅值和频率见图20和表32；
+See Figure 20 and Table 32 for amplitude and frequency of sinusoidal vibration acceleration;
+随机振动功率谱密度及频率见图21和表33；
+See Figure 21 and Table 33 for power spectral density and frequency of random vibration;
+表32 正弦振动加速度幅值和频率
+|Table 32 Amplitu|Col2|ude and frequency of sinusoida|Col4|al vibration acceleration m|Col6|
+|曲线 1<br>Curve 1<br>|曲线 1<br>Curve 1<br>|曲线2<br>Curve 2<br> o.|曲线2<br>Curve 2<br> o.|二者组合<br>Combination of the two<br> com|二者组合<br>Combination of the two<br> com|
+|100|100<br> <br>|100<br> an<br>|100<br> g.li<br>有限|100<br> <br>|100|
+|200|200<br> <br>|150<br> n-li<br>|150<br> <br>春）|200<br> <br>|200|
+|240|200<br>rs<br>|440<br> ju<br>|150<br> <br>长|240<br> <br>|200|
+|270|100<br>Othe<br><br>|-<br> <br>电子<br>|-<br> <br><br>om|255<br> <br>|150|
+|440|100<br>O：<br><br>|-<br> <br>车<br>|-<br> <br><br>ly.c|440<br> <br>|150|
+注：
+Note:
+f：频率 Hz；
+f: frequency Hz;
+Y：加速度 m/s2；
+Y: Acceleration M / S2;
+——：曲线 1；
+——: curve 1;
+- - -：曲线 2
+---: curve 2
+图20 正弦振动严酷度曲线
+Figure 20 Sinusoidal Vibration Severity Curve
+注note：安装在发动机气缸≤5 的 DUT，使用表 7 中的“曲线 1”。
+Use “curve 1” in Table 7 for DUT intended for mounting on engines with 5 cylinders or fewer.
+安装在发动机气缸≥6 的 DUT，使用表 7 中的“曲线 2”。
+Use “curve 2” in Table 7 for DUT test intended for mounting on engines with 6 cylinders or more.
+“二者组合”测试可覆盖所有类型。
+“Both curves” may be combined to cover all engine types in one test.
+表33 振幅和频率
+|Table 33 Amplitude|and frequency sco.com|
+|频率Hz<br> <br>|PSD （m/s2）2/Hz<br> esc<br>|
+|10<br> <br>|10<br> vit<br>司|
+|100<br> <br>|10<br> u@<br>公|
+|300<br> g.l<br>|0.51<br> <br>限|
+|500<br> lian<br>|20<br> <br>）有|
+|2000<br> n-<br>|20<br> <br>春|
+注：
+Note:
+X：频率 Hz;
+X：frequency Hz;
+Y：功率谱密度 （m/s [2] ） [2] /Hz
+Y：Power spectral density- PSD（m/s [2] ） [2] /Hz
+图21 振幅和频率
+Figure 21 Amplitude and frequency",TEST,LOW,,,,,,,,
+SC7D3ECF962,SC7D3ECF962-I001,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,77,predicted,76,78,Page 76 | Section 5.2.1.9.2,"5.2.1.9.2 试验参数 Test parameters
+试验温度：温度参数及循环参考5.3.6规定变化率的温度循环；
+Test temperature: refer to the temperature cycle with the change rate specified in 5.3.6 for temperature
+parameters and cycles;
+持续时间：正弦振动、随机振动每个轴向14h；
+Duration: Sinusoidal vibration, random vibration, 14h per axis;
+工作模式：工作模式3.3；从技术角度来看，若工作模式3.3不适用（例如发动机运行期间，启动机
+不工作） ，则可以应用工作模式2.1.
+Working mode: Working mode 3.3; From a technical perspective, if working mode 3.3 is not applicable
+(for example, during engine operation, the starter does not work), then working mode 2.1 can be applied
+正弦振动加速度幅值和频率见图31和表43；
+The amplitude and frequency of sinusoidal vibration acceleration are shown in Figure 31 and Table 43；
+随机振动功率谱密度及频率见图32和表44；
+The power spectral density and frequency of random vibration are shown in Figure 32 and Table 44;
+表43 正弦振动加速度及频率
+Table 43 Sinusoidal Vibration Acceleration and Frequency
+频率Hz 加速度m/s²
+注：
+Note:
+Y：加速度m/s 2 f：频率Hz
+Y: Acceleration m/s2 f: Frequency Hz
+图31 振幅和频率
+Figure 31 Amplitude and frequency
+表44 振幅和频率
+Table 44 Amplitude and Frequency
+注:
+Note：
+Y：PSD
+f：频率 Hz
+f: Frequency Hz
+|频率Hz|c<br>.<br>o<br>PSD (m/s2)2/Hz c<br>s<br>e|
+|100<br> liang.<br>|10<br> <br>）有限|
+|150<br> jun-<br>|0.1<br> <br>春|
+|700<br>hers<br>电子（<br>|0.1<br> <br><br>om|
+|800<br> <br>汽车<br>eely|10<br> <br><br>.c|
+图32 频率和加速度
+Figure 32 Frequency and Acceleration",TEST,LOW,,,,,,,,
+S0AB5F0251A,S0AB5F0251A-I001,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,111,predicted,111,111,Page 111 | Section 5.3.10.3,"5.3.10.3 试验方法 Test methods
+a)试验箱温度在1.5h~2.5h内，应连续升到(65±2)℃，相对湿度保持在（93±3）%RH；
+The temperature of the test chamber shall continuously rise to 65 ± 2 ℃ within 1.5h ~ 2.5h, and the
+relative humidity shall be maintained at (93 ± 3)% RH;",TEST,HIGH,,,,,,,,
+S0AB5F0251A,S0AB5F0251A-I002,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,111,predicted,111,111,Page 111 | Section 5.3.10.3,"5.3.10.3 试验方法 Test methods
+b)试验箱的温度和湿度保持在(65±2)℃和（93±3）%RH，直到循环试验开始的5.5h为止；
+The temperature and humidity of the test chamber shall be kept at 65 ± 2 ℃ and (93 ± 3)% RH until
+5.5h after the cycle test;",TEST,HIGH,,,,,,,,
+S0AB5F0251A,S0AB5F0251A-I003,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,111,predicted,111,111,Page 111 | Section 5.3.10.3,"5.3.10.3 试验方法 Test methods
+c)试验箱温度在1.5h~2.5h内，降到(25±2)℃，相对湿度保持在80%~96%RH；
+The temperature of the test chamber is reduced to 25 ± 2 ℃ within 1.5h ~ 2.5h, and the relative
+humidity is maintained at 80% ~ 96% RH;",TEST,LOW,,,,,,,,
+S0AB5F0251A,S0AB5F0251A-I004,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,111,predicted,111,112,Page 111 | Section 5.3.10.3,"5.3.10.3 试验方法 Test methods
+d)自循环开始后8h起，试验的温度应在1.5h~2.5h内，应连续升到(65±2)℃，相对湿度保持在
+（93±3）%RH。
+From 8h after the start of the cycle, the temperature of the test shall be within 1.5h ~ 2.5h, and shall
+continuously rise to(65 ± 2) ℃, and the relative humidity shall be maintained at (93 ± 3)% RH.",TEST,HIGH,,,,,,,,
+S0AB5F0251A,S0AB5F0251A-I005,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,111,predicted,111,112,Page 111 | Section 5.3.10.3,"5.3.10.3 试验方法 Test methods
+e)试验箱的温度和相对湿度保持在65±2℃和（93±3）%RH，直到循环开始后13.5h为止；
+The temperature and relative humidity of the test chamber shall be kept at (65 ± 2) ℃ and (93 ± 3)%
+RH until 13.5h after the start of the cycle;",TEST,HIGH,,,,,,,,
+S0AB5F0251A,S0AB5F0251A-I006,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,111,predicted,111,112,Page 111 | Section 5.3.10.3,"5.3.10.3 试验方法 Test methods
+f)试验箱温度在1.5h~2.5h内，降到(25±2)℃，相对湿度保持在80%~96%RH；
+The temperature of the test chamber is reduced to（25 ± 2）℃ within 1.5h ~ 2.5h, and the relative
+humidity is maintained at 80% ~ 96% RH;",TEST,LOW,,,,,,,,
+S0AB5F0251A,S0AB5F0251A-I007,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,111,predicted,111,112,Page 111 | Section 5.3.10.3,"5.3.10.3 试验方法 Test methods
+g)试验箱继续保持在（25±2）℃，相对湿度为（93±3）%RH，直到低温分循环开始或者24h循
+环结束。
+The test chamber shall be kept at (25 ± 2）℃ and the relative humidity shall be (93 ± 3)% RH until
+the low temperature sub cycle starts or the 24h cycle ends.",TEST,HIGH,,,,,,,,
+S0AB5F0251A,S0AB5F0251A-I008,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,111,predicted,111,112,Page 111 | Section 5.3.10.3,"5.3.10.3 试验方法 Test methods
+h)从循环开始17.5h起，箱内温度应在0.5h内降到（-10±2）℃。
+The temperature in the box shall drop to(-10 ± 2) ℃ within 0.5h from 17.5h after the cycle starts.",TEST,HIGH,,,,,,,,
+S0AB5F0251A,S0AB5F0251A-I009,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,111,predicted,111,112,Page 111 | Section 5.3.10.3,"5.3.10.3 试验方法 Test methods
+i)从循环开始18h起，箱内温度保持在（-10±2）℃，持续3h，在整个低温分循环期间，相对
+湿度不做要求。
+The temperature in the box shall be kept at（- 10 ± 2）℃ for 3h from 18h after the cycle starts.
+During the whole low-temperature sub cycle, the relative humidity is not required.",TEST,HIGH,,,,,,,,
+S0AB5F0251A,S0AB5F0251A-I010,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,111,predicted,111,112,Page 111 | Section 5.3.10.3,"5.3.10.3 试验方法 Test methods
+j)从循环开始21h后，在1.5h内温度升到(25±2)℃。
+The temperature rises to (25 ± 2)℃ within 1.5h after 21h of cycle.",TEST,LOW,,,,,,,,
+S0AB5F0251A,S0AB5F0251A-I011,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,111,predicted,111,112,Page 111 | Section 5.3.10.3,"5.3.10.3 试验方法 Test methods
+k)箱内温度稳定在(25±2)℃，相对湿度为（93±3）%RH，直至24h循环结束。
+The temperature in the box is stable at (25 ± 2) ℃ and the relative humidity is (93 ± 3)% RH until
+the 24h cycle ends.
+在10个循环前9个循环中的5次循环，按照a~k执行，如图44的a，其余4次循环按照a~g执行，
+如图44的b，最后一次循环按照a~f执行，最后一次循环结束，试验箱应保持在(25±2)℃，相对湿度
+为（93±3）%RH持续3.5h，进行功能测试，取出样品在室温条件下恢复，并在24h内完成最终功能测
+试。
+In the first 9 cycles of 10 cycles, perform 5 cycles according to a~k, as shown in Figure 44 a, and the
+remaining 4 cycles according to a~g, as shown in Figure 44 b, the last cycle according to a~f. At the end of the
+last cycle, the test chamber should be maintained at (25 ± 2) ℃, relative humidity (93 ± 3)% RH for 3.5
+hours for functional testing. The sample should be taken out and restored at room temperature, and the final
+functional test should be completed within 24 hours.
+工作模式：达到最大温度后，以3.4或4.4的工作模式进行功能测试，其余工作模式为2.1。
+Working mode: after the maximum cycle is reached, the function test is carried out in the working mode of
+3.4 or 4.4, and the other working modes are 2.1.
+注：恢复室温的检测结果作为试验是否失效的判定依据。
+Note: the test result after recovering to room temperature is used as the judgment basis of whether the test is invalid.",TEST,MEDIUM,,,,,,,,
+S8D1719021E,S8D1719021E-I001,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,128,predicted,128,128,Page 128 | Section 5.3.16.3,"5.3.16.3 试验方法 Test methods
+试验方法参考ISO 16750-4-2023中的5.9.2执行。
+Reference to chapters 5.9.2 in ISO 16750-4-2023.",TEST,LOW,,,,,,,,
+S8D1719021E,S8D1719021E-I002,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,128,predicted,128,128,Page 128 | Section 5.3.17.3,"5.3.17.3 试验方法 Test methods
+按照Q/JLY J7110279中的章节执行。
+Reference to chapters in Q/JLY J7110279.",TEST,LOW,,,,,,,,
+S8D1719021E,S8D1719021E-I003,Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,128,predicted,128,128,Page 128 | Section 5.3.17.4,"5.3.17.4 技术要求 Technical Requirement
+应符合Q/JL J160004中的规定。
+reference to chapters in Q/JL J160004.",PERFORMANCE,LOW,,,,,,,,
+SDCB7A8D7F9,SDCB7A8D7F9-I001,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,11,predicted,11,14,Page 11 | Section 4,"4. 1 样品旗处理
+在所有试验开始前，都应将样品放提到室挂在（23 士 5 ）℃，相对渥度 45% ～75% 的环境下保
+持M ho
+4. 1. 1 试验主要求。
+庚有试验都应在室渥（23 丈 5 ）℃环境下进行。连接器的所有孔位都应进行试鉴。
+挣钱应符合 GB/T 25085 的要求，或由供需双方商定。所使用的导线应记录在试验报告中。
+各项试斡及各试验样品不能相互影响。倒卖日，在高温箱5挺试撞样品相互间要铿持一定距离，不
+能梧互接触及堆放。
+在赘个试验过程中，不先许在插头驾辈子奉扫描座端子表崖上涂抹润滑福或其能附加物。生产过租
+中遗留的润滑剂除外。
+QC/T 1067. 1… 2017
+4. 1. 2 缺省武按误差。
+候省试验误辈在以挺称镇的百分比表示〈表 1 ）。
+表 1 缺省试瞌误攒
+温度士 3-c
+也应士 5%
+电流士 5%
+电阻主 5%
+长度土 5%
+时间土 5%
+力主 5%
+频率土 5%
+流速士 5%
+核对湿度士 5% （需控制时〉
+速度立 5%
+声音士 5%
+压力土 5%
+真空度土 5%
+4. 1.3 等级分类。
+攘攘在车身的预期使用环境，应为试验连接器选择温度等银（我幻、密封等级〈表 3 ）、振动等级
+〈炭的和插拔键环等级（表白。
+若是 2 翻度等辍
+等级工作温度范揭适用位最
+A -40 ℃～85 ℃ 乘客舱〈不推荐）
+B 一 40 ℃～100 ℃ 乘客舱
+c 一 40 ℃～125 ℃ 发动机舱
+D 40 ℃～150 ℃ 发动机及发热部件的附近位置
+E 一 40 ℃～175 ℃ 由供需双方商定
+褒 3 密封等级
+密封等级应陪类型适用位置
+St 不密封车身上干燥区域，如乘客舱、行李舱
+52 密封车身上外露区城
+S3 密封〈商压水喷射〉 车身上外漏区域。适用于有飞溅水直接，喷射的区域
+表 4 攘动等簸
+振动等级适用位置
+Vl 安装在车身上弹性部位但不与发动板，相连的连接器
+V2 安装在与发动机相连但不与剧烈振动部件相连的连接器
+V3 安装在剧烈振动环楼下的连接器
+V4 根据需要安装在极端振动的区域
+vs ＊轮上
+注2 弹性部位指车身上通过悬挂系统文撑的那位。弹性部位不包括轮胎、轮毅、刹车盘（鼓〉等部位。
+表 5 描撞撞环等锻
+摇拔循环等级插拔次数典型应用
+线线连接器及板端漆接器，在继修服务过程中不经常抓卸e 这类连接器属于磁定
+M1 10 连接，段车辆组装好以后不希望被拆卸。织j 刻，能接连接稽。试验开始前， M1 等
+级的连接器应插拔 10 次
+线线连接器及板端连接瓣，在维修服务过程中经常拆部份例如，维修拆销或安全
+M2 50
+拆俯e 试验开始前，M2 等级的连接器应插拔 50 次
+at 供需双方
+M3
+线线连接器及板端连接器，连接器的通断作为零件的lE 常功能指例如，充电口等。
+商定在试验报告中记录撩拨次数
+4. 1. 4 端子样品准备
+所有试验均应使用带有挣钱连接的端子，导镜应接班符合 QC/T 29106 的要求，样品尺寸应符
+合按规定程序撬攘的工程阁样的要求。除非另有规定。
+4. 1.5 低压连接器试验JI匮瘁（表的。
+表 6 低压连接器试瞌盟序
+试验分组
+章节试验项臼
+A B c D E F G 日 I J K",PERFORMANCE,HIGH,,,,,,,,
+S8AD97C8ED6,S8AD97C8ED6-I001,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,19,predicted,19,19,Page 19 | Section 6,"6）用 10倍放大镜检查弯曲区域，记录开裂情况。如果端子在试验过程中弯曲，把端子校直重
+新检查开裂情况，试验 5 个端子。
+7）使用 5 个新端子，按图 5 的位置将端子旋转 180。安装在试验夹具上。重复第 5）～6）步。
+8）使用 5 个新端子，按图 5 的位置将端子旋转 90°安装在试验夹具上。重复第 5）～6）步。
+的把“B”类试验端子固定到夹具中，使位置“2”处于图 5 中位置“1”所示的位置，重复第 5）～
+的步。
+4.5.3 要求。
+端子不应被撕裂。如果端子在试验过程中弯曲，校直后不应被撕裂。",TEST,LOW,,,,,,,,
+S09F91111BF,S09F91111BF-I001,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,26,predicted,26,27,Page 26 | Section 5,"5）以 50 mm/min 的均匀速度捏端子宣统插入护套中。持旗主革如力直至表 12 中规定的催，或未
+达到规定值塑料踱损或端子搞坏。
+备选方案：A. 将揭子盟接在离心金属棒上，翻最端子的捶人力和止推力。
+B.J,A绝绿应接处皆霸导线，用一个与导钱蓝径接近的棒，锥遗留在端子路部的
+导线。
+的记录端子在未到达预期前停止住室苗插入护套所髓的梅锺力〈即撞人力）和端子豁达预崩捧
+止位置后护套所承受的力（即止推力）。
+4.11.2.2 密封垫式整体攒甜连接器的端子插入力、止推力。
+试验！疆序如r:",TEST,LOW,,,,,,,,
+SB243FD29D7,SB243FD29D7-I001,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,34,predicted,34,34,Page 34 | Section 3,"3 ）将样品平均分为 2 辙。第 1 辑用于振动后的徽电流连接电应试踵，第 2 组用于试验过程中电
+路连键性监控。
+4 ）按我 17 在 3 个互相垂直的方向上依段对试斡样品进行就棋冲击。
+囊 17 振动等援参数
+轴肉振动持续时间加速度
+振动等级波形方向
+脉冲 ms g
+Vl 10 半正弦波 .iE I句 5~ 10 35
+V2 10 主在正弦被正向 5~ 10 35
+V3 132 x 6 = 792 半2在弦波 .iE 向／反向 15 25
+V4
+vs 2 3X6 18 是乎正弦波正向／反向 11 100",PERFORMANCE,LOW,,,,,,,,
+SB243FD29D7,SB243FD29D7-I002,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,34,predicted,34,35,Page 34 | Section 5,"5 ）根据相脏的握动等级，按表始对试验样品进行摄坊。功率谱密度（PSD）或加速度句额率见
+附录 B。在振动过程中同时进行热循环时，则每次热键环包括：
+表 18 振动持攘时间
+正弦持续磁机持续
+热循环振动等级
+小时／轴 1J、传／辙
+Vt NIA 8 N/A
+V2 NIA $ N/A
+V3 22 22 根据 4. 17.2 日
+V4 32 50 根据 4. 17. 2 一日
+vs N/A 22 NIA
+注： .iE 弦振动和随机振动应单独执行，旦使用不同约样品＠
+一→－最佳温度持臻时闰 d h。
+一一最离握皮（按表 2 选择〉持续时间：2 扎
+一…漏度变化事13 ℃／min～5 °C/min.",PERFORMANCE,LOW,,,,,,,,
+S9068FE98E8,S9068FE98E8-I001,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,41,predicted,41,41,Page 41 | Section 5,"5）把胁力机梅童子琪装位置秘锁止伎重的中间位壁，如阻挠所示，朝 F 方向及反方向，以
+50 mm/min的均匀班度窍助力挑掬施如 60 N 的力。
+4.23.3 要求。
+连接糯肆力结构不应磁坏。
+今24 密封件的保持力〈未配合的连接器〉
+4.24. 1 设备。
+带有变速马达的主运转台。
+4.24.2 方法。
+试脸j艇序如下z
+1) 准备 10个装辛苦封醋的护套。
+2）按图 27设置试载台，固定掠密封件之外的所有零件。
+/ 叫 \
+f 飞
+,’, t’ ’ 罗 j , J , 飞飞飞
+dy 电
+IB－－－
+F d工工
+a1
+’J’
+j’ ’
+／ 沪
+圄 27 朱配合班接器密封僻的保持力试瞌
+3）以 1 960 m/s2（约 200 g）的加速度烧转试瞌合并保持 10 s，照式（1)计算需要的转遮（rp血〉。
+./1 QP.()/Q
+一立之二兰三江三× 60
+Zπ
+式中z
+R＝ 菌定台的中心强j密封件的距离（m）。
+的旋转后，记录宿封挤在连接器上的位置。
+4.2牛主要求。
+试验后，密封件应保持在原设计位置量。",TEST,LOW,,,,,,,,
+S9068FE98E8,S9068FE98E8-I002,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,41,predicted,41,42,Page 41 | Section 4.25,"4.25 密封件的保持力（配合的连接器）
+4.25. 1 设备。
+元。
+4.25.2 方法。
+准备 10 对装配好密封件的连接器，将连接器对插到位，然后快速将连接器分离。
+4.25.3 要要求。
+试验后，密封件应保持在原设计位置。",TEST,LOW,,,,,,,,
+S82650EE6D8,S82650EE6D8-I001,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,49,predicted,49,49,Page 49 | Section 3,"3 ）悻摇着旋转台的转萄，按表 22 规定的参数军在商 31 麓定的位囊，喷嘴从 00 开始对连接器进行
+喷射，每个位置喷射 30 s.
+4）从试段箱中取串样品，擦干样品外表，立即执好 4.27 绝橡电阻试验。
+囊 22 高压睛射试输参数
+液盏水底水源喷射时随
+设备喷射要求
+L/min kPa ℃ 30 s",TEST,LOW,,,,,,,,
+S82650EE6D8,S82650EE6D8-I002,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,49,predicted,49,50,Page 49 | Section 3,"3）距离 100 mm ~ 150 mm
+喷嘴
+试样
+位置4
+基准点（0°, 30°, 60°, 90°)
+留 31 礁嘴及试验台布景
+QC/T 1067. 1… 2017
+4.35.3 要求。
+试验样品应能按试验！腰ff表完成辑关试鼓并符合试验要求。",REGULATION,LOW,,,,,,,,
+S894151B809,S894151B809-I001,QC_T_1067_1-09_01_2017-zh-Aktuell_-_Gueltig-Standard_-_.pdf,56,predicted,56,57,Page 56 | Section 10,"10 IOOO 100
+赣黎几1z
+V5 毒草机撩油 PSD 与频率
+将随机摄动 PSD 与频率
+阁 B.7
+表 B.7
+频率 PSD 频率 PSD
+Hz (m/s2 沪／ Hz Hz (m/s＇沪／Hz
+注： j£ 弦振动时，j£ 弦扣频为 1 倍频程／分钟。
+QC/T 1067. 1 2017
+(cid:157)
+醋录
+｛资料性醋最｝
+连接器翻定结构盟式及尺寸
+c. 1 连接器＂A”望回应结构及匹配卡如的型式及尺寸
+如圈 C.1 和自巳 2,13哥示。
+I I.6i:2
+幸 “ N 6.8±0.1 。 ． o u 扣
+a “ 。N
+节 ，
+俨－
+口 9.2+:i1
+响O
+A A-A
+叫H
+f呻 【
+问O节．U问
+一一
+4俨
+川时
+∞ O－
+M节
+－问
+．，．翩翩4 .＿＿跚跚..
+L_",REGULATION,LOW,,,,,,,,
+SAF31034037,SAF31034037-I001,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,7,predicted,7,7,Page 7 | Section 1.1.2,"1.1.2 潜在供应商报价所涉及的零部件清单详见附件 B《项目一般描述》 ；如果需要，北汽动力可能会提
+供与报价零部件相关或相似的零件作为参考，详见附件 D《项目递交物》。",OTHER,LOW,,,,,,,,
+SAF31034037,SAF31034037-I002,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,7,predicted,7,7,Page 7 | Section 1.2.1.1,"1.2.1.1 北汽动力在零部件开发过程中应：
+e) 按照北汽动力批准的零部件开发计划，完成供应商在开发节点交付物的评审和批准以及对供应商
+技术认可图样是否体现并满足北汽动力的设计要求进行确认和审签，并将审签后的技术认可图样
+发放给供应商。",OTHER,LOW,,,,,,,,
+SAF31034037,SAF31034037-I003,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,7,predicted,7,7,Page 7 | Section 1.2.1.1,"1.2.1.1 北汽动力在零部件开发过程中应：
+f) 对供应商的技术认可图样是否体现并满足北汽动力全部的设计要求进行审查，并非对供应商的图
+样使用或其结果及所生产零部件的缺陷负责。",OTHER,LOW,,,,,,,,
+SAF31034037,SAF31034037-I004,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,7,predicted,7,7,Page 7 | Section 1.2.1.2,"1.2.1.2 供应商在零部件开发过程中应：
+b) 按北汽动力的要求制定零部件开发计划，包括但不限于时间、进度内容等，提交北汽动力确认。
+经北汽动力同意批准后，按开发计划的要求完成零部件的开发工作。",OTHER,LOW,,,,,,,,
+SAF31034037,SAF31034037-I005,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,7,predicted,7,7,Page 7 | Section 1.2.1.2,"1.2.1.2 供应商在零部件开发过程中应：
+d) 应严格按北汽动力提供的数据、样件经北汽动力确认的技术认可图样及其他技术资料进行开发，
+开发的零部件应符合 SOR 及后续更改的技术要求。",PERFORMANCE,LOW,,,,,,,,
+SAF31034037,SAF31034037-I006,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,7,predicted,7,7,Page 7 | Section 1.2.1.2,"1.2.1.2 供应商在零部件开发过程中应：
+g) 针对已经确认的方案及技术要求、标准等，任何目的的更改和替换，必须向北汽动力提出书面申
+请，待北汽动力批准后方能执行（包括但不限于材料、工艺等条件难以满足、供应商内部评估的
+性能提升或者降本等）。",PERFORMANCE,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I001,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 6.3.2,"6.3.2 供应商提供的设计数据应在设计冻结日期之前提交给北汽动力，以使北汽动力进行虚拟装配和零
+部件设计。
+6.3.3 北汽动力根据不同的零部件提供相应的技术规范文件，用于规范零部件的需求。
+6.3.4 供应商应提供总成及总成下一级关键零部件的清单，以使北汽动力进行认可图样的质量管控。",OTHER,LOW,,,,,,,,
+S3335BF210C,S3335BF210C-I002,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 6.3.5,"6.3.5 三维 CAD 数据：供应商必须具备与北汽动力的 CAD 信息进行接口的能力，要求的CAD 数据格式为
+a) 提供的 CAD数模必须采用北汽动力指定的正版三维设计软件；",INTERFACE,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I003,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 6.3.5,"6.3.5 三维 CAD 数据：供应商必须具备与北汽动力的 CAD 信息进行接口的能力，要求的CAD 数据格式为
+b) CAD 数模应在整车/整机坐标系统中正确定位；",INTERFACE,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I004,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 6.3.5,"6.3.5 三维 CAD 数据：供应商必须具备与北汽动力的 CAD 信息进行接口的能力，要求的CAD 数据格式为
+c) CAD 数模最后的安装条件是几何尺寸应与整车/整机的安装位置相匹配，不应显示任何运输保护的
+零部件（例如孔盖）。",INTERFACE,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I005,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 6.3.6,"6.3.6 技术认可图样：必须包含所有的规范和测试要求，包含但不限于下列内容：
+a) 接口范围有充分的尺寸和公差；",INTERFACE,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I006,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 6.3.6,"6.3.6 技术认可图样：必须包含所有的规范和测试要求，包含但不限于下列内容：
+b) 北汽动力相关尺寸和公差；",TEST,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I007,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 6.3.6,"6.3.6 技术认可图样：必须包含所有的规范和测试要求，包含但不限于下列内容：
+c) 使用的所有规范；",TEST,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I008,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 6.3.6,"6.3.6 技术认可图样：必须包含所有的规范和测试要求，包含但不限于下列内容：
+d) 零部件质量；",TEST,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I009,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 6.3.6,"6.3.6 技术认可图样：必须包含所有的规范和测试要求，包含但不限于下列内容：
+e) 焊接规范；",TEST,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I010,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 6.3.6,"6.3.6 技术认可图样：必须包含所有的规范和测试要求，包含但不限于下列内容：
+f) 工装控制数据；",TEST,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I011,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 6.3.6,"6.3.6 技术认可图样：必须包含所有的规范和测试要求，包含但不限于下列内容：
+g) 适用的产品特殊特性。",TEST,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I012,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 6.4,"6.4 环保设计要求
+供应商应负责确保其产品满足任何潜在市场的“报废汽车 ELV 法规”要求，采用环保回收优化设计，
+禁用、限用有害物质要求执行 Q/BAIC C310001，报告可回收的材料及质量，并提供拆解信息（包括零件
+号、回收材料信息、质量、固定方式、拆解方式、工具、配图等） ，具体要求可向北汽动力材料工程师咨
+询。",REGULATION,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I013,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,11,Page 11 | Section 7.1,"7.1 无能力达到要求
+如果供应商已确定不能满足本 SOR 中所指定的一些技术或非技术的要求，供应商必须在报价回复中详
+细申明。同时供应商还必须就如何减小或消除这种影响提出建议书。 这些建议在某些情况下可能会导致修
+改 SOR、技术要求或图样，该建议书必须得到北汽动力产品开发部门的认可，被选择的供应商在以上例外情
+况未经北汽动力产品开发部门的书面授权下，不能开展进一步的工作。",PERFORMANCE,HIGH,,,,,,,,
+S3335BF210C,S3335BF210C-I014,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,11,predicted,11,12,Page 11 | Section 7.2,"7.2 等效功能替代
+如果供应商提出的等效功能替代建议对项目的进度、质量、成本或工程功能性不会产生不利影响，则此
+建议将被纳入考虑。供应商只得去考虑那些能给北汽动力带来重大利益（如降低成本、改善工艺性能或缩短
+时间周期）的等效功能替代方案，供应商还可以提出那些尽管同规定要求不是 100%一致，但与此 SOR 所描
+述的零件具有同样安装尺寸和功能的零部件和材料。任何由于等效功能替代所产生的零件、子系统和认证
+的费用将由供应商承担。
+任何等效功能替代的建议，必须在报价回复中详细说明。该建议必须得到北汽动力产品开发部门的认
+可，且在某些情况下可能会导致修改SOR、技术要求或图样。被选择的供应商在以上例外情况未经北汽动力
+产品开发部门的书面授权下，不能开展进一步的工作。",PERFORMANCE,HIGH,,,,,,,,
+S0972C3ACEF,S0972C3ACEF-I001,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,15,predicted,15,15,Page 15 | Section 14.2.1,"14.2.1 供应商的质量体系必须通过权威质量体系认证机构的认证，认证包括但不限于：GB/T 19001 idt
+ISO 9001，IATF 16949 等，保证其质量体系的有效性，保证其交付的产品或服务质量的稳定性和可靠性。",REGULATION,HIGH,,,,,,,,
+S0972C3ACEF,S0972C3ACEF-I002,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,15,predicted,15,15,Page 15 | Section 14.2.2,"14.2.2 对于承担汽车产品相关软件或带有嵌入式软件的汽车产品供应商，应为各自产品实施并保持一个
+软件质量保证过程，按 ASPICE 识别软件生命周期过程，并实施评估，过程能力水平应达到二级以上或
+CMMI 三级以上。",INTERFACE,LOW,,,,,,,,
+S0972C3ACEF,S0972C3ACEF-I003,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,15,predicted,15,15,Page 15 | Section 14.3,"14.3 产品先期质量策划（APQP）
+14.3.1 供应商在接到《货源确认书》后的两周时间内，必须确定一个 APQP 启动会日期。
+14.3.2 供应商必须为每一零件或总成零件都提交一份 APQP 计划和零部件开发方案。",OTHER,HIGH,,,,,,,,
+S0972C3ACEF,S0972C3ACEF-I004,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,15,predicted,15,15,Page 15 | Section 14.4,"14.4 工装样件（OTS）
+供应商必须提供有质量保证的零件以用于 OTS 试验：供应商提交样件时，应同时提交证明样件符合产
+品技术要求和法规要求的文件，如：尺寸报告，材料报告、性能报告等，文件应符合《 北汽动力工程签署
+(ESO)管理办法》的要求。",PERFORMANCE,HIGH,,,,,,,,
+S0972C3ACEF,S0972C3ACEF-I005,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,15,predicted,15,15,Page 15 | Section 14.5,"14.5 生产和批准认可（PPAP）
+供应商必须对其所有零件都保证通过产品零件认可，PPAP 的提交一般采用默认等级 3，具体执行等级
+由 SQE 确定。",OTHER,HIGH,,,,,,,,
+S0972C3ACEF,S0972C3ACEF-I006,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,15,predicted,15,15,Page 15 | Section 14.6.1,"14.6.1 供应商必须满足北汽动力所要求的质量标准、质量评鉴标准及评鉴样件数量；要求量产零部件的
+质量满足 Cpk≥1.33。",OTHER,HIGH,,,,,,,,
+S0972C3ACEF,S0972C3ACEF-I007,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,15,predicted,15,15,Page 15 | Section 14.6.2,"14.6.2 供应商提供的量产零部件应满足 0公里 PPM： 10 。量产后第二个顺延年，零部件 0 公里PPM
+指标参考年度降幅为 50%，量产后第三个顺延年 0 公里PPM 指标降幅原则上不低于初始值的 75%，量产后
+第四个顺延年开始原则上不强制要求年度降幅比例，特殊情况以质量控制部指标要求为准。",OTHER,LOW,,,,,,,,
+S0972C3ACEF,S0972C3ACEF-I008,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,15,predicted,15,15,Page 15 | Section 14.6.3,"14.6.3 供应商提供的量产零部件应满足售后 3CS PPM： 20 。量产后第二个顺延年，零部件售后PPM
+指标参考年度降幅为 35%，量产后第三个顺延年售后PPM 指标降幅原则上不低于初始值的 70%，量产后第
+四个顺延年开始原则上不强制要求年度降幅比例，特殊情况以质量控制部指标要求为准。",PERFORMANCE,LOW,,,,,,,,
+S0972C3ACEF,S0972C3ACEF-I009,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,15,predicted,15,15,Page 15 | Section 14.6.4,"14.6.4 产品设计寿命为 10 年暴露或 25/30万公里，其中：零部件产品质保期应与北汽动力公布的质量
+保证期承诺、国家标准与法规要求保持一致，不一致时按最高原则执行。",REGULATION,HIGH,,,,,,,,
+S0972C3ACEF,S0972C3ACEF-I010,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,15,predicted,15,15,Page 15 | Section 15.1.3,"15.1.3 供应商须制定适合的供货方式来预先组织、规划自身的物流过程，并与北汽动力物流管理工程师
+确认零部件供货模式及地点。
+15.1.4 供应商根据初步沟通结果，进行零部件物流成本报价。",OTHER,LOW,,,,,,,,
+S28964DC72D,S28964DC72D-I001,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,20,predicted,18,21,Page 18 | Section 17,"17 质量索赔
+索赔项指标要求：质量问题 QIS 12 天， 3CS不良率 PPM20 。
+`1` 零件属性
+本零部件属于：
+黑盒子件：由主机厂负责布置及外形的周边条件设计，并提出产品的功能要求和技术状态描述，由供应
+商承担内部结构设计、并对产品设计结果负责的零部件。
+`2` 双方设计职责要求
+`2.1` 黑盒子件双方设计职责要求如下：
+`a)` 由北汽动力负责布置及外形的周边条件设计，并提出产品的功能要求和技术状态描述。
+`b)` 由供应商承担内部结构设计、并对产品设计结果负责。
+`c)` 供应商负责产品生产所需的工装模具、检具及其它生产和物流器具的开发，并提供最终的符合要
+求的产品。
+`2.2` 下列任意情形导致模具修改或重开、增加零部件、试验项目增加或重做、库存零件报废等成本增加
+项目，均由供应商负全部责任：
+`a)` 供应商数据管控问题，导致双方技术状态不统一；
+`b)` 供应商在前期技术方案和数据设计阶段未进行或未完成工程开发可行性分析；
+`c)` 供应商内部零件结构、材料、设计问题；
+`d)` `DV` 抽检样件，若首次抽检试验未通过，则后续安排的相关试验费用由供应商承担；
+`e)` `OTS` 阶段样件，若首次验证试验未通过，则后续安排的相关试验费用由供应商承担；
+`f)` 北汽动力对供应商产品评审或试验后，对产品存在质量问题提出的产品结构设计变更，经双方协
+商确定更改方案，原则上由供应商承担费用；
+`g)` 供应商提出的产品结构优化或工艺改进的设计变更，经双方协商确定更改方案，原则上由供应商
+承担费用。
+`2.3` 下列任意情形导致模具修改或重开、增加零部件、试验项目增加或重做、库存零件报废等成本增加
+项目，均由北汽动力负全部责任：
+`a)` 外形、结构或周边条件变化；
+`b)` 技术要求、性能要求或试验要求变化。
+`3` 零部件开发计划
+零部件开发计划见下表（任何变动都将与供应商进行沟通，并应以书面形式进行确认）。
+|序号|工作任务|北汽动<br>力|供应商|起止时间|交付物|备注|
+|`1 `|`3D` 设计|`A `|`R `|`2025.12.20` 之前|`3D` 数模||
+|`2 `|`2D` 资料|`A `|`R `|`2025.12.20` 之前|`2D` 图纸||
+|`3 `|`DFMEA`|`A `|`R `|`2026.8.20` 之前|`DFMEA`||
+|`4 `|手工样件制作|`A `|`R `|`2026.12.31` 之前|功能测试报告||
+|`5 `|第一批工装样件|`A `|`R `|`2026.5.30` 之前|出厂报告||
+|`6 `|第二批工装样件|`A `|`R `|`2026.8.20` 之前|出厂报告||
+|`7 `|`DV` 试验|`A `|`R `|`2026.12.20` 之前|`DV` 报告||
+|`8 `|`ESO` 签署完成|`R `|`S `|`2027.2.28` 之前|`ESO` 文件|仅对硬件认可|
+|`9 `|`PPAP` 审核认可|`R `|`S `|`2027.5.30` 之前|`PPAP` 文件||
+注： `R—` 负责 `S—` 协助 `A—` 验收
+`4` 工程联系方式
+下列北汽动力的工程师负责本零件或子系统的产品设计工程。所有与产品有关的咨询可直接与工程师
+联系。联系方式如下表。
+|姓名|专业部室|职务|电话|传真|邮箱|
+地址：北京市通州区经济开发区东区靓丽三街 1 号，邮编： 101108 。
+`1` 报价零部件清单
+零部件报价信息表。
+|序号|层级|零部件编号|零部件名称|单台数量|匹配机型|图纸版本|数模版本|采购级别|
+|`1 `|`/ `|`T00007918`|氮氧传感器|`1 `|`N82KS-E01`|`/ `|`/ `|采购级|
+`2` 项目信息
+`N82KS-E01` 项目整车匹配 `A156T4` 发动机。北京汽车动力总成有限公司混动中心为完成该项目中有关产
+品设计的工程责任而编制了此份零部件产品开发要求说明（以下简称 `SOR` ），并具体负责在 `SOR` 中提供零部
+件和子系统的工程与产品设计、图纸或数模、以及相关的技术规范与要求。
+`3` 项目进度表
+`3.1` 项目主要时间节点见下表。
+|序号|工作内容|计划完成时间|
+|`1 `|项目启动|`2025.10.31`|
+|`2 `|方案批准`G7`|`/ `|
+|`3 `|设计批准`G6`|`2026.4.30`|
+|`4 `|设计发布`G5`|`/ `|
+|`5 `|产品发布`G4`|`2026.12.20`|
+|`6 `|预试生产`G3`|`/ `|
+|`7 `|试生产`G2`|`/ `|
+|`8 `|正式生产（`SOP`）`G1`|`2027.6.30`|
+`3.2` 随着项目的开展以上节点可能有所变化，任何变动都将与供应商进行沟通，并应以书面形式进行确
+认。
+`3.3` 生产纲领：
+（具体的需求时间与数量，请以采购订单为准）
+|车型|2027 年/台|2028 年/台|2029 年/台|2030 年/台|2031 年/台|总计（台）|
+|`N82KS-E01`<br>增程版|`2341`|`6259`|`8172`|`10522`|`8524`|`35818`|
+`4` 手工样件试制
+`4.1` 样件的品质要求
+手工样件阶段：
+`1)` 样件状态：改制件或工装件；",TEST,LOW,,,,,,,,
+S4EAF35BAEE,S4EAF35BAEE-I001,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,24,predicted,24,24,Page 24 | Section 1.1,"1.1 中国的强制性法规
+供应商必须确保开发的零部件符合相关强制性标准要求。
+序号标准号标准名称备注",REGULATION,HIGH,,,,,,,,
+S4EAF35BAEE,S4EAF35BAEE-I002,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,24,predicted,24,24,Page 24 | Section 1.2.1,"1.2.1 该车型拟出口地区的强制性标准或一些特殊要求，供应商必须满足的潜在市场所在国家法规的要
+求。",REGULATION,HIGH,,,,,,,,
+S4EAF35BAEE,S4EAF35BAEE-I003,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,24,predicted,24,24,Page 24 | Section 1.2.2,"1.2.2 部分市场的相关法律法规要求见下表，供应商必须根据SOR中目标市场要求进行分析设计，并设
+计能满足目标市场的要求和目标市场的相关认证。
+序号标准号标准名称备注",REGULATION,HIGH,,,,,,,,
+S4EAF35BAEE,S4EAF35BAEE-I004,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,24,predicted,24,27,Page 24 | Section 2,"2 规范
+该零部件必须执行具体的产品标准、工程规范和要求（含适用的北汽动力技术管理标准和规范）。包
+括企业标准、行业标准、国家标准、国际标准等。
+序号标准号标准内容标准类别备注
+1 Q/BAIC C310001-2025 《汽车产品禁限用物质要求》 企业标准 /
+2 Q/BAIC C210063—2021 《汽车用电线束低压连接器技术条件》 企业标准 /
+3 Q/BAIC C130006-2021 《汽车产品零部件条形码规范》 企业标准 /
+《汽车电气及电子设备电磁兼容性
+4 Q/BAIC C220026—2023 企业标准 /
+（EMC）性能要求及其试验方法》
+`1` 北汽动力提供的资料清单
+`1.1` 北汽动力提供的技术资料清单
+|序号|文件名称|文件格式|备注|
+|`1 `|`SOR`|`PDF`|`/ `|
+`1.2` 北汽动力提供的样件清单
+|序号|名称|数量|备注|
+|`1 `|`/ `|`/ `|`/ `|
+`2` 供应商不同阶段的交付清单
+`2.1` 技术评审阶段的文件交付清单
+潜在供应商需在技术评审阶段提交下列文件。
+|序号|文件名称|备注|
+|`1 `|供应商介绍||
+|`2 `|项目组架构及成员||
+|`3 `|类似项目介绍||
+|`4 `|项目开发流程||
+|`5 `|详细技术方案||
+|`6 `|详细零部件清单（`BOM` 表）||
+|`7 `|开发工具||
+|`8 `|详细开发时间计划||
+|`9 `|初版`DV` 试验大纲||
+|`10`|初始`DFMEA` 和`PFMEA`||
+|`11`|生产规划||
+|`12`|质量控制||
+|`13`|经验教训||
+|`14`|试验能力||
+|`15`|芯片`BOM`||
+|`16`|通讯矩阵||
+`2.2 OTS` 阶段的文件交付清单
+供应商需在 `OTS` 阶段提交下列文件
+|序号|文件名称|备注|
+|`1 `|`DFMEA` 和`PFMEA`||
+|`2 `|禁限用物质检测报告|`CAMDS` 信息填报|
+|`3 `|零部件检验规范||
+|`4 `|零部件材料试验计划表||
+|5|产品永久性标识等提交结果|Col3|
+|`6 `|性能试验结果||
+|`7 `|供应商自我认可试验大纲||
+|`8 `|供应商认可样件保证书||
+|`9 `|供应商自我认可试验能力报审表||
+|`10`|DVP&R|提交`DV` 原始报告|
+|`11`|尺寸结果||
+|`12`|材料试验结果||
+|`13`|认可样件交样要求||
+|`14`|材料及分供方清单||
+`2.3` `PPAP` 阶段的文件交付清单
+供应商需在 `PPAP` 阶段提交下列文件。
+|序号|文件名称|备注|
+|`1 `|零件提交保证书（PSW）||
+|`2 `|零部件变更履历表||
+|`3 `|设计记录||
+|`4 `|工程更改文件（ECN）||
+|`5 `|零部件工程签署（ESO）|由北汽动力`PE` 发布并提供|
+|`6 `|产品特殊特性清单|由北汽动力`PE` 发布并提供|
+|`7 `|过程特殊特性清单||
+|`8 `|零部件检查基准书||
+|`9 `|DFMEA，如适用||
+|`10`|过程流程图||
+|`11`|PFMEA||
+|`12`|控制计划||
+|`13`|生产设备清单||
+|`14`|工装、模具清单|工装、检验设备、通用或专用<br>检具|
+|`15`|测量系统分析报告（MSA）|`GR&R`≤`30%`|
+|`16`|材料与分供方清单||
+|`17`|零部件PV 试验计划和报告（PVP&R)，如需要||
+|`18`|性能试验报告，附原始报告，如需要||
+|`19`|零部件材料试验计划，如需要||
+|`20`|材料试验报告，附原始报告，如需要|成分、理化、性能等|
+|`21`|全尺寸检测报告||
+|`22`|初始过程能力分析报告（SPC）|特殊特性或北汽指定的特性 <br>新开发零件`PPK`≥`1.67`<br>量产零件`CPK`≥`1.33`|
+|`23`|实验室认证文件||
+|24|外观批准报告（AAR），如需要||
+|25|标准样件||
+注：不同开发阶段递交物根据项目的要求进行适当调整，不限于上述表格提到的内容。",TEST,HIGH,,,,,,,,
+S6A0FA0AC90,S6A0FA0AC90-I001,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,28,predicted,28,28,Page 28 | Section 2,"2 ） 线束长度： TBD （根据实车布置进行调整）
+`1.3` 产品功能要求
+`1)` 支持控制器博世的 `NOx` 软件模块
+`2)` 通讯协议：按照 `EMS` 系统通讯协议开发
+`3)` 工作温度： `-40` ℃～ `850` ℃，其中各部分工作温度如下：
+废气温度：≤ 850 ℃
+六角头温度：≤ 520 ℃
+线束温度：≤ 210 ℃
+控制器端温度：≤ 125 ℃
+`4)` `NOx` 起燃时间： `TBD`
+`5)` `NO` 响应时间：＜ `1800ms`
+`6)` `NO` 精度： `NO` 浓度 `0ppm` 时，精度± `10` （ `abs.` ）； `NO` 浓度 `90ppm` 时，精度± `12` （ `abs.` ）； `NO` 浓度
+`1500ppm` 时，精度± `10` （ `rel.` ）； `NO` 浓度 `2750ppm` 时，精度± `17` （ `rel.` ）
+`7)` 控制器工作电压： `10.7V-16V`
+`8)` 控制器限制电压： `6V-10.7V` ， `16V-36V`
+`9)` 接插件防护等级： `IP67` ， `IPX9K`
+`10)` 传感器接插件 `Pin` 针镀银，插拔 `10` 次后接插件连接可靠，传感器工作正常；
+`11)` 传感器排气侧导线处泄露率：＜ `2mL/min` （压力 `500mbar` ，时间 `60s` ）
+`12)` 传感器接插件无歪斜和污损；
+`13)` 传感器标识刻印清晰；
+`14)` 传感器螺纹区域涂抹耐高温油脂，并用塑料保护帽加以保护；
+`15)` 传感器可精确追溯，符合 `Q/BAIC C130006-2021` 《汽车产品零部件条形码规范》；
+`16)` 产品无毛刺和飞边。",PERFORMANCE,LOW,,,,,,,,
+SC7F0045738,SC7F0045738-I001,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,33,predicted,31,35,Page 31 | Section 5,"5 需精确追溯的零件
+需精确追溯的零件清单如下表所示。
+零部件编号零部件名称零部件描述图纸版本/日期
+T00007918 氮氧传感器 / /
+`1` 产品认证要求
+`1.1` 产品认证要求
+`1.1.1` 认证要求是模拟车辆 `10` 年暴露或 `25` 万公里里程的客户使用工况，从而验证产品可靠性。在整车
+级试验论证前，供应商提供的零部件须符合上述要求并出具相应的报告。
+`1.1.2` 零部件 `/` 子系统的整合和认证由零部件 `/` 子系统的供应商负责，供应商必须完成指定试验及北汽动
+力要求的附加试验。
+`1.1.3` 零部件 `/` 子系统的认证可以由零部件 `/` 子系统的供应商具体实施，也可在经北汽动力认可后，由供
+应商指定下级供应商或第三方来实施完成。但无论何种方式，供应商必须完全承担完成认证要求的所有试
+验的义务。
+`1.1.4` 零部件 `/` 子系统的供应商必须向北汽动力产品工程师提供一份完整的零部件 `/` 子系统的试验认证计
+划并得到该工程师的批准。此计划中应包括但不限于以下内容：试验项目、试验样件数量、试验顺序、每
+次试验实施的地点和时间等。
+`2` 产品验证要求
+`2.1` 边界及工艺验证（含虚拟验证）
+零件需经过总布置进行整机布置评审，保证零件间隙及可装配性。
+`2.2` 零部件 `DVP`
+|序号|测试项<br>目|测试说明|试验标准号|目标要求|验收方式|
+|`1 `|汽油发<br>动机耐<br>久试验|<br>测试条件：根据`DIN EN228`，无铅汽油，<br>机油消耗`<0.01 L/h`<br>测试时间：`3000h`<br>排气温度通过不同的发动机转速和负荷<br>控制|`/ `|产品性能正常|`DV`|
+|`2 `|空气中<br>运行的<br>老化试<br>验|测试条件：静态空气（室温） <br>测试时间：`100h`|`/`|信号漂移≤`7%`|`DV`|
+|`3 `|硅灵敏<br>度试验|<br>测试燃油：含有硅添加剂燃油<br>（`0.12cm`<br>`3/L`八甲基环四二硅氧烷） <br>硅添加总量：`2.3g`<br>试验时间：`18h`<br>尾气温度：`400`℃|`/`|产品性能正常|`DV`|
+|序号|测试项<br>目|测试说明|试验标准号|目标要求|验收方式|
+|`4 `|工业环<br>境试验|<br>测试燃油：高硫燃油 <br>硫添加总量：`188g`<br>试验时间：`6` 天 <br>尾气温度：`200`℃（怠速运行）|`/`|产品性能正常|`DV`|
+|`5 `|机油成<br>分灵敏<br>度试验|<br>废气温度：`400`℃`/ 30min`，`700`℃`/30min`<br>测试时间：`450h`<br>测试油耗：`8.5L/h`<br>机油添加剂含量：`P=40g`，`Ca=51g`|<br>`/`|产品性能正常|`DV`|
+|`6 `|`3D` 振动<br>试验|电压：`14V`<br>时间：`50h`<br>最大加速度：`1300m/s`<br>`2 `|`/`|产品性能正常|`DV`|
+|`7 `|随机振<br>动试验|<br>加速度：`1300m/s`<br>`2`（峰值） <br>测试时间：`24h`<br>环境温度：`25`±`3`℃|`/`|产品性能正常|`DV`|
+|`8 `|导线拉<br>力试验|<br>安装好的传感器承受施加在线束上`53N`<br>轴向力`1min`。|`/`|产品性能正常|`DV`|
+|`9 `|跌落试<br>验|使传感器从`1m` 高的地方掉落到混泥土<br>地上`1` 次|`/`|产品性能正常|`DV`|
+|`10`|湿热循<br>环|湿度`1`：`83%@23`℃ <br>湿度`2`：`92%@40`℃ <br>时间：`10` 天|`/`|产品性能正常|`DV`|
+|`12`|喷射`/`浸<br>没试验|<br>传感器安装位置加热到`400`℃±`20`℃ <br>测试电压：`14V`<br>接插件系统不放在水中 <br>试验循环：`50` 次|`/`|产品性能正常|`DV`|
+|`13`|高压清<br>洗试验|<br>测试压力：`100bar`<br>角度：`0`°，`30`°，`60`°，`90°`<br>测试时间：`120s(30s/`角度`) `<br>压力喷嘴到传感器的距离：`100mm`|`/`|产品性能正常|`DV`|
+|序号|测试项<br>目|测试说明|试验标准号|目标要求|验收方式|
+|`14`|耐燃油<br>性试验<br>（`FVP`<br>试验）|<br>传感器排气侧暴露在戊烷蒸汽内 <br>压力：`100mbar`±`10mbar`<br>测试时间：`2h`|`/`|产品性能正常|`DV`|
+|`15`|盐雾试<br>验|`NaCl` 浓度：`5`±`0.5%`<br>试验温度`:35`℃±`2`℃ <br>试验时间`:288h`|`ISO 16750-1`|产品性能正常|`DV`|
+|`16`|二氧化<br>硫试验|<br>根据`DIN EN ISO6988`<br>在潮湿的`SO2`环境中腐蚀 <br>循环时间`:6` 天|`/`|产品性能正常|`DV`|
+|`17`|常湿试<br>验|电压：`14V`<br>时间：`504h`<br>湿度：`90%~95%`<br>温度：`40`℃|`ISO 16750-1`|产品性能正常|`DV`|
+|`18`|热冲击<br>试验|电压：`14V`<br>温度：`-40`℃`@20min`，`850`℃`@20min`<br>次数：`5` 次|`ISO 16750-1`|产品性能正常|`DV`|
+|`19`|`EMC`<br>试<br>验<br>`* `|满足`EMC`试验要求|`Q/BAIC C220026` 或<br>同等水平的标准|满足要求|`DV`|
+|`20`|接插件<br>试验|接插件匹配试验|`Q/BAIC C210063` 或<br>同等水平的标准|满足要求|`DV`|
+注：最终试验项目以 `DVP` 为准
+注 `*` ：以整车通过试验为准
+`2.3` 装车验证
+零件应确保满足设计边界要求，在整车和整机验证时应无干涉及其他空间布置问题。
+`2.4` 整机性能试验要求
+零件应确保满足整机 `/` 整车性能要求。
+`2.5` 整机可靠性试验要求
+零件应满足发动机台架可靠性验证或整车可靠性验证。
+`1` 重量要求
+`1.1` 供应商提供的产品重量必须满足目标重量要求以及动力总成重量要求，在每个项目阶段，供应商必
+须给出开发现状与目标的对比。
+`1.2` 当产品的重量由于设计或需求发生变更时，重量目标将会做相应的调整。
+`2` 减重
+`2.1` 供应商必须考虑由北汽动力提出的轻量化提议来进一步减轻重量，并以此提供的减重替代品进行成
+本和重量以及性能差异评估。
+`2.2` 在开发过程中，供应商需根据北汽动力产品工程提出的意见和要求，持续优化产品来尽可能降低重
+量。
+`3` 零件重量
+零件重量详见下表。
+|序号|零件号|零件名称|目标重量（kg）|
+|`1 `|`T00007918`|氮氧传感器|`TBD`|
+注：实际测量单位保留小数点后 `3` 位，即精确到克，重量的误差范围为± `3%(` 根据不同材料属性可放大或缩小误差范围 `)` 。",PERFORMANCE,HIGH,,,,,,,,
+S4734A51C37,S4734A51C37-I001,eSigned_EMC_88033918_FIL_000_AA 4.pdf,7,predicted,6,16,Page 6 | Section 3,"3. Error Output: signal generated from NOx Checkbox
+After switching on the NOx electronics, the sensor heats up. During this phase the Checkbox’s
+error output is at low level (0 V). After the heat up phase (up to 5 min) the error output stays stable at
+high level (5V). At this point the DUT is in FSC A and the test can start.
+Test setup pictures are made only for information and does not reflect the real product.
+**NOx-Checkbox top view - Display**
+**Checkbox back view - Connector interfaces**
+# **3 Measurement Methods**
+**3.1** **Radiated Emission Antenna (ALSE)**
+|Frequency range|0,1 to 3000 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND<br>DUT connector shows in antenna direction|
+|LISN setup|+LISN: Ubatt<br>- LISN: GND|
+|Operating mode(s)|2 (working mode)|
+|Settings|Use FFT method|
+|Documentation|Generate one plot for 9k and one for 120k BW.|
+**Test Setup**
+|Col1|Col2|1700 + 300<br>styrodur|
+**Scan table**
+|Frequency<br>range<br>[MHz]|Step Size = BW/2|Dwell time [ms]|Col4|Col5|Remarks|
+|**Frequency**<br>**range**<br>**[MHz]**|**BW [kHz]**|**PK**|**QP *1)**|**AV**|**AV**|
+|0,1 – 30|9|100|1000|100|Antenna position<br>middle of harness|
+|1567 – 1616|9|---|---|10|Antenna position at<br>DUT|
+*1) Note: only areas with limits shall be measured
+|Service /<br>Band|Frequency<br>range<br>[MHz]|[dBµV]|Col4|Col5|Remarks|
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|**PK**|**QP**|**AV**|**AV**|
+|Broadcast|Broadcast|||||
+|LW|0,1 – 0,15|-|73|66||
+||0,30 – 0,53|-|73|66||
+|MW|0,53 – 2|-|51|44||
+||2 – 5,9|-|62|52||
+|SW|5,9 – 6,2|-|51|44||
+||6,2 – 26|-|51|34||
+|FM|76 – 108|38|25|18||
+|TV Band I|41 – 88|28|-|18||
+|TV Band II|174 – 230|32|-|22||
+|DAB III|171 – 245|26|-|16||
+|TV Band IV|468 – 944|41|-|31||
+|DTTV|470 – 770|45|-|35||
+|DAB L Band|1447 – 1494|28|-|18||
+|SDARS|2320 – 2345|34|-|24||
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|** [dBµV]**|** [dBµV]**|** [dBµV]**|**Remarks**|
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|**PK**|**QP**|**AV**|**AV**|
+|Mobile Services|Mobile Services|||||
+|CB|26 – 30|-|45|28||
+|VHF|30 – 54|40|27|20||
+|VHF|68 – 87|-|25|18||
+|VHF|142 – 175|-|25|18||
+|TETRA|380 – 400|40|-|22||
+|TETRA|420 – 430|40|-|22|Col6|
+|RKE|420 – 450|32|-|18||
+|Analogue UHF|<br>820 – 960|44|31|24||
+|GSM 800|860 – 895|44|-|24||
+|GSM 900|925 – 960|44|-|24||
+|GPS L1|1567 – 1583|-|-|10||
+|GLONASS L1|<br>1591 – 1616|-|-|10||
+|GSM 1800|1803 – 1882|44|-|24||
+|GSM 1900|1850 – 1990|44|-|24||
+|3G|1900 – 1992|44|-|24||
+|3G|2010 – 2025|44|-|24||
+|3G|2108 – 2172|44|-|24||
+|BT / 802.11|2400 – 3000|44|-|24||
+**3.2** **Conducted Emission LISN**
+|Frequency range|0,1 to 108 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND|
+|LISN setup|+LISN: Ubatt<br>- LISN: GND|
+|Operating mode(s)|2 (working mode)|
+|Settings|Use FFT method|
+|Documentation|Generate one plot for 9k and one for 120k BW.|
+**Test setup**
+To LISN
+styrodur
+**Scan table**
+|Frequency range<br>[MHz]|Step Size = BW/2|Dw ell time [ms]|Col4|Col5|
+|**Frequency range**<br>**[MHz]**|**BW [kHz]**|**PK**|**QP *1)**|**AV**|
+|30 – 108|9|100|---|---|
+*1) Note: only areas with limits shall be measured
+|Service /<br>Band|Frequency<br>range<br>[MHz]|[dBµV]|Col4|Col5|Remarks|
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|**PK**|**QP**|**AV**|**AV**|
+|Broadcast|Broadcast|||||
+||0,1 – 0,3|-|97|90||
+|LW|0,3 – 0,53|-|97|90||
+|MW|0,53 – 2|-|65|58||
+||2 – 5,9|-|73|66||
+|SW|5,9 – 6,2|-|64|57||
+||6,2 – 10|-|60|50||
+||10 – 26|-|46|36||
+|FM|76 – 108|-|28|21||
+|Mobile Services|Mobile Services|||||
+|CB|26 – 30|-|46|36||
+|VHF|30 – 68|-|52|42||
+|VHF|68 – 87|-|34|24||
+**3.3** **Radiated Immunity Antenna (ALSE)**
+|Frequency range|200 to 3200 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND<br>DUT connector shows in antenna direction|
+|LISN|+ LISN: Ubatt<br>- LISN: GND|
+|Operating mode|2 (working mode)|
+|Dwell time|2s|
+|Documentation|- Show failure curve.<br>- Provide detailed description of DUT behavior during failures.<br>- Show calculated field strength in the plot.|
+**Test Setup**
+|Col1|Col2|1700 + 3 00 0<br>-<br>styrodur|
+Sensorblock
+**DUT and Antenna position**
+f < 1000 MHz: Antenna position in the middle of the harness, horizontal and vertical polarization.
+f > 1000 MHz: Antenna position at the DUT, horizontal and vertical polarization.
+**Scan table**
+|f in [MHz]|Steps<br>[MHz]|Test level|Modulation|Required<br>FPCS|
+|200 – 400|2|**150 V/m**|CW + AM (1 kHz, 80 %)|**A**|
+|400 – 500|2|**200 V/m**|CW + AM (1 kHz, 80 %)|CW + AM (1 kHz, 80 %)|
+|500 – 1000|5|**200 V/m**|CW + AM (1 kHz, 80 %)|CW + AM (1 kHz, 80 %)|
+|800 – 1000|5|**200 V/m**|PM (217 Hz, PD 0,57 ms)|PM (217 Hz, PD 0,57 ms)|
+|1000 – 3200|10|**200 V/m**|CW + PM (217 Hz, PD 0,57 ms)|CW + PM (217 Hz, PD 0,57 ms)|
+|1200 – 1400|20|**300 V/m**|PM (300 Hz, PD 3 µs)|PM (300 Hz, PD 3 µs)|
+|2700 – 3200|20|**300 V/m**|PM (300 Hz, PD 3 µs)|PM (300 Hz, PD 3 µs)|
+**3.4** **BCI – Closed loop Method**
+|Frequency range|1 MHz to 400 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND|
+|LISN|+LISN: Ubatt<br>- LISN: GND|
+|Operating mode|2 (working mode)|
+|Dwell time|2s|
+|Documentation|- Show failure curve<br>- Provide detailed description of DUT behavior during failures<br>- Show power forward, power reflected, generator power and VSWR in the<br>plot<br>- Maximum frequency step: 5% for 1MHz-100MHz and 2% for 100MHz-400<br>MHz<br>- A harness of length 1 m, linear over its complete length shall be used. The<br>test harness must be placed on a 50 mm thick insulating<br>- If status A is reached with the higher level, the other levels can be omitted.|
+|Modulation|- CW<br>- AM(1kHz, 80%)|
+**Coil position**
+- Connect the injection probe at 0,9 m from the DUT connector, centered around all the
+harness wires including the power supply wires.
+- Connect the monitoring probe 50 mm from the DUT connector centered around all the
+harness wires including the power supply wires
+**Test parameter**
+|F in [MHz]|60mA envelope|100mA envelope|200mA envelope|
+|**1 - 3**|**60 x F/3 MHz**|**100 x F/3 MHz**|**200 x F/3 MHz**|
+|**3-400**|**60**|**100**|**200**|
+**Functional Status**
+|Tests|Functional status|
+|**60 mA envelope**|**A **|
+|**100 mA envelope**|**B **|
+|**200 mA envelope**|**C **|
+**3.5** **Immunity to Voltage Peaks on Power Lines**
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND|
+|LISN|no LISN|
+|Operating mode|2 (working mode)|
+|Test application|Apply pulses to Ubatt line|
+|Documentation|- Show pulse without load<br>- Provide detailed description of DUT behavior during failures|
+**Normative reference: ISO 7637-2:2011-03**
+**Test setup**
+**Voltage level for 12 V system**
+|Test Pulse|Test Level|t<br>d|R<br>i|No. of pulses /<br>test time|Repetition<br>time|Required FPCS|
+|**1 **|-150 V|2 ms|10 Ω|5000|0,5 s|C(during test)<br>A(after test)|
+|**2a**|+100 V|50 µs|2 Ω|5000|0,2 s|A|
+|**2b**|+10 V|0,2 s|0,05 Ω|10|0,5 s|C(during test)<br>A(after test)|
+|**3a**|-150 V|0,1 µs|50 Ω|1 h|100 µs|A|
+|**3b**|+100 V|0,1 µs|50 Ω|1 h|100 µs|A|
+**3.6** **Immunity to Voltage Peaks on Signal and Data Lines**",PERFORMANCE,HIGH,,,,,,,,
+S1EA4C2FC3E,S1EA4C2FC3E-I001,eSigned_EMC_88033918_FIL_000_AA 4.pdf,9,predicted,6,16,Page 6 | Section 3,"3. Error Output: signal generated from NOx Checkbox
+After switching on the NOx electronics, the sensor heats up. During this phase the Checkbox’s
+error output is at low level (0 V). After the heat up phase (up to 5 min) the error output stays stable at
+high level (5V). At this point the DUT is in FSC A and the test can start.
+Test setup pictures are made only for information and does not reflect the real product.
+**NOx-Checkbox top view - Display**
+**Checkbox back view - Connector interfaces**
+# **3 Measurement Methods**
+**3.1** **Radiated Emission Antenna (ALSE)**
+|Frequency range|0,1 to 3000 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND<br>DUT connector shows in antenna direction|
+|LISN setup|+LISN: Ubatt<br>- LISN: GND|
+|Operating mode(s)|2 (working mode)|
+|Settings|Use FFT method|
+|Documentation|Generate one plot for 9k and one for 120k BW.|
+**Test Setup**
+|Col1|Col2|1700 + 300<br>styrodur|
+**Scan table**
+|Frequency<br>range<br>[MHz]|Step Size = BW/2|Dwell time [ms]|Col4|Col5|Remarks|
+|**Frequency**<br>**range**<br>**[MHz]**|**BW [kHz]**|**PK**|**QP *1)**|**AV**|**AV**|
+|0,1 – 30|9|100|1000|100|Antenna position<br>middle of harness|
+|1567 – 1616|9|---|---|10|Antenna position at<br>DUT|
+*1) Note: only areas with limits shall be measured
+|Service /<br>Band|Frequency<br>range<br>[MHz]|[dBµV]|Col4|Col5|Remarks|
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|**PK**|**QP**|**AV**|**AV**|
+|Broadcast|Broadcast|||||
+|LW|0,1 – 0,15|-|73|66||
+||0,30 – 0,53|-|73|66||
+|MW|0,53 – 2|-|51|44||
+||2 – 5,9|-|62|52||
+|SW|5,9 – 6,2|-|51|44||
+||6,2 – 26|-|51|34||
+|FM|76 – 108|38|25|18||
+|TV Band I|41 – 88|28|-|18||
+|TV Band II|174 – 230|32|-|22||
+|DAB III|171 – 245|26|-|16||
+|TV Band IV|468 – 944|41|-|31||
+|DTTV|470 – 770|45|-|35||
+|DAB L Band|1447 – 1494|28|-|18||
+|SDARS|2320 – 2345|34|-|24||
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|** [dBµV]**|** [dBµV]**|** [dBµV]**|**Remarks**|
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|**PK**|**QP**|**AV**|**AV**|
+|Mobile Services|Mobile Services|||||
+|CB|26 – 30|-|45|28||
+|VHF|30 – 54|40|27|20||
+|VHF|68 – 87|-|25|18||
+|VHF|142 – 175|-|25|18||
+|TETRA|380 – 400|40|-|22||
+|TETRA|420 – 430|40|-|22|Col6|
+|RKE|420 – 450|32|-|18||
+|Analogue UHF|<br>820 – 960|44|31|24||
+|GSM 800|860 – 895|44|-|24||
+|GSM 900|925 – 960|44|-|24||
+|GPS L1|1567 – 1583|-|-|10||
+|GLONASS L1|<br>1591 – 1616|-|-|10||
+|GSM 1800|1803 – 1882|44|-|24||
+|GSM 1900|1850 – 1990|44|-|24||
+|3G|1900 – 1992|44|-|24||
+|3G|2010 – 2025|44|-|24||
+|3G|2108 – 2172|44|-|24||
+|BT / 802.11|2400 – 3000|44|-|24||
+**3.2** **Conducted Emission LISN**
+|Frequency range|0,1 to 108 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND|
+|LISN setup|+LISN: Ubatt<br>- LISN: GND|
+|Operating mode(s)|2 (working mode)|
+|Settings|Use FFT method|
+|Documentation|Generate one plot for 9k and one for 120k BW.|
+**Test setup**
+To LISN
+styrodur
+**Scan table**
+|Frequency range<br>[MHz]|Step Size = BW/2|Dw ell time [ms]|Col4|Col5|
+|**Frequency range**<br>**[MHz]**|**BW [kHz]**|**PK**|**QP *1)**|**AV**|
+|30 – 108|9|100|---|---|
+*1) Note: only areas with limits shall be measured
+|Service /<br>Band|Frequency<br>range<br>[MHz]|[dBµV]|Col4|Col5|Remarks|
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|**PK**|**QP**|**AV**|**AV**|
+|Broadcast|Broadcast|||||
+||0,1 – 0,3|-|97|90||
+|LW|0,3 – 0,53|-|97|90||
+|MW|0,53 – 2|-|65|58||
+||2 – 5,9|-|73|66||
+|SW|5,9 – 6,2|-|64|57||
+||6,2 – 10|-|60|50||
+||10 – 26|-|46|36||
+|FM|76 – 108|-|28|21||
+|Mobile Services|Mobile Services|||||
+|CB|26 – 30|-|46|36||
+|VHF|30 – 68|-|52|42||
+|VHF|68 – 87|-|34|24||
+**3.3** **Radiated Immunity Antenna (ALSE)**
+|Frequency range|200 to 3200 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND<br>DUT connector shows in antenna direction|
+|LISN|+ LISN: Ubatt<br>- LISN: GND|
+|Operating mode|2 (working mode)|
+|Dwell time|2s|
+|Documentation|- Show failure curve.<br>- Provide detailed description of DUT behavior during failures.<br>- Show calculated field strength in the plot.|
+**Test Setup**
+|Col1|Col2|1700 + 3 00 0<br>-<br>styrodur|
+Sensorblock
+**DUT and Antenna position**
+f < 1000 MHz: Antenna position in the middle of the harness, horizontal and vertical polarization.
+f > 1000 MHz: Antenna position at the DUT, horizontal and vertical polarization.
+**Scan table**
+|f in [MHz]|Steps<br>[MHz]|Test level|Modulation|Required<br>FPCS|
+|200 – 400|2|**150 V/m**|CW + AM (1 kHz, 80 %)|**A**|
+|400 – 500|2|**200 V/m**|CW + AM (1 kHz, 80 %)|CW + AM (1 kHz, 80 %)|
+|500 – 1000|5|**200 V/m**|CW + AM (1 kHz, 80 %)|CW + AM (1 kHz, 80 %)|
+|800 – 1000|5|**200 V/m**|PM (217 Hz, PD 0,57 ms)|PM (217 Hz, PD 0,57 ms)|
+|1000 – 3200|10|**200 V/m**|CW + PM (217 Hz, PD 0,57 ms)|CW + PM (217 Hz, PD 0,57 ms)|
+|1200 – 1400|20|**300 V/m**|PM (300 Hz, PD 3 µs)|PM (300 Hz, PD 3 µs)|
+|2700 – 3200|20|**300 V/m**|PM (300 Hz, PD 3 µs)|PM (300 Hz, PD 3 µs)|
+**3.4** **BCI – Closed loop Method**
+|Frequency range|1 MHz to 400 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND|
+|LISN|+LISN: Ubatt<br>- LISN: GND|
+|Operating mode|2 (working mode)|
+|Dwell time|2s|
+|Documentation|- Show failure curve<br>- Provide detailed description of DUT behavior during failures<br>- Show power forward, power reflected, generator power and VSWR in the<br>plot<br>- Maximum frequency step: 5% for 1MHz-100MHz and 2% for 100MHz-400<br>MHz<br>- A harness of length 1 m, linear over its complete length shall be used. The<br>test harness must be placed on a 50 mm thick insulating<br>- If status A is reached with the higher level, the other levels can be omitted.|
+|Modulation|- CW<br>- AM(1kHz, 80%)|
+**Coil position**
+- Connect the injection probe at 0,9 m from the DUT connector, centered around all the
+harness wires including the power supply wires.
+- Connect the monitoring probe 50 mm from the DUT connector centered around all the
+harness wires including the power supply wires
+**Test parameter**
+|F in [MHz]|60mA envelope|100mA envelope|200mA envelope|
+|**1 - 3**|**60 x F/3 MHz**|**100 x F/3 MHz**|**200 x F/3 MHz**|
+|**3-400**|**60**|**100**|**200**|
+**Functional Status**
+|Tests|Functional status|
+|**60 mA envelope**|**A **|
+|**100 mA envelope**|**B **|
+|**200 mA envelope**|**C **|
+**3.5** **Immunity to Voltage Peaks on Power Lines**
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND|
+|LISN|no LISN|
+|Operating mode|2 (working mode)|
+|Test application|Apply pulses to Ubatt line|
+|Documentation|- Show pulse without load<br>- Provide detailed description of DUT behavior during failures|
+**Normative reference: ISO 7637-2:2011-03**
+**Test setup**
+**Voltage level for 12 V system**
+|Test Pulse|Test Level|t<br>d|R<br>i|No. of pulses /<br>test time|Repetition<br>time|Required FPCS|
+|**1 **|-150 V|2 ms|10 Ω|5000|0,5 s|C(during test)<br>A(after test)|
+|**2a**|+100 V|50 µs|2 Ω|5000|0,2 s|A|
+|**2b**|+10 V|0,2 s|0,05 Ω|10|0,5 s|C(during test)<br>A(after test)|
+|**3a**|-150 V|0,1 µs|50 Ω|1 h|100 µs|A|
+|**3b**|+100 V|0,1 µs|50 Ω|1 h|100 µs|A|
+**3.6** **Immunity to Voltage Peaks on Signal and Data Lines**",PERFORMANCE,HIGH,,,,,,,,
+SC9E9839E78,SC9E9839E78-I001,eSigned_EMC_88033918_FIL_000_AA 4.pdf,12,predicted,6,16,Page 6 | Section 3,"3. Error Output: signal generated from NOx Checkbox
+After switching on the NOx electronics, the sensor heats up. During this phase the Checkbox’s
+error output is at low level (0 V). After the heat up phase (up to 5 min) the error output stays stable at
+high level (5V). At this point the DUT is in FSC A and the test can start.
+Test setup pictures are made only for information and does not reflect the real product.
+**NOx-Checkbox top view - Display**
+**Checkbox back view - Connector interfaces**
+# **3 Measurement Methods**
+**3.1** **Radiated Emission Antenna (ALSE)**
+|Frequency range|0,1 to 3000 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND<br>DUT connector shows in antenna direction|
+|LISN setup|+LISN: Ubatt<br>- LISN: GND|
+|Operating mode(s)|2 (working mode)|
+|Settings|Use FFT method|
+|Documentation|Generate one plot for 9k and one for 120k BW.|
+**Test Setup**
+|Col1|Col2|1700 + 300<br>styrodur|
+**Scan table**
+|Frequency<br>range<br>[MHz]|Step Size = BW/2|Dwell time [ms]|Col4|Col5|Remarks|
+|**Frequency**<br>**range**<br>**[MHz]**|**BW [kHz]**|**PK**|**QP *1)**|**AV**|**AV**|
+|0,1 – 30|9|100|1000|100|Antenna position<br>middle of harness|
+|1567 – 1616|9|---|---|10|Antenna position at<br>DUT|
+*1) Note: only areas with limits shall be measured
+|Service /<br>Band|Frequency<br>range<br>[MHz]|[dBµV]|Col4|Col5|Remarks|
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|**PK**|**QP**|**AV**|**AV**|
+|Broadcast|Broadcast|||||
+|LW|0,1 – 0,15|-|73|66||
+||0,30 – 0,53|-|73|66||
+|MW|0,53 – 2|-|51|44||
+||2 – 5,9|-|62|52||
+|SW|5,9 – 6,2|-|51|44||
+||6,2 – 26|-|51|34||
+|FM|76 – 108|38|25|18||
+|TV Band I|41 – 88|28|-|18||
+|TV Band II|174 – 230|32|-|22||
+|DAB III|171 – 245|26|-|16||
+|TV Band IV|468 – 944|41|-|31||
+|DTTV|470 – 770|45|-|35||
+|DAB L Band|1447 – 1494|28|-|18||
+|SDARS|2320 – 2345|34|-|24||
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|** [dBµV]**|** [dBµV]**|** [dBµV]**|**Remarks**|
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|**PK**|**QP**|**AV**|**AV**|
+|Mobile Services|Mobile Services|||||
+|CB|26 – 30|-|45|28||
+|VHF|30 – 54|40|27|20||
+|VHF|68 – 87|-|25|18||
+|VHF|142 – 175|-|25|18||
+|TETRA|380 – 400|40|-|22||
+|TETRA|420 – 430|40|-|22|Col6|
+|RKE|420 – 450|32|-|18||
+|Analogue UHF|<br>820 – 960|44|31|24||
+|GSM 800|860 – 895|44|-|24||
+|GSM 900|925 – 960|44|-|24||
+|GPS L1|1567 – 1583|-|-|10||
+|GLONASS L1|<br>1591 – 1616|-|-|10||
+|GSM 1800|1803 – 1882|44|-|24||
+|GSM 1900|1850 – 1990|44|-|24||
+|3G|1900 – 1992|44|-|24||
+|3G|2010 – 2025|44|-|24||
+|3G|2108 – 2172|44|-|24||
+|BT / 802.11|2400 – 3000|44|-|24||
+**3.2** **Conducted Emission LISN**
+|Frequency range|0,1 to 108 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND|
+|LISN setup|+LISN: Ubatt<br>- LISN: GND|
+|Operating mode(s)|2 (working mode)|
+|Settings|Use FFT method|
+|Documentation|Generate one plot for 9k and one for 120k BW.|
+**Test setup**
+To LISN
+styrodur
+**Scan table**
+|Frequency range<br>[MHz]|Step Size = BW/2|Dw ell time [ms]|Col4|Col5|
+|**Frequency range**<br>**[MHz]**|**BW [kHz]**|**PK**|**QP *1)**|**AV**|
+|30 – 108|9|100|---|---|
+*1) Note: only areas with limits shall be measured
+|Service /<br>Band|Frequency<br>range<br>[MHz]|[dBµV]|Col4|Col5|Remarks|
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|**PK**|**QP**|**AV**|**AV**|
+|Broadcast|Broadcast|||||
+||0,1 – 0,3|-|97|90||
+|LW|0,3 – 0,53|-|97|90||
+|MW|0,53 – 2|-|65|58||
+||2 – 5,9|-|73|66||
+|SW|5,9 – 6,2|-|64|57||
+||6,2 – 10|-|60|50||
+||10 – 26|-|46|36||
+|FM|76 – 108|-|28|21||
+|Mobile Services|Mobile Services|||||
+|CB|26 – 30|-|46|36||
+|VHF|30 – 68|-|52|42||
+|VHF|68 – 87|-|34|24||
+**3.3** **Radiated Immunity Antenna (ALSE)**
+|Frequency range|200 to 3200 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND<br>DUT connector shows in antenna direction|
+|LISN|+ LISN: Ubatt<br>- LISN: GND|
+|Operating mode|2 (working mode)|
+|Dwell time|2s|
+|Documentation|- Show failure curve.<br>- Provide detailed description of DUT behavior during failures.<br>- Show calculated field strength in the plot.|
+**Test Setup**
+|Col1|Col2|1700 + 3 00 0<br>-<br>styrodur|
+Sensorblock
+**DUT and Antenna position**
+f < 1000 MHz: Antenna position in the middle of the harness, horizontal and vertical polarization.
+f > 1000 MHz: Antenna position at the DUT, horizontal and vertical polarization.
+**Scan table**
+|f in [MHz]|Steps<br>[MHz]|Test level|Modulation|Required<br>FPCS|
+|200 – 400|2|**150 V/m**|CW + AM (1 kHz, 80 %)|**A**|
+|400 – 500|2|**200 V/m**|CW + AM (1 kHz, 80 %)|CW + AM (1 kHz, 80 %)|
+|500 – 1000|5|**200 V/m**|CW + AM (1 kHz, 80 %)|CW + AM (1 kHz, 80 %)|
+|800 – 1000|5|**200 V/m**|PM (217 Hz, PD 0,57 ms)|PM (217 Hz, PD 0,57 ms)|
+|1000 – 3200|10|**200 V/m**|CW + PM (217 Hz, PD 0,57 ms)|CW + PM (217 Hz, PD 0,57 ms)|
+|1200 – 1400|20|**300 V/m**|PM (300 Hz, PD 3 µs)|PM (300 Hz, PD 3 µs)|
+|2700 – 3200|20|**300 V/m**|PM (300 Hz, PD 3 µs)|PM (300 Hz, PD 3 µs)|
+**3.4** **BCI – Closed loop Method**
+|Frequency range|1 MHz to 400 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND|
+|LISN|+LISN: Ubatt<br>- LISN: GND|
+|Operating mode|2 (working mode)|
+|Dwell time|2s|
+|Documentation|- Show failure curve<br>- Provide detailed description of DUT behavior during failures<br>- Show power forward, power reflected, generator power and VSWR in the<br>plot<br>- Maximum frequency step: 5% for 1MHz-100MHz and 2% for 100MHz-400<br>MHz<br>- A harness of length 1 m, linear over its complete length shall be used. The<br>test harness must be placed on a 50 mm thick insulating<br>- If status A is reached with the higher level, the other levels can be omitted.|
+|Modulation|- CW<br>- AM(1kHz, 80%)|
+**Coil position**
+- Connect the injection probe at 0,9 m from the DUT connector, centered around all the
+harness wires including the power supply wires.
+- Connect the monitoring probe 50 mm from the DUT connector centered around all the
+harness wires including the power supply wires
+**Test parameter**
+|F in [MHz]|60mA envelope|100mA envelope|200mA envelope|
+|**1 - 3**|**60 x F/3 MHz**|**100 x F/3 MHz**|**200 x F/3 MHz**|
+|**3-400**|**60**|**100**|**200**|
+**Functional Status**
+|Tests|Functional status|
+|**60 mA envelope**|**A **|
+|**100 mA envelope**|**B **|
+|**200 mA envelope**|**C **|
+**3.5** **Immunity to Voltage Peaks on Power Lines**
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND|
+|LISN|no LISN|
+|Operating mode|2 (working mode)|
+|Test application|Apply pulses to Ubatt line|
+|Documentation|- Show pulse without load<br>- Provide detailed description of DUT behavior during failures|
+**Normative reference: ISO 7637-2:2011-03**
+**Test setup**
+**Voltage level for 12 V system**
+|Test Pulse|Test Level|t<br>d|R<br>i|No. of pulses /<br>test time|Repetition<br>time|Required FPCS|
+|**1 **|-150 V|2 ms|10 Ω|5000|0,5 s|C(during test)<br>A(after test)|
+|**2a**|+100 V|50 µs|2 Ω|5000|0,2 s|A|
+|**2b**|+10 V|0,2 s|0,05 Ω|10|0,5 s|C(during test)<br>A(after test)|
+|**3a**|-150 V|0,1 µs|50 Ω|1 h|100 µs|A|
+|**3b**|+100 V|0,1 µs|50 Ω|1 h|100 µs|A|
+**3.6** **Immunity to Voltage Peaks on Signal and Data Lines**",PERFORMANCE,HIGH,,,,,,,,
+S4097863416,S4097863416-I001,eSigned_EMC_88033918_FIL_000_AA 4.pdf,14,predicted,6,16,Page 6 | Section 3,"3. Error Output: signal generated from NOx Checkbox
+After switching on the NOx electronics, the sensor heats up. During this phase the Checkbox’s
+error output is at low level (0 V). After the heat up phase (up to 5 min) the error output stays stable at
+high level (5V). At this point the DUT is in FSC A and the test can start.
+Test setup pictures are made only for information and does not reflect the real product.
+**NOx-Checkbox top view - Display**
+**Checkbox back view - Connector interfaces**
+# **3 Measurement Methods**
+**3.1** **Radiated Emission Antenna (ALSE)**
+|Frequency range|0,1 to 3000 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND<br>DUT connector shows in antenna direction|
+|LISN setup|+LISN: Ubatt<br>- LISN: GND|
+|Operating mode(s)|2 (working mode)|
+|Settings|Use FFT method|
+|Documentation|Generate one plot for 9k and one for 120k BW.|
+**Test Setup**
+|Col1|Col2|1700 + 300<br>styrodur|
+**Scan table**
+|Frequency<br>range<br>[MHz]|Step Size = BW/2|Dwell time [ms]|Col4|Col5|Remarks|
+|**Frequency**<br>**range**<br>**[MHz]**|**BW [kHz]**|**PK**|**QP *1)**|**AV**|**AV**|
+|0,1 – 30|9|100|1000|100|Antenna position<br>middle of harness|
+|1567 – 1616|9|---|---|10|Antenna position at<br>DUT|
+*1) Note: only areas with limits shall be measured
+|Service /<br>Band|Frequency<br>range<br>[MHz]|[dBµV]|Col4|Col5|Remarks|
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|**PK**|**QP**|**AV**|**AV**|
+|Broadcast|Broadcast|||||
+|LW|0,1 – 0,15|-|73|66||
+||0,30 – 0,53|-|73|66||
+|MW|0,53 – 2|-|51|44||
+||2 – 5,9|-|62|52||
+|SW|5,9 – 6,2|-|51|44||
+||6,2 – 26|-|51|34||
+|FM|76 – 108|38|25|18||
+|TV Band I|41 – 88|28|-|18||
+|TV Band II|174 – 230|32|-|22||
+|DAB III|171 – 245|26|-|16||
+|TV Band IV|468 – 944|41|-|31||
+|DTTV|470 – 770|45|-|35||
+|DAB L Band|1447 – 1494|28|-|18||
+|SDARS|2320 – 2345|34|-|24||
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|** [dBµV]**|** [dBµV]**|** [dBµV]**|**Remarks**|
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|**PK**|**QP**|**AV**|**AV**|
+|Mobile Services|Mobile Services|||||
+|CB|26 – 30|-|45|28||
+|VHF|30 – 54|40|27|20||
+|VHF|68 – 87|-|25|18||
+|VHF|142 – 175|-|25|18||
+|TETRA|380 – 400|40|-|22||
+|TETRA|420 – 430|40|-|22|Col6|
+|RKE|420 – 450|32|-|18||
+|Analogue UHF|<br>820 – 960|44|31|24||
+|GSM 800|860 – 895|44|-|24||
+|GSM 900|925 – 960|44|-|24||
+|GPS L1|1567 – 1583|-|-|10||
+|GLONASS L1|<br>1591 – 1616|-|-|10||
+|GSM 1800|1803 – 1882|44|-|24||
+|GSM 1900|1850 – 1990|44|-|24||
+|3G|1900 – 1992|44|-|24||
+|3G|2010 – 2025|44|-|24||
+|3G|2108 – 2172|44|-|24||
+|BT / 802.11|2400 – 3000|44|-|24||
+**3.2** **Conducted Emission LISN**
+|Frequency range|0,1 to 108 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND|
+|LISN setup|+LISN: Ubatt<br>- LISN: GND|
+|Operating mode(s)|2 (working mode)|
+|Settings|Use FFT method|
+|Documentation|Generate one plot for 9k and one for 120k BW.|
+**Test setup**
+To LISN
+styrodur
+**Scan table**
+|Frequency range<br>[MHz]|Step Size = BW/2|Dw ell time [ms]|Col4|Col5|
+|**Frequency range**<br>**[MHz]**|**BW [kHz]**|**PK**|**QP *1)**|**AV**|
+|30 – 108|9|100|---|---|
+*1) Note: only areas with limits shall be measured
+|Service /<br>Band|Frequency<br>range<br>[MHz]|[dBµV]|Col4|Col5|Remarks|
+|**Service /**<br>**Band**|**Frequency**<br>**range**<br>**[MHz]**|**PK**|**QP**|**AV**|**AV**|
+|Broadcast|Broadcast|||||
+||0,1 – 0,3|-|97|90||
+|LW|0,3 – 0,53|-|97|90||
+|MW|0,53 – 2|-|65|58||
+||2 – 5,9|-|73|66||
+|SW|5,9 – 6,2|-|64|57||
+||6,2 – 10|-|60|50||
+||10 – 26|-|46|36||
+|FM|76 – 108|-|28|21||
+|Mobile Services|Mobile Services|||||
+|CB|26 – 30|-|46|36||
+|VHF|30 – 68|-|52|42||
+|VHF|68 – 87|-|34|24||
+**3.3** **Radiated Immunity Antenna (ALSE)**
+|Frequency range|200 to 3200 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND<br>DUT connector shows in antenna direction|
+|LISN|+ LISN: Ubatt<br>- LISN: GND|
+|Operating mode|2 (working mode)|
+|Dwell time|2s|
+|Documentation|- Show failure curve.<br>- Provide detailed description of DUT behavior during failures.<br>- Show calculated field strength in the plot.|
+**Test Setup**
+|Col1|Col2|1700 + 3 00 0<br>-<br>styrodur|
+Sensorblock
+**DUT and Antenna position**
+f < 1000 MHz: Antenna position in the middle of the harness, horizontal and vertical polarization.
+f > 1000 MHz: Antenna position at the DUT, horizontal and vertical polarization.
+**Scan table**
+|f in [MHz]|Steps<br>[MHz]|Test level|Modulation|Required<br>FPCS|
+|200 – 400|2|**150 V/m**|CW + AM (1 kHz, 80 %)|**A**|
+|400 – 500|2|**200 V/m**|CW + AM (1 kHz, 80 %)|CW + AM (1 kHz, 80 %)|
+|500 – 1000|5|**200 V/m**|CW + AM (1 kHz, 80 %)|CW + AM (1 kHz, 80 %)|
+|800 – 1000|5|**200 V/m**|PM (217 Hz, PD 0,57 ms)|PM (217 Hz, PD 0,57 ms)|
+|1000 – 3200|10|**200 V/m**|CW + PM (217 Hz, PD 0,57 ms)|CW + PM (217 Hz, PD 0,57 ms)|
+|1200 – 1400|20|**300 V/m**|PM (300 Hz, PD 3 µs)|PM (300 Hz, PD 3 µs)|
+|2700 – 3200|20|**300 V/m**|PM (300 Hz, PD 3 µs)|PM (300 Hz, PD 3 µs)|
+**3.4** **BCI – Closed loop Method**
+|Frequency range|1 MHz to 400 MHz|
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND|
+|LISN|+LISN: Ubatt<br>- LISN: GND|
+|Operating mode|2 (working mode)|
+|Dwell time|2s|
+|Documentation|- Show failure curve<br>- Provide detailed description of DUT behavior during failures<br>- Show power forward, power reflected, generator power and VSWR in the<br>plot<br>- Maximum frequency step: 5% for 1MHz-100MHz and 2% for 100MHz-400<br>MHz<br>- A harness of length 1 m, linear over its complete length shall be used. The<br>test harness must be placed on a 50 mm thick insulating<br>- If status A is reached with the higher level, the other levels can be omitted.|
+|Modulation|- CW<br>- AM(1kHz, 80%)|
+**Coil position**
+- Connect the injection probe at 0,9 m from the DUT connector, centered around all the
+harness wires including the power supply wires.
+- Connect the monitoring probe 50 mm from the DUT connector centered around all the
+harness wires including the power supply wires
+**Test parameter**
+|F in [MHz]|60mA envelope|100mA envelope|200mA envelope|
+|**1 - 3**|**60 x F/3 MHz**|**100 x F/3 MHz**|**200 x F/3 MHz**|
+|**3-400**|**60**|**100**|**200**|
+**Functional Status**
+|Tests|Functional status|
+|**60 mA envelope**|**A **|
+|**100 mA envelope**|**B **|
+|**200 mA envelope**|**C **|
+**3.5** **Immunity to Voltage Peaks on Power Lines**
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND|
+|LISN|no LISN|
+|Operating mode|2 (working mode)|
+|Test application|Apply pulses to Ubatt line|
+|Documentation|- Show pulse without load<br>- Provide detailed description of DUT behavior during failures|
+**Normative reference: ISO 7637-2:2011-03**
+**Test setup**
+**Voltage level for 12 V system**
+|Test Pulse|Test Level|t<br>d|R<br>i|No. of pulses /<br>test time|Repetition<br>time|Required FPCS|
+|**1 **|-150 V|2 ms|10 Ω|5000|0,5 s|C(during test)<br>A(after test)|
+|**2a**|+100 V|50 µs|2 Ω|5000|0,2 s|A|
+|**2b**|+10 V|0,2 s|0,05 Ω|10|0,5 s|C(during test)<br>A(after test)|
+|**3a**|-150 V|0,1 µs|50 Ω|1 h|100 µs|A|
+|**3b**|+100 V|0,1 µs|50 Ω|1 h|100 µs|A|
+**3.6** **Immunity to Voltage Peaks on Signal and Data Lines**",PERFORMANCE,HIGH,,,,,,,,
+SAC8B7FB1E2,SAC8B7FB1E2-I001,eSigned_EMC_88033918_FIL_000_AA 4.pdf,17,predicted,16,18,Page 16 | Section 3.6.1,"3.6.1 Capacitive coupling clamp (CCC)
+|Position of DUT|DUT is placed on a 50mm insulating support (styrodur)<br>Sensing element is fixed to a metal block and placed on GND.|
+|LISN|No LISN|
+|Operating mode|2 (working mode)|
+|Test setup|Place supply lines (Ubatt and GND) outside of the clamp.|
+|Test pulse injection|Apply pulse to capacitive coupling clamp.|
+|Documentation|- Show pulse without load.<br>- Provide detailed description of DUT behavior during failures.|
+|Test Pulse|Test Level|R<br>i|Test time|Repetition<br>time|Required<br>FPCS|
+|CCC fast a|-150 V|50 Ω|10 min|100 µs|**A **|
+|CCC fast b|+100 V|50 Ω|10 min|100 µs|100 µs|
+**3.7** **ESD Unpowered**
+**This test is applicable for electronic with plastic and metal housing**
+|Operating mode|DUT not connected to harness|
+|Discharge points|See pictures below|
+|FPCS|Status A after reconnection|
+|Discharge network|150pF / 330 Ω|
+|Discharge type**contact**|±4kV & ±6kV<br>discharge points: 1, 7 (only on metal surface)|
+|Discharge type**air**|±8kV & ±15kV<br>discharge points: 2, 3, 4, 5, 6 (only on plastic surface)|
+|Discharges per polarity|10|
+|Time between discharges|5 s to 10 s.|
+|Documentation|- Result table with all levels and discharge points.<br>- Provide all measured values of the functionality check.<br>- Relative humidity shall be below 40%.|
+**Test sequence**
+**(1)** Connect DUT to the NOx checkbox and ensure proper operation
+**(2)** Perform contact & air discharge tests according to configuration 1.
+**(3)** Connect DUT to the NOx checkbox and ensure proper operation
+**(4)** Perform contact & air discharge tests according to configuration 2.
+**(5)** Connect DUT to the NOx checkbox and ensure proper operation
+Discharge points
+Test configurations for DUT and sensor
+1: DUT isolated, sensor grounded
+2: DUT isolated, sensor isolated.
+Oct. 2023 P CE EE CN 3 50817760
+Designation Project:
+EMC Test Specification G1.0p Smart NOx sensor",PERFORMANCE,HIGH,,,,,,,,
+SF01BE62BDF,SF01BE62BDF-I001,eSigned_EMC_88033918_FIL_000_AA 4.pdf,20,predicted,19,21,Page 19 | Section 3.8,"3.8 ESD Powered
+DUT is placed directly on the Field Coupling Strip
+Sensing element is fixed to a metal block and placed in a sinuous
+Position of DUT line on the field coupling plane (see below). Leave at least 10mm
+space between housing of electronics and lower edge of field
+coupling plane.
+Use field coupling strip.
+Test setup
+Parameters and limits valid for DUT with U = 12V
+LISN No LISN
+Operating mode 2 (working mode)
+Discharge network 330 pF / 330 Ω
+Discharges per polarity 10
+Time between discharges 5 s to 10 s.
+- Result table with all levels and discharge points.
+- Provide pictures of the DUTs and the test setup.
+Documentation - Provide detailed description of DUT behavior during
+failures(Number of indicated faults per discharge point and test
+level).
+Discharge points
+Oct. 2023 P CE EE CN 3 50817760
+Designation Project:
+EMC Test Specification G1.0p Smart NOx sensor
+**Test setup**
+**Test procedure**
+- For this test a Field Coupling Strip shall be used.
+- Use optical CAN communication.
+- Be sure the Checkbox is not disturbed by ESD pulses.
+- Activate beeper of NOx Checkbox as failure indicator, test beeper before test by removing CAN lines.
+(beep should occur every 2 Seconds)
+**Test parameters**
+|Discharge points|Col2|Type|Level|Discharges<br>per polarity|Required<br>FPCS|
+|1<br>|Discharge points on<br>field coupling strip<br>(FCS)|Contact|±4kV & ±8kV|10|A|
+|2,4,5|Plastic part of housing|Air|±4kV & ±8kV|10|A|
+|2,4,5|Plastic part of housing|Air|±15kV|±15kV|B|
+|6|Middle of the sensor harness<br>(harness on GND plane)|Air|±4kV & ±8kV|10|A|
+|6|Middle of the sensor harness<br>(harness on GND plane)|Air|±15kV|±15kV|B|
+|7|Sensor|Contact|±4kV & ±8kV|10|A|
+END OF DOCUMENT.
+S-list file: 88033918_FIL_000_AA.pdf Last action date: 19/10/2023 09:32:37
+Status: APPROVED Duration: 0
+Group: VTL TSR Category: VTL TSR EMC
+Sensitive information: No
+Retention time: 2 years
+Explanation:
+Initiator department: QL LAB EMC/ET TSR Initiator login name: vt1\uiv06706
+Signer Function Set type/name Decision S-list comments
+Neiconi Andrei-Ovidiu (QL LAB Individual signer Accept
+EMC/ET TSR) 19/10/2023 09:04:29
+Li Bo (P CE EE CN 3) Individual signer Accept
+vt1\uidk5145- 19/10/2023 09:27:43
+Niebergall Franziska (P SC EES Individual signer Accept
+CPM CC3) 19/10/2023 09:32:37
+om",TEST,HIGH,1,1,1,,,正确。只不过还是之前的问题，表格图片的提取功能。,刘畅,
+S7FB379921A,S7FB379921A-I001,eSigned_ET_88033919_FIL_000_AA 3.pdf,5,predicted,4,6,Page 4 | Section 1.1,"1.1 Short description of the DUT
+The Vitesco / NGK Smart NOx-Sensor is a stand -alone, multifunctional sensor, which measures both
+the NOx-concentration and the air/fuel -ratio lambda in the exhaust gas. In order to comply with the
+upcoming emission legislations such as Euro IV, V, VI, VII and US2007. The sensor helps to control
+different kind of exhaust gas after treatment both at gasoline and diesel engines, e.g.:
+- Regeneration of NOx storage catalyst at lean burn gasoline and diesel engines
+- On-board-diagnosis and closed-loop control of Selective-Catalytic-Reduction (SCR)
+applications at Light and Heavy-Duty Trucks.
+### **1.2 Applicable documents**
+|Col1|Document No.|Issue<br>date|Comment|
+|**A **|ISO 16750–2|2012-11|Road vehicles<br>Environmental conditions and testing for electrical and<br>electronic equipment – Part 2: Electrical loads|
+|**B **|ISO 16750–1|2006-08|Road vehicles<br>Environmental conditions and testing for electrical and<br>electronic equipment – Part 1: General|
+|**C **|NOx Check Box<br>Documentation||NOx Checkbox is used for EMC tests to monitor<br>function class<br>|
+Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+88033919_FIL_000_AA.pdf
+Pages
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communication of its contents to others
+without express authorization are prohibited. Offenders will be held liable for the payment of damages. All rights
+reserved in the event of the grant of a patent, utility model or design.",PERFORMANCE,HIGH,,,,,,,,
+SA28825384C,SA28825384C-I001,eSigned_ET_88033919_FIL_000_AA 3.pdf,9,predicted,9,10,Page 9 | Section 1.7,"1.7 Description of the DUT functional control and functional test
+A Functional check is a simple check of the DUT. It will be done during the test flow to check that the
+DUT is still working correctly. It consists of a simplified check with the NOx - Checkbox at normal
+conditions
+A Functional Test is a Parametrical Test of the DUT and will be performed at Development
+Department.
+Two (2) functional tests are mandatory:
+- Before the first electrical test
+- After the last electrical test
+Results shall be provided by development department.
+Designation
+Electrical Tests Specification ET
+Project
+G1.0p Smart NOx
+sensor
+88033919_FIL_000_AA.pdf
+Pages
+Weitergabe sowie Vervielfältigung dieses Dokuments, Verwertung und Mitteilung seines Inhalts sind
+verboten, soweit nicht ausdrücklich gestattet. Zuwider-handlungen verpflichten zu Schaden-ersatz. Alle
+Rechte für den Fall der Patent-, Gebrauchsmuster- oder Geschmacksmustereintragung vorbehalten.
+The reproduction, distribution and utilization of this document as well as the communication of its contents to others
+without express authorization are prohibited. Offenders will be held liable for the payment of damages. All rights
+reserved in the event of the grant of a patent, utility model or design.",TEST,HIGH,,,,,,,,
+S8D770FAEBA,S8D770FAEBA-I001,eSigned_ET_88033919_FIL_000_AA 3.pdf,12,predicted,11,28,Page 11 | Section 3,"3. Error Output: signal generated from NOx Checkbox
+After switching on the NOx electronics, the sensor heats up. During this phase the Checkbox’s error
+output is at low level (0 V). After the heat up phase (up to 5 min) the error o utput stays stable at high
+level (5V). At this point the DUT is in FSC A and the test can start.
+**1.9.1 NOx-Checkbox configuration**
+**Figure 3**
+**[NOx Checkbox top]** **[view ][-]** **[Display]**
+**Figure 4 Checkbox back view - Connector interfaces**
+**1.9.2 Tolerance Definition**
+|Functional<br>performance<br>classification<br>status<br>(FPSC)|Monitoring|Col3|Col4|Col5|
+|**Functional**<br>**performance** <br>**classification**<br>**status** <br>**(FPSC)**|**NOx or NOx**<br>**compensated** <br>1) 2)|<br>**O2 **|**Status byte**|**CAN**|
+|**FPSC A**<br>**(FPSC I)**|Δ <**±** 10 ppm3)|Δ <**±** 3 %3)|OK|CAN timeout 30ms3)|
+|**FPSC B**<br>**(FPSC II)**|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|
+|**FPSC C** <br>**(FPSC III)**|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|
+1) which signal is used should be agreed between VT and customer or project team
+2) signal is moving average filtered similar to definition in TKU
+3) default limits, can be modified, if agreed between VT and customer
+### **1.10 Test Setups**
+**Figure 1: Generic setup** **[1]**
+Test at Room Temperature (TRT) can be tested outside of Temperature Chamber
+# **2 Electrical test requirements for the project**
+|SEQ|Test<br>Y/N|Test|Chapter<br>in this QP|Comments|
+|01|**Y**|Long-term Overvoltage|2.1||
+|02|**Y**|Jump Start|2.2||
+|03|**Y**|Superimposed Alternating Voltage|2.3||
+|04|**Y**|Slow Decrease and Increase of the Supply Voltage|2.4||
+|05|**Y**|Reset behavior at voltage drop|2.5||
+|06|**Y**|Starting Profile|2.6||
+|07|**Y**|Load Dump with Centralized Load Dump Suppression|2.7||
+|08|**Y **|Reverse Voltage|2.8||
+|09|**Y **|Short Circuit Protection|2.9||
+_Remarks:_
+- _m = sequence is mandatory._
+- _Changes in non-mandatory sequences are permitted but have to be documented in test report._
+### **2.1 Long-term Overvoltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.3.1.1|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|14 V|
+|**Test parameters**|Umax|18 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 min<br>Temperature:<br>TP <br>= <br>105°C<br>(Tmax – 20°C)|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 min<br>Temperature:<br>TP <br>= <br>105°C<br>(Tmax – 20°C)|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle at TP|
+|**Test profile**|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|
+|**Documentation**|<br>Oscilloscope plot showing FSC C at Umax|<br>Oscilloscope plot showing FSC C at Umax|
+|2.2 Jump Start|Col2|Col3|
+|**Reference**|ISO 16750 – 2 (Doc.**A**), Ch. 4.3.1.2|ISO 16750 – 2 (Doc.**A**), Ch. 4.3.1.2|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|Umax|24 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 s<br>Temperature:<br>TP <br>= <br>TRT|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 s<br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle at TP|
+|**Test profile**|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|
+|**Documentation**|<br>Oscilloscope plot showing FSC C at Umax|<br>Oscilloscope plot showing FSC C at Umax|
+|2.3 Superimposed|Alternating Voltage|Col3|
+|**Reference**|ISO 16750-2|ISO 16750-2|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**A for severity 1, B for severity 4** <br>before, during and after test mandatory|**A for severity 1, B for severity 4** <br>before, during and after test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Values**|
+|**Test parameters**|Umax|16 V|
+|**Test parameters**|UPP, Severity_1|1 V|
+|**Test parameters**|UPP, Severity_2|-|
+|**Test parameters**|UPP, Severity_3|-|
+|**Test parameters**|UPP, Severity_4|2 V|
+|**Test parameters**|Frequency range:<br>f <br>= <br>50 Hz→ 25 kHz→ 50 Hz<br>Wobble type =<br>triangle, logarithmic<br>Time:<br>t1 <br>= <br>120 s<br>Repetitions:<br>n <br>= <br>5|Frequency range:<br>f <br>= <br>50 Hz→ 25 kHz→ 50 Hz<br>Wobble type =<br>triangle, logarithmic<br>Time:<br>t1 <br>= <br>120 s<br>Repetitions:<br>n <br>= <br>5|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|1st Run|5 wobbles at TRT using UPP, Severity_1|
+|**Run definition**|2nd Run|5 wobbles at TRT using UPP, Severity_2|
+|**Test profile**|Umax<br>**U [V]**<br>**t [s]**<br>t1<br>~~U~~PP, Severity_1,2,3,4|Umax<br>**U [V]**<br>**t [s]**<br>t1<br>~~U~~PP, Severity_1,2,3,4|
+|**Documentation**|FSC reached status before, during and after test.|FSC reached status before, during and after test.|
+### **2.4 Slow Decrease and Increase of the Supply Voltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.5|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|A <br>(U ≥ Umin) <br>C <br>(U < Umin)|A <br>(U ≥ Umin) <br>C <br>(U < Umin)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> at Umin <br> after test|before test<br> at Umin <br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umax|16 V|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|ΔU|0.5 V|
+|**Test parameters**|Time:<br>Δt<br>= <br>1 min<br>t1 <br>≥ <br>1 min<br>(Sufficient time after pulse to reach FSC A again) <br>Temperature:<br>TP <br>= <br>TRT|Time:<br>Δt<br>= <br>1 min<br>t1 <br>≥ <br>1 min<br>(Sufficient time after pulse to reach FSC A again) <br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with operation mode at TRT|
+|**Test profile**|Umin<br>Umax<br>**t [s]**<br>**U [V]**<br>0<br>Δt<br>ΔU<br>t1<br>|Umin<br>Umax<br>**t [s]**<br>**U [V]**<br>0<br>Δt<br>ΔU<br>t1<br>|
+|**Documentation**|<br>It must be documented:_(1)_ at which voltage level the component leaves<br>FSC A to FSC C,_(2)_ voltage level when the CAN Communication is loss<br>ramp down and_(3)_ voltage level when CAN Communication comes back<br>ramp up|<br>It must be documented:_(1)_ at which voltage level the component leaves<br>FSC A to FSC C,_(2)_ voltage level when the CAN Communication is loss<br>ramp down and_(3)_ voltage level when CAN Communication comes back<br>ramp up|
+### **2.5 Reset behavior at voltage drop**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.2|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|A <br>(at Umin) <br>C <br>(below Umin)|A <br>(at Umin) <br>C <br>(below Umin)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|<br>before test<br> <br>at Umin <br> <br>after test|<br>before test<br> <br>at Umin <br> <br>after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|ΔU (5% of Umin)|0.54 V|
+|**Test parameters**|Time:<br>tr / tf <br>≤ <br>10 ms<br>t1 <br>= <br>5 s<br>t2 <br>≥ <br>10 s<br>(Sufficient time after pulse to reach FSC A again)|Time:<br>tr / tf <br>≤ <br>10 ms<br>t1 <br>= <br>5 s<br>t2 <br>≥ <br>10 s<br>(Sufficient time after pulse to reach FSC A again)|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with operation mode|
+|**Test profile**|100<br>**U [V - %]**<br>0<br>t2<br>**t [s]**<br>Umin<br>90<br>80<br>70<br>60<br>50<br>40<br>30<br>20<br>10<br>t1<br>|100<br>**U [V - %]**<br>0<br>t2<br>**t [s]**<br>Umin<br>90<br>80<br>70<br>60<br>50<br>40<br>30<br>20<br>10<br>t1<br>|
+|**Documentation**|Voltage level at which the component leaves FSC A for the first time|Voltage level at which the component leaves FSC A for the first time|
+### **2.6 Starting Profile**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.3|Col3|Col4|Col5|Col6|Col7|
+|**Deviations**|-|-|-|-|-|-|
+|**Test samples**|2|2|2|2|2|2|
+|**FSC**|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|2.c|2.c|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|See Figure 1|See Figure 1|See Figure 1|See Figure 1|
+|**Functional check**|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|
+|**Test parameters**|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|
+|**Test parameters**||**Pulse I**|**Pulse I**|**Pulse II**|**Pulse III**|**Pulse IV**|
+|**Test parameters**|US|9.5|9.5|6.5|5|6.5|
+|**Test parameters**|UA|12|12|12|12|12|
+|**Test parameters**|US6|8|8|4.5|3|6|
+|**Test parameters**|UR|2|2|2|2|2|
+|**Test parameters**|Time (ms)|Time (ms)|Time (ms)|Time (ms)|Time (ms)|Time (ms)|
+|**Test parameters**|tf|5|5|5|5|5|
+|**Test parameters**|t6|15|15|15|15|15|
+|**Test parameters**|t7|50|50|50|50|50|
+|**Test parameters**|t8|1000|1000|10000|1000|10000|
+|**Test parameters**|tr|40|40|100|100|100|
+|**Test parameters**|tbreak|2000|2000|2000|2000|2000|
+|**Test parameters**|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Run**|**Description**|**Description**|**Description**|**Description**|
+|**Run definition**|1st Run|1st Run|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|
+|**Run definition**|2nd Run|2nd Run|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|
+|**Run definition**|3rd Run|3rd Run|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|
+|**Run definition**|4th Run|4th Run|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|
+|Col1|a|Col3|Col4|Col5|Col6|Col7|
+||a|a|a||||
+|Test profile|U [V]<br>U<br>A<br>a<br>U<br>U R<br>S<br>U<br>S6<br>t [s]<br>t t t t t<br>f 6 7 8 r|
+|**Documentation**|FSC reached status before, during and after test.|
+### **2.7 Load Dump with Centralized Load Dump Suppression**
+|Col1|Col2|Col3|
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.4.2.3|Col3|
+|**Deviations**|Load Dump test without centralized protection is not feasible because at<br>these conditions the test will damaged all DUT´s. (Clamping voltages<br>possible under 60 V)|Load Dump test without centralized protection is not feasible because at<br>these conditions the test will damaged all DUT´s. (Clamping voltages<br>possible under 60 V)|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during pulse** <br>**A** <br>**after each pulse and test** <br>mandatory|**C** <br>**during pulse** <br>**A** <br>**after each pulse and test** <br>mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**||**Value**|
+|**Test parameters**|UA [V]|14|
+|**Test parameters**|US [V]|100|
+|**Test parameters**|US* [V]|35|
+|**Test parameters**|td [ms]|400|
+|**Test parameters**|tr [ms]|5|
+|**Test parameters**|tbreak [s]|≥ 60 (Sufficient time after pulse to reach FSC A again)|
+|**Test parameters**|Ri [Ω]|1|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique Run|5 pulses of a Load Dump pulse|
+|**Test profile**|US<br>tn<br>**t [s]**<br>**U [V]**<br>0,9(US-UA) + UA<br>0,1(US-UA) + UA<br>UA<br>0<br>td<br>tr<br> US*<br>|US<br>tn<br>**t [s]**<br>**U [V]**<br>0,9(US-UA) + UA<br>0,1(US-UA) + UA<br>UA<br>0<br>td<br>tr<br> US*<br>|
+|**Documentation**|<br>`-` Oscilloscope plot showing FSC at Umax <br>`-` FSC reached status before, during and after test.|<br>`-` Oscilloscope plot showing FSC at Umax <br>`-` FSC reached status before, during and after test.|
+### **2.8 Reverse Voltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.7|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|_During Test:_ Oscilloscope and Digital Multimeter<br>_Before and After Test:_ NOx Checkbox (See Ch. 1.9)|_During Test:_ Oscilloscope and Digital Multimeter<br>_Before and After Test:_ NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|S.P.|S.P.|
+|**Applied to**|Supply + and GND|Supply + and GND|
+|**Test setup**|Use generic test setup (Figure 1) with the following adaptation:<br>Oszi<br>Ch.**A** Ch.**B**<br>Ch.**C** Ch.**D**<br>Test Voltage<br>Monitoring<br>**Reverse Polarity**<br>**Supply**<br>**Conn.**<br>**Conn.**<br>Supply +<br>**Autowave / Test**<br>**profiler**<br>To DUT<br>CAN_L<br>CAN_H<br>GND<br>A<br>Leakage current<br>measurement<br>Bank Detection<br>|Use generic test setup (Figure 1) with the following adaptation:<br>Oszi<br>Ch.**A** Ch.**B**<br>Ch.**C** Ch.**D**<br>Test Voltage<br>Monitoring<br>**Reverse Polarity**<br>**Supply**<br>**Conn.**<br>**Conn.**<br>Supply +<br>**Autowave / Test**<br>**profiler**<br>To DUT<br>CAN_L<br>CAN_H<br>GND<br>A<br>Leakage current<br>measurement<br>Bank Detection<br>|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umax|0 V|
+|**Test parameters**|Umin|-14 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>60 s<br>Internal Resistance of Supply:<br>Ri <br>< <br>100 mΩ|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>60 s<br>Internal Resistance of Supply:<br>Ri <br>< <br>100 mΩ|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with Umin at TRT|
+|**Test profile**|**t [s]**<br>**U [V]**<br>Umin<br>t1<br>tr<br>tf<br>Umax<br>|**t [s]**<br>**U [V]**<br>Umin<br>t1<br>tr<br>tf<br>Umax<br>|
+|**Documentation**|<br>`-` Test Setup with Adaption (Picture)<br>`-` Min., Max. and Average Leakage Current Measurement Values|<br>`-` Test Setup with Adaption (Picture)<br>`-` Min., Max. and Average Leakage Current Measurement Values|
+### **2.9 Short Circuit Protection – Signal circuits**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.10.2|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|C <br>(for inputs and outputs)|C <br>(for inputs and outputs)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|See Chapter 3.2|See Chapter 3.2|
+|**Test setup**|Use generic test setup (Figure 1) with the following adaptation:<br>Wiring Harness<br>To DUT<br>Pin to Test<br>To NOx<br>Checkbox<br>Supply +<br>GND<br>|Use generic test setup (Figure 1) with the following adaptation:<br>Wiring Harness<br>To DUT<br>Pin to Test<br>To NOx<br>Checkbox<br>Supply +<br>GND<br>|
+|**Functional check**|<br> <br>before test<br> <br>after test|<br> <br>before test<br> <br>after test|
+|**Test parameters**|Voltage:<br>USmin <br>= <br>10.8 V<br>USmax <br>= <br>16 V<br>Time per pin:<br>tp <br>= <br>60 s|Voltage:<br>USmin <br>= <br>10.8 V<br>USmax <br>= <br>16 V<br>Time per pin:<br>tp <br>= <br>60 s|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|General|Perform a short circuit test in pins according table in<br>_chapter 3.2_|
+|**Documentation**|`-` Test Setup with Adaption (Picture)|`-` Test Setup with Adaption (Picture)|
+# **3 ANNEX**
+### **3.1 DUT Connector and Pin out description**
+The tables below show the pin-out directly on the PCB. The customer connector´s pin-out itself will
+depend on the type of connector used, and it shall be defined for the Lab Test Order prior to
+qualification tests.
+**3.1.1 UG Pinning Configuration**
+|Pin<br>Number|Description|Voltage<br>(V)|Current<br>(A)|Comments|
+|1|UBatt(Typical)|See Ch. 1.5|See Ch. 1.5|Supply line|
+|2|GND|GND|GND|Supply line|
+|3|CAN_L|2.5 V / 0 V|N.A.|CAN Communication line|
+|4|CAN_H|2.5 V / 5 V|N.A.|CAN Communication line|
+|5|Bank Detection|GND / Open|N.A.|Bank detection - Optional|
+**3.1.2 UC Pinning Configuration**
+|Pin<br>Number|Description|Voltage<br>(V)|Current<br>(A)|Comments|
+|1|UBatt(Typical)|See Ch. 1.5|See Ch. 1.5|Supply line|
+|2|CAN_H|2.5 V / 5 V|N.A.|CAN Communication line|
+|3|CAN_L|2.5 V / 0 V|N.A.|CAN Communication line|
+|4|GND|See Ch. 1.5|See Ch. 1.5|Supply line|
+|5|Bank Detection|GND / Open|N.A.|Bank detection - Optional|
+### **3.2 Short circuit table**
+The tables below show the short circuit test pinning distribution depending on the customer connector
+type used for the qualification DUT´s. It shall be defined for the Lab Test Order prior to qualification
+tests.
+**3.2.1 UG Pinning Configuration**
+|Pin-Nr.|Signal description|Pin / Signal Type|12 V Systems<br>with DUT supplied at<br>U and U<br>Smin Smax|Col5|Remarks|
+|**Pin-Nr.**|**Signal description**|**Pin / Signal Type**|**SCB**|**SCG**|**SCG**|
+|1|UBatt|Supply|-|-|-|
+|2|GND|Supply|-|-|-|
+|3|CAN_L|I / O|X|X|FSC C|
+|4|CAN_H|I / O|X|X|FSC C|
+|5|Bank Detection|I|X|X|FSC C - Optional|
+**3.2.2 UC Pinning Configuration**
+|Pin-Nr.|Signal description|Pin / Signal Type|12 V Systems<br>with DUT supplied at<br>U and U<br>Smin Smax|Col5|Remarks|
+|**Pin-Nr.**|**Signal description**|**Pin / Signal Type**|**SCB**|**SCG**|**SCG**|
+|1|UBatt|Supply|-|-|-|
+|2|CAN_H|I / O|X|X|FSC C|
+|3|CAN_L|I / O|X|X|FSC C|
+|4|GND|Supply|-|-|-|
+|5|Bank Detection|I|X|X|FSC C - Optional|
+**Remarks:** SCB = Short circuit to battery; SCG = Short circuit to ground
+End of the document
+S-list file: 88033919_FIL_000_AA.pdf Last action date: 19/10/2023 09:35:18
+Status: APPROVED Duration: 0
+Group: VTL TSR Category: VTL TSR EMC
+Sensitive information: No
+Retention time: 2 years
+Explanation:
+Initiator department: QL LAB EMC/ET TSR Initiator login name: vt1\uiv06706
+Signer Function Set type/name Decision S-list comments
+Neiconi Andrei-Ovidiu (QL LAB Individual signer Accept
+EMC/ET TSR) 19/10/2023 09:04:39
+Li Bo (P CE EE CN 3) Individual signer Accept
+vt1\uidk5145- 19/10/2023 09:29:53
+Niebergall Franziska (P SC EES Individual signer Accept
+CPM CC3) 19/10/2023 09:35:18
+om",TEST,HIGH,,,,,,,,
+SBA2E15598C,SBA2E15598C-I001,eSigned_ET_88033919_FIL_000_AA 3.pdf,16,predicted,11,28,Page 11 | Section 3,"3. Error Output: signal generated from NOx Checkbox
+After switching on the NOx electronics, the sensor heats up. During this phase the Checkbox’s error
+output is at low level (0 V). After the heat up phase (up to 5 min) the error o utput stays stable at high
+level (5V). At this point the DUT is in FSC A and the test can start.
+**1.9.1 NOx-Checkbox configuration**
+**Figure 3**
+**[NOx Checkbox top]** **[view ][-]** **[Display]**
+**Figure 4 Checkbox back view - Connector interfaces**
+**1.9.2 Tolerance Definition**
+|Functional<br>performance<br>classification<br>status<br>(FPSC)|Monitoring|Col3|Col4|Col5|
+|**Functional**<br>**performance** <br>**classification**<br>**status** <br>**(FPSC)**|**NOx or NOx**<br>**compensated** <br>1) 2)|<br>**O2 **|**Status byte**|**CAN**|
+|**FPSC A**<br>**(FPSC I)**|Δ <**±** 10 ppm3)|Δ <**±** 3 %3)|OK|CAN timeout 30ms3)|
+|**FPSC B**<br>**(FPSC II)**|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|
+|**FPSC C** <br>**(FPSC III)**|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|
+1) which signal is used should be agreed between VT and customer or project team
+2) signal is moving average filtered similar to definition in TKU
+3) default limits, can be modified, if agreed between VT and customer
+### **1.10 Test Setups**
+**Figure 1: Generic setup** **[1]**
+Test at Room Temperature (TRT) can be tested outside of Temperature Chamber
+# **2 Electrical test requirements for the project**
+|SEQ|Test<br>Y/N|Test|Chapter<br>in this QP|Comments|
+|01|**Y**|Long-term Overvoltage|2.1||
+|02|**Y**|Jump Start|2.2||
+|03|**Y**|Superimposed Alternating Voltage|2.3||
+|04|**Y**|Slow Decrease and Increase of the Supply Voltage|2.4||
+|05|**Y**|Reset behavior at voltage drop|2.5||
+|06|**Y**|Starting Profile|2.6||
+|07|**Y**|Load Dump with Centralized Load Dump Suppression|2.7||
+|08|**Y **|Reverse Voltage|2.8||
+|09|**Y **|Short Circuit Protection|2.9||
+_Remarks:_
+- _m = sequence is mandatory._
+- _Changes in non-mandatory sequences are permitted but have to be documented in test report._
+### **2.1 Long-term Overvoltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.3.1.1|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|14 V|
+|**Test parameters**|Umax|18 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 min<br>Temperature:<br>TP <br>= <br>105°C<br>(Tmax – 20°C)|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 min<br>Temperature:<br>TP <br>= <br>105°C<br>(Tmax – 20°C)|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle at TP|
+|**Test profile**|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|
+|**Documentation**|<br>Oscilloscope plot showing FSC C at Umax|<br>Oscilloscope plot showing FSC C at Umax|
+|2.2 Jump Start|Col2|Col3|
+|**Reference**|ISO 16750 – 2 (Doc.**A**), Ch. 4.3.1.2|ISO 16750 – 2 (Doc.**A**), Ch. 4.3.1.2|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|Umax|24 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 s<br>Temperature:<br>TP <br>= <br>TRT|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 s<br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle at TP|
+|**Test profile**|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|
+|**Documentation**|<br>Oscilloscope plot showing FSC C at Umax|<br>Oscilloscope plot showing FSC C at Umax|
+|2.3 Superimposed|Alternating Voltage|Col3|
+|**Reference**|ISO 16750-2|ISO 16750-2|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**A for severity 1, B for severity 4** <br>before, during and after test mandatory|**A for severity 1, B for severity 4** <br>before, during and after test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Values**|
+|**Test parameters**|Umax|16 V|
+|**Test parameters**|UPP, Severity_1|1 V|
+|**Test parameters**|UPP, Severity_2|-|
+|**Test parameters**|UPP, Severity_3|-|
+|**Test parameters**|UPP, Severity_4|2 V|
+|**Test parameters**|Frequency range:<br>f <br>= <br>50 Hz→ 25 kHz→ 50 Hz<br>Wobble type =<br>triangle, logarithmic<br>Time:<br>t1 <br>= <br>120 s<br>Repetitions:<br>n <br>= <br>5|Frequency range:<br>f <br>= <br>50 Hz→ 25 kHz→ 50 Hz<br>Wobble type =<br>triangle, logarithmic<br>Time:<br>t1 <br>= <br>120 s<br>Repetitions:<br>n <br>= <br>5|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|1st Run|5 wobbles at TRT using UPP, Severity_1|
+|**Run definition**|2nd Run|5 wobbles at TRT using UPP, Severity_2|
+|**Test profile**|Umax<br>**U [V]**<br>**t [s]**<br>t1<br>~~U~~PP, Severity_1,2,3,4|Umax<br>**U [V]**<br>**t [s]**<br>t1<br>~~U~~PP, Severity_1,2,3,4|
+|**Documentation**|FSC reached status before, during and after test.|FSC reached status before, during and after test.|
+### **2.4 Slow Decrease and Increase of the Supply Voltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.5|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|A <br>(U ≥ Umin) <br>C <br>(U < Umin)|A <br>(U ≥ Umin) <br>C <br>(U < Umin)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> at Umin <br> after test|before test<br> at Umin <br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umax|16 V|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|ΔU|0.5 V|
+|**Test parameters**|Time:<br>Δt<br>= <br>1 min<br>t1 <br>≥ <br>1 min<br>(Sufficient time after pulse to reach FSC A again) <br>Temperature:<br>TP <br>= <br>TRT|Time:<br>Δt<br>= <br>1 min<br>t1 <br>≥ <br>1 min<br>(Sufficient time after pulse to reach FSC A again) <br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with operation mode at TRT|
+|**Test profile**|Umin<br>Umax<br>**t [s]**<br>**U [V]**<br>0<br>Δt<br>ΔU<br>t1<br>|Umin<br>Umax<br>**t [s]**<br>**U [V]**<br>0<br>Δt<br>ΔU<br>t1<br>|
+|**Documentation**|<br>It must be documented:_(1)_ at which voltage level the component leaves<br>FSC A to FSC C,_(2)_ voltage level when the CAN Communication is loss<br>ramp down and_(3)_ voltage level when CAN Communication comes back<br>ramp up|<br>It must be documented:_(1)_ at which voltage level the component leaves<br>FSC A to FSC C,_(2)_ voltage level when the CAN Communication is loss<br>ramp down and_(3)_ voltage level when CAN Communication comes back<br>ramp up|
+### **2.5 Reset behavior at voltage drop**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.2|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|A <br>(at Umin) <br>C <br>(below Umin)|A <br>(at Umin) <br>C <br>(below Umin)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|<br>before test<br> <br>at Umin <br> <br>after test|<br>before test<br> <br>at Umin <br> <br>after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|ΔU (5% of Umin)|0.54 V|
+|**Test parameters**|Time:<br>tr / tf <br>≤ <br>10 ms<br>t1 <br>= <br>5 s<br>t2 <br>≥ <br>10 s<br>(Sufficient time after pulse to reach FSC A again)|Time:<br>tr / tf <br>≤ <br>10 ms<br>t1 <br>= <br>5 s<br>t2 <br>≥ <br>10 s<br>(Sufficient time after pulse to reach FSC A again)|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with operation mode|
+|**Test profile**|100<br>**U [V - %]**<br>0<br>t2<br>**t [s]**<br>Umin<br>90<br>80<br>70<br>60<br>50<br>40<br>30<br>20<br>10<br>t1<br>|100<br>**U [V - %]**<br>0<br>t2<br>**t [s]**<br>Umin<br>90<br>80<br>70<br>60<br>50<br>40<br>30<br>20<br>10<br>t1<br>|
+|**Documentation**|Voltage level at which the component leaves FSC A for the first time|Voltage level at which the component leaves FSC A for the first time|
+### **2.6 Starting Profile**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.3|Col3|Col4|Col5|Col6|Col7|
+|**Deviations**|-|-|-|-|-|-|
+|**Test samples**|2|2|2|2|2|2|
+|**FSC**|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|2.c|2.c|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|See Figure 1|See Figure 1|See Figure 1|See Figure 1|
+|**Functional check**|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|
+|**Test parameters**|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|
+|**Test parameters**||**Pulse I**|**Pulse I**|**Pulse II**|**Pulse III**|**Pulse IV**|
+|**Test parameters**|US|9.5|9.5|6.5|5|6.5|
+|**Test parameters**|UA|12|12|12|12|12|
+|**Test parameters**|US6|8|8|4.5|3|6|
+|**Test parameters**|UR|2|2|2|2|2|
+|**Test parameters**|Time (ms)|Time (ms)|Time (ms)|Time (ms)|Time (ms)|Time (ms)|
+|**Test parameters**|tf|5|5|5|5|5|
+|**Test parameters**|t6|15|15|15|15|15|
+|**Test parameters**|t7|50|50|50|50|50|
+|**Test parameters**|t8|1000|1000|10000|1000|10000|
+|**Test parameters**|tr|40|40|100|100|100|
+|**Test parameters**|tbreak|2000|2000|2000|2000|2000|
+|**Test parameters**|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Run**|**Description**|**Description**|**Description**|**Description**|
+|**Run definition**|1st Run|1st Run|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|
+|**Run definition**|2nd Run|2nd Run|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|
+|**Run definition**|3rd Run|3rd Run|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|
+|**Run definition**|4th Run|4th Run|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|
+|Col1|a|Col3|Col4|Col5|Col6|Col7|
+||a|a|a||||
+|Test profile|U [V]<br>U<br>A<br>a<br>U<br>U R<br>S<br>U<br>S6<br>t [s]<br>t t t t t<br>f 6 7 8 r|
+|**Documentation**|FSC reached status before, during and after test.|
+### **2.7 Load Dump with Centralized Load Dump Suppression**
+|Col1|Col2|Col3|
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.4.2.3|Col3|
+|**Deviations**|Load Dump test without centralized protection is not feasible because at<br>these conditions the test will damaged all DUT´s. (Clamping voltages<br>possible under 60 V)|Load Dump test without centralized protection is not feasible because at<br>these conditions the test will damaged all DUT´s. (Clamping voltages<br>possible under 60 V)|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during pulse** <br>**A** <br>**after each pulse and test** <br>mandatory|**C** <br>**during pulse** <br>**A** <br>**after each pulse and test** <br>mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**||**Value**|
+|**Test parameters**|UA [V]|14|
+|**Test parameters**|US [V]|100|
+|**Test parameters**|US* [V]|35|
+|**Test parameters**|td [ms]|400|
+|**Test parameters**|tr [ms]|5|
+|**Test parameters**|tbreak [s]|≥ 60 (Sufficient time after pulse to reach FSC A again)|
+|**Test parameters**|Ri [Ω]|1|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique Run|5 pulses of a Load Dump pulse|
+|**Test profile**|US<br>tn<br>**t [s]**<br>**U [V]**<br>0,9(US-UA) + UA<br>0,1(US-UA) + UA<br>UA<br>0<br>td<br>tr<br> US*<br>|US<br>tn<br>**t [s]**<br>**U [V]**<br>0,9(US-UA) + UA<br>0,1(US-UA) + UA<br>UA<br>0<br>td<br>tr<br> US*<br>|
+|**Documentation**|<br>`-` Oscilloscope plot showing FSC at Umax <br>`-` FSC reached status before, during and after test.|<br>`-` Oscilloscope plot showing FSC at Umax <br>`-` FSC reached status before, during and after test.|
+### **2.8 Reverse Voltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.7|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|_During Test:_ Oscilloscope and Digital Multimeter<br>_Before and After Test:_ NOx Checkbox (See Ch. 1.9)|_During Test:_ Oscilloscope and Digital Multimeter<br>_Before and After Test:_ NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|S.P.|S.P.|
+|**Applied to**|Supply + and GND|Supply + and GND|
+|**Test setup**|Use generic test setup (Figure 1) with the following adaptation:<br>Oszi<br>Ch.**A** Ch.**B**<br>Ch.**C** Ch.**D**<br>Test Voltage<br>Monitoring<br>**Reverse Polarity**<br>**Supply**<br>**Conn.**<br>**Conn.**<br>Supply +<br>**Autowave / Test**<br>**profiler**<br>To DUT<br>CAN_L<br>CAN_H<br>GND<br>A<br>Leakage current<br>measurement<br>Bank Detection<br>|Use generic test setup (Figure 1) with the following adaptation:<br>Oszi<br>Ch.**A** Ch.**B**<br>Ch.**C** Ch.**D**<br>Test Voltage<br>Monitoring<br>**Reverse Polarity**<br>**Supply**<br>**Conn.**<br>**Conn.**<br>Supply +<br>**Autowave / Test**<br>**profiler**<br>To DUT<br>CAN_L<br>CAN_H<br>GND<br>A<br>Leakage current<br>measurement<br>Bank Detection<br>|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umax|0 V|
+|**Test parameters**|Umin|-14 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>60 s<br>Internal Resistance of Supply:<br>Ri <br>< <br>100 mΩ|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>60 s<br>Internal Resistance of Supply:<br>Ri <br>< <br>100 mΩ|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with Umin at TRT|
+|**Test profile**|**t [s]**<br>**U [V]**<br>Umin<br>t1<br>tr<br>tf<br>Umax<br>|**t [s]**<br>**U [V]**<br>Umin<br>t1<br>tr<br>tf<br>Umax<br>|
+|**Documentation**|<br>`-` Test Setup with Adaption (Picture)<br>`-` Min., Max. and Average Leakage Current Measurement Values|<br>`-` Test Setup with Adaption (Picture)<br>`-` Min., Max. and Average Leakage Current Measurement Values|
+### **2.9 Short Circuit Protection – Signal circuits**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.10.2|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|C <br>(for inputs and outputs)|C <br>(for inputs and outputs)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|See Chapter 3.2|See Chapter 3.2|
+|**Test setup**|Use generic test setup (Figure 1) with the following adaptation:<br>Wiring Harness<br>To DUT<br>Pin to Test<br>To NOx<br>Checkbox<br>Supply +<br>GND<br>|Use generic test setup (Figure 1) with the following adaptation:<br>Wiring Harness<br>To DUT<br>Pin to Test<br>To NOx<br>Checkbox<br>Supply +<br>GND<br>|
+|**Functional check**|<br> <br>before test<br> <br>after test|<br> <br>before test<br> <br>after test|
+|**Test parameters**|Voltage:<br>USmin <br>= <br>10.8 V<br>USmax <br>= <br>16 V<br>Time per pin:<br>tp <br>= <br>60 s|Voltage:<br>USmin <br>= <br>10.8 V<br>USmax <br>= <br>16 V<br>Time per pin:<br>tp <br>= <br>60 s|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|General|Perform a short circuit test in pins according table in<br>_chapter 3.2_|
+|**Documentation**|`-` Test Setup with Adaption (Picture)|`-` Test Setup with Adaption (Picture)|
+# **3 ANNEX**
+### **3.1 DUT Connector and Pin out description**
+The tables below show the pin-out directly on the PCB. The customer connector´s pin-out itself will
+depend on the type of connector used, and it shall be defined for the Lab Test Order prior to
+qualification tests.
+**3.1.1 UG Pinning Configuration**
+|Pin<br>Number|Description|Voltage<br>(V)|Current<br>(A)|Comments|
+|1|UBatt(Typical)|See Ch. 1.5|See Ch. 1.5|Supply line|
+|2|GND|GND|GND|Supply line|
+|3|CAN_L|2.5 V / 0 V|N.A.|CAN Communication line|
+|4|CAN_H|2.5 V / 5 V|N.A.|CAN Communication line|
+|5|Bank Detection|GND / Open|N.A.|Bank detection - Optional|
+**3.1.2 UC Pinning Configuration**
+|Pin<br>Number|Description|Voltage<br>(V)|Current<br>(A)|Comments|
+|1|UBatt(Typical)|See Ch. 1.5|See Ch. 1.5|Supply line|
+|2|CAN_H|2.5 V / 5 V|N.A.|CAN Communication line|
+|3|CAN_L|2.5 V / 0 V|N.A.|CAN Communication line|
+|4|GND|See Ch. 1.5|See Ch. 1.5|Supply line|
+|5|Bank Detection|GND / Open|N.A.|Bank detection - Optional|
+### **3.2 Short circuit table**
+The tables below show the short circuit test pinning distribution depending on the customer connector
+type used for the qualification DUT´s. It shall be defined for the Lab Test Order prior to qualification
+tests.
+**3.2.1 UG Pinning Configuration**
+|Pin-Nr.|Signal description|Pin / Signal Type|12 V Systems<br>with DUT supplied at<br>U and U<br>Smin Smax|Col5|Remarks|
+|**Pin-Nr.**|**Signal description**|**Pin / Signal Type**|**SCB**|**SCG**|**SCG**|
+|1|UBatt|Supply|-|-|-|
+|2|GND|Supply|-|-|-|
+|3|CAN_L|I / O|X|X|FSC C|
+|4|CAN_H|I / O|X|X|FSC C|
+|5|Bank Detection|I|X|X|FSC C - Optional|
+**3.2.2 UC Pinning Configuration**
+|Pin-Nr.|Signal description|Pin / Signal Type|12 V Systems<br>with DUT supplied at<br>U and U<br>Smin Smax|Col5|Remarks|
+|**Pin-Nr.**|**Signal description**|**Pin / Signal Type**|**SCB**|**SCG**|**SCG**|
+|1|UBatt|Supply|-|-|-|
+|2|CAN_H|I / O|X|X|FSC C|
+|3|CAN_L|I / O|X|X|FSC C|
+|4|GND|Supply|-|-|-|
+|5|Bank Detection|I|X|X|FSC C - Optional|
+**Remarks:** SCB = Short circuit to battery; SCG = Short circuit to ground
+End of the document
+S-list file: 88033919_FIL_000_AA.pdf Last action date: 19/10/2023 09:35:18
+Status: APPROVED Duration: 0
+Group: VTL TSR Category: VTL TSR EMC
+Sensitive information: No
+Retention time: 2 years
+Explanation:
+Initiator department: QL LAB EMC/ET TSR Initiator login name: vt1\uiv06706
+Signer Function Set type/name Decision S-list comments
+Neiconi Andrei-Ovidiu (QL LAB Individual signer Accept
+EMC/ET TSR) 19/10/2023 09:04:39
+Li Bo (P CE EE CN 3) Individual signer Accept
+vt1\uidk5145- 19/10/2023 09:29:53
+Niebergall Franziska (P SC EES Individual signer Accept
+CPM CC3) 19/10/2023 09:35:18
+om",TEST,HIGH,,,,,,,,
+S985F7D6CC7,S985F7D6CC7-I001,eSigned_ET_88033919_FIL_000_AA 3.pdf,19,predicted,11,28,Page 11 | Section 3,"3. Error Output: signal generated from NOx Checkbox
+After switching on the NOx electronics, the sensor heats up. During this phase the Checkbox’s error
+output is at low level (0 V). After the heat up phase (up to 5 min) the error o utput stays stable at high
+level (5V). At this point the DUT is in FSC A and the test can start.
+**1.9.1 NOx-Checkbox configuration**
+**Figure 3**
+**[NOx Checkbox top]** **[view ][-]** **[Display]**
+**Figure 4 Checkbox back view - Connector interfaces**
+**1.9.2 Tolerance Definition**
+|Functional<br>performance<br>classification<br>status<br>(FPSC)|Monitoring|Col3|Col4|Col5|
+|**Functional**<br>**performance** <br>**classification**<br>**status** <br>**(FPSC)**|**NOx or NOx**<br>**compensated** <br>1) 2)|<br>**O2 **|**Status byte**|**CAN**|
+|**FPSC A**<br>**(FPSC I)**|Δ <**±** 10 ppm3)|Δ <**±** 3 %3)|OK|CAN timeout 30ms3)|
+|**FPSC B**<br>**(FPSC II)**|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|
+|**FPSC C** <br>**(FPSC III)**|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|
+1) which signal is used should be agreed between VT and customer or project team
+2) signal is moving average filtered similar to definition in TKU
+3) default limits, can be modified, if agreed between VT and customer
+### **1.10 Test Setups**
+**Figure 1: Generic setup** **[1]**
+Test at Room Temperature (TRT) can be tested outside of Temperature Chamber
+# **2 Electrical test requirements for the project**
+|SEQ|Test<br>Y/N|Test|Chapter<br>in this QP|Comments|
+|01|**Y**|Long-term Overvoltage|2.1||
+|02|**Y**|Jump Start|2.2||
+|03|**Y**|Superimposed Alternating Voltage|2.3||
+|04|**Y**|Slow Decrease and Increase of the Supply Voltage|2.4||
+|05|**Y**|Reset behavior at voltage drop|2.5||
+|06|**Y**|Starting Profile|2.6||
+|07|**Y**|Load Dump with Centralized Load Dump Suppression|2.7||
+|08|**Y **|Reverse Voltage|2.8||
+|09|**Y **|Short Circuit Protection|2.9||
+_Remarks:_
+- _m = sequence is mandatory._
+- _Changes in non-mandatory sequences are permitted but have to be documented in test report._
+### **2.1 Long-term Overvoltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.3.1.1|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|14 V|
+|**Test parameters**|Umax|18 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 min<br>Temperature:<br>TP <br>= <br>105°C<br>(Tmax – 20°C)|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 min<br>Temperature:<br>TP <br>= <br>105°C<br>(Tmax – 20°C)|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle at TP|
+|**Test profile**|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|
+|**Documentation**|<br>Oscilloscope plot showing FSC C at Umax|<br>Oscilloscope plot showing FSC C at Umax|
+|2.2 Jump Start|Col2|Col3|
+|**Reference**|ISO 16750 – 2 (Doc.**A**), Ch. 4.3.1.2|ISO 16750 – 2 (Doc.**A**), Ch. 4.3.1.2|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|Umax|24 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 s<br>Temperature:<br>TP <br>= <br>TRT|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 s<br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle at TP|
+|**Test profile**|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|
+|**Documentation**|<br>Oscilloscope plot showing FSC C at Umax|<br>Oscilloscope plot showing FSC C at Umax|
+|2.3 Superimposed|Alternating Voltage|Col3|
+|**Reference**|ISO 16750-2|ISO 16750-2|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**A for severity 1, B for severity 4** <br>before, during and after test mandatory|**A for severity 1, B for severity 4** <br>before, during and after test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Values**|
+|**Test parameters**|Umax|16 V|
+|**Test parameters**|UPP, Severity_1|1 V|
+|**Test parameters**|UPP, Severity_2|-|
+|**Test parameters**|UPP, Severity_3|-|
+|**Test parameters**|UPP, Severity_4|2 V|
+|**Test parameters**|Frequency range:<br>f <br>= <br>50 Hz→ 25 kHz→ 50 Hz<br>Wobble type =<br>triangle, logarithmic<br>Time:<br>t1 <br>= <br>120 s<br>Repetitions:<br>n <br>= <br>5|Frequency range:<br>f <br>= <br>50 Hz→ 25 kHz→ 50 Hz<br>Wobble type =<br>triangle, logarithmic<br>Time:<br>t1 <br>= <br>120 s<br>Repetitions:<br>n <br>= <br>5|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|1st Run|5 wobbles at TRT using UPP, Severity_1|
+|**Run definition**|2nd Run|5 wobbles at TRT using UPP, Severity_2|
+|**Test profile**|Umax<br>**U [V]**<br>**t [s]**<br>t1<br>~~U~~PP, Severity_1,2,3,4|Umax<br>**U [V]**<br>**t [s]**<br>t1<br>~~U~~PP, Severity_1,2,3,4|
+|**Documentation**|FSC reached status before, during and after test.|FSC reached status before, during and after test.|
+### **2.4 Slow Decrease and Increase of the Supply Voltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.5|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|A <br>(U ≥ Umin) <br>C <br>(U < Umin)|A <br>(U ≥ Umin) <br>C <br>(U < Umin)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> at Umin <br> after test|before test<br> at Umin <br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umax|16 V|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|ΔU|0.5 V|
+|**Test parameters**|Time:<br>Δt<br>= <br>1 min<br>t1 <br>≥ <br>1 min<br>(Sufficient time after pulse to reach FSC A again) <br>Temperature:<br>TP <br>= <br>TRT|Time:<br>Δt<br>= <br>1 min<br>t1 <br>≥ <br>1 min<br>(Sufficient time after pulse to reach FSC A again) <br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with operation mode at TRT|
+|**Test profile**|Umin<br>Umax<br>**t [s]**<br>**U [V]**<br>0<br>Δt<br>ΔU<br>t1<br>|Umin<br>Umax<br>**t [s]**<br>**U [V]**<br>0<br>Δt<br>ΔU<br>t1<br>|
+|**Documentation**|<br>It must be documented:_(1)_ at which voltage level the component leaves<br>FSC A to FSC C,_(2)_ voltage level when the CAN Communication is loss<br>ramp down and_(3)_ voltage level when CAN Communication comes back<br>ramp up|<br>It must be documented:_(1)_ at which voltage level the component leaves<br>FSC A to FSC C,_(2)_ voltage level when the CAN Communication is loss<br>ramp down and_(3)_ voltage level when CAN Communication comes back<br>ramp up|
+### **2.5 Reset behavior at voltage drop**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.2|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|A <br>(at Umin) <br>C <br>(below Umin)|A <br>(at Umin) <br>C <br>(below Umin)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|<br>before test<br> <br>at Umin <br> <br>after test|<br>before test<br> <br>at Umin <br> <br>after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|ΔU (5% of Umin)|0.54 V|
+|**Test parameters**|Time:<br>tr / tf <br>≤ <br>10 ms<br>t1 <br>= <br>5 s<br>t2 <br>≥ <br>10 s<br>(Sufficient time after pulse to reach FSC A again)|Time:<br>tr / tf <br>≤ <br>10 ms<br>t1 <br>= <br>5 s<br>t2 <br>≥ <br>10 s<br>(Sufficient time after pulse to reach FSC A again)|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with operation mode|
+|**Test profile**|100<br>**U [V - %]**<br>0<br>t2<br>**t [s]**<br>Umin<br>90<br>80<br>70<br>60<br>50<br>40<br>30<br>20<br>10<br>t1<br>|100<br>**U [V - %]**<br>0<br>t2<br>**t [s]**<br>Umin<br>90<br>80<br>70<br>60<br>50<br>40<br>30<br>20<br>10<br>t1<br>|
+|**Documentation**|Voltage level at which the component leaves FSC A for the first time|Voltage level at which the component leaves FSC A for the first time|
+### **2.6 Starting Profile**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.3|Col3|Col4|Col5|Col6|Col7|
+|**Deviations**|-|-|-|-|-|-|
+|**Test samples**|2|2|2|2|2|2|
+|**FSC**|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|2.c|2.c|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|See Figure 1|See Figure 1|See Figure 1|See Figure 1|
+|**Functional check**|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|
+|**Test parameters**|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|
+|**Test parameters**||**Pulse I**|**Pulse I**|**Pulse II**|**Pulse III**|**Pulse IV**|
+|**Test parameters**|US|9.5|9.5|6.5|5|6.5|
+|**Test parameters**|UA|12|12|12|12|12|
+|**Test parameters**|US6|8|8|4.5|3|6|
+|**Test parameters**|UR|2|2|2|2|2|
+|**Test parameters**|Time (ms)|Time (ms)|Time (ms)|Time (ms)|Time (ms)|Time (ms)|
+|**Test parameters**|tf|5|5|5|5|5|
+|**Test parameters**|t6|15|15|15|15|15|
+|**Test parameters**|t7|50|50|50|50|50|
+|**Test parameters**|t8|1000|1000|10000|1000|10000|
+|**Test parameters**|tr|40|40|100|100|100|
+|**Test parameters**|tbreak|2000|2000|2000|2000|2000|
+|**Test parameters**|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Run**|**Description**|**Description**|**Description**|**Description**|
+|**Run definition**|1st Run|1st Run|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|
+|**Run definition**|2nd Run|2nd Run|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|
+|**Run definition**|3rd Run|3rd Run|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|
+|**Run definition**|4th Run|4th Run|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|
+|Col1|a|Col3|Col4|Col5|Col6|Col7|
+||a|a|a||||
+|Test profile|U [V]<br>U<br>A<br>a<br>U<br>U R<br>S<br>U<br>S6<br>t [s]<br>t t t t t<br>f 6 7 8 r|
+|**Documentation**|FSC reached status before, during and after test.|
+### **2.7 Load Dump with Centralized Load Dump Suppression**
+|Col1|Col2|Col3|
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.4.2.3|Col3|
+|**Deviations**|Load Dump test without centralized protection is not feasible because at<br>these conditions the test will damaged all DUT´s. (Clamping voltages<br>possible under 60 V)|Load Dump test without centralized protection is not feasible because at<br>these conditions the test will damaged all DUT´s. (Clamping voltages<br>possible under 60 V)|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during pulse** <br>**A** <br>**after each pulse and test** <br>mandatory|**C** <br>**during pulse** <br>**A** <br>**after each pulse and test** <br>mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**||**Value**|
+|**Test parameters**|UA [V]|14|
+|**Test parameters**|US [V]|100|
+|**Test parameters**|US* [V]|35|
+|**Test parameters**|td [ms]|400|
+|**Test parameters**|tr [ms]|5|
+|**Test parameters**|tbreak [s]|≥ 60 (Sufficient time after pulse to reach FSC A again)|
+|**Test parameters**|Ri [Ω]|1|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique Run|5 pulses of a Load Dump pulse|
+|**Test profile**|US<br>tn<br>**t [s]**<br>**U [V]**<br>0,9(US-UA) + UA<br>0,1(US-UA) + UA<br>UA<br>0<br>td<br>tr<br> US*<br>|US<br>tn<br>**t [s]**<br>**U [V]**<br>0,9(US-UA) + UA<br>0,1(US-UA) + UA<br>UA<br>0<br>td<br>tr<br> US*<br>|
+|**Documentation**|<br>`-` Oscilloscope plot showing FSC at Umax <br>`-` FSC reached status before, during and after test.|<br>`-` Oscilloscope plot showing FSC at Umax <br>`-` FSC reached status before, during and after test.|
+### **2.8 Reverse Voltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.7|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|_During Test:_ Oscilloscope and Digital Multimeter<br>_Before and After Test:_ NOx Checkbox (See Ch. 1.9)|_During Test:_ Oscilloscope and Digital Multimeter<br>_Before and After Test:_ NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|S.P.|S.P.|
+|**Applied to**|Supply + and GND|Supply + and GND|
+|**Test setup**|Use generic test setup (Figure 1) with the following adaptation:<br>Oszi<br>Ch.**A** Ch.**B**<br>Ch.**C** Ch.**D**<br>Test Voltage<br>Monitoring<br>**Reverse Polarity**<br>**Supply**<br>**Conn.**<br>**Conn.**<br>Supply +<br>**Autowave / Test**<br>**profiler**<br>To DUT<br>CAN_L<br>CAN_H<br>GND<br>A<br>Leakage current<br>measurement<br>Bank Detection<br>|Use generic test setup (Figure 1) with the following adaptation:<br>Oszi<br>Ch.**A** Ch.**B**<br>Ch.**C** Ch.**D**<br>Test Voltage<br>Monitoring<br>**Reverse Polarity**<br>**Supply**<br>**Conn.**<br>**Conn.**<br>Supply +<br>**Autowave / Test**<br>**profiler**<br>To DUT<br>CAN_L<br>CAN_H<br>GND<br>A<br>Leakage current<br>measurement<br>Bank Detection<br>|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umax|0 V|
+|**Test parameters**|Umin|-14 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>60 s<br>Internal Resistance of Supply:<br>Ri <br>< <br>100 mΩ|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>60 s<br>Internal Resistance of Supply:<br>Ri <br>< <br>100 mΩ|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with Umin at TRT|
+|**Test profile**|**t [s]**<br>**U [V]**<br>Umin<br>t1<br>tr<br>tf<br>Umax<br>|**t [s]**<br>**U [V]**<br>Umin<br>t1<br>tr<br>tf<br>Umax<br>|
+|**Documentation**|<br>`-` Test Setup with Adaption (Picture)<br>`-` Min., Max. and Average Leakage Current Measurement Values|<br>`-` Test Setup with Adaption (Picture)<br>`-` Min., Max. and Average Leakage Current Measurement Values|
+### **2.9 Short Circuit Protection – Signal circuits**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.10.2|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|C <br>(for inputs and outputs)|C <br>(for inputs and outputs)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|See Chapter 3.2|See Chapter 3.2|
+|**Test setup**|Use generic test setup (Figure 1) with the following adaptation:<br>Wiring Harness<br>To DUT<br>Pin to Test<br>To NOx<br>Checkbox<br>Supply +<br>GND<br>|Use generic test setup (Figure 1) with the following adaptation:<br>Wiring Harness<br>To DUT<br>Pin to Test<br>To NOx<br>Checkbox<br>Supply +<br>GND<br>|
+|**Functional check**|<br> <br>before test<br> <br>after test|<br> <br>before test<br> <br>after test|
+|**Test parameters**|Voltage:<br>USmin <br>= <br>10.8 V<br>USmax <br>= <br>16 V<br>Time per pin:<br>tp <br>= <br>60 s|Voltage:<br>USmin <br>= <br>10.8 V<br>USmax <br>= <br>16 V<br>Time per pin:<br>tp <br>= <br>60 s|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|General|Perform a short circuit test in pins according table in<br>_chapter 3.2_|
+|**Documentation**|`-` Test Setup with Adaption (Picture)|`-` Test Setup with Adaption (Picture)|
+# **3 ANNEX**
+### **3.1 DUT Connector and Pin out description**
+The tables below show the pin-out directly on the PCB. The customer connector´s pin-out itself will
+depend on the type of connector used, and it shall be defined for the Lab Test Order prior to
+qualification tests.
+**3.1.1 UG Pinning Configuration**
+|Pin<br>Number|Description|Voltage<br>(V)|Current<br>(A)|Comments|
+|1|UBatt(Typical)|See Ch. 1.5|See Ch. 1.5|Supply line|
+|2|GND|GND|GND|Supply line|
+|3|CAN_L|2.5 V / 0 V|N.A.|CAN Communication line|
+|4|CAN_H|2.5 V / 5 V|N.A.|CAN Communication line|
+|5|Bank Detection|GND / Open|N.A.|Bank detection - Optional|
+**3.1.2 UC Pinning Configuration**
+|Pin<br>Number|Description|Voltage<br>(V)|Current<br>(A)|Comments|
+|1|UBatt(Typical)|See Ch. 1.5|See Ch. 1.5|Supply line|
+|2|CAN_H|2.5 V / 5 V|N.A.|CAN Communication line|
+|3|CAN_L|2.5 V / 0 V|N.A.|CAN Communication line|
+|4|GND|See Ch. 1.5|See Ch. 1.5|Supply line|
+|5|Bank Detection|GND / Open|N.A.|Bank detection - Optional|
+### **3.2 Short circuit table**
+The tables below show the short circuit test pinning distribution depending on the customer connector
+type used for the qualification DUT´s. It shall be defined for the Lab Test Order prior to qualification
+tests.
+**3.2.1 UG Pinning Configuration**
+|Pin-Nr.|Signal description|Pin / Signal Type|12 V Systems<br>with DUT supplied at<br>U and U<br>Smin Smax|Col5|Remarks|
+|**Pin-Nr.**|**Signal description**|**Pin / Signal Type**|**SCB**|**SCG**|**SCG**|
+|1|UBatt|Supply|-|-|-|
+|2|GND|Supply|-|-|-|
+|3|CAN_L|I / O|X|X|FSC C|
+|4|CAN_H|I / O|X|X|FSC C|
+|5|Bank Detection|I|X|X|FSC C - Optional|
+**3.2.2 UC Pinning Configuration**
+|Pin-Nr.|Signal description|Pin / Signal Type|12 V Systems<br>with DUT supplied at<br>U and U<br>Smin Smax|Col5|Remarks|
+|**Pin-Nr.**|**Signal description**|**Pin / Signal Type**|**SCB**|**SCG**|**SCG**|
+|1|UBatt|Supply|-|-|-|
+|2|CAN_H|I / O|X|X|FSC C|
+|3|CAN_L|I / O|X|X|FSC C|
+|4|GND|Supply|-|-|-|
+|5|Bank Detection|I|X|X|FSC C - Optional|
+**Remarks:** SCB = Short circuit to battery; SCG = Short circuit to ground
+End of the document
+S-list file: 88033919_FIL_000_AA.pdf Last action date: 19/10/2023 09:35:18
+Status: APPROVED Duration: 0
+Group: VTL TSR Category: VTL TSR EMC
+Sensitive information: No
+Retention time: 2 years
+Explanation:
+Initiator department: QL LAB EMC/ET TSR Initiator login name: vt1\uiv06706
+Signer Function Set type/name Decision S-list comments
+Neiconi Andrei-Ovidiu (QL LAB Individual signer Accept
+EMC/ET TSR) 19/10/2023 09:04:39
+Li Bo (P CE EE CN 3) Individual signer Accept
+vt1\uidk5145- 19/10/2023 09:29:53
+Niebergall Franziska (P SC EES Individual signer Accept
+CPM CC3) 19/10/2023 09:35:18
+om",TEST,HIGH,,,,,,,,
+S351A583690,S351A583690-I001,eSigned_ET_88033919_FIL_000_AA 3.pdf,23,predicted,11,28,Page 11 | Section 3,"3. Error Output: signal generated from NOx Checkbox
+After switching on the NOx electronics, the sensor heats up. During this phase the Checkbox’s error
+output is at low level (0 V). After the heat up phase (up to 5 min) the error o utput stays stable at high
+level (5V). At this point the DUT is in FSC A and the test can start.
+**1.9.1 NOx-Checkbox configuration**
+**Figure 3**
+**[NOx Checkbox top]** **[view ][-]** **[Display]**
+**Figure 4 Checkbox back view - Connector interfaces**
+**1.9.2 Tolerance Definition**
+|Functional<br>performance<br>classification<br>status<br>(FPSC)|Monitoring|Col3|Col4|Col5|
+|**Functional**<br>**performance** <br>**classification**<br>**status** <br>**(FPSC)**|**NOx or NOx**<br>**compensated** <br>1) 2)|<br>**O2 **|**Status byte**|**CAN**|
+|**FPSC A**<br>**(FPSC I)**|Δ <**±** 10 ppm3)|Δ <**±** 3 %3)|OK|CAN timeout 30ms3)|
+|**FPSC B**<br>**(FPSC II)**|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|
+|**FPSC C** <br>**(FPSC III)**|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|
+1) which signal is used should be agreed between VT and customer or project team
+2) signal is moving average filtered similar to definition in TKU
+3) default limits, can be modified, if agreed between VT and customer
+### **1.10 Test Setups**
+**Figure 1: Generic setup** **[1]**
+Test at Room Temperature (TRT) can be tested outside of Temperature Chamber
+# **2 Electrical test requirements for the project**
+|SEQ|Test<br>Y/N|Test|Chapter<br>in this QP|Comments|
+|01|**Y**|Long-term Overvoltage|2.1||
+|02|**Y**|Jump Start|2.2||
+|03|**Y**|Superimposed Alternating Voltage|2.3||
+|04|**Y**|Slow Decrease and Increase of the Supply Voltage|2.4||
+|05|**Y**|Reset behavior at voltage drop|2.5||
+|06|**Y**|Starting Profile|2.6||
+|07|**Y**|Load Dump with Centralized Load Dump Suppression|2.7||
+|08|**Y **|Reverse Voltage|2.8||
+|09|**Y **|Short Circuit Protection|2.9||
+_Remarks:_
+- _m = sequence is mandatory._
+- _Changes in non-mandatory sequences are permitted but have to be documented in test report._
+### **2.1 Long-term Overvoltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.3.1.1|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|14 V|
+|**Test parameters**|Umax|18 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 min<br>Temperature:<br>TP <br>= <br>105°C<br>(Tmax – 20°C)|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 min<br>Temperature:<br>TP <br>= <br>105°C<br>(Tmax – 20°C)|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle at TP|
+|**Test profile**|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|
+|**Documentation**|<br>Oscilloscope plot showing FSC C at Umax|<br>Oscilloscope plot showing FSC C at Umax|
+|2.2 Jump Start|Col2|Col3|
+|**Reference**|ISO 16750 – 2 (Doc.**A**), Ch. 4.3.1.2|ISO 16750 – 2 (Doc.**A**), Ch. 4.3.1.2|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|Umax|24 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 s<br>Temperature:<br>TP <br>= <br>TRT|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 s<br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle at TP|
+|**Test profile**|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|
+|**Documentation**|<br>Oscilloscope plot showing FSC C at Umax|<br>Oscilloscope plot showing FSC C at Umax|
+|2.3 Superimposed|Alternating Voltage|Col3|
+|**Reference**|ISO 16750-2|ISO 16750-2|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**A for severity 1, B for severity 4** <br>before, during and after test mandatory|**A for severity 1, B for severity 4** <br>before, during and after test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Values**|
+|**Test parameters**|Umax|16 V|
+|**Test parameters**|UPP, Severity_1|1 V|
+|**Test parameters**|UPP, Severity_2|-|
+|**Test parameters**|UPP, Severity_3|-|
+|**Test parameters**|UPP, Severity_4|2 V|
+|**Test parameters**|Frequency range:<br>f <br>= <br>50 Hz→ 25 kHz→ 50 Hz<br>Wobble type =<br>triangle, logarithmic<br>Time:<br>t1 <br>= <br>120 s<br>Repetitions:<br>n <br>= <br>5|Frequency range:<br>f <br>= <br>50 Hz→ 25 kHz→ 50 Hz<br>Wobble type =<br>triangle, logarithmic<br>Time:<br>t1 <br>= <br>120 s<br>Repetitions:<br>n <br>= <br>5|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|1st Run|5 wobbles at TRT using UPP, Severity_1|
+|**Run definition**|2nd Run|5 wobbles at TRT using UPP, Severity_2|
+|**Test profile**|Umax<br>**U [V]**<br>**t [s]**<br>t1<br>~~U~~PP, Severity_1,2,3,4|Umax<br>**U [V]**<br>**t [s]**<br>t1<br>~~U~~PP, Severity_1,2,3,4|
+|**Documentation**|FSC reached status before, during and after test.|FSC reached status before, during and after test.|
+### **2.4 Slow Decrease and Increase of the Supply Voltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.5|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|A <br>(U ≥ Umin) <br>C <br>(U < Umin)|A <br>(U ≥ Umin) <br>C <br>(U < Umin)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> at Umin <br> after test|before test<br> at Umin <br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umax|16 V|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|ΔU|0.5 V|
+|**Test parameters**|Time:<br>Δt<br>= <br>1 min<br>t1 <br>≥ <br>1 min<br>(Sufficient time after pulse to reach FSC A again) <br>Temperature:<br>TP <br>= <br>TRT|Time:<br>Δt<br>= <br>1 min<br>t1 <br>≥ <br>1 min<br>(Sufficient time after pulse to reach FSC A again) <br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with operation mode at TRT|
+|**Test profile**|Umin<br>Umax<br>**t [s]**<br>**U [V]**<br>0<br>Δt<br>ΔU<br>t1<br>|Umin<br>Umax<br>**t [s]**<br>**U [V]**<br>0<br>Δt<br>ΔU<br>t1<br>|
+|**Documentation**|<br>It must be documented:_(1)_ at which voltage level the component leaves<br>FSC A to FSC C,_(2)_ voltage level when the CAN Communication is loss<br>ramp down and_(3)_ voltage level when CAN Communication comes back<br>ramp up|<br>It must be documented:_(1)_ at which voltage level the component leaves<br>FSC A to FSC C,_(2)_ voltage level when the CAN Communication is loss<br>ramp down and_(3)_ voltage level when CAN Communication comes back<br>ramp up|
+### **2.5 Reset behavior at voltage drop**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.2|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|A <br>(at Umin) <br>C <br>(below Umin)|A <br>(at Umin) <br>C <br>(below Umin)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|<br>before test<br> <br>at Umin <br> <br>after test|<br>before test<br> <br>at Umin <br> <br>after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|ΔU (5% of Umin)|0.54 V|
+|**Test parameters**|Time:<br>tr / tf <br>≤ <br>10 ms<br>t1 <br>= <br>5 s<br>t2 <br>≥ <br>10 s<br>(Sufficient time after pulse to reach FSC A again)|Time:<br>tr / tf <br>≤ <br>10 ms<br>t1 <br>= <br>5 s<br>t2 <br>≥ <br>10 s<br>(Sufficient time after pulse to reach FSC A again)|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with operation mode|
+|**Test profile**|100<br>**U [V - %]**<br>0<br>t2<br>**t [s]**<br>Umin<br>90<br>80<br>70<br>60<br>50<br>40<br>30<br>20<br>10<br>t1<br>|100<br>**U [V - %]**<br>0<br>t2<br>**t [s]**<br>Umin<br>90<br>80<br>70<br>60<br>50<br>40<br>30<br>20<br>10<br>t1<br>|
+|**Documentation**|Voltage level at which the component leaves FSC A for the first time|Voltage level at which the component leaves FSC A for the first time|
+### **2.6 Starting Profile**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.3|Col3|Col4|Col5|Col6|Col7|
+|**Deviations**|-|-|-|-|-|-|
+|**Test samples**|2|2|2|2|2|2|
+|**FSC**|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|2.c|2.c|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|See Figure 1|See Figure 1|See Figure 1|See Figure 1|
+|**Functional check**|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|
+|**Test parameters**|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|
+|**Test parameters**||**Pulse I**|**Pulse I**|**Pulse II**|**Pulse III**|**Pulse IV**|
+|**Test parameters**|US|9.5|9.5|6.5|5|6.5|
+|**Test parameters**|UA|12|12|12|12|12|
+|**Test parameters**|US6|8|8|4.5|3|6|
+|**Test parameters**|UR|2|2|2|2|2|
+|**Test parameters**|Time (ms)|Time (ms)|Time (ms)|Time (ms)|Time (ms)|Time (ms)|
+|**Test parameters**|tf|5|5|5|5|5|
+|**Test parameters**|t6|15|15|15|15|15|
+|**Test parameters**|t7|50|50|50|50|50|
+|**Test parameters**|t8|1000|1000|10000|1000|10000|
+|**Test parameters**|tr|40|40|100|100|100|
+|**Test parameters**|tbreak|2000|2000|2000|2000|2000|
+|**Test parameters**|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Run**|**Description**|**Description**|**Description**|**Description**|
+|**Run definition**|1st Run|1st Run|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|
+|**Run definition**|2nd Run|2nd Run|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|
+|**Run definition**|3rd Run|3rd Run|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|
+|**Run definition**|4th Run|4th Run|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|
+|Col1|a|Col3|Col4|Col5|Col6|Col7|
+||a|a|a||||
+|Test profile|U [V]<br>U<br>A<br>a<br>U<br>U R<br>S<br>U<br>S6<br>t [s]<br>t t t t t<br>f 6 7 8 r|
+|**Documentation**|FSC reached status before, during and after test.|
+### **2.7 Load Dump with Centralized Load Dump Suppression**
+|Col1|Col2|Col3|
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.4.2.3|Col3|
+|**Deviations**|Load Dump test without centralized protection is not feasible because at<br>these conditions the test will damaged all DUT´s. (Clamping voltages<br>possible under 60 V)|Load Dump test without centralized protection is not feasible because at<br>these conditions the test will damaged all DUT´s. (Clamping voltages<br>possible under 60 V)|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during pulse** <br>**A** <br>**after each pulse and test** <br>mandatory|**C** <br>**during pulse** <br>**A** <br>**after each pulse and test** <br>mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**||**Value**|
+|**Test parameters**|UA [V]|14|
+|**Test parameters**|US [V]|100|
+|**Test parameters**|US* [V]|35|
+|**Test parameters**|td [ms]|400|
+|**Test parameters**|tr [ms]|5|
+|**Test parameters**|tbreak [s]|≥ 60 (Sufficient time after pulse to reach FSC A again)|
+|**Test parameters**|Ri [Ω]|1|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique Run|5 pulses of a Load Dump pulse|
+|**Test profile**|US<br>tn<br>**t [s]**<br>**U [V]**<br>0,9(US-UA) + UA<br>0,1(US-UA) + UA<br>UA<br>0<br>td<br>tr<br> US*<br>|US<br>tn<br>**t [s]**<br>**U [V]**<br>0,9(US-UA) + UA<br>0,1(US-UA) + UA<br>UA<br>0<br>td<br>tr<br> US*<br>|
+|**Documentation**|<br>`-` Oscilloscope plot showing FSC at Umax <br>`-` FSC reached status before, during and after test.|<br>`-` Oscilloscope plot showing FSC at Umax <br>`-` FSC reached status before, during and after test.|
+### **2.8 Reverse Voltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.7|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|_During Test:_ Oscilloscope and Digital Multimeter<br>_Before and After Test:_ NOx Checkbox (See Ch. 1.9)|_During Test:_ Oscilloscope and Digital Multimeter<br>_Before and After Test:_ NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|S.P.|S.P.|
+|**Applied to**|Supply + and GND|Supply + and GND|
+|**Test setup**|Use generic test setup (Figure 1) with the following adaptation:<br>Oszi<br>Ch.**A** Ch.**B**<br>Ch.**C** Ch.**D**<br>Test Voltage<br>Monitoring<br>**Reverse Polarity**<br>**Supply**<br>**Conn.**<br>**Conn.**<br>Supply +<br>**Autowave / Test**<br>**profiler**<br>To DUT<br>CAN_L<br>CAN_H<br>GND<br>A<br>Leakage current<br>measurement<br>Bank Detection<br>|Use generic test setup (Figure 1) with the following adaptation:<br>Oszi<br>Ch.**A** Ch.**B**<br>Ch.**C** Ch.**D**<br>Test Voltage<br>Monitoring<br>**Reverse Polarity**<br>**Supply**<br>**Conn.**<br>**Conn.**<br>Supply +<br>**Autowave / Test**<br>**profiler**<br>To DUT<br>CAN_L<br>CAN_H<br>GND<br>A<br>Leakage current<br>measurement<br>Bank Detection<br>|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umax|0 V|
+|**Test parameters**|Umin|-14 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>60 s<br>Internal Resistance of Supply:<br>Ri <br>< <br>100 mΩ|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>60 s<br>Internal Resistance of Supply:<br>Ri <br>< <br>100 mΩ|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with Umin at TRT|
+|**Test profile**|**t [s]**<br>**U [V]**<br>Umin<br>t1<br>tr<br>tf<br>Umax<br>|**t [s]**<br>**U [V]**<br>Umin<br>t1<br>tr<br>tf<br>Umax<br>|
+|**Documentation**|<br>`-` Test Setup with Adaption (Picture)<br>`-` Min., Max. and Average Leakage Current Measurement Values|<br>`-` Test Setup with Adaption (Picture)<br>`-` Min., Max. and Average Leakage Current Measurement Values|
+### **2.9 Short Circuit Protection – Signal circuits**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.10.2|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|C <br>(for inputs and outputs)|C <br>(for inputs and outputs)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|See Chapter 3.2|See Chapter 3.2|
+|**Test setup**|Use generic test setup (Figure 1) with the following adaptation:<br>Wiring Harness<br>To DUT<br>Pin to Test<br>To NOx<br>Checkbox<br>Supply +<br>GND<br>|Use generic test setup (Figure 1) with the following adaptation:<br>Wiring Harness<br>To DUT<br>Pin to Test<br>To NOx<br>Checkbox<br>Supply +<br>GND<br>|
+|**Functional check**|<br> <br>before test<br> <br>after test|<br> <br>before test<br> <br>after test|
+|**Test parameters**|Voltage:<br>USmin <br>= <br>10.8 V<br>USmax <br>= <br>16 V<br>Time per pin:<br>tp <br>= <br>60 s|Voltage:<br>USmin <br>= <br>10.8 V<br>USmax <br>= <br>16 V<br>Time per pin:<br>tp <br>= <br>60 s|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|General|Perform a short circuit test in pins according table in<br>_chapter 3.2_|
+|**Documentation**|`-` Test Setup with Adaption (Picture)|`-` Test Setup with Adaption (Picture)|
+# **3 ANNEX**
+### **3.1 DUT Connector and Pin out description**
+The tables below show the pin-out directly on the PCB. The customer connector´s pin-out itself will
+depend on the type of connector used, and it shall be defined for the Lab Test Order prior to
+qualification tests.
+**3.1.1 UG Pinning Configuration**
+|Pin<br>Number|Description|Voltage<br>(V)|Current<br>(A)|Comments|
+|1|UBatt(Typical)|See Ch. 1.5|See Ch. 1.5|Supply line|
+|2|GND|GND|GND|Supply line|
+|3|CAN_L|2.5 V / 0 V|N.A.|CAN Communication line|
+|4|CAN_H|2.5 V / 5 V|N.A.|CAN Communication line|
+|5|Bank Detection|GND / Open|N.A.|Bank detection - Optional|
+**3.1.2 UC Pinning Configuration**
+|Pin<br>Number|Description|Voltage<br>(V)|Current<br>(A)|Comments|
+|1|UBatt(Typical)|See Ch. 1.5|See Ch. 1.5|Supply line|
+|2|CAN_H|2.5 V / 5 V|N.A.|CAN Communication line|
+|3|CAN_L|2.5 V / 0 V|N.A.|CAN Communication line|
+|4|GND|See Ch. 1.5|See Ch. 1.5|Supply line|
+|5|Bank Detection|GND / Open|N.A.|Bank detection - Optional|
+### **3.2 Short circuit table**
+The tables below show the short circuit test pinning distribution depending on the customer connector
+type used for the qualification DUT´s. It shall be defined for the Lab Test Order prior to qualification
+tests.
+**3.2.1 UG Pinning Configuration**
+|Pin-Nr.|Signal description|Pin / Signal Type|12 V Systems<br>with DUT supplied at<br>U and U<br>Smin Smax|Col5|Remarks|
+|**Pin-Nr.**|**Signal description**|**Pin / Signal Type**|**SCB**|**SCG**|**SCG**|
+|1|UBatt|Supply|-|-|-|
+|2|GND|Supply|-|-|-|
+|3|CAN_L|I / O|X|X|FSC C|
+|4|CAN_H|I / O|X|X|FSC C|
+|5|Bank Detection|I|X|X|FSC C - Optional|
+**3.2.2 UC Pinning Configuration**
+|Pin-Nr.|Signal description|Pin / Signal Type|12 V Systems<br>with DUT supplied at<br>U and U<br>Smin Smax|Col5|Remarks|
+|**Pin-Nr.**|**Signal description**|**Pin / Signal Type**|**SCB**|**SCG**|**SCG**|
+|1|UBatt|Supply|-|-|-|
+|2|CAN_H|I / O|X|X|FSC C|
+|3|CAN_L|I / O|X|X|FSC C|
+|4|GND|Supply|-|-|-|
+|5|Bank Detection|I|X|X|FSC C - Optional|
+**Remarks:** SCB = Short circuit to battery; SCG = Short circuit to ground
+End of the document
+S-list file: 88033919_FIL_000_AA.pdf Last action date: 19/10/2023 09:35:18
+Status: APPROVED Duration: 0
+Group: VTL TSR Category: VTL TSR EMC
+Sensitive information: No
+Retention time: 2 years
+Explanation:
+Initiator department: QL LAB EMC/ET TSR Initiator login name: vt1\uiv06706
+Signer Function Set type/name Decision S-list comments
+Neiconi Andrei-Ovidiu (QL LAB Individual signer Accept
+EMC/ET TSR) 19/10/2023 09:04:39
+Li Bo (P CE EE CN 3) Individual signer Accept
+vt1\uidk5145- 19/10/2023 09:29:53
+Niebergall Franziska (P SC EES Individual signer Accept
+CPM CC3) 19/10/2023 09:35:18
+om",TEST,HIGH,,,,,,,,
+SEC23B1C19B,SEC23B1C19B-I001,eSigned_ET_88033919_FIL_000_AA 3.pdf,26,predicted,11,28,Page 11 | Section 3,"3. Error Output: signal generated from NOx Checkbox
+After switching on the NOx electronics, the sensor heats up. During this phase the Checkbox’s error
+output is at low level (0 V). After the heat up phase (up to 5 min) the error o utput stays stable at high
+level (5V). At this point the DUT is in FSC A and the test can start.
+**1.9.1 NOx-Checkbox configuration**
+**Figure 3**
+**[NOx Checkbox top]** **[view ][-]** **[Display]**
+**Figure 4 Checkbox back view - Connector interfaces**
+**1.9.2 Tolerance Definition**
+|Functional<br>performance<br>classification<br>status<br>(FPSC)|Monitoring|Col3|Col4|Col5|
+|**Functional**<br>**performance** <br>**classification**<br>**status** <br>**(FPSC)**|**NOx or NOx**<br>**compensated** <br>1) 2)|<br>**O2 **|**Status byte**|**CAN**|
+|**FPSC A**<br>**(FPSC I)**|Δ <**±** 10 ppm3)|Δ <**±** 3 %3)|OK|CAN timeout 30ms3)|
+|**FPSC B**<br>**(FPSC II)**|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|At least one of the parameters above is out of range or not OK|
+|**FPSC C** <br>**(FPSC III)**|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|µC reset, sensor restarts automatically, heating phase starts|
+1) which signal is used should be agreed between VT and customer or project team
+2) signal is moving average filtered similar to definition in TKU
+3) default limits, can be modified, if agreed between VT and customer
+### **1.10 Test Setups**
+**Figure 1: Generic setup** **[1]**
+Test at Room Temperature (TRT) can be tested outside of Temperature Chamber
+# **2 Electrical test requirements for the project**
+|SEQ|Test<br>Y/N|Test|Chapter<br>in this QP|Comments|
+|01|**Y**|Long-term Overvoltage|2.1||
+|02|**Y**|Jump Start|2.2||
+|03|**Y**|Superimposed Alternating Voltage|2.3||
+|04|**Y**|Slow Decrease and Increase of the Supply Voltage|2.4||
+|05|**Y**|Reset behavior at voltage drop|2.5||
+|06|**Y**|Starting Profile|2.6||
+|07|**Y**|Load Dump with Centralized Load Dump Suppression|2.7||
+|08|**Y **|Reverse Voltage|2.8||
+|09|**Y **|Short Circuit Protection|2.9||
+_Remarks:_
+- _m = sequence is mandatory._
+- _Changes in non-mandatory sequences are permitted but have to be documented in test report._
+### **2.1 Long-term Overvoltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.3.1.1|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|14 V|
+|**Test parameters**|Umax|18 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 min<br>Temperature:<br>TP <br>= <br>105°C<br>(Tmax – 20°C)|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 min<br>Temperature:<br>TP <br>= <br>105°C<br>(Tmax – 20°C)|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle at TP|
+|**Test profile**|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|
+|**Documentation**|<br>Oscilloscope plot showing FSC C at Umax|<br>Oscilloscope plot showing FSC C at Umax|
+|2.2 Jump Start|Col2|Col3|
+|**Reference**|ISO 16750 – 2 (Doc.**A**), Ch. 4.3.1.2|ISO 16750 – 2 (Doc.**A**), Ch. 4.3.1.2|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|Umax|24 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 s<br>Temperature:<br>TP <br>= <br>TRT|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>10 min<br>tP <br>= <br>60 s<br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle at TP|
+|**Test profile**|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|tr<br>Umin<br>Umax<br>tf<br>tP<br>**t [s]**<br>**U [V]**<br>t1<br>|
+|**Documentation**|<br>Oscilloscope plot showing FSC C at Umax|<br>Oscilloscope plot showing FSC C at Umax|
+|2.3 Superimposed|Alternating Voltage|Col3|
+|**Reference**|ISO 16750-2|ISO 16750-2|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**A for severity 1, B for severity 4** <br>before, during and after test mandatory|**A for severity 1, B for severity 4** <br>before, during and after test mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Values**|
+|**Test parameters**|Umax|16 V|
+|**Test parameters**|UPP, Severity_1|1 V|
+|**Test parameters**|UPP, Severity_2|-|
+|**Test parameters**|UPP, Severity_3|-|
+|**Test parameters**|UPP, Severity_4|2 V|
+|**Test parameters**|Frequency range:<br>f <br>= <br>50 Hz→ 25 kHz→ 50 Hz<br>Wobble type =<br>triangle, logarithmic<br>Time:<br>t1 <br>= <br>120 s<br>Repetitions:<br>n <br>= <br>5|Frequency range:<br>f <br>= <br>50 Hz→ 25 kHz→ 50 Hz<br>Wobble type =<br>triangle, logarithmic<br>Time:<br>t1 <br>= <br>120 s<br>Repetitions:<br>n <br>= <br>5|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|1st Run|5 wobbles at TRT using UPP, Severity_1|
+|**Run definition**|2nd Run|5 wobbles at TRT using UPP, Severity_2|
+|**Test profile**|Umax<br>**U [V]**<br>**t [s]**<br>t1<br>~~U~~PP, Severity_1,2,3,4|Umax<br>**U [V]**<br>**t [s]**<br>t1<br>~~U~~PP, Severity_1,2,3,4|
+|**Documentation**|FSC reached status before, during and after test.|FSC reached status before, during and after test.|
+### **2.4 Slow Decrease and Increase of the Supply Voltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.5|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|A <br>(U ≥ Umin) <br>C <br>(U < Umin)|A <br>(U ≥ Umin) <br>C <br>(U < Umin)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> at Umin <br> after test|before test<br> at Umin <br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umax|16 V|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|ΔU|0.5 V|
+|**Test parameters**|Time:<br>Δt<br>= <br>1 min<br>t1 <br>≥ <br>1 min<br>(Sufficient time after pulse to reach FSC A again) <br>Temperature:<br>TP <br>= <br>TRT|Time:<br>Δt<br>= <br>1 min<br>t1 <br>≥ <br>1 min<br>(Sufficient time after pulse to reach FSC A again) <br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with operation mode at TRT|
+|**Test profile**|Umin<br>Umax<br>**t [s]**<br>**U [V]**<br>0<br>Δt<br>ΔU<br>t1<br>|Umin<br>Umax<br>**t [s]**<br>**U [V]**<br>0<br>Δt<br>ΔU<br>t1<br>|
+|**Documentation**|<br>It must be documented:_(1)_ at which voltage level the component leaves<br>FSC A to FSC C,_(2)_ voltage level when the CAN Communication is loss<br>ramp down and_(3)_ voltage level when CAN Communication comes back<br>ramp up|<br>It must be documented:_(1)_ at which voltage level the component leaves<br>FSC A to FSC C,_(2)_ voltage level when the CAN Communication is loss<br>ramp down and_(3)_ voltage level when CAN Communication comes back<br>ramp up|
+### **2.5 Reset behavior at voltage drop**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.2|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|A <br>(at Umin) <br>C <br>(below Umin)|A <br>(at Umin) <br>C <br>(below Umin)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1)|Supply + (Pin 1)|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|<br>before test<br> <br>at Umin <br> <br>after test|<br>before test<br> <br>at Umin <br> <br>after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umin|10.8 V|
+|**Test parameters**|ΔU (5% of Umin)|0.54 V|
+|**Test parameters**|Time:<br>tr / tf <br>≤ <br>10 ms<br>t1 <br>= <br>5 s<br>t2 <br>≥ <br>10 s<br>(Sufficient time after pulse to reach FSC A again)|Time:<br>tr / tf <br>≤ <br>10 ms<br>t1 <br>= <br>5 s<br>t2 <br>≥ <br>10 s<br>(Sufficient time after pulse to reach FSC A again)|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with operation mode|
+|**Test profile**|100<br>**U [V - %]**<br>0<br>t2<br>**t [s]**<br>Umin<br>90<br>80<br>70<br>60<br>50<br>40<br>30<br>20<br>10<br>t1<br>|100<br>**U [V - %]**<br>0<br>t2<br>**t [s]**<br>Umin<br>90<br>80<br>70<br>60<br>50<br>40<br>30<br>20<br>10<br>t1<br>|
+|**Documentation**|Voltage level at which the component leaves FSC A for the first time|Voltage level at which the component leaves FSC A for the first time|
+### **2.6 Starting Profile**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.3|Col3|Col4|Col5|Col6|Col7|
+|**Deviations**|-|-|-|-|-|-|
+|**Test samples**|2|2|2|2|2|2|
+|**FSC**|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|**Pulse I:** B<br>**Pulse II, III and IV:** C|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|2.c|2.c|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|See Figure 1|See Figure 1|See Figure 1|See Figure 1|
+|**Functional check**|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|<br>before test<br> <br>after test|
+|**Test parameters**|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|Voltage (V)|
+|**Test parameters**||**Pulse I**|**Pulse I**|**Pulse II**|**Pulse III**|**Pulse IV**|
+|**Test parameters**|US|9.5|9.5|6.5|5|6.5|
+|**Test parameters**|UA|12|12|12|12|12|
+|**Test parameters**|US6|8|8|4.5|3|6|
+|**Test parameters**|UR|2|2|2|2|2|
+|**Test parameters**|Time (ms)|Time (ms)|Time (ms)|Time (ms)|Time (ms)|Time (ms)|
+|**Test parameters**|tf|5|5|5|5|5|
+|**Test parameters**|t6|15|15|15|15|15|
+|**Test parameters**|t7|50|50|50|50|50|
+|**Test parameters**|t8|1000|1000|10000|1000|10000|
+|**Test parameters**|tr|40|40|100|100|100|
+|**Test parameters**|tbreak|2000|2000|2000|2000|2000|
+|**Test parameters**|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|Frequency:<br>a <br>= <br>2 Hz<br>Temperature:<br>TP <br>= <br>TRT|
+|**Run definition**|**Run**|**Run**|**Description**|**Description**|**Description**|**Description**|
+|**Run definition**|1st Run|1st Run|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|10 cycles for Pulse I at TRT|
+|**Run definition**|2nd Run|2nd Run|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|10 cycles for Pulse II at TRT|
+|**Run definition**|3rd Run|3rd Run|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|10 cycles for Pulse III at TRT|
+|**Run definition**|4th Run|4th Run|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|10 cycles for Pulse IV at TRT|
+|Col1|a|Col3|Col4|Col5|Col6|Col7|
+||a|a|a||||
+|Test profile|U [V]<br>U<br>A<br>a<br>U<br>U R<br>S<br>U<br>S6<br>t [s]<br>t t t t t<br>f 6 7 8 r|
+|**Documentation**|FSC reached status before, during and after test.|
+### **2.7 Load Dump with Centralized Load Dump Suppression**
+|Col1|Col2|Col3|
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.6.4.2.3|Col3|
+|**Deviations**|Load Dump test without centralized protection is not feasible because at<br>these conditions the test will damaged all DUT´s. (Clamping voltages<br>possible under 60 V)|Load Dump test without centralized protection is not feasible because at<br>these conditions the test will damaged all DUT´s. (Clamping voltages<br>possible under 60 V)|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during pulse** <br>**A** <br>**after each pulse and test** <br>mandatory|**C** <br>**during pulse** <br>**A** <br>**after each pulse and test** <br>mandatory|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|Supply + (Pin 1) – as closed as possible to DUT.|Supply + (Pin 1) – as closed as possible to DUT.|
+|**Test setup**|See Figure 1|See Figure 1|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**||**Value**|
+|**Test parameters**|UA [V]|14|
+|**Test parameters**|US [V]|100|
+|**Test parameters**|US* [V]|35|
+|**Test parameters**|td [ms]|400|
+|**Test parameters**|tr [ms]|5|
+|**Test parameters**|tbreak [s]|≥ 60 (Sufficient time after pulse to reach FSC A again)|
+|**Test parameters**|Ri [Ω]|1|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique Run|5 pulses of a Load Dump pulse|
+|**Test profile**|US<br>tn<br>**t [s]**<br>**U [V]**<br>0,9(US-UA) + UA<br>0,1(US-UA) + UA<br>UA<br>0<br>td<br>tr<br> US*<br>|US<br>tn<br>**t [s]**<br>**U [V]**<br>0,9(US-UA) + UA<br>0,1(US-UA) + UA<br>UA<br>0<br>td<br>tr<br> US*<br>|
+|**Documentation**|<br>`-` Oscilloscope plot showing FSC at Umax <br>`-` FSC reached status before, during and after test.|<br>`-` Oscilloscope plot showing FSC at Umax <br>`-` FSC reached status before, during and after test.|
+### **2.8 Reverse Voltage**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.7|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|**C** <br>**during** test<br>**A** <br>**after** test mandatory|**C** <br>**during** test<br>**A** <br>**after** test mandatory|
+|**Monitoring**|_During Test:_ Oscilloscope and Digital Multimeter<br>_Before and After Test:_ NOx Checkbox (See Ch. 1.9)|_During Test:_ Oscilloscope and Digital Multimeter<br>_Before and After Test:_ NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|S.P.|S.P.|
+|**Applied to**|Supply + and GND|Supply + and GND|
+|**Test setup**|Use generic test setup (Figure 1) with the following adaptation:<br>Oszi<br>Ch.**A** Ch.**B**<br>Ch.**C** Ch.**D**<br>Test Voltage<br>Monitoring<br>**Reverse Polarity**<br>**Supply**<br>**Conn.**<br>**Conn.**<br>Supply +<br>**Autowave / Test**<br>**profiler**<br>To DUT<br>CAN_L<br>CAN_H<br>GND<br>A<br>Leakage current<br>measurement<br>Bank Detection<br>|Use generic test setup (Figure 1) with the following adaptation:<br>Oszi<br>Ch.**A** Ch.**B**<br>Ch.**C** Ch.**D**<br>Test Voltage<br>Monitoring<br>**Reverse Polarity**<br>**Supply**<br>**Conn.**<br>**Conn.**<br>Supply +<br>**Autowave / Test**<br>**profiler**<br>To DUT<br>CAN_L<br>CAN_H<br>GND<br>A<br>Leakage current<br>measurement<br>Bank Detection<br>|
+|**Functional check**|before test<br> after test|before test<br> after test|
+|**Test parameters**|**Voltage**|**Value**|
+|**Test parameters**|Umax|0 V|
+|**Test parameters**|Umin|-14 V|
+|**Test parameters**|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>60 s<br>Internal Resistance of Supply:<br>Ri <br>< <br>100 mΩ|Time:<br>tr / tf <br>= <br>9.5 ms<br>t1 <br>= <br>60 s<br>Internal Resistance of Supply:<br>Ri <br>< <br>100 mΩ|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|Unique|1 cycle with Umin at TRT|
+|**Test profile**|**t [s]**<br>**U [V]**<br>Umin<br>t1<br>tr<br>tf<br>Umax<br>|**t [s]**<br>**U [V]**<br>Umin<br>t1<br>tr<br>tf<br>Umax<br>|
+|**Documentation**|<br>`-` Test Setup with Adaption (Picture)<br>`-` Min., Max. and Average Leakage Current Measurement Values|<br>`-` Test Setup with Adaption (Picture)<br>`-` Min., Max. and Average Leakage Current Measurement Values|
+### **2.9 Short Circuit Protection – Signal circuits**
+|Reference|ISO 16750 – 2 (Doc. A), Ch. 4.10.2|Col3|
+|**Deviations**|-|-|
+|**Test samples**|2|2|
+|**FSC**|C <br>(for inputs and outputs)|C <br>(for inputs and outputs)|
+|**Monitoring**|NOx Checkbox (See Ch. 1.9)|NOx Checkbox (See Ch. 1.9)|
+|**Operation mode**|2.c|2.c|
+|**Applied to**|See Chapter 3.2|See Chapter 3.2|
+|**Test setup**|Use generic test setup (Figure 1) with the following adaptation:<br>Wiring Harness<br>To DUT<br>Pin to Test<br>To NOx<br>Checkbox<br>Supply +<br>GND<br>|Use generic test setup (Figure 1) with the following adaptation:<br>Wiring Harness<br>To DUT<br>Pin to Test<br>To NOx<br>Checkbox<br>Supply +<br>GND<br>|
+|**Functional check**|<br> <br>before test<br> <br>after test|<br> <br>before test<br> <br>after test|
+|**Test parameters**|Voltage:<br>USmin <br>= <br>10.8 V<br>USmax <br>= <br>16 V<br>Time per pin:<br>tp <br>= <br>60 s|Voltage:<br>USmin <br>= <br>10.8 V<br>USmax <br>= <br>16 V<br>Time per pin:<br>tp <br>= <br>60 s|
+|**Run definition**|**Run**|**Description**|
+|**Run definition**|General|Perform a short circuit test in pins according table in<br>_chapter 3.2_|
+|**Documentation**|`-` Test Setup with Adaption (Picture)|`-` Test Setup with Adaption (Picture)|
+# **3 ANNEX**
+### **3.1 DUT Connector and Pin out description**
+The tables below show the pin-out directly on the PCB. The customer connector´s pin-out itself will
+depend on the type of connector used, and it shall be defined for the Lab Test Order prior to
+qualification tests.
+**3.1.1 UG Pinning Configuration**
+|Pin<br>Number|Description|Voltage<br>(V)|Current<br>(A)|Comments|
+|1|UBatt(Typical)|See Ch. 1.5|See Ch. 1.5|Supply line|
+|2|GND|GND|GND|Supply line|
+|3|CAN_L|2.5 V / 0 V|N.A.|CAN Communication line|
+|4|CAN_H|2.5 V / 5 V|N.A.|CAN Communication line|
+|5|Bank Detection|GND / Open|N.A.|Bank detection - Optional|
+**3.1.2 UC Pinning Configuration**
+|Pin<br>Number|Description|Voltage<br>(V)|Current<br>(A)|Comments|
+|1|UBatt(Typical)|See Ch. 1.5|See Ch. 1.5|Supply line|
+|2|CAN_H|2.5 V / 5 V|N.A.|CAN Communication line|
+|3|CAN_L|2.5 V / 0 V|N.A.|CAN Communication line|
+|4|GND|See Ch. 1.5|See Ch. 1.5|Supply line|
+|5|Bank Detection|GND / Open|N.A.|Bank detection - Optional|
+### **3.2 Short circuit table**
+The tables below show the short circuit test pinning distribution depending on the customer connector
+type used for the qualification DUT´s. It shall be defined for the Lab Test Order prior to qualification
+tests.
+**3.2.1 UG Pinning Configuration**
+|Pin-Nr.|Signal description|Pin / Signal Type|12 V Systems<br>with DUT supplied at<br>U and U<br>Smin Smax|Col5|Remarks|
+|**Pin-Nr.**|**Signal description**|**Pin / Signal Type**|**SCB**|**SCG**|**SCG**|
+|1|UBatt|Supply|-|-|-|
+|2|GND|Supply|-|-|-|
+|3|CAN_L|I / O|X|X|FSC C|
+|4|CAN_H|I / O|X|X|FSC C|
+|5|Bank Detection|I|X|X|FSC C - Optional|
+**3.2.2 UC Pinning Configuration**
+|Pin-Nr.|Signal description|Pin / Signal Type|12 V Systems<br>with DUT supplied at<br>U and U<br>Smin Smax|Col5|Remarks|
+|**Pin-Nr.**|**Signal description**|**Pin / Signal Type**|**SCB**|**SCG**|**SCG**|
+|1|UBatt|Supply|-|-|-|
+|2|CAN_H|I / O|X|X|FSC C|
+|3|CAN_L|I / O|X|X|FSC C|
+|4|GND|Supply|-|-|-|
+|5|Bank Detection|I|X|X|FSC C - Optional|
+**Remarks:** SCB = Short circuit to battery; SCG = Short circuit to ground
+End of the document
+S-list file: 88033919_FIL_000_AA.pdf Last action date: 19/10/2023 09:35:18
+Status: APPROVED Duration: 0
+Group: VTL TSR Category: VTL TSR EMC
+Sensitive information: No
+Retention time: 2 years
+Explanation:
+Initiator department: QL LAB EMC/ET TSR Initiator login name: vt1\uiv06706
+Signer Function Set type/name Decision S-list comments
+Neiconi Andrei-Ovidiu (QL LAB Individual signer Accept
+EMC/ET TSR) 19/10/2023 09:04:39
+Li Bo (P CE EE CN 3) Individual signer Accept
+vt1\uidk5145- 19/10/2023 09:29:53
+Niebergall Franziska (P SC EES Individual signer Accept
+CPM CC3) 19/10/2023 09:35:18
+om",TEST,HIGH,,,,,,,,

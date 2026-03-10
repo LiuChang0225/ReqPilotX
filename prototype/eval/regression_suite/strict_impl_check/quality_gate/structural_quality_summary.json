@@ -1,0 +1,14 @@
+{
+  "pdf_dir": "/private/tmp/strict_reg_pack",
+  "docs": 3,
+  "checks_passed": 23,
+  "checks_total": 26,
+  "gate_score_pct": 88.46,
+  "high_severity_issues": 7,
+  "gate_pass": false,
+  "gate_failure_reasons": [
+    "gate_score_pct=88.46 < 95.00",
+    "high_severity_issues=7 > 0"
+  ],
+  "split_metric_confidence": null
+}

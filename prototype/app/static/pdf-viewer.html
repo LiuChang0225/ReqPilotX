@@ -1,0 +1,37 @@
+<!doctype html>
+<html lang="zh-CN">
+  <head>
+    <meta charset="UTF-8" />
+    <meta name="viewport" content="width=device-width, initial-scale=1.0" />
+    <title>PDF Viewer</title>
+    <link rel="stylesheet" href="/assets/pdf-viewer.css?v=20260304-1" />
+  </head>
+  <body>
+    <main class="pdf-viewer-page">
+      <header class="toolbar">
+        <div class="meta">
+          <span id="status-text">加载中...</span>
+          <span id="page-text">- / -</span>
+        </div>
+        <div class="actions">
+          <button id="prev-page" type="button" aria-label="上一页">‹</button>
+          <button id="next-page" type="button" aria-label="下一页">›</button>
+          <button id="zoom-out" type="button">-</button>
+          <button id="zoom-in" type="button">+</button>
+        </div>
+      </header>
+
+      <section id="error-box" class="error-box hidden" aria-live="assertive">
+        <p id="error-text">PDF 加载失败。</p>
+        <a id="open-link" href="#" target="_blank" rel="noopener noreferrer">新窗口打开原文</a>
+      </section>
+
+      <section id="canvas-wrap" class="canvas-wrap">
+        <canvas id="pdf-canvas"></canvas>
+      </section>
+    </main>
+
+    <script src="/assets/vendor/pdfjs/pdf.min.js"></script>
+    <script type="module" src="/assets/pdf-viewer.js?v=20260304-1"></script>
+  </body>
+</html>

@@ -1,0 +1,3 @@
+pdf_name,profile,issue_type,severity,appendix_scope,section_code,detail
+产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,section_count_drift,medium,,,sections=91 expected=48 drift=43
+产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,requirement_count_drift,medium,,,requirements=84 expected=43 drift=41

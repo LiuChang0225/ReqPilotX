@@ -1,0 +1,8 @@
+pdf_name,profile,issue_type,severity,appendix_scope,section_code,detail
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,q_jly_core,section_consistency_issue_limit,medium,,,consistency_issues=4 max=3
+Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,q_jly_core,required_code_missing,high,,4.6.7,required scoped code missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,section_count_too_low,high,,,sections=208 min=230
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,requirement_count_too_low,high,,,requirements=165 min=180
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,section_count_drift,medium,,,sections=208 expected=278 drift=70
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,requirement_count_drift,medium,,,requirements=165 expected=219 drift=54
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,section_consistency_issue_limit,medium,,,consistency_issues=9 max=1

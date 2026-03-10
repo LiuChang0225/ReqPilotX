@@ -1,0 +1,144 @@
+{
+  "project_name": "SOR Requirement Extraction Program",
+  "north_star": "Complete all P0/P1 items while sustaining chapter-level split accuracy and parser robustness on text PDFs.",
+  "updated_at": "2026-02-24T15:23:51",
+  "plan": [
+    {
+      "id": "p0-01-section-block-mode",
+      "title": "P0-01 章节完整提取模式",
+      "owner": "AI + Engineer",
+      "status": "DONE",
+      "progress_pct": 100,
+      "target_date": "",
+      "notes": "默认章节完整块提取已落地，弱标题场景优先块级回退。"
+    },
+    {
+      "id": "p0-02-section-consistency-check",
+      "title": "P0-02 章节树一致性校验器",
+      "owner": "AI",
+      "status": "DONE",
+      "progress_pct": 100,
+      "target_date": "",
+      "notes": "章节一致性校验器已接入 API 与审阅台可视化。"
+    },
+    {
+      "id": "p0-03-table-safe-parse",
+      "title": "P0-03 表格安全解析",
+      "owner": "AI",
+      "status": "DONE",
+      "progress_pct": 100,
+      "target_date": "",
+      "notes": "12.5/6.3 等表格数值误识别已回归修复。"
+    },
+    {
+      "id": "p0-04-cross-page-heading-merge",
+      "title": "P0-04 跨页标题合并",
+      "owner": "AI",
+      "status": "DONE",
+      "progress_pct": 100,
+      "target_date": "",
+      "notes": "跨页 code-only + next-title 合并稳定，Q-JLY 回归通过。"
+    },
+    {
+      "id": "p0-05-noise-removal-2",
+      "title": "P0-05 去噪强化 2.0",
+      "owner": "AI + Engineer",
+      "status": "DONE",
+      "progress_pct": 100,
+      "target_date": "",
+      "notes": "去噪 2.0 完成：行内水印碎片清洗后，文字类样本水印混入命中为 0。"
+    },
+    {
+      "id": "p1-01-round-diff-review",
+      "title": "P1-01 迭代差异审阅",
+      "owner": "AI",
+      "status": "DONE",
+      "progress_pct": 100,
+      "target_date": "",
+      "notes": "支持 rN vs rN+1 文档/章节/条目差异审阅。"
+    },
+    {
+      "id": "p1-02-error-closure-panel",
+      "title": "P1-02 错误闭环面板",
+      "owner": "AI",
+      "status": "DONE",
+      "progress_pct": 100,
+      "target_date": "",
+      "notes": "错误标签聚合和建议动作面板已上线。"
+    },
+    {
+      "id": "p1-03-high-risk-queue",
+      "title": "P1-03 高风险样本队列",
+      "owner": "AI",
+      "status": "DONE",
+      "progress_pct": 100,
+      "target_date": "",
+      "notes": "高风险样本队列已接入看板并可按轮次查看。"
+    },
+    {
+      "id": "p1-04-decision-template",
+      "title": "P1-04 需求判定模板化",
+      "owner": "AI + Engineer",
+      "status": "DONE",
+      "progress_pct": 100,
+      "target_date": "",
+      "notes": "主控台支持批量判定模板与过滤执行。"
+    },
+    {
+      "id": "p1-05-evidence-trace",
+      "title": "P1-05 证据可追溯展示",
+      "owner": "AI",
+      "status": "DONE",
+      "progress_pct": 100,
+      "target_date": "",
+      "notes": "主控台证据链展示升级为多证据可追溯视图。"
+    },
+    {
+      "id": "p1-06-versioned-export",
+      "title": "P1-06 版本化导出",
+      "owner": "AI",
+      "status": "DONE",
+      "progress_pct": 100,
+      "target_date": "",
+      "notes": "支持版本标识、对比导出与差异sheet。"
+    }
+  ],
+  "events": [
+    {
+      "id": "evt-20260224-p0p1-closed",
+      "time": "2026-02-24T15:23:51",
+      "category": "quality",
+      "status": "DONE",
+      "title": "P0/P1 全部收口完成",
+      "detail": "P0-05 去噪强化完成并通过文字类样本回归；P0/P1 全部任务状态已更新为 DONE。",
+      "source": "manual"
+    },
+    {
+      "id": "evt-20260224-p0p1-implement-v1",
+      "time": "2026-02-24T14:44:59",
+      "category": "review",
+      "status": "DONE",
+      "title": "P0/P1 功能实现 v1 完成并可运行",
+      "detail": "已落地 P0 主链路与 P1 最小功能闭环（差异审阅/错误闭环/高风险队列/批量判定/证据追溯/版本导出），待继续扩大样本回归。",
+      "source": "manual"
+    },
+    {
+      "id": "evt-20260224-p0p1-plan",
+      "time": "2026-02-24T14:13:10",
+      "category": "review",
+      "status": "DONE",
+      "title": "P0/P1 执行清单已冻结",
+      "detail": "已记录完整 P0/P1 任务并同步到进度看板，后续按顺序逐步实施。",
+      "source": "manual"
+    },
+    {
+      "id": "evt-bootstrap",
+      "time": "2026-02-24T12:50:06",
+      "category": "note",
+      "status": "INFO",
+      "title": "Progress tracker initialized",
+      "detail": "Auto timeline from phase0 iteration board is enabled.",
+      "source": "manual"
+    }
+  ]
+}
