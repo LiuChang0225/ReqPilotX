@@ -1,5 +1,9 @@
 # SOR 智能合规分析平台 数据库与 API 设计 v1
 
+> 说明：本文是早期 `v1` 设计稿，部分内容与当前实现已经不同。  
+> 当前代码实际采用 `FastAPI + SQLite + 文件资产存储`，并已引入 `workspace`、preview cache、table assets、locked export 等机制。  
+> 最新实现态请优先参考：`/Users/liuchang/Documents/New project/docs/项目.md`
+
 ## 1. 设计原则
 - 先保证可追溯，再追求自动化率。
 - AI 结果与人工结果必须分层存储，不互相覆盖。
