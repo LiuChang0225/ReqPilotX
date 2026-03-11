@@ -3,6 +3,8 @@
 面向汽车行业 SOR（Statement of Requirements）的需求分析平台。  
 目标是把工程师从大量低增值“拆解/抄录”工作中解放出来，让团队把精力集中在真正增值的技术判断与客户沟通上。
 
+当前实现态、系统架构图、优化计划与并行开发分支说明见：`/Users/liuchang/Documents/New project/docs/项目.md`
+
 ---
 
 ## 1. 产品定位（宣讲版）
@@ -121,6 +123,8 @@
 - 解析层：`app/services/parser.py`
 - 拆解层：`app/services/extractor.py`
 - 预览聚合：`app/services/extraction_preview.py`
+- 预览缓存：`app/services/preview_cache.py`
+- 表格资产：`app/services/table_assets.py`
 - 检索：`app/services/rag.py`
 - 判定：`app/services/assessor.py`
 - 导出：`app/services/exporter.py`
@@ -252,7 +256,7 @@ PYTHONPATH=. .venv/bin/python scripts/fidelity_benchmark.py \
 - DB：SQLite
 - Frontend：原生 HTML/CSS/JavaScript
 - Parser：pypdf / pdfplumber / pymupdf / pymupdf4llm
-- Export：openpyxl
+- Export：xlsxwriter + Pillow
 
 ---
 
