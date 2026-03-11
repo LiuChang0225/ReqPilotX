@@ -164,20 +164,23 @@ python3 -m venv .venv
 
 ## 8. 迭代与评测主命令
 
-### 8.1 准备 Phase0 数据
+## 8.1 Git 协作约定
+- 项目级 Git / GitHub / Codex 多窗口协作规范见：`/Users/liuchang/Documents/New project/docs/codex-git-workflow.md`
+
+### 8.2 准备 Phase0 数据
 ```bash
 PYTHONPATH=. .venv/bin/python scripts/phase0_prepare.py "/Users/liuchang/Downloads/Test pdf" \
   --target-pages 100 \
   --out-dir eval/phase0
 ```
 
-### 8.2 生成基线报告
+### 8.3 生成基线报告
 ```bash
 PYTHONPATH=. .venv/bin/python scripts/phase0_baseline_report.py \
   --phase0-dir eval/phase0
 ```
 
-### 8.3 运行一轮迭代（建议文字类先行）
+### 8.4 运行一轮迭代（建议文字类先行）
 ```bash
 PYTHONPATH=. .venv/bin/python scripts/phase0_iteration_round.py \
   "/Users/liuchang/Downloads/Test pdf" \
@@ -188,7 +191,7 @@ PYTHONPATH=. .venv/bin/python scripts/phase0_iteration_round.py \
   --exclude-name-regex "PRINT_21033420"
 ```
 
-### 8.4 指定文档做章节回归
+### 8.5 指定文档做章节回归
 ```bash
 PYTHONPATH=. .venv/bin/python scripts/section_split_regression.py \
   "/Users/liuchang/Downloads/Test pdf/Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf" \
@@ -196,7 +199,7 @@ PYTHONPATH=. .venv/bin/python scripts/section_split_regression.py \
   --csv-out eval/iterations/r33_text_only/section_split_regression.csv
 ```
 
-### 8.5 运行保真回归（推荐，替代旧人工标注依赖）
+### 8.6 运行保真回归（推荐，替代旧人工标注依赖）
 ```bash
 PYTHONPATH=. .venv/bin/python scripts/fidelity_benchmark.py \
   "/Users/liuchang/Downloads/Test pdf" \
@@ -211,7 +214,7 @@ PYTHONPATH=. .venv/bin/python scripts/fidelity_benchmark.py \
 - `eval/fidelity/latest/fidelity_summary.json`
 - `eval/fidelity/latest/fidelity_summary.md`
 
-### 8.6 一键回归套件（质量门禁 + 保真回归）
+### 8.7 一键回归套件（质量门禁 + 保真回归）
 ```bash
 ./run_regression.sh "/Users/liuchang/Downloads/Test pdf"
 ```
@@ -255,17 +258,21 @@ PYTHONPATH=. .venv/bin/python scripts/fidelity_benchmark.py \
 
 ## 10. 下一阶段目标（Roadmap）
 
-### P0（当前）
-- 继续把“章节/子章节完整提取”稳定在高准确区间。
-- 持续压制水印碎片污染。
+### P0（当前主线）
+- `codex/table-assets-mainline`
+  - 表格资产化主线：截图优先、Web/Excel 同源展示、`table_asset / table_ref`
+- `codex/workspace-stabilization`
+  - 统一工作台稳定性、性能、虚拟滚动、锁定/导出链路一致性
 
 ### P1
-- 引入更强 OCR 管线，系统支持扫描件质量提升。
-- 质量门禁分档（按文档类型/项目类型差异化阈值）。
+- `codex/ai-slice-integration`
+  - AI 输入切换到 `slice_ai_projection + requirement 正文 + section context`
+- 质量门禁分档（按文档类型/项目类型差异化阈值）
 
 ### P2
-- 检索升级为向量检索 + reranker。
-- 判定升级为 LLM 驱动，并保持可追溯审计。
+- 引入更强 OCR 管线，系统支持扫描件质量提升
+- 检索升级为向量检索 + reranker
+- 判定升级为 LLM 驱动，并保持可追溯审计
 
 ---
 
