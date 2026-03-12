@@ -228,6 +228,44 @@ git status -sb
 - 工作台稳定性和性能只进 `codex/workspace-stabilization`
 - 提交前至少做对应范围的最小验证
 
+## 8.1 Context Sync 门禁
+
+仓库内现在要求：
+
+- 当 staged 里有代码或核心项目文档变更时
+- 必须同时更新至少一个滚动上下文文件
+
+检查脚本：
+
+`/Users/liuchang/Documents/New project/scripts/check_context_sync.py`
+
+安装本地 pre-commit hook：
+
+```bash
+cd "/Users/liuchang/Documents/New project"
+./scripts/install-context-hook.sh
+```
+
+默认触发范围：
+
+- `prototype/app/`
+- `prototype/tests/`
+- `prototype/scripts/`
+- `prototype/README.md`
+- `docs/项目.md`
+- `docs/codex-git-workflow.md`
+- `AGENTS.md`
+
+满足以上任一改动时，必须同时更新至少一个：
+
+- `docs/active-context.md`
+- `prototype/docs/*active-context.md`
+
+目的：
+
+- 新窗口/新线程不依赖长对话历史
+- 重要状态变化总能在仓库内找到最新滚动上下文
+
 ## 9. 最小实践模板
 
 一个新任务，从开始到结束可以按这个顺序执行：
