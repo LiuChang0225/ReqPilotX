@@ -30,11 +30,19 @@ MEASUREMENT_HINT_RE = re.compile(
 )
 QUANTITY_TITLE_START_RE = re.compile(r"^\s*(?:个|次|条|组|轮|小时|分钟|秒)(?:\b|[，,;；。\.、:：\s]|$)")
 HEADING_KEYWORD_RE = re.compile(
-    r"(?:chapter|section|scope|terms?|definition|requirement|test|procedure|spec|标准|规范|术语|定义|范围|要求|试验|测试)",
+    r"(?:chapter|section|scope|terms?|definition|requirement|test|procedure|spec|lifecycle|phase|development|production|maintenance|support|标准|规范|术语|定义|范围|要求|试验|测试|阶段|生命周期|开发|生产|维护|支持)",
     re.I,
 )
 STRONG_MAJOR_HEADING_KEYWORD_RE = re.compile(
-    r"(?:chapter|section|scope|requirement|standard|appendix|annex|概述|范围|要求|标准|规范|术语|定义|总则|附录|附件)",
+    r"(?:chapter|section|scope|requirement|standard|appendix|annex|lifecycle|phase|development|production|maintenance|support|概述|范围|要求|标准|规范|术语|定义|总则|附录|附件|阶段|生命周期|开发|生产|维护|支持)",
+    re.I,
+)
+ATTACHMENT_TITLE_HINT_RE = re.compile(
+    r"(?:附件目录|软件开发|FMEA|特殊特性|技术要求|网络安全|数据安全|密码算法|保密|RASIC|OTA|诊断|协议|规范|要求|安全)",
+    re.I,
+)
+EMBEDDED_ATTACHMENT_TITLE_RE = re.compile(
+    r"^\s*(附件\s*\d+\s*[-—–]{1,2}\s*[A-Za-z\u4e00-\u9fff].{0,80})\s*$",
     re.I,
 )
 TABLE_VALUE_TITLE_RE = re.compile(
@@ -198,6 +206,8 @@ def extract_atomic_requirements(segments: list[dict[str, Any]]) -> list[dict[str
                     source_anchor = f"{source_anchor} | Section {section_code} {section_title}"
                 else:
                     source_anchor = f"{source_anchor} | Section {section_code}"
+            elif section_title:
+                source_anchor = f"{source_anchor} | Heading {section_title}"
 
             requirements.append(
                 {
@@ -431,11 +441,14 @@ def _build_line_entries(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
         source_page = seg.get("source_page")
         source_anchor = seg.get("source_anchor") or "Unknown"
         table_count = int(seg.get("table_count", 0) or 0)
-        source_line_index = 0
-        for raw_line in str(seg.get("text", "")).splitlines():
+        prepared_lines: list[tuple[int, str]] = []
+        for source_line_index, raw_line in enumerate(str(seg.get("text", "")).splitlines()):
             line = _normalize_line(raw_line)
             if not line or _is_line_noise(line):
                 continue
+            prepared_lines.append((source_line_index, line))
+        prepared_lines = _drop_redundant_table_bridge_line_pairs(prepared_lines)
+        for source_line_index, line in prepared_lines:
             if "|" in line:
                 for heading_candidate in _extract_table_heading_candidates(line):
                     entries.append(
@@ -459,7 +472,6 @@ def _build_line_entries(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
                     "global_line_index": global_line_index,
                 }
             )
-            source_line_index += 1
             global_line_index += 1
     return entries
 
@@ -478,6 +490,8 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
     discovery_counter = 0
     serial_table_mode_until = -1
     in_test_outline_zone = False
+    synthetic_scope_counter = 0
+    main_max_top_level_seen = 0
     while idx < len(line_entries):
         entry = line_entries[idx]
         line = entry["text"]
@@ -528,7 +542,97 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
         last_section_page = last_section_page_by_scope.get(current_scope)
         last_section_table_count = last_section_table_count_by_scope.get(current_scope, 0)
         header = _parse_section_header(line)
+        title_only_heading = _extract_title_only_heading_candidate(line)
+        embedded_attachment_title = _extract_embedded_attachment_title_candidate(line)
         consumed_following = 0
+
+        if (
+            title_only_heading
+            and isinstance(entry.get("source_page"), int)
+            and isinstance(entry.get("source_line_index"), int)
+            and int(entry.get("source_line_index") or 0) <= 1
+            and current is not None
+            and int(entry.get("source_page") or 0) > int(current.get("source_page_end") or current.get("source_page") or 0)
+        ):
+            current_title = str(current.get("section_title") or "").strip()
+            if (not current_scope and current_title == "附件目录") or current_scope:
+                if current and current.get("entries"):
+                    blocks.append(current)
+                if not current_scope:
+                    synthetic_scope_counter += 1
+                    current_scope = f"SUB{synthetic_scope_counter}"
+                current = {
+                    "appendix_scope": current_scope,
+                    "section_code": "",
+                    "section_title": title_only_heading,
+                    "section_level": 0,
+                    "_discovery_order": discovery_counter,
+                    "source_page": entry["source_page"],
+                    "source_page_end": entry["source_page"],
+                    "source_line_index": entry.get("source_line_index"),
+                    "source_line_index_end": entry.get("source_line_index"),
+                    "source_anchor": entry["source_anchor"],
+                    "entries": [entry],
+                }
+                discovery_counter += 1
+                idx += 1
+                continue
+
+        if embedded_attachment_title and current_scope:
+            carried_entries: list[dict[str, Any]] = []
+            candidate_page = _safe_int(entry.get("source_page"))
+            candidate_line_index = _safe_int(entry.get("source_line_index"))
+            if current is not None:
+                carried_entries = _pull_embedded_attachment_preface_entries(
+                    current=current,
+                    candidate_page=candidate_page,
+                    candidate_line_index=candidate_line_index,
+                )
+                if current.get("entries"):
+                    _refresh_block_page_span(current)
+                    blocks.append(current)
+            current = {
+                "appendix_scope": current_scope,
+                "section_code": "",
+                "section_title": embedded_attachment_title,
+                "section_level": 0,
+                "_discovery_order": discovery_counter,
+                "source_page": entry["source_page"],
+                "source_page_end": entry["source_page"],
+                "source_line_index": carried_entries[0].get("source_line_index") if carried_entries else entry.get("source_line_index"),
+                "source_line_index_end": entry.get("source_line_index"),
+                "source_anchor": entry["source_anchor"],
+                "entries": carried_entries + [entry],
+            }
+            discovery_counter += 1
+            idx += 1
+            continue
+
+        standalone_table_title = _extract_standalone_table_page_title_candidate(
+            line_entries,
+            idx,
+            current=current,
+            appendix_scope=current_scope,
+        )
+        if standalone_table_title:
+            if current and current.get("entries"):
+                blocks.append(current)
+            current = {
+                "appendix_scope": current_scope,
+                "section_code": "",
+                "section_title": standalone_table_title,
+                "section_level": 0,
+                "_discovery_order": discovery_counter,
+                "source_page": entry["source_page"],
+                "source_page_end": entry["source_page"],
+                "source_line_index": entry.get("source_line_index"),
+                "source_line_index_end": entry.get("source_line_index"),
+                "source_anchor": entry["source_anchor"],
+                "entries": [entry],
+            }
+            discovery_counter += 1
+            idx += 1
+            continue
 
         # Try to recover "code only + title on next line" broken OCR headings.
         if header is None:
@@ -551,7 +655,6 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
 
         if (
             header
-            and not current_scope
             and idx <= serial_table_mode_until
             and _is_serial_table_row_candidate(line, header)
         ):
@@ -559,6 +662,15 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
         if header and in_test_outline_zone and not current_scope:
             # Once entering the PDS test-outline zone, all following main-body numeric headers
             # are usually table references (e.g., USCAR 5.1.8 / 4.3) rather than real chapter nodes.
+            header = None
+        if (
+            header
+            and current is not None
+            and not current_scope
+            and str(current.get("section_title") or "").strip() == "附件目录"
+            and _safe_int(entry.get("source_page")) == _safe_int(current.get("source_page_end") or current.get("source_page"))
+            and int(header.get("level") or 0) == 1
+        ):
             header = None
 
         if header and _should_treat_as_enumerated_clause(
@@ -568,6 +680,14 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             seen_codes=seen_section_codes_by_scope.get(current_scope, set()),
             candidate_page=entry.get("source_page"),
             previous_page=last_section_page,
+        ):
+            header = None
+
+        if header and _looks_like_attachment_reference_list_item(
+            header=header,
+            line_entries=line_entries,
+            index=idx,
+            appendix_scope=current_scope,
         ):
             header = None
 
@@ -584,6 +704,23 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             candidate_table_count=int(entry.get("table_count", 0) or 0),
         ):
             header = None
+
+        if header and _should_start_embedded_scope(
+            header=header,
+            current_scope=current_scope,
+            candidate_page=entry.get("source_page"),
+            main_max_top_level_seen=main_max_top_level_seen,
+            seen_codes=seen_section_codes_by_scope.get("", set()),
+        ):
+            if current and current.get("entries"):
+                blocks.append(current)
+                current = None
+            synthetic_scope_counter += 1
+            current_scope = f"SUB{synthetic_scope_counter}"
+            last_section_code = last_section_code_by_scope.get(current_scope, "")
+            last_section_title = last_section_title_by_scope.get(current_scope, "")
+            last_section_page = last_section_page_by_scope.get(current_scope)
+            last_section_table_count = last_section_table_count_by_scope.get(current_scope, 0)
 
         if header:
             if current and current.get("entries"):
@@ -608,6 +745,10 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             last_section_page_by_scope[current_scope] = int(src_page) if isinstance(src_page, int) else 0
             last_section_table_count_by_scope[current_scope] = int(entry.get("table_count", 0) or 0)
             seen_section_codes_by_scope.setdefault(current_scope, set()).add(str(header.get("code") or ""))
+            if not current_scope:
+                code_tuple = _parse_section_code_tuple(str(header.get("code") or ""))
+                if code_tuple:
+                    main_max_top_level_seen = max(main_max_top_level_seen, code_tuple[0])
             if consumed_following > 0:
                 idx += consumed_following
             idx += 1
@@ -639,6 +780,9 @@ def _split_block_by_bullets(block: dict[str, Any]) -> list[dict[str, Any]]:
     entries = block.get("entries", [])
     if not entries:
         return []
+    clause_splits = _split_entries_by_local_clause_headers(entries, block["source_anchor"])
+    if clause_splits:
+        return clause_splits
     # Split priority is section hierarchy; keep each section/subsection as one complete block.
     return [_shape_subblock(entries, block["source_anchor"])]
 
@@ -647,9 +791,22 @@ def _shape_subblock(entries: list[dict[str, Any]], default_anchor: str) -> dict[
     pages = [e.get("source_page") for e in entries if e.get("source_page") is not None]
     source_page = min(pages) if pages else None
     source_page_end = max(pages) if pages else source_page
-    line_indices = [e.get("source_line_index") for e in entries if isinstance(e.get("source_line_index"), int)]
-    source_line_index = min(line_indices) if line_indices else None
-    source_line_index_end = max(line_indices) if line_indices else source_line_index
+    start_line_indices = [
+        e.get("source_line_index")
+        for e in entries
+        if isinstance(e.get("source_line_index"), int) and e.get("source_page") == source_page
+    ]
+    end_line_indices = [
+        e.get("source_line_index")
+        for e in entries
+        if isinstance(e.get("source_line_index"), int) and e.get("source_page") == source_page_end
+    ]
+    if not start_line_indices:
+        start_line_indices = [e.get("source_line_index") for e in entries if isinstance(e.get("source_line_index"), int)]
+    if not end_line_indices:
+        end_line_indices = [e.get("source_line_index") for e in entries if isinstance(e.get("source_line_index"), int)]
+    source_line_index = min(start_line_indices) if start_line_indices else None
+    source_line_index_end = max(end_line_indices) if end_line_indices else source_line_index
     source_anchor = default_anchor
     for entry in entries:
         if entry.get("source_page") == source_page and entry.get("source_anchor"):
@@ -665,6 +822,172 @@ def _shape_subblock(entries: list[dict[str, Any]], default_anchor: str) -> dict[
     }
 
 
+def _split_entries_by_local_clause_headers(entries: list[dict[str, Any]], default_anchor: str) -> list[dict[str, Any]]:
+    clause_indexes: list[int] = []
+    previous_heading = ""
+    for idx, entry in enumerate(entries):
+        text = _normalize_line(str(entry.get("text") or ""))
+        heading_text = _extract_local_clause_heading_text(text)
+        if not heading_text:
+            continue
+        if not _looks_like_local_clause_header_line(text) and not _looks_like_local_clause_series_header(entries, idx):
+            continue
+        if previous_heading and _normalize_line(previous_heading) == _normalize_line(heading_text):
+            continue
+        clause_indexes.append(idx)
+        previous_heading = heading_text
+
+    if len(clause_indexes) < 2:
+        return []
+
+    chunks: list[list[dict[str, Any]]] = []
+    start = 0
+    for clause_idx in clause_indexes:
+        if clause_idx > start:
+            preface = entries[start:clause_idx]
+            if _chunk_has_substantive_content(preface):
+                chunks.append(preface)
+        start = clause_idx
+        next_clause_positions = [pos for pos in clause_indexes if pos > clause_idx]
+        end = next_clause_positions[0] if next_clause_positions else len(entries)
+        chunk = entries[start:end]
+        if _chunk_has_substantive_content(chunk):
+            chunks.append(chunk)
+        start = end
+
+    if not chunks:
+        return []
+
+    return [_shape_local_clause_subblock(chunk, default_anchor) for chunk in chunks]
+
+
+def _looks_like_local_clause_header_line(line: str) -> bool:
+    value = _normalize_line(str(line or ""))
+    if not value:
+        return False
+    clause_match = _match_local_clause_heading(value)
+    if not clause_match:
+        return False
+    code, title = clause_match
+    if not title or len(title) > 140:
+        return False
+    if re.search(r"[。！？!?]", title):
+        code_depth = str(code or "").count(".")
+        if code_depth <= 0 or len(title) > 90:
+            return False
+    if _looks_like_table_row_text(title):
+        return False
+    return True
+
+
+def _looks_like_local_clause_series_header(entries: list[dict[str, Any]], index: int) -> bool:
+    if index < 0 or index >= len(entries):
+        return False
+    clause_match = _match_local_clause_heading(str(entries[index].get("text") or ""))
+    if not clause_match:
+        return False
+    code, title = clause_match
+    if not title or len(title) > 140 or _looks_like_table_row_text(title):
+        return False
+    current_tuple = _parse_section_code_tuple(code)
+    if not current_tuple:
+        return False
+    prev_tuple = _local_clause_code_tuple(entries[index - 1]) if index > 0 else ()
+    next_tuple = _local_clause_code_tuple(entries[index + 1]) if index + 1 < len(entries) else ()
+    return _local_clause_tuples_are_adjacent(prev_tuple, current_tuple) or _local_clause_tuples_are_adjacent(current_tuple, next_tuple)
+
+
+def _match_local_clause_heading(line: str) -> tuple[str, str] | None:
+    heading_text = _extract_local_clause_heading_text(str(line or ""))
+    if not heading_text:
+        return None
+    match = re.match(r"^\s*(\d+(?:\.\d+)*)\s*[）)]\s*(.+)$", heading_text)
+    if not match:
+        return None
+    code = str(match.group(1) or "").strip()
+    title = str(match.group(2) or "").strip()
+    if not code or not title:
+        return None
+    return (code, title)
+
+
+def _local_clause_code_tuple(entry: dict[str, Any] | None) -> tuple[int, ...]:
+    if not entry:
+        return ()
+    match = _match_local_clause_heading(str(entry.get("text") or ""))
+    if not match:
+        return ()
+    return _parse_section_code_tuple(match[0])
+
+
+def _local_clause_tuples_are_adjacent(left: tuple[int, ...], right: tuple[int, ...]) -> bool:
+    if not left or not right or len(left) != len(right):
+        return False
+    if len(left) > 1 and left[:-1] != right[:-1]:
+        return False
+    return right[-1] == left[-1] + 1
+
+
+def _extract_local_clause_heading_text(line: str) -> str:
+    value = _normalize_line(str(line or ""))
+    if not value:
+        return ""
+    if _looks_like_markdown_table_row(value):
+        cells = _parse_markdown_cells(value)
+        if not cells:
+            return ""
+        if len(cells) >= 2 and all(re.fullmatch(r"col\d+", str(cell or "").strip(), re.I) for cell in cells[1:]):
+            return _extract_heading_from_placeholder_cell(str(cells[0] or ""))
+        collapsed: list[str] = []
+        for cell in cells:
+            cell_value = _normalize_line(cell)
+            if not cell_value:
+                continue
+            if collapsed and _collapse_equivalent_heading_cell(cell_value, collapsed[-1]):
+                continue
+            collapsed.append(cell_value)
+        if len(collapsed) == 1:
+            return collapsed[0]
+        return ""
+    return value
+
+
+def _extract_heading_from_placeholder_cell(value: str) -> str:
+    text = _normalize_line(str(value or ""))
+    if not text:
+        return ""
+    match = re.search(r"((?:\d+(?:\.\d+)*)\s*[）)]\s*.+)$", text)
+    if match:
+        return _normalize_line(match.group(1))
+    return ""
+
+
+def _collapse_equivalent_heading_cell(left: str, right: str) -> bool:
+    a = re.sub(r"\s+", "", str(left or ""))
+    b = re.sub(r"\s+", "", str(right or ""))
+    if not a or not b:
+        return False
+    if a in {"/", "-", "—"} or b in {"/", "-", "—"}:
+        return False
+    return a == b
+
+
+def _chunk_has_substantive_content(entries: list[dict[str, Any]]) -> bool:
+    for entry in entries:
+        text = _normalize_line(str(entry.get("text") or ""))
+        if text:
+            return True
+    return False
+
+
+def _shape_local_clause_subblock(entries: list[dict[str, Any]], default_anchor: str) -> dict[str, Any]:
+    shaped = _shape_subblock(entries, default_anchor)
+    first = _extract_local_clause_heading_text(str(entries[0].get("text") or ""))
+    if first and _looks_like_local_clause_header_line(first):
+        shaped["source_anchor"] = f"{shaped['source_anchor']} | Clause {first}"
+    return shaped
+
+
 def _parse_section_header(line: str) -> dict[str, Any] | None:
     if DOT_LEADER_RE.search(line):
         return None
@@ -674,7 +997,7 @@ def _parse_section_header(line: str) -> dict[str, Any] | None:
 
     code = (match.group(1) or "").strip()
     punct = (match.group(2) or "").strip()
-    title = (match.group(3) or "").strip()
+    title = _sanitize_section_header_title(str(match.group(3) or "").strip(), level_hint=code.count(".") + 1)
     if not code:
         return None
     if _looks_like_date_section_code(code):
@@ -736,7 +1059,11 @@ def _parse_section_header(line: str) -> dict[str, Any] | None:
         if re.search(r"[，,；;。!?！？]", title):
             return None
         if len(title) > 40 and not HEADING_KEYWORD_RE.search(title):
-            return None
+            token_count = len(re.findall(r"[A-Za-z\u4e00-\u9fff0-9]+", title))
+            if token_count > 20:
+                return None
+            if any(pattern.search(title) for pattern in MODAL_PATTERNS):
+                return None
         if re.search(r"(?:应|须|需|应当|不得|必须)", title) and len(title) > 18:
             return None
         if re.fullmatch(r"[（(][^）)]{1,20}[）)]", title):
@@ -1000,13 +1327,19 @@ def _is_serial_table_row_candidate(line: str, header: dict[str, Any]) -> bool:
     raw = str(line or "").strip()
     if level != 1 or not code or not title:
         return False
+    if _looks_like_attachment_title_phrase(title):
+        return False
+    if _looks_like_measurement_title(title) or _looks_like_component_bom_title(title):
+        return False
     if "、" in raw or ":" in raw or "：" in raw:
         return False
     if re.match(r"^\d+[（(]", raw):
         return True
     if not re.match(r"^\d+\s+", raw):
         return False
-    return len(title) <= 36
+    if re.search(r"[，,；;。!?！？]", title):
+        return False
+    return len(title) <= 40
 
 
 def _looks_like_quantity_only_title(title: str) -> bool:
@@ -1075,6 +1408,11 @@ def _extract_table_heading_candidates(line: str) -> list[str]:
             continue
         if _looks_like_table_row_text(normalized):
             continue
+        if re.search(r"\b\d+\.\s+\S+", normalized):
+            continue
+        clause_match = _match_local_clause_heading(normalized)
+        if clause_match and len(_parse_section_code_tuple(clause_match[0])) == 1:
+            continue
         if _is_line_noise(normalized):
             continue
 
@@ -1087,6 +1425,83 @@ def _extract_table_heading_candidates(line: str) -> list[str]:
             candidates.append(normalized)
 
     return candidates
+
+
+def _extract_title_only_heading_candidate(line: str) -> str:
+    value = str(line or "").strip()
+    if not value:
+        return ""
+
+    candidate = _normalize_line(value)
+    if _looks_like_markdown_table_row(candidate):
+        cells = _parse_markdown_cells(candidate)
+        meaningful: list[str] = []
+        for cell in cells:
+            cell_value = _normalize_line(cell)
+            if not cell_value or re.fullmatch(r"col\d+", cell_value, re.I):
+                continue
+            if _parse_section_header(cell_value) or _extract_appendix_scope(cell_value):
+                continue
+            meaningful.append(cell_value)
+        if len(meaningful) != 1:
+            return ""
+        candidate = meaningful[0]
+
+    if not candidate or _parse_section_header(candidate) or _extract_appendix_scope(candidate):
+        return ""
+    if _extract_section_code_hint(candidate):
+        return ""
+    if _looks_like_table_row_text(candidate):
+        return ""
+    if _is_line_noise(candidate):
+        return ""
+    if len(candidate) > 60 or re.search(r"[。！？!?；;]", candidate):
+        return ""
+    if not _looks_like_attachment_title_phrase(candidate):
+        return ""
+    return candidate
+
+
+def _looks_like_attachment_title_phrase(text: str) -> bool:
+    value = _normalize_line(str(text or ""))
+    if not value:
+        return False
+    if len(value) > 60:
+        return False
+    if re.search(r"[。！？!?；;]", value):
+        return False
+    if any(pattern.search(value) for pattern in MODAL_PATTERNS):
+        return False
+    if not ATTACHMENT_TITLE_HINT_RE.search(value):
+        return False
+    if not re.search(r"[A-Za-z\u4e00-\u9fff]", value):
+        return False
+    return True
+
+
+def _extract_embedded_attachment_title_candidate(line: str) -> str:
+    value = _normalize_line(str(line or ""))
+    if not value:
+        return ""
+    match = EMBEDDED_ATTACHMENT_TITLE_RE.match(value)
+    if not match:
+        return ""
+    candidate = _normalize_line(str(match.group(1) or ""))
+    if not candidate or not _looks_like_attachment_title_phrase(candidate):
+        return ""
+    if re.search(r"[（(]\s*\d+\s*[）)]", candidate):
+        return ""
+    return candidate
+
+
+def _sanitize_section_header_title(title: str, level_hint: int = 0) -> str:
+    value = str(title or "").strip()
+    if not value:
+        return ""
+    value = re.sub(r"[：:]\s*$", "", value).strip()
+    if level_hint == 1:
+        value = re.sub(r"\s*[（(]\s*(?:注|note)\s*[:：][^）)]*[）)]\s*$", "", value, flags=re.I).strip()
+    return value
 
 
 def _looks_like_measurement_title(title: str) -> bool:
@@ -1137,6 +1552,11 @@ def _normalize_block_text(lines: list[str]) -> str:
     # Keep line boundaries to preserve original subsection completeness.
     text = "\n".join(normalized_lines).strip()
     if len(text) < 20:
+        if len(normalized_lines) == 1 and (
+            _looks_like_local_clause_header_line(normalized_lines[0])
+            or _match_local_clause_heading(normalized_lines[0])
+        ):
+            return normalized_lines[0]
         return ""
     return text
 
@@ -1148,6 +1568,9 @@ def _compact_table_line(line: str) -> str:
     cells = [part.strip() for part in value.split("|") if part.strip()]
     if len(cells) < 2:
         return value
+    if len(cells) >= 2 and all(re.fullmatch(r"col\d+", cell, re.I) for cell in cells[1:]):
+        heading = _extract_heading_from_placeholder_pipe_row(cells[0])
+        return heading or cells[0]
 
     out_cells: list[str] = []
     seen_keys: set[str] = set()
@@ -1170,6 +1593,16 @@ def _compact_table_line(line: str) -> str:
         return value
     compact = "|" + "|".join(out_cells) + "|"
     return re.sub(r"\s+", " ", compact).strip()
+
+
+def _extract_heading_from_placeholder_pipe_row(value: str) -> str:
+    text = _normalize_line(str(value or ""))
+    if not text:
+        return ""
+    match = re.search(r"((?:\d+(?:\.\d+)*)\s*[）)]\s*.+)$", text)
+    if match:
+        return _normalize_line(match.group(1))
+    return text
 
 
 def _cell_is_near_duplicate(cell: str, existing_cells: list[str]) -> bool:
@@ -1479,6 +1912,17 @@ def _normalize_requirement_table_structure(lines: list[str]) -> list[str]:
             idx += 1
             continue
 
+        if not in_requirement_table and _looks_like_local_clause_header_line(value):
+            if _looks_like_embedded_plain_requirement_table(lines, idx + 1):
+                out.append(raw)
+                out.append("|序号|项目|要求|")
+                in_requirement_table = True
+                last_row_idx = -1
+                last_row_no = 0
+                pending_pre_row_lines = []
+                idx += 1
+                continue
+
         if in_requirement_table:
             plain_row = _parse_plain_requirement_row(value)
             if plain_row:
@@ -1545,6 +1989,52 @@ def _normalize_requirement_table_structure(lines: list[str]) -> list[str]:
         idx += 1
 
     return out
+
+
+def _looks_like_embedded_plain_requirement_table(lines: list[str], start_idx: int) -> bool:
+    matches = 0
+    expected_row = 1
+    scan_end = min(len(lines), start_idx + 12)
+    for idx in range(start_idx, scan_end):
+        value = _normalize_line(str(lines[idx] or ""))
+        if not value:
+            continue
+        if _looks_like_markdown_table_row(value):
+            break
+        if _is_requirement_table_hard_stop_line(value):
+            break
+        parsed = _parse_plain_requirement_row(value)
+        if not parsed:
+            if matches > 0 and (
+                _looks_like_requirement_table_value_continuation(value)
+                or _looks_like_requirement_table_inline_continuation(value)
+            ):
+                continue
+            if matches > 0:
+                break
+            continue
+        row_no, _item, _req = parsed
+        if row_no == expected_row:
+            matches += 1
+            expected_row += 1
+            continue
+        if matches >= 3:
+            break
+        return False
+    return matches >= 3
+
+
+def _looks_like_requirement_table_inline_continuation(line: str) -> bool:
+    value = _normalize_line(str(line or ""))
+    if not value or "|" in value:
+        return False
+    if re.match(r"^[±+\-]?\d+(?:\.\d+)?\s*(?:rpm|ms|s|mm|cm|m|kN|N|bar|V|A|℃|°C|%)", value, re.I):
+        return True
+    if value.startswith(("（", "(")):
+        return True
+    if "目标转速" in value or "峰值转速" in value:
+        return True
+    return False
 
 
 def _repair_requirement_row_handoffs(lines: list[str]) -> list[str]:
@@ -2120,6 +2610,35 @@ def _drop_redundant_table_bridge_lines(lines: list[str]) -> list[str]:
                 out.append(line)
                 continue
         out.append(line)
+    return out
+
+
+def _drop_redundant_table_bridge_line_pairs(lines: list[tuple[int, str]]) -> list[tuple[int, str]]:
+    if len(lines) < 3:
+        return lines
+    out: list[tuple[int, str]] = []
+    total = len(lines)
+    for idx, item in enumerate(lines):
+        source_line_index, line = item
+        value = str(line or "").strip()
+        prev_line = lines[idx - 1][1] if idx > 0 else ""
+        next_line = lines[idx + 1][1] if idx + 1 < total else ""
+        if (
+            value
+            and not _looks_like_markdown_table_row(value)
+            and _looks_like_markdown_table_row(prev_line)
+            and _looks_like_markdown_table_row(next_line)
+        ):
+            if _is_bom_bridge_artifact(value):
+                continue
+            if _line_contained_in_markdown_row(value, next_line):
+                continue
+            if _line_contained_in_markdown_row(value, prev_line):
+                continue
+            if _should_preserve_table_bridge_line(value, prev_line, next_line):
+                out.append((source_line_index, line))
+                continue
+        out.append((source_line_index, line))
     return out
 
 
@@ -3524,6 +4043,8 @@ def _is_block_artifact_line(line: str) -> bool:
     value = str(line or "").strip()
     if not value:
         return True
+    if _looks_like_local_clause_header_line(value):
+        return False
     if SECTION_CODE_HINT_RE.match(value):
         return False
     if _looks_like_markdown_table_row(value):
@@ -3823,12 +4344,265 @@ def _next_header_title_hint(line_entries: list[dict[str, Any]], start_index: int
     return "", 0
 
 
+def _looks_like_attachment_reference_list_item(
+    header: dict[str, Any],
+    line_entries: list[dict[str, Any]],
+    index: int,
+    appendix_scope: str,
+) -> bool:
+    if not str(appendix_scope or "").strip():
+        return False
+    code = str(header.get("code") or "").strip()
+    punct = str(header.get("punct") or "").strip()
+    title = str(header.get("title") or "").strip()
+    code_tuple = _parse_section_code_tuple(code)
+    if len(code_tuple) != 1 or code_tuple[0] < 10 or punct:
+        return False
+    if not title or len(title) > 36 or not _looks_like_attachment_title_phrase(title):
+        return False
+    if index < 0 or index >= len(line_entries):
+        return False
+    page = _safe_int(line_entries[index].get("source_page"))
+    line_index = _safe_int(line_entries[index].get("source_line_index"))
+    if page <= 0 or line_index <= 2:
+        return False
+    prev_short_titles = 0
+    for j in range(index - 1, max(-1, index - 8), -1):
+        entry = line_entries[j]
+        if _safe_int(entry.get("source_page")) != page:
+            break
+        if _looks_like_reference_title_line(str(entry.get("text") or "")):
+            prev_short_titles += 1
+    if prev_short_titles < 3:
+        return False
+    return _has_same_page_attachment_title_soon(line_entries, index, page) or _has_same_page_lower_top_level_heading_soon(
+        line_entries,
+        index,
+        page,
+        code_tuple[0],
+    )
+
+
+def _looks_like_reference_title_line(text: str) -> bool:
+    value = _normalize_line(str(text or ""))
+    if not value or len(value) > 48:
+        return False
+    if _looks_like_markdown_table_row(value):
+        return False
+    if re.search(r"[。！？!?；;]", value):
+        return False
+    if any(pattern.search(value) for pattern in MODAL_PATTERNS):
+        return False
+    return True
+
+
+def _has_same_page_attachment_title_soon(line_entries: list[dict[str, Any]], index: int, page: int) -> bool:
+    for j in range(index + 1, min(len(line_entries), index + 8)):
+        entry = line_entries[j]
+        if _safe_int(entry.get("source_page")) != page:
+            break
+        if _extract_embedded_attachment_title_candidate(str(entry.get("text") or "")):
+            return True
+    return False
+
+
+def _has_same_page_lower_top_level_heading_soon(
+    line_entries: list[dict[str, Any]],
+    index: int,
+    page: int,
+    current_major: int,
+) -> bool:
+    for j in range(index + 1, min(len(line_entries), index + 12)):
+        entry = line_entries[j]
+        if _safe_int(entry.get("source_page")) != page:
+            break
+        header = _parse_section_header(str(entry.get("text") or ""))
+        if not header:
+            continue
+        code_tuple = _parse_section_code_tuple(str(header.get("code") or ""))
+        if len(code_tuple) == 1 and code_tuple[0] < current_major:
+            return True
+    return False
+
+
+def _has_same_page_section_heading_soon(line_entries: list[dict[str, Any]], index: int, page: int) -> bool:
+    for j in range(index + 1, min(len(line_entries), index + 12)):
+        entry = line_entries[j]
+        if _safe_int(entry.get("source_page")) != page:
+            break
+        text = str(entry.get("text") or "")
+        if _parse_section_header(text):
+            return True
+        if _extract_title_only_heading_candidate(text):
+            return True
+        if _extract_embedded_attachment_title_candidate(text):
+            return True
+    return False
+
+
+def _extract_standalone_table_page_title_candidate(
+    line_entries: list[dict[str, Any]],
+    index: int,
+    *,
+    current: dict[str, Any] | None,
+    appendix_scope: str,
+) -> str:
+    if current is None or not str(appendix_scope or "").strip():
+        return ""
+    if index < 0 or index >= len(line_entries):
+        return ""
+    entry = line_entries[index]
+    page = _safe_int(entry.get("source_page"))
+    current_end_page = _safe_int(current.get("source_page_end") or current.get("source_page"))
+    if page <= 0 or page <= current_end_page:
+        return ""
+    if _safe_int(entry.get("source_line_index")) > 3:
+        return ""
+    line = str(entry.get("text") or "")
+    if not _looks_like_markdown_table_row(line):
+        return ""
+    if _has_same_page_section_heading_soon(line_entries, index, page):
+        return ""
+
+    page_entries: list[dict[str, Any]] = []
+    for j in range(index, min(len(line_entries), index + 12)):
+        candidate = line_entries[j]
+        if _safe_int(candidate.get("source_page")) != page:
+            break
+        page_entries.append(candidate)
+    table_rows = [item for item in page_entries if _looks_like_markdown_table_row(str(item.get("text") or ""))]
+    if len(table_rows) < 2:
+        return ""
+
+    first_table_line = str(table_rows[0].get("text") or "")
+    if not _looks_like_new_table_header_row(first_table_line):
+        return ""
+
+    prev_page_rows = [
+        item
+        for item in list(current.get("entries", []))
+        if _safe_int(item.get("source_page")) == current_end_page
+        and _looks_like_markdown_table_row(str(item.get("text") or ""))
+    ]
+    current_col_count = len(_parse_markdown_cells(first_table_line))
+    if prev_page_rows:
+        prev_col_count = len(_parse_markdown_cells(str(prev_page_rows[-1].get("text") or "")))
+        if prev_col_count > 0 and abs(current_col_count - prev_col_count) <= 1:
+            return ""
+
+    return _derive_table_page_title(page_entries)
+
+
+def _derive_table_page_title(page_entries: list[dict[str, Any]]) -> str:
+    for entry in page_entries[:6]:
+        text = str(entry.get("text") or "")
+        if not _looks_like_markdown_table_row(text):
+            continue
+        if not _looks_like_new_table_header_row(text):
+            continue
+        cells = _parse_markdown_cells(text)
+        title = _choose_table_page_title_from_cells(cells)
+        if title:
+            return title
+    return ""
+
+
+def _choose_table_page_title_from_cells(cells: list[str]) -> str:
+    cleaned = [
+        str(cell or "").strip()
+        for cell in cells
+        if str(cell or "").strip() and not re.fullmatch(r"col\d+", str(cell or "").strip(), re.I)
+    ]
+    if not cleaned:
+        return ""
+    keyword_cells = [
+        cell
+        for cell in cleaned
+        if re.search(r"(算法|保密|rasic|definition|confidentiality|级别|matrix|table|规范|要求|安全)", cell, re.I)
+    ]
+    if keyword_cells:
+        candidate = keyword_cells[0]
+        return "" if _is_low_signal_table_page_title(candidate) else candidate
+    first = cleaned[0]
+    if _is_low_signal_table_page_title(first):
+        return ""
+    if len(first) <= 48:
+        return first
+    return ""
+
+
+def _is_low_signal_table_page_title(title: str) -> bool:
+    value = str(title or "").strip()
+    if not value:
+        return True
+    if re.fullmatch(r"(?:col\d+|\d+(?:\.\d+)*)", value, re.I):
+        return True
+    if len(value) <= 2 and not re.search(r"[A-Za-z\u4e00-\u9fff]", value):
+        return True
+    return False
+
+
+def _looks_like_new_table_header_row(line: str) -> bool:
+    cells = _parse_markdown_cells(line)
+    if len(cells) < 2:
+        return False
+    normalized = [str(cell or "").strip() for cell in cells if str(cell or "").strip()]
+    if len(normalized) < 2:
+        return False
+    if sum(1 for cell in normalized if re.fullmatch(r"col\d+", cell, re.I)) >= 1:
+        return True
+    if len({re.sub(r"\s+", "", cell) for cell in normalized[:8]}) <= 2 and len(normalized) >= 4:
+        return True
+    short_cells = [cell for cell in normalized[:6] if len(cell) <= 48 and not re.search(r"[。！？!?；;]", cell)]
+    if len(short_cells) >= 3:
+        return True
+    return bool(
+        re.search(
+            r"(算法|保密|rasic|definition|confidentiality|级别|matrix|table|规范|要求|安全)",
+            " ".join(normalized[:6]),
+            re.I,
+        )
+    )
+
+
+def _pull_embedded_attachment_preface_entries(
+    current: dict[str, Any],
+    candidate_page: int,
+    candidate_line_index: int,
+) -> list[dict[str, Any]]:
+    entries = list(current.get("entries", []))
+    if not entries or candidate_page <= 0 or candidate_line_index <= 0:
+        return []
+    if _safe_int(current.get("source_page")) >= candidate_page:
+        return []
+
+    before_entries: list[dict[str, Any]] = []
+    keep_entries: list[dict[str, Any]] = []
+    for row in entries:
+        row_page = _safe_int(row.get("source_page"))
+        row_line_index = _safe_int(row.get("source_line_index"))
+        if row_page == candidate_page and row_line_index < candidate_line_index:
+            before_entries.append(row)
+            continue
+        keep_entries.append(row)
+    if not _page_entries_look_like_reference_preface(before_entries):
+        return []
+    current["entries"] = keep_entries
+    return before_entries
+
+
+def _page_entries_look_like_reference_preface(entries: list[dict[str, Any]]) -> bool:
+    if len(entries) < 3:
+        return False
+    return all(_looks_like_reference_title_line(str(entry.get("text") or "")) for entry in entries)
+
+
 def _consolidate_section_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
     if not blocks:
         return []
 
     consolidated: list[dict[str, Any]] = []
-    code_index: dict[tuple[str, str], int] = {}
+    code_indexes: dict[tuple[str, str], list[int]] = {}
     for block in blocks:
         appendix_scope = str(block.get("appendix_scope") or "").strip().upper()
         code = str(block.get("section_code") or "")
@@ -3836,17 +4610,110 @@ def _consolidate_section_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, 
             consolidated.append(block)
             continue
         key = (appendix_scope, code)
-        if key not in code_index:
-            code_index[key] = len(consolidated)
-            consolidated.append(block)
+        merged = False
+        for idx in reversed(code_indexes.get(key, [])):
+            existing = consolidated[idx]
+            if not _should_merge_duplicate_section_block(existing, block):
+                continue
+            consolidated[idx] = _merge_duplicate_section_block(existing, block)
+            merged = True
+            break
+        if merged:
             continue
-
-        idx = code_index[key]
-        consolidated[idx] = _merge_duplicate_section_block(consolidated[idx], block)
+        code_indexes.setdefault(key, []).append(len(consolidated))
+        consolidated.append(block)
 
     # Strict original-order mode:
     # keep first-seen discovery order and avoid code-based resorting / boundary rewrites.
     return consolidated
+
+
+def _should_merge_duplicate_section_block(base: dict[str, Any], incoming: dict[str, Any]) -> bool:
+    base_scope = str(base.get("appendix_scope") or "").strip().upper()
+    incoming_scope = str(incoming.get("appendix_scope") or "").strip().upper()
+    base_code = str(base.get("section_code") or "").strip()
+    incoming_code = str(incoming.get("section_code") or "").strip()
+    if not base_code or base_code != incoming_code or base_scope != incoming_scope:
+        return False
+
+    base_start = _safe_int(base.get("source_page"))
+    base_end = _safe_int(base.get("source_page_end")) or base_start
+    in_start = _safe_int(incoming.get("source_page"))
+    in_end = _safe_int(incoming.get("source_page_end")) or in_start
+    if base_end and in_start and in_start > base_end + 1:
+        return False
+    if in_end and base_start and base_start > in_end + 1:
+        return False
+
+    base_title = str(base.get("section_title") or "").strip()
+    in_title = str(incoming.get("section_title") or "").strip()
+    if _normalized_section_title(base_title) == _normalized_section_title(in_title):
+        return True
+    if not base_title or not in_title:
+        return True
+    if _looks_like_noisy_header_title(base_title) or _looks_like_noisy_header_title(in_title):
+        return True
+
+    base_entries = list(base.get("entries", []))
+    in_entries = list(incoming.get("entries", []))
+    if not base_entries or not in_entries:
+        return False
+
+    base_pages = {int(row.get("source_page")) for row in base_entries if isinstance(row.get("source_page"), int)}
+    incoming_pages = {int(row.get("source_page")) for row in in_entries if isinstance(row.get("source_page"), int)}
+    if base_pages and incoming_pages and not (base_pages & incoming_pages):
+        return False
+
+    base_texts = {
+        str(row.get("text") or "").strip().lower()
+        for row in base_entries
+        if str(row.get("text") or "").strip()
+    }
+    incoming_texts = {
+        str(row.get("text") or "").strip().lower()
+        for row in in_entries
+        if str(row.get("text") or "").strip()
+    }
+    if not base_texts or not incoming_texts:
+        return False
+    overlap = len(base_texts & incoming_texts)
+    return overlap >= max(2, min(len(base_texts), len(incoming_texts)) // 4)
+
+
+def _normalized_section_title(title: str) -> str:
+    value = str(title or "").strip().lower()
+    value = re.sub(r"\s+", " ", value)
+    value = re.sub(r"[，,；;。.!?！？:：、（）()\\[\\]【】\\-|_/]+", "", value)
+    return value
+
+
+def _should_start_embedded_scope(
+    header: dict[str, Any],
+    current_scope: str,
+    candidate_page: int | None,
+    main_max_top_level_seen: int,
+    seen_codes: set[str],
+) -> bool:
+    if str(current_scope or "").strip():
+        return False
+    code = str(header.get("code") or "").strip()
+    title = str(header.get("title") or "").strip()
+    code_tuple = _parse_section_code_tuple(code)
+    if not code_tuple or len(code_tuple) != 1:
+        return False
+    if not isinstance(candidate_page, int) or candidate_page < 10:
+        return False
+    if main_max_top_level_seen < 5:
+        return False
+    if code not in seen_codes:
+        return False
+    if code_tuple[0] > 3:
+        return False
+    if STRONG_MAJOR_HEADING_KEYWORD_RE.search(title):
+        return False
+    if len(title) > 40 and HEADING_KEYWORD_RE.search(title):
+        return False
+    return True
 
 
 def _repair_product_info_detail_boundary(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -4668,6 +5535,12 @@ def _is_line_noise(line: str) -> bool:
     lower = value.lower()
     if not value:
         return True
+    if _is_substantive_markdown_table_row(value):
+        return False
+    if value in {"附件目录", "附件清单"}:
+        return False
+    if re.match(r"^\s*(?:附件|附录)\s*\d+\s*[-—–]+\s*.+$", value):
+        return False
     if _extract_appendix_scope(value):
         return False
     if SECTION_CODE_HINT_RE.match(value):
@@ -4692,6 +5565,30 @@ def _is_line_noise(line: str) -> bool:
         if pattern.search(value):
             return True
     return False
+
+
+def _is_substantive_markdown_table_row(line: str) -> bool:
+    if not _looks_like_markdown_table_row(line):
+        return False
+    cells = [str(cell or "").strip() for cell in _parse_markdown_cells(line) if str(cell or "").strip()]
+    if len(cells) < 2:
+        return False
+    substantive = 0
+    for cell in cells:
+        lowered = cell.lower()
+        if re.search(r"[\w.\-]+@[\w.\-]+", cell):
+            continue
+        if re.fullmatch(r"^[\W_]+$", cell):
+            continue
+        if len(cell) >= 3 and re.search(r"[A-Za-z\u4e00-\u9fff]", cell):
+            substantive += 1
+            continue
+        if re.search(r"\d", cell) and len(cell) >= 2:
+            substantive += 1
+            continue
+        if lowered not in {"confidential", "highly confidential"} and len(cell) >= 2:
+            substantive += 1
+    return substantive >= 2
 
 
 def infer_requirement_type(text: str) -> str:
