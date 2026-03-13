@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import json
 import logging
+import shutil
 import threading
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
@@ -30,6 +31,30 @@ def _preview_dir() -> Path:
 
 def preview_cache_path(document_id: str) -> Path:
     return _preview_dir() / f"{document_id}.json"
+
+
+def document_snapshot_root(document_id: str) -> Path:
+    token = str(document_id or "").strip() or "preview"
+    path = db.STORAGE_DIR / "table_snapshots" / "preview" / token
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def reset_document_snapshot_root(document_id: str) -> Path:
+    path = document_snapshot_root(document_id)
+    if path.exists():
+        shutil.rmtree(path, ignore_errors=True)
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def purge_preview_artifacts(document_id: str) -> Path:
+    cache_path = preview_cache_path(document_id)
+    try:
+        cache_path.unlink()
+    except FileNotFoundError:
+        pass
+    return reset_document_snapshot_root(document_id)
 
 
 def _source_mtime_token(file_path: str) -> str:
@@ -167,10 +192,11 @@ def request_preview_refresh(document: dict | None, *, force: bool = False) -> di
 
 def _run_preview_refresh(document_id: str, file_path: str) -> None:
     try:
+        snapshot_root = purge_preview_artifacts(document_id)
         preview = build_extraction_preview(
             file_path,
             document_id=document_id,
-            snapshot_root=db.STORAGE_DIR / "table_snapshots" / document_id,
+            snapshot_root=snapshot_root,
         )
         document = db.get_sor_document(document_id)
         if document:
