@@ -11,7 +11,8 @@ from app.services.table_assets import enrich_entries_with_table_assets
 
 
 SECTION_ANCHOR_RE = re.compile(r"Section\s+([0-9]+(?:\.[0-9]+){0,8})(?:\s+([^|]+))?", re.I)
-APPENDIX_SCOPE_RE = re.compile(r"Appendix\s+([A-Z])", re.I)
+TITLE_ANCHOR_RE = re.compile(r"(?:Heading|Title)\s+([^|]+)", re.I)
+APPENDIX_SCOPE_RE = re.compile(r"Appendix\s+([A-Z][A-Z0-9_-]*)\b", re.I)
 APPENDIX_MARKER_LINE_RE = re.compile(
     r"^\s*(?:附件|附录|appendix|annex|attachment)\s*([A-Za-zＡ-Ｚａ-ｚ])\b.*$",
     re.I,
@@ -75,6 +76,8 @@ def build_extraction_preview(
         section_code = _extract_section_code(item.get("source_anchor", ""))
         section_title_hint = _extract_section_title(item.get("source_anchor", ""))
         section_key = _join_section_key(appendix_scope, section_code)
+        if not section_key and section_title_hint:
+            section_key = _join_title_section_key(appendix_scope, section_title_hint)
         text = str(item.get("requirement_text", "")).strip()
         text_len = len(text)
         text_lengths.append(text_len)
@@ -115,7 +118,7 @@ def build_extraction_preview(
         )
     )
 
-    _assign_section_instance_keys(req_rows)
+    _assign_section_instance_keys(req_rows, section_outline)
 
     section_counter: dict[str, dict[str, Any]] = {}
     for row in req_rows:
@@ -160,11 +163,13 @@ def build_extraction_preview(
 
     outline_index: dict[str, dict[str, Any]] = {}
     outline_instance_index: set[str] = set()
-    key_to_instances = _collect_section_instance_groups(req_rows)
+    key_to_instances = _collect_section_instance_groups(req_rows, section_outline)
     for node in section_outline:
         appendix_scope = str(node.get("appendix_scope") or "").strip().upper()
         code = str(node.get("section_code") or "")
         section_key = _join_section_key(appendix_scope, code)
+        if not section_key:
+            section_key = _join_title_section_key(appendix_scope, str(node.get("section_title") or ""))
         if section_key:
             outline_index[section_key] = node
 
@@ -173,6 +178,8 @@ def build_extraction_preview(
         appendix_scope = str(node.get("appendix_scope") or "").strip().upper()
         code = str(node.get("section_code") or "")
         section_key = _join_section_key(appendix_scope, code)
+        if not section_key:
+            section_key = _join_title_section_key(appendix_scope, str(node.get("section_title") or ""))
         section_instance_key = _resolve_outline_section_instance_key(node, section_key, key_to_instances)
         req_state = section_counter.get(section_instance_key, {})
         outline_instance_index.add(section_instance_key)
@@ -268,7 +275,7 @@ def build_extraction_preview(
         snapshot_root=table_snapshot_root,
         source_file_path=file_path,
     )
-    table_assets = deduped_table_assets or table_assets
+    table_assets = _dedupe_table_assets(deduped_table_assets or table_assets)
 
     diagnostics = parsed.get("diagnostics", {}) or {}
     page_details = diagnostics.get("page_details", []) if isinstance(diagnostics, dict) else []
@@ -332,6 +339,18 @@ def build_extraction_preview(
     }
 
 
+def _dedupe_table_assets(assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen_table_ids: set[str] = set()
+    for asset in assets:
+        table_id = str(asset.get("table_id") or "").strip()
+        if not table_id or table_id in seen_table_ids:
+            continue
+        seen_table_ids.add(table_id)
+        deduped.append(asset)
+    return deduped
+
+
 def _extract_section_code(anchor: str) -> str:
     match = SECTION_ANCHOR_RE.search(anchor or "")
     return match.group(1) if match else ""
@@ -339,9 +358,14 @@ def _extract_section_code(anchor: str) -> str:
 
 def _extract_section_title(anchor: str) -> str:
     match = SECTION_ANCHOR_RE.search(anchor or "")
-    if not match:
+    if match:
+        title = str(match.group(2) or "").strip()
+        title = re.sub(r"\s+", " ", title)
+        return title[:120]
+    title_match = TITLE_ANCHOR_RE.search(anchor or "")
+    if not title_match:
         return ""
-    title = str(match.group(2) or "").strip()
+    title = str(title_match.group(1) or "").strip()
     title = re.sub(r"\s+", " ", title)
     return title[:120]
 
@@ -359,13 +383,27 @@ def _join_section_key(appendix_scope: str, section_code: str) -> str:
     return f"{scope}:{code}" if scope else code
 
 
+def _join_title_section_key(appendix_scope: str, section_title: str) -> str:
+    title = str(section_title or "").strip()
+    token = _entry_token(title)
+    if not token:
+        return ""
+    scope = str(appendix_scope or "").strip().upper()
+    body = f"@{token}"
+    return f"{scope}:{body}" if scope else body
+
+
 def _split_section_key(section_key: str) -> tuple[str, str]:
     value = str(section_key or "").strip()
     if not value:
         return ("", "")
     if ":" not in value:
+        if value.startswith("@"):
+            return ("", "")
         return ("", value)
     left, right = value.split(":", 1)
+    if right.strip().startswith("@"):
+        return (left.strip().upper(), "")
     return (left.strip().upper(), right.strip())
 
 
@@ -668,8 +706,24 @@ def _infer_section_level(section_code: str) -> int:
     return 1
 
 
-def _collect_section_instance_groups(requirements: list[dict[str, Any]]) -> dict[str, list[tuple[str, str]]]:
+def _collect_section_instance_groups(
+    requirements: list[dict[str, Any]],
+    outline_nodes: list[dict[str, Any]] | None = None,
+) -> dict[str, list[tuple[str, str]]]:
     grouped: dict[str, dict[str, str]] = {}
+
+    def add_title(section_key: str, title: str) -> None:
+        key = str(section_key or "").strip()
+        if not key:
+            return
+        raw_title = str(title or "").strip()
+        if not raw_title:
+            return
+        title_norm = _normalize_instance_title(raw_title) or "untitled"
+        bucket = grouped.setdefault(key, {})
+        if title_norm not in bucket:
+            bucket[title_norm] = raw_title
+
     for row in requirements:
         section_key = str(row.get("section_key") or "").strip()
         if not section_key:
@@ -680,10 +734,17 @@ def _collect_section_instance_groups(requirements: list[dict[str, Any]]) -> dict
                 text=str(row.get("requirement_text") or ""),
                 section_code=str(row.get("section_code") or ""),
             )
-        title_norm = _normalize_instance_title(title) or "untitled"
-        bucket = grouped.setdefault(section_key, {})
-        if title_norm not in bucket:
-            bucket[title_norm] = title
+        add_title(section_key, title)
+
+    for node in outline_nodes or []:
+        appendix_scope = str(node.get("appendix_scope") or "").strip().upper()
+        section_code = str(node.get("section_code") or "").strip()
+        section_key = str(node.get("section_key") or "").strip()
+        if not section_key:
+            section_key = _join_section_key(appendix_scope, section_code)
+        if not section_key:
+            section_key = _join_title_section_key(appendix_scope, str(node.get("section_title") or ""))
+        add_title(section_key, str(node.get("section_title") or ""))
 
     out: dict[str, list[tuple[str, str]]] = {}
     for section_key, bucket in grouped.items():
@@ -698,8 +759,11 @@ def _collect_section_instance_groups(requirements: list[dict[str, Any]]) -> dict
     return out
 
 
-def _assign_section_instance_keys(requirements: list[dict[str, Any]]) -> None:
-    groups = _collect_section_instance_groups(requirements)
+def _assign_section_instance_keys(
+    requirements: list[dict[str, Any]],
+    outline_nodes: list[dict[str, Any]] | None = None,
+) -> None:
+    groups = _collect_section_instance_groups(requirements, outline_nodes)
     mapping: dict[tuple[str, str], str] = {}
     for section_key, title_pairs in groups.items():
         if len(title_pairs) <= 1:
@@ -807,6 +871,7 @@ def _build_complete_requirement_entries(
     seen_entry_ids: set[str] = set()
     emitted_section_instance_keys: set[str] = set()
     heading_seq = 0
+    preferred_section_rows = _select_preferred_section_rows_for_requirements(sections, req_groups)
 
     for node in sections:
         section_instance_key = str(node.get("section_instance_key") or node.get("section_key") or "").strip()
@@ -829,6 +894,9 @@ def _build_complete_requirement_entries(
         if not section_instance_key:
             continue
         if not grouped:
+            continue
+        preferred_row = preferred_section_rows.get(section_instance_key)
+        if preferred_row is not None and preferred_row is not node:
             continue
         emitted_section_instance_keys.add(section_instance_key)
         section_code = str(node.get("section_code") or "")
@@ -903,6 +971,53 @@ def _build_complete_requirement_entries(
     return entries
 
 
+def _select_preferred_section_rows_for_requirements(
+    sections: list[dict[str, Any]],
+    req_groups: dict[str, list[dict[str, Any]]],
+) -> dict[str, dict[str, Any]]:
+    by_instance: dict[str, list[dict[str, Any]]] = {}
+    for node in sections:
+        section_instance_key = str(node.get("section_instance_key") or node.get("section_key") or "").strip()
+        if not section_instance_key:
+            continue
+        by_instance.setdefault(section_instance_key, []).append(node)
+
+    preferred: dict[str, dict[str, Any]] = {}
+    for section_instance_key, nodes in by_instance.items():
+        if len(nodes) <= 1:
+            if nodes:
+                preferred[section_instance_key] = nodes[0]
+            continue
+        grouped = req_groups.get(section_instance_key) or []
+        if not grouped:
+            preferred[section_instance_key] = nodes[0]
+            continue
+        target_title = _normalize_instance_title(
+            str(grouped[0].get("section_title") or _derive_section_title_from_requirement(
+                text=str(grouped[0].get("requirement_text") or ""),
+                section_code=str(grouped[0].get("section_code") or ""),
+            ))
+        )
+        target_page = _to_int(grouped[0].get("source_page"))
+
+        def sort_key(node: dict[str, Any]) -> tuple[int, int, int, int, str]:
+            title = _normalize_instance_title(str(node.get("section_title") or ""))
+            page = _to_int(node.get("source_page_start"))
+            title_penalty = 0 if target_title and title == target_title else 1
+            page_penalty = abs(page - target_page) if target_page > 0 and page > 0 else 10**6
+            outline_order = _outline_order_sort_key(node.get("outline_order"))
+            return (
+                title_penalty,
+                page_penalty,
+                0 if page > 0 else 1,
+                outline_order,
+                str(node.get("section_title") or ""),
+            )
+
+        preferred[section_instance_key] = min(nodes, key=sort_key)
+    return preferred
+
+
 def _has_instance_children(req_groups: dict[str, list[dict[str, Any]]], section_key: str) -> bool:
     if not section_key:
         return False
@@ -920,9 +1035,11 @@ def _find_section_row_for_key(sections: list[dict[str, Any]], section_key: str) 
 def _build_heading_entry(node: dict[str, Any], heading_seq: int, synthetic: bool) -> dict[str, Any]:
     scope = str(node.get("appendix_scope") or "").strip().upper()
     section_code = str(node.get("section_code") or "").strip()
-    section_key = _join_section_key(scope, section_code)
-    section_instance_key = str(node.get("section_instance_key") or section_key or "").strip()
     section_title = str(node.get("section_title") or "").strip()
+    section_key = str(node.get("section_key") or "").strip() or _join_section_key(scope, section_code)
+    if not section_key and section_title:
+        section_key = _join_title_section_key(scope, section_title)
+    section_instance_key = str(node.get("section_instance_key") or section_key or "").strip()
     if not section_title:
         if section_code:
             section_title = section_code
@@ -1007,6 +1124,24 @@ def _attach_requirement_section_context(requirements: list[dict[str, Any]], sect
         section_key = str(req.get("section_key") or "").strip()
         appendix_scope = str(req.get("appendix_scope") or "").strip().upper()
         section_row = by_instance_key.get(section_instance_key) or by_section_key.get(section_key)
+        section_code = str(req.get("section_code") or "").strip()
+        section_title = str(req.get("section_title") or "").strip()
+        if section_row:
+            if not section_code:
+                section_code = str(section_row.get("section_code") or "").strip()
+            if not section_title:
+                section_title = str(section_row.get("section_title") or "").strip()
+        if section_code:
+            req["parent_section_code"] = section_code
+            req["parent_section_title"] = section_title
+            req["parent_section_label"] = _format_section_label(section_code, section_title)
+            continue
+        if section_title:
+            req["parent_section_code"] = ""
+            req["parent_section_title"] = section_title
+            req["parent_section_label"] = _format_section_label("", section_title)
+            continue
+
         parent_code = ""
         parent_title = ""
         if section_row:

@@ -684,6 +684,43 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertTrue(refreshed["preview_cache_hit"])
         self.assertTrue(cache_path.exists())
 
+    def test_preview_refresh_purges_stale_snapshot_root_before_rebuild(self) -> None:
+        project, document = self._create_project_with_document("-refresh-purge")
+        cache_path = preview_cache.preview_cache_path(document["id"])
+        cache_path.write_text("{}", encoding="utf-8")
+        snapshot_root = preview_cache.document_snapshot_root(document["id"])
+        stale_file = snapshot_root / "stale.png"
+        stale_file.write_text("old", encoding="utf-8")
+
+        def _fake_build(file_path: str, *, document_id: str = "", snapshot_root: Path | None = None) -> dict:
+            self.assertEqual(document_id, document["id"])
+            self.assertIsNotNone(snapshot_root)
+            self.assertFalse(cache_path.exists())
+            self.assertFalse(stale_file.exists())
+            self.assertTrue(Path(snapshot_root or "").exists())
+            return _fake_preview()
+
+        with patch.object(preview_cache, "build_extraction_preview", side_effect=_fake_build):
+            preview_cache._run_preview_refresh(document["id"], document["file_path"])
+
+        self.assertFalse(stale_file.exists())
+        self.assertTrue(cache_path.exists())
+
+    def test_sync_document_table_assets_keeps_preview_snapshot_root_intact(self) -> None:
+        project, document = self._create_project_with_document("-isolated-snapshots")
+        preview_root = preview_cache.document_snapshot_root(document["id"])
+        persisted_root = main._table_snapshot_root(document["id"])
+        preview_file = preview_root / "preview.png"
+        persisted_file = persisted_root / "persisted.png"
+        preview_file.write_text("preview", encoding="utf-8")
+        persisted_file.write_text("persisted", encoding="utf-8")
+
+        with patch.object(main, "_materialize_document_table_assets", return_value=([], [])):
+            main._sync_document_table_assets(project["id"], document["id"])
+
+        self.assertTrue(preview_file.exists())
+        self.assertFalse(persisted_file.exists())
+
     def test_workspace_reorders_matrix_display_ids_by_preview_order(self) -> None:
         project, document = self._create_project_with_document("-ordering")
         db.insert_requirement(
@@ -771,6 +808,138 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(workspace["requirements"][0]["raw_text"], "新的正确内容")
         self.assertEqual(workspace["requirements"][0]["req_code"], "REQ0001")
 
+    def test_overlay_review_entries_skips_stale_req_code_match_when_preview_fingerprint_changed(self) -> None:
+        preview_rows = [
+            {
+                "entry_id": "REQ0001",
+                "req_code": "REQ0001",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "新的正确内容",
+                "raw_text": "新的正确内容",
+                "requirement_text": "新的正确内容",
+                "source_page": 11,
+                "source_page_end": 11,
+                "source_anchor": "Page 11 | Heading 软件开发要求",
+                "parent_section_code": "",
+                "parent_section_title": "软件开发要求",
+                "parent_section_label": "软件开发要求",
+            }
+        ]
+        persisted_rows = [
+            {
+                "id": "persisted-1",
+                "req_code": "REQ0001",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "旧的错误内容",
+                "raw_text": "旧的错误内容",
+                "requirement_text": "旧的错误内容",
+                "source_page": 12,
+                "source_page_end": 12,
+                "source_anchor": "Page 12 | Section 1.1 FMEA编制与更新",
+                "parent_section_code": "1.1",
+                "parent_section_title": "FMEA编制与更新",
+                "parent_section_label": "1.1 FMEA编制与更新",
+                "requirement_type": "FUNCTIONAL",
+                "priority": "MEDIUM",
+            }
+        ]
+
+        rows = main._overlay_review_entries(preview_rows, persisted_rows, prefer_raw=False)
+
+        self.assertEqual(len(rows), 1)
+        self.assertFalse(rows[0]["keep"])
+        self.assertEqual(rows[0]["parent_section_label"], "软件开发要求")
+        self.assertEqual(rows[0]["requirement_text"], "新的正确内容")
+
+    def test_overlay_review_entries_keeps_review_state_for_same_preview_fingerprint(self) -> None:
+        preview_rows = [
+            {
+                "entry_id": "REQ0002",
+                "req_code": "REQ0002",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "供应商需要满足总成试验要求。",
+                "raw_text": "供应商需要满足总成试验要求。",
+                "requirement_text": "供应商需要满足总成试验要求。",
+                "source_page": 1,
+                "source_page_end": 1,
+                "source_anchor": "Main > 1",
+                "parent_section_code": "1",
+                "parent_section_title": "概述",
+                "parent_section_label": "1 概述",
+            }
+        ]
+        persisted_rows = [
+            {
+                "id": "persisted-2",
+                "req_code": "REQ0002",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "供应商需要满足总成试验要求。",
+                "raw_text": "供应商需要满足总成试验要求。",
+                "requirement_text": "供应商需要满足总成试验要求。",
+                "source_page": 1,
+                "source_page_end": 1,
+                "source_anchor": "Main > 1",
+                "parent_section_code": "1",
+                "parent_section_title": "概述",
+                "parent_section_label": "1 概述",
+                "requirement_type": "FUNCTIONAL",
+                "priority": "HIGH",
+                "status": "reviewed",
+            }
+        ]
+
+        rows = main._overlay_review_entries(preview_rows, persisted_rows, prefer_raw=False)
+
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["keep"])
+        self.assertEqual(rows[0]["priority"], "HIGH")
+        self.assertEqual(rows[0]["parent_section_label"], "1 概述")
+
+    def test_overlay_review_entries_keeps_preview_structure_for_matched_review_row(self) -> None:
+        preview_rows = [
+            {
+                "entry_id": "REQ0103",
+                "req_code": "REQ-0103",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "10）商务报价应至少包含设计开发费用。",
+                "raw_text": "10）商务报价应至少包含设计开发费用。",
+                "requirement_text": "10）商务报价应至少包含设计开发费用。",
+                "source_page": 10,
+                "source_page_end": 10,
+                "source_anchor": "Main > 6",
+                "parent_section_code": "6",
+                "parent_section_title": "投标说明",
+                "parent_section_label": "6 投标说明",
+            }
+        ]
+        persisted_rows = [
+            {
+                "id": "persisted-3",
+                "req_code": "REQ-0103",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "10）商务报价应至少包含设计开发费用。",
+                "raw_text": "10）商务报价应至少包含设计开发费用。",
+                "requirement_text": "10）商务报价应至少包含设计开发费用。",
+                "source_page": 10,
+                "source_page_end": 10,
+                "source_anchor": "Main > 7",
+                "parent_section_code": "7",
+                "parent_section_title": "附件目录",
+                "parent_section_label": "7 附件目录",
+                "requirement_type": "FUNCTIONAL",
+                "priority": "HIGH",
+                "status": "reviewed",
+            }
+        ]
+
+        rows = main._overlay_review_entries(preview_rows, persisted_rows, prefer_raw=False)
+
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["keep"])
+        self.assertEqual(rows[0]["priority"], "HIGH")
+        self.assertEqual(rows[0]["source_anchor"], "Main > 6")
+        self.assertEqual(rows[0]["parent_section_label"], "6 投标说明")
+
     def test_workspace_exposes_table_refs_and_snapshot_urls(self) -> None:
         project, document = self._create_project_with_document("-table-assets")
         with patch.object(main, "build_extraction_preview", return_value=_fake_preview_with_table_markdown()):
@@ -813,6 +982,27 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertIn("含图片", ref["export_variant_reasons"])
         self.assertIn("结构低置信", ref["export_variant_reasons"])
 
+    def test_table_ref_recommendation_prefers_source_for_placeholder_symbol_table(self) -> None:
+        ref = table_assets._normalize_table_ref(
+            {
+                "table_id": "tbl_placeholder",
+                "slice_render_mode": "structured",
+                "source_snapshot_path": str(self.tmp_path / "source-placeholder.png"),
+                "source_page": 12,
+                "source_page_end": 12,
+                "inherited_headers": ["项目", "内容", "备注"],
+                "slice_rows": [
+                    ["安全相关关键特性", "法规相关关键特性", "功能相关重要特性"],
+                    ["#REF!", "#REF!", "#REF!"],
+                ],
+                "inherited_notes": ["2.2 特殊特性分类与标识"],
+            }
+        )
+
+        self.assertEqual(ref["recommended_export_variant"], "source")
+        self.assertEqual(ref["export_variant"], "source")
+        self.assertIn("切片可读性差", ref["export_variant_reasons"])
+
     def test_table_asset_api_returns_asset_and_snapshot(self) -> None:
         project, document = self._create_project_with_document("-table-api")
         with patch.object(main, "build_extraction_preview", return_value=_fake_preview_with_table_markdown()):
@@ -828,6 +1018,8 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(asset["rows"], [["Voltage", "12V"], ["Current", "3A"]])
         self.assertIn("/snapshot", asset["snapshot_url"])
         self.assertTrue(Path(snapshot.path).exists())
+        self.assertEqual(snapshot.headers.get("cache-control"), "no-store, max-age=0")
+        self.assertEqual(snapshot.headers.get("pragma"), "no-cache")
 
     def test_table_asset_api_exposes_source_snapshot_for_pdf_page_span(self) -> None:
         project, document = self._create_project_with_pdf_document("-source-snapshot")
@@ -844,25 +1036,125 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertIn("/source-snapshot", table_ref["source_snapshot_url"])
         self.assertIn("/source-snapshot", asset["source_snapshot_url"])
         self.assertTrue(Path(source_snapshot.path).exists())
+        self.assertEqual(source_snapshot.headers.get("cache-control"), "no-store, max-age=0")
+        self.assertEqual(source_snapshot.headers.get("pragma"), "no-cache")
         with PILImage.open(source_snapshot.path) as image:
             self.assertGreater(image.width, 0)
             self.assertGreater(image.height, image.width)
             self.assertLess(image.height, 1500)
+
+    def test_table_asset_api_prefers_preview_asset_over_stale_db_asset(self) -> None:
+        project, document = self._create_project_with_document("-preview-asset-priority")
+        stale_snapshot = self.tmp_path / "stale.png"
+        stale_snapshot.write_text("old", encoding="utf-8")
+        fresh_snapshot = self.tmp_path / "fresh.png"
+        fresh_snapshot.write_bytes(b"fresh")
+        fresh_source = self.tmp_path / "fresh_source.png"
+        fresh_source.write_bytes(b"fresh-source")
+
+        db.replace_document_table_assets(
+            project["id"],
+            document["id"],
+            [
+                {
+                    "table_id": "tbl_preview_first",
+                    "document_id": document["id"],
+                    "headers": ["Old", "Header"],
+                    "rows": [["old", "row"]],
+                    "render_mode": "structured",
+                    "snapshot_path": str(stale_snapshot),
+                    "source_snapshot_path": str(self.tmp_path / "missing_source.png"),
+                }
+            ],
+        )
+        preview_cache.persist_preview_cache(
+            db.get_sor_document(document["id"]) or document,
+            {
+                "summary": {"dedupe_version": "heading_requirement_v1"},
+                "table_assets": [
+                    {
+                        "table_id": "tbl_preview_first",
+                        "document_id": document["id"],
+                        "headers": ["Fresh", "Header"],
+                        "rows": [["fresh", "row"]],
+                        "render_mode": "structured",
+                        "snapshot_path": str(fresh_snapshot),
+                        "source_snapshot_path": str(fresh_source),
+                    }
+                ],
+                "complete_requirement_entries": [],
+                "complete_requirement_entries_raw": [],
+            },
+        )
+
+        asset = main.get_document_table_asset(project["id"], document["id"], "tbl_preview_first")
+        source_snapshot = main.get_document_table_asset_source_snapshot(project["id"], document["id"], "tbl_preview_first")
+
+        self.assertEqual(asset["headers"], ["Fresh", "Header"])
+        self.assertEqual(Path(source_snapshot.path), fresh_source)
+
+    def test_table_asset_source_snapshot_falls_back_to_persisted_asset_when_preview_source_is_missing(self) -> None:
+        project, document = self._create_project_with_document("-preview-source-fallback")
+        preview_snapshot = self.tmp_path / "preview.png"
+        preview_snapshot.write_bytes(b"preview")
+        db_snapshot = self.tmp_path / "db.png"
+        db_snapshot.write_bytes(b"db")
+        db_source = self.tmp_path / "db_source.png"
+        db_source.write_bytes(b"db-source")
+
+        db.replace_document_table_assets(
+            project["id"],
+            document["id"],
+            [
+                {
+                    "table_id": "tbl_source_fallback",
+                    "document_id": document["id"],
+                    "headers": ["Persisted"],
+                    "rows": [["ok"]],
+                    "render_mode": "structured",
+                    "snapshot_path": str(db_snapshot),
+                    "source_snapshot_path": str(db_source),
+                }
+            ],
+        )
+        preview_cache.persist_preview_cache(
+            db.get_sor_document(document["id"]) or document,
+            {
+                "summary": {"dedupe_version": "heading_requirement_v1"},
+                "table_assets": [
+                    {
+                        "table_id": "tbl_source_fallback",
+                        "document_id": document["id"],
+                        "headers": ["Preview"],
+                        "rows": [["broken"]],
+                        "render_mode": "structured",
+                        "snapshot_path": str(preview_snapshot),
+                        "source_snapshot_path": str(self.tmp_path / "missing_preview_source.png"),
+                    }
+                ],
+                "complete_requirement_entries": [],
+                "complete_requirement_entries_raw": [],
+            },
+        )
+
+        source_snapshot = main.get_document_table_asset_source_snapshot(project["id"], document["id"], "tbl_source_fallback")
+
+        self.assertEqual(Path(source_snapshot.path), db_source)
 
     def test_review_entry_save_persists_table_export_variant_override(self) -> None:
         project, document = self._create_project_with_pdf_document("-table-choice")
         with patch.object(main, "build_extraction_preview", return_value=_fake_preview_with_complex_table_markdown()):
             main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
 
-        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=True)
-        row = workspace["review_entries"][0]
+        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=False)
+        row = workspace["requirements"][0]
         table_ref = dict(row["table_refs"][0], export_variant="slice")
         payload = main.ReviewedRequirementEntry(
-            entry_id=row["entry_id"],
+            entry_id=row.get("entry_id") or row["req_code"],
             req_code=row["req_code"],
             entry_kind=row["entry_kind"],
             source_page=row["source_page"],
-            source_page_end=row["source_page_end"],
+            source_page_end=row.get("source_page_end"),
             source_anchor=row["source_anchor"],
             requirement_text=row["requirement_text"],
             display_text=row["display_text"],
@@ -886,12 +1178,45 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         )
 
         main.save_review_entry(project["id"], document["id"], payload)
-        refreshed = main.get_document_workspace(project["id"], document["id"], include_preview=True)
-        refreshed_ref = refreshed["review_entries"][0]["table_refs"][0]
+        refreshed = main.get_document_workspace(project["id"], document["id"], include_preview=False)
+        refreshed_ref = refreshed["requirements"][0]["table_refs"][0]
 
         self.assertEqual(refreshed_ref["export_variant"], "slice")
         self.assertTrue(refreshed_ref["export_variant_overridden"])
         self.assertEqual(refreshed_ref["recommended_export_variant"], "source")
+
+    def test_preview_recommendation_replaces_non_overridden_persisted_variant(self) -> None:
+        merged_refs, _, _, _ = main._merge_preview_table_assets_for_review_row(
+            preview_row={
+                "table_refs": [
+                    {
+                        "table_id": "tbl_preview",
+                        "recommended_export_variant": "source",
+                        "export_variant": "source",
+                        "export_variant_overridden": False,
+                    }
+                ],
+                "content_blocks": [{"kind": "table", "table_id": "tbl_preview"}],
+                "has_table_asset": True,
+                "table_render_mode": "structured",
+            },
+            persisted_row={
+                "table_refs": [
+                    {
+                        "table_id": "tbl_preview",
+                        "recommended_export_variant": "slice",
+                        "export_variant": "slice",
+                        "export_variant_overridden": False,
+                    }
+                ],
+                "content_blocks": [{"kind": "table", "table_id": "tbl_preview"}],
+                "has_table_asset": True,
+                "table_render_mode": "structured",
+            },
+        )
+
+        self.assertEqual(merged_refs[0]["export_variant"], "source")
+        self.assertFalse(merged_refs[0]["export_variant_overridden"])
 
     def test_row_slice_bbox_matches_merged_cell_slice_with_shared_prefix_and_suffix(self) -> None:
         candidate = {

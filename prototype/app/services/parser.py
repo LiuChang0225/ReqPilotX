@@ -516,6 +516,15 @@ def _merge_pdf_engine_pages(
         for alt in candidates[1:]:
             if not alt["lines"] or not chosen["lines"]:
                 continue
+            if _should_prefer_attachment_band_candidate(chosen, alt):
+                chosen = alt
+                break
+            if (
+                int(chosen.get("table_count", 0)) > 0
+                and int(alt.get("table_count", 0)) <= 0
+                and _should_preserve_structured_table_page(chosen.get("lines") or [], alt.get("lines") or [])
+            ):
+                continue
             if (
                 int(chosen.get("mega_table_rows", 0)) > int(alt.get("mega_table_rows", 0))
                 and int(alt.get("mega_table_rows", 0)) == 0
@@ -541,6 +550,17 @@ def _merge_pdf_engine_pages(
             ):
                 continue
             if len(alt["lines"]) >= len(chosen["lines"]) * 1.45:
+                chosen = alt
+                break
+
+        # Attachment table pages often have multiple decent text candidates.
+        # After broad completeness switching, do one more pass for cleaner band labels.
+        for alt in candidates:
+            if alt["engine"] == chosen["engine"]:
+                continue
+            if not alt["lines"] or not chosen["lines"]:
+                continue
+            if _should_prefer_attachment_band_candidate(chosen, alt):
                 chosen = alt
                 break
 
@@ -761,6 +781,100 @@ def _has_mixed_table_clause_signal(lines: list[str]) -> bool:
             plain_clause_hits += 1
 
     return table_clause_hits >= 1 or plain_clause_hits >= 2
+
+
+def _should_preserve_structured_table_page(chosen_lines: list[str], alt_lines: list[str]) -> bool:
+    if _count_markdown_table_rows(chosen_lines) < 2:
+        return False
+    has_stage_band = _has_table_stage_band_signal(chosen_lines)
+    if not (_has_mixed_table_clause_signal(chosen_lines) or has_stage_band):
+        return False
+    if has_stage_band:
+        return len(alt_lines) <= max(16, int(len(chosen_lines) * 5.0))
+    return len(alt_lines) <= max(12, int(len(chosen_lines) * 2.4))
+
+
+def _has_table_stage_band_signal(lines: list[str]) -> bool:
+    for raw in lines:
+        text = _normalize_line(str(raw or ""))
+        if not _is_markdown_table_row_like(text):
+            continue
+        cells = [_normalize_line(cell) for cell in _parse_markdown_cells(text) if _normalize_line(cell)]
+        if len(cells) < 2:
+            continue
+        meaningful = [cell for cell in cells if not re.fullmatch(r"col\d+", cell, re.I)]
+        if len(meaningful) < 2:
+            continue
+        stage_text = meaningful[0]
+        if not re.search(
+            r"(生命周期|lifecycle|阶段|phase|production|development|maintenance|support|总体要求|general requirements)",
+            stage_text,
+            re.I,
+        ):
+            continue
+        unique = {re.sub(r"\s+", "", cell).lower() for cell in meaningful[:12] if cell}
+        if len(unique) <= max(2, len(meaningful[:12]) // 3):
+            return True
+    return False
+
+
+def _attachment_band_label_count(lines: list[str]) -> int:
+    return _attachment_band_label_metrics(lines)[0]
+
+
+def _attachment_band_label_quality_score(lines: list[str]) -> int:
+    return _attachment_band_label_metrics(lines)[1]
+
+
+def _attachment_band_label_metrics(lines: list[str]) -> tuple[int, int]:
+    if not lines:
+        return 0, 0
+    count = 0
+    quality_score = 0
+    seen: set[str] = set()
+    for raw in lines:
+        text = _normalize_line(str(raw or ""))
+        if not text or "|" in text:
+            continue
+        if len(text) > 48:
+            continue
+        if not re.match(
+            r"^(?:附件|附录|appendix|annex)\s*\d+\s*(?:[-—–]{1,2}\s*)?[A-Za-z\u4e00-\u9fff0-9].{0,80}$",
+            text,
+            re.I,
+        ):
+            continue
+        key = re.sub(r"\s+", "", text).lower()
+        if key in seen:
+            continue
+        seen.add(key)
+        count += 1
+        quality_score += max(0, 32 - len(text))
+    return count, quality_score
+
+
+def _should_prefer_attachment_band_candidate(chosen: dict[str, Any], alt: dict[str, Any]) -> bool:
+    chosen_labels = _attachment_band_label_count(chosen.get("lines") or [])
+    alt_labels = _attachment_band_label_count(alt.get("lines") or [])
+    chosen_quality = _attachment_band_label_quality_score(chosen.get("lines") or [])
+    alt_quality = _attachment_band_label_quality_score(alt.get("lines") or [])
+    if alt_labels == 0:
+        return False
+    if alt_labels < chosen_labels:
+        return False
+    if alt_labels == chosen_labels and alt_quality <= chosen_quality:
+        return False
+    if float(alt.get("score", -999.0)) + 0.12 < float(chosen.get("score", -999.0)):
+        return False
+    if len(alt.get("lines") or []) + 2 < int(len(chosen.get("lines") or []) * 0.85):
+        return False
+    if (
+        float(alt.get("fragment_ratio", 0.0))
+        > max(0.24, float(chosen.get("fragment_ratio", 0.0)) * 2.2)
+        and float(alt.get("score", -999.0)) <= float(chosen.get("score", -999.0)) + 0.08
+    ):
+        return False
+    return True
 
 
 def _table_row_contains_clause_heading(cells: list[str]) -> bool:
@@ -1095,7 +1209,7 @@ def _extract_clean_lines(text: str) -> list[str]:
     for raw in text.replace("\r", "\n").split("\n"):
         line = _normalize_line(raw)
         if line:
-            lines.append(line)
+            lines.extend(_split_inline_attachment_band_line(line))
     return lines
 
 
@@ -1117,6 +1231,51 @@ def _normalize_line(line: str) -> str:
     value = _strip_inline_watermark_fragments(value)
     value = value.replace("•", "-").replace("·", "-")
     return value.strip()
+
+
+def _split_inline_attachment_band_line(line: str) -> list[str]:
+    value = str(line or "").strip()
+    if not value:
+        return []
+    match = re.match(
+        r"^\s*((?:附件|附录|appendix|annex)\s*\d+\s*[-—–]{1,2}\s*[A-Za-z\u4e00-\u9fff0-9][^。！？!?；;|]{0,32}?)\s+(.+)$",
+        value,
+        re.I,
+    )
+    if not match:
+        return [value]
+    label = _normalize_line(str(match.group(1) or ""))
+    tail = _normalize_line(str(match.group(2) or ""))
+    if not _looks_like_attachment_band_label(label) or not _looks_like_inline_attachment_tail(tail):
+        return [value]
+    return [label, tail]
+
+
+def _looks_like_attachment_band_label(text: str) -> bool:
+    value = str(text or "").strip()
+    if not value:
+        return False
+    if len(value) > 40:
+        return False
+    return bool(
+        re.match(
+            r"^(?:附件|附录|appendix|annex)\s*\d+\s*[-—–]{1,2}\s*[A-Za-z\u4e00-\u9fff0-9].+$",
+            value,
+            re.I,
+        )
+    )
+
+
+def _looks_like_inline_attachment_tail(text: str) -> bool:
+    value = str(text or "").strip()
+    if not value:
+        return False
+    return bool(
+        re.match(
+            r"^(?:[（(]\d+\s*[）)]|\d+(?:\.\d+){0,4}\s*[、.．:：)]|\d+(?:\.\d+){1,6}\s+)",
+            value,
+        )
+    )
 
 
 def _strip_inline_watermark_fragments(text: str) -> str:

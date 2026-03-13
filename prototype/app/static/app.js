@@ -18,6 +18,7 @@ const state = {
   exportJobs: [],
   lockInFlight: false,
   exportInFlight: false,
+  reviewBulkApplyInFlight: false,
   reviewPreviewInFlight: false,
   reviewPreviewPollHandle: null,
   exportStatusMessage: "",
@@ -68,10 +69,13 @@ const el = {
   reviewKindFilter: document.querySelector("#review-kind-filter"),
   reviewSectionFilter: document.querySelector("#review-section-filter"),
   reviewKeywordFilter: document.querySelector("#review-keyword-filter"),
+  reviewSelectAllBtn: document.querySelector("#review-select-all-btn"),
+  reviewUnselectAllBtn: document.querySelector("#review-unselect-all-btn"),
   reviewSourceRecommendedBtn: document.querySelector("#review-source-recommended-btn"),
   reviewRefreshPreviewBtn: document.querySelector("#review-refresh-preview-btn"),
   reviewDiagnosticCards: document.querySelector("#review-diagnostic-cards"),
   reviewSectionOverviewBody: document.querySelector("#review-section-overview-body"),
+  reviewTableWrap: document.querySelector(".review-table-wrap"),
   reviewTableBody: document.querySelector("#review-table-body"),
   reviewStatus: document.querySelector("#review-status"),
   reviewPdfDrawer: document.querySelector("#review-pdf-drawer"),
@@ -146,6 +150,8 @@ function bindEvents() {
   el.reviewKindFilter?.addEventListener("change", onReviewKindFilterChanged);
   el.reviewSectionFilter?.addEventListener("input", renderReviewEntries);
   el.reviewKeywordFilter?.addEventListener("input", renderReviewEntries);
+  el.reviewSelectAllBtn?.addEventListener("click", wrap(() => bulkSetReviewKeep(true)));
+  el.reviewUnselectAllBtn?.addEventListener("click", wrap(() => bulkSetReviewKeep(false)));
   el.reviewSourceRecommendedBtn?.addEventListener("click", toggleReviewRecommendedSourceOnly);
   el.reviewRefreshPreviewBtn?.addEventListener("click", wrap(onRefreshReviewPreview));
   el.reviewTableBody?.addEventListener("change", wrap(onReviewTableChanged));
@@ -923,10 +929,129 @@ function toggleReviewRecommendedSourceOnly() {
 }
 
 function syncReviewSelectionButtons() {
-  if (!el.reviewSourceRecommendedBtn) {
+  const hasRows = filterReviewEntries(state.reviewEntries).length > 0;
+  const disabled = state.reviewBulkApplyInFlight || state.reviewPreviewInFlight || !hasRows;
+  if (el.reviewSelectAllBtn) {
+    el.reviewSelectAllBtn.disabled = disabled;
+  }
+  if (el.reviewUnselectAllBtn) {
+    el.reviewUnselectAllBtn.disabled = disabled;
+  }
+  if (el.reviewSourceRecommendedBtn) {
+    el.reviewSourceRecommendedBtn.textContent = state.reviewShowRecommendedSourceOnly ? "显示全部条目" : "仅看推荐截图";
+    el.reviewSourceRecommendedBtn.disabled = state.reviewBulkApplyInFlight || state.reviewPreviewInFlight || !hasRows;
+  }
+}
+
+function setActiveReviewRow(entryId) {
+  document.querySelectorAll("#review-table-body tr[data-review-entry-id]").forEach((rowEl) => {
+    const isActive = String(rowEl.getAttribute("data-review-entry-id") || "").trim() === String(entryId || "").trim();
+    rowEl.classList.toggle("is-active", isActive);
+  });
+}
+
+function buildReviewedExtractionEntriesPayload(rows) {
+  return (rows || []).map((row) => ({
+    entry_id: row.entry_id || "",
+    req_code: row.req_code || "",
+    entry_kind: row.entry_kind || "REQUIREMENT",
+    source_page: Number(row.source_page || 0) || null,
+    source_page_end: Number(row.source_page_end || 0) || null,
+    source_anchor: row.source_anchor || "",
+    requirement_text: row.raw_text || row.requirement_text || row.display_text || "",
+    display_text: row.display_text || row.requirement_text || row.raw_text || "",
+    raw_text: row.raw_text || row.requirement_text || row.display_text || "",
+    requirement_type: row.requirement_type || "FUNCTIONAL",
+    priority: row.priority || "MEDIUM",
+    text_relation: row.text_relation || "distinct",
+    is_deduped: Boolean(row.is_deduped),
+    heading_text: row.heading_text || "",
+    parent_section_code: row.parent_section_code || "",
+    parent_section_title: row.parent_section_title || "",
+    parent_section_label: row.parent_section_label || "",
+    merged_from_req_codes: Array.isArray(row.merged_from_req_codes) ? row.merged_from_req_codes : [],
+    merged_from_entry_ids: Array.isArray(row.merged_from_entry_ids) ? row.merged_from_entry_ids : [],
+    dedupe_version: row.dedupe_version || state.reviewPreview?.summary?.dedupe_version || "",
+    table_refs: Array.isArray(row.table_refs) ? row.table_refs : [],
+    content_blocks: Array.isArray(row.content_blocks) ? row.content_blocks : [],
+    has_table_asset: Boolean(row.has_table_asset),
+    table_render_mode: row.table_render_mode || "",
+    keep: Boolean(row.keep),
+  }));
+}
+
+function applyWorkspacePayload(workspace) {
+  state.workspace = workspace || null;
+  state.reviewPreview = workspace?.preview || state.reviewPreview || null;
+  state.requirements = Array.isArray(workspace?.requirements) ? workspace.requirements : [];
+  state.reviewEntries = Array.isArray(workspace?.review_entries) ? workspace.review_entries : [];
+  renderRequirements(state.requirements);
+  renderWorkspaceSummary();
+  renderReviewDiagnostics();
+  renderReviewKindFilter();
+  renderReviewEntries();
+  renderAiStage();
+  syncWorkspaceActions();
+}
+
+async function bulkSetReviewKeep(nextKeep) {
+  if (!state.projectId || !state.currentSorDocumentId) {
+    alert("请先选择项目和 SOR 文档");
     return;
   }
-  el.reviewSourceRecommendedBtn.textContent = state.reviewShowRecommendedSourceOnly ? "显示全部条目" : "仅看推荐截图";
+  const visibleRows = filterReviewEntries(state.reviewEntries);
+  const changedRows = visibleRows.filter((row) => Boolean(row?.keep) !== Boolean(nextKeep));
+  if (!changedRows.length) {
+    setReviewStatus(nextKeep ? "当前筛选范围已经全部保留。" : "当前筛选范围已经全部移除。");
+    return;
+  }
+
+  const previousKeepByEntryId = new Map(
+    (state.reviewEntries || []).map((row) => [getReviewEntryKey(row), Boolean(row?.keep)])
+  );
+  changedRows.forEach((row) => {
+    row.keep = Boolean(nextKeep);
+  });
+  const wasLocked = Boolean(state.workspace?.summary?.locked);
+  state.reviewBulkApplyInFlight = true;
+  renderReviewEntries();
+
+  try {
+    await api(`/api/projects/${state.projectId}/sor-documents/${state.currentSorDocumentId}/apply-reviewed-extraction`, {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify({ entries: buildReviewedExtractionEntriesPayload(state.reviewEntries) }),
+    });
+    const workspace = await api(
+      `/api/projects/${state.projectId}/sor-documents/${state.currentSorDocumentId}/workspace?include_preview=1`
+    );
+    applyWorkspacePayload(workspace);
+    if (wasLocked && !Boolean(workspace?.summary?.locked)) {
+      const warning = "条目集已变更，锁定已自动失效，请重新锁定后再导出或运行 AI。";
+      state.exportStatusMessage = warning;
+      state.exportStatusTone = "warning";
+      renderExportStatus();
+      setAnalyzeStatus(warning, "warning");
+      setReviewStatus(warning, "warning");
+    } else {
+      state.exportStatusMessage = "";
+      state.exportStatusTone = "";
+      renderExportStatus();
+      setReviewStatus(
+        `${nextKeep ? "全部保留" : "全部移除"}已保存：当前筛选范围 ${changedRows.length} 条。`,
+        "success"
+      );
+    }
+  } catch (error) {
+    (state.reviewEntries || []).forEach((row) => {
+      row.keep = previousKeepByEntryId.get(getReviewEntryKey(row)) ?? Boolean(row.keep);
+    });
+    renderReviewEntries();
+    setReviewStatus(normalizeApiError(error, "批量更新失败，请稍后重试。"), "error");
+  } finally {
+    state.reviewBulkApplyInFlight = false;
+    syncReviewSelectionButtons();
+  }
 }
 
 async function onReviewTableChanged(event) {
@@ -1012,7 +1137,7 @@ async function handleReviewTableViewToggle(target) {
   if (!affected) {
     return true;
   }
-  saveReviewEntry(affected).catch((error) => {
+  saveReviewEntry(affected, { renderRequirements: false, renderReviewEntries: false }).catch((error) => {
     setReviewTableExportVariant(tableId, affected.previousVariant);
     renderReviewEntries();
     renderRequirements(state.requirements);
@@ -1091,10 +1216,12 @@ function handleTableViewToggle(target) {
   return true;
 }
 
-async function saveReviewEntry(row) {
+async function saveReviewEntry(row, options = {}) {
   if (!state.projectId || !state.currentSorDocumentId) {
     return;
   }
+  const shouldRenderRequirements = options.renderRequirements !== false;
+  const shouldRenderReviewEntries = options.renderReviewEntries !== false;
   const wasLocked = Boolean(state.workspace?.summary?.locked);
   const result = await api(
     `/api/projects/${state.projectId}/sor-documents/${state.currentSorDocumentId}/review-entry`,
@@ -1139,11 +1266,15 @@ async function saveReviewEntry(row) {
   };
   state.requirements = Array.isArray(result.requirements) ? result.requirements : [];
   mergeSavedReviewEntry(result.saved_entry || null);
-  renderRequirements(state.requirements);
+  if (shouldRenderRequirements) {
+    renderRequirements(state.requirements);
+  }
   renderWorkspaceSummary();
   renderAiStage();
   syncWorkspaceActions();
-  renderReviewEntries();
+  if (shouldRenderReviewEntries) {
+    renderReviewEntries();
+  }
   if (wasLocked && !Boolean(result.summary?.locked)) {
     const warning = "条目集已变更，锁定已自动失效，请重新锁定后再导出或运行 AI。";
     state.exportStatusMessage = warning;
@@ -1229,12 +1360,12 @@ function focusReviewPdf(entryId, pageNo) {
   }
   state.reviewActiveEntryId = entryId;
   setReviewPdfDrawerOpen(true);
+  setActiveReviewRow(entryId);
   const row = state.reviewEntries.find((item) => getReviewEntryKey(item) === entryId);
   const highlightText = buildReviewHighlightText(row);
   if (pageNo > 0) {
     loadReviewPdfPage(pageNo, highlightText);
   }
-  renderReviewEntries();
 }
 
 function loadReviewPdfPage(pageNo, highlightText = "") {
@@ -1376,6 +1507,7 @@ function syncWorkspaceActions() {
     el.reviewRefreshPreviewBtn.disabled = !hasDoc || state.reviewPreviewInFlight || previewStatus === "BUILDING";
     el.reviewRefreshPreviewBtn.textContent = state.reviewPreviewInFlight || previewStatus === "BUILDING" ? "预览生成中..." : "刷新预览";
   }
+  syncReviewSelectionButtons();
   renderExportStatus();
 }
 
