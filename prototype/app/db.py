@@ -9,6 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
+from app.services.table_assets import _refresh_enriched_entry_text_fields
+
 
 APP_DIR = Path(__file__).resolve().parent
 PROTOTYPE_DIR = APP_DIR.parent
@@ -79,19 +81,23 @@ def _normalize_requirement_record(item: dict[str, Any]) -> dict[str, Any]:
     item["dedupe_version"] = str(item.get("dedupe_version") or "")
     item["table_refs"] = _decode_json_payload(item.get("table_refs"), default=[])
     
-    # Force legacy DB entries that defaulted to slice to source if source snapshot exists
+    # Backfill truly legacy rows that predate export-variant recommendation metadata.
     for ref in item["table_refs"]:
         if isinstance(ref, dict):
             export_variant = str(ref.get("export_variant") or "").strip().lower()
             has_source = bool(str(ref.get("source_snapshot_path") or "").strip())
-            if export_variant == "slice" and has_source:
+            recommended_variant = str(ref.get("recommended_export_variant") or "").strip().lower()
+            override_marker = ref.get("export_variant_overridden")
+            if override_marker is None and not recommended_variant and export_variant == "slice" and has_source:
                 ref["export_variant"] = "source"
-            if str(ref.get("recommended_export_variant") or "").strip().lower() == "slice" and has_source:
+            if not recommended_variant and has_source:
                 ref["recommended_export_variant"] = "source"
                 
     item["content_blocks"] = _decode_json_payload(item.get("content_blocks"), default=[])
     item["has_table_asset"] = bool(int(item.get("has_table_asset") or 0))
     item["table_render_mode"] = str(item.get("table_render_mode") or "")
+    if item["table_refs"] or item["content_blocks"]:
+        item = _refresh_enriched_entry_text_fields(item)
     return item
 
 
@@ -1091,9 +1097,17 @@ def replace_document_table_assets(
     assets: list[dict[str, Any]],
 ) -> None:
     timestamp = _now_iso()
+    deduped_assets: list[dict[str, Any]] = []
+    seen_table_ids: set[str] = set()
+    for asset in assets:
+        table_id = str(asset.get("table_id") or "").strip()
+        if not table_id or table_id in seen_table_ids:
+            continue
+        seen_table_ids.add(table_id)
+        deduped_assets.append(asset)
     with get_conn() as conn:
         conn.execute("DELETE FROM document_table_assets WHERE sor_document_id = ?", (sor_document_id,))
-        for asset in assets:
+        for asset in deduped_assets:
             table_id = str(asset.get("table_id") or "").strip()
             if not table_id:
                 continue

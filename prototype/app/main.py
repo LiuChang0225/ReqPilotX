@@ -4,6 +4,7 @@ import json
 import re
 import sqlite3
 import subprocess
+import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
@@ -38,10 +39,12 @@ from app.services.preview_cache import (
     load_cached_preview,
     mark_preview_stale,
     persist_preview_cache,
+    reset_document_snapshot_root,
     request_preview_refresh,
 )
 from app.services.rag import retrieve_evidence
 from app.services.table_assets import (
+    _refresh_enriched_entry_text_fields,
     enrich_entries_with_table_assets,
     enrich_entry_with_table_assets,
     export_blocks_from_requirement,
@@ -61,6 +64,74 @@ STATIC_DIR = APP_DIR / "static"
 
 for directory in (UPLOADS_DIR, KNOWLEDGE_DIR, EXPORTS_DIR, TABLE_SNAPSHOT_DIR):
     directory.mkdir(parents=True, exist_ok=True)
+
+
+_ASSET_RESPONSE_HEADERS = {
+    "Cache-Control": "no-store, max-age=0",
+    "Pragma": "no-cache",
+    "Expires": "0",
+}
+
+
+def _asset_file_ready(path_value: object) -> bool:
+    path = Path(str(path_value or "").strip())
+    if not path.exists():
+        return False
+    try:
+        return path.stat().st_size > 0
+    except OSError:
+        return False
+
+
+def _table_asset_variant_is_ready(
+    asset: dict | None,
+    *,
+    require_snapshot: bool = False,
+    require_source: bool = False,
+) -> bool:
+    if not isinstance(asset, dict):
+        return False
+    if require_snapshot and not _asset_file_ready(asset.get("snapshot_path")):
+        return False
+    if require_source and not _asset_file_ready(asset.get("source_snapshot_path")):
+        return False
+    return True
+
+
+def _resolve_document_table_asset(
+    project_id: str,
+    document_id: str,
+    table_id: str,
+    *,
+    require_snapshot: bool = False,
+    require_source: bool = False,
+) -> dict | None:
+    document = db.get_sor_document(document_id)
+    if not document or document["project_id"] != project_id:
+        raise HTTPException(status_code=404, detail="SOR document not found for this project.")
+
+    preview_asset = None
+    preview, _ = load_cached_preview(document)
+    preview_assets = (preview or {}).get("table_assets") if isinstance(preview, dict) else []
+    for item in preview_assets or []:
+        if isinstance(item, dict) and str(item.get("table_id") or "").strip() == table_id:
+            preview_asset = item
+            break
+
+    db_asset = db.get_document_table_asset(project_id, document_id, table_id)
+    if _table_asset_variant_is_ready(
+        preview_asset,
+        require_snapshot=require_snapshot,
+        require_source=require_source,
+    ):
+        return preview_asset
+    if _table_asset_variant_is_ready(
+        db_asset,
+        require_snapshot=require_snapshot,
+        require_source=require_source,
+    ):
+        return db_asset
+    return preview_asset or db_asset
 
 
 class CreateProjectRequest(BaseModel):
@@ -310,17 +381,7 @@ def get_sor_extraction_preview(project_id: str, document_id: str, response: Resp
 @app.get("/api/projects/{project_id}/sor-documents/{document_id}/table-assets/{table_id}")
 def get_document_table_asset(project_id: str, document_id: str, table_id: str) -> dict:
     _require_project(project_id)
-    document = db.get_sor_document(document_id)
-    if not document or document["project_id"] != project_id:
-        raise HTTPException(status_code=404, detail="SOR document not found for this project.")
-    asset = db.get_document_table_asset(project_id, document_id, table_id)
-    if asset is None:
-        preview, _ = load_cached_preview(document)
-        preview_assets = (preview or {}).get("table_assets") if isinstance(preview, dict) else []
-        for item in preview_assets or []:
-            if isinstance(item, dict) and str(item.get("table_id") or "").strip() == table_id:
-                asset = item
-                break
+    asset = _resolve_document_table_asset(project_id, document_id, table_id)
     if asset is None:
         raise HTTPException(status_code=404, detail="Table asset not found.")
     return prepare_table_asset_urls(asset, project_id=project_id, document_id=document_id)
@@ -328,20 +389,36 @@ def get_document_table_asset(project_id: str, document_id: str, table_id: str) -
 
 @app.get("/api/projects/{project_id}/sor-documents/{document_id}/table-assets/{table_id}/snapshot")
 def get_document_table_asset_snapshot(project_id: str, document_id: str, table_id: str) -> FileResponse:
-    asset = get_document_table_asset(project_id, document_id, table_id)
+    _require_project(project_id)
+    asset = _resolve_document_table_asset(project_id, document_id, table_id, require_snapshot=True)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Table asset not found.")
     snapshot_path = Path(str(asset.get("snapshot_path") or "").strip())
     if not snapshot_path.exists():
         raise HTTPException(status_code=404, detail="Table snapshot not found.")
-    return FileResponse(snapshot_path, media_type="image/png", filename=f"{table_id}.png")
+    return FileResponse(
+        snapshot_path,
+        media_type="image/png",
+        filename=f"{table_id}.png",
+        headers=_ASSET_RESPONSE_HEADERS,
+    )
 
 
 @app.get("/api/projects/{project_id}/sor-documents/{document_id}/table-assets/{table_id}/source-snapshot")
 def get_document_table_asset_source_snapshot(project_id: str, document_id: str, table_id: str) -> FileResponse:
-    asset = get_document_table_asset(project_id, document_id, table_id)
+    _require_project(project_id)
+    asset = _resolve_document_table_asset(project_id, document_id, table_id, require_source=True)
+    if asset is None:
+        raise HTTPException(status_code=404, detail="Table asset not found.")
     snapshot_path = Path(str(asset.get("source_snapshot_path") or "").strip())
     if not snapshot_path.exists():
         raise HTTPException(status_code=404, detail="Table source snapshot not found.")
-    return FileResponse(snapshot_path, media_type="image/png", filename=f"{table_id}_source.png")
+    return FileResponse(
+        snapshot_path,
+        media_type="image/png",
+        filename=f"{table_id}_source.png",
+        headers=_ASSET_RESPONSE_HEADERS,
+    )
 
 
 @app.post("/api/projects/{project_id}/sor-documents/{document_id}/refresh-preview")
@@ -544,7 +621,7 @@ def analyze_document(project_id: str, payload: AnalyzeRequest) -> dict:
     preview = build_extraction_preview(
         document["file_path"],
         document_id=document["id"],
-        snapshot_root=_table_snapshot_root(document["id"]),
+        snapshot_root=reset_document_snapshot_root(document["id"]),
     )
     extracted = _build_analysis_rows_from_preview(preview)
     if not extracted:
@@ -1107,7 +1184,8 @@ def _build_analysis_rows_from_preview(preview: dict) -> list[dict]:
         if not text:
             continue
         normalized.append(
-            {
+            _refresh_enriched_entry_text_fields(
+                {
                 **row,
                 "entry_kind": entry_kind,
                 "display_text": text,
@@ -1123,7 +1201,8 @@ def _build_analysis_rows_from_preview(preview: dict) -> list[dict]:
                 "content_blocks": row.get("content_blocks") or [],
                 "has_table_asset": bool(row.get("has_table_asset")),
                 "table_render_mode": str(row.get("table_render_mode") or "").strip(),
-            }
+                }
+            )
         )
     return normalized
 
@@ -1143,7 +1222,8 @@ def _build_analysis_rows_from_review_payload(entries: list[ReviewedRequirementEn
         if not preferred_text:
             continue
         normalized.append(
-            {
+            _refresh_enriched_entry_text_fields(
+                {
                 "entry_id": str(row.get("entry_id") or row.get("req_code") or ""),
                 "req_code": str(row.get("req_code") or "").strip(),
                 "entry_kind": entry_kind,
@@ -1167,7 +1247,8 @@ def _build_analysis_rows_from_review_payload(entries: list[ReviewedRequirementEn
                 "has_table_asset": bool(row.get("has_table_asset")),
                 "table_render_mode": str(row.get("table_render_mode") or "").strip(),
                 "dedupe_version": str(row.get("dedupe_version") or "heading_requirement_v1"),
-            }
+                }
+            )
         )
     return normalized
 
@@ -1278,7 +1359,15 @@ def _json_dumps(value: object) -> str:
 
 def _table_snapshot_root(document_id: str) -> Path:
     token = str(document_id or "").strip() or "preview"
-    path = TABLE_SNAPSHOT_DIR / token
+    path = TABLE_SNAPSHOT_DIR / "persisted" / token
+    path.mkdir(parents=True, exist_ok=True)
+    return path
+
+
+def _reset_table_snapshot_root(document_id: str) -> Path:
+    path = _table_snapshot_root(document_id)
+    if path.exists():
+        shutil.rmtree(path, ignore_errors=True)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
@@ -1320,6 +1409,7 @@ def _materialize_document_table_assets(
 
 
 def _sync_document_table_assets(project_id: str, sor_document_id: str) -> None:
+    _reset_table_snapshot_root(sor_document_id)
     current_rows = db.list_requirements(project_id, sor_document_id)
     materialized_rows, table_assets = _materialize_document_table_assets(current_rows, sor_document_id=sor_document_id)
     for row in materialized_rows:
@@ -1399,6 +1489,14 @@ def _enrich_requirements_with_preview_context(rows: list[dict], file_path: str) 
         if not str(copied.get("table_render_mode") or "").strip() and str(meta.get("table_render_mode") or "").strip():
             copied["table_render_mode"] = str(meta.get("table_render_mode") or "").strip()
             changed = True
+        if copied.get("table_refs") or copied.get("content_blocks"):
+            refreshed = _refresh_enriched_entry_text_fields(copied)
+            if (
+                str(refreshed.get("display_text") or "").strip() != str(copied.get("display_text") or "").strip()
+                or str(refreshed.get("raw_text") or "").strip() != str(copied.get("raw_text") or "").strip()
+            ):
+                copied = refreshed
+                changed = True
         if changed and str(copied.get("id") or "").strip():
             pending_updates.append(
                 {
@@ -1796,27 +1894,23 @@ def _overlay_review_entries(rows: object, persisted_requirements: list[dict], *,
         row = dict(raw_row)
         req_code = str(row.get("req_code") or "").strip()
         persisted = persisted_by_req_code.get(req_code) or persisted_by_base_req_code.get(_base_req_code(req_code))
+        if persisted and not _persisted_review_matches_preview_row(persisted, row):
+            persisted = None
         if persisted:
+            merged_refs, merged_blocks, merged_has_asset, merged_render_mode = _merge_preview_table_assets_for_review_row(
+                preview_row=row,
+                persisted_row=persisted,
+            )
             row["id"] = persisted.get("id")
             row["keep"] = True
             row["entry_kind"] = str(persisted.get("entry_kind") or row.get("entry_kind") or "REQUIREMENT").strip().upper()
             row["requirement_type"] = str(persisted.get("requirement_type") or row.get("requirement_type") or "")
             row["priority"] = str(persisted.get("priority") or row.get("priority") or "")
-            row["parent_section_code"] = str(persisted.get("parent_section_code") or row.get("parent_section_code") or "")
-            row["parent_section_title"] = str(persisted.get("parent_section_title") or row.get("parent_section_title") or "")
-            row["parent_section_label"] = str(persisted.get("parent_section_label") or row.get("parent_section_label") or "")
-            row["heading_text"] = str(persisted.get("heading_text") or row.get("heading_text") or "")
             row["dedupe_version"] = str(persisted.get("dedupe_version") or row.get("dedupe_version") or "")
-            row["table_refs"] = persisted.get("table_refs") or row.get("table_refs") or []
-            row["content_blocks"] = persisted.get("content_blocks") or row.get("content_blocks") or []
-            row["has_table_asset"] = bool(
-                persisted.get("has_table_asset")
-                if persisted.get("has_table_asset") is not None
-                else row.get("has_table_asset")
-            )
-            row["table_render_mode"] = str(
-                persisted.get("table_render_mode") or row.get("table_render_mode") or ""
-            ).strip()
+            row["table_refs"] = merged_refs
+            row["content_blocks"] = merged_blocks
+            row["has_table_asset"] = merged_has_asset
+            row["table_render_mode"] = merged_render_mode
             row["status"] = persisted.get("status")
             row["ai_decision"] = persisted.get("ai_decision")
             row["ai_reason"] = persisted.get("ai_reason")
@@ -1831,9 +1925,92 @@ def _overlay_review_entries(rows: object, persisted_requirements: list[dict], *,
             row["requirement_text"] = str(row.get("raw_text") or row.get("requirement_text") or row.get("display_text") or "")
         else:
             row["requirement_text"] = str(row.get("display_text") or row.get("requirement_text") or row.get("raw_text") or "")
+        if row.get("table_refs") or row.get("content_blocks"):
+            row = _refresh_enriched_entry_text_fields(row)
         row["entry_id"] = row.get("entry_id") or row.get("req_code") or f"ENTRY-{index + 1}"
         overlaid.append(row)
     return overlaid
+
+
+def _merge_preview_table_assets_for_review_row(
+    *,
+    preview_row: dict,
+    persisted_row: dict,
+) -> tuple[list[dict], list[dict], bool, str]:
+    preview_refs = [dict(item) for item in (preview_row.get("table_refs") or []) if isinstance(item, dict)]
+    persisted_refs = [dict(item) for item in (persisted_row.get("table_refs") or []) if isinstance(item, dict)]
+    merged_refs: list[dict]
+
+    if preview_refs:
+        persisted_ref_by_id = {
+            str(item.get("table_id") or "").strip(): item
+            for item in persisted_refs
+            if str(item.get("table_id") or "").strip()
+        }
+        merged_refs = []
+        for ref in preview_refs:
+            merged = dict(ref)
+            table_id = str(ref.get("table_id") or "").strip()
+            persisted_ref = persisted_ref_by_id.get(table_id)
+            if persisted_ref:
+                export_variant = str(persisted_ref.get("export_variant") or "").strip().lower()
+                recommended = str(merged.get("recommended_export_variant") or "").strip().lower()
+                override_marker = persisted_ref.get("export_variant_overridden")
+                should_preserve_variant = export_variant in {"slice", "source"} and (
+                    bool(override_marker)
+                    or (
+                        override_marker is None
+                        and recommended in {"slice", "source"}
+                        and export_variant != recommended
+                    )
+                )
+                if should_preserve_variant:
+                    merged["export_variant"] = export_variant
+                    if recommended in {"slice", "source"}:
+                        merged["export_variant_overridden"] = export_variant != recommended
+            merged_refs.append(merged)
+    else:
+        merged_refs = persisted_refs
+
+    preview_blocks = preview_row.get("content_blocks") if isinstance(preview_row.get("content_blocks"), list) else []
+    persisted_blocks = persisted_row.get("content_blocks") if isinstance(persisted_row.get("content_blocks"), list) else []
+    merged_blocks = preview_blocks or persisted_blocks or []
+    merged_has_asset = bool(preview_row.get("has_table_asset")) if preview_row.get("has_table_asset") is not None else bool(
+        persisted_row.get("has_table_asset")
+    )
+    merged_render_mode = str(preview_row.get("table_render_mode") or persisted_row.get("table_render_mode") or "").strip()
+    if merged_refs:
+        merged_has_asset = True
+    return merged_refs, merged_blocks, merged_has_asset, merged_render_mode
+
+
+def _persisted_review_matches_preview_row(persisted: dict, row: dict) -> bool:
+    persisted_fp = {
+        token
+        for token in _requirement_match_tokens(persisted)
+        if token.startswith("fp:")
+    }
+    preview_fp = {
+        token
+        for token in _requirement_match_tokens(row)
+        if token.startswith("fp:")
+    }
+    if persisted_fp and preview_fp:
+        return bool(persisted_fp & preview_fp)
+
+    persisted_anchor = str(persisted.get("source_anchor") or "").strip()
+    preview_anchor = str(row.get("source_anchor") or "").strip()
+    persisted_page = _coerce_positive_int(persisted.get("source_page"))
+    preview_page = _coerce_positive_int(row.get("source_page"))
+    if persisted_anchor and preview_anchor and persisted_anchor == preview_anchor and persisted_page == preview_page:
+        persisted_text = _normalize_requirement_match_text(
+            str(persisted.get("raw_text") or persisted.get("display_text") or persisted.get("requirement_text") or "")
+        )
+        preview_text = _normalize_requirement_match_text(
+            str(row.get("raw_text") or row.get("display_text") or row.get("requirement_text") or "")
+        )
+        return bool(persisted_text and preview_text and persisted_text == preview_text)
+    return False
 
 
 def _build_workspace_requirements_from_review_entries(
@@ -1843,10 +2020,8 @@ def _build_workspace_requirements_from_review_entries(
     preview: dict | None,
 ) -> tuple[list[dict], dict[str, object]]:
     matched_tokens: set[str] = set()
-    kept: list[dict] = []
+    current_rows: list[dict] = []
     for row in rows or []:
-        if not bool(row.get("keep", False)):
-            continue
         copied = dict(row)
         copied["requirement_text"] = str(
             row.get("raw_text") or row.get("requirement_text") or row.get("display_text") or ""
@@ -1857,7 +2032,7 @@ def _build_workspace_requirements_from_review_entries(
         copied["content_blocks"] = row.get("content_blocks") or []
         copied["has_table_asset"] = bool(row.get("has_table_asset"))
         copied["table_render_mode"] = str(row.get("table_render_mode") or "")
-        kept.append(copied)
+        current_rows.append(copied)
         matched_tokens.update(_requirement_match_tokens(copied))
     for row in fallback_requirements or []:
         if not _is_ai_eligible_requirement(row) and str(row.get("entry_kind") or "").upper() != "HEADING":
@@ -1875,10 +2050,10 @@ def _build_workspace_requirements_from_review_entries(
         copied["content_blocks"] = copied.get("content_blocks") or []
         copied["has_table_asset"] = bool(copied.get("has_table_asset"))
         copied["table_render_mode"] = str(copied.get("table_render_mode") or "")
-        kept.append(copied)
-    if not kept:
+        current_rows.append(copied)
+    if not current_rows:
         return _prepare_requirements_for_display(fallback_requirements, preview=preview)
-    return _prepare_requirements_for_display(kept, preview=preview)
+    return _prepare_requirements_for_display(current_rows, preview=preview)
 
 
 def _base_req_code(value: object) -> str:
