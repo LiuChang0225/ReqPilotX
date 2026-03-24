@@ -9,7 +9,8 @@ from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any, Iterable
 
-from app.services.table_assets import _refresh_enriched_entry_text_fields
+from app.services.complex_table_mode import hydrate_complex_row_metadata
+from app.services.table_assets import _refresh_enriched_entry_text_fields, normalize_preserved_entry_table_assets
 
 
 APP_DIR = Path(__file__).resolve().parent
@@ -97,8 +98,9 @@ def _normalize_requirement_record(item: dict[str, Any]) -> dict[str, Any]:
     item["has_table_asset"] = bool(int(item.get("has_table_asset") or 0))
     item["table_render_mode"] = str(item.get("table_render_mode") or "")
     if item["table_refs"] or item["content_blocks"]:
+        item = normalize_preserved_entry_table_assets(item)
         item = _refresh_enriched_entry_text_fields(item)
-    return item
+    return hydrate_complex_row_metadata(item)
 
 
 @contextmanager

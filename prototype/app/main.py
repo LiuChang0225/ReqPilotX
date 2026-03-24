@@ -18,6 +18,12 @@ from pydantic import BaseModel, Field
 
 from app import db
 from app.services.assessor import assess_requirement
+from app.services.complex_table_mode import (
+    hydrate_complex_row_metadata,
+    is_complex_review_only_row,
+    is_complex_table_row,
+    row_is_shadowed_by_complex_group,
+)
 from app.services.extraction_preview import build_extraction_preview
 from app.services.exporter import export_compliance_matrix
 from app.services.parser import parse_document
@@ -48,6 +54,7 @@ from app.services.table_assets import (
     enrich_entries_with_table_assets,
     enrich_entry_with_table_assets,
     export_blocks_from_requirement,
+    normalize_preserved_entry_table_assets,
     prepare_table_asset_urls,
     prepare_table_ref_urls,
 )
@@ -168,11 +175,36 @@ class ReviewedRequirementEntry(BaseModel):
     content_blocks: list[dict] | None = None
     has_table_asset: bool | None = None
     table_render_mode: str | None = None
+    complex_table_mode: bool | None = None
+    complex_zone_id: str | None = None
+    complex_family: str | None = None
+    complex_role: str | None = None
+    complex_group_label: str | None = None
+    complex_split_level: str | None = None
+    complex_warnings: list[str] | None = None
+    complex_row_policy: str | None = None
     keep: bool = True
 
 
 class ApplyReviewedExtractionRequest(BaseModel):
     entries: list[ReviewedRequirementEntry]
+
+
+_COMPLEX_ROW_FIELD_NAMES = (
+    "complex_table_mode",
+    "complex_zone_id",
+    "complex_family",
+    "complex_role",
+    "complex_group_label",
+    "complex_split_level",
+    "complex_warnings",
+    "complex_row_policy",
+)
+
+
+def _copy_complex_row_fields(row: dict[str, object]) -> dict[str, object]:
+    hydrated = hydrate_complex_row_metadata(dict(row))
+    return {field: hydrated.get(field) for field in _COMPLEX_ROW_FIELD_NAMES}
 
 
 class DecisionRequest(BaseModel):
@@ -700,12 +732,15 @@ def save_review_entry(project_id: str, document_id: str, payload: ReviewedRequir
 
     current_requirements = db.list_requirements(project_id, document_id)
     normalized = _normalize_review_entry_payload(payload)
-    normalized, _ = enrich_entry_with_table_assets(
-        normalized,
-        document_id=document_id,
-        snapshot_root=_table_snapshot_root(document_id),
-        source_file_path=str(document.get("file_path") or ""),
-    )
+    if is_complex_table_row(normalized):
+        normalized = normalize_preserved_entry_table_assets(normalized)
+    else:
+        normalized, _ = enrich_entry_with_table_assets(
+            normalized,
+            document_id=document_id,
+            snapshot_root=_table_snapshot_root(document_id),
+            source_file_path=str(document.get("file_path") or ""),
+        )
     matched = _find_requirement_for_review_entry(current_requirements, normalized)
     action = "noop"
     persisted_row: dict | None = matched
@@ -1143,6 +1178,14 @@ def _dump_snapshot_json(requirements: list[dict]) -> str:
                 "content_blocks": row.get("content_blocks", []),
                 "has_table_asset": row.get("has_table_asset"),
                 "table_render_mode": row.get("table_render_mode"),
+                "complex_table_mode": row.get("complex_table_mode"),
+                "complex_zone_id": row.get("complex_zone_id"),
+                "complex_family": row.get("complex_family"),
+                "complex_role": row.get("complex_role"),
+                "complex_group_label": row.get("complex_group_label"),
+                "complex_split_level": row.get("complex_split_level"),
+                "complex_warnings": row.get("complex_warnings", []),
+                "complex_row_policy": row.get("complex_row_policy"),
                 "requirement_type": row.get("requirement_type"),
                 "priority": row.get("priority"),
                 "ai_decision": row.get("ai_decision"),
@@ -1177,33 +1220,33 @@ def _build_analysis_rows_from_preview(preview: dict) -> list[dict]:
     for row in rows:
         if not isinstance(row, dict):
             continue
+        if is_complex_review_only_row(row):
+            continue
         entry_kind = str(row.get("entry_kind") or "REQUIREMENT").strip().upper()
         if entry_kind not in {"REQUIREMENT", "HYBRID"}:
             continue
         text = str(row.get("display_text") or row.get("requirement_text") or "").strip()
         if not text:
             continue
-        normalized.append(
-            _refresh_enriched_entry_text_fields(
-                {
-                **row,
-                "entry_kind": entry_kind,
-                "display_text": text,
-                "raw_text": str(row.get("raw_text") or row.get("requirement_text") or text).strip(),
-                "text_relation": str(row.get("text_relation") or "distinct").strip() or "distinct",
-                "is_deduped": bool(row.get("is_deduped")),
-                "parent_section_code": str(row.get("parent_section_code") or "").strip(),
-                "parent_section_title": str(row.get("parent_section_title") or "").strip(),
-                "parent_section_label": str(row.get("parent_section_label") or "").strip(),
-                "merged_from_req_codes": row.get("merged_from_req_codes") or [],
-                "merged_from_entry_ids": row.get("merged_from_entry_ids") or [],
-                "table_refs": row.get("table_refs") or [],
-                "content_blocks": row.get("content_blocks") or [],
-                "has_table_asset": bool(row.get("has_table_asset")),
-                "table_render_mode": str(row.get("table_render_mode") or "").strip(),
-                }
-            )
-        )
+        base = {
+            **row,
+            "entry_kind": entry_kind,
+            "display_text": text,
+            "raw_text": str(row.get("raw_text") or row.get("requirement_text") or text).strip(),
+            "text_relation": str(row.get("text_relation") or "distinct").strip() or "distinct",
+            "is_deduped": bool(row.get("is_deduped")),
+            "parent_section_code": str(row.get("parent_section_code") or "").strip(),
+            "parent_section_title": str(row.get("parent_section_title") or "").strip(),
+            "parent_section_label": str(row.get("parent_section_label") or "").strip(),
+            "merged_from_req_codes": row.get("merged_from_req_codes") or [],
+            "merged_from_entry_ids": row.get("merged_from_entry_ids") or [],
+            "table_refs": row.get("table_refs") or [],
+            "content_blocks": row.get("content_blocks") or [],
+            "has_table_asset": bool(row.get("has_table_asset")),
+            "table_render_mode": str(row.get("table_render_mode") or "").strip(),
+            **_copy_complex_row_fields(row),
+        }
+        normalized.append(hydrate_complex_row_metadata(_refresh_enriched_entry_text_fields(base)))
     return normalized
 
 
@@ -1212,6 +1255,8 @@ def _build_analysis_rows_from_review_payload(entries: list[ReviewedRequirementEn
     for item in entries:
         row = item.model_dump()
         if not bool(row.get("keep", True)):
+            continue
+        if is_complex_review_only_row(row):
             continue
         entry_kind = str(row.get("entry_kind") or "REQUIREMENT").strip().upper()
         if entry_kind not in {"REQUIREMENT", "HYBRID", "HEADING"}:
@@ -1247,6 +1292,7 @@ def _build_analysis_rows_from_review_payload(entries: list[ReviewedRequirementEn
                 "has_table_asset": bool(row.get("has_table_asset")),
                 "table_render_mode": str(row.get("table_render_mode") or "").strip(),
                 "dedupe_version": str(row.get("dedupe_version") or "heading_requirement_v1"),
+                **_copy_complex_row_fields(row),
                 }
             )
         )
@@ -1383,14 +1429,9 @@ def _materialize_document_table_assets(
     if document:
         source_file_path = str(document.get("file_path") or "").strip()
         preview, _ = load_cached_preview(document)
-        preview_spans = {
-            str(item.get("req_code") or "").strip(): item
-            for item in _build_analysis_rows_from_preview(preview or {})
-            if str(item.get("req_code") or "").strip()
-        }
+        preview_index = _build_requirement_row_index(_build_analysis_rows_from_preview(preview or {}))
         for row in copied_rows:
-            req_code = str(row.get("req_code") or "").strip()
-            preview_row = preview_spans.get(req_code)
+            preview_row = _find_indexed_requirement_row(row, preview_index, allow_weak_identifier=True)
             if not preview_row:
                 continue
             if _coerce_positive_int(row.get("source_page")) <= 0 and _coerce_positive_int(preview_row.get("source_page")) > 0:
@@ -1460,12 +1501,11 @@ def _enrich_requirements_with_preview_context(rows: list[dict], file_path: str) 
     preview, _ = load_cached_preview(document)
     if preview is None:
         return rows
-    mapped = {str(item.get("req_code") or "").strip(): item for item in _build_analysis_rows_from_preview(preview)}
+    preview_index = _build_requirement_row_index(_build_analysis_rows_from_preview(preview))
     enriched: list[dict] = []
     pending_updates: list[dict[str, str]] = []
     for row in rows:
-        req_code = str(row.get("req_code") or "").strip()
-        meta = mapped.get(req_code)
+        meta = _find_indexed_requirement_row(row, preview_index, allow_weak_identifier=True)
         if not meta:
             enriched.append(row)
             continue
@@ -1489,8 +1529,12 @@ def _enrich_requirements_with_preview_context(rows: list[dict], file_path: str) 
         if not str(copied.get("table_render_mode") or "").strip() and str(meta.get("table_render_mode") or "").strip():
             copied["table_render_mode"] = str(meta.get("table_render_mode") or "").strip()
             changed = True
+        if not bool(copied.get("complex_table_mode")) and bool(meta.get("complex_table_mode")):
+            copied.update(_copy_complex_row_fields(meta))
+            changed = True
         if copied.get("table_refs") or copied.get("content_blocks"):
-            refreshed = _refresh_enriched_entry_text_fields(copied)
+            refreshed = hydrate_complex_row_metadata(normalize_preserved_entry_table_assets(copied))
+            refreshed = _refresh_enriched_entry_text_fields(refreshed)
             if (
                 str(refreshed.get("display_text") or "").strip() != str(copied.get("display_text") or "").strip()
                 or str(refreshed.get("raw_text") or "").strip() != str(copied.get("raw_text") or "").strip()
@@ -1739,7 +1783,7 @@ def _sort_requirements_for_display(
     requirements: list[dict],
     preview: dict | None = None,
 ) -> tuple[list[dict], dict[str, object]]:
-    preview_order = _build_preview_requirement_order(preview)
+    preview_order = _build_preview_requirement_order_index(preview)
     ranked: list[tuple[tuple, dict]] = []
     mismatch_count = 0
     for original_index, row in enumerate(requirements):
@@ -1783,7 +1827,7 @@ def _build_requirement_order_diagnostics(
     *,
     preview: dict | None = None,
 ) -> dict[str, object]:
-    preview_order = _build_preview_requirement_order(preview)
+    preview_order = _build_preview_requirement_order_index(preview)
     if not requirements:
         return {
             "order_source": "review_overlay" if preview_order else "fallback_page_anchor",
@@ -1795,29 +1839,29 @@ def _build_requirement_order_diagnostics(
     return {"order_source": "review_overlay", "order_mismatch_count": mismatch_count}
 
 
-def _build_preview_requirement_order(preview: dict | None) -> dict[str, int]:
+def _build_preview_requirement_order_index(preview: dict | None) -> dict[str, object]:
     if not isinstance(preview, dict):
         return {}
     rows = preview.get("complete_requirement_entries_raw") or preview.get("complete_requirement_entries") or []
     if not isinstance(rows, list):
         return {}
-    order: dict[str, int] = {}
-    for index, row in enumerate(rows):
-        if not isinstance(row, dict):
-            continue
-        for token in _requirement_match_tokens(row):
-            order.setdefault(token, index)
-    return order
+    normalized_rows = [dict(row) for row in rows if isinstance(row, dict)]
+    return _build_requirement_row_index(normalized_rows)
 
 
-def _lookup_preview_rank(row: dict, preview_order: dict[str, int]) -> int:
+def _lookup_preview_rank(row: dict, preview_order: dict[str, object]) -> int:
     if not preview_order:
         return 10**9
-    for token in _requirement_match_tokens(row):
-        rank = preview_order.get(token)
-        if rank is not None:
-            return rank
-    return 10**9
+    matched = _find_indexed_requirement_row(row, preview_order, allow_weak_identifier=True)
+    if matched is None:
+        return 10**9
+    rank_by_row_id = preview_order.get("rank_by_row_id")
+    if not isinstance(rank_by_row_id, dict):
+        return 10**9
+    try:
+        return int(rank_by_row_id.get(id(matched), 10**9))
+    except (TypeError, ValueError):
+        return 10**9
 
 
 def _requirement_match_tokens(row: dict) -> list[str]:
@@ -1841,6 +1885,227 @@ def _requirement_match_tokens(row: dict) -> list[str]:
 def _normalize_requirement_match_text(text: str) -> str:
     normalized = re.sub(r"\s+", " ", str(text or "").strip())
     return normalized[:240]
+
+
+def _normalize_source_anchor(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip())
+
+
+def _requirement_anchor_match_key(row: dict) -> tuple[int, str] | None:
+    page = _coerce_positive_int(row.get("source_page"))
+    anchor = _normalize_source_anchor(row.get("source_anchor"))
+    if page <= 0 or not anchor:
+        return None
+    return (page, anchor)
+
+
+def _requirement_page_text_match_key(row: dict) -> tuple[int, str] | None:
+    page = _coerce_positive_int(row.get("source_page"))
+    text = _normalize_requirement_match_text(
+        str(row.get("raw_text") or row.get("display_text") or row.get("requirement_text") or "")
+    )
+    if page <= 0 or not text:
+        return None
+    return (page, text)
+
+
+def _requirement_anchor_text_match_key(row: dict) -> tuple[str, str] | None:
+    anchor = _normalize_source_anchor(row.get("source_anchor"))
+    text = _normalize_requirement_match_text(
+        str(row.get("raw_text") or row.get("display_text") or row.get("requirement_text") or "")
+    )
+    if not anchor or not text:
+        return None
+    return (anchor, text)
+
+
+def _requirement_anchor_only_key(row: dict) -> str:
+    return _normalize_source_anchor(row.get("source_anchor"))
+
+
+def _requirement_exact_match_key(row: dict) -> tuple[int, str, str] | None:
+    anchor_key = _requirement_anchor_match_key(row)
+    text_key = _normalize_requirement_match_text(
+        str(row.get("raw_text") or row.get("display_text") or row.get("requirement_text") or "")
+    )
+    if anchor_key is None or not text_key:
+        return None
+    return (anchor_key[0], anchor_key[1], text_key)
+
+
+def _row_has_strong_requirement_identity(row: dict) -> bool:
+    return bool(
+        _requirement_anchor_match_key(row)
+        or _requirement_page_text_match_key(row)
+        or _requirement_anchor_text_match_key(row)
+        or _requirement_anchor_only_key(row)
+    )
+
+
+def _requirement_entry_kind_group(row: dict) -> str:
+    return str(row.get("entry_kind") or "").strip().upper()
+
+
+def _rows_have_compatible_entry_kind(left: dict, right: dict) -> bool:
+    left_kind = _requirement_entry_kind_group(left)
+    right_kind = _requirement_entry_kind_group(right)
+    if not left_kind or not right_kind:
+        return True
+    if left_kind == right_kind:
+        return True
+    pair = {left_kind, right_kind}
+    if pair <= {"REQUIREMENT", "HYBRID"}:
+        return True
+    if pair <= {"HEADING", "HYBRID"}:
+        return True
+    return False
+
+
+def _append_requirement_row_to_index(index: dict[str, object], row: dict) -> None:
+    rows = index.setdefault("rows", [])
+    if isinstance(rows, list):
+        rows.append(row)
+        rank_by_row_id = index.setdefault("rank_by_row_id", {})
+        if isinstance(rank_by_row_id, dict):
+            rank_by_row_id[id(row)] = len(rows) - 1
+
+    def _append_bucket(bucket_name: str, key: object) -> None:
+        if key in (None, "", ()):
+            return
+        bucket = index.setdefault(bucket_name, {})
+        if not isinstance(bucket, dict):
+            return
+        bucket.setdefault(key, []).append(row)
+
+    _append_bucket("by_exact", _requirement_exact_match_key(row))
+    _append_bucket("by_anchor", _requirement_anchor_match_key(row))
+    _append_bucket("by_page_text", _requirement_page_text_match_key(row))
+    _append_bucket("by_anchor_text", _requirement_anchor_text_match_key(row))
+    _append_bucket("by_anchor_only", _requirement_anchor_only_key(row))
+    entry_id = str(row.get("entry_id") or "").strip()
+    if entry_id:
+        _append_bucket("by_entry", entry_id)
+    req_code = str(row.get("req_code") or "").strip()
+    if req_code:
+        _append_bucket("by_req", req_code)
+        base_req_code = _base_req_code(req_code)
+        if base_req_code:
+            _append_bucket("by_base_req", base_req_code)
+
+
+def _build_requirement_row_index(rows: list[dict]) -> dict[str, object]:
+    index: dict[str, object] = {
+        "rows": [],
+        "rank_by_row_id": {},
+        "by_exact": {},
+        "by_anchor": {},
+        "by_page_text": {},
+        "by_anchor_text": {},
+        "by_anchor_only": {},
+        "by_entry": {},
+        "by_req": {},
+        "by_base_req": {},
+    }
+    for row in rows or []:
+        if isinstance(row, dict):
+            _append_requirement_row_to_index(index, row)
+    return index
+
+
+def _first_unique_index_match(index: dict[str, object], bucket_name: str, key: object) -> dict | None:
+    if key in (None, "", ()):
+        return None
+    bucket = index.get(bucket_name)
+    if not isinstance(bucket, dict):
+        return None
+    matches = bucket.get(key)
+    if not isinstance(matches, list) or len(matches) != 1:
+        return None
+    candidate = matches[0]
+    return candidate if isinstance(candidate, dict) else None
+
+
+def _candidate_supports_weak_requirement_match(target: dict, candidate: dict) -> bool:
+    target_exact = _requirement_exact_match_key(target)
+    candidate_exact = _requirement_exact_match_key(candidate)
+    if target_exact and candidate_exact and target_exact == candidate_exact:
+        return True
+
+    target_anchor = _requirement_anchor_match_key(target)
+    candidate_anchor = _requirement_anchor_match_key(candidate)
+    if target_anchor and candidate_anchor and target_anchor == candidate_anchor:
+        return True
+
+    target_page_text = _requirement_page_text_match_key(target)
+    candidate_page_text = _requirement_page_text_match_key(candidate)
+    if target_page_text and candidate_page_text and target_page_text == candidate_page_text:
+        return True
+
+    target_anchor_text = _requirement_anchor_text_match_key(target)
+    candidate_anchor_text = _requirement_anchor_text_match_key(candidate)
+    if target_anchor_text and candidate_anchor_text and target_anchor_text == candidate_anchor_text:
+        return True
+
+    target_anchor_only = _requirement_anchor_only_key(target)
+    candidate_anchor_only = _requirement_anchor_only_key(candidate)
+    if target_anchor_only and candidate_anchor_only and target_anchor_only == candidate_anchor_only:
+        return True
+
+    return not _row_has_strong_requirement_identity(target)
+
+
+def _find_indexed_requirement_row(
+    row: dict,
+    index: dict[str, object],
+    *,
+    allow_weak_identifier: bool = True,
+) -> dict | None:
+    rows = index.get("rows")
+    if not isinstance(rows, list) or not rows:
+        return None
+
+    for bucket_name, key in (
+        ("by_exact", _requirement_exact_match_key(row)),
+        ("by_anchor", _requirement_anchor_match_key(row)),
+        ("by_page_text", _requirement_page_text_match_key(row)),
+        ("by_anchor_text", _requirement_anchor_text_match_key(row)),
+        ("by_anchor_only", _requirement_anchor_only_key(row)),
+    ):
+        candidate = _first_unique_index_match(index, bucket_name, key)
+        if candidate is not None and _rows_have_compatible_entry_kind(row, candidate):
+            return candidate
+
+    if not allow_weak_identifier:
+        return None
+
+    seen_candidates: set[int] = set()
+    weak_tokens: list[tuple[str, str]] = []
+    entry_id = str(row.get("entry_id") or "").strip()
+    if entry_id:
+        weak_tokens.append(("by_entry", entry_id))
+    req_code = str(row.get("req_code") or "").strip()
+    if req_code:
+        weak_tokens.append(("by_req", req_code))
+        base_req_code = _base_req_code(req_code)
+        if base_req_code:
+            weak_tokens.append(("by_base_req", base_req_code))
+
+    for bucket_name, token in weak_tokens:
+        bucket = index.get(bucket_name)
+        if not isinstance(bucket, dict):
+            continue
+        for candidate in bucket.get(token, []):
+            if not isinstance(candidate, dict):
+                continue
+            candidate_id = id(candidate)
+            if candidate_id in seen_candidates:
+                continue
+            seen_candidates.add(candidate_id)
+            if not _rows_have_compatible_entry_kind(row, candidate):
+                continue
+            if _candidate_supports_weak_requirement_match(row, candidate):
+                return candidate
+    return None
 
 
 def _natural_sort_key(value: str) -> tuple:
@@ -1878,22 +2143,13 @@ def _coerce_int(value: object) -> int:
 def _overlay_review_entries(rows: object, persisted_requirements: list[dict], *, prefer_raw: bool) -> list[dict]:
     if not isinstance(rows, list):
         return []
-    persisted_by_req_code: dict[str, dict] = {}
-    persisted_by_base_req_code: dict[str, dict] = {}
-    for item in persisted_requirements or []:
-        req_code = str(item.get("req_code") or "").strip()
-        if not req_code:
-            continue
-        persisted_by_req_code[req_code] = item
-        base_req_code = _base_req_code(req_code)
-        persisted_by_base_req_code.setdefault(base_req_code, item)
+    persisted_index = _build_requirement_row_index([dict(item) for item in (persisted_requirements or []) if isinstance(item, dict)])
     overlaid: list[dict] = []
     for index, raw_row in enumerate(rows):
         if not isinstance(raw_row, dict):
             continue
         row = dict(raw_row)
-        req_code = str(row.get("req_code") or "").strip()
-        persisted = persisted_by_req_code.get(req_code) or persisted_by_base_req_code.get(_base_req_code(req_code))
+        persisted = _find_indexed_requirement_row(row, persisted_index, allow_weak_identifier=True)
         if persisted and not _persisted_review_matches_preview_row(persisted, row):
             persisted = None
         if persisted:
@@ -1985,31 +2241,30 @@ def _merge_preview_table_assets_for_review_row(
 
 
 def _persisted_review_matches_preview_row(persisted: dict, row: dict) -> bool:
-    persisted_fp = {
-        token
-        for token in _requirement_match_tokens(persisted)
-        if token.startswith("fp:")
-    }
-    preview_fp = {
-        token
-        for token in _requirement_match_tokens(row)
-        if token.startswith("fp:")
-    }
-    if persisted_fp and preview_fp:
-        return bool(persisted_fp & preview_fp)
+    persisted_exact = _requirement_exact_match_key(persisted)
+    preview_exact = _requirement_exact_match_key(row)
+    if persisted_exact and preview_exact and persisted_exact == preview_exact:
+        return True
 
-    persisted_anchor = str(persisted.get("source_anchor") or "").strip()
-    preview_anchor = str(row.get("source_anchor") or "").strip()
-    persisted_page = _coerce_positive_int(persisted.get("source_page"))
-    preview_page = _coerce_positive_int(row.get("source_page"))
-    if persisted_anchor and preview_anchor and persisted_anchor == preview_anchor and persisted_page == preview_page:
-        persisted_text = _normalize_requirement_match_text(
-            str(persisted.get("raw_text") or persisted.get("display_text") or persisted.get("requirement_text") or "")
-        )
-        preview_text = _normalize_requirement_match_text(
-            str(row.get("raw_text") or row.get("display_text") or row.get("requirement_text") or "")
-        )
-        return bool(persisted_text and preview_text and persisted_text == preview_text)
+    persisted_anchor = _requirement_anchor_match_key(persisted)
+    preview_anchor = _requirement_anchor_match_key(row)
+    if persisted_anchor and preview_anchor and persisted_anchor == preview_anchor:
+        return True
+
+    persisted_page_text = _requirement_page_text_match_key(persisted)
+    preview_page_text = _requirement_page_text_match_key(row)
+    if persisted_page_text and preview_page_text and persisted_page_text == preview_page_text:
+        return True
+
+    persisted_anchor_text = _requirement_anchor_text_match_key(persisted)
+    preview_anchor_text = _requirement_anchor_text_match_key(row)
+    if persisted_anchor_text and preview_anchor_text and persisted_anchor_text == preview_anchor_text:
+        return True
+
+    persisted_anchor_only = _requirement_anchor_only_key(persisted)
+    preview_anchor_only = _requirement_anchor_only_key(row)
+    if persisted_anchor_only and preview_anchor_only and persisted_anchor_only == preview_anchor_only:
+        return True
     return False
 
 
@@ -2019,10 +2274,9 @@ def _build_workspace_requirements_from_review_entries(
     fallback_requirements: list[dict],
     preview: dict | None,
 ) -> tuple[list[dict], dict[str, object]]:
-    matched_tokens: set[str] = set()
     current_rows: list[dict] = []
     for row in rows or []:
-        copied = dict(row)
+        copied = hydrate_complex_row_metadata(dict(row))
         copied["requirement_text"] = str(
             row.get("raw_text") or row.get("requirement_text") or row.get("display_text") or ""
         ).strip()
@@ -2033,14 +2287,16 @@ def _build_workspace_requirements_from_review_entries(
         copied["has_table_asset"] = bool(row.get("has_table_asset"))
         copied["table_render_mode"] = str(row.get("table_render_mode") or "")
         current_rows.append(copied)
-        matched_tokens.update(_requirement_match_tokens(copied))
+    current_index = _build_requirement_row_index(current_rows)
+    active_complex_groups = [row for row in current_rows if is_complex_table_row(row, include_summary=False)]
     for row in fallback_requirements or []:
         if not _is_ai_eligible_requirement(row) and str(row.get("entry_kind") or "").upper() != "HEADING":
             continue
-        row_tokens = _requirement_match_tokens(row)
-        if matched_tokens.intersection(row_tokens):
+        if row_is_shadowed_by_complex_group(row, active_complex_groups):
             continue
-        copied = dict(row)
+        if _find_indexed_requirement_row(row, current_index, allow_weak_identifier=True) is not None:
+            continue
+        copied = hydrate_complex_row_metadata(dict(row))
         copied["requirement_text"] = str(
             copied.get("raw_text") or copied.get("requirement_text") or copied.get("display_text") or ""
         ).strip()
@@ -2051,6 +2307,7 @@ def _build_workspace_requirements_from_review_entries(
         copied["has_table_asset"] = bool(copied.get("has_table_asset"))
         copied["table_render_mode"] = str(copied.get("table_render_mode") or "")
         current_rows.append(copied)
+        _append_requirement_row_to_index(current_index, copied)
     if not current_rows:
         return _prepare_requirements_for_display(fallback_requirements, preview=preview)
     return _prepare_requirements_for_display(current_rows, preview=preview)
@@ -2095,7 +2352,10 @@ def _normalize_review_entry_payload(item: ReviewedRequirementEntry) -> dict[str,
         "has_table_asset": bool(row.get("has_table_asset")),
         "table_render_mode": str(row.get("table_render_mode") or "").strip(),
         "dedupe_version": str(row.get("dedupe_version") or "heading_requirement_v1").strip() or "heading_requirement_v1",
+        **_copy_complex_row_fields(row),
     }
+    if is_complex_table_row(normalized):
+        return normalize_preserved_entry_table_assets(normalized)
     enriched, _ = enrich_entry_with_table_assets(
         normalized,
         document_id="preview",
@@ -2109,36 +2369,12 @@ def _normalize_review_entry_payload(item: ReviewedRequirementEntry) -> dict[str,
             "table_render_mode": str(enriched.get("table_render_mode") or ""),
         }
     )
-    return normalized
+    return hydrate_complex_row_metadata(normalized)
 
 
 def _find_requirement_for_review_entry(requirements: list[dict], normalized: dict[str, object]) -> dict | None:
-    req_code = str(normalized.get("req_code") or "").strip()
-    base_req_code = _base_req_code(req_code)
-    entry_id = str(normalized.get("entry_id") or "").strip()
-    source_anchor = str(normalized.get("source_anchor") or "").strip()
-    source_page = _coerce_int(normalized.get("source_page"))
-    raw_text = str(normalized.get("raw_text") or "").strip()
-
-    for row in requirements:
-        current_req_code = str(row.get("req_code") or "").strip()
-        if req_code and current_req_code == req_code:
-            return row
-        if base_req_code and _base_req_code(current_req_code) == base_req_code:
-            return row
-        if entry_id and _base_req_code(current_req_code) == _base_req_code(entry_id):
-            return row
-    for row in requirements:
-        if source_anchor and str(row.get("source_anchor") or "").strip() == source_anchor:
-            row_text = str(row.get("raw_text") or row.get("requirement_text") or "").strip()
-            if raw_text and row_text == raw_text:
-                return row
-    for row in requirements:
-        if source_page and _coerce_int(row.get("source_page")) == source_page:
-            row_text = str(row.get("raw_text") or row.get("requirement_text") or "").strip()
-            if raw_text and row_text == raw_text:
-                return row
-    return None
+    requirement_index = _build_requirement_row_index([dict(row) for row in requirements if isinstance(row, dict)])
+    return _find_indexed_requirement_row(dict(normalized), requirement_index, allow_weak_identifier=True)
 
 
 def _build_saved_review_entry(normalized: dict[str, object], persisted: dict | None, *, keep: bool) -> dict[str, object]:
@@ -2164,7 +2400,7 @@ def _build_saved_review_entry(normalized: dict[str, object], persisted: dict | N
     source_page_end = normalized.get("source_page_end")
     if source_page_end in ("", None):
         source_page_end = source_page
-    return {
+    saved = {
         "entry_id": entry_id or actual_req_code,
         "req_code": actual_req_code,
         "keep": bool(keep),
@@ -2221,3 +2457,5 @@ def _build_saved_review_entry(normalized: dict[str, object], persisted: dict | N
             persisted.get("table_render_mode") or normalized.get("table_render_mode") or ""
         ).strip(),
     }
+    saved.update(_copy_complex_row_fields(normalized))
+    return hydrate_complex_row_metadata(saved)

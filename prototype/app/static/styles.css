@@ -246,6 +246,17 @@
   overflow-wrap: anywhere;
 }
 
+.review-keep-all {
+  display: inline-flex;
+  align-items: center;
+  gap: 6px;
+  white-space: nowrap;
+}
+
+.review-keep-all input {
+  margin: 0;
+}
+
 .review-table tr.is-active {
   background: #f6fbff;
 }
@@ -268,6 +279,15 @@
 
 .hint.is-success {
   color: #166534;
+}
+
+.matrix-status {
+  margin: 0 0 12px;
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #fed7aa;
+  background: #fff7ed;
+  font-weight: 600;
 }
 
 .review-pdf {

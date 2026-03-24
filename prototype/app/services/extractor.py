@@ -11,6 +11,8 @@ SECTION_HEADER_RE = re.compile(r"^\s*(\d+(?:\.\d+){0,5})\s*([、．。\)）\]:�
 SECTION_CODE_HINT_RE = re.compile(r"^\s*(\d+(?:\.\d+){1,6})\b(?:\s+.*)?$")
 SENTENCE_SPLIT_RE = re.compile(r"(?<=[。！？!?；;])\s+|\n+")
 CLAUSE_PREFIX_RE = re.compile(r"^\s*(?:\d+(?:\.\d+){1,5}|[A-Z]\d+(?:\.\d+){1,3})\s*[\)\]:：.\-]*\s*")
+EMBEDDED_LOCAL_CLAUSE_SPLIT_RE = re.compile(r"(?<!\d)(\d+(?:\.\d+)+)(?:\s*[）)]\s*|\s+)(?=[A-Za-z\u4e00-\u9fff])")
+EMBEDDED_LOCAL_CLAUSE_HEAD_RE = re.compile(r"^\s*(\d+(?:\.\d+)+)(?:\s*[）)]\s*|\s+)(.+)$")
 HEADER_TITLE_LEADING_PUNCT_RE = re.compile(r"^[,，;；:：、)）\]】\-\.\|]+")
 HEADER_TITLE_VALID_START_RE = re.compile(r"[A-Za-z\u4e00-\u9fff]")
 HEADER_ENUM_LIKE_RE = re.compile(r"^\d+\s*[)）:：、\.]")
@@ -449,31 +451,97 @@ def _build_line_entries(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
             prepared_lines.append((source_line_index, line))
         prepared_lines = _drop_redundant_table_bridge_line_pairs(prepared_lines)
         for source_line_index, line in prepared_lines:
-            if "|" in line:
-                for heading_candidate in _extract_table_heading_candidates(line):
-                    entries.append(
-                        {
-                            "text": heading_candidate,
-                            "source_page": source_page,
-                            "source_anchor": source_anchor,
-                            "table_count": table_count,
-                            "source_line_index": source_line_index,
-                            "global_line_index": global_line_index,
-                        }
-                    )
-                    global_line_index += 1
-            entries.append(
-                {
-                    "text": line,
-                    "source_page": source_page,
-                    "source_anchor": source_anchor,
-                    "table_count": table_count,
-                    "source_line_index": source_line_index,
-                    "global_line_index": global_line_index,
-                }
-            )
-            global_line_index += 1
+            for split_line in _split_embedded_local_clause_line(line):
+                if "|" in split_line:
+                    for heading_candidate in _extract_table_heading_candidates(split_line):
+                        entries.append(
+                            {
+                                "text": heading_candidate,
+                                "source_page": source_page,
+                                "source_anchor": source_anchor,
+                                "table_count": table_count,
+                                "source_line_index": source_line_index,
+                                "global_line_index": global_line_index,
+                            }
+                        )
+                        global_line_index += 1
+                entries.append(
+                    {
+                        "text": split_line,
+                        "source_page": source_page,
+                        "source_anchor": source_anchor,
+                        "table_count": table_count,
+                        "source_line_index": source_line_index,
+                        "global_line_index": global_line_index,
+                    }
+                )
+                global_line_index += 1
     return entries
+
+
+def _split_embedded_local_clause_line(line: str) -> list[str]:
+    value = _normalize_line(str(line or ""))
+    if not value:
+        return []
+    if _looks_like_markdown_table_row(value):
+        return [value]
+
+    matches = list(EMBEDDED_LOCAL_CLAUSE_SPLIT_RE.finditer(value))
+    if len(matches) < 2:
+        return [value]
+
+    first_match = matches[0]
+    if first_match.start() > 2:
+        return [value]
+
+    provisional_chunks: list[tuple[int, str]] = []
+    for idx, match in enumerate(matches):
+        start = match.start()
+        end = matches[idx + 1].start() if idx + 1 < len(matches) else len(value)
+        chunk = _normalize_line(value[start:end])
+        if chunk:
+            provisional_chunks.append((start, chunk))
+
+    valid_starts = [
+        start
+        for start, chunk in provisional_chunks
+        if _looks_like_valid_embedded_local_clause_chunk(chunk)
+    ]
+    if len(valid_starts) < 2:
+        return [value]
+
+    chunks: list[str] = []
+    for idx, start in enumerate(valid_starts):
+        end = valid_starts[idx + 1] if idx + 1 < len(valid_starts) else len(value)
+        chunk = _normalize_line(value[start:end])
+        if chunk:
+            chunks.append(chunk)
+    return chunks or [value]
+
+
+def _looks_like_valid_embedded_local_clause_chunk(chunk: str) -> bool:
+    value = _normalize_line(str(chunk or ""))
+    if not value:
+        return False
+    match = EMBEDDED_LOCAL_CLAUSE_HEAD_RE.match(value)
+    if not match:
+        return False
+    title = _normalize_line(str(match.group(2) or ""))
+    if not title or len(title) > 220 or "|" in title:
+        return False
+    if re.search(r"[\u4e00-\u9fff]", title):
+        return True
+    letters = re.findall(r"[A-Za-z]", title)
+    if len(letters) < 4:
+        return False
+    compact = re.sub(r"\s+", " ", title).strip()
+    if re.fullmatch(
+        r"(?:R?[XYZ]|[A-Za-z]{1,3}|[-+~]?\d+(?:\.\d+)?|[%/°℃()（）]+)(?:\s+(?:R?[XYZ]|[A-Za-z]{1,3}|[-+~]?\d+(?:\.\d+)?|[%/°℃()（）]+))*",
+        compact,
+        re.I,
+    ):
+        return False
+    return True
 
 
 def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -871,13 +939,29 @@ def _looks_like_local_clause_header_line(line: str) -> bool:
     code, title = clause_match
     if not title or len(title) > 140:
         return False
-    if re.search(r"[。！？!?]", title):
+    if re.search(r"[。！？!?；;：:]", title):
         code_depth = str(code or "").count(".")
         if code_depth <= 0 or len(title) > 90:
-            return False
+            if not _looks_like_terminal_short_clause_title(title):
+                return False
     if _looks_like_table_row_text(title):
         return False
     return True
+
+
+def _looks_like_terminal_short_clause_title(title: str) -> bool:
+    value = _normalize_line(str(title or ""))
+    if not value or len(value) > 48:
+        return False
+    if value[-1] not in {"。", "！", "？", "!", "?", "；", ";", "：", ":"}:
+        return False
+    body = value[:-1].strip()
+    if not body or len(body) > 36:
+        return False
+    if re.search(r"[。！？!?；;：:]", body):
+        return False
+    token_count = len(re.findall(r"[A-Za-z\u4e00-\u9fff0-9]+", body))
+    return 1 <= token_count <= 12
 
 
 def _looks_like_local_clause_series_header(entries: list[dict[str, Any]], index: int) -> bool:

@@ -62,9 +62,9 @@ class _WorkbookFormats:
 def export_compliance_matrix(
     project_name: str,
     customer_name: str,
-    source_file_name: str,
     requirements: list[dict[str, Any]],
     export_dir: Path,
+    source_file_name: str = "",
     *,
     version_label: str = "",
     compare_requirements: list[dict[str, Any]] | None = None,

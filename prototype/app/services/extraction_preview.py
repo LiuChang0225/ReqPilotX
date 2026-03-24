@@ -5,18 +5,30 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
-from app.services.extractor import analyze_section_consistency, extract_atomic_requirements, extract_section_outline
+from app.services.complex_table_mode import (
+    detect_complex_table_zones,
+    rewrite_preview_rows_for_complex_tables,
+    rewrite_preview_sections_for_complex_tables,
+)
+from app.services.extractor import (
+    _split_embedded_local_clause_line,
+    analyze_section_consistency,
+    extract_atomic_requirements,
+    extract_section_outline,
+)
 from app.services.parser import parse_document_with_diagnostics
 from app.services.table_assets import enrich_entries_with_table_assets
 
 
 SECTION_ANCHOR_RE = re.compile(r"Section\s+([0-9]+(?:\.[0-9]+){0,8})(?:\s+([^|]+))?", re.I)
+CLAUSE_ANCHOR_RE = re.compile(r"Clause\s+([0-9]+(?:\.[0-9]+){0,8})\s*[）)]?\s*([^|]+)?", re.I)
 TITLE_ANCHOR_RE = re.compile(r"(?:Heading|Title)\s+([^|]+)", re.I)
 APPENDIX_SCOPE_RE = re.compile(r"Appendix\s+([A-Z][A-Z0-9_-]*)\b", re.I)
 APPENDIX_MARKER_LINE_RE = re.compile(
     r"^\s*(?:附件|附录|appendix|annex|attachment)\s*([A-Za-zＡ-Ｚａ-ｚ])\b.*$",
     re.I,
 )
+LOCAL_CLAUSE_RE = re.compile(r"^\s*(\d+(?:\.\d+)+)\s*[）)]?\s*(.+)$")
 TEST_OUTLINE_TITLE_RE = re.compile(
     r"(?:试验大纲|匹配评估表|测试分组)",
     re.I,
@@ -69,42 +81,26 @@ def build_extraction_preview(
     for item in requirements:
         source_page = _to_int(item.get("source_page"))
         source_page_end = _to_int(item.get("source_page_end")) or source_page
-        req_pages.update(page for page in range(source_page, source_page_end + 1) if page > 0)
-        if source_page_end > max_page:
-            max_page = source_page_end
         appendix_scope = _extract_appendix_scope(item.get("source_anchor", ""))
         section_code = _extract_section_code(item.get("source_anchor", ""))
         section_title_hint = _extract_section_title(item.get("source_anchor", ""))
-        section_key = _join_section_key(appendix_scope, section_code)
-        if not section_key and section_title_hint:
-            section_key = _join_title_section_key(appendix_scope, section_title_hint)
         text = str(item.get("requirement_text", "")).strip()
-        text_len = len(text)
-        text_lengths.append(text_len)
-
-        req_rows.append(
-            {
-                "req_code": item.get("req_code", ""),
-                "entry_id": item.get("req_code", "") or f"REQ-{len(req_rows) + 1}",
-                "entry_kind": "REQUIREMENT",
-                "appendix_scope": appendix_scope,
-                "section_code": section_code,
-                "section_key": section_key,
-                "section_level": _infer_section_level(section_code),
-                "source_page": source_page,
-                "source_page_end": source_page_end,
-                "source_anchor": item.get("source_anchor", ""),
-                "section_title": section_title_hint,
-                "requirement_type": item.get("requirement_type", ""),
-                "priority": item.get("priority", ""),
-                "text_length": text_len,
-                "requirement_text": text,
-                "req_order": len(req_rows),
-                "source_line_index": _to_int(item.get("source_line_index")),
-                "source_line_index_end": _to_int(item.get("source_line_index_end")),
-                "section_instance_key": "",
-            }
+        split_rows = _split_requirement_preview_rows(
+            item=item,
+            source_page=source_page,
+            source_page_end=source_page_end,
+            appendix_scope=appendix_scope,
+            section_code=section_code,
+            section_title_hint=section_title_hint,
+            text=text,
+            req_order_start=len(req_rows),
         )
+        for row in split_rows:
+            req_pages.update(page for page in range(row["source_page"], row["source_page_end"] + 1) if page > 0)
+            if row["source_page_end"] > max_page:
+                max_page = row["source_page_end"]
+            text_lengths.append(int(row.get("text_length") or 0))
+            req_rows.append(row)
 
     # Some appendix marker pages (e.g. W/X) are full-table pages without explicit
     # numeric subsection codes, so extractor may not emit atomic requirements.
@@ -243,39 +239,45 @@ def build_extraction_preview(
             }
         )
 
-    sections = sorted(
-        sections,
-        key=lambda row: (
-            _outline_order_sort_key(row.get("outline_order")),
-            _to_int(row.get("source_page_start")) <= 0,
-            _to_int(row.get("source_page_start")) if _to_int(row.get("source_page_start")) > 0 else 10**9,
-            int(row.get("source_line_index_start")) if isinstance(row.get("source_line_index_start"), int) else 10**9,
-            int(row.get("first_req_order")) if isinstance(row.get("first_req_order"), int) else 10**9,
-            str(row.get("section_instance_key", "")),
-        ),
-    )
+    sections = sorted(sections, key=_preview_section_row_sort_key)
     _attach_requirement_section_context(req_rows, sections)
-    complete_entries = _build_complete_requirement_entries(
+    complex_table_zones = detect_complex_table_zones(
+        segments=segments,
+        source_file_path=file_path,
+    )
+
+    complete_entries_raw = _build_complete_requirement_entries(
         requirements=req_rows,
         sections=sections,
     )
+    complete_entries, dedupe_stats = _build_section_unified_entries(complete_entries_raw)
+    sections = rewrite_preview_sections_for_complex_tables(
+        sections,
+        zones=complex_table_zones,
+    )
+    complete_entries_raw = rewrite_preview_rows_for_complex_tables(
+        complete_entries_raw,
+        zones=complex_table_zones,
+    )
+    complete_entries = rewrite_preview_rows_for_complex_tables(
+        complete_entries,
+        zones=complex_table_zones,
+    )
     table_snapshot_root = snapshot_root or (Path(file_path).resolve().parent / "table_snapshots")
     table_document_id = document_id or Path(file_path).stem
-    complete_entries, table_assets = enrich_entries_with_table_assets(
-        complete_entries,
+    complete_entries_raw, raw_table_assets = enrich_entries_with_table_assets(
+        complete_entries_raw,
         document_id=table_document_id,
         snapshot_root=table_snapshot_root,
         source_file_path=file_path,
     )
-    complete_entries_raw = [dict(row) for row in complete_entries]
-    complete_entries, dedupe_stats = _build_section_unified_entries(complete_entries)
     complete_entries, deduped_table_assets = enrich_entries_with_table_assets(
         complete_entries,
         document_id=table_document_id,
         snapshot_root=table_snapshot_root,
         source_file_path=file_path,
     )
-    table_assets = _dedupe_table_assets(deduped_table_assets or table_assets)
+    table_assets = _dedupe_table_assets(deduped_table_assets or raw_table_assets)
 
     diagnostics = parsed.get("diagnostics", {}) or {}
     page_details = diagnostics.get("page_details", []) if isinstance(diagnostics, dict) else []
@@ -321,6 +323,8 @@ def build_extraction_preview(
         "dedup_prefix_count": int(dedupe_stats.get("dedup_prefix_count", 0)),
         "dedup_requirement_prefix_count": int(dedupe_stats.get("dedup_requirement_prefix_count", 0)),
         "dedupe_version": "heading_requirement_v1",
+        "complex_table_zone_count": len(complex_table_zones),
+        "complex_table_group_count": sum(len(zone.get("groups") or []) for zone in complex_table_zones),
     }
 
     return {
@@ -336,7 +340,85 @@ def build_extraction_preview(
         "section_consistency": section_consistency,
         "parser_diagnostics": diagnostics,
         "table_assets": table_assets,
+        "complex_table_zones": complex_table_zones,
     }
+
+
+def _split_requirement_preview_rows(
+    *,
+    item: dict[str, Any],
+    source_page: int,
+    source_page_end: int,
+    appendix_scope: str,
+    section_code: str,
+    section_title_hint: str,
+    text: str,
+    req_order_start: int,
+) -> list[dict[str, Any]]:
+    chunks = _split_embedded_local_clause_line(text)
+    if len(chunks) <= 1:
+        chunks = [text]
+
+    base_req_code = str(item.get("req_code") or "").strip()
+    if not base_req_code:
+        base_req_code = f"REQ-{req_order_start + 1:04d}"
+
+    rows: list[dict[str, Any]] = []
+    for idx, chunk in enumerate(chunks):
+        clause_code, clause_title = _extract_local_clause_code_and_title(chunk)
+        chunk_section_code = clause_code or section_code
+        chunk_section_title = clause_title or section_title_hint
+        chunk_section_key = _join_section_key(appendix_scope, chunk_section_code)
+        if not chunk_section_key and chunk_section_title:
+            chunk_section_key = _join_title_section_key(appendix_scope, chunk_section_title)
+        chunk_anchor = str(item.get("source_anchor") or "")
+        if clause_code and clause_code != section_code:
+            anchor_title = clause_title or chunk_section_title or ""
+            clause_anchor = f"Clause {clause_code}"
+            if anchor_title:
+                clause_anchor = f"{clause_anchor} {anchor_title}"
+            chunk_anchor = f"{chunk_anchor} | {clause_anchor}" if chunk_anchor else clause_anchor
+
+        req_code = base_req_code if idx == 0 else f"{base_req_code}-{idx + 1}"
+        cleaned_chunk = str(chunk or "").strip()
+        rows.append(
+            {
+                "req_code": req_code,
+                "entry_id": req_code,
+                "entry_kind": "REQUIREMENT",
+                "appendix_scope": appendix_scope,
+                "section_code": chunk_section_code,
+                "section_key": chunk_section_key,
+                "section_level": _infer_section_level(chunk_section_code),
+                "source_page": source_page,
+                "source_page_end": source_page_end,
+                "source_anchor": chunk_anchor,
+                "section_title": chunk_section_title,
+                "requirement_type": item.get("requirement_type", ""),
+                "priority": item.get("priority", ""),
+                "text_length": len(cleaned_chunk),
+                "requirement_text": cleaned_chunk,
+                "req_order": req_order_start + idx,
+                "source_line_index": _to_int(item.get("source_line_index")),
+                "source_line_index_end": _to_int(item.get("source_line_index_end")),
+                "section_instance_key": "",
+            }
+        )
+    return rows
+
+
+def _extract_local_clause_code_and_title(text: str) -> tuple[str, str]:
+    lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    if not lines:
+        return "", ""
+    match = LOCAL_CLAUSE_RE.match(lines[0])
+    if not match:
+        return "", ""
+    code = str(match.group(1) or "").strip()
+    title = str(match.group(2) or "").strip()
+    if not code or not title:
+        return "", ""
+    return code, title
 
 
 def _dedupe_table_assets(assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -352,11 +434,20 @@ def _dedupe_table_assets(assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 
 def _extract_section_code(anchor: str) -> str:
+    clause_match = CLAUSE_ANCHOR_RE.search(anchor or "")
+    if clause_match:
+        return str(clause_match.group(1) or "").strip()
     match = SECTION_ANCHOR_RE.search(anchor or "")
-    return match.group(1) if match else ""
+    return str(match.group(1) or "").strip() if match else ""
 
 
 def _extract_section_title(anchor: str) -> str:
+    clause_match = CLAUSE_ANCHOR_RE.search(anchor or "")
+    if clause_match:
+        title = str(clause_match.group(2) or "").strip()
+        title = re.sub(r"\s+", " ", title)
+        if title:
+            return title[:120]
     match = SECTION_ANCHOR_RE.search(anchor or "")
     if match:
         title = str(match.group(2) or "").strip()
@@ -508,6 +599,41 @@ def _outline_order_sort_key(value: Any) -> int:
     if parsed < 0:
         return 10**9
     return parsed
+
+
+def _optional_nonnegative_int_sort_key(value: Any, *, allow_zero: bool = True) -> int:
+    if value is None:
+        return 10**9
+    text = str(value).strip()
+    if not text:
+        return 10**9
+    try:
+        parsed = int(float(text))
+    except ValueError:
+        return 10**9
+    if parsed < 0:
+        return 10**9
+    if not allow_zero and parsed == 0:
+        return 10**9
+    return parsed
+
+
+def _preview_section_row_sort_key(row: dict[str, Any]) -> tuple[int, int, int, int, int, int, str]:
+    source_page = _optional_nonnegative_int_sort_key(row.get("source_page_start"), allow_zero=False)
+    source_line = _optional_nonnegative_int_sort_key(row.get("source_line_index_start"))
+    first_req_order = _optional_nonnegative_int_sort_key(row.get("first_req_order"))
+    outline_order = _outline_order_sort_key(row.get("outline_order"))
+    section_level = _optional_nonnegative_int_sort_key(row.get("section_level"))
+    section_instance_key = str(row.get("section_instance_key") or row.get("section_key") or "")
+    return (
+        1 if source_page >= 10**9 else 0,
+        source_page,
+        source_line,
+        first_req_order,
+        outline_order,
+        section_level,
+        section_instance_key,
+    )
 
 
 def _section_sort_key(section_code: str) -> tuple[int, ...]:
@@ -844,6 +970,48 @@ def _derive_section_title_from_requirement(text: str, section_code: str) -> str:
     return first[:120]
 
 
+def _align_section_node_to_first_requirement_position(
+    node: dict[str, Any],
+    grouped: list[dict[str, Any]],
+) -> dict[str, Any]:
+    if not grouped:
+        return node
+
+    source_page = _to_int(node.get("source_page_start"))
+    source_page_end = _to_int(node.get("source_page_end")) or source_page
+    source_line = _to_int(node.get("source_line_index_start"))
+    line_count = _to_int(node.get("line_count"))
+    first_req = grouped[0]
+    req_page = _to_int(first_req.get("source_page"))
+    req_line = _to_int(first_req.get("source_line_index"))
+
+    if req_page <= 0 or req_line <= 0:
+        return node
+    if req_page != source_page:
+        return node
+    if source_line > 0:
+        return node
+
+    # Synthetic split-clause section nodes rely on first_req_order for stable ordering.
+    # If we align them by a later spanning requirement line, cross-page children like
+    # "4）外观要求" can jump ahead of earlier siblings "2）/3）".
+    has_real_outline_position = bool(node.get("outline_order") is not None or line_count > 0)
+    if not has_real_outline_position:
+        return node
+
+    is_large_spanning_section = source_page_end > source_page or line_count >= 12
+    if not is_large_spanning_section:
+        return node
+
+    aligned = dict(node)
+    aligned["source_page_start"] = req_page
+    aligned["source_line_index_start"] = req_line
+    source_line_end = _to_int(aligned.get("source_line_index_end"))
+    if source_line_end <= 0:
+        aligned["source_line_index_end"] = req_line
+    return aligned
+
+
 def _build_complete_requirement_entries(
     requirements: list[dict[str, Any]],
     sections: list[dict[str, Any]],
@@ -872,8 +1040,15 @@ def _build_complete_requirement_entries(
     emitted_section_instance_keys: set[str] = set()
     heading_seq = 0
     preferred_section_rows = _select_preferred_section_rows_for_requirements(sections, req_groups)
+    aligned_section_nodes = {
+        id(node): _align_section_node_to_first_requirement_position(
+            node,
+            req_groups.get(str(node.get("section_instance_key") or node.get("section_key") or "").strip(), []),
+        )
+        for node in sections
+    }
 
-    for node in sections:
+    for node in sorted(sections, key=lambda row: _preview_section_row_sort_key(aligned_section_nodes.get(id(row), row))):
         section_instance_key = str(node.get("section_instance_key") or node.get("section_key") or "").strip()
         grouped = req_groups.get(section_instance_key, [])
         if (
@@ -885,7 +1060,7 @@ def _build_complete_requirement_entries(
             # Hide empty base node when all concrete requirements are split by section instance key.
             continue
         heading_seq += 1
-        heading = _build_heading_entry(node=node, heading_seq=heading_seq, synthetic=False)
+        heading = _build_heading_entry(node=aligned_section_nodes.get(id(node), node), heading_seq=heading_seq, synthetic=False)
         entry_id = str(heading.get("entry_id") or "")
         if entry_id and entry_id not in seen_entry_ids:
             entries.append(heading)

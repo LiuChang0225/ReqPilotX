@@ -17,6 +17,7 @@ logger = logging.getLogger(__name__)
 _PREVIEW_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="preview-cache")
 _PREVIEW_LOCK = threading.Lock()
 _ACTIVE_REFRESHES: set[str] = set()
+_PREVIEW_CACHE_VERSION = "preview-cache-v4"
 
 
 def _now_iso() -> str:
@@ -125,6 +126,12 @@ def load_cached_preview(document: dict | None) -> tuple[dict | None, dict[str, A
         meta["preview_error"] = f"cached preview read failed: {exc}"
         return None, meta
 
+    if not isinstance(preview, dict) or str(preview.get("_preview_cache_version") or "") != _PREVIEW_CACHE_VERSION:
+        meta["preview_status"] = "STALE"
+        meta["preview_cache_hit"] = False
+        meta["preview_error"] = "cached preview is outdated"
+        return None, meta
+
     meta["preview_cache_hit"] = True
     return preview, meta
 
@@ -139,7 +146,9 @@ def persist_preview_cache(document: dict | None, preview: dict[str, Any]) -> dic
 
     cache_path = preview_cache_path(document_id)
     temp_path = cache_path.with_suffix(".tmp")
-    temp_path.write_text(json.dumps(preview, ensure_ascii=False), encoding="utf-8")
+    payload = dict(preview)
+    payload["_preview_cache_version"] = _PREVIEW_CACHE_VERSION
+    temp_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     temp_path.replace(cache_path)
     generated_at = _now_iso()
     token = _source_mtime_token(file_path)

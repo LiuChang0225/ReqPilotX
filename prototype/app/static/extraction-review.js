@@ -976,18 +976,35 @@ function rowHasRecommendedSource(row) {
   );
 }
 
+function isLockedTableRef(ref) {
+  return Boolean(ref?.export_variant_locked);
+}
+
 function renderTableDecisionSummary(row) {
   const refs = Array.isArray(row?.table_refs) ? row.table_refs : [];
-  if (!refs.length) {
+  const summaryChips = [];
+  if (Boolean(row?.complex_table_mode)) {
+    summaryChips.push(`<span class="table-export-badge complex-badge">COMPLEX TABLE</span>`);
+    const role = String(row?.complex_role || "").trim();
+    if (role === "zone_summary") {
+      summaryChips.push(`<span class="table-export-chip">整表总览</span>`);
+    } else if (role === "group") {
+      summaryChips.push(`<span class="table-export-chip">${escapeHtml(String(row?.complex_group_label || "分组"))}</span>`);
+    }
+  }
+  if (refs.length) {
+    const selectedSource = refs.filter((ref) => {
+      return String(ref?.export_variant || "source").trim().toLowerCase() === "source" && ref?.source_snapshot_url;
+    }).length;
+    summaryChips.push(`<span class="table-export-badge">共 ${refs.length} 个表格</span>`);
+    summaryChips.push(`<span class="table-export-chip">当前快照 ${selectedSource}/${refs.length}</span>`);
+    if (refs.some((ref) => isLockedTableRef(ref))) {
+      summaryChips.push(`<span class="table-export-chip">原文锁定</span>`);
+    }
+  }
+  if (!summaryChips.length) {
     return "";
   }
-  const selectedSource = refs.filter((ref) => {
-    return String(ref?.export_variant || "source").trim().toLowerCase() === "source" && ref?.source_snapshot_url;
-  }).length;
-  const summaryChips = [
-    `<span class="table-export-badge">共 ${refs.length} 个表格</span>`,
-    `<span class="table-export-chip">当前快照 ${selectedSource}/${refs.length}</span>`,
-  ];
   return `<div class="table-export-summary">${summaryChips.join("")}</div>`;
 }
 
@@ -1038,6 +1055,19 @@ function normalizeReviewEntry(row, index) {
     text_relation: String(row?.text_relation || "distinct"),
     is_deduped: Boolean(row?.is_deduped),
     keep: typeof row?.keep === "boolean" ? Boolean(row.keep) : null,
+  };
+}
+
+function complexRowPayload(row) {
+  return {
+    complex_table_mode: Boolean(row?.complex_table_mode),
+    complex_zone_id: row?.complex_zone_id || "",
+    complex_family: row?.complex_family || "",
+    complex_role: row?.complex_role || "",
+    complex_group_label: row?.complex_group_label || "",
+    complex_split_level: row?.complex_split_level || "",
+    complex_warnings: Array.isArray(row?.complex_warnings) ? row.complex_warnings : [],
+    complex_row_policy: row?.complex_row_policy || "",
   };
 }
 
@@ -1164,6 +1194,7 @@ async function onApplyReviewedExtraction() {
       table_render_mode: row.table_render_mode || "",
       keep: Boolean(state.selectedReq[getSelectionKey(row, index)]),
       dedupe_version: row.dedupe_version || state.preview?.summary?.dedupe_version || "",
+      ...complexRowPayload(row),
     })),
   };
   const button = el.applyReviewedBtn;
@@ -1338,6 +1369,10 @@ async function handleTableViewToggle(target) {
   if (!tableId) {
     return true;
   }
+  const currentRef = findTableRefById(tableId);
+  if (isLockedTableRef(currentRef)) {
+    return true;
+  }
   const nextVariant = variant === "slice" ? "slice" : "source";
   const affected = await setTableExportVariantAcrossViews(tableId, nextVariant);
   state.tableViewByTableId[tableId] = nextVariant;
@@ -1368,6 +1403,20 @@ async function handleTableViewToggle(target) {
   return true;
 }
 
+function findTableRefById(tableId) {
+  for (const rows of [state.reviewEntries, state.reviewEntriesRaw]) {
+    for (const row of rows || []) {
+      const ref = (Array.isArray(row?.table_refs) ? row.table_refs : []).find(
+        (item) => String(item?.table_id || "").trim() === String(tableId || "").trim()
+      );
+      if (ref) {
+        return ref;
+      }
+    }
+  }
+  return null;
+}
+
 function setTableExportVariantAcrossViews(tableId, nextVariant) {
   const normalized = nextVariant === "source" ? "source" : "slice";
   let affected = null;
@@ -1384,6 +1433,9 @@ function setTableExportVariantAcrossViews(tableId, nextVariant) {
             previousVariant: String(ref.export_variant || "").trim().toLowerCase() || "slice",
             row,
           };
+        }
+        if (isLockedTableRef(ref)) {
+          return;
         }
         ref.export_variant = normalized;
         ref.export_variant_overridden =
@@ -1404,6 +1456,9 @@ function restoreTableExportVariantAcrossViews(tableId, previousVariant) {
     (rows || []).forEach((row) => {
       (Array.isArray(row?.table_refs) ? row.table_refs : []).forEach((ref) => {
         if (String(ref?.table_id || "").trim() !== tableId) {
+          return;
+        }
+        if (isLockedTableRef(ref)) {
           return;
         }
         ref.export_variant = normalized;
@@ -1448,6 +1503,7 @@ async function saveReviewEntry(row) {
       table_render_mode: row.table_render_mode || "",
       dedupe_version: row.dedupe_version || "",
       keep: Boolean(row.keep ?? true),
+      ...complexRowPayload(row),
     }),
   });
   state.workspace = {
@@ -1707,16 +1763,18 @@ function renderTableRef(ref) {
   if (!ref.source_snapshot_url || !tableId) {
     return `${content}`;
   }
+  const locked = isLockedTableRef(ref);
   return `
     <div class="table-asset-switcher" data-table-id="${escapeHtml(tableId)}">
       <div class="table-view-toolbar">
         <span class="table-view-label">导出内容</span>
+        ${locked ? '<span class="table-view-lock">原文锁定</span>' : ""}
         <button type="button" class="table-view-btn${variant === "slice" ? " is-active" : ""}" data-table-id="${escapeHtml(
           tableId
-        )}" data-table-variant="slice">表格</button>
+        )}" data-table-variant="slice"${locked ? " disabled" : ""}>表格</button>
         <button type="button" class="table-view-btn${variant === "source" ? " is-active" : ""}" data-table-id="${escapeHtml(
           tableId
-        )}" data-table-variant="source">原文截图</button>
+        )}" data-table-variant="source"${locked ? " disabled" : ""}>原文截图</button>
       </div>
       ${content}
     </div>
@@ -1725,6 +1783,9 @@ function renderTableRef(ref) {
 
 function activeTableVariant(ref) {
   const tableId = String(ref?.table_id || "").trim();
+  if (isLockedTableRef(ref) && ref?.source_snapshot_url) {
+    return "source";
+  }
   if (!tableId) {
     return ref?.source_snapshot_url ? "source" : "slice";
   }
