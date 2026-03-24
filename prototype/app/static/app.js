@@ -50,6 +50,7 @@ const el = {
   refreshExportsBtn: document.querySelector("#refresh-exports-btn"),
   downloadLink: document.querySelector("#download-link"),
   exportStatus: document.querySelector("#export-status"),
+  matrixStatus: document.querySelector("#matrix-status"),
   workspaceSummary: document.querySelector("#workspace-summary"),
   workspaceStatus: document.querySelector("#workspace-status"),
   batchDecision: document.querySelector("#batch-decision"),
@@ -69,6 +70,7 @@ const el = {
   reviewKindFilter: document.querySelector("#review-kind-filter"),
   reviewSectionFilter: document.querySelector("#review-section-filter"),
   reviewKeywordFilter: document.querySelector("#review-keyword-filter"),
+  reviewVisibleKeepToggle: document.querySelector("#review-visible-keep-toggle"),
   reviewSelectAllBtn: document.querySelector("#review-select-all-btn"),
   reviewUnselectAllBtn: document.querySelector("#review-unselect-all-btn"),
   reviewSourceRecommendedBtn: document.querySelector("#review-source-recommended-btn"),
@@ -150,6 +152,7 @@ function bindEvents() {
   el.reviewKindFilter?.addEventListener("change", onReviewKindFilterChanged);
   el.reviewSectionFilter?.addEventListener("input", renderReviewEntries);
   el.reviewKeywordFilter?.addEventListener("input", renderReviewEntries);
+  el.reviewVisibleKeepToggle?.addEventListener("change", wrap(onReviewVisibleKeepToggleChanged));
   el.reviewSelectAllBtn?.addEventListener("click", wrap(() => bulkSetReviewKeep(true)));
   el.reviewUnselectAllBtn?.addEventListener("click", wrap(() => bulkSetReviewKeep(false)));
   el.reviewSourceRecommendedBtn?.addEventListener("click", toggleReviewRecommendedSourceOnly);
@@ -931,6 +934,7 @@ function toggleReviewRecommendedSourceOnly() {
 function syncReviewSelectionButtons() {
   const hasRows = filterReviewEntries(state.reviewEntries).length > 0;
   const disabled = state.reviewBulkApplyInFlight || state.reviewPreviewInFlight || !hasRows;
+  syncReviewVisibleKeepToggle();
   if (el.reviewSelectAllBtn) {
     el.reviewSelectAllBtn.disabled = disabled;
   }
@@ -941,6 +945,18 @@ function syncReviewSelectionButtons() {
     el.reviewSourceRecommendedBtn.textContent = state.reviewShowRecommendedSourceOnly ? "显示全部条目" : "仅看推荐截图";
     el.reviewSourceRecommendedBtn.disabled = state.reviewBulkApplyInFlight || state.reviewPreviewInFlight || !hasRows;
   }
+}
+
+function syncReviewVisibleKeepToggle() {
+  if (!el.reviewVisibleKeepToggle) {
+    return;
+  }
+  const visibleRows = filterReviewEntries(state.reviewEntries);
+  const disabled = state.reviewBulkApplyInFlight || state.reviewPreviewInFlight || !visibleRows.length;
+  const keptCount = visibleRows.filter((row) => Boolean(row?.keep)).length;
+  el.reviewVisibleKeepToggle.disabled = disabled;
+  el.reviewVisibleKeepToggle.checked = Boolean(visibleRows.length) && keptCount === visibleRows.length;
+  el.reviewVisibleKeepToggle.indeterminate = keptCount > 0 && keptCount < visibleRows.length;
 }
 
 function setActiveReviewRow(entryId) {
@@ -1052,6 +1068,14 @@ async function bulkSetReviewKeep(nextKeep) {
     state.reviewBulkApplyInFlight = false;
     syncReviewSelectionButtons();
   }
+}
+
+async function onReviewVisibleKeepToggleChanged(event) {
+  const target = event.target;
+  if (!(target instanceof HTMLInputElement) || target.type !== "checkbox") {
+    return;
+  }
+  await bulkSetReviewKeep(Boolean(target.checked));
 }
 
 async function onReviewTableChanged(event) {
@@ -1310,6 +1334,9 @@ function initReviewPdfViewer() {
   state.reviewPdfCurrentPage = 1;
   state.reviewPdfViewerReady = false;
   state.reviewPendingPdfCommand = null;
+  if (state.currentStage === "review" && !state.reviewPdfDrawerOpen) {
+    state.reviewPdfDrawerOpen = true;
+  }
   if (el.reviewPdfFrame) {
     el.reviewPdfFrame.src = buildReviewPdfViewerUrl(1);
   }
@@ -1414,8 +1441,16 @@ function onReviewPdfToggleClicked() {
 }
 
 function setReviewPdfDrawerOpen(nextOpen) {
+  const scrollTop = Number(el.reviewTableWrap?.scrollTop || 0);
+  const scrollLeft = Number(el.reviewTableWrap?.scrollLeft || 0);
   state.reviewPdfDrawerOpen = Boolean(nextOpen) && Boolean(state.reviewPdfBaseUrl);
   syncReviewPdfDrawer();
+  if (el.reviewTableWrap) {
+    requestAnimationFrame(() => {
+      el.reviewTableWrap.scrollTop = scrollTop;
+      el.reviewTableWrap.scrollLeft = scrollLeft;
+    });
+  }
 }
 
 function syncReviewPdfDrawer() {
@@ -1642,6 +1677,7 @@ function onReviewKindFilterChanged() {
 }
 
 function renderRequirements(items) {
+  renderMatrixStatus();
   el.tableBody.innerHTML = "";
   if (!items.length) {
     const row = document.createElement("tr");
@@ -1682,6 +1718,27 @@ function renderRequirements(items) {
   el.tableBody.querySelectorAll("[data-save]").forEach((button) => {
     button.addEventListener("click", wrap(onSaveDecision));
   });
+}
+
+function renderMatrixStatus() {
+  if (!el.matrixStatus) {
+    return;
+  }
+  const workspace = state.workspace || {};
+  const workspaceDoc = workspace.document || {};
+  const workspaceSummary = workspace.summary || {};
+  const hasRequirements = state.requirements.length > 0;
+  const shouldWarn =
+    hasRequirements &&
+    Number(workspaceDoc.requirement_set_version || 0) > 0 &&
+    !Boolean(workspaceSummary.locked);
+
+  el.matrixStatus.classList.toggle("is-hidden", !shouldWarn);
+  if (!shouldWarn) {
+    el.matrixStatus.textContent = "";
+    return;
+  }
+  el.matrixStatus.textContent = "未锁定条目集，非正式 Compliance Matrix。锁定后再作为正式版本导出。";
 }
 
 async function onSaveDecision(event) {

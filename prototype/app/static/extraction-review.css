@@ -314,6 +314,12 @@ body {
   border: 1px solid #bfe2ca;
 }
 
+.req-text .table-export-badge.complex-badge {
+  color: #7a3b00;
+  background: #fff0df;
+  border-color: #f0c38e;
+}
+
 .req-text .table-export-chip {
   color: #41556d;
   background: #f4f7fb;
@@ -347,6 +353,24 @@ body {
   border-color: #5b91d6;
   background: #dfeeff;
   color: #123d68;
+}
+
+.req-text .table-view-btn:disabled {
+  cursor: not-allowed;
+  opacity: 0.65;
+}
+
+.req-text .table-view-lock {
+  display: inline-flex;
+  align-items: center;
+  border-radius: 999px;
+  padding: 4px 10px;
+  font-size: 0.7rem;
+  font-weight: 700;
+  line-height: 1;
+  color: #6a4d00;
+  background: #fff6dd;
+  border: 1px solid #ead59b;
 }
 
 #section-overview-body td:first-child {
