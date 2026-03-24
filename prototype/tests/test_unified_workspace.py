@@ -1,5 +1,6 @@
 from __future__ import annotations
 
+import json
 import tempfile
 import unittest
 import sqlite3
@@ -13,6 +14,7 @@ from openpyxl import load_workbook
 from PIL import Image as PILImage
 
 from app import db, main
+from app.services.complex_table_mode import _row_shadow_signature
 from app.services import exporter, preview_cache, table_assets
 from app.services.exporter import export_compliance_matrix
 
@@ -139,6 +141,44 @@ def _fake_preview_with_reversed_req_codes() -> dict:
     }
 
 
+def _fake_preview_with_reused_req_codes() -> dict:
+    return {
+        "summary": {"dedupe_version": "heading_requirement_v1"},
+        "sections": [],
+        "complete_requirement_entries": [
+            {
+                "entry_id": "REQ0001",
+                "req_code": "REQ0001",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "5.2 第二条需求",
+                "raw_text": "5.2 第二条需求",
+                "requirement_text": "5.2 第二条需求",
+                "source_page": 5,
+                "source_page_end": 5,
+                "source_anchor": "Main > 5.2",
+                "parent_section_code": "5.2",
+                "parent_section_title": "第二条需求",
+                "parent_section_label": "5.2 第二条需求",
+            },
+            {
+                "entry_id": "REQ0999",
+                "req_code": "REQ0999",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "5.1 第一条需求",
+                "raw_text": "5.1 第一条需求",
+                "requirement_text": "5.1 第一条需求",
+                "source_page": 5,
+                "source_page_end": 5,
+                "source_anchor": "Main > 5.1",
+                "parent_section_code": "5.1",
+                "parent_section_title": "第一条需求",
+                "parent_section_label": "5.1 第一条需求",
+            },
+        ],
+        "complete_requirement_entries_raw": [],
+    }
+
+
 def _fake_preview_with_table_markdown() -> dict:
     table_text = (
         "试验条件如下：\n\n"
@@ -249,6 +289,66 @@ def _fake_preview_with_complex_table_markdown() -> dict:
             }
         ],
         "complete_requirement_entries_raw": [],
+    }
+
+
+def _complex_group_review_row(*, source_snapshot_path: str, shadow_rows: list[dict] | None = None) -> dict:
+    shadow_signatures = [_row_shadow_signature(row) for row in (shadow_rows or []) if _row_shadow_signature(row)]
+    return {
+        "entry_id": "REQ-CX-cx-merged-requirement-matrix-p17-p22-network-security",
+        "req_code": "REQ-CX-cx-merged-requirement-matrix-p17-p22-network-security",
+        "entry_kind": "REQUIREMENT",
+        "display_text": "网络安全\n复杂跨页表分组，内部条目未自动细拆，请结合原文截图人工处理。",
+        "raw_text": "网络安全\n复杂跨页表分组，内部条目未自动细拆，请结合原文截图人工处理。",
+        "requirement_text": "网络安全\n复杂跨页表分组，内部条目未自动细拆，请结合原文截图人工处理。",
+        "source_page": 17,
+        "source_page_end": 20,
+        "source_anchor": "Complex Table Group cx-merged-requirement-matrix-p17-p22-network-security",
+        "parent_section_code": "网络安全",
+        "parent_section_title": "网络安全",
+        "parent_section_label": "网络安全",
+        "requirement_type": "OTHER",
+        "priority": "MEDIUM",
+        "text_relation": "distinct",
+        "is_deduped": False,
+        "merged_from_req_codes": ["REQ-CX-cx-merged-requirement-matrix-p17-p22-network-security"],
+        "merged_from_entry_ids": ["REQ-CX-cx-merged-requirement-matrix-p17-p22-network-security"],
+        "dedupe_version": "heading_requirement_v1",
+        "complex_table_mode": True,
+        "complex_zone_id": "cx-merged-requirement-matrix-p17-p22",
+        "complex_family": "merged_requirement_matrix",
+        "complex_role": "group",
+        "complex_group_label": "网络安全",
+        "complex_split_level": "group",
+        "complex_warnings": ["跨页复杂表，包含纵向合并单元格"],
+        "complex_row_policy": "exportable_group",
+        "table_refs": [
+            {
+                "table_id": "tbl_complex_group",
+                "table_title": "网络安全",
+                "source_snapshot_path": source_snapshot_path,
+                "slice_snapshot_path": source_snapshot_path,
+                "slice_render_mode": "snapshot_only",
+                "inherited_headers": [],
+                "slice_rows": [],
+                "complex_table_mode": True,
+                "complex_zone_id": "cx-merged-requirement-matrix-p17-p22",
+                "complex_family": "merged_requirement_matrix",
+                "complex_split_level": "group",
+                "complex_group_label": "网络安全",
+                "complex_shadow_signatures": shadow_signatures,
+                "export_variant": "source",
+                "recommended_export_variant": "source",
+                "export_variant_locked": True,
+            }
+        ],
+        "content_blocks": [
+            {"kind": "paragraph", "text": "网络安全\n复杂跨页表分组，内部条目未自动细拆，请结合原文截图人工处理。"},
+            {"kind": "table", "table_id": "tbl_complex_group"},
+        ],
+        "has_table_asset": True,
+        "table_render_mode": "snapshot_only",
+        "keep": True,
     }
 
 
@@ -684,6 +784,45 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertTrue(refreshed["preview_cache_hit"])
         self.assertTrue(cache_path.exists())
 
+    def test_load_cached_preview_marks_legacy_cache_as_stale(self) -> None:
+        project, document = self._create_project_with_document("-legacy-preview-cache")
+        cache_path = preview_cache.preview_cache_path(document["id"])
+        cache_path.write_text(json.dumps(_fake_preview(), ensure_ascii=False), encoding="utf-8")
+        db.update_sor_document_preview_state(
+            document["id"],
+            preview_status="READY",
+            preview_generated_at="2026-03-24T10:00:00+00:00",
+            preview_file_mtime=preview_cache._source_mtime_token(document["file_path"]),
+            preview_error="",
+        )
+
+        preview, meta = preview_cache.load_cached_preview(db.get_sor_document(document["id"]))
+
+        self.assertIsNone(preview)
+        self.assertEqual(meta["preview_status"], "STALE")
+        self.assertFalse(meta["preview_cache_hit"])
+
+    def test_load_cached_preview_marks_old_version_cache_as_stale(self) -> None:
+        project, document = self._create_project_with_document("-old-version-preview-cache")
+        cache_path = preview_cache.preview_cache_path(document["id"])
+        payload = _fake_preview()
+        payload["_preview_cache_version"] = "preview-cache-v3"
+        cache_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        db.update_sor_document_preview_state(
+            document["id"],
+            preview_status="READY",
+            preview_generated_at="2026-03-24T10:00:00+00:00",
+            preview_file_mtime=preview_cache._source_mtime_token(document["file_path"]),
+            preview_error="",
+        )
+
+        preview, meta = preview_cache.load_cached_preview(db.get_sor_document(document["id"]))
+
+        self.assertIsNone(preview)
+        self.assertEqual(meta["preview_status"], "STALE")
+        self.assertFalse(meta["preview_cache_hit"])
+        self.assertEqual(meta["preview_error"], "cached preview is outdated")
+
     def test_preview_refresh_purges_stale_snapshot_root_before_rebuild(self) -> None:
         project, document = self._create_project_with_document("-refresh-purge")
         cache_path = preview_cache.preview_cache_path(document["id"])
@@ -755,6 +894,48 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual([row["display_req_code"] for row in workspace["requirements"]], ["REQ0001", "REQ0002"])
         self.assertEqual([row["display_sort_index"] for row in workspace["requirements"]], [1, 2])
         self.assertEqual([row["source_order"] for row in workspace["requirements"]], [1, 2])
+        self.assertEqual(workspace["summary"]["order_source"], "review_overlay")
+        self.assertEqual(workspace["summary"]["order_mismatch_count"], 0)
+
+    def test_workspace_order_prefers_source_signature_over_stale_req_code(self) -> None:
+        project, document = self._create_project_with_document("-ordering-stale-req")
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=5,
+            source_anchor="Main > 5.1",
+            requirement_text="5.1 第一条需求",
+            raw_text="5.1 第一条需求",
+            display_text="5.1 第一条需求",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+        )
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0002",
+            source_page=5,
+            source_anchor="Main > 5.2",
+            requirement_text="5.2 第二条需求",
+            raw_text="5.2 第二条需求",
+            display_text="5.2 第二条需求",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+
+        preview_cache.persist_preview_cache(
+            db.get_sor_document(document["id"]) or {},
+            _fake_preview_with_reused_req_codes(),
+        )
+        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=True)
+
+        self.assertEqual(
+            [str(row.get("display_text") or row.get("requirement_text") or "") for row in workspace["requirements"]],
+            ["5.2 第二条需求", "5.1 第一条需求"],
+        )
+        self.assertEqual([row["display_req_code"] for row in workspace["requirements"]], ["REQ0001", "REQ0002"])
         self.assertEqual(workspace["summary"]["order_source"], "review_overlay")
         self.assertEqual(workspace["summary"]["order_mismatch_count"], 0)
 
@@ -851,6 +1032,49 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(rows[0]["parent_section_label"], "软件开发要求")
         self.assertEqual(rows[0]["requirement_text"], "新的正确内容")
 
+    def test_overlay_review_entries_matches_same_source_when_req_code_changed(self) -> None:
+        preview_rows = [
+            {
+                "entry_id": "REQ0999",
+                "req_code": "REQ0999",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "新的正确内容",
+                "raw_text": "新的正确内容",
+                "requirement_text": "新的正确内容",
+                "source_page": 11,
+                "source_page_end": 11,
+                "source_anchor": "Page 11 | Heading 软件开发要求",
+                "parent_section_code": "",
+                "parent_section_title": "软件开发要求",
+                "parent_section_label": "软件开发要求",
+            }
+        ]
+        persisted_rows = [
+            {
+                "id": "persisted-1",
+                "req_code": "REQ0001",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "旧的内容",
+                "raw_text": "旧的内容",
+                "requirement_text": "旧的内容",
+                "source_page": 11,
+                "source_page_end": 11,
+                "source_anchor": "Page 11 | Heading 软件开发要求",
+                "parent_section_code": "",
+                "parent_section_title": "软件开发要求",
+                "parent_section_label": "软件开发要求",
+                "status": "DRAFT",
+            }
+        ]
+
+        rows = main._overlay_review_entries(preview_rows, persisted_rows, prefer_raw=True)
+
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["keep"])
+        self.assertEqual(rows[0]["id"], "persisted-1")
+        self.assertEqual(rows[0]["req_code"], "REQ0999")
+        self.assertEqual(rows[0]["raw_text"], "新的正确内容")
+
     def test_overlay_review_entries_keeps_review_state_for_same_preview_fingerprint(self) -> None:
         preview_rows = [
             {
@@ -939,6 +1163,100 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(rows[0]["priority"], "HIGH")
         self.assertEqual(rows[0]["source_anchor"], "Main > 6")
         self.assertEqual(rows[0]["parent_section_label"], "6 投标说明")
+
+    def test_find_requirement_for_review_entry_prefers_source_match_over_stale_req_code(self) -> None:
+        requirements = [
+            {
+                "id": "persisted-a",
+                "req_code": "REQ0001",
+                "source_page": 11,
+                "source_anchor": "Page 11 | Section 3.1",
+                "raw_text": "3.1 旧条目",
+                "display_text": "3.1 旧条目",
+                "requirement_text": "3.1 旧条目",
+            },
+            {
+                "id": "persisted-b",
+                "req_code": "REQ0002",
+                "source_page": 12,
+                "source_anchor": "Page 12 | Section 3.2",
+                "raw_text": "3.2 正确条目",
+                "display_text": "3.2 正确条目",
+                "requirement_text": "3.2 正确条目",
+            },
+        ]
+        normalized = {
+            "entry_id": "REQ0001",
+            "req_code": "REQ0001",
+            "source_page": 12,
+            "source_anchor": "Page 12 | Section 3.2",
+            "raw_text": "3.2 正确条目",
+            "display_text": "3.2 正确条目",
+            "requirement_text": "3.2 正确条目",
+        }
+
+        matched = main._find_requirement_for_review_entry(requirements, normalized)
+
+        self.assertIsNotNone(matched)
+        self.assertEqual(matched["id"], "persisted-b")
+
+    def test_enrich_requirements_with_preview_context_matches_by_source_signature(self) -> None:
+        project, document = self._create_project_with_document("-preview-context-source-match")
+        rows = [
+            {
+                "id": "persisted-b",
+                "project_id": project["id"],
+                "sor_document_id": document["id"],
+                "req_code": "REQ0002",
+                "source_page": 5,
+                "source_page_end": 5,
+                "source_anchor": "Main > 5.2",
+                "raw_text": "5.2 第二条需求",
+                "display_text": "5.2 第二条需求",
+                "requirement_text": "5.2 第二条需求",
+                "parent_section_code": "",
+                "parent_section_title": "",
+                "parent_section_label": "",
+            }
+        ]
+
+        with patch.object(main, "load_cached_preview", return_value=(_fake_preview_with_reused_req_codes(), {})):
+            enriched = main._enrich_requirements_with_preview_context(rows, str(document["file_path"]))
+
+        self.assertEqual(enriched[0]["parent_section_code"], "5.2")
+        self.assertEqual(enriched[0]["parent_section_label"], "5.2 第二条需求")
+
+    def test_materialize_document_table_assets_uses_preview_source_match_not_req_code(self) -> None:
+        project, document = self._create_project_with_document("-materialize-source-match")
+        rows = [
+            {
+                "id": "persisted-b",
+                "project_id": project["id"],
+                "sor_document_id": document["id"],
+                "req_code": "REQ0002",
+                "source_page": 0,
+                "source_page_end": 0,
+                "source_anchor": "Main > 5.2",
+                "raw_text": "5.2 第二条需求",
+                "display_text": "5.2 第二条需求",
+                "requirement_text": "5.2 第二条需求",
+                "table_refs": [],
+                "content_blocks": [],
+                "has_table_asset": False,
+                "table_render_mode": "",
+            }
+        ]
+
+        def _fake_enrich(items, **kwargs):
+            return items, []
+
+        with patch.object(main, "load_cached_preview", return_value=(_fake_preview_with_reused_req_codes(), {})):
+            with patch.object(main, "enrich_entries_with_table_assets", side_effect=_fake_enrich):
+                materialized, assets = main._materialize_document_table_assets(rows, sor_document_id=document["id"])
+
+        self.assertEqual(assets, [])
+        self.assertEqual(materialized[0]["source_page"], 5)
+        self.assertEqual(materialized[0]["source_page_end"], 5)
 
     def test_workspace_exposes_table_refs_and_snapshot_urls(self) -> None:
         project, document = self._create_project_with_document("-table-assets")
@@ -1039,9 +1357,9 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(source_snapshot.headers.get("cache-control"), "no-store, max-age=0")
         self.assertEqual(source_snapshot.headers.get("pragma"), "no-cache")
         with PILImage.open(source_snapshot.path) as image:
-            self.assertGreater(image.width, 0)
+            self.assertGreaterEqual(image.width, 900)
             self.assertGreater(image.height, image.width)
-            self.assertLess(image.height, 1500)
+            self.assertGreater(image.height, 1500)
 
     def test_table_asset_api_prefers_preview_asset_over_stale_db_asset(self) -> None:
         project, document = self._create_project_with_document("-preview-asset-priority")
@@ -1510,6 +1828,95 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             requirement["table_refs"][0]["slice_rows"],
             [["1", "外观检查", "-", "目视外观检查", "表面无划伤", "DV/PV", "供应商", "6件/OTS", "1天"]],
         )
+
+    def test_build_analysis_rows_from_preview_skips_complex_review_only_summary(self) -> None:
+        preview = {
+            "complete_requirement_entries": [
+                {
+                    "entry_id": "REQ-CX-summary",
+                    "req_code": "REQ-CX-summary",
+                    "entry_kind": "REQUIREMENT",
+                    "display_text": "复杂跨页表整表总览",
+                    "raw_text": "复杂跨页表整表总览",
+                    "requirement_text": "复杂跨页表整表总览",
+                    "source_page": 17,
+                    "source_page_end": 22,
+                    "complex_table_mode": True,
+                    "complex_role": "zone_summary",
+                    "complex_row_policy": "review_only",
+                },
+                _complex_group_review_row(source_snapshot_path=str(self.tmp_path / "source.png")),
+            ]
+        }
+
+        rows = main._build_analysis_rows_from_preview(preview)
+
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["complex_table_mode"])
+        self.assertEqual(rows[0]["complex_role"], "group")
+
+    def test_workspace_suppresses_fallback_rows_shadowed_by_complex_group(self) -> None:
+        swallowed = {
+            "req_code": "REQ-LEGACY",
+            "entry_id": "REQ-LEGACY",
+            "entry_kind": "REQUIREMENT",
+            "source_page": 18,
+            "source_page_end": 18,
+            "source_anchor": "Page 18 | legacy",
+            "display_text": "legacy split row",
+            "raw_text": "legacy split row",
+            "requirement_text": "legacy split row",
+        }
+        unrelated_same_page = {
+            "req_code": "REQ-LEGIT",
+            "entry_id": "REQ-LEGIT",
+            "entry_kind": "REQUIREMENT",
+            "source_page": 18,
+            "source_page_end": 18,
+            "source_anchor": "Page 18 | legit",
+            "section_code": "8.1",
+            "display_text": "legit boundary row",
+            "raw_text": "legit boundary row",
+            "requirement_text": "legit boundary row",
+        }
+        complex_row = _complex_group_review_row(
+            source_snapshot_path=str(self.tmp_path / "source.png"),
+            shadow_rows=[swallowed],
+        )
+
+        rows, _ = main._build_workspace_requirements_from_review_entries(
+            [complex_row],
+            fallback_requirements=[swallowed, unrelated_same_page],
+            preview=None,
+        )
+
+        self.assertEqual(len(rows), 2)
+        self.assertEqual(rows[0]["req_code"], complex_row["req_code"])
+        self.assertTrue(any(row["req_code"] == "REQ-LEGIT" for row in rows))
+
+    def test_save_review_entry_preserves_complex_metadata_via_table_refs(self) -> None:
+        project, document = self._create_project_with_document("-complex-save")
+        source_path = self.tmp_path / "complex-source.png"
+        PILImage.new("RGB", (320, 180), "navy").save(source_path)
+
+        payload = main.ReviewedRequirementEntry(**_complex_group_review_row(source_snapshot_path=str(source_path)))
+        with patch.object(main, "request_preview_refresh", return_value={"accepted": False}):
+            result = main.save_review_entry(project["id"], document["id"], payload)
+
+        self.assertEqual(result["review_save"]["action"], "inserted")
+        self.assertTrue(result["saved_entry"]["complex_table_mode"])
+        self.assertEqual(result["saved_entry"]["complex_zone_id"], "cx-merged-requirement-matrix-p17-p22")
+
+        persisted = db.list_requirements(project["id"], document["id"])
+        self.assertEqual(len(persisted), 1)
+        self.assertTrue(persisted[0]["complex_table_mode"])
+        self.assertTrue(persisted[0]["table_refs"][0]["complex_table_mode"])
+        self.assertTrue(persisted[0]["table_refs"][0]["export_variant_locked"])
+        self.assertEqual(len(db.list_document_table_assets(project["id"], document["id"])), 1)
+        asset = main.get_document_table_asset(project["id"], document["id"], "tbl_complex_group")
+        self.assertEqual(asset["table_id"], "tbl_complex_group")
+        source_snapshot = main.get_document_table_asset_source_snapshot(project["id"], document["id"], "tbl_complex_group")
+        self.assertTrue(Path(source_snapshot.path).exists())
 
     def test_export_requires_locked_extraction(self) -> None:
         project, document = self._create_project_with_document("-export-lock")

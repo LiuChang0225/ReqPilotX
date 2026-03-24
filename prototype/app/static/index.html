@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SOR 智能合规分析原型</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=20260313-3" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260324-1" />
   </head>
   <body>
     <main class="page">
@@ -166,7 +166,12 @@
                 </colgroup>
                 <thead>
                   <tr>
-                    <th>保留</th>
+                    <th>
+                      <label class="review-keep-all" for="review-visible-keep-toggle">
+                        <input id="review-visible-keep-toggle" type="checkbox" />
+                        <span>保留</span>
+                      </label>
+                    </th>
                     <th>分类</th>
                     <th>章节</th>
                     <th>原文需求</th>
@@ -256,6 +261,7 @@
 
       <section id="matrix-panel" class="panel matrix-panel workspace-stage-panel is-hidden">
         <h2>6. Compliance Matrix</h2>
+        <p id="matrix-status" class="hint matrix-status is-warning is-hidden"></p>
         <div class="table-wrap">
           <table id="requirements-table">
             <colgroup>
@@ -282,6 +288,6 @@
       </section>
     </main>
 
-    <script src="/assets/app.js?v=20260313-5" type="module"></script>
+    <script src="/assets/app.js?v=20260324-1" type="module"></script>
   </body>
 </html>
