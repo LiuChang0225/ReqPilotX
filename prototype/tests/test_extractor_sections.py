@@ -14,6 +14,7 @@ from app.services.extractor import (
     _normalize_block_text,
     _normalize_table_lines,
     _shape_subblock,
+    _split_embedded_local_clause_line,
     _split_block_by_bullets,
 )
 from app.services.extraction_preview import _build_complete_requirement_entries
@@ -21,9 +22,12 @@ from app.services.extraction_preview import _attach_requirement_section_context
 from app.services.extraction_preview import _assign_section_instance_keys
 from app.services.extraction_preview import _collect_section_instance_groups
 from app.services.extraction_preview import _extract_appendix_scope
+from app.services.extraction_preview import _extract_section_code
 from app.services.extraction_preview import _extract_section_title
 from app.services.extraction_preview import _join_title_section_key
+from app.services.extraction_preview import _preview_section_row_sort_key
 from app.services.extraction_preview import _resolve_outline_section_instance_key
+from app.services.extraction_preview import _split_requirement_preview_rows
 
 
 def _block(code: str, title: str, page_start: int, page_end: int | None = None, text: str | None = None) -> dict:
@@ -57,6 +61,43 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
             _normalize_block_text(["10）表面处理要求以DVP为准。"]),
             "10）表面处理要求以DVP为准。",
         )
+
+    def test_terminal_sentence_top_level_clause_still_splits_large_block(self) -> None:
+        block = _block("3.2.2", "产品详细描述", 8, text="3.2.2 产品详细描述")
+        block["entries"] = [
+            {"text": "3.2.2 产品详细描述", "source_page": 8, "source_line_index": 1, "source_anchor": "Page 8"},
+            {"text": "9.7）供应商在虚拟评审前两周提供仿真报告及模型", "source_page": 8, "source_line_index": 2, "source_anchor": "Page 8"},
+            {"text": "10）表面处理要求以DVP为准。", "source_page": 8, "source_line_index": 3, "source_anchor": "Page 8"},
+            {"text": "11）自带标准件应满足相关标准要求：", "source_page": 8, "source_line_index": 4, "source_anchor": "Page 8"},
+        ]
+        block["source_anchor"] = "Page 8 | Section 3.2.2 产品详细描述"
+
+        subblocks = _split_block_by_bullets(block)
+
+        self.assertEqual([item["lines"][0] for item in subblocks[1:]], ["9.7）供应商在虚拟评审前两周提供仿真报告及模型", "10）表面处理要求以DVP为准。", "11）自带标准件应满足相关标准要求："])
+        self.assertIn("Clause 10）表面处理要求以DVP为准。", subblocks[2]["source_anchor"])
+
+    def test_embedded_local_clause_headers_are_split_before_section_blocking(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 13,
+                    "source_anchor": "Page 13 | Appendix SUB1 | Section 1.3 化学性能要求（必备）",
+                    "text": "1.3 化学性能要求（必备） 1.3.1 电子电气部件，前油泵部件安装在前副车架的前转和电池包之间位置，后油泵安装在后轮转向和尾消之间，需满足GB/T 2423.18盐雾腐蚀要求。",
+                    "table_count": 0,
+                }
+            ]
+        )
+        self.assertGreaterEqual(len(entries), 2)
+        self.assertEqual(entries[0]["text"], "1.3 化学性能要求（必备）")
+        self.assertTrue(entries[1]["text"].startswith("1.3.1 电子电气部件"))
+
+    def test_embedded_numeric_table_values_do_not_split_into_fake_local_clauses(self) -> None:
+        line = (
+            "8.1.3）在下列分析工况下，油泵总成质心位移满足下表中的要求； "
+            "2.5 RX -0.5 0.5 RY -2.5 2.5 RZ -0.5 0.5"
+        )
+        self.assertEqual(_split_embedded_local_clause_line(line), [line])
 
     def test_distant_duplicate_codes_are_kept_as_independent_instances(self) -> None:
         blocks = [
@@ -168,11 +209,503 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         self.assertEqual(len(req_entries), 1)
         self.assertEqual(req_entries[0].get("section_title"), "特殊特性清单")
 
+    def test_preview_section_sort_keeps_unoutlined_split_clauses_in_document_order(self) -> None:
+        sections = [
+            {
+                "appendix_scope": "SUB1",
+                "section_code": "",
+                "section_key": "SUB1:@技术要求内容",
+                "section_instance_key": "SUB1:@技术要求内容",
+                "section_title": "技术要求内容",
+                "section_level": 1,
+                "parent_section_code": "",
+                "has_children": True,
+                "is_leaf": False,
+                "source_page_start": 17,
+                "source_page_end": 18,
+                "source_line_index_start": 0,
+                "source_line_index_end": 21,
+                "is_appendix_marker": False,
+                "outline_order": 69,
+                "first_req_order": 135,
+            },
+            {
+                "appendix_scope": "",
+                "section_code": "7.5.2",
+                "section_key": "7.5.2",
+                "section_instance_key": "7.5.2",
+                "section_title": "橡塑件表示按照QC/T797执行，并满足GB/T26988要求。",
+                "section_level": 3,
+                "parent_section_code": "7.5",
+                "has_children": False,
+                "is_leaf": True,
+                "source_page_start": 7,
+                "source_page_end": 7,
+                "source_line_index_start": None,
+                "source_line_index_end": None,
+                "is_appendix_marker": False,
+                "outline_order": None,
+                "first_req_order": 40,
+            },
+            {
+                "appendix_scope": "",
+                "section_code": "8.1",
+                "section_key": "8.1",
+                "section_instance_key": "8.1",
+                "section_title": "油泵支架隔振衬套要求",
+                "section_level": 2,
+                "parent_section_code": "8",
+                "has_children": True,
+                "is_leaf": False,
+                "source_page_start": 7,
+                "source_page_end": 7,
+                "source_line_index_start": None,
+                "source_line_index_end": None,
+                "is_appendix_marker": False,
+                "outline_order": None,
+                "first_req_order": 42,
+            },
+        ]
+
+        ordered_keys = [row["section_instance_key"] for row in sorted(sections, key=_preview_section_row_sort_key)]
+        self.assertEqual(ordered_keys, ["7.5.2", "8.1", "SUB1:@技术要求内容"])
+
+    def test_build_complete_entries_aligns_large_spanning_heading_to_first_requirement_line(self) -> None:
+        sections = [
+            {
+                "appendix_scope": "SUB1",
+                "section_code": "3",
+                "section_key": "SUB1:3",
+                "section_instance_key": "SUB1:3#样件数量要求",
+                "section_title": "样件数量要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "has_children": True,
+                "is_leaf": False,
+                "source_page_start": 13,
+                "source_page_end": 13,
+                "source_line_index_start": 77,
+                "source_line_index_end": 78,
+                "line_count": 2,
+                "is_appendix_marker": False,
+                "outline_order": 58,
+            },
+            {
+                "appendix_scope": "SUB1",
+                "section_code": "4",
+                "section_key": "SUB1:4",
+                "section_instance_key": "SUB1:4#集成验证要求",
+                "section_title": "集成验证要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "has_children": True,
+                "is_leaf": False,
+                "source_page_start": 13,
+                "source_page_end": 15,
+                "source_line_index_start": 0,
+                "source_line_index_end": 84,
+                "line_count": 32,
+                "is_appendix_marker": False,
+                "outline_order": 59,
+            },
+        ]
+        requirements = [
+            {
+                "req_code": "REQ-0124",
+                "entry_id": "REQ-0124",
+                "appendix_scope": "SUB1",
+                "section_code": "3",
+                "section_key": "SUB1:3",
+                "section_instance_key": "SUB1:3#样件数量要求",
+                "section_title": "样件数量要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "source_page": 13,
+                "source_page_end": 13,
+                "source_line_index": 77,
+                "source_line_index_end": 78,
+                "requirement_text": "3.样件数量要求",
+                "req_order": 123,
+            },
+            {
+                "req_code": "REQ-0125",
+                "entry_id": "REQ-0125",
+                "appendix_scope": "SUB1",
+                "section_code": "4",
+                "section_key": "SUB1:4",
+                "section_instance_key": "SUB1:4#集成验证要求",
+                "section_title": "集成验证要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "source_page": 13,
+                "source_page_end": 15,
+                "source_line_index": 79,
+                "source_line_index_end": 84,
+                "requirement_text": "4.集成验证要求",
+                "req_order": 124,
+            },
+        ]
+
+        entries = _build_complete_requirement_entries(requirements=requirements, sections=sections)
+        headings = [entry for entry in entries if entry.get("entry_kind") == "HEADING"]
+
+        self.assertEqual([entry.get("section_title") for entry in headings], ["样件数量要求", "集成验证要求"])
+        self.assertEqual(headings[1].get("source_line_index"), 79)
+
+    def test_build_complete_entries_keeps_synthetic_split_clauses_in_req_order(self) -> None:
+        sections = [
+            {
+                "appendix_scope": "",
+                "section_code": "1",
+                "section_key": "1",
+                "section_instance_key": "1#油泵性能要求",
+                "section_title": "油泵性能要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "has_children": False,
+                "is_leaf": True,
+                "source_page_start": 3,
+                "source_page_end": 3,
+                "source_line_index_start": None,
+                "source_line_index_end": None,
+                "line_count": 0,
+                "is_appendix_marker": False,
+                "outline_order": None,
+                "first_req_order": 15,
+            },
+            {
+                "appendix_scope": "",
+                "section_code": "2",
+                "section_key": "2",
+                "section_instance_key": "2#控制响应性能要求",
+                "section_title": "控制响应性能要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "has_children": False,
+                "is_leaf": True,
+                "source_page_start": 4,
+                "source_page_end": 4,
+                "source_line_index_start": None,
+                "source_line_index_end": None,
+                "line_count": 0,
+                "is_appendix_marker": False,
+                "outline_order": None,
+                "first_req_order": 16,
+            },
+            {
+                "appendix_scope": "",
+                "section_code": "3",
+                "section_key": "3",
+                "section_instance_key": "3#油泵总成接口要求",
+                "section_title": "油泵总成接口要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "has_children": False,
+                "is_leaf": True,
+                "source_page_start": 4,
+                "source_page_end": 4,
+                "source_line_index_start": None,
+                "source_line_index_end": None,
+                "line_count": 0,
+                "is_appendix_marker": False,
+                "outline_order": None,
+                "first_req_order": 17,
+            },
+            {
+                "appendix_scope": "",
+                "section_code": "4",
+                "section_key": "4",
+                "section_instance_key": "4#外观要求",
+                "section_title": "外观要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "has_children": False,
+                "is_leaf": True,
+                "source_page_start": 4,
+                "source_page_end": 5,
+                "source_line_index_start": None,
+                "source_line_index_end": None,
+                "line_count": 0,
+                "is_appendix_marker": False,
+                "outline_order": None,
+                "first_req_order": 18,
+            },
+            {
+                "appendix_scope": "",
+                "section_code": "5",
+                "section_key": "5",
+                "section_instance_key": "5#油管总成性能要求",
+                "section_title": "油管总成性能要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "has_children": False,
+                "is_leaf": True,
+                "source_page_start": 5,
+                "source_page_end": 5,
+                "source_line_index_start": None,
+                "source_line_index_end": None,
+                "line_count": 0,
+                "is_appendix_marker": False,
+                "outline_order": None,
+                "first_req_order": 19,
+            },
+            {
+                "appendix_scope": "",
+                "section_code": "6",
+                "section_key": "6",
+                "section_instance_key": "6#双电机控制器总成要求",
+                "section_title": "双电机控制器总成要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "has_children": False,
+                "is_leaf": True,
+                "source_page_start": 5,
+                "source_page_end": 5,
+                "source_line_index_start": None,
+                "source_line_index_end": None,
+                "line_count": 0,
+                "is_appendix_marker": False,
+                "outline_order": None,
+                "first_req_order": 20,
+            },
+            {
+                "appendix_scope": "",
+                "section_code": "6.1",
+                "section_key": "6.1",
+                "section_instance_key": "6.1",
+                "section_title": "简述",
+                "section_level": 2,
+                "parent_section_code": "6",
+                "has_children": False,
+                "is_leaf": True,
+                "source_page_start": 5,
+                "source_page_end": 5,
+                "source_line_index_start": None,
+                "source_line_index_end": None,
+                "line_count": 0,
+                "is_appendix_marker": False,
+                "outline_order": None,
+                "first_req_order": 21,
+            },
+            {
+                "appendix_scope": "",
+                "section_code": "6.4",
+                "section_key": "6.4",
+                "section_instance_key": "6.4",
+                "section_title": "低压电气接口",
+                "section_level": 2,
+                "parent_section_code": "6",
+                "has_children": False,
+                "is_leaf": True,
+                "source_page_start": 5,
+                "source_page_end": 6,
+                "source_line_index_start": None,
+                "source_line_index_end": None,
+                "line_count": 0,
+                "is_appendix_marker": False,
+                "outline_order": None,
+                "first_req_order": 24,
+            },
+        ]
+        requirements = [
+            {
+                "req_code": "REQ-0016",
+                "entry_id": "REQ-0016",
+                "appendix_scope": "",
+                "section_code": "1",
+                "section_key": "1",
+                "section_instance_key": "1#油泵性能要求",
+                "section_title": "油泵性能要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "source_page": 3,
+                "source_page_end": 3,
+                "source_line_index": 0,
+                "source_line_index_end": 37,
+                "requirement_text": "1）油泵性能要求",
+                "req_order": 15,
+            },
+            {
+                "req_code": "REQ-0017",
+                "entry_id": "REQ-0017",
+                "appendix_scope": "",
+                "section_code": "2",
+                "section_key": "2",
+                "section_instance_key": "2#控制响应性能要求",
+                "section_title": "控制响应性能要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "source_page": 4,
+                "source_page_end": 4,
+                "source_line_index": 0,
+                "source_line_index_end": 7,
+                "requirement_text": "2）控制响应性能要求",
+                "req_order": 16,
+            },
+            {
+                "req_code": "REQ-0018",
+                "entry_id": "REQ-0018",
+                "appendix_scope": "",
+                "section_code": "3",
+                "section_key": "3",
+                "section_instance_key": "3#油泵总成接口要求",
+                "section_title": "油泵总成接口要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "source_page": 4,
+                "source_page_end": 4,
+                "source_line_index": 8,
+                "source_line_index_end": 34,
+                "requirement_text": "3）油泵总成接口要求",
+                "req_order": 17,
+            },
+            {
+                "req_code": "REQ-0019",
+                "entry_id": "REQ-0019",
+                "appendix_scope": "",
+                "section_code": "4",
+                "section_key": "4",
+                "section_instance_key": "4#外观要求",
+                "section_title": "外观要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "source_page": 4,
+                "source_page_end": 5,
+                "source_line_index": 35,
+                "source_line_index_end": 0,
+                "requirement_text": "4）外观要求",
+                "req_order": 18,
+            },
+            {
+                "req_code": "REQ-0020",
+                "entry_id": "REQ-0020",
+                "appendix_scope": "",
+                "section_code": "5",
+                "section_key": "5",
+                "section_instance_key": "5#油管总成性能要求",
+                "section_title": "油管总成性能要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "source_page": 5,
+                "source_page_end": 5,
+                "source_line_index": 1,
+                "source_line_index_end": 8,
+                "requirement_text": "5）油管总成性能要求",
+                "req_order": 19,
+            },
+            {
+                "req_code": "REQ-0021",
+                "entry_id": "REQ-0021",
+                "appendix_scope": "",
+                "section_code": "6",
+                "section_key": "6",
+                "section_instance_key": "6#双电机控制器总成要求",
+                "section_title": "双电机控制器总成要求",
+                "section_level": 1,
+                "parent_section_code": "",
+                "source_page": 5,
+                "source_page_end": 5,
+                "source_line_index": 9,
+                "source_line_index_end": 9,
+                "requirement_text": "6）双电机控制器总成要求",
+                "req_order": 20,
+            },
+            {
+                "req_code": "REQ-0022",
+                "entry_id": "REQ-0022",
+                "appendix_scope": "",
+                "section_code": "6.1",
+                "section_key": "6.1",
+                "section_instance_key": "6.1",
+                "section_title": "简述",
+                "section_level": 2,
+                "parent_section_code": "6",
+                "source_page": 5,
+                "source_page_end": 5,
+                "source_line_index": 10,
+                "source_line_index_end": 19,
+                "requirement_text": "6.1）简述",
+                "req_order": 21,
+            },
+            {
+                "req_code": "REQ-0025",
+                "entry_id": "REQ-0025",
+                "appendix_scope": "",
+                "section_code": "6.4",
+                "section_key": "6.4",
+                "section_instance_key": "6.4",
+                "section_title": "低压电气接口",
+                "section_level": 2,
+                "parent_section_code": "6",
+                "source_page": 5,
+                "source_page_end": 6,
+                "source_line_index": 41,
+                "source_line_index_end": 4,
+                "requirement_text": "6.4）低压电气接口",
+                "req_order": 24,
+            },
+        ]
+
+        entries = _build_complete_requirement_entries(requirements=requirements, sections=sections)
+        heading_titles = [entry.get("section_title") for entry in entries if entry.get("entry_kind") == "HEADING"]
+
+        self.assertEqual(
+            heading_titles,
+            [
+                "油泵性能要求",
+                "控制响应性能要求",
+                "油泵总成接口要求",
+                "外观要求",
+                "油管总成性能要求",
+                "双电机控制器总成要求",
+                "简述",
+                "低压电气接口",
+            ],
+        )
+
     def test_appendix_scope_preserves_full_subdocument_token(self) -> None:
         self.assertEqual(
             _extract_appendix_scope("Page 16 | Appendix SUB1 | Section 4.1 OTA要求"),
             "SUB1",
         )
+
+    def test_clause_anchor_code_and_title_override_parent_section_anchor(self) -> None:
+        anchor = (
+            "Page 7 | Clause 8.1.2）产品各方向解耦率及各向频率应满足下表的要求 "
+            "| Section 3.2.2 产品详细描述"
+        )
+        self.assertEqual(_extract_section_code(anchor), "8.1.2")
+        self.assertEqual(_extract_section_title(anchor), "产品各方向解耦率及各向频率应满足下表的要求")
+
+    def test_multiline_clause_requirement_uses_first_line_clause_code_in_preview_row(self) -> None:
+        anchor = (
+            "Page 7 | Clause 8.1.2）产品各方向解耦率及各向频率应满足下表的要求 "
+            "| Section 3.2.2 产品详细描述"
+        )
+        rows = _split_requirement_preview_rows(
+            item={
+                "req_code": "REQ-0045",
+                "source_anchor": anchor,
+                "requirement_type": "",
+                "priority": "",
+                "source_line_index": 0,
+                "source_line_index_end": 0,
+            },
+            source_page=7,
+            source_page_end=7,
+            appendix_scope="",
+            section_code=_extract_section_code(anchor),
+            section_title_hint=_extract_section_title(anchor),
+            text=(
+                "8.1.2）产品各方向解耦率及各向频率应满足下表的要求（油泵支架隔振衬套如存在小衬套，需要考虑二级隔振），油泵的刚体模态\n"
+                "油泵总成刚体模态分配（整车坐标系）\n"
+                "For/Aft 15 30 90"
+            ),
+            req_order_start=44,
+        )
+        self.assertEqual(rows[0]["section_code"], "8.1.2")
+        self.assertEqual(rows[0]["section_key"], "8.1.2")
+        self.assertTrue(rows[0]["section_title"].startswith("产品各方向解耦率及各向频率应满足下表的要求"))
 
     def test_attachment_directory_heading_is_preserved_as_main_body_section(self) -> None:
         header = _parse_section_header("7、附件目录")

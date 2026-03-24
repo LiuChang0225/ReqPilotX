@@ -1,8 +1,10 @@
 import tempfile
 import sys
 import unittest
+from io import BytesIO
 from pathlib import Path
 from unittest.mock import patch
+from PIL import Image as PILImage
 
 sys.path.insert(0, "/Users/liuchang/Documents/New project/worktrees/_active/extraction-optimization/prototype")
 
@@ -119,6 +121,23 @@ class TableAssetsParsingTest(unittest.TestCase):
         self.assertEqual([block["kind"] for block in blocks], ["table", "paragraph", "table"])
         self.assertIn("Confidentiality Level", blocks[1]["text"])
 
+    def test_single_cell_markdown_row_becomes_paragraph_text(self) -> None:
+        self.assertEqual(ta._normalize_block_input_line("|目的：评估用电器端与线束适配性|"), ["目的：评估用电器端与线束适配性"])
+
+    def test_header_stub_row_merges_into_following_subtable(self) -> None:
+        text = "\n".join(
+            [
+                "2.主要设计和验证要求",
+                "|序号|项目|要求|",
+                "气候性能",
+                "|1|低温存储|/|",
+                "|2|高温存储|/|",
+            ]
+        )
+        blocks = _split_text_blocks(text)
+        self.assertEqual([block["kind"] for block in blocks], ["paragraph", "paragraph", "table"])
+        self.assertEqual(blocks[2].get("header_cells"), ["序号", "项目", "要求"])
+
     def test_markdown_separator_row_stays_in_same_table_block(self) -> None:
         text = "\n".join(
             [
@@ -172,6 +191,432 @@ class TableAssetsParsingTest(unittest.TestCase):
 
             self.assertEqual(rebuilt, path)
             self.assertEqual(path.read_bytes(), second_bytes)
+
+    @unittest.skipIf(_OIL_PUMP_SAMPLE_PDF is None, "oil pump sample pdf not available")
+    def test_write_source_snapshot_signature_changes_with_clause_window_strategy(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snapshot_root = Path(tmpdir)
+            first_bytes = render_text_snapshot_png("candidate-window")
+            second_bytes = render_text_snapshot_png("clause-window")
+            kwargs = {
+                "snapshot_root": snapshot_root,
+                "source_file_path": str(_OIL_PUMP_SAMPLE_PDF),
+                "source_page": 12,
+                "source_page_end": 12,
+                "table_text": "2.3 特殊特性控制要求\n|测量系统分析|初始过程能力|量产过程能力|",
+                "table_title": "2.3 特殊特性控制要求",
+                "headers": ["测量系统分析", "初始过程能力", "量产过程能力"],
+                "rows": [["Cgk≥1.33", "Ppk≥1.67", "关键特性Cpk≥1.67"]],
+                "notes": [
+                    "2.3 特殊特性控制要求\n针对特殊特性常见的控制方法有防错 、SPC与能力分析和100%检验等。",
+                    "当能力不足时，应对发货的产品的进行 100%测量。",
+                ],
+                "before_context_text": "2.2 特殊特性分类与标识",
+                "after_context_text": "可靠性设计目标",
+                "source_snapshot_cache": None,
+                "source_table_detection_cache": None,
+                "source_line_detection_cache": None,
+                "source_page_floor_offsets": {},
+            }
+
+            with patch("app.services.table_assets._render_pdf_page_span_snapshot", return_value=(first_bytes, {})):
+                candidate_path, _ = _write_source_snapshot(**kwargs, prefer_clause_window=False)
+
+            with patch("app.services.table_assets._render_pdf_page_span_snapshot", return_value=(second_bytes, {})):
+                clause_path, _ = _write_source_snapshot(**kwargs, prefer_clause_window=True)
+
+            self.assertIsNotNone(candidate_path)
+            self.assertIsNotNone(clause_path)
+            assert candidate_path is not None
+            assert clause_path is not None
+            self.assertNotEqual(candidate_path, clause_path)
+            self.assertEqual(clause_path.read_bytes(), second_bytes)
+
+    @unittest.skipIf(_OIL_PUMP_SAMPLE_PDF is None, "oil pump sample pdf not available")
+    def test_write_source_snapshot_retries_clause_window_for_shallow_complex_snapshot(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snapshot_root = Path(tmpdir)
+            first_bytes = render_text_snapshot_png("short")
+            second_bytes = render_text_snapshot_png("\n".join(f"row {index}" for index in range(32)))
+            kwargs = {
+                "snapshot_root": snapshot_root,
+                "source_file_path": str(_OIL_PUMP_SAMPLE_PDF),
+                "source_page": 24,
+                "source_page_end": 24,
+                "table_text": "3.产品网络安全生命周期-开发阶段",
+                "table_title": "3 产品网络安全生命周期-开发阶段 Product Cybersecurity Lifecycle -Product Development",
+                "headers": ["序号", "活动", "描述", "适用", "产出", "保密级别"],
+                "rows": [["-1", "开发", "描述", "适用", "产出", "高度机密"]] * 3,
+                "notes": ["开发与设计 Development and Design", "测试与验证（Verification & Validation ）"],
+                "before_context_text": "2.产品网络安全生命周期-概念设计阶段",
+                "after_context_text": "4.产品网络安全生命周期-生产阶段",
+                "source_snapshot_cache": None,
+                "source_table_detection_cache": None,
+                "source_line_detection_cache": None,
+                "source_page_floor_offsets": {},
+            }
+
+            with patch(
+                "app.services.table_assets._render_pdf_page_span_snapshot",
+                side_effect=[(first_bytes, {"page_span_count": 1}), (second_bytes, {"page_span_count": 1})],
+            ) as mocked:
+                path, _ = _write_source_snapshot(**kwargs)
+
+            self.assertIsNotNone(path)
+            assert path is not None
+            self.assertEqual(path.read_bytes(), second_bytes)
+            self.assertEqual(mocked.call_count, 2)
+
+    def test_compose_vertical_images_does_not_apply_height_cap_by_default(self) -> None:
+        images = [
+            PILImage.new("RGB", (920, 1000), "white"),
+            PILImage.new("RGB", (920, 900), "white"),
+        ]
+
+        rendered = ta._compose_vertical_images(images, max_width_px=920)
+
+        with PILImage.open(BytesIO(rendered)) as image:
+            self.assertEqual(image.size, (920, 1918))
+
+    def test_compose_vertical_images_applies_height_cap_when_requested(self) -> None:
+        images = [
+            PILImage.new("RGB", (920, 1000), "white"),
+            PILImage.new("RGB", (920, 900), "white"),
+        ]
+
+        rendered = ta._compose_vertical_images(images, max_width_px=920, max_height_px=1480)
+
+        with PILImage.open(BytesIO(rendered)) as image:
+            self.assertEqual(image.size, (709, 1480))
+
+    def test_short_table_with_meaningful_context_prefers_clause_window(self) -> None:
+        self.assertTrue(
+            ta._should_prefer_source_clause_window(
+                table_title="2.2 特殊特性分类与标识",
+                render_mode="structured",
+                headers=["项目", "内容", "备注"],
+                rows=[["安全相关关键特性", "法规相关关键特性", "功能相关重要特性"]],
+                source_page=12,
+                source_page_end=12,
+                notes=[
+                    "2.2 特殊特性分类与标识\n我司对特殊特性分类：安全相关关键特性，法规相关关键特性，功能相关重要特性，对应特性标识符号见下表。",
+                ],
+            )
+        )
+
+    def test_short_heading_subtable_prefers_clause_window(self) -> None:
+        self.assertFalse(
+            ta._should_prefer_source_clause_window(
+                table_title="气候性能",
+                render_mode="structured",
+                headers=["序号", "项目", "要求"],
+                rows=[["1", "低温存储", "/"]] * 8,
+                source_page=13,
+                source_page_end=13,
+                notes=[],
+            )
+        )
+
+    def test_large_delivery_table_uses_candidate_window(self) -> None:
+        self.assertFalse(
+            ta._should_prefer_source_clause_window(
+                table_title="5.2 交付物要求",
+                render_mode="structured",
+                headers=["交付物清单", "类别", "交付时间", "备注"],
+                rows=[
+                    ["1", "设计方案说明书", "/", "TR阶段"],
+                    ["2", "初版3D数模", "/", "TR阶段"],
+                    ["3", "初版2D总成图纸", "/", "软模阶段交样前"],
+                    ["4", "BOM", "/", "软模阶段交样前"],
+                    ["5", "DFMEA", "/", ""],
+                    ["6", "尺寸检测报告", "/", ""],
+                    ["7", "性能检测报告", "/", ""],
+                    ["8", "DVP测试报告", "/", ""],
+                    ["9", "产品描述书", "/", ""],
+                ],
+                source_page=10,
+                source_page_end=10,
+                notes=[],
+            )
+        )
+
+    def test_long_software_development_table_uses_candidate_window(self) -> None:
+        self.assertFalse(
+            ta._should_prefer_source_clause_window(
+                table_title="软件开发要求",
+                render_mode="structured",
+                headers=["条款编号", "要求项目", "要求描述"],
+                rows=[
+                    ["SE00.001", "供应商软件质量资质评估", "1. 取得软件认证ASPICE，CMMI(考察项)..."],
+                    ["SE00.002", "有软件开发流程按照ASPICE 管控", "1. 有明确清晰的软件开发流程..."],
+                    ["SE00.003", "对阶段软件度量指标管理与评审", "1. 满足公司对软件质量提出的质量目标..."],
+                    ["SE00.004", "测试用例联合评审", "1. 组织与甲方公司工程师开展测试用例的评审..."],
+                    ["SE00.005", "人力资源评估", "1. 配合开展人力资源满足度评价..."],
+                    ["SE00.006", "需求计划评审", "1. 根据需求开发规范，制定需求管控计划..."],
+                    ["SE00.007", "软件包交付评审", "1. 软件包的交付需要按照《软件三件套》要求开展评价..."],
+                    ["SE00.008", "缺陷管理", "1. 对与重点缺陷问题需要开展端到端过程复盘..."],
+                    ["SE00.009", "软件外包管理（如有）", "1. 软件模块是否有过外包（外包商名称）..."],
+                    ["SE00.010", "支持与配合", "1. 配合项目开展所有资源的协调..."],
+                    ["SE00.011", "软件度量指标", "1. 参考软件质量协议确定并签订指标..."],
+                ],
+                source_page=11,
+                source_page_end=11,
+                notes=[],
+            )
+        )
+
+    def test_axis_symbol_table_prefers_clause_window(self) -> None:
+        self.assertTrue(
+            ta._should_prefer_source_clause_window(
+                table_title="8.1.3）在下列分析工况下，油泵总成质心位移满足下表中的要求；",
+                render_mode="structured",
+                headers=["总成自由度", "质心最大位移 mm/° 下限", "质心最大位移 mm/° 上限"],
+                rows=[
+                    ["X", "-4", "4"],
+                    ["Y", "-2.5", "2.5"],
+                    ["Z", "-4", "4"],
+                    ["RX", "-0.5", "0.5"],
+                    ["RY", "-2.5", "2.5"],
+                    ["RZ", "-0.5", "0.5"],
+                ],
+                source_page=8,
+                source_page_end=8,
+                notes=["油泵总成质心位移控制要求\n（整车坐标系）"],
+            )
+        )
+
+    def test_source_anchor_clause_title_is_used_for_table_only_entry(self) -> None:
+        row = {
+            "raw_text": "|模态|频率（Hz） 下限|频率（Hz） 上限|",
+            "source_anchor": "Page 7 | Clause 8.1.2）产品各方向解耦率及各向频率应满足下表的要求 | Section 3.2.2 产品详细描述",
+            "section_title": "3.2.2 产品详细描述",
+        }
+        self.assertEqual(
+            ta._table_title_for_row(row),
+            "8.1.2）产品各方向解耦率及各向频率应满足下表的要求",
+        )
+
+    def test_local_clause_anchor_prefix_stops_at_semicolon_before_table_band(self) -> None:
+        self.assertEqual(
+            ta._extract_local_clause_anchor_prefix(
+                "8.1.3）在下列分析工况下，油泵总成质心位移满足下表中的要求； 油泵总成质心位移控制要求 （整车坐标系）"
+            ),
+            "8.1.3）在下列分析工况下，油泵总成质心位移满足下表中的要求",
+        )
+
+    def test_leading_table_title_block_is_added_for_table_only_entry_even_if_raw_text_contains_title(self) -> None:
+        blocks = ta._ensure_leading_table_title_block(
+            [{"kind": "table", "table_id": "tbl_123"}],
+            row={
+                "raw_text": "8.1.2）产品各方向解耦率及各向频率应满足下表的要求\n|模态|频率（Hz） 下限|频率（Hz） 上限|",
+            },
+            table_title="8.1.2）产品各方向解耦率及各向频率应满足下表的要求",
+        )
+        self.assertEqual(blocks[0], {"kind": "paragraph", "text": "8.1.2）产品各方向解耦率及各向频率应满足下表的要求"})
+        self.assertEqual(blocks[1], {"kind": "table", "table_id": "tbl_123"})
+
+    def test_environment_requirement_does_not_trigger_visual_snapshot_by_keywords_alone(self) -> None:
+        text = "\n".join(
+            [
+                "1.1 环境适应性要求（必备）",
+                "前油泵部件安装在前副车架位置，需满足工作温度-40℃～105℃，存储温度-40℃～105℃；后油泵安装在后轮转向和尾消之间，需满足工作温度-40℃～105℃，存储温度-40℃～105℃。",
+                "低压电器件防护等级要求（湿区）：",
+                "（1）离地高度≤VTS最高涉水深度+200mm，要求≥IP67；",
+                "（2）离地高度＞VTS最高涉水深度+200mm，要求≥IP66；",
+                "（3）尾门内腔冷凝水滴落区域，要求≥IP52；",
+                "涉水要求：各零部件在整车涉水后不能出现渗水或者漏水，整车性能不能出现下降。",
+            ]
+        )
+        self.assertFalse(ta._should_generate_visual_snapshot(text, title="1.1 环境适应性要求（必备）"))
+
+    def test_snapshot_only_materialization_uses_title_surrogate_instead_of_pipe_text(self) -> None:
+        self.assertEqual(
+            ta._materialize_table_block_text(
+                {
+                    "table_title": "X 测试分组 / Test Groups",
+                    "slice_render_mode": "snapshot_only",
+                    "inherited_headers": ["测试项目 / Test Item", "测试分组 / Test Groups（推荐）", "Col3"],
+                    "slice_rows": [],
+                }
+            ),
+            "X 测试分组 / Test Groups",
+        )
+
+    def test_source_first_structured_table_materialization_uses_title_surrogate(self) -> None:
+        self.assertEqual(
+            ta._materialize_table_block_text(
+                {
+                    "table_title": "常见不安全密码算法",
+                    "slice_render_mode": "structured",
+                    "recommended_export_variant": "source",
+                    "source_snapshot_path": "/tmp/source.png",
+                    "inherited_headers": ["用途", "类别", "常见不安全密码算法", "可遗留使用密码算法", "推荐使用的强密码算法"],
+                    "slice_rows": [["对称加密", "分组加密", "Blowfish", "", "AES-GCM"]],
+                }
+            ),
+            "常见不安全密码算法",
+        )
+
+    def test_materialized_requirement_text_dedupes_repeated_title_surrogate(self) -> None:
+        row = {
+            "raw_text": "X 测试分组 / Test Groups",
+            "content_blocks": [
+                {"kind": "paragraph", "text": "X 测试分组 / Test Groups"},
+                {"kind": "table", "table_id": "tbl-x"},
+            ],
+            "table_refs": [
+                {
+                    "table_id": "tbl-x",
+                    "table_title": "X 测试分组 / Test Groups",
+                    "slice_render_mode": "snapshot_only",
+                }
+            ],
+        }
+        self.assertEqual(ta._materialize_requirement_text(row), "X 测试分组 / Test Groups")
+
+    def test_materialized_requirement_text_skips_source_first_table_after_paragraph(self) -> None:
+        row = {
+            "raw_text": "4.集成验证要求：",
+            "content_blocks": [
+                {"kind": "paragraph", "text": "4.集成验证要求：\n产品需满足由OEM组织的系统级和整车级试验要求。"},
+                {"kind": "table", "table_id": "tbl-source"},
+            ],
+            "table_refs": [
+                {
+                    "table_id": "tbl-source",
+                    "table_title": "4 集成验证要求",
+                    "slice_render_mode": "snapshot_only",
+                    "recommended_export_variant": "source",
+                    "source_snapshot_path": "/tmp/source.png",
+                }
+            ],
+        }
+        self.assertEqual(
+            ta._materialize_requirement_text(row),
+            "4.集成验证要求：\n产品需满足由OEM组织的系统级和整车级试验要求。",
+        )
+
+    def test_materialized_requirement_text_skips_large_source_backed_slice_table_markdown(self) -> None:
+        row = {
+            "raw_text": "用电器端基本信息",
+            "content_blocks": [
+                {"kind": "paragraph", "text": "用电器端基本信息"},
+                {"kind": "table", "table_id": "tbl-source-backed-slice"},
+            ],
+            "table_refs": [
+                {
+                    "table_id": "tbl-source-backed-slice",
+                    "table_title": "用电器端基本信息",
+                    "slice_render_mode": "structured",
+                    "recommended_export_variant": "slice",
+                    "source_snapshot_path": "/tmp/source.png",
+                    "inherited_headers": ["模块侧接口类型", "项目", "要求", "数量", "风险评估"],
+                    "slice_rows": [["自开模", "模具号", "提供模具号", "3pcs", ""]] * 8,
+                }
+            ],
+        }
+        self.assertEqual(ta._materialize_requirement_text(row), "用电器端基本信息")
+
+    def test_split_embedded_anchor_line_fragments_breaks_merged_heading_line(self) -> None:
+        fragments = ta._split_embedded_anchor_line_fragments(
+            "1 盐雾腐蚀 3.样件数量要求： 为验证和考核部件的一致性 4.集成验证要求： 产品需满足系统级试验要求。",
+            (0.0, 0.0, 100.0, 60.0),
+        )
+        self.assertEqual(len(fragments), 3)
+        self.assertEqual(fragments[0]["text"], "1 盐雾腐蚀")
+        self.assertTrue(fragments[1]["text"].startswith("3.样件数量要求"))
+        self.assertTrue(fragments[2]["text"].startswith("4.集成验证要求"))
+
+    def test_numbered_dot_heading_counts_as_headingish_single_cell(self) -> None:
+        self.assertTrue(ta._looks_like_headingish_single_cell("4.集成验证要求："))
+
+    def test_clean_paragraph_block_text_drops_trailing_table_intro_band(self) -> None:
+        text = "\n".join(
+            [
+                "4.集成验证要求：",
+                "产品需满足由OEM组织的系统级和整车级试验要求。",
+                "序号测试类别测试小类测试项目",
+                "1 产品SE或者项目组定义",
+                "系统级测试",
+                "Col1",
+            ]
+        )
+        self.assertEqual(
+            ta._clean_paragraph_block_text(text),
+            "4.集成验证要求：\n产品需满足由OEM组织的系统级和整车级试验要求。",
+        )
+
+    def test_clean_paragraph_block_text_drops_reference_and_markdown_noise(self) -> None:
+        text = "\n".join(
+            [
+                "Ref： ISO 21434 Annex C",
+                "~~time~~ 1 总体要求 General Requirements",
+                "项目开展前总体要求 General Requirements before the Project Launches",
+            ]
+        )
+        self.assertEqual(
+            ta._clean_paragraph_block_text(text),
+            "1 总体要求 General Requirements\n项目开展前总体要求 General Requirements before the Project Launches",
+        )
+
+    def test_resolve_table_block_title_prefers_neighbor_heading(self) -> None:
+        self.assertEqual(
+            ta._resolve_table_block_title(
+                blocks=[
+                    {
+                        "kind": "paragraph",
+                        "text": "整车用电器与线束匹配评估表\n目的说明\n整车应用基本信息\n项目",
+                    },
+                    {"kind": "table", "text": "|布置位置|前舱|"},
+                ],
+                block_index=1,
+                fallback_title="W 整车用电器与线束匹配评估表",
+            ),
+            "整车应用基本信息",
+        )
+        self.assertEqual(
+            ta._resolve_table_block_title(
+                blocks=[
+                    {"kind": "paragraph", "text": "Ref： ISO 21434 Annex C\nRASIC Definition RASIC 定义"},
+                    {"kind": "table", "text": "|主责（R）|说明|"},
+                ],
+                block_index=1,
+                fallback_title="常见不安全密码算法",
+            ),
+            "RASIC Definition RASIC 定义",
+        )
+        self.assertEqual(
+            ta._resolve_table_block_title(
+                blocks=[
+                    {
+                        "kind": "paragraph",
+                        "text": "4.集成验证要求：\n产品需满足系统级试验要求。\n序号测试类别测试小类测试项目\n1 产品SE或者项目组定义\n系统级测试\nCol1",
+                    },
+                    {"kind": "table", "text": "|2|产品SE或者项目组定义|"},
+                ],
+                block_index=1,
+                fallback_title="4 集成验证要求",
+            ),
+            "4.集成验证要求：",
+        )
+
+    def test_low_quality_structured_table_recommends_source(self) -> None:
+        recommendation = ta._recommend_table_export_variant(
+            {
+                "source_snapshot_path": "/tmp/source.png",
+                "slice_render_mode": "structured",
+                "inherited_headers": ["1", "低温存储", "/"],
+                "slice_rows": [
+                    ["2", "高温存储", "/"],
+                    ["3", "低温工作和唤醒", "/"],
+                ],
+                "source_page": 13,
+                "source_page_end": 13,
+                "structure_confidence": 0.88,
+            }
+        )
+        self.assertEqual(recommendation["recommended_export_variant"], "source")
+        self.assertIn("切片可读性差", recommendation["export_variant_reasons"])
 
     def test_two_column_pdf_title_band_rows_become_notes(self) -> None:
         recovered = _coerce_pdf_candidate_rows_to_table(
@@ -365,6 +810,90 @@ class TableAssetsParsingTest(unittest.TestCase):
         )
         self.assertEqual(bbox[3], 184.0)
 
+    def test_compose_page_crop_bbox_allows_end_anchor_to_trim_single_row_table_tail(self) -> None:
+        class _Rect:
+            width = 400.0
+            height = 500.0
+
+        class _Page:
+            rect = _Rect()
+
+        bbox = _compose_page_crop_bbox(
+            _Page(),
+            chosen={
+                "bbox": (10.0, 10.0, 300.0, 400.0),
+                "rows_text": [
+                    ["3.1 车型信息"],
+                    ["项目代号", "车型代号", "手工件到样时间"],
+                    ["X2548/X2549 3.2 产品技术要求及说明 3.2.1 产品信息", "X8D11/X8D01", "2026.03.30"],
+                ],
+                "row_bboxes": [
+                    (10.0, 80.0, 300.0, 100.0),
+                    (10.0, 100.0, 300.0, 120.0),
+                    (10.0, 120.0, 300.0, 180.0),
+                ],
+            },
+            start_anchor={"bbox": (12.0, 118.0, 280.0, 128.0), "text": "3.1 车型信息"},
+            end_anchor={"bbox": (12.0, 170.0, 280.0, 182.0), "text": "3.2 产品技术要求及说明"},
+            headers=["项目代号", "车型代号", "手工件到样时间"],
+            slice_rows=[["X2548/X2549", "X8D11/X8D01", "2026.03.30"]],
+        )
+        self.assertLess(bbox[3], 160.0)
+
+    def test_compose_page_crop_bbox_ignores_stale_page_floor_when_anchor_starts_above_it(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _Page:
+            rect = _Rect()
+
+        bbox = _compose_page_crop_bbox(
+            _Page(),
+            chosen=None,
+            start_anchor={"bbox": (51.2, 387.9, 115.6, 396.8), "text": "3.2.1 产品信息"},
+            end_anchor=None,
+            headers=[],
+            slice_rows=[],
+            page_floor=545.4,
+        )
+        self.assertLess(bbox[1], 400.0)
+
+    def test_compose_page_crop_bbox_applies_page_floor_when_anchor_starts_after_it(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _Page:
+            rect = _Rect()
+
+        bbox = _compose_page_crop_bbox(
+            _Page(),
+            chosen=None,
+            start_anchor={"bbox": (51.2, 560.0, 115.6, 568.8), "text": "4）集成验证要求"},
+            end_anchor=None,
+            headers=[],
+            slice_rows=[],
+            page_floor=545.4,
+        )
+        self.assertGreaterEqual(bbox[1], 551.4)
+
+    def test_anchor_window_row_slice_hint_applies_for_repeated_title_cell(self) -> None:
+        self.assertTrue(
+            ta._should_use_anchor_window_row_slice_hint(
+                {"bbox": (84.4, 456.9, 137.9, 461.8), "text": "耐化学试液（仅防水件）"},
+                (42.1, 364.0, 548.8, 560.4),
+            )
+        )
+
+    def test_anchor_window_row_slice_hint_skips_far_above_candidate_span(self) -> None:
+        self.assertFalse(
+            ta._should_use_anchor_window_row_slice_hint(
+                {"bbox": (55.2, 519.6, 77.1, 525.0), "text": "气候性能"},
+                (42.2, 72.1, 545.4, 499.8),
+            )
+        )
+
     def test_tighten_anchor_window_crop_bbox_expands_to_last_content_before_next_heading(self) -> None:
         class _Rect:
             width = 600.0
@@ -399,6 +928,76 @@ class TableAssetsParsingTest(unittest.TestCase):
             end_anchor=None,
         )
         self.assertEqual(bbox[1], 414.3)
+
+    def test_collect_anchor_window_content_bboxes_includes_table_drawings(self) -> None:
+        class _Rect:
+            def __init__(self, x0: float, y0: float, x1: float, y1: float) -> None:
+                self.x0 = x0
+                self.y0 = y0
+                self.x1 = x1
+                self.y1 = y1
+
+        class _Page:
+            def get_text(self, mode: str) -> dict:
+                if mode != "dict":
+                    raise AssertionError(mode)
+                return {
+                    "blocks": [
+                        {
+                            "type": 0,
+                            "lines": [
+                                {
+                                    "bbox": (55.2, 500.0, 254.6, 507.6),
+                                    "spans": [{"text": "2.主要设计和验证要求"}],
+                                }
+                            ],
+                        }
+                    ]
+                }
+
+            def get_drawings(self) -> list[dict]:
+                return [{"rect": _Rect(54.0, 508.8, 533.52, 517.8)}]
+
+        boxes = ta._collect_anchor_window_content_bboxes(
+            _Page(),
+            window_top=492.0,
+            window_bottom=704.0,
+        )
+
+        self.assertEqual(len(boxes), 2)
+        self.assertAlmostEqual(max(bbox[2] for bbox in boxes), 533.52)
+
+    def test_collect_anchor_window_content_bboxes_clips_overlapping_image_blocks_to_window(self) -> None:
+        class _Page:
+            def get_text(self, mode: str) -> dict:
+                if mode != "dict":
+                    raise AssertionError(mode)
+                return {
+                    "blocks": [
+                        {"type": 1, "bbox": (40.0, 32.0, 560.0, 290.0)},
+                        {
+                            "type": 0,
+                            "lines": [
+                                {
+                                    "bbox": (51.2, 256.8, 196.7, 265.6),
+                                    "spans": [{"text": "8.2.5.3）衬套径向动刚度曲线平滑，动静比≦2.5;"}],
+                                }
+                            ],
+                        },
+                    ]
+                }
+
+            def get_drawings(self) -> list[dict]:
+                return []
+
+        boxes = ta._collect_anchor_window_content_bboxes(
+            _Page(),
+            window_top=256.0,
+            window_bottom=304.0,
+        )
+
+        self.assertTrue(boxes)
+        self.assertGreaterEqual(min(bbox[1] for bbox in boxes), 256.0)
 
     def test_prefer_last_before_context_anchor_returns_false_for_heading_only_context(self) -> None:
         self.assertFalse(_prefer_last_before_context_anchor("诊断设计要求"))
@@ -454,6 +1053,89 @@ class TableAssetsParsingTest(unittest.TestCase):
             },
         )
         self.assertEqual(promoted["bbox"][1], 97.5)
+
+    def test_find_context_anchor_window_does_not_promote_real_local_clause_anchor(self) -> None:
+        class _Document:
+            pass
+
+        source_key = "sample"
+        start_anchor, end_anchor = _find_context_anchor_window(
+            _Document(),
+            source_key=source_key,
+            page_indices=[0],
+            before_candidates=[("主要设计和验证要求", 17)],
+            after_candidates=[("样件数量要求", 17)],
+            self_candidates=[("2主要设计和验证要求", 22)],
+            detection_cache={
+                (source_key, 0): [
+                    {"text": "2.主要设计和验证要求", "norm": "2主要设计和验证要求", "bbox": (50.0, 500.0, 180.0, 510.0)},
+                    {"text": "序号", "norm": "序号", "bbox": (90.0, 510.0, 110.0, 518.0)},
+                    {"text": "气候性能", "norm": "气候性能", "bbox": (50.0, 520.0, 120.0, 528.0)},
+                    {"text": "1", "norm": "1", "bbox": (50.0, 529.0, 56.0, 537.0)},
+                    {"text": "低温存储", "norm": "低温存储", "bbox": (90.0, 529.0, 140.0, 537.0)},
+                    {"text": "2", "norm": "2", "bbox": (50.0, 538.0, 56.0, 546.0)},
+                    {"text": "高温存储", "norm": "高温存储", "bbox": (90.0, 538.0, 140.0, 546.0)},
+                    {"text": "寿命耐久", "norm": "寿命耐久", "bbox": (50.0, 580.0, 110.0, 588.0)},
+                    {"text": "1", "norm": "1", "bbox": (50.0, 589.0, 56.0, 597.0)},
+                    {"text": "高温耐久", "norm": "高温耐久", "bbox": (90.0, 589.0, 140.0, 597.0)},
+                    {"text": "化学性能", "norm": "化学性能", "bbox": (50.0, 688.0, 110.0, 696.0)},
+                    {"text": "1", "norm": "1", "bbox": (50.0, 697.0, 56.0, 705.0)},
+                    {"text": "盐雾腐蚀", "norm": "盐雾腐蚀", "bbox": (90.0, 697.0, 140.0, 705.0)},
+                    {"text": "3.样件数量要求：", "norm": "3样件数量要求", "bbox": (50.0, 703.0, 140.0, 713.0)},
+                ]
+            },
+            prefer_last_before=False,
+            promote_after_band_start=True,
+        )
+        self.assertEqual(start_anchor["text"], "2.主要设计和验证要求")
+        self.assertEqual(end_anchor["text"], "3.样件数量要求：")
+
+    def test_numbered_dot_heading_counts_as_local_clause_heading(self) -> None:
+        self.assertTrue(ta._looks_like_local_clause_heading("3.样件数量要求："))
+        self.assertTrue(ta._looks_like_local_clause_heading("4.集成验证要求："))
+
+    def test_entry_anchor_context_text_prefers_neighbor_paragraph_over_hybrid_table_body(self) -> None:
+        row = {
+            "display_text": "1）油泵性能要求\n|序号|项目|要求|\n|1|总成重量|前＜16.1kg|",
+            "content_blocks": [
+                {"kind": "paragraph", "text": "1）油泵性能要求"},
+                {"kind": "table", "table_id": "tbl-hybrid"},
+            ],
+            "table_refs": [
+                {
+                    "table_id": "tbl-hybrid",
+                    "table_title": "1）油泵性能要求",
+                    "slice_render_mode": "structured",
+                    "slice_rows": [["1", "总成重量", "前＜16.1kg"]],
+                }
+            ],
+        }
+        self.assertEqual(ta._entry_anchor_context_text(row, from_end=False), "1）油泵性能要求")
+        self.assertEqual(ta._entry_anchor_context_text(row, from_end=True), "1）油泵性能要求")
+
+    def test_prefer_prior_generic_compact_band_anchor_uses_top_directory_band(self) -> None:
+        class _Document:
+            pass
+
+        source_key = "sample"
+        promoted = ta._prefer_prior_generic_compact_band_anchor(
+            _Document(),
+            source_key=source_key,
+            anchor={
+                "page_index": 0,
+                "bbox": (196.6, 134.3, 250.8, 141.1),
+                "score": 1,
+                "text": "软件刷写签名规范",
+            },
+            detection_cache={
+                (source_key, 0): [
+                    {"text": "PDS表位置", "norm": "pds表位置", "bbox": (109.5, 97.5, 140.6, 104.4)},
+                    {"text": "内容", "norm": "内容", "bbox": (482.2, 97.5, 495.9, 104.4)},
+                    {"text": "软件刷写签名规范", "norm": "软件刷写签名规范", "bbox": (196.6, 134.3, 250.8, 141.1)},
+                ]
+            },
+        )
+        self.assertEqual(promoted["text"], "PDS表位置")
 
     def test_find_next_local_clause_anchor_returns_following_clause_heading(self) -> None:
         class _Document:
@@ -741,6 +1423,13 @@ class TableAssetsParsingTest(unittest.TestCase):
         self.assertIn(("工作产出保密性级别", 17), candidates)
         self.assertIn(("confidentialitylevel", 17), candidates)
 
+    def test_context_anchor_fragments_skip_reference_only_tail_for_before_context(self) -> None:
+        candidates = _build_context_anchor_fragments(
+            "RASIC Definition RASIC 定义\nRef： ISO 21434 Annex C",
+            from_end=True,
+        )
+        self.assertFalse(any(fragment == "refiso21434annexc" for fragment, _ in candidates))
+
     def test_sparse_matrix_rows_can_use_inherited_wide_header(self) -> None:
         header = [
             "序号 No.",
@@ -954,6 +1643,35 @@ class TableAssetsParsingTest(unittest.TestCase):
         self.assertTrue(mocked.called)
         self.assertTrue(any(bool(call.kwargs.get("prefer_clause_window")) for call in mocked.call_args_list))
 
+    def test_prune_redundant_lead_source_table_drops_header_stub(self) -> None:
+        content_blocks = [
+            {"kind": "paragraph", "text": "网络安全活动 Cybersecurity Activity"},
+            {"kind": "table", "table_id": "tbl-head"},
+            {"kind": "paragraph", "text": "~~time~~ 1 总体要求 General Requirements"},
+            {"kind": "table", "table_id": "tbl-main"},
+        ]
+        table_refs = [
+            {
+                "table_id": "tbl-head",
+                "table_title": "网络安全活动 Cybersecurity Activity",
+                "slice_render_mode": "structured",
+                "recommended_export_variant": "source",
+                "inherited_headers": ["序号", "活动", "Col3"],
+                "slice_rows": [["序号", "活动", "描述"]],
+            },
+            {
+                "table_id": "tbl-main",
+                "table_title": "网络安全活动 Cybersecurity Activity",
+                "slice_render_mode": "snapshot_only",
+                "recommended_export_variant": "source",
+                "slice_rows": [],
+            },
+        ]
+        blocks, refs, dropped = ta._prune_redundant_lead_source_tables(content_blocks, table_refs)
+        self.assertEqual(dropped, {"tbl-head"})
+        self.assertEqual([block.get("table_id") for block in blocks if block.get("kind") == "table"], ["tbl-main"])
+        self.assertEqual([ref.get("table_id") for ref in refs], ["tbl-main"])
+
     def test_enrich_entry_uses_clause_window_for_cross_page_local_clause_table(self) -> None:
         row = {
             "entry_id": "REQ-Z3",
@@ -1016,6 +1734,89 @@ class TableAssetsParsingTest(unittest.TestCase):
                 )
         self.assertTrue(any(bool(call.kwargs.get("prefer_clause_window")) for call in mocked.call_args_list))
 
+    def test_enrich_entry_clause_window_uses_next_entry_anchor_for_followup_paragraph(self) -> None:
+        row = {
+            "entry_id": "REQ-Z4B",
+            "section_key": "2.3",
+            "section_instance_key": "2.3",
+            "section_title": "特殊特性控制要求",
+            "source_page": 12,
+            "source_page_end": 12,
+            "source_anchor": "Page 12 | Section 2.3 特殊特性控制要求",
+            "display_text": "\n".join(
+                [
+                    "2.3 特殊特性控制要求",
+                    "针对特殊特性常见的控制方法有防错 、SPC与能力分析和100%检验等，如对特殊特性进行测量或能力分析 ，需满足以下",
+                    "|测量系统分析|初始过程能力|量产过程能力|",
+                    "|Cgk≥1.33 GRR%≦10%（公差法）|Ppk≥1.67|关键特性Cpk≥1.67 重要特性Cpk≥1.33 过程不稳定时使用Ppk|",
+                    "当能力不足时，应对发货的产品的进行 100%测量。",
+                ]
+            ),
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch("app.services.table_assets._write_source_snapshot", return_value=(None, {})) as mocked:
+                enrich_entry_with_table_assets(
+                    row,
+                    document_id="diag",
+                    snapshot_root=Path(tmpdir),
+                    previous_entry_text="2.2 特殊特性分类与标识",
+                    next_entry_text="可靠性设计目标",
+                )
+        self.assertTrue(mocked.called)
+        first_call = mocked.call_args_list[0]
+        self.assertTrue(bool(first_call.kwargs.get("prefer_clause_window")))
+        self.assertEqual(first_call.kwargs.get("after_context_text"), "可靠性设计目标")
+
+    def test_enrich_entries_uses_neighbor_paragraph_anchor_for_recovered_table(self) -> None:
+        current = {
+            "entry_id": "REQ-Z4C",
+            "section_key": "3.2.1",
+            "section_instance_key": "3.2.1",
+            "section_title": "产品信息",
+            "source_page": 2,
+            "source_page_end": 2,
+            "display_text": "3.2.1 产品信息\n备注：1、请供应商根据技术数模提供轻量化方案。",
+        }
+        next_row = {
+            "entry_id": "REQ-Z4D",
+            "section_key": "1",
+            "section_instance_key": "1",
+            "section_title": "油泵性能要求",
+            "source_page": 3,
+            "source_page_end": 3,
+            "display_text": "1）油泵性能要求\n|序号|项目|要求|\n|1|总成重量|前＜16.1kg|",
+            "content_blocks": [
+                {"kind": "paragraph", "text": "1）油泵性能要求"},
+                {"kind": "table", "table_id": "tbl-next"},
+            ],
+            "table_refs": [
+                {
+                    "table_id": "tbl-next",
+                    "table_title": "1）油泵性能要求",
+                    "slice_render_mode": "structured",
+                    "slice_rows": [["1", "总成重量", "前＜16.1kg"]],
+                }
+            ],
+        }
+        with tempfile.TemporaryDirectory() as tmpdir:
+            with patch(
+                "app.services.table_assets._recover_table_from_pdf_source",
+                return_value=(["序号", "项目"], [["1", "前油泵总成"]], []),
+            ), patch("app.services.table_assets._looks_like_source_table_candidate_text", return_value=True), patch(
+                "app.services.table_assets._write_source_snapshot",
+                return_value=(None, {}),
+            ) as mocked:
+                ta.enrich_entries_with_table_assets(
+                    [current, next_row],
+                    document_id="diag",
+                    snapshot_root=Path(tmpdir),
+                    source_file_path="sample.pdf",
+                )
+        self.assertTrue(mocked.called)
+        self.assertTrue(
+            any(call.kwargs.get("after_context_text") == "1）油泵性能要求" for call in mocked.call_args_list)
+        )
+
     def test_paragraph_only_blocks_drop_repeated_trailing_merged_line(self) -> None:
         blocks = ta._paragraph_only_blocks(
             [
@@ -1073,8 +1874,7 @@ class TableAssetsParsingTest(unittest.TestCase):
         }
         cleaned = ta._refresh_enriched_entry_text_fields(row)
         self.assertEqual(cleaned["display_text"].count("4、此外观标准中只要求不可接受的项目"), 1)
-        self.assertIn("|序号|定义|描述|备注|", cleaned["display_text"])
-        self.assertIn("|1|12V|12V低压电源正|", cleaned["display_text"])
+        self.assertIn("序号 / 定义 / 描述", cleaned["display_text"])
         self.assertNotIn("Col4", cleaned["display_text"])
         self.assertNotIn("#REF!", cleaned["display_text"])
 
@@ -1143,6 +1943,110 @@ class TableAssetsParsingTest(unittest.TestCase):
         )
         self.assertEqual(recommendation["recommended_export_variant"], "source")
         self.assertIn("切片可读性差", recommendation["export_variant_reasons"])
+
+    def test_recommend_table_export_variant_prefers_source_when_pdf_shows_more_columns_than_slice(self) -> None:
+        recommendation = ta._recommend_table_export_variant(
+            {
+                "inherited_headers": ["序号", "项目", "要求"],
+                "slice_rows": [
+                    ["1", "低温存储", "/"],
+                    ["2", "高温存储", "/"],
+                    ["3", "低温工作和唤醒", "/"],
+                ],
+                "slice_render_mode": "structured",
+                "source_snapshot_path": "/tmp/source.png",
+                "source_structure_mismatch": True,
+                "source_column_count_hint": 4,
+            }
+        )
+        self.assertEqual(recommendation["recommended_export_variant"], "source")
+        self.assertIn("切片可读性差", recommendation["export_variant_reasons"])
+
+    def test_normalize_table_ref_keeps_complex_rows_source_locked(self) -> None:
+        ref = ta._normalize_table_ref(
+            {
+                "table_id": "tbl_complex",
+                "source_snapshot_path": "/tmp/source.png",
+                "slice_snapshot_path": "/tmp/slice.png",
+                "slice_render_mode": "structured",
+                "inherited_headers": ["Col1", "Col2"],
+                "slice_rows": [["a", "b"]],
+                "complex_table_mode": True,
+                "complex_zone_id": "cx-merged-requirement-matrix-p17-p22",
+                "complex_family": "merged_requirement_matrix",
+                "complex_split_level": "group",
+                "export_variant_locked": True,
+                "export_variant": "slice",
+            }
+        )
+
+        self.assertTrue(ref["complex_table_mode"])
+        self.assertTrue(ref["export_variant_locked"])
+        self.assertEqual(ref["recommended_export_variant"], "source")
+        self.assertEqual(ref["export_variant"], "source")
+        self.assertFalse(ref["export_variant_overridden"])
+
+    def test_enrich_complex_table_row_with_existing_source_snapshot_still_returns_asset(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            snapshot_path = Path(tmpdir) / "complex-source.png"
+            PILImage.new("RGB", (320, 180), "white").save(snapshot_path)
+
+            row = {
+                "entry_id": "REQ-CX-group",
+                "req_code": "REQ-CX-group",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "网络安全",
+                "raw_text": "网络安全",
+                "requirement_text": "网络安全",
+                "source_page": 17,
+                "source_page_end": 20,
+                "complex_table_mode": True,
+                "complex_zone_id": "cx-merged-requirement-matrix-p17-p22",
+                "complex_family": "merged_requirement_matrix",
+                "complex_role": "group",
+                "complex_group_label": "网络安全",
+                "complex_warnings": ["跨页复杂表"],
+                "complex_shadow_signatures": ["sig-1"],
+                "table_refs": [
+                    {
+                        "table_id": "tbl_complex_group",
+                        "table_title": "网络安全",
+                        "source_page": 17,
+                        "source_page_end": 20,
+                        "source_snapshot_path": str(snapshot_path),
+                        "slice_snapshot_path": str(snapshot_path),
+                        "slice_render_mode": "snapshot_only",
+                        "complex_table_mode": True,
+                        "complex_zone_id": "cx-merged-requirement-matrix-p17-p22",
+                        "complex_family": "merged_requirement_matrix",
+                        "complex_split_level": "group",
+                        "complex_group_label": "网络安全",
+                        "complex_shadow_signatures": ["sig-1"],
+                        "export_variant": "source",
+                        "recommended_export_variant": "source",
+                        "export_variant_locked": True,
+                    }
+                ],
+                "content_blocks": [{"kind": "table", "table_id": "tbl_complex_group"}],
+                "has_table_asset": True,
+                "table_render_mode": "snapshot_only",
+            }
+
+            enriched, assets = ta._enrich_complex_table_row(
+                row,
+                document_id="doc-complex",
+                snapshot_root=Path(tmpdir),
+                source_file_path="",
+                source_snapshot_cache={},
+                source_table_detection_cache={},
+                source_line_detection_cache={},
+            )
+
+        self.assertTrue(enriched["has_table_asset"])
+        self.assertEqual(len(assets), 1)
+        self.assertEqual(assets[0]["table_id"], "tbl_complex_group")
+        self.assertEqual(assets[0]["source_snapshot_path"], str(snapshot_path))
+        self.assertEqual(assets[0]["complex_shadow_signatures"], ["sig-1"])
 
     @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
     def test_source_recovery_prefers_actual_delivery_table_over_merged_page_candidate(self) -> None:

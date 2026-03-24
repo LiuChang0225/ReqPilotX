@@ -11,6 +11,8 @@ from typing import Any
 from PIL import Image as PILImage
 from PIL import ImageChops, ImageDraw, ImageFont
 
+from app.services.complex_table_mode import hydrate_complex_row_metadata, is_complex_table_row
+
 try:
     import fitz
 except ImportError:  # pragma: no cover - optional runtime dependency
@@ -31,6 +33,11 @@ _TABLE_LINE_SPACING = 4
 _TABLE_UNIT_PX = 7
 _TABLE_MIN_COLUMN_UNITS = 10
 _SNAPSHOT_MAX_WIDTH_PX = 920
+_SNAPSHOT_MAX_HEIGHT_PX = 1480
+_SOURCE_SNAPSHOT_SIGNATURE_VERSION = "source-crop-v32"
+_EMBEDDED_ANCHOR_LINE_SPLIT_RE = re.compile(
+    r"(?<!\d)(?:\d+(?:\.\d+)+(?:\s*[）)\]】:：.\-．、]\s*|\s+)|\d{1,2}\s*[）)\]】:：.\-．、]\s*)(?=[A-Za-z\u4e00-\u9fff])"
+)
 _TABLE_EXPORT_REASON_PRIORITY = (
     "含图片",
     "结构低置信",
@@ -55,8 +62,8 @@ def enrich_entries_with_table_assets(
     source_line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]] = {}
     reusable_header_contexts: list[dict[str, Any]] = []
     for index, row in enumerate(entries):
-        previous_text = _entry_source_text(entries[index - 1]) if index > 0 else ""
-        next_text = _entry_source_text(entries[index + 1]) if index + 1 < len(entries) else ""
+        previous_text = _entry_anchor_context_text(entries[index - 1], from_end=True) if index > 0 else ""
+        next_text = _entry_anchor_context_text(entries[index + 1], from_end=False) if index + 1 < len(entries) else ""
         inherited_header = _find_recent_reusable_table_header(row, reusable_header_contexts)
         enriched_row, row_assets = enrich_entry_with_table_assets(
             row,
@@ -71,6 +78,7 @@ def enrich_entries_with_table_assets(
             inherited_header=inherited_header,
         )
         enriched_row = _refresh_enriched_entry_text_fields(enriched_row)
+        enriched_row = hydrate_complex_row_metadata(enriched_row)
         enriched.append(enriched_row)
         assets.extend(row_assets)
         _remember_reusable_table_headers(reusable_header_contexts, row, row_assets)
@@ -90,13 +98,23 @@ def enrich_entry_with_table_assets(
     next_entry_text: str = "",
     inherited_header: list[str] | None = None,
 ) -> tuple[dict[str, Any], list[dict[str, Any]]]:
-    copied = dict(row)
+    copied = hydrate_complex_row_metadata(dict(row))
     if str(copied.get("entry_kind") or "").strip().upper() == "HEADING":
         copied["table_refs"] = []
         copied["content_blocks"] = _paragraph_only_blocks(_split_text_blocks(_entry_source_text(copied)))
         copied["has_table_asset"] = False
         copied["table_render_mode"] = ""
         return copied, []
+    if is_complex_table_row(copied):
+        return _enrich_complex_table_row(
+            copied,
+            document_id=document_id,
+            snapshot_root=snapshot_root,
+            source_file_path=source_file_path,
+            source_snapshot_cache=source_snapshot_cache,
+            source_table_detection_cache=source_table_detection_cache,
+            source_line_detection_cache=source_line_detection_cache,
+        )
     existing_table_refs = _normalize_table_refs(copied.get("table_refs"))
     text = _entry_source_text(copied)
     if not text:
@@ -107,8 +125,9 @@ def enrich_entry_with_table_assets(
         return copied, []
 
     blocks = _split_text_blocks(text)
+    row_table_title = _table_title_for_row(copied)
     if not any(block["kind"] == "table" for block in blocks):
-        title = _table_title_for_row(copied)
+        title = row_table_title
         recovered = None
         if _looks_like_source_table_candidate_text(text, title=title):
             recovered = _recover_table_from_pdf_source(
@@ -169,6 +188,7 @@ def enrich_entry_with_table_assets(
                     rows=body_rows,
                     source_page=_coerce_int(copied.get("source_page")),
                     source_page_end=_coerce_int(copied.get("source_page_end")) or _coerce_int(copied.get("source_page")),
+                    notes=recovered_notes,
                 ),
             )
             ai_projection = _build_ai_projection(
@@ -182,6 +202,7 @@ def enrich_entry_with_table_assets(
             ref = _normalize_table_ref(
                 {
                     "table_id": table_id,
+                    "table_title": title,
                     "row_range": [1, len(body_rows)] if body_rows else [],
                     "row_ids": [f"r{index + 1}" for index in range(len(body_rows))],
                     "inherited_headers": headers,
@@ -223,11 +244,19 @@ def enrich_entry_with_table_assets(
             content_blocks = [{"kind": "paragraph", "text": part} for part in lead_paragraphs]
             content_blocks.append({"kind": "table", "table_id": table_id})
             content_blocks.extend({"kind": "paragraph", "text": part} for part in tail_paragraphs)
-            copied["table_refs"] = [ref]
+            content_blocks, table_refs, dropped_ids = _prune_duplicate_shallow_snapshot_tables(content_blocks, [ref])
+            content_blocks, table_refs, extra_drop_ids = _prune_redundant_lead_source_tables(content_blocks, table_refs)
+            dropped_ids |= extra_drop_ids
+            content_blocks = _ensure_leading_table_title_block(
+                content_blocks,
+                row=copied,
+                table_title=title,
+            )
+            copied["table_refs"] = table_refs
             copied["content_blocks"] = content_blocks
-            copied["has_table_asset"] = True
-            copied["table_render_mode"] = "structured"
-            return copied, [asset]
+            copied["has_table_asset"] = bool(table_refs)
+            copied["table_render_mode"] = "structured" if table_refs else ""
+            return copied, [] if table_id in dropped_ids else [asset]
         visual_ref, visual_asset = _build_visual_snapshot_ref(
             copied,
             document_id=document_id,
@@ -239,14 +268,25 @@ def enrich_entry_with_table_assets(
             previous_entry_text=previous_entry_text,
             next_entry_text=next_entry_text,
         )
-        copied["table_refs"] = [visual_ref] if visual_ref else []
+        table_refs = [visual_ref] if visual_ref else []
         paragraph_blocks = _paragraph_only_blocks(blocks)
         if visual_ref:
             paragraph_blocks.append({"kind": "table", "table_id": str(visual_ref.get("table_id") or "")})
+            paragraph_blocks, table_refs, dropped_ids = _prune_duplicate_shallow_snapshot_tables(paragraph_blocks, table_refs)
+            paragraph_blocks, table_refs, extra_drop_ids = _prune_redundant_lead_source_tables(paragraph_blocks, table_refs)
+            dropped_ids |= extra_drop_ids
+            paragraph_blocks = _ensure_leading_table_title_block(
+                paragraph_blocks,
+                row=copied,
+                table_title=title,
+            )
+        else:
+            dropped_ids = set()
+        copied["table_refs"] = table_refs
         copied["content_blocks"] = paragraph_blocks
-        copied["has_table_asset"] = bool(visual_ref)
-        copied["table_render_mode"] = str(visual_ref.get("slice_render_mode") or "") if visual_ref else ""
-        return copied, [visual_asset] if visual_asset else []
+        copied["has_table_asset"] = bool(table_refs)
+        copied["table_render_mode"] = str(table_refs[0].get("slice_render_mode") or "") if table_refs else ""
+        return copied, [visual_asset] if visual_asset and str(visual_ref.get("table_id") or "") not in dropped_ids else []
 
     table_refs: list[dict[str, Any]] = []
     content_blocks: list[dict[str, Any]] = []
@@ -272,29 +312,54 @@ def enrich_entry_with_table_assets(
             block_index,
             next_entry_text=next_entry_text,
         )
-        after_context_text = next_entry_text if trailing_context_text else (after_block_text or next_entry_text)
         table_id = _build_table_id(copied, table_text, block_index)
         notes = _collect_block_notes(blocks, block_index)
         if trailing_context_text:
             notes = [note for note in notes if str(note or "").strip() != trailing_context_text]
+        prefer_clause_window = _should_prefer_source_clause_window(
+            table_title=row_table_title,
+            render_mode=str(block.get("render_mode") or "").strip().lower(),
+            headers=block.get("header_cells") or [],
+            rows=[],
+            source_page=_coerce_int(copied.get("source_page")),
+            source_page_end=_coerce_int(copied.get("source_page_end")) or _coerce_int(copied.get("source_page")),
+            notes=notes,
+            trailing_context_text=trailing_context_text,
+        )
+        after_context_text = (
+            next_entry_text
+            if trailing_context_text or (prefer_clause_window and after_block_text)
+            else (after_block_text or next_entry_text)
+        )
+        table_title = _resolve_table_block_title(
+            blocks=blocks,
+            block_index=block_index,
+            fallback_title=row_table_title,
+        )
         block_header = _resolve_table_block_header(
             lines=block.get("lines") or [],
             explicit_header=block.get("header_cells") or [],
             inherited_header=inherited_header or [],
             notes=notes,
+            row=copied,
+            table_title=table_title,
         )
         headers, body_rows, render_mode = _extract_structured_table(
             block.get("lines") or [],
             explicit_header=block_header,
         )
         recovered = None
-        if _looks_like_source_table_candidate_text(table_text, title=_table_title_for_row(copied)):
+        source_structure_mismatch = False
+        source_column_count_hint = 0
+        parsed_headers = list(headers)
+        parsed_rows = [list(row) for row in body_rows]
+        if _looks_like_source_table_candidate_text(table_text, title=table_title):
             recovered = _recover_table_from_pdf_source(
                 source_file_path=source_file_path,
                 source_page=_coerce_int(copied.get("source_page")),
                 source_page_end=_coerce_int(copied.get("source_page_end")) or _coerce_int(copied.get("source_page")),
                 table_text=table_text,
-                table_title=_table_title_for_row(copied),
+                table_title=table_title,
                 current_headers=headers,
                 current_rows=body_rows,
                 notes=notes,
@@ -303,6 +368,19 @@ def enrich_entry_with_table_assets(
                 source_table_detection_cache=source_table_detection_cache,
                 source_line_detection_cache=source_line_detection_cache,
             )
+        if recovered:
+            recovered_headers, recovered_rows, _ = recovered
+            if _recovered_source_indicates_column_mismatch(
+                current_headers=parsed_headers,
+                current_rows=parsed_rows,
+                recovered_headers=recovered_headers,
+                recovered_rows=recovered_rows,
+            ):
+                source_structure_mismatch = True
+                source_column_count_hint = max(
+                    len(recovered_headers),
+                    max((len(row) for row in recovered_rows), default=0),
+                )
         if recovered and _recovered_table_looks_useful(recovered[0], recovered[1]):
             recovered_headers, recovered_rows, recovered_notes = recovered
             if _should_replace_with_recovered_table(
@@ -325,7 +403,21 @@ def enrich_entry_with_table_assets(
             render_mode=render_mode,
             text=table_text,
         )
-        table_title = _table_title_for_row(copied)
+        prefer_clause_window = _should_prefer_source_clause_window(
+            table_title=table_title,
+            render_mode=render_mode,
+            headers=headers,
+            rows=body_rows,
+            source_page=_coerce_int(copied.get("source_page")),
+            source_page_end=_coerce_int(copied.get("source_page_end")) or _coerce_int(copied.get("source_page")),
+            notes=notes,
+            trailing_context_text=trailing_context_text,
+        )
+        after_context_text = (
+            next_entry_text
+            if trailing_context_text or (prefer_clause_window and after_block_text)
+            else (after_block_text or next_entry_text)
+        )
         source_snapshot_path, source_snapshot_meta = _write_source_snapshot(
             snapshot_root=snapshot_root,
             source_file_path=source_file_path,
@@ -342,15 +434,7 @@ def enrich_entry_with_table_assets(
             source_table_detection_cache=source_table_detection_cache,
             source_line_detection_cache=source_line_detection_cache,
             source_page_floor_offsets=source_page_floor_offsets,
-            prefer_clause_window=_should_prefer_source_clause_window(
-                table_title=table_title,
-                render_mode=render_mode,
-                headers=headers,
-                rows=body_rows,
-                source_page=_coerce_int(copied.get("source_page")),
-                source_page_end=_coerce_int(copied.get("source_page_end")) or _coerce_int(copied.get("source_page")),
-                trailing_context_text=trailing_context_text,
-            ),
+            prefer_clause_window=prefer_clause_window,
         )
         ai_projection = _build_ai_projection(
             table_id=table_id,
@@ -383,6 +467,7 @@ def enrich_entry_with_table_assets(
         }
         table_ref = {
             "table_id": table_id,
+            "table_title": table_title,
             "row_range": [1, len(body_rows)] if body_rows else [],
             "row_ids": [f"r{index + 1}" for index in range(len(body_rows))],
             "inherited_headers": headers,
@@ -398,6 +483,8 @@ def enrich_entry_with_table_assets(
             "source_page_end": _coerce_int(copied.get("source_page_end")) or _coerce_int(copied.get("source_page")),
             "structure_confidence": float(asset["confidence"]),
             "source_image_block_count": int(source_snapshot_meta.get("image_block_count") or 0),
+            "source_structure_mismatch": source_structure_mismatch,
+            "source_column_count_hint": source_column_count_hint,
         }
         existing_ref = _match_existing_table_ref(existing_table_refs, table_id=table_id, index=len(table_refs))
         if existing_ref:
@@ -407,6 +494,16 @@ def enrich_entry_with_table_assets(
         table_refs.append(table_ref)
         content_blocks.append({"kind": "table", "table_id": table_id})
 
+    content_blocks, table_refs, dropped_ids = _prune_duplicate_shallow_snapshot_tables(content_blocks, table_refs)
+    content_blocks, table_refs, extra_drop_ids = _prune_redundant_lead_source_tables(content_blocks, table_refs)
+    dropped_ids |= extra_drop_ids
+    content_blocks = _ensure_leading_table_title_block(
+        content_blocks,
+        row=copied,
+        table_title=row_table_title,
+    )
+    if dropped_ids:
+        assets = [asset for asset in assets if str(asset.get("table_id") or "").strip() not in dropped_ids]
     copied["table_refs"] = table_refs
     copied["content_blocks"] = content_blocks
     copied["has_table_asset"] = bool(table_refs)
@@ -511,7 +608,7 @@ def _build_visual_snapshot_ref(
             "start": _coerce_int(row.get("source_page")),
             "end": _coerce_int(row.get("source_page_end")) or _coerce_int(row.get("source_page")),
         },
-        "table_title": first_line,
+        "table_title": title or first_line,
         "headers": [],
         "rows": [],
         "group_labels": [],
@@ -529,6 +626,7 @@ def _build_visual_snapshot_ref(
             "table_id": table_id,
             "row_range": [],
             "row_ids": [],
+            "table_title": title or first_line,
             "inherited_headers": [],
             "slice_rows": [],
             "inherited_group_title": "",
@@ -547,6 +645,182 @@ def _build_visual_snapshot_ref(
     return ref, asset
 
 
+def normalize_preserved_entry_table_assets(row: dict[str, Any]) -> dict[str, Any]:
+    copied = hydrate_complex_row_metadata(dict(row))
+    refs = _normalize_table_refs(copied.get("table_refs"))
+    copied["table_refs"] = refs
+    copied["content_blocks"] = _normalize_content_blocks(copied.get("content_blocks"))
+    copied["has_table_asset"] = bool(refs)
+    copied["table_render_mode"] = str(copied.get("table_render_mode") or _collapse_render_mode(refs))
+    return hydrate_complex_row_metadata(copied)
+
+
+def _enrich_complex_table_row(
+    row: dict[str, Any],
+    *,
+    document_id: str,
+    snapshot_root: Path,
+    source_file_path: str,
+    source_snapshot_cache: dict[tuple[str, int, int, str], Path | None] | None,
+    source_table_detection_cache: dict[tuple[str, int], list[dict[str, Any]]] | None,
+    source_line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]] | None,
+) -> tuple[dict[str, Any], list[dict[str, Any]]]:
+    copied = normalize_preserved_entry_table_assets(row)
+    zone_id = str(copied.get("complex_zone_id") or "").strip()
+    family = str(copied.get("complex_family") or "").strip()
+    role = str(copied.get("complex_role") or "").strip().lower()
+    label = str(
+        copied.get("complex_snapshot_title")
+        or copied.get("complex_group_label")
+        or copied.get("parent_section_title")
+        or copied.get("section_title")
+        or copied.get("display_text")
+        or "复杂跨页表"
+    ).splitlines()[0].strip()
+    shadow_signatures = _normalize_string_list(copied.get("complex_shadow_signatures"))
+    existing_ref = next(
+        (
+            ref
+            for ref in copied.get("table_refs") or []
+            if isinstance(ref, dict) and bool(ref.get("complex_table_mode"))
+        ),
+        None,
+    )
+    if existing_ref and str(existing_ref.get("source_snapshot_path") or "").strip():
+        table_id = str(existing_ref.get("table_id") or "").strip() or _build_table_id(
+            copied,
+            f"complex::{zone_id}::{role}::{label}",
+            0,
+        )
+        ai_projection = existing_ref.get("slice_ai_projection")
+        if not isinstance(ai_projection, dict):
+            ai_projection = _build_ai_projection(
+                table_id=table_id,
+                title=label or "复杂跨页表",
+                headers=[],
+                rows=[],
+                notes=_normalize_string_list(copied.get("complex_warnings")),
+                render_mode="snapshot_only",
+            )
+        asset = _build_complex_table_asset(
+            row=copied,
+            document_id=document_id,
+            table_ref=dict(existing_ref, table_id=table_id, complex_shadow_signatures=shadow_signatures),
+            label=label or "复杂跨页表",
+            ai_projection=ai_projection,
+        )
+        return copied, [asset]
+
+    source_page = _coerce_int(copied.get("source_page"))
+    source_page_end = _coerce_int(copied.get("source_page_end")) or source_page
+    if source_page <= 0 or not source_file_path:
+        return copied, []
+
+    after_label_hint = str(copied.get("complex_after_label_hint") or "").strip()
+    snapshot_mode = str(copied.get("complex_snapshot_mode") or "anchor_window").strip().lower()
+    table_id = _build_table_id(copied, f"complex::{zone_id}::{role}::{label}", 0)
+    snapshot_path = _write_snapshot(
+        table_id=table_id,
+        snapshot_root=snapshot_root,
+        headers=[],
+        rows=[],
+        render_mode="snapshot_only",
+        text=label or "复杂跨页表",
+    )
+
+    if snapshot_mode == "full_page_span":
+        source_snapshot_path, source_snapshot_meta = _write_full_page_span_source_snapshot(
+            snapshot_root=snapshot_root,
+            source_file_path=source_file_path,
+            source_page=source_page,
+            source_page_end=source_page_end,
+            cache_token="full-page-span",
+            cache_key_hint=f"{zone_id}:{role}:{label}",
+            source_snapshot_cache=source_snapshot_cache,
+        )
+    else:
+        source_snapshot_path, source_snapshot_meta = _write_source_snapshot(
+            snapshot_root=snapshot_root,
+            source_file_path=source_file_path,
+            source_page=source_page,
+            source_page_end=source_page_end,
+            table_text=str(copied.get("raw_text") or copied.get("display_text") or label).strip(),
+            table_title=label,
+            headers=[],
+            rows=[],
+            notes=_normalize_string_list(copied.get("complex_warnings")),
+            before_context_text="",
+            after_context_text=after_label_hint,
+            source_snapshot_cache=source_snapshot_cache,
+            source_table_detection_cache=source_table_detection_cache,
+            source_line_detection_cache=source_line_detection_cache,
+            source_page_floor_offsets={},
+            prefer_clause_window=True,
+        )
+    if not source_snapshot_path:
+        return copied, []
+
+    ai_projection = _build_ai_projection(
+        table_id=table_id,
+        title=label or "复杂跨页表",
+        headers=[],
+        rows=[],
+        notes=_normalize_string_list(copied.get("complex_warnings")),
+        render_mode="snapshot_only",
+    )
+    complex_ref = _normalize_table_ref(
+        {
+            "table_id": table_id,
+            "row_range": [],
+            "row_ids": [],
+            "table_title": label or "复杂跨页表",
+            "inherited_headers": [],
+            "slice_rows": [],
+            "inherited_group_title": "",
+            "inherited_notes": _normalize_string_list(copied.get("complex_warnings")),
+            "slice_ai_projection": ai_projection,
+            "slice_snapshot_path": str(snapshot_path),
+            "source_snapshot_path": str(source_snapshot_path),
+            "slice_render_key": table_id,
+            "slice_render_mode": "snapshot_only",
+            "source_page": source_page,
+            "source_page_end": source_page_end,
+            "structure_confidence": 0.99,
+            "source_image_block_count": int(source_snapshot_meta.get("image_block_count") or 0),
+            "complex_table_mode": True,
+            "complex_zone_id": zone_id,
+            "complex_family": family,
+            "complex_split_level": "zone" if role == "zone_summary" else "group",
+            "complex_group_label": str(copied.get("complex_group_label") or ""),
+            "complex_warnings": _normalize_string_list(copied.get("complex_warnings")),
+            "complex_shadow_signatures": shadow_signatures,
+            "export_variant_locked": True,
+            "export_variant": "source",
+            "recommended_export_variant": "source",
+        }
+    )
+    copied["table_refs"] = [complex_ref]
+    copied["content_blocks"] = [
+        {
+            "kind": "paragraph",
+            "text": str(copied.get("display_text") or copied.get("requirement_text") or label).strip(),
+        },
+        {"kind": "table", "table_id": table_id},
+    ]
+    copied["has_table_asset"] = True
+    copied["table_render_mode"] = "snapshot_only"
+    copied = hydrate_complex_row_metadata(copied)
+    asset = _build_complex_table_asset(
+        row=copied,
+        document_id=document_id,
+        table_ref=complex_ref,
+        label=label or "复杂跨页表",
+        ai_projection=ai_projection,
+        source_image_block_count=int(source_snapshot_meta.get("image_block_count") or 0),
+    )
+    return copied, [asset]
+
+
 def _should_generate_visual_snapshot(text: str, *, title: str = "") -> bool:
     lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
     if len(lines) < 1:
@@ -557,12 +831,56 @@ def _should_generate_visual_snapshot(text: str, *, title: str = "") -> bool:
 
     title_value = str(title or "").strip()
     if _looks_like_attachment_table_title(title_value):
+        compact_value = re.sub(r"\s+", "", str(text or ""))
+        if len(compact_value) >= 220:
+            return False
         compact_items = re.findall(r"[A-Za-z\u4e00-\u9fff0-9][A-Za-z\u4e00-\u9fff0-9\-_/（）()]{2,32}", text)
         if len(compact_items) >= 8:
             return True
         if len(text) >= 120:
             return True
     return False
+
+
+def _build_complex_table_asset(
+    *,
+    row: dict[str, Any],
+    document_id: str,
+    table_ref: dict[str, Any],
+    label: str,
+    ai_projection: dict[str, Any],
+    source_image_block_count: int | None = None,
+) -> dict[str, Any]:
+    source_page = _coerce_int(table_ref.get("source_page") or row.get("source_page"))
+    source_page_end = _coerce_int(table_ref.get("source_page_end") or row.get("source_page_end")) or source_page
+    role = str(row.get("complex_role") or "").strip().lower()
+    return {
+        "table_id": str(table_ref.get("table_id") or "").strip(),
+        "document_id": document_id,
+        "section_instance_key": str(row.get("section_instance_key") or row.get("section_key") or ""),
+        "page_span": {"start": source_page, "end": source_page_end},
+        "table_title": label or "复杂跨页表",
+        "headers": [],
+        "rows": [],
+        "group_labels": [str(row.get("complex_group_label") or "")] if str(row.get("complex_group_label") or "").strip() else [],
+        "notes": _normalize_string_list(row.get("complex_warnings")),
+        "render_mode": "snapshot_only",
+        "snapshot_path": str(table_ref.get("slice_snapshot_path") or ""),
+        "source_snapshot_path": str(table_ref.get("source_snapshot_path") or ""),
+        "ai_projection": ai_projection,
+        "confidence": float(table_ref.get("structure_confidence") or 0.99),
+        "source_entry_id": str(row.get("entry_id") or row.get("req_code") or ""),
+        "source_image_block_count": int(
+            source_image_block_count
+            if source_image_block_count is not None
+            else (table_ref.get("source_image_block_count") or 0)
+        ),
+        "complex_table_mode": True,
+        "complex_zone_id": str(row.get("complex_zone_id") or ""),
+        "complex_family": str(row.get("complex_family") or ""),
+        "complex_split_level": "zone" if role == "zone_summary" else "group",
+        "complex_shadow_signatures": _normalize_string_list(table_ref.get("complex_shadow_signatures")),
+    }
 
 
 def _should_keep_visual_snapshot(text: str, *, title: str, image_block_count: int) -> bool:
@@ -573,11 +891,16 @@ def _should_keep_visual_snapshot(text: str, *, title: str, image_block_count: in
 
 def _has_strong_visual_snapshot_cue(text: str, *, title: str = "") -> bool:
     value = f"{title}\n{text}".strip()
+    compact_value = re.sub(r"\s+", "", value)
+    lines = [line.strip() for line in str(value or "").splitlines() if line.strip()]
     if re.search(r"(?:环境适应性|环境要求)", value) and (
         re.search(r"IP\d{2}", value, re.I)
         or value.count("℃") >= 2
         or any(keyword in value for keyword in ("涉水", "冰冻", "温度梯度", "温度循环", "温度冲击"))
     ):
+        if len(lines) <= 4 and len(compact_value) <= 180:
+            return True
+    if re.search(r"序号测试(?:类别|项目)测试(?:小类|工况|顺序)", compact_value, re.I):
         return True
     return any(
         keyword in value
@@ -612,6 +935,9 @@ def _looks_like_source_table_candidate_text(text: str, *, title: str = "") -> bo
         re.I,
     ):
         return True
+    compact_joined = re.sub(r"\s+", "", joined)
+    if re.search(r"序号测试(?:类别|项目)测试(?:小类|工况|顺序)", compact_joined, re.I):
+        return True
 
     data_like_lines = 0
     for line in lines[1:4]:
@@ -632,7 +958,22 @@ def _looks_like_attachment_table_title(title: str) -> bool:
         return False
     return bool(
         re.search(
-            r"(?:附件|附录|appendix|annex|算法|保密|rasic|definition|定义|目录|清单|评估表|试验大纲|规范|要求)",
+            r"(?:附件|附录|appendix|annex|算法|保密|rasic|definition|定义|目录|清单|评估表|试验大纲|规范)",
+            value,
+            re.I,
+        )
+    )
+
+
+def _looks_like_attachment_heading_anchor(title: str) -> bool:
+    value = str(title or "").strip()
+    if not value or len(value) > 72:
+        return False
+    if _looks_like_generic_compact_band_header(value):
+        return False
+    return bool(
+        re.search(
+            r"(?:附件|附录|appendix|annex|算法|保密|rasic|definition|目录|清单|评估表|试验大纲|规范)",
             value,
             re.I,
         )
@@ -641,6 +982,25 @@ def _looks_like_attachment_table_title(title: str) -> bool:
 
 def _looks_like_local_clause_title(text: str) -> bool:
     return bool(re.match(r"^\s*\d+(?:\.\d+)*\s*[）)]\s*.+$", str(text or "").strip()))
+
+
+def _extract_table_title_from_source_anchor(anchor: str) -> str:
+    source = str(anchor or "").strip()
+    if not source:
+        return ""
+    patterns = (
+        r"(?:^|\|\s*)Clause\s+([^|]+)",
+        r"(?:^|\|\s*)Section\s+([^|]+)",
+        r"(?:^|\|\s*)Heading\s+([^|]+)",
+    )
+    for pattern in patterns:
+        match = re.search(pattern, source, re.I)
+        if not match:
+            continue
+        candidate = str(match.group(1) or "").strip()
+        if candidate:
+            return candidate
+    return ""
 
 
 def prepare_table_asset_urls(
@@ -738,14 +1098,35 @@ def _entry_source_text(row: dict[str, Any]) -> str:
     return str(row.get("raw_text") or row.get("display_text") or row.get("requirement_text") or "").strip()
 
 
+def _entry_anchor_context_text(row: dict[str, Any], *, from_end: bool) -> str:
+    blocks = _normalize_content_blocks(row.get("content_blocks"))
+    paragraph_texts = [
+        _clean_paragraph_block_text(str(block.get("text") or "").strip())
+        for block in blocks
+        if str(block.get("kind") or "").strip().lower() == "paragraph"
+    ]
+    paragraph_texts = [text for text in paragraph_texts if text]
+    if paragraph_texts:
+        return paragraph_texts[-1] if from_end else paragraph_texts[0]
+
+    table_refs = _normalize_table_refs(row.get("table_refs"))
+    if table_refs:
+        ref = table_refs[-1] if from_end else table_refs[0]
+        title = str(ref.get("table_title") or "").strip()
+        if title:
+            return title
+    return _entry_source_text(row)
+
+
 def _refresh_enriched_entry_text_fields(row: dict[str, Any]) -> dict[str, Any]:
     copied = dict(row)
     materialized = _materialize_requirement_text(copied)
     if not materialized:
         return copied
+    original_raw = str(copied.get("raw_text") or "").strip()
     copied["display_text"] = materialized
-    copied["raw_text"] = materialized
     copied["requirement_text"] = materialized
+    copied["raw_text"] = original_raw or materialized
     copied["text_length"] = len(materialized)
     return copied
 
@@ -761,35 +1142,128 @@ def _materialize_requirement_text(row: dict[str, Any]) -> str:
         if str(ref.get("table_id") or "").strip()
     }
     materialized_parts: list[str] = []
-    for block in blocks:
+    for block_index, block in enumerate(blocks):
         kind = str(block.get("kind") or "").strip().lower()
         if kind == "paragraph":
             text = _clean_paragraph_block_text(str(block.get("text") or "").strip())
             if text:
-                materialized_parts.append(text)
+                _append_materialized_requirement_part(materialized_parts, text)
             continue
         if kind != "table":
             continue
         table_id = str(block.get("table_id") or "").strip()
-        table_text = _materialize_table_block_text(table_ref_map.get(table_id))
+        table_ref = table_ref_map.get(table_id)
+        table_text = _materialize_table_block_text(table_ref)
+        if _should_skip_materialized_table_text(
+            blocks,
+            block_index=block_index,
+            table_ref=table_ref,
+            table_text=table_text,
+        ):
+            continue
         if table_text:
-            materialized_parts.append(table_text)
+            _append_materialized_requirement_part(materialized_parts, table_text)
     if not materialized_parts:
         return _clean_paragraph_block_text(_entry_source_text(row))
     return "\n".join(materialized_parts).strip()
 
 
+def _append_materialized_requirement_part(parts: list[str], text: str) -> None:
+    value = str(text or "").strip()
+    if not value:
+        return
+    normalized = _normalize_match_text(value)
+    if parts and normalized and _normalize_match_text(parts[-1]) == normalized:
+        return
+    parts.append(value)
+
+
+def _should_skip_materialized_table_text(
+    blocks: list[dict[str, Any]],
+    *,
+    block_index: int,
+    table_ref: dict[str, Any] | None,
+    table_text: str,
+) -> bool:
+    if not table_text or not isinstance(table_ref, dict):
+        return False
+    if "|" in table_text:
+        return False
+    preferred_variant = _normalize_export_variant(
+        table_ref.get("recommended_export_variant") or table_ref.get("export_variant")
+    )
+    render_mode = str(table_ref.get("slice_render_mode") or table_ref.get("render_mode") or "").strip().lower()
+    has_source_snapshot = bool(str(table_ref.get("source_snapshot_path") or "").strip())
+    if preferred_variant != "source" and render_mode != "snapshot_only" and not has_source_snapshot:
+        return False
+    if block_index <= 0:
+        return False
+    previous_block = blocks[block_index - 1]
+    if str(previous_block.get("kind") or "").strip().lower() != "paragraph":
+        return False
+    previous_text = _clean_paragraph_block_text(str(previous_block.get("text") or "").strip())
+    if not previous_text:
+        return False
+    previous_norm = _normalize_match_text(previous_text)
+    table_norm = _normalize_match_text(table_text)
+    if not previous_norm or not table_norm:
+        return False
+    if table_norm in previous_norm or previous_norm in table_norm:
+        return True
+    previous_label = next((line.strip() for line in previous_text.splitlines() if line.strip()), previous_text)
+    previous_lines = [line.strip() for line in previous_text.splitlines() if line.strip()]
+    table_label_like = "/" not in table_text and (
+        _looks_like_local_clause_heading(table_text)
+        or _looks_like_headingish_single_cell(table_text)
+        or _looks_like_plain_heading_label(table_text)
+        or _looks_like_attachment_heading_anchor(table_text)
+    )
+    return (
+        table_label_like
+        and (
+            _looks_like_local_clause_heading(previous_label)
+            or _looks_like_headingish_single_cell(previous_label)
+            or _looks_like_plain_heading_label(previous_label)
+            or _looks_like_attachment_heading_anchor(previous_label)
+            or len(previous_lines) <= 2
+        )
+    )
+
+
 def _materialize_table_block_text(ref: dict[str, Any] | None) -> str:
     if not isinstance(ref, dict):
         return ""
+    render_mode = str(ref.get("slice_render_mode") or ref.get("render_mode") or "").strip().lower()
+    preferred_variant = _normalize_export_variant(
+        ref.get("recommended_export_variant") or ref.get("export_variant")
+    )
+    has_source_snapshot = bool(str(ref.get("source_snapshot_path") or ref.get("source_snapshot_url") or "").strip())
+    notes = [
+        str(item or "").strip()
+        for item in (ref.get("inherited_notes") or ref.get("notes") or [])
+        if str(item or "").strip()
+    ]
+    table_title = str(ref.get("table_title") or "").strip()
     headers = _sanitize_table_text_cells(ref.get("inherited_headers") or ref.get("headers") or [])
     rows = _sanitize_table_text_rows(
         ref.get("slice_rows") or ref.get("rows") or [],
         expected_columns=len(headers),
     )
     rows = _drop_materialized_header_echo_rows(rows, headers)
-    if _should_omit_materialized_table_text(headers, rows):
-        return ""
+    if _should_omit_materialized_table_text(
+        headers,
+        rows,
+        render_mode=render_mode,
+        notes=notes,
+        preferred_variant=preferred_variant,
+        has_source_snapshot=has_source_snapshot,
+    ):
+        return _build_materialized_table_surrogate_text(
+            table_title=table_title,
+            headers=headers,
+            rows=rows,
+            notes=notes,
+        )
 
     lines: list[str] = []
     if headers:
@@ -861,10 +1335,70 @@ def _drop_materialized_header_echo_rows(rows: list[list[str]], headers: list[str
     return trimmed_rows
 
 
-def _should_omit_materialized_table_text(headers: list[str], rows: list[list[str]]) -> bool:
+def _should_omit_materialized_table_text(
+    headers: list[str],
+    rows: list[list[str]],
+    *,
+    render_mode: str,
+    notes: list[str],
+    preferred_variant: str,
+    has_source_snapshot: bool,
+) -> bool:
     if not headers and not rows:
         return True
-    return not rows and not any(headers)
+    if render_mode != "structured":
+        return True
+    if has_source_snapshot and preferred_variant == "source":
+        return True
+    if has_source_snapshot and preferred_variant == "slice" and _looks_like_large_source_backed_slice_table(headers, rows):
+        return True
+    if not rows and not any(headers):
+        return True
+    if _structured_table_looks_low_quality(headers, rows):
+        return True
+    if _looks_like_complex_merged_table(rows, notes):
+        return True
+    if _looks_like_poor_slice_readability(headers, rows):
+        return True
+    return max(len(headers), max((len(row) for row in rows), default=0)) >= 8
+
+
+def _looks_like_large_source_backed_slice_table(headers: list[str], rows: list[list[str]]) -> bool:
+    column_count = max(len(headers), max((len(row) for row in rows), default=0))
+    if column_count >= 5 and len(rows) >= 6:
+        return True
+    return len(rows) >= 10
+
+
+def _build_materialized_table_surrogate_text(
+    *,
+    table_title: str,
+    headers: list[str],
+    rows: list[list[str]],
+    notes: list[str],
+) -> str:
+    title = str(table_title or "").strip()
+    if title and not _looks_like_markdown_table_row(title):
+        return title
+
+    for note in notes:
+        cleaned = _clean_paragraph_block_text(str(note or "").strip())
+        if cleaned and not _looks_like_markdown_table_row(cleaned):
+            return cleaned
+
+    meaningful_headers = [
+        str(cell or "").strip()
+        for cell in headers
+        if str(cell or "").strip() and not re.fullmatch(r"(?:col\d+|列\d+)", str(cell or "").strip(), re.I)
+    ]
+    if meaningful_headers:
+        return " / ".join(meaningful_headers[:3])
+
+    if rows:
+        first_row = [str(cell or "").strip() for cell in rows[0] if str(cell or "").strip()]
+        if first_row:
+            return " / ".join(first_row[:3])
+    return ""
 
 
 def _format_materialized_table_row(cells: list[str]) -> str:
@@ -912,7 +1446,52 @@ def _split_text_blocks(text: str) -> list[dict[str, Any]]:
         paragraph.append(lines[index])
         index += 1
     flush_paragraph()
-    return blocks
+    return _merge_header_stub_blocks(blocks)
+
+
+def _merge_header_stub_blocks(blocks: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    if len(blocks) < 3:
+        return blocks
+    merged: list[dict[str, Any]] = []
+    index = 0
+    while index < len(blocks):
+        block = blocks[index]
+        if (
+            index + 2 < len(blocks)
+            and str(block.get("kind") or "").strip().lower() == "table"
+            and str(blocks[index + 1].get("kind") or "").strip().lower() == "paragraph"
+            and str(blocks[index + 2].get("kind") or "").strip().lower() == "table"
+        ):
+            header_cells = block.get("header_cells") or []
+            if not header_cells:
+                table_lines = block.get("lines") or []
+                if len(table_lines) == 1:
+                    header_cells = _parse_markdown_cells(table_lines[0])
+            heading_text = str(blocks[index + 1].get("text") or "").strip()
+            if (
+                _looks_like_header_stub_row(header_cells)
+                and _looks_like_plain_heading_label(heading_text)
+                and not (blocks[index + 2].get("header_cells") or [])
+            ):
+                merged.append(blocks[index + 1])
+                merged.append({**blocks[index + 2], "header_cells": header_cells})
+                index += 3
+                continue
+        merged.append(block)
+        index += 1
+    return merged
+
+
+def _looks_like_header_stub_row(cells: list[str]) -> bool:
+    normalized = [str(cell or "").strip() for cell in cells if str(cell or "").strip()]
+    if len(normalized) < 3:
+        return False
+    if any(len(cell) > 24 for cell in normalized):
+        return False
+    return any(
+        re.search(r"(?:序号|项目|要求|测试项目|测试工况|评价和验收)", cell, re.I)
+        for cell in normalized
+    )
 
 
 def _starts_table_block(lines: list[str], index: int) -> bool:
@@ -1067,15 +1646,69 @@ def _resolve_table_block_header(
     explicit_header: list[str],
     inherited_header: list[str],
     notes: list[str],
+    row: dict[str, Any] | None = None,
+    table_title: str = "",
 ) -> list[str]:
     if explicit_header:
         return [str(cell or "").strip() for cell in explicit_header if str(cell or "").strip()]
     if inherited_header and _looks_like_sparse_matrix_requirement_text("\n".join(lines)):
         return [str(cell or "").strip() for cell in inherited_header if str(cell or "").strip()]
+    contextual = _infer_contextual_single_row_header(
+        lines=lines,
+        row=row or {},
+        table_title=table_title,
+    )
+    if contextual:
+        return contextual
     inferred = _infer_explicit_header_from_block_notes(lines, notes)
     if inferred:
         return inferred
     return []
+
+
+def _resolve_table_block_title(
+    *,
+    blocks: list[dict[str, Any]],
+    block_index: int,
+    fallback_title: str,
+) -> str:
+    for neighbor_index in (block_index - 1,):
+        if neighbor_index < 0 or neighbor_index >= len(blocks):
+            continue
+        neighbor = blocks[neighbor_index]
+        if str(neighbor.get("kind") or "").strip().lower() != "paragraph":
+            continue
+        candidate = _extract_heading_candidate_from_paragraph(str(neighbor.get("text") or "").strip())
+        if candidate:
+            return candidate
+    return str(fallback_title or "").strip()
+
+
+def _extract_heading_candidate_from_paragraph(text: str) -> str:
+    cleaned = _clean_paragraph_block_text(str(text or "").strip())
+    lines = [str(line or "").strip() for line in cleaned.splitlines()]
+    lines = [line for line in lines if line]
+    if not lines:
+        return ""
+    for line in reversed(lines):
+        if _looks_like_reference_only_line(line):
+            continue
+        if re.fullmatch(r"col\d+", line, re.I):
+            continue
+        if _looks_like_generic_compact_band_header(line) or _is_generic_table_anchor_text(line):
+            continue
+        if (
+            _looks_like_local_clause_heading(line)
+            or _looks_like_headingish_single_cell(line)
+            or _looks_like_plain_heading_label(line)
+            or _looks_like_attachment_heading_anchor(line)
+            or _looks_like_attachment_table_title(line)
+        ):
+            return line
+        normalized = _normalize_match_text(line)
+        if 4 <= len(normalized) <= 40 and len(line) <= 40 and not re.search(r"[。；;!?！？]$", line):
+            return line
+    return ""
 
 
 def _infer_explicit_header_from_block_notes(lines: list[str], notes: list[str]) -> list[str]:
@@ -1096,6 +1729,63 @@ def _infer_explicit_header_from_block_notes(lines: list[str], notes: list[str]) 
         return ["项目", "内容"]
     if widest_row == 3 and re.search(r"(?:备注|note)", note_text, re.I):
         return ["项目", "内容", "备注"]
+    return []
+
+
+def _infer_contextual_single_row_header(
+    *,
+    lines: list[str],
+    row: dict[str, Any],
+    table_title: str,
+) -> list[str]:
+    rows = [_parse_markdown_cells(line) for line in lines if _looks_like_markdown_table_row(line)]
+    if len(rows) != 1:
+        return []
+    cells = [str(cell or "").strip() for cell in rows[0]]
+    if len(cells) < 2:
+        return []
+
+    appendix_scope = str(row.get("appendix_scope") or "").strip().upper()
+    parent_code = str(row.get("parent_section_code") or "").strip().upper()
+    context_text = " ".join(
+        str(value or "").strip()
+        for value in (
+            table_title,
+            row.get("table_title"),
+            row.get("parent_section_title"),
+            row.get("parent_section_label"),
+            row.get("section_title"),
+            row.get("source_anchor"),
+        )
+        if str(value or "").strip()
+    )
+    if appendix_scope == "Y" or parent_code.startswith("Y.") or "用电器试验大纲" in context_text:
+        return _infer_test_outline_single_row_headers(cells)
+    return []
+
+
+def _infer_test_outline_single_row_headers(cells: list[str]) -> list[str]:
+    if not cells:
+        return []
+    first = str(cells[0] or "").strip()
+    normalized_tokens = [str(cell or "").strip().upper() for cell in cells]
+    looks_like_matrix_row = bool(re.fullmatch(r"\d+[A-Za-z（）()\-]*", first)) or any(
+        token in {"DV", "PV", "DV/PV"} for token in normalized_tokens
+    )
+    if not looks_like_matrix_row:
+        return []
+
+    cell_count = len(cells)
+    if cell_count == 10:
+        return ["序号", "项目", "参考标准", "试验方法", "要求", "DV/PV", "责任方", "样件", "周期", "备注"]
+    if cell_count == 9:
+        return ["序号", "项目", "参考标准", "试验方法", "要求", "DV/PV", "责任方", "样件", "周期"]
+    if cell_count == 8:
+        return ["序号", "项目", "参考标准", "试验方法 / 要求", "DV/PV", "责任方", "样件", "周期"]
+    if cell_count == 7:
+        return ["序号", "项目", "参考标准", "试验方法", "要求", "DV/PV", "样件 / 备注"]
+    if cell_count == 6:
+        return ["序号", "项目", "试验方法", "要求", "DV/PV", "样件 / 备注"]
     return []
 
 
@@ -1186,6 +1876,10 @@ def _normalize_block_input_line(line: str) -> list[str]:
     value = str(line or "").strip()
     if not value:
         return [str(line or "")]
+    if "|" in value:
+        single_cells = _parse_markdown_cells(value)
+        if len(single_cells) == 1:
+            return [single_cells[0]]
     if not _looks_like_markdown_table_row(value):
         return [value]
 
@@ -1199,10 +1893,7 @@ def _normalize_block_input_line(line: str) -> list[str]:
 
     collapsed = _collapse_repeated_adjacent_cells(cells)
     if len(collapsed) == 1:
-        single = collapsed[0]
-        if _looks_like_local_clause_heading(single) or _looks_like_headingish_single_cell(single):
-            return [single]
-        return ["|" + "|".join(collapsed) + "|"]
+        return [collapsed[0]]
 
     return ["|" + "|".join(collapsed) + "|"]
 
@@ -1353,6 +2044,8 @@ def _looks_like_local_clause_heading(text: str) -> bool:
         return False
     match = re.match(r"^\s*(\d+(?:\.\d+)*)\s*[）)]\s*(.+)$", value)
     if not match:
+        match = re.match(r"^\s*(\d+)\s*[\.．、]\s*(.+)$", value)
+    if not match:
         return False
     title = str(match.group(2) or "").strip()
     if not title or len(title) > 140:
@@ -1371,6 +2064,8 @@ def _looks_like_headingish_single_cell(text: str) -> bool:
     if len(value) > 160:
         return False
     if re.match(r"^\d+(?:\.\d+)*\s*[）)]", value):
+        return True
+    if re.match(r"^\d+\.\s*[A-Za-z\u4e00-\u9fff]", value):
         return True
     if re.match(r"^\d+(?:\.\d+){1,5}\s+", value):
         return True
@@ -1428,7 +2123,7 @@ def _extract_local_clause_anchor_prefix(text: str) -> str:
     label = str(match.group(3) or "").strip()
     if not label:
         return ""
-    label = re.split(r"[|（(：:—\-]", label, maxsplit=1)[0].strip()
+    label = re.split(r"[|（(：:—\-；;]", label, maxsplit=1)[0].strip()
     if not label:
         return ""
     return f"{number}{suffix}{label}"
@@ -1471,11 +2166,37 @@ def _table_title_for_row(row: dict[str, Any]) -> str:
         candidate = str(line or "").strip()
         if _looks_like_local_clause_title(candidate):
             return candidate
+    source_anchor_title = _extract_table_title_from_source_anchor(str(row.get("source_anchor") or ""))
+    if source_anchor_title:
+        return source_anchor_title
     for key in ("table_title", "parent_section_label", "heading_text", "section_title"):
         value = str(row.get(key) or "").strip()
         if value:
             return value
     return ""
+
+
+def _ensure_leading_table_title_block(
+    content_blocks: list[dict[str, Any]],
+    *,
+    row: dict[str, Any],
+    table_title: str,
+) -> list[dict[str, Any]]:
+    if not content_blocks:
+        return content_blocks
+    if str(content_blocks[0].get("kind") or "").strip().lower() != "table":
+        return content_blocks
+    title = str(table_title or "").strip()
+    if not title or _looks_like_markdown_table_row(title):
+        return content_blocks
+    if not (
+        _looks_like_local_clause_title(title)
+        or _looks_like_headingish_single_cell(title)
+        or _looks_like_plain_heading_label(title)
+        or _looks_like_attachment_table_title(title)
+    ):
+        return content_blocks
+    return [{"kind": "paragraph", "text": title}, *content_blocks]
 
 
 def _collect_block_notes(blocks: list[dict[str, Any]], block_index: int) -> list[str]:
@@ -1586,7 +2307,8 @@ def _write_source_snapshot(
     context_signature = hashlib.sha1(
         "|".join(
             [
-                "source-crop-v23",
+                _SOURCE_SNAPSHOT_SIGNATURE_VERSION,
+                "clause-window" if prefer_clause_window else "candidate-window",
                 # Bump when anchor/crop heuristics change so stored source snapshots are regenerated.
                 _normalize_match_text(before_context_text),
                 _normalize_match_text(after_context_text),
@@ -1631,6 +2353,36 @@ def _write_source_snapshot(
             source_page_floor_offsets=source_page_floor_offsets,
             prefer_clause_window=prefer_clause_window,
         )
+        if (
+            not prefer_clause_window
+            and _should_retry_source_snapshot_with_clause_window(
+                rendered=rendered,
+                render_meta=render_meta,
+                table_title=table_title,
+                headers=headers,
+                rows=rows,
+                notes=notes,
+            )
+        ):
+            retried, retry_meta = _render_pdf_page_span_snapshot(
+                source_path,
+                page_start=source_page,
+                page_end=page_end,
+                max_width_px=_SNAPSHOT_MAX_WIDTH_PX,
+                table_text=table_text,
+                table_title=table_title,
+                headers=headers,
+                rows=rows,
+                notes=notes,
+                before_context_text=before_context_text,
+                after_context_text=after_context_text,
+                source_table_detection_cache=source_table_detection_cache,
+                source_line_detection_cache=source_line_detection_cache,
+                source_page_floor_offsets=source_page_floor_offsets,
+                prefer_clause_window=True,
+            )
+            if _source_snapshot_retry_is_better(current=rendered, retried=retried):
+                rendered, render_meta = retried, retry_meta
         _write_png_atomically(target, rendered)
     except Exception:
         if source_snapshot_cache is not None:
@@ -1640,6 +2392,261 @@ def _write_source_snapshot(
     if source_snapshot_cache is not None:
         source_snapshot_cache[cache_key] = target
     return target, render_meta
+
+
+def _write_full_page_span_source_snapshot(
+    *,
+    snapshot_root: Path,
+    source_file_path: str,
+    source_page: int,
+    source_page_end: int,
+    cache_token: str,
+    cache_key_hint: str,
+    source_snapshot_cache: dict[tuple[str, int, int, str], Path | None] | None,
+) -> tuple[Path | None, dict[str, Any]]:
+    source_path = Path(str(source_file_path or "").strip())
+    if fitz is None or not source_path.exists() or source_path.suffix.lower() != ".pdf":
+        return None, {}
+    if source_page <= 0:
+        return None, {}
+    page_end = source_page_end if source_page_end >= source_page else source_page
+    signature = hashlib.sha1(
+        "|".join(
+            [
+                _SOURCE_SNAPSHOT_SIGNATURE_VERSION,
+                "full-page-span",
+                cache_token,
+                cache_key_hint,
+            ]
+        ).encode("utf-8")
+    ).hexdigest()[:10]
+    cache_key = (str(source_path.resolve()), source_page, page_end, signature)
+    if source_snapshot_cache is not None and cache_key in source_snapshot_cache:
+        return source_snapshot_cache[cache_key], {}
+
+    snapshot_root.mkdir(parents=True, exist_ok=True)
+    seed = "|".join([cache_key[0], str(cache_key[1]), str(cache_key[2]), cache_key[3]])
+    target = snapshot_root / f"src_{hashlib.sha1(seed.encode('utf-8')).hexdigest()[:16]}.png"
+    if _snapshot_file_is_usable(target):
+        if source_snapshot_cache is not None:
+            source_snapshot_cache[cache_key] = target
+        return target, {"page_span_count": max(1, page_end - source_page + 1), "image_block_count": 0}
+    if target.exists():
+        try:
+            target.unlink()
+        except OSError:
+            pass
+
+    try:
+        with fitz.open(str(source_path)) as document:
+            if document.page_count <= 0:
+                raise ValueError("source pdf has no pages")
+            start_index = max(0, source_page - 1)
+            end_index = min(document.page_count - 1, max(start_index, page_end - 1))
+            plan = [(page_index, None) for page_index in range(start_index, end_index + 1)]
+            images = _render_pdf_crop_plan(document, plan, max_width_px=_SNAPSHOT_MAX_WIDTH_PX)
+            rendered = _compose_vertical_images(
+                images,
+                max_width_px=_SNAPSHOT_MAX_WIDTH_PX,
+                max_height_px=_SNAPSHOT_MAX_HEIGHT_PX,
+            )
+            render_meta = _summarize_pdf_crop_plan_features(document, plan)
+        _write_png_atomically(target, rendered)
+    except Exception:
+        if source_snapshot_cache is not None:
+            source_snapshot_cache[cache_key] = None
+        return None, {}
+
+    if source_snapshot_cache is not None:
+        source_snapshot_cache[cache_key] = target
+    return target, render_meta
+
+
+def _source_snapshot_pixel_size(image_bytes: bytes) -> tuple[int, int]:
+    try:
+        with PILImage.open(BytesIO(image_bytes)) as image:
+            return int(image.width), int(image.height)
+    except Exception:
+        return (0, 0)
+
+
+def _should_retry_source_snapshot_with_clause_window(
+    *,
+    rendered: bytes,
+    render_meta: dict[str, Any],
+    table_title: str,
+    headers: list[str],
+    rows: list[list[str]],
+    notes: list[str],
+) -> bool:
+    width, height = _source_snapshot_pixel_size(rendered)
+    if width <= 0 or height <= 0:
+        return False
+    heading_like = (
+        _looks_like_local_clause_title(table_title)
+        or _looks_like_headingish_single_cell(table_title)
+        or _looks_like_plain_heading_label(table_title)
+        or _looks_like_attachment_table_title(table_title)
+    )
+    page_span_count = _coerce_int(render_meta.get("page_span_count"))
+    if page_span_count <= 0:
+        page_span_count = 1
+    complexish = (
+        page_span_count > 1
+        or len(headers) >= 5
+        or len(rows) >= 3
+        or _looks_like_complex_merged_table(rows, notes)
+        or _looks_like_poor_slice_readability(headers, rows)
+    )
+    if not complexish:
+        return False
+    if not heading_like and len(headers) < 6 and page_span_count <= 1:
+        return False
+    min_height = max(120, int(width * 0.18))
+    return height <= min_height
+
+
+def _source_snapshot_retry_is_better(*, current: bytes, retried: bytes) -> bool:
+    current_width, current_height = _source_snapshot_pixel_size(current)
+    retried_width, retried_height = _source_snapshot_pixel_size(retried)
+    if retried_width <= 0 or retried_height <= 0:
+        return False
+    if current_width <= 0 or current_height <= 0:
+        return True
+    return retried_height >= current_height + 30 or (retried_width * retried_height) >= int(
+        current_width * current_height * 1.35
+    )
+
+
+def _read_png_dimensions(path: str) -> tuple[int, int]:
+    target = Path(str(path or "").strip())
+    if not target.exists():
+        return (0, 0)
+    try:
+        with PILImage.open(target) as image:
+            return int(image.width), int(image.height)
+    except Exception:
+        return (0, 0)
+
+
+def _prune_duplicate_shallow_snapshot_tables(
+    content_blocks: list[dict[str, Any]],
+    table_refs: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str]]:
+    if not content_blocks or not table_refs:
+        return content_blocks, table_refs, set()
+
+    drop_ids: set[str] = set()
+    title_to_refs: dict[str, list[dict[str, Any]]] = {}
+    for ref in table_refs:
+        table_id = str(ref.get("table_id") or "").strip()
+        title = _normalize_match_text(str(ref.get("table_title") or ""))
+        if not table_id or not title:
+            continue
+        title_to_refs.setdefault(title, []).append(ref)
+
+    for ref in table_refs:
+        table_id = str(ref.get("table_id") or "").strip()
+        title = _normalize_match_text(str(ref.get("table_title") or ""))
+        if not table_id or not title:
+            continue
+        if str(ref.get("slice_render_mode") or "").strip().lower() != "snapshot_only":
+            continue
+        if ref.get("inherited_headers") or ref.get("headers") or ref.get("slice_rows") or ref.get("rows"):
+            continue
+        _, height = _read_png_dimensions(str(ref.get("source_snapshot_path") or ""))
+        if height <= 0 or height > 80:
+            continue
+        siblings = [
+            item
+            for item in title_to_refs.get(title, [])
+            if str(item.get("table_id") or "").strip() != table_id
+            and (
+                str(item.get("slice_render_mode") or "").strip().lower() == "structured"
+                or bool(item.get("slice_rows") or item.get("rows"))
+            )
+        ]
+        if siblings:
+            drop_ids.add(table_id)
+
+    if not drop_ids:
+        return content_blocks, table_refs, set()
+
+    cleaned_blocks = [
+        block
+        for block in content_blocks
+        if not (
+            str(block.get("kind") or "").strip().lower() == "table"
+            and str(block.get("table_id") or "").strip() in drop_ids
+        )
+    ]
+    cleaned_refs = [ref for ref in table_refs if str(ref.get("table_id") or "").strip() not in drop_ids]
+    return cleaned_blocks, cleaned_refs, drop_ids
+
+
+def _prune_redundant_lead_source_tables(
+    content_blocks: list[dict[str, Any]],
+    table_refs: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]], set[str]]:
+    if len(content_blocks) < 2 or len(table_refs) < 2:
+        return content_blocks, table_refs, set()
+
+    ref_map = {
+        str(ref.get("table_id") or "").strip(): ref
+        for ref in table_refs
+        if str(ref.get("table_id") or "").strip()
+    }
+    ordered_ids = [
+        str(block.get("table_id") or "").strip()
+        for block in content_blocks
+        if str(block.get("kind") or "").strip().lower() == "table" and str(block.get("table_id") or "").strip()
+    ]
+    if len(ordered_ids) < 2:
+        return content_blocks, table_refs, set()
+
+    drop_ids: set[str] = set()
+    for index, table_id in enumerate(ordered_ids[:-1]):
+        ref = ref_map.get(table_id)
+        if not isinstance(ref, dict):
+            continue
+        if str(ref.get("slice_render_mode") or "").strip().lower() != "structured":
+            continue
+        if _normalize_export_variant(ref.get("recommended_export_variant") or ref.get("export_variant")) != "source":
+            continue
+        title = _normalize_match_text(str(ref.get("table_title") or ""))
+        if not title:
+            continue
+        headers = _sanitize_table_text_cells(ref.get("inherited_headers") or ref.get("headers") or [])
+        rows = _sanitize_table_text_rows(ref.get("slice_rows") or ref.get("rows") or [], expected_columns=len(headers))
+        rows = _drop_materialized_header_echo_rows(rows, headers)
+        mismatched_row_width = any(len(row) != len(headers) for row in rows)
+        if len(rows) > 1 or not (_structured_table_looks_low_quality(headers, rows) or mismatched_row_width):
+            continue
+        if not any(
+            _normalize_match_text(str(ref_map.get(later_id, {}).get("table_title") or "")) == title
+            and _normalize_export_variant(
+                ref_map.get(later_id, {}).get("recommended_export_variant")
+                or ref_map.get(later_id, {}).get("export_variant")
+            )
+            == "source"
+            for later_id in ordered_ids[index + 1 :]
+        ):
+            continue
+        drop_ids.add(table_id)
+
+    if not drop_ids:
+        return content_blocks, table_refs, set()
+
+    cleaned_blocks = [
+        block
+        for block in content_blocks
+        if not (
+            str(block.get("kind") or "").strip().lower() == "table"
+            and str(block.get("table_id") or "").strip() in drop_ids
+        )
+    ]
+    cleaned_refs = [ref for ref in table_refs if str(ref.get("table_id") or "").strip() not in drop_ids]
+    return cleaned_blocks, cleaned_refs, drop_ids
 
 
 def _recover_table_from_pdf_source(
@@ -2314,10 +3321,39 @@ def _recovered_table_looks_useful(headers: list[str], rows: list[list[str]]) -> 
     return True
 
 
+def _recovered_source_indicates_column_mismatch(
+    *,
+    current_headers: list[str],
+    current_rows: list[list[str]],
+    recovered_headers: list[str],
+    recovered_rows: list[list[str]],
+) -> bool:
+    current_col_count = max(len(current_headers), max((len(row) for row in current_rows), default=0))
+    recovered_col_count = max(len(recovered_headers), max((len(row) for row in recovered_rows), default=0))
+    if current_col_count <= 0 or recovered_col_count < current_col_count + 1:
+        return False
+
+    placeholder_headers = sum(
+        1
+        for cell in recovered_headers
+        if not str(cell or "").strip() or re.fullmatch(r"(?:col\d+|列\d+)", str(cell or "").strip(), re.I)
+    )
+    meaningful_rows = [
+        row
+        for row in recovered_rows
+        if sum(1 for cell in row if str(cell or "").strip()) >= 2
+    ]
+    return placeholder_headers >= 1 and len(meaningful_rows) <= 2
+
+
 def _structured_table_looks_low_quality(headers: list[str], rows: list[list[str]]) -> bool:
     if not headers or not rows:
         return True
     if any(not cell or re.fullmatch(r"(?:col\d+|列\d+)", str(cell or "").strip(), re.I) for cell in headers):
+        return True
+    if any(str(cell or "").strip() in {"/", "-", "—"} for cell in headers):
+        return True
+    if re.fullmatch(r"\d+(?:\.\d+)?", str(headers[0] or "").strip()):
         return True
     if any(re.search(r"\d", str(cell or "")) for cell in headers if len(str(cell or "").strip()) >= 4):
         return True
@@ -2437,7 +3473,68 @@ def _clean_paragraph_block_text(text: str) -> str:
     value = str(text or "").strip()
     if not value:
         return ""
-    return _drop_repeated_trailing_merged_line(value)
+    value = _drop_reference_only_paragraph_lines(value)
+    value = _strip_markdown_noise_lines(value)
+    return _drop_trailing_table_intro_band(_drop_repeated_trailing_merged_line(value))
+
+
+def _looks_like_reference_only_line(text: str) -> bool:
+    value = str(text or "").strip()
+    if not value:
+        return False
+    return bool(re.fullmatch(r"(?:ref|reference)\s*[:：].{1,120}", value, re.I))
+
+
+def _drop_reference_only_paragraph_lines(text: str) -> str:
+    lines = [str(line or "").strip() for line in str(text or "").splitlines() if str(line or "").strip()]
+    if not lines:
+        return ""
+    kept = [line for line in lines if not _looks_like_reference_only_line(line)]
+    if not kept:
+        return ""
+    return "\n".join(kept).strip()
+
+
+def _strip_leading_markdown_noise_token(line: str) -> str:
+    value = str(line or "").strip()
+    if not value:
+        return ""
+    return re.sub(r"^\s*~~[A-Za-z0-9 _-]{1,16}~~\s*", "", value).strip()
+
+
+def _strip_markdown_noise_lines(text: str) -> str:
+    lines = [_strip_leading_markdown_noise_token(str(line or "").strip()) for line in str(text or "").splitlines()]
+    kept = [line for line in lines if line]
+    return "\n".join(kept).strip()
+
+
+def _drop_trailing_table_intro_band(text: str) -> str:
+    lines = [str(line or "").strip() for line in str(text or "").splitlines() if str(line or "").strip()]
+    if len(lines) < 3:
+        return str(text or "").strip()
+
+    tail_start = len(lines)
+    while tail_start > 0 and _is_compact_band_line(lines[tail_start - 1]):
+        tail_start -= 1
+    if tail_start >= len(lines):
+        return "\n".join(lines).strip()
+
+    tail = lines[tail_start:]
+    joined = _normalize_match_text(" ".join(tail))
+    if not joined:
+        return "\n".join(lines).strip()
+    if not (
+        re.search(r"序号.*测试(?:类别|项目).*测试(?:小类|顺序|工况)", joined)
+        or re.search(r"序号.*项目.*要求", joined)
+        or any(re.fullmatch(r"col\d+", line, re.I) for line in tail)
+    ):
+        return "\n".join(lines).strip()
+    if not any(
+        len(_normalize_match_text(line)) >= 16 or any(mark in line for mark in ("：", ":", "。", "；", ";"))
+        for line in lines[:tail_start]
+    ):
+        return "\n".join(lines).strip()
+    return "\n".join(lines[:tail_start]).strip()
 
 
 def _drop_repeated_trailing_merged_line(text: str) -> str:
@@ -2524,6 +3621,7 @@ def _should_prefer_source_clause_window(
     rows: list[list[str]],
     source_page: int,
     source_page_end: int,
+    notes: list[str] | None = None,
     trailing_context_text: str = "",
 ) -> bool:
     normalized_mode = str(render_mode or "").strip().lower()
@@ -2540,12 +3638,49 @@ def _should_prefer_source_clause_window(
         return heading_like
 
     cross_page = source_page > 0 and source_page_end > source_page
-    if cross_page and _looks_like_local_clause_title(title):
+    if cross_page and heading_like:
+        return True
+    if heading_like and _looks_like_axis_symbol_source_first_table(headers, rows):
         return True
 
     col_count = max(len(headers), max((len(row) for row in rows), default=0))
+    if heading_like and len(rows) <= 2 and 0 < col_count <= 4 and _has_meaningful_source_context_note(notes or []):
+        return True
     if heading_like and len(rows) <= 1 and 0 < col_count <= 4:
         return True
+    return False
+
+
+def _has_meaningful_source_context_note(notes: list[str]) -> bool:
+    for item in notes:
+        lines = [line.strip() for line in str(item or "").splitlines() if line.strip()]
+        if lines and (
+            _looks_like_local_clause_title(lines[0])
+            or _looks_like_headingish_single_cell(lines[0])
+            or _looks_like_plain_heading_label(lines[0])
+            or _looks_like_attachment_table_title(lines[0])
+        ):
+            lines = lines[1:]
+        value = "\n".join(lines).strip()
+        if not value:
+            continue
+        if "\n" not in value and (
+            _looks_like_local_clause_title(value)
+            or _looks_like_headingish_single_cell(value)
+            or _looks_like_plain_heading_label(value)
+            or _looks_like_attachment_table_title(value)
+        ):
+            continue
+        if value.count("|") >= 2:
+            continue
+        normalized = _normalize_match_text(value)
+        if len(normalized) < 12:
+            continue
+        if any(mark in value for mark in ("。", "；", ";", "：", ":", "，", ",")):
+            return True
+        lines = [line.strip() for line in value.splitlines() if line.strip()]
+        if len("".join(lines[:2])) >= 18:
+            return True
     return False
 
 
@@ -2562,16 +3697,27 @@ def _normalize_table_refs(value: Any) -> list[dict[str, Any]]:
 
 def _normalize_table_ref(value: dict[str, Any]) -> dict[str, Any]:
     ref = dict(value)
+    ref["complex_table_mode"] = bool(ref.get("complex_table_mode"))
+    ref["complex_zone_id"] = str(ref.get("complex_zone_id") or "").strip()
+    ref["complex_family"] = str(ref.get("complex_family") or "").strip()
+    ref["complex_split_level"] = str(ref.get("complex_split_level") or "").strip()
+    ref["complex_group_label"] = str(ref.get("complex_group_label") or "").strip()
+    ref["complex_warnings"] = _normalize_string_list(ref.get("complex_warnings"))
+    ref["complex_shadow_signatures"] = _normalize_string_list(ref.get("complex_shadow_signatures"))
+    ref["export_variant_locked"] = bool(ref.get("export_variant_locked"))
     recommendation = _recommend_table_export_variant(ref)
     recommended_variant = recommendation["recommended_export_variant"]
     export_variant = _normalize_export_variant(ref.get("export_variant"))
     if not export_variant:
         export_variant = recommended_variant
+    if ref["export_variant_locked"] and str(ref.get("source_snapshot_path") or "").strip():
+        recommended_variant = "source"
+        export_variant = "source"
     ref["recommended_export_variant"] = recommended_variant
     ref["export_variant_reasons"] = recommendation["export_variant_reasons"]
     ref["export_variant_score"] = recommendation["export_variant_score"]
     ref["export_variant"] = export_variant
-    ref["export_variant_overridden"] = export_variant != recommended_variant
+    ref["export_variant_overridden"] = False if ref["export_variant_locked"] else export_variant != recommended_variant
     return ref
 
 
@@ -2595,6 +3741,12 @@ def _match_existing_table_ref(
 
 
 def _recommend_table_export_variant(ref: dict[str, Any]) -> dict[str, Any]:
+    if bool(ref.get("export_variant_locked")) and str(ref.get("source_snapshot_path") or "").strip():
+        return {
+            "recommended_export_variant": "source",
+            "export_variant_reasons": ["原文更忠实"],
+            "export_variant_score": 100,
+        }
     headers = [str(cell or "").strip() for cell in ref.get("inherited_headers") or ref.get("headers") or []]
     rows = [
         [str(cell or "").strip() for cell in row]
@@ -2608,6 +3760,8 @@ def _recommend_table_export_variant(ref: dict[str, Any]) -> dict[str, Any]:
     source_page_end = _coerce_int(ref.get("source_page_end")) or source_page
     structure_confidence = float(ref.get("structure_confidence") or ref.get("confidence") or 0.0)
     image_block_count = _coerce_int(ref.get("source_image_block_count"))
+    source_structure_mismatch = bool(ref.get("source_structure_mismatch"))
+    source_column_count_hint = _coerce_int(ref.get("source_column_count_hint"))
 
     reasons: list[str] = []
     score = 0
@@ -2635,6 +3789,10 @@ def _recommend_table_export_variant(ref: dict[str, Any]) -> dict[str, Any]:
         reasons.append("切片可读性差")
         score += 28
 
+    if source_snapshot_path and render_mode == "structured" and _structured_table_looks_low_quality(headers, rows):
+        reasons.append("切片可读性差")
+        score = max(score, 72)
+
     if source_snapshot_path and _looks_like_symbolic_or_placeholder_source_first_table(headers, rows):
         reasons.append("切片可读性差")
         score = max(score, 72)
@@ -2644,6 +3802,15 @@ def _recommend_table_export_variant(ref: dict[str, Any]) -> dict[str, Any]:
         score = max(score, 72)
 
     if source_snapshot_path and _looks_like_compact_threshold_source_first_table(headers, rows, notes):
+        reasons.append("切片可读性差")
+        score = max(score, 72)
+
+    current_col_count = max(len(headers), max((len(row) for row in rows), default=0))
+    if (
+        source_snapshot_path
+        and source_structure_mismatch
+        and source_column_count_hint >= current_col_count + 1
+    ):
         reasons.append("切片可读性差")
         score = max(score, 72)
 
@@ -2812,6 +3979,20 @@ def _normalize_content_blocks(value: Any) -> list[dict[str, Any]]:
             if table_id:
                 blocks.append({"kind": "table", "table_id": table_id})
     return blocks
+
+
+def _normalize_string_list(value: Any) -> list[str]:
+    if not isinstance(value, list):
+        return []
+    items = [str(item).strip() for item in value if str(item).strip()]
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for item in items:
+        if item in seen:
+            continue
+        seen.add(item)
+        deduped.append(item)
+    return deduped
 
 
 def _collapse_render_mode(table_refs: list[dict[str, Any]]) -> str:
@@ -3155,6 +4336,7 @@ def _render_pdf_page_span_snapshot(
     source_line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]] | None,
     source_page_floor_offsets: dict[int, float] | None,
     prefer_clause_window: bool = False,
+    max_height_px: int | None = None,
 ) -> tuple[bytes, dict[str, Any]]:
     if fitz is None:  # pragma: no cover - exercised only when dependency missing
         raise RuntimeError("PyMuPDF is not available")
@@ -3197,7 +4379,7 @@ def _render_pdf_page_span_snapshot(
             page_indices=page_indices,
             match_fragments=match_fragments,
             headers=headers,
-            slice_rows=[] if prefer_clause_window else rows,
+            slice_rows=rows,
             start_anchor=start_anchor,
             end_anchor=end_anchor,
             detection_cache=source_table_detection_cache,
@@ -3216,7 +4398,11 @@ def _render_pdf_page_span_snapshot(
         render_meta = _summarize_pdf_crop_plan_features(document, crop_plan)
         images = _render_pdf_crop_plan(document, crop_plan, max_width_px=max_width_px)
 
-    return _compose_vertical_images(images, max_width_px=max_width_px), render_meta
+    return _compose_vertical_images(
+        images,
+        max_width_px=max_width_px,
+        max_height_px=max_height_px,
+    ), render_meta
 
 
 def _build_pdf_crop_plan(
@@ -3245,6 +4431,12 @@ def _build_pdf_crop_plan(
             detection_cache=None,
         )
         if next_clause_anchor is not None:
+            next_clause_anchor = _prefer_prior_generic_compact_band_anchor(
+                document,
+                source_key=source_key,
+                anchor=next_clause_anchor,
+                detection_cache=None,
+            )
             if effective_end_anchor is None:
                 effective_end_anchor = next_clause_anchor
             elif (
@@ -3278,6 +4470,11 @@ def _build_pdf_crop_plan(
             if chosen is not None and headers and slice_rows
             else None
         )
+        anchor_window_hint_bbox = (
+            row_slice_preview
+            if prefer_anchor_window and _should_use_anchor_window_row_slice_hint(start_anchor, row_slice_preview)
+            else None
+        )
         if (
             chosen is not None
             and not prefer_anchor_window
@@ -3300,6 +4497,8 @@ def _build_pdf_crop_plan(
         )
         if prefer_anchor_window and bbox is not None:
             window_top = float(start_anchor["bbox"][1]) if page_index == effective_start_page and start_anchor else 0.0
+            if page_index == effective_start_page and anchor_window_hint_bbox is not None:
+                window_top = min(window_top, float(anchor_window_hint_bbox[1]))
             window_bottom = (
                 float(effective_end_anchor["bbox"][1])
                 if page_index == effective_end_page and effective_end_anchor
@@ -3326,6 +4525,22 @@ def _build_pdf_crop_plan(
             )
         plan.append((page_index, bbox))
     return plan
+
+
+def _should_use_anchor_window_row_slice_hint(
+    start_anchor: dict[str, Any] | None,
+    row_slice_bbox: tuple[float, float, float, float] | None,
+) -> bool:
+    if start_anchor is None or row_slice_bbox is None:
+        return False
+    anchor_text = str(start_anchor.get("text") or "")
+    if _looks_like_local_clause_heading(anchor_text):
+        return False
+    anchor_bbox = tuple(start_anchor.get("bbox") or ())
+    if len(anchor_bbox) < 4 or len(row_slice_bbox) < 4:
+        return False
+    delta = float(anchor_bbox[1]) - float(row_slice_bbox[1])
+    return 8.0 <= delta <= 140.0
 
 
 def _load_pdf_table_candidates(
@@ -3379,6 +4594,8 @@ def _build_context_anchor_fragments(text: str, *, from_end: bool) -> list[tuple[
     seen: set[str] = set()
     candidates: list[tuple[str, int]] = []
     for index, line in enumerate(selected):
+        if from_end and _looks_like_reference_only_line(line):
+            continue
         variants = [line]
         local_clause_variant = _extract_local_clause_anchor_prefix(line)
         if local_clause_variant:
@@ -3492,7 +4709,7 @@ def _find_context_anchor_window(
         first_page_only=int(start_anchor["page_index"]) if start_anchor else None,
         min_score=8,
     )
-    if promote_after_band_start and end_anchor is not None:
+    if promote_after_band_start and end_anchor is not None and not _looks_like_local_clause_heading(str(end_anchor.get("text") or "")):
         end_anchor = _promote_anchor_to_compact_band_start(
             document,
             source_key=source_key,
@@ -3539,6 +4756,24 @@ def _is_compact_band_line(text: str) -> bool:
     if any(mark in value for mark in ("。", "；", ";")):
         return False
     return True
+
+
+def _looks_like_generic_compact_band_header(text: str) -> bool:
+    normalized = _normalize_match_text(text)
+    if not normalized:
+        return False
+    return normalized in {
+        "序号",
+        "项目",
+        "位置",
+        "内容",
+        "名称",
+        "备注",
+        "页码",
+        "附件名称",
+        "pds表位置",
+        "pds表位置内容",
+    }
 
 
 def _promote_anchor_to_compact_band_start(
@@ -3601,6 +4836,59 @@ def _promote_anchor_to_compact_band_start(
     return promoted
 
 
+def _prefer_prior_generic_compact_band_anchor(
+    document,
+    *,
+    source_key: str,
+    anchor: dict[str, Any],
+    detection_cache: dict[tuple[str, int], list[dict[str, Any]]] | None,
+) -> dict[str, Any]:
+    page_index = int(anchor.get("page_index", -1))
+    anchor_bbox = tuple(anchor.get("bbox") or ())
+    if page_index < 0 or len(anchor_bbox) < 4 or float(anchor_bbox[1]) > 220.0:
+        return anchor
+    lines = _load_pdf_page_line_records(
+        document,
+        source_key=source_key,
+        page_index=page_index,
+        detection_cache=detection_cache,
+    )
+    if not lines:
+        return anchor
+
+    anchor_text = str(anchor.get("text") or "")
+    anchor_index = -1
+    for index, line in enumerate(lines):
+        if tuple(line.get("bbox") or ()) == anchor_bbox and str(line.get("text") or "") == anchor_text:
+            anchor_index = index
+            break
+    if anchor_index <= 0:
+        return anchor
+
+    anchor_top = float(anchor_bbox[1])
+    candidates = []
+    for line in lines[:anchor_index]:
+        bbox = tuple(line.get("bbox") or ())
+        if len(bbox) < 4:
+            continue
+        if float(bbox[1]) > 220.0:
+            continue
+        if anchor_top - float(bbox[3]) > 72.0:
+            continue
+        text = str(line.get("text") or "")
+        if not (_is_compact_band_line(text) and _looks_like_generic_compact_band_header(text)):
+            continue
+        candidates.append(line)
+    if not candidates:
+        return anchor
+
+    chosen = min(candidates, key=lambda item: float((item.get("bbox") or (0.0, 9999.0, 0.0, 0.0))[1]))
+    promoted = dict(anchor)
+    promoted["bbox"] = tuple(chosen.get("bbox") or anchor_bbox)
+    promoted["text"] = str(chosen.get("text") or promoted.get("text") or "")
+    return promoted
+
+
 def _find_next_local_clause_anchor(
     document,
     *,
@@ -3627,7 +4915,13 @@ def _find_next_local_clause_anchor(
             if page_index == start_page_index and float(bbox[1]) <= start_y + 2.0:
                 continue
             text = str(line.get("text") or "").strip()
-            if not _looks_like_local_clause_heading(text):
+            if not (
+                _looks_like_local_clause_heading(text)
+                or _looks_like_headingish_single_cell(text)
+                or _looks_like_attachment_heading_anchor(text)
+            ):
+                continue
+            if _is_generic_table_anchor_text(text):
                 continue
             return {
                 "page_index": page_index,
@@ -3790,18 +5084,68 @@ def _load_pdf_page_line_records(
                 line_bbox = tuple(float(value) for value in bbox[:4])
             except (TypeError, ValueError):
                 continue
-            lines.append(
-                {
-                    "text": text,
-                    "norm": _normalize_match_text(text),
-                    "bbox": line_bbox,
-                }
-            )
+            fragments = _split_embedded_anchor_line_fragments(text, line_bbox)
+            if not fragments:
+                fragments = [{"text": text, "bbox": line_bbox}]
+            for fragment in fragments:
+                fragment_text = str(fragment.get("text") or "").strip()
+                fragment_bbox = tuple(fragment.get("bbox") or ())
+                if not fragment_text or len(fragment_bbox) < 4:
+                    continue
+                lines.append(
+                    {
+                        "text": fragment_text,
+                        "norm": _normalize_match_text(fragment_text),
+                        "bbox": fragment_bbox,
+                    }
+                )
 
     lines.sort(key=lambda item: (float(item["bbox"][1]), float(item["bbox"][0])))
     if detection_cache is not None:
         detection_cache[cache_key] = lines
     return lines
+
+
+def _split_embedded_anchor_line_fragments(
+    text: str,
+    bbox: tuple[float, float, float, float],
+) -> list[dict[str, Any]]:
+    value = str(text or "").strip()
+    if not value:
+        return []
+    matches = list(_EMBEDDED_ANCHOR_LINE_SPLIT_RE.finditer(value))
+    if not matches:
+        return []
+
+    starts = [match.start() for match in matches]
+    if starts[0] > 0:
+        starts = [0, *starts]
+    starts = sorted(set(index for index in starts if 0 <= index < len(value)))
+    if len(starts) < 2:
+        return []
+
+    chunks: list[str] = []
+    for index, start in enumerate(starts):
+        end = starts[index + 1] if index + 1 < len(starts) else len(value)
+        chunk = str(value[start:end] or "").strip()
+        if chunk:
+            chunks.append(chunk)
+    if len(chunks) < 2:
+        return []
+
+    x0, y0, x1, y1 = bbox
+    height = max(1.0, float(y1) - float(y0))
+    fragments: list[dict[str, Any]] = []
+    for index, chunk in enumerate(chunks):
+        top = float(y0) + height * index / len(chunks)
+        bottom = float(y0) + height * (index + 1) / len(chunks)
+        fragments.append(
+            {
+                "text": chunk,
+                "bbox": (float(x0), top, float(x1), bottom),
+            }
+        )
+    return fragments
 
 
 def _best_context_anchor_in_page(
@@ -3877,7 +5221,11 @@ def _collect_anchor_window_content_bboxes(
                     continue
                 if line_bbox[3] < window_top - 2.0 or line_bbox[1] >= window_bottom:
                     continue
-                content_bboxes.append(line_bbox)
+                clipped_top = max(window_top, line_bbox[1])
+                clipped_bottom = min(window_bottom, line_bbox[3])
+                if clipped_bottom <= clipped_top + 0.5:
+                    continue
+                content_bboxes.append((line_bbox[0], clipped_top, line_bbox[2], clipped_bottom))
         elif block_type == 1:
             bbox = block.get("bbox")
             if not isinstance(bbox, (list, tuple)) or len(bbox) < 4:
@@ -3888,7 +5236,37 @@ def _collect_anchor_window_content_bboxes(
                 continue
             if image_bbox[3] < window_top - 2.0 or image_bbox[1] >= window_bottom:
                 continue
-            content_bboxes.append(image_bbox)
+            clipped_top = max(window_top, image_bbox[1])
+            clipped_bottom = min(window_bottom, image_bbox[3])
+            if clipped_bottom <= clipped_top + 0.5:
+                continue
+            content_bboxes.append((image_bbox[0], clipped_top, image_bbox[2], clipped_bottom))
+
+    if content_bboxes:
+        try:
+            drawings = page.get_drawings()
+        except Exception:
+            drawings = []
+        for item in drawings or []:
+            rect = item.get("rect")
+            if rect is None:
+                continue
+            try:
+                drawing_bbox = (
+                    float(rect.x0),
+                    float(rect.y0),
+                    float(rect.x1),
+                    float(rect.y1),
+                )
+            except (AttributeError, TypeError, ValueError):
+                continue
+            if drawing_bbox[3] < window_top - 2.0 or drawing_bbox[1] >= window_bottom:
+                continue
+            clipped_top = max(window_top, drawing_bbox[1])
+            clipped_bottom = min(window_bottom, drawing_bbox[3])
+            if clipped_bottom <= clipped_top + 0.5:
+                continue
+            content_bboxes.append((drawing_bbox[0], clipped_top, drawing_bbox[2], clipped_bottom))
     return content_bboxes
 
 
@@ -3958,8 +5336,10 @@ def _compose_page_crop_bbox(
     page_width = float(page.rect.width)
     page_height = float(page.rect.height)
     row_slice_bbox: tuple[float, float, float, float] | None = None
+    floor_reference_top: float | None = None
     if chosen:
         chosen_bbox = tuple(float(value) for value in chosen["bbox"])
+        floor_reference_top = float(chosen_bbox[1])
         left = max(0.0, chosen_bbox[0])
         right = min(page_width, chosen_bbox[2])
         top = max(0.0, chosen_bbox[1] - 8.0)
@@ -3967,6 +5347,7 @@ def _compose_page_crop_bbox(
         row_slice_bbox = _match_row_slice_bbox(chosen, headers=headers, slice_rows=slice_rows)
         applied_row_slice = row_slice_bbox is not None
         if row_slice_bbox is not None:
+            floor_reference_top = float(row_slice_bbox[1])
             top = max(0.0, row_slice_bbox[1] - 8.0)
             bottom = min(page_height, row_slice_bbox[3] + 8.0)
     else:
@@ -3976,6 +5357,7 @@ def _compose_page_crop_bbox(
     if start_anchor:
         anchor_bbox = tuple(float(value) for value in start_anchor["bbox"])
         anchor_text = str(start_anchor.get("text") or "")
+        floor_reference_top = float(anchor_bbox[1])
         anchor_top_padding = 6.0 if _looks_like_local_clause_heading(anchor_text) else 12.0
         if not applied_row_slice:
             left = max(0.0, min(left, anchor_bbox[0] - 12.0))
@@ -3984,13 +5366,14 @@ def _compose_page_crop_bbox(
 
     if end_anchor:
         anchor_bbox = tuple(float(value) for value in end_anchor["bbox"])
-        candidate_bottom = max(0.0, anchor_bbox[1] - 12.0)
-        if applied_row_slice and row_slice_bbox is not None:
+        end_anchor_gap = 18.0 if applied_row_slice and len(slice_rows) <= 1 else 12.0
+        candidate_bottom = max(0.0, anchor_bbox[1] - end_anchor_gap)
+        if applied_row_slice and row_slice_bbox is not None and len(slice_rows) > 1:
             candidate_bottom = max(candidate_bottom, min(page_height, float(row_slice_bbox[3]) + 4.0))
         if candidate_bottom > top + 20.0:
             bottom = min(bottom, min(page_height, candidate_bottom))
 
-    if page_floor > 0.0:
+    if page_floor > 0.0 and (floor_reference_top is None or floor_reference_top >= page_floor - 2.0):
         top = max(top, min(page_height, page_floor + 6.0))
 
     if bottom <= top + 20.0:
@@ -4010,6 +5393,8 @@ def _match_row_slice_bbox(
     candidate_rows = candidate.get("rows_text") or []
     candidate_boxes = candidate.get("row_bboxes") or []
     if not target_rows or len(candidate_rows) != len(candidate_boxes):
+        return None
+    if not _should_apply_row_slice_bbox(target_rows):
         return None
 
     matches = None
@@ -4044,9 +5429,9 @@ def _match_row_slice_bbox(
             header_index = start_index - 1
 
     if _looks_like_row_slice_first_item(target_rows[0]) == "1":
-        crop_start_index = header_index
+        crop_start_index = header_index if header_index < start_index else 0
     else:
-        crop_start_index = start_index
+        crop_start_index = header_index
 
     top_box = candidate_boxes[crop_start_index]
     bottom_box = candidate_boxes[end_index]
@@ -4497,7 +5882,12 @@ def _summarize_pdf_crop_plan_features(
     }
 
 
-def _compose_vertical_images(images: list[PILImage.Image], *, max_width_px: int) -> bytes:
+def _compose_vertical_images(
+    images: list[PILImage.Image],
+    *,
+    max_width_px: int,
+    max_height_px: int | None = None,
+) -> bytes:
     if not images:
         raise ValueError("no source images to compose")
     canvas_width = max(image.width for image in images)
@@ -4516,10 +5906,16 @@ def _compose_vertical_images(images: list[PILImage.Image], *, max_width_px: int)
             draw.line((24, divider_y, canvas_width - 24, divider_y), fill="#D9E2F0", width=2)
             cursor_y += gap
 
-    if canvas.width > max_width_px:
+    scale_factor = min(
+        1.0,
+        max_width_px / max(1, canvas.width),
+    )
+    if max_height_px and max_height_px > 0:
+        scale_factor = min(scale_factor, max_height_px / max(1, canvas.height))
+    if scale_factor < 1.0:
         resampling = getattr(getattr(PILImage, "Resampling", PILImage), "LANCZOS")
-        scaled_width = max_width_px
-        scaled_height = max(1, int(canvas.height * (scaled_width / canvas.width)))
+        scaled_width = max(1, int(canvas.width * scale_factor))
+        scaled_height = max(1, int(canvas.height * scale_factor))
         canvas = canvas.resize((scaled_width, scaled_height), resample=resampling)
 
     output = BytesIO()
