@@ -6,7 +6,7 @@ import unittest
 from pathlib import Path
 from unittest.mock import patch
 
-sys.path.insert(0, "/Users/liuchang/Documents/New project/worktrees/_active/extraction-optimization/prototype")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.complex_table_mode import (
     detect_complex_table_zones,
@@ -16,8 +16,18 @@ from app.services.complex_table_mode import (
 from app.services.extraction_preview import build_extraction_preview
 
 
-_UPLOADS_DIR = Path(__file__).resolve().parents[1] / "storage" / "uploads"
-_OIL_PUMP_SAMPLE_PDF = next(iter(sorted(_UPLOADS_DIR.glob("*前后油泵总成*.pdf"))), None)
+_UPLOAD_DIR_CANDIDATES = [
+    Path(__file__).resolve().parents[1] / "storage" / "uploads",
+    Path("/Users/liuchang/Documents/New project/worktrees/_active/extraction-optimization/prototype/storage/uploads"),
+]
+_OIL_PUMP_SAMPLE_PDF = next(
+    (
+        sample
+        for upload_dir in _UPLOAD_DIR_CANDIDATES
+        for sample in sorted(upload_dir.glob("*前后油泵总成*.pdf"))
+    ),
+    None,
+)
 
 
 class ComplexTableModeTests(unittest.TestCase):
@@ -63,9 +73,10 @@ class ComplexTableModeTests(unittest.TestCase):
         self.assertTrue(any(row["entry_id"] == "REQ-P18-LEGIT" for row in rewritten))
         self.assertTrue(any(row["entry_id"] == "REQ-P24-LEGIT" for row in rewritten))
         complex_rows = [row for row in rewritten if bool(row.get("complex_table_mode"))]
-        self.assertEqual(len(complex_rows), 10)
-        self.assertEqual(sum(1 for row in complex_rows if row.get("complex_role") == "zone_summary"), 2)
-        self.assertEqual(sum(1 for row in complex_rows if row.get("complex_role") == "group"), 8)
+        self.assertEqual(len(complex_rows), 2)
+        self.assertTrue(all(row.get("complex_role") == "group" for row in complex_rows))
+        self.assertTrue(all(row.get("complex_split_level") == "zone" for row in complex_rows))
+        self.assertTrue(all(row.get("keep") is True for row in complex_rows))
         self.assertTrue(all(row.get("complex_shadow_signatures") for row in complex_rows))
 
     def test_rewrite_sections_preserves_unrelated_boundary_sections(self) -> None:
@@ -94,7 +105,7 @@ class ComplexTableModeTests(unittest.TestCase):
         rewritten = rewrite_preview_sections_for_complex_tables(sections, zones=zones)
 
         synthetic = [row for row in rewritten if row.get("complex_table_mode")]
-        self.assertEqual(len(synthetic), 2)
+        self.assertEqual(len(synthetic), 1)
         self.assertTrue(any(row.get("section_code") == "8.1" for row in rewritten))
 
     def test_detects_generic_complex_table_candidates_without_collapse(self) -> None:
@@ -129,8 +140,9 @@ class ComplexTableModeTests(unittest.TestCase):
 
         rows = preview.get("complete_requirement_entries") or []
         complex_rows = [row for row in rows if bool(row.get("complex_table_mode"))]
-        self.assertEqual(sum(1 for row in complex_rows if row.get("complex_role") == "zone_summary"), 2)
-        self.assertEqual(sum(1 for row in complex_rows if row.get("complex_role") == "group"), 8)
+        self.assertEqual(len(complex_rows), 2)
+        self.assertTrue(all(row.get("complex_role") == "group" for row in complex_rows))
+        self.assertTrue(all(row.get("complex_split_level") == "zone" for row in complex_rows))
         self.assertTrue(
             all(
                 bool(row.get("complex_table_mode"))
@@ -139,14 +151,13 @@ class ComplexTableModeTests(unittest.TestCase):
             )
         )
 
-        group_rows = [row for row in complex_rows if row.get("complex_role") == "group"]
-        self.assertTrue(all(row.get("keep") is True for row in group_rows))
+        self.assertTrue(all(row.get("keep") is True for row in complex_rows))
         self.assertTrue(
             all(
                 (row.get("table_refs") or [{}])[0].get("export_variant") == "source"
                 and (row.get("table_refs") or [{}])[0].get("recommended_export_variant") == "source"
                 and bool((row.get("table_refs") or [{}])[0].get("export_variant_locked"))
-                for row in group_rows
+                for row in complex_rows
             )
         )
 
