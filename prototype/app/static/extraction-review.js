@@ -21,6 +21,7 @@ const state = {
   pdfDrawerOpen: false,
   tableViewByTableId: {},
 };
+const WORKSPACE_SELECTION_KEY = "reqpilotx.workspace-selection-v1";
 const FRONTEND_BUILD = "20260310-2";
 const PDF_VIEWER_VERSION = "20260310-2";
 
@@ -59,10 +60,38 @@ boot().catch((error) => {
 });
 
 async function boot() {
+  restoreWorkspaceSelection();
   bindEvents();
   syncPdfDrawerState();
   resetPdfViewer("点击左侧条目后，这里会跳转到对应页。");
   await loadProjects();
+}
+
+function restoreWorkspaceSelection() {
+  try {
+    const payload = JSON.parse(window.localStorage.getItem(WORKSPACE_SELECTION_KEY) || "{}");
+    if (payload && typeof payload === "object") {
+      state.projectId = payload.projectId || "";
+      state.documentId = payload.documentId || "";
+    }
+  } catch (_error) {
+    state.projectId = state.projectId || "";
+    state.documentId = state.documentId || "";
+  }
+}
+
+function persistWorkspaceSelection() {
+  try {
+    window.localStorage.setItem(
+      WORKSPACE_SELECTION_KEY,
+      JSON.stringify({
+        projectId: state.projectId || "",
+        documentId: state.documentId || "",
+      })
+    );
+  } catch (_error) {
+    // Best effort only.
+  }
 }
 
 function bindEvents() {
@@ -165,6 +194,7 @@ async function onProjectChanged() {
   state.workspace = null;
   state.preview = null;
   state.tableViewByTableId = {};
+  persistWorkspaceSelection();
   await loadDocuments();
   clearRendered();
 }
@@ -173,6 +203,7 @@ function onDocumentChanged() {
   state.documentId = el.documentSelect.value;
   state.preview = null;
   state.tableViewByTableId = {};
+  persistWorkspaceSelection();
   clearRendered();
 }
 
@@ -225,6 +256,7 @@ function renderProjectOptions() {
   if (!state.projectId && state.projects.length) {
     state.projectId = state.projects[0].id;
     el.projectSelect.value = state.projectId;
+    persistWorkspaceSelection();
   }
 }
 
@@ -262,6 +294,7 @@ function renderDocumentOptions() {
     state.documentId = state.documents[0].id;
     el.documentSelect.value = state.documentId;
   }
+  persistWorkspaceSelection();
 }
 
 function clearRendered() {
@@ -1734,13 +1767,13 @@ function renderRequirementContent(row) {
       if (kind !== "table") {
         return "";
       }
-      return renderTableRef(tableRefs.get(String(block?.table_id || "")));
+      return renderTableRef(tableRefs.get(String(block?.table_id || "")), row);
     })
     .filter(Boolean);
   return rendered.join("") || renderRichRequirementText(row?.raw_text || row?.display_text || row?.requirement_text || "");
 }
 
-function renderTableRef(ref) {
+function renderTableRef(ref, row = null) {
   if (!ref) {
     return "";
   }
@@ -1752,11 +1785,11 @@ function renderTableRef(ref) {
     String(ref.slice_render_mode || "") === "structured" && headers.length ? "结构化切片" : "切片快照";
   let content = "";
   if (variant === "source" && ref.source_snapshot_url) {
-    content = renderTableSnapshot(ref.source_snapshot_url, "source table snapshot");
+    content = renderTableSnapshot(ref, row, ref.source_snapshot_url, "source table snapshot");
   } else if (String(ref.slice_render_mode || "") === "structured" && headers.length) {
     content = renderStructuredTable(headers, rows);
   } else if (ref.slice_snapshot_url) {
-    content = renderTableSnapshot(ref.slice_snapshot_url, "table snapshot");
+    content = renderTableSnapshot(ref, row, ref.slice_snapshot_url, "table snapshot");
   } else {
     content = `<div class="md-text-block">${escapeHtml(String(ref.slice_ai_projection || "")).replaceAll("\n", "<br>")}</div>`;
   }
@@ -1767,7 +1800,7 @@ function renderTableRef(ref) {
   return `
     <div class="table-asset-switcher" data-table-id="${escapeHtml(tableId)}">
       <div class="table-view-toolbar">
-        <span class="table-view-label">导出内容</span>
+        <span class="table-view-label">查看内容</span>
         ${locked ? '<span class="table-view-lock">原文锁定</span>' : ""}
         <button type="button" class="table-view-btn${variant === "slice" ? " is-active" : ""}" data-table-id="${escapeHtml(
           tableId
@@ -1798,6 +1831,9 @@ function activeTableVariant(ref) {
   }
   const dbVariant = String(ref?.export_variant || "").trim().toLowerCase();
   if (dbVariant === "source" || dbVariant === "slice") {
+    if (ref?.source_snapshot_url) {
+      return "source";
+    }
     if (dbVariant === "source" && !ref?.source_snapshot_url) {
       return "slice";
     }
@@ -1806,10 +1842,19 @@ function activeTableVariant(ref) {
   return ref?.source_snapshot_url ? "source" : "slice";
 }
 
-function renderTableSnapshot(url, altText) {
-  return `<div class="asset-snapshot-wrap"><img class="asset-snapshot" src="${escapeHtml(
+function isComplexFullPageSpanSnapshot(ref, row) {
+  const refMode = String(ref?.complex_snapshot_mode || "").trim().toLowerCase();
+  const rowMode = String(row?.complex_snapshot_mode || "").trim().toLowerCase();
+  return Boolean(ref?.complex_table_mode || row?.complex_table_mode) && (refMode === "full_page_span" || rowMode === "full_page_span");
+}
+
+function renderTableSnapshot(ref, row, url, altText) {
+  const fullSpan = isComplexFullPageSpanSnapshot(ref, row);
+  const wrapClass = `asset-snapshot-wrap${fullSpan ? " asset-snapshot-wrap-complex-full-span" : ""}`;
+  const imageClass = `asset-snapshot${fullSpan ? " asset-snapshot-complex-full-span" : ""}`;
+  return `<div class="${wrapClass}"><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><img class="${imageClass}" src="${escapeHtml(
     url
-  )}" alt="${escapeHtml(altText)}" loading="lazy" /></div>`;
+  )}" alt="${escapeHtml(altText)}" loading="lazy" /></a></div>`;
 }
 
 function renderStructuredTable(headers, rows) {

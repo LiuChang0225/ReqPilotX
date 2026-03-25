@@ -505,10 +505,26 @@ table {
   background: #fff;
 }
 
+.req-text .asset-snapshot-wrap-complex-full-span {
+  overflow: hidden;
+}
+
 .req-text .asset-snapshot {
   display: block;
   width: 100%;
   height: auto;
+}
+
+.req-text .asset-snapshot-wrap-complex-full-span > a {
+  display: block;
+  width: 100%;
+  min-width: 0;
+}
+
+.req-text .asset-snapshot-complex-full-span {
+  width: 100%;
+  max-width: 100%;
+  min-width: 0;
 }
 
 .req-text .table-asset-switcher {

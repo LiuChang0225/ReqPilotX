@@ -1,8 +1,9 @@
 import sys
 import unittest
+from pathlib import Path
 
 
-sys.path.insert(0, "/Users/liuchang/Documents/New project/worktrees/_active/extraction-optimization/prototype")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.extractor import (
     _build_line_entries,
@@ -677,6 +678,14 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         self.assertEqual(_extract_section_code(anchor), "8.1.2")
         self.assertEqual(_extract_section_title(anchor), "产品各方向解耦率及各向频率应满足下表的要求")
 
+    def test_top_level_ordered_clause_anchor_keeps_parent_section_context(self) -> None:
+        anchor = (
+            "Page 10 | Clause 9）技术标书及交流过程中只接受简体中文文件，防止分歧。 "
+            "| Section 6 投标说明"
+        )
+        self.assertEqual(_extract_section_code(anchor), "6")
+        self.assertEqual(_extract_section_title(anchor), "投标说明")
+
     def test_multiline_clause_requirement_uses_first_line_clause_code_in_preview_row(self) -> None:
         anchor = (
             "Page 7 | Clause 8.1.2）产品各方向解耦率及各向频率应满足下表的要求 "
@@ -706,6 +715,32 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         self.assertEqual(rows[0]["section_code"], "8.1.2")
         self.assertEqual(rows[0]["section_key"], "8.1.2")
         self.assertTrue(rows[0]["section_title"].startswith("产品各方向解耦率及各向频率应满足下表的要求"))
+
+    def test_preview_rows_keep_parent_section_for_top_level_ordered_item(self) -> None:
+        anchor = (
+            "Page 10 | Clause 10）商务报价应至少包含设计开发费用、模具夹具检具治具费用。 "
+            "| Section 6 投标说明"
+        )
+        rows = _split_requirement_preview_rows(
+            item={
+                "req_code": "REQ-0104",
+                "source_anchor": anchor,
+                "requirement_type": "",
+                "priority": "",
+                "source_line_index": 0,
+                "source_line_index_end": 0,
+            },
+            source_page=10,
+            source_page_end=10,
+            appendix_scope="",
+            section_code=_extract_section_code(anchor),
+            section_title_hint=_extract_section_title(anchor),
+            text="10）商务报价应至少包含设计开发费用、模具夹具检具治具费用。",
+            req_order_start=103,
+        )
+        self.assertEqual(rows[0]["section_code"], "6")
+        self.assertEqual(rows[0]["section_title"], "投标说明")
+        self.assertEqual(rows[0]["section_key"], "6")
 
     def test_attachment_directory_heading_is_preserved_as_main_body_section(self) -> None:
         header = _parse_section_header("7、附件目录")

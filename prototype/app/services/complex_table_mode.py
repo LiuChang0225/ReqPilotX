@@ -557,51 +557,99 @@ def _rewrite_match_index_map(plans: dict[str, dict[str, Any]]) -> dict[int, str]
 
 
 def _build_zone_preview_rows(zone: dict[str, Any], *, shadow_signatures: list[str] | None = None) -> list[dict[str, Any]]:
-    rows = [_build_zone_summary_row(zone, shadow_signatures=shadow_signatures)]
-    groups = sorted(zone.get("groups") or [], key=lambda item: int(item.get("sort_order") or 0))
-    for group in groups:
-        rows.append(_build_zone_group_row(zone, group, shadow_signatures=shadow_signatures))
-    return rows
+    return [_build_zone_primary_row(zone, shadow_signatures=shadow_signatures)]
 
 
 def _build_zone_section_rows(zone: dict[str, Any]) -> list[dict[str, Any]]:
     rows: list[dict[str, Any]] = []
     scope = "CX"
-    groups = sorted(zone.get("groups") or [], key=lambda item: int(item.get("sort_order") or 0))
-    for group in groups:
-        section_code = str(group.get("section_code") or "").strip()
-        section_title = str(group.get("section_title") or group.get("label") or "").strip()
-        section_key = f"{scope}:{_slug(str(zone.get('zone_id') or 'zone'))}:{_slug(section_code or section_title)}"
-        rows.append(
-            {
-                "appendix_scope": scope,
-                "section_code": section_code,
-                "section_key": section_key,
-                "section_instance_key": section_key,
-                "section_title": section_title,
-                "section_level": 1,
-                "parent_section_code": "",
-                "has_children": False,
-                "is_leaf": True,
-                "source_page_start": _positive_int(group.get("page_start")),
-                "source_page_end": _positive_int(group.get("page_end")) or _positive_int(group.get("page_start")),
-                "source_line_index_start": 0,
-                "source_line_index_end": 0,
-                "line_count": 0,
-                "section_char_count": len(section_title),
-                "requirement_like": True,
-                "is_appendix_marker": False,
-                "requirement_count": 1,
-                "total_chars": len(section_title),
-                "text_preview": section_title,
-                "first_req_order": int(group.get("sort_order") or 0),
-                "outline_order": None,
-                "complex_table_mode": True,
-                "complex_zone_id": str(zone.get("zone_id") or ""),
-                "complex_family": str(zone.get("family") or ""),
-            }
-        )
+    section_title = str(zone.get("review_title") or "").strip() or "复杂跨页表"
+    section_key = f"{scope}:{_slug(str(zone.get('zone_id') or 'zone'))}:zone"
+    rows.append(
+        {
+            "appendix_scope": scope,
+            "section_code": "",
+            "section_key": section_key,
+            "section_instance_key": section_key,
+            "section_title": section_title,
+            "section_level": 1,
+            "parent_section_code": "",
+            "has_children": False,
+            "is_leaf": True,
+            "source_page_start": _positive_int(zone.get("page_start")),
+            "source_page_end": _positive_int(zone.get("page_end")) or _positive_int(zone.get("page_start")),
+            "source_line_index_start": 0,
+            "source_line_index_end": 0,
+            "line_count": 0,
+            "section_char_count": len(section_title),
+            "requirement_like": True,
+            "is_appendix_marker": False,
+            "requirement_count": 1,
+            "total_chars": len(section_title),
+            "text_preview": section_title,
+            "first_req_order": 0,
+            "outline_order": None,
+            "complex_table_mode": True,
+            "complex_zone_id": str(zone.get("zone_id") or ""),
+            "complex_family": str(zone.get("family") or ""),
+        }
+    )
     return rows
+
+
+def _build_zone_primary_row(zone: dict[str, Any], *, shadow_signatures: list[str] | None = None) -> dict[str, Any]:
+    review_title = str(zone.get("review_title") or "").strip() or "复杂跨页表"
+    zone_id = str(zone.get("zone_id") or "")
+    page_start = _positive_int(zone.get("page_start"))
+    page_end = _positive_int(zone.get("page_end")) or page_start
+    text = f"{review_title}\n复杂跨页表默认保留整表原图，不再自动拆分分组，请结合原文截图人工处理。"
+    section_key = f"CX:{_slug(zone_id)}:zone"
+    return {
+        "entry_id": f"REQ-CX-{_slug(zone_id)}",
+        "req_code": f"REQ-CX-{_slug(zone_id)}",
+        "entry_kind": "REQUIREMENT",
+        "appendix_scope": "CX",
+        "section_code": "",
+        "section_key": section_key,
+        "section_instance_key": section_key,
+        "section_level": 1,
+        "parent_section_code": "",
+        "parent_section_title": review_title,
+        "parent_section_label": review_title,
+        "source_page": page_start,
+        "source_page_end": page_end,
+        "source_line_index": 0,
+        "source_line_index_end": 0,
+        "source_anchor": f"Complex Table Zone {zone_id}",
+        "section_title": review_title,
+        "requirement_type": "OTHER",
+        "priority": "MEDIUM",
+        "text_length": len(text),
+        "requirement_text": text,
+        "display_text": text,
+        "raw_text": text,
+        "heading_text": "",
+        "text_relation": "distinct",
+        "is_deduped": False,
+        "merged_from_entry_ids": [f"REQ-CX-{_slug(zone_id)}"],
+        "merged_from_req_codes": [f"REQ-CX-{_slug(zone_id)}"],
+        "dedupe_version": "heading_requirement_v1",
+        "is_appendix_marker": False,
+        "is_synthetic_heading": False,
+        "keep": True,
+        "complex_table_mode": True,
+        "complex_zone_id": zone_id,
+        "complex_family": str(zone.get("family") or ""),
+        "complex_role": "group",
+        "complex_group_label": review_title,
+        "complex_split_level": "zone",
+        "complex_warnings": _normalize_string_list(zone.get("warnings")),
+        "complex_row_policy": "exportable_group",
+        "complex_snapshot_mode": "full_page_span",
+        "complex_snapshot_title": review_title,
+        "complex_after_label_hint": "",
+        "complex_shadow_signatures": _normalize_string_list(shadow_signatures),
+    }
 
 
 def _build_zone_summary_row(zone: dict[str, Any], *, shadow_signatures: list[str] | None = None) -> dict[str, Any]:

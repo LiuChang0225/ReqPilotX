@@ -6,7 +6,7 @@ from pathlib import Path
 from unittest.mock import patch
 from PIL import Image as PILImage
 
-sys.path.insert(0, "/Users/liuchang/Documents/New project/worktrees/_active/extraction-optimization/prototype")
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services import table_assets as ta
 from app.services.table_assets import _extract_structured_table
@@ -31,8 +31,18 @@ from app.services.table_assets import enrich_entry_with_table_assets
 from app.services.table_assets import enrich_entries_with_table_assets
 from app.services.table_assets import render_text_snapshot_png
 
-_UPLOADS_DIR = Path(__file__).resolve().parents[1] / "storage" / "uploads"
-_OIL_PUMP_SAMPLE_PDF = next(iter(sorted(_UPLOADS_DIR.glob("*前后油泵总成*.pdf"))), None)
+_UPLOAD_DIR_CANDIDATES = [
+    Path(__file__).resolve().parents[1] / "storage" / "uploads",
+    Path("/Users/liuchang/Documents/New project/worktrees/_active/extraction-optimization/prototype/storage/uploads"),
+]
+_OIL_PUMP_SAMPLE_PDF = next(
+    (
+        sample
+        for upload_dir in _UPLOAD_DIR_CANDIDATES
+        for sample in sorted(upload_dir.glob("*前后油泵总成*.pdf"))
+    ),
+    None,
+)
 
 
 class TableAssetsParsingTest(unittest.TestCase):
@@ -43,6 +53,28 @@ class TableAssetsParsingTest(unittest.TestCase):
         self.assertEqual(mode, "snapshot_only")
         self.assertEqual(headers, [])
         self.assertEqual(rows, [])
+
+    def test_sparse_group_matrix_rows_preserve_full_column_layout(self) -> None:
+        text = "\n".join(
+            [
+                "|测试项目 / Test Item|测试分组 / Test Groups（推荐）|Col3|Col4|Col5|Col6|Col7|Col8|Col9|Col10|Col11|Col12|Col13|Col14|Col15|Col16|Col17|",
+                "|测试项目 / Test Item|组 1|组 2|组 3|组 4|组 5|组 6|组 7|组 8|组 9|组 10|组 11|组 12|组 13|组 14|组 15|组 16|",
+                "|测试项目 / Test Item|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|测试顺序 / Test Sequence|",
+                "|样品预处理 / Sample Pre-Treatment|1|1|1|1|1|1|1|1|1|1|1|1|1|1|1|1|",
+                "|外观及尺寸 / Visual Inspection and Dimension|2,4|2,5|2,4|2,4|2,4|2,4|||2,10|2,9|2,9|2,8|2,15|2,15|2,6|2|",
+            ]
+        )
+        blocks = _split_text_blocks(text)
+        self.assertEqual(len(blocks), 1)
+        self.assertEqual(blocks[0]["kind"], "table")
+        headers, rows, mode = _extract_structured_table(blocks[0].get("lines") or [])
+        self.assertEqual(mode, "structured")
+        self.assertEqual(len(headers), 17)
+        self.assertEqual(len(rows), 4)
+        self.assertEqual(len(rows[0]), 17)
+        self.assertEqual(rows[3][7], "")
+        self.assertEqual(rows[3][8], "")
+        self.assertEqual(rows[3][9], "2,10")
 
     def test_explicit_bom_header_and_bridge_lines_form_single_table(self) -> None:
         text = "\n".join(
@@ -289,6 +321,86 @@ class TableAssetsParsingTest(unittest.TestCase):
         with PILImage.open(BytesIO(rendered)) as image:
             self.assertEqual(image.size, (709, 1480))
 
+    def test_build_pdf_crop_plan_can_keep_full_band_without_next_clause_stop(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _TableResult:
+            tables: list[object] = []
+
+        class _Page:
+            rect = _Rect()
+
+            def find_tables(self):
+                return _TableResult()
+
+            def get_text(self, mode: str) -> dict:
+                if mode != "dict":
+                    raise AssertionError(mode)
+                return {
+                    "blocks": [
+                        {
+                            "type": 0,
+                            "lines": [
+                                {"bbox": (55.0, 100.0, 180.0, 110.0), "spans": [{"text": "1 总体要求"}]},
+                                {"bbox": (70.0, 132.0, 520.0, 150.0), "spans": [{"text": "band row 1"}]},
+                                {"bbox": (70.0, 362.0, 520.0, 408.0), "spans": [{"text": "band row 2"}]},
+                                {"bbox": (55.0, 500.0, 210.0, 510.0), "spans": [{"text": "2 概念设计"}]},
+                            ],
+                        }
+                    ]
+                }
+
+            def get_drawings(self) -> list[dict]:
+                return []
+
+        class _Document:
+            def load_page(self, page_index: int):
+                if page_index != 0:
+                    raise AssertionError(page_index)
+                return _Page()
+
+        document = _Document()
+        start_anchor = {"page_index": 0, "bbox": (55.0, 100.0, 180.0, 110.0), "text": "1 总体要求"}
+        end_anchor = {"page_index": 0, "bbox": (55.0, 500.0, 210.0, 510.0), "text": "2 概念设计"}
+
+        with patch(
+            "app.services.table_assets._find_next_local_clause_anchor",
+            return_value={"page_index": 0, "bbox": (70.0, 160.0, 220.0, 170.0), "text": "供应商网络安全能力证明"},
+        ):
+            truncated_plan = _build_pdf_crop_plan(
+                document,
+                source_key="sample",
+                page_indices=[0],
+                match_fragments=[],
+                headers=[],
+                slice_rows=[],
+                start_anchor=start_anchor,
+                end_anchor=end_anchor,
+                detection_cache={},
+                source_page_floor_offsets={},
+                prefer_anchor_window=True,
+                allow_next_clause_stop=True,
+            )
+            band_plan = _build_pdf_crop_plan(
+                document,
+                source_key="sample",
+                page_indices=[0],
+                match_fragments=[],
+                headers=[],
+                slice_rows=[],
+                start_anchor=start_anchor,
+                end_anchor=end_anchor,
+                detection_cache={},
+                source_page_floor_offsets={},
+                prefer_anchor_window=True,
+                allow_next_clause_stop=False,
+            )
+
+        self.assertLess(truncated_plan[0][1][3], 180.0)
+        self.assertGreater(band_plan[0][1][3], 400.0)
+
     def test_short_table_with_meaningful_context_prefers_clause_window(self) -> None:
         self.assertTrue(
             ta._should_prefer_source_clause_window(
@@ -314,6 +426,24 @@ class TableAssetsParsingTest(unittest.TestCase):
                 source_page=13,
                 source_page_end=13,
                 notes=[],
+            )
+        )
+
+    def test_cross_page_numbered_section_table_does_not_prefer_clause_window(self) -> None:
+        self.assertFalse(
+            ta._should_prefer_source_clause_window(
+                table_title="15 高温寿命(仅防水件) High Temperature Exposure",
+                render_mode="structured",
+                headers=["15", "高温寿命(仅防水件) High Temperature Exposure", "外观 Visual Inspection"],
+                rows=[
+                    ["15", "高温寿命(仅防水件) High Temperature Exposure", "连接器或端子插拔 Connector and/or Terminal Cycling"],
+                    ["15", "高温寿命(仅防水件) High Temperature Exposure", "绝缘电阻 Insulation Resistance"],
+                    ["15", "高温寿命(仅防水件) High Temperature Exposure", "气密性 Pressure Leakage"],
+                ],
+                source_page=33,
+                source_page_end=34,
+                notes=["15 高温寿命(仅防水件) High Temperature Exposure"],
+                trailing_context_text="盐雾试验 Salt Spray Test",
             )
         )
 
@@ -361,6 +491,26 @@ class TableAssetsParsingTest(unittest.TestCase):
                 ],
                 source_page=11,
                 source_page_end=11,
+                notes=[],
+            )
+        )
+
+    def test_numbered_outline_slice_does_not_retry_into_clause_window(self) -> None:
+        image = PILImage.new("RGB", (920, 140), "white")
+        output = BytesIO()
+        image.save(output, format="PNG")
+        rendered = output.getvalue()
+
+        self.assertFalse(
+            ta._should_retry_source_snapshot_with_clause_window(
+                rendered=rendered,
+                render_meta={"page_span_count": 1},
+                table_title="4 对插到位声响 Connector to Connector Audible Click",
+                headers=["序号", "测试项目", "测试顺序", "性能要求", "阶段", "样本量"],
+                rows=[
+                    ["4", "对插到位声响", "外观", "无外观损伤", "PV", "16"],
+                    ["4", "对插到位声响", "对插到位声响", "50dB 环境声音下", "PV", "16"],
+                ],
                 notes=[],
             )
         )
@@ -810,7 +960,70 @@ class TableAssetsParsingTest(unittest.TestCase):
         )
         self.assertEqual(bbox[3], 184.0)
 
-    def test_compose_page_crop_bbox_allows_end_anchor_to_trim_single_row_table_tail(self) -> None:
+    def test_compose_page_crop_bbox_ignores_row_slice_that_starts_far_above_strong_anchor(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _Page:
+            rect = _Rect()
+
+        bbox = _compose_page_crop_bbox(
+            _Page(),
+            chosen={
+                "bbox": (42.24, 60.12, 545.46, 777.80),
+                "rows_text": [
+                    ["序号", "项目", "要求"],
+                    ["1", "低温存储", "/"],
+                    ["2", "高温存储", "/"],
+                ],
+                "row_bboxes": [
+                    (42.24, 72.12, 545.46, 120.00),
+                    (42.24, 120.00, 545.46, 220.00),
+                    (42.24, 220.00, 545.46, 499.80),
+                ],
+            },
+            start_anchor={"bbox": (55.2, 500.0, 254.6, 507.6), "text": "2.主要设计和验证要求"},
+            end_anchor={"bbox": (55.2, 703.0, 196.7, 711.8), "text": "3.样件数量要求："},
+            headers=["序号", "项目", "要求"],
+            slice_rows=[
+                ["1", "低温存储", "/"],
+                ["2", "高温存储", "/"],
+            ],
+        )
+        self.assertGreaterEqual(bbox[1], 488.0)
+
+    def test_compose_page_crop_bbox_allows_end_anchor_to_trim_clean_single_row_table_tail(self) -> None:
+        class _Rect:
+            width = 400.0
+            height = 500.0
+
+        class _Page:
+            rect = _Rect()
+
+        bbox = _compose_page_crop_bbox(
+            _Page(),
+            chosen={
+                "bbox": (10.0, 10.0, 300.0, 400.0),
+                "rows_text": [
+                    ["3.1 车型信息"],
+                    ["项目代号", "车型代号", "手工件到样时间"],
+                    ["X2548/X2549", "X8D11/X8D01", "2026.03.30"],
+                ],
+                "row_bboxes": [
+                    (10.0, 80.0, 300.0, 100.0),
+                    (10.0, 100.0, 300.0, 120.0),
+                    (10.0, 120.0, 300.0, 180.0),
+                ],
+            },
+            start_anchor={"bbox": (12.0, 118.0, 280.0, 128.0), "text": "3.1 车型信息"},
+            end_anchor={"bbox": (12.0, 170.0, 280.0, 182.0), "text": "3.2 产品技术要求及说明"},
+            headers=["项目代号", "车型代号", "手工件到样时间"],
+            slice_rows=[["X2548/X2549", "X8D11/X8D01", "2026.03.30"]],
+        )
+        self.assertLess(bbox[3], 160.0)
+
+    def test_compose_page_crop_bbox_ignores_contaminated_single_row_slice_when_next_heading_leaks_into_row(self) -> None:
         class _Rect:
             width = 400.0
             height = 500.0
@@ -836,9 +1049,10 @@ class TableAssetsParsingTest(unittest.TestCase):
             start_anchor={"bbox": (12.0, 118.0, 280.0, 128.0), "text": "3.1 车型信息"},
             end_anchor={"bbox": (12.0, 170.0, 280.0, 182.0), "text": "3.2 产品技术要求及说明"},
             headers=["项目代号", "车型代号", "手工件到样时间"],
-            slice_rows=[["X2548/X2549", "X8D11/X8D01", "2026.03.30"]],
+            slice_rows=[["X2548/X2549 3.2 产品技术要求及说明 3.2.1 产品信息", "X8D11/X8D01", "2026.03.30"]],
         )
-        self.assertLess(bbox[3], 160.0)
+        self.assertEqual(bbox[1], 112.0)
+        self.assertEqual(bbox[3], 408.0)
 
     def test_compose_page_crop_bbox_ignores_stale_page_floor_when_anchor_starts_above_it(self) -> None:
         class _Rect:
@@ -1157,6 +1371,85 @@ class TableAssetsParsingTest(unittest.TestCase):
         )
         self.assertEqual(anchor, {"page_index": 0, "bbox": (51.2, 521.7, 110.8, 530.6), "score": 1, "text": "7.3）机械性能要求"})
 
+    def test_find_next_local_clause_anchor_ignores_sentence_with_attachment_keyword(self) -> None:
+        class _Document:
+            pass
+
+        source_key = "sample"
+        anchor = _find_next_local_clause_anchor(
+            _Document(),
+            source_key=source_key,
+            page_indices=[0],
+            start_anchor={"page_index": 0, "bbox": (55.6, 449.0, 109.4, 458.6), "text": "2.1 特殊特性清单"},
+            detection_cache={
+                (source_key, 0): [
+                    {"text": "2.1 特殊特性清单", "norm": "21特殊特性清单", "bbox": (55.6, 449.0, 109.4, 458.6)},
+                    {"text": "本清单中特殊特性是我司基于风险分析的结果，必要时供应商可提供特性的稳健可靠的证据或数据", "norm": "本清单中特殊特性是我司基于风险分析的结果必要时供应商可提供特性的稳健可靠的证据或数据", "bbox": (55.6, 467.5, 429.9, 474.7)},
+                    {"text": "2.2 特殊特性分类与标识", "norm": "22特殊特性分类与标识", "bbox": (55.6, 549.3, 131.0, 559.0)},
+                ]
+            },
+        )
+        self.assertEqual(anchor, {"page_index": 0, "bbox": (55.6, 549.3, 131.0, 559.0), "score": 1, "text": "2.2 特殊特性分类与标识"})
+
+    def test_find_next_local_clause_anchor_ignores_numbered_sentence_inside_table(self) -> None:
+        class _Document:
+            pass
+
+        source_key = "sample"
+        anchor = _find_next_local_clause_anchor(
+            _Document(),
+            source_key=source_key,
+            page_indices=[0],
+            start_anchor={"page_index": 0, "bbox": (223.3, 78.6, 312.2, 93.3), "text": "软件开发要求"},
+            detection_cache={
+                (source_key, 0): [
+                    {"text": "软件开发要求", "norm": "软件开发要求", "bbox": (223.3, 78.6, 312.2, 93.3)},
+                    {
+                        "text": "1. 取得软件认证ASPICE，CMMI(考察项)，或有软件质量体系搭建计划，保障软件开发过程",
+                        "norm": "1取得软件认证aspicecmmi考察项或有软件质量体系搭建计划保障软件开发过程",
+                        "bbox": (155.7, 143.7, 477.6, 151.6),
+                    },
+                    {"text": "软件度量指标", "norm": "软件度量指标", "bbox": (51.2, 690.0, 123.6, 701.4)},
+                ]
+            },
+            table_detection_cache={
+                (source_key, 0): [
+                    {
+                        "bbox": (42.1, 86.1, 494.0, 674.3),
+                        "text": "软件开发要求 full table",
+                        "area": 265764.0,
+                        "rows_text": [],
+                        "row_bboxes": [],
+                    }
+                ]
+            },
+        )
+        self.assertIsNone(anchor)
+
+    def test_dot_style_numbered_sentence_is_not_heading(self) -> None:
+        self.assertFalse(
+            ta._looks_like_local_clause_heading(
+                "1. 取得软件认证ASPICE，CMMI(考察项)，或有软件质量体系搭建计划，保障软件开发过程"
+            )
+        )
+
+    def test_candidate_row_section_number_accepts_optional_label_suffix(self) -> None:
+        self.assertEqual(ta._candidate_row_section_number(["4（可选）", "对插到位声响", "USCAR-2 Rev 6 5.4.7"]), "4")
+
+    def test_best_context_anchor_prefers_left_aligned_heading_when_score_close(self) -> None:
+        candidates = _build_context_anchor_fragments("连接器防错结构 Polarization Feature Effectiveness", from_end=False)
+        anchor = ta._best_context_anchor_in_page(
+            [
+                {"text": "连接器防错结构", "norm": "连接器防错结构", "bbox": (255.3, 320.3, 289.4, 325.2)},
+                {"text": "连接器防错结构", "norm": "连接器防错结构", "bbox": (84.5, 326.3, 118.5, 331.2)},
+                {"text": "Polarization Feature Effectiveness", "norm": "polarizationfeatureeffectiveness", "bbox": (84.5, 332.3, 167.8, 337.2)},
+            ],
+            candidates,
+            min_y=226.6,
+            prefer_last=False,
+        )
+        self.assertEqual(anchor, {"text": "连接器防错结构", "bbox": (84.5, 326.3, 118.5, 331.2), "score": 21})
+
     @unittest.skipIf(_OIL_PUMP_SAMPLE_PDF is None, "oil pump sample pdf not available")
     def test_snapshot_before_heading_anchor_prefers_current_sibling_heading(self) -> None:
         source = _OIL_PUMP_SAMPLE_PDF
@@ -1366,6 +1659,513 @@ class TableAssetsParsingTest(unittest.TestCase):
             prefer_anchor_window=True,
         )
         self.assertEqual(plan, [(0, (39.2, 332.7, 387.8, 519.7))])
+
+    def test_build_pdf_crop_plan_tightens_contaminated_single_row_table_to_anchor_window(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _Page:
+            rect = _Rect()
+
+            def get_text(self, _mode: str) -> dict:
+                return {
+                    "blocks": [
+                        {
+                            "type": 0,
+                            "lines": [
+                                {"spans": [{"text": "3.1 车型信息"}], "bbox": (51.2, 118.0, 115.6, 128.0)},
+                                {"spans": [{"text": "项目代号 车型代号 手工件到样时间"}], "bbox": (51.2, 134.0, 360.0, 144.0)},
+                                {"spans": [{"text": "X2548/X2549 X8D11/X8D01 2026.03.30"}], "bbox": (51.2, 146.0, 360.0, 156.0)},
+                                {"spans": [{"text": "3.2 产品技术要求及说明"}], "bbox": (51.2, 170.0, 190.0, 180.0)},
+                            ],
+                        }
+                    ]
+                }
+
+            def get_drawings(self) -> list[dict]:
+                return []
+
+        class _Document:
+            def load_page(self, _page_index: int) -> _Page:
+                return _Page()
+
+        plan = _build_pdf_crop_plan(
+            _Document(),
+            source_key="sample",
+            page_indices=[0],
+            match_fragments=[("车型信息", 14)],
+            headers=["项目代号", "车型代号", "手工件到样时间"],
+            slice_rows=[["X2548/X2549", "X8D11/X8D01", "2026.03.30"]],
+            start_anchor={"page_index": 0, "bbox": (51.2, 118.0, 115.6, 128.0), "text": "3.1 车型信息"},
+            end_anchor={"page_index": 0, "bbox": (51.2, 170.0, 190.0, 180.0), "text": "3.2 产品技术要求及说明"},
+            detection_cache={
+                ("sample", 0): [
+                    {
+                        "bbox": (10.0, 80.0, 300.0, 400.0),
+                        "text": "车型信息 main table",
+                        "area": 92800.0,
+                        "rows_text": [
+                            ["3.1 车型信息"],
+                            ["项目代号", "车型代号", "手工件到样时间"],
+                            ["X2548/X2549 3.2 产品技术要求及说明", "X8D11/X8D01", "2026.03.30"],
+                        ],
+                        "row_bboxes": [
+                            (10.0, 100.0, 300.0, 120.0),
+                            (10.0, 120.0, 300.0, 140.0),
+                            (10.0, 140.0, 300.0, 180.0),
+                        ],
+                    }
+                ]
+            },
+            source_page_floor_offsets={},
+            prefer_anchor_window=False,
+        )
+
+        self.assertEqual(len(plan), 1)
+        self.assertLess(plan[0][1][3], 170.0)
+        self.assertLessEqual(plan[0][1][1], 118.0)
+
+    def test_build_pdf_crop_plan_ignores_next_entry_anchor_inside_wide_current_table(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _Page:
+            rect = _Rect()
+
+        class _Document:
+            def load_page(self, _page_index: int) -> _Page:
+                return _Page()
+
+        plan = _build_pdf_crop_plan(
+            _Document(),
+            source_key="sample",
+            page_indices=[0],
+            match_fragments=[("测试分组", 18), ("testgroups", 14)],
+            headers=["测试项目", "组1", "组2", "组3", "组4", "组5"],
+            slice_rows=[
+                ["样品预处理", "1", "1", "1", "1", "1"],
+                ["外观及尺寸", "2,4", "2,5", "", "", "2,10"],
+                ["连接器插拔", "", "3", "", "", "3"],
+                ["电路连续性", "", "", "", "", "5"],
+                ["绝缘电阻", "", "", "8", "", ""],
+                ["高压水喷射", "", "", "", "", "13"],
+            ],
+            start_anchor={"page_index": 0, "bbox": (296.8, 75.3, 401.3, 82.1), "text": "测试分组 / Test Groups（推荐）"},
+            end_anchor={"page_index": 0, "bbox": (55.4, 169.2, 143.7, 176.1), "text": "端子至端子的插入力和拔出力"},
+            detection_cache={
+                ("sample", 0): [
+                    {
+                        "bbox": (42.0, 60.0, 548.1, 451.9),
+                        "text": "测试分组 full page",
+                        "area": 198391.0,
+                        "rows_text": [],
+                        "row_bboxes": [],
+                    }
+                ]
+            },
+            source_page_floor_offsets={},
+            prefer_anchor_window=False,
+        )
+        self.assertEqual(len(plan), 1)
+        self.assertGreater(plan[0][1][3], 430.0)
+
+    def test_build_pdf_crop_plan_keeps_large_row_slice_when_inline_numbered_sentence_exists(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _Page:
+            rect = _Rect()
+
+            def get_text(self, _mode: str) -> dict:
+                return {
+                    "blocks": [
+                        {
+                            "type": 0,
+                            "lines": [
+                                {"spans": [{"text": "软件开发要求"}], "bbox": (223.3, 78.6, 312.2, 93.3)},
+                                {
+                                    "spans": [{"text": "1. 组织与甲方公司工程师开展测试用例的评审"}],
+                                    "bbox": (155.7, 290.8, 477.6, 298.7),
+                                },
+                            ],
+                        }
+                    ]
+                }
+
+            def get_drawings(self) -> list[dict]:
+                return []
+
+        class _Document:
+            def load_page(self, _page_index: int) -> _Page:
+                return _Page()
+
+        plan = _build_pdf_crop_plan(
+            _Document(),
+            source_key="sample",
+            page_indices=[0],
+            match_fragments=[("软件开发要求", 14), ("se00001", 8)],
+            headers=["条款编号", "要求项目", "要求描述"],
+            slice_rows=[
+                ["SE00.001", "供应商软件质量资质评估", "1. 取得软件认证ASPICE"],
+                ["SE00.002", "有软件开发流程按照ASPICE管控", "1. 组织与甲方公司工程师开展测试用例的评审"],
+                ["SE00.003", "对阶段软件度量指标管理与评审", "1. 满足质量目标"],
+                ["SE00.004", "测试用例联合评审", "1. 测试用例满足需求"],
+                ["SE00.005", "人力资源评估", "1. 配合开展人力资源满足度评价"],
+                ["SE00.006", "需求计划评审", "1. 根据需求开发规范制定需求管控计划"],
+            ],
+            start_anchor={"page_index": 0, "bbox": (223.3, 78.6, 312.2, 93.3), "text": "软件开发要求"},
+            end_anchor=None,
+            detection_cache={
+                ("sample", 0): [
+                    {
+                        "bbox": (42.1, 86.1, 494.0, 674.3),
+                        "text": "软件开发要求 full table",
+                        "area": 265764.0,
+                        "rows_text": [
+                            ["条款编号", "要求项目", "要求描述"],
+                            ["SE00.001", "供应商软件质量资质评估", "1. 取得软件认证ASPICE"],
+                            ["SE00.002", "有软件开发流程按照ASPICE管控", "1. 组织与甲方公司工程师开展测试用例的评审"],
+                            ["SE00.003", "对阶段软件度量指标管理与评审", "1. 满足质量目标"],
+                            ["SE00.004", "测试用例联合评审", "1. 测试用例满足需求"],
+                            ["SE00.005", "人力资源评估", "1. 配合开展人力资源满足度评价"],
+                            ["SE00.006", "需求计划评审", "1. 根据需求开发规范制定需求管控计划"],
+                        ],
+                        "row_bboxes": [
+                            (42.1, 98.1, 494.0, 140.0),
+                            (42.1, 140.0, 494.0, 220.0),
+                            (42.1, 220.0, 494.0, 300.0),
+                            (42.1, 300.0, 494.0, 380.0),
+                            (42.1, 380.0, 494.0, 460.0),
+                            (42.1, 460.0, 494.0, 540.0),
+                            (42.1, 540.0, 494.0, 662.3),
+                        ],
+                    }
+                ]
+            },
+            source_page_floor_offsets={},
+            prefer_anchor_window=False,
+        )
+
+        self.assertEqual(len(plan), 1)
+        self.assertLessEqual(plan[0][1][1], 100.0)
+        self.assertGreaterEqual(plan[0][1][3], 660.0)
+
+    def test_build_pdf_crop_plan_preserves_numbered_section_row_slice_for_long_table(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _Page:
+            rect = _Rect()
+
+            def get_text(self, _mode: str) -> dict:
+                return {
+                    "blocks": [
+                        {
+                            "type": 0,
+                            "lines": [
+                                {"spans": [{"text": "11 温湿度循环(电性能) Temperature and Humidity Cycling"}], "bbox": (42.0, 72.0, 320.0, 90.0)},
+                                {"spans": [{"text": "连接器或端子插拔 Connector and/or Terminal Cycling"}], "bbox": (160.0, 102.0, 360.0, 116.0)},
+                                {"spans": [{"text": "绝缘电阻 Insulation Resistance"}], "bbox": (160.0, 182.0, 300.0, 196.0)},
+                                {"spans": [{"text": "12 温湿度循环(仅防水件) Temperature and Humidity Cycling"}], "bbox": (42.0, 232.0, 334.0, 250.0)},
+                                {"spans": [{"text": "连接器或端子插拔 Connector and/or Terminal Cycling"}], "bbox": (160.0, 260.0, 360.0, 274.0)},
+                            ],
+                        }
+                    ]
+                }
+
+            def get_drawings(self) -> list[dict]:
+                return []
+
+        class _Document:
+            def load_page(self, _page_index: int) -> _Page:
+                return _Page()
+
+        plan = _build_pdf_crop_plan(
+            _Document(),
+            source_key="sample",
+            page_indices=[0],
+            match_fragments=[("温湿度循环", 18), ("temperatureandhumiditycycling", 12)],
+            headers=["序号", "项目", "测试顺序"],
+            slice_rows=[
+                ["11", "温湿度循环(电性能) Temperature and Humidity Cycling", "连接器或端子插拔 Connector and/or Terminal Cycling"],
+                ["11", "温湿度循环(电性能) Temperature and Humidity Cycling", "绝缘电阻 Insulation Resistance"],
+            ],
+            start_anchor=None,
+            end_anchor=None,
+            detection_cache={
+                ("sample", 0): [
+                    {
+                        "bbox": (42.0, 60.0, 548.0, 780.0),
+                        "text": "trial outline long table",
+                        "area": 364320.0,
+                        "rows_text": [
+                            ["11", "温湿度循环(电性能) Temperature and Humidity Cycling", "外观 Visual Inspection"],
+                            [None, None, "连接器或端子插拔 Connector and/or Terminal Cycling"],
+                            [None, None, "绝缘电阻 Insulation Resistance"],
+                            ["12", "温湿度循环(仅防水件) Temperature and Humidity Cycling", "外观 Visual Inspection"],
+                            [None, None, "连接器或端子插拔 Connector and/or Terminal Cycling"],
+                        ],
+                        "row_bboxes": [
+                            (42.0, 70.0, 548.0, 110.0),
+                            (42.0, 110.0, 548.0, 180.0),
+                            (42.0, 180.0, 548.0, 240.0),
+                            (42.0, 240.0, 548.0, 320.0),
+                            (42.0, 320.0, 548.0, 380.0),
+                        ],
+                    }
+                ]
+            },
+            source_page_floor_offsets={},
+            line_detection_cache={},
+            prefer_anchor_window=False,
+        )
+
+        self.assertEqual(len(plan), 1)
+        self.assertGreaterEqual(plan[0][1][1], 109.0)
+        self.assertLessEqual(plan[0][1][1], 111.0)
+        self.assertGreaterEqual(plan[0][1][3], 239.0)
+        self.assertLessEqual(plan[0][1][3], 241.0)
+
+    def test_build_pdf_crop_plan_preserves_second_numbered_section_row_slice_for_long_table(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _Page:
+            rect = _Rect()
+
+            def get_text(self, _mode: str) -> dict:
+                return {
+                    "blocks": [
+                        {
+                            "type": 0,
+                            "lines": [
+                                {"spans": [{"text": "11 温湿度循环(电性能) Temperature and Humidity Cycling"}], "bbox": (42.0, 72.0, 320.0, 90.0)},
+                                {"spans": [{"text": "12 温湿度循环(仅防水件) Temperature and Humidity Cycling"}], "bbox": (42.0, 232.0, 334.0, 250.0)},
+                            ],
+                        }
+                    ]
+                }
+
+            def get_drawings(self) -> list[dict]:
+                return []
+
+        class _Document:
+            def load_page(self, _page_index: int) -> _Page:
+                return _Page()
+
+        plan = _build_pdf_crop_plan(
+            _Document(),
+            source_key="sample",
+            page_indices=[0],
+            match_fragments=[("温湿度循环", 18), ("temperatureandhumiditycycling", 12)],
+            headers=["序号", "项目", "测试顺序"],
+            slice_rows=[
+                ["12", "温湿度循环(仅防水件) Temperature and Humidity Cycling", "连接器或端子插拔 Connector and/or Terminal Cycling"],
+                ["12", "温湿度循环(仅防水件) Temperature and Humidity Cycling", "绝缘电阻 Insulation Resistance"],
+            ],
+            start_anchor=None,
+            end_anchor=None,
+            detection_cache={
+                ("sample", 0): [
+                    {
+                        "bbox": (42.0, 60.0, 548.0, 780.0),
+                        "text": "trial outline long table",
+                        "area": 364320.0,
+                        "rows_text": [
+                            ["11", "温湿度循环(电性能) Temperature and Humidity Cycling", "外观 Visual Inspection"],
+                            [None, None, "连接器或端子插拔 Connector and/or Terminal Cycling"],
+                            [None, None, "绝缘电阻 Insulation Resistance"],
+                            ["12", "温湿度循环(仅防水件) Temperature and Humidity Cycling", "外观 Visual Inspection"],
+                            [None, None, "连接器或端子插拔 Connector and/or Terminal Cycling"],
+                            [None, None, "绝缘电阻 Insulation Resistance"],
+                        ],
+                        "row_bboxes": [
+                            (42.0, 70.0, 548.0, 110.0),
+                            (42.0, 110.0, 548.0, 180.0),
+                            (42.0, 180.0, 548.0, 240.0),
+                            (42.0, 240.0, 548.0, 320.0),
+                            (42.0, 320.0, 548.0, 380.0),
+                            (42.0, 380.0, 548.0, 440.0),
+                        ],
+                    }
+                ]
+            },
+            source_page_floor_offsets={},
+            line_detection_cache={},
+            prefer_anchor_window=False,
+        )
+
+        self.assertEqual(len(plan), 1)
+        self.assertGreaterEqual(plan[0][1][1], 319.0)
+        self.assertLessEqual(plan[0][1][1], 321.0)
+        self.assertGreaterEqual(plan[0][1][3], 439.0)
+        self.assertLessEqual(plan[0][1][3], 441.0)
+
+    def test_match_row_slice_bbox_prefers_continuation_segment_before_next_numbered_section(self) -> None:
+        candidate = {
+            "bbox": (42.0, 60.0, 548.0, 572.0),
+            "rows_text": [
+                [None, None, "高压水喷射 / High Pressure Spray", "USCAR-2 Rev 6 5.6.7", "测试说明", "测试条件", "PV", "10", "C Sample"],
+                [None, None, "绝缘电阻 Insulation Resistance", "USCAR-2 Rev 6 5.5.1", "端子与端子之间", "环境前后", "PV", "10", "C Sample"],
+                [None, None, "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤,产品无进水", "PV", "10", "C Sample"],
+                ["16", "盐雾试验 Salt Spray Test", "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤", "PV", "5", "C Sample"],
+                [None, None, "连接器或端子插拔 Connector and/or Terminal Cycling", "USCAR-2 Rev 6 5.1.7", "10次插拔", "连接器无变形", "PV", "5", "C Sample"],
+                ["17", "耐化学试液（仅防水件） Fluid Resistance", "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤", "PV", "13", "C Sample"],
+            ],
+            "row_bboxes": [
+                (54.0, 72.0, 536.0, 140.0),
+                (254.0, 140.0, 536.0, 174.0),
+                (254.0, 174.0, 536.0, 192.0),
+                (54.0, 192.0, 536.0, 364.0),
+                (254.0, 210.0, 536.0, 244.0),
+                (54.0, 364.0, 536.0, 560.0),
+            ],
+        }
+
+        bbox = ta._match_row_slice_bbox(
+            candidate,
+            headers=["15", "高温寿命(仅防水件) High Temperature Exposure", "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤", "PV", "10", "C Sample"],
+            slice_rows=[
+                ["15", "高温寿命(仅防水件) High Temperature Exposure", "高压水喷射 / High Pressure Spray", "USCAR-2 Rev 6 5.6.7", "测试说明", "测试条件", "PV", "10", "C Sample"],
+                ["15", "高温寿命(仅防水件) High Temperature Exposure", "绝缘电阻 Insulation Resistance", "USCAR-2 Rev 6 5.5.1", "端子与端子之间", "环境前后", "PV", "10", "C Sample"],
+                ["15", "高温寿命(仅防水件) High Temperature Exposure", "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤,产品无进水", "PV", "10", "C Sample"],
+            ],
+        )
+
+        self.assertEqual(bbox, (42.0, 72.0, 548.0, 192.0))
+
+    def test_build_pdf_crop_plan_trims_numbered_continuation_page_before_next_section(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _Page:
+            rect = _Rect()
+
+            def get_text(self, _mode: str) -> dict:
+                return {"blocks": []}
+
+            def get_drawings(self) -> list[dict]:
+                return []
+
+        class _Document:
+            def load_page(self, _page_index: int) -> _Page:
+                return _Page()
+
+        plan = _build_pdf_crop_plan(
+            _Document(),
+            source_key="sample",
+            page_indices=[0],
+            match_fragments=[("高温寿命", 18), ("hightemperatureexposure", 12)],
+            headers=["15", "高温寿命(仅防水件) High Temperature Exposure", "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤", "PV", "10", "C Sample"],
+            slice_rows=[
+                ["15", "高温寿命(仅防水件) High Temperature Exposure", "高压水喷射 / High Pressure Spray", "USCAR-2 Rev 6 5.6.7", "测试说明", "测试条件", "PV", "10", "C Sample"],
+                ["15", "高温寿命(仅防水件) High Temperature Exposure", "绝缘电阻 Insulation Resistance", "USCAR-2 Rev 6 5.5.1", "端子与端子之间", "环境前后", "PV", "10", "C Sample"],
+                ["15", "高温寿命(仅防水件) High Temperature Exposure", "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤,产品无进水", "PV", "10", "C Sample"],
+            ],
+            start_anchor=None,
+            end_anchor=None,
+            detection_cache={
+                ("sample", 0): [
+                    {
+                        "bbox": (42.0, 60.0, 548.0, 572.0),
+                        "text": "trial outline continuation page",
+                        "area": 259072.0,
+                        "rows_text": [
+                            [None, None, "高压水喷射 / High Pressure Spray", "USCAR-2 Rev 6 5.6.7", "测试说明", "测试条件", "PV", "10", "C Sample"],
+                            [None, None, "绝缘电阻 Insulation Resistance", "USCAR-2 Rev 6 5.5.1", "端子与端子之间", "环境前后", "PV", "10", "C Sample"],
+                            [None, None, "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤,产品无进水", "PV", "10", "C Sample"],
+                            ["16", "盐雾试验 Salt Spray Test", "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤", "PV", "5", "C Sample"],
+                            [None, None, "连接器或端子插拔 Connector and/or Terminal Cycling", "USCAR-2 Rev 6 5.1.7", "10次插拔", "连接器无变形", "PV", "5", "C Sample"],
+                            ["17", "耐化学试液（仅防水件） Fluid Resistance", "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤", "PV", "13", "C Sample"],
+                        ],
+                        "row_bboxes": [
+                            (54.0, 72.0, 536.0, 140.0),
+                            (254.0, 140.0, 536.0, 174.0),
+                            (254.0, 174.0, 536.0, 192.0),
+                            (54.0, 192.0, 536.0, 364.0),
+                            (254.0, 210.0, 536.0, 244.0),
+                            (54.0, 364.0, 536.0, 560.0),
+                        ],
+                    }
+                ]
+            },
+            source_page_floor_offsets={},
+            line_detection_cache={},
+            prefer_anchor_window=False,
+        )
+
+        self.assertEqual(len(plan), 1)
+        self.assertEqual(plan[0][1], (42.0, 72.0, 548.0, 192.0))
+
+    def test_build_pdf_crop_plan_does_not_pad_upward_into_previous_numbered_section(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _Page:
+            rect = _Rect()
+
+            def get_text(self, _mode: str) -> dict:
+                return {"blocks": []}
+
+            def get_drawings(self) -> list[dict]:
+                return []
+
+        class _Document:
+            def load_page(self, _page_index: int) -> _Page:
+                return _Page()
+
+        plan = _build_pdf_crop_plan(
+            _Document(),
+            source_key="sample",
+            page_indices=[0],
+            match_fragments=[("高温寿命", 18), ("hightemperatureexposure", 12)],
+            headers=["15", "高温寿命(仅防水件) High Temperature Exposure", "外观 Visual Inspection", "USCAR-2 Rev 6 5.1.8", "目视检查", "无外观损伤", "PV", "10", "C Sample"],
+            slice_rows=[
+                ["15", "高温寿命(仅防水件) High Temperature Exposure", "连接器或端子插拔 Connector and/or Terminal Cycling", "USCAR-2 Rev 6 5.1.7", "完成一对连接器或端子的10次插拔；", "连接器无变形等外观损伤", "PV", "10", "C Sample"],
+                ["15", "高温寿命(仅防水件) High Temperature Exposure", "绝缘电阻 Insulation Resistance", "USCAR-2 Rev 6 5.5.1", "端子与端子之间,端子与塑壳之间", "1）环境前后", "PV", "10", "C Sample"],
+            ],
+            start_anchor=None,
+            end_anchor=None,
+            detection_cache={
+                ("sample", 0): [
+                    {
+                        "bbox": (42.0, 60.0, 548.0, 780.0),
+                        "text": "numbered section with previous sibling",
+                        "area": 364320.0,
+                        "rows_text": [
+                            ["14", "高温寿命(电性能) High Temperature Exposure", "外观 Visual Inspection"],
+                            [None, None, "连接器或端子插拔 Connector and/or Terminal Cycling"],
+                            [None, None, "绝缘电阻 Insulation Resistance"],
+                            ["15", "高温寿命(仅防水件) High Temperature Exposure", "外观 Visual Inspection"],
+                            [None, None, "连接器或端子插拔 Connector and/or Terminal Cycling"],
+                            [None, None, "绝缘电阻 Insulation Resistance"],
+                        ],
+                        "row_bboxes": [
+                            (42.0, 70.0, 548.0, 220.0),
+                            (42.0, 110.0, 548.0, 180.0),
+                            (42.0, 180.0, 548.0, 220.0),
+                            (42.0, 320.0, 548.0, 400.0),
+                            (42.0, 400.0, 548.0, 470.0),
+                            (42.0, 470.0, 548.0, 540.0),
+                        ],
+                    }
+                ]
+            },
+            source_page_floor_offsets={},
+            line_detection_cache={},
+            prefer_anchor_window=False,
+        )
+
+        self.assertEqual(len(plan), 1)
+        self.assertGreaterEqual(plan[0][1][1], 320.0)
+        self.assertLessEqual(plan[0][1][1], 320.5)
 
     def test_visual_snapshot_heuristic_accepts_image_or_diagram_like_clause(self) -> None:
         text = "\n".join(
@@ -2048,6 +2848,107 @@ class TableAssetsParsingTest(unittest.TestCase):
         self.assertEqual(assets[0]["source_snapshot_path"], str(snapshot_path))
         self.assertEqual(assets[0]["complex_shadow_signatures"], ["sig-1"])
 
+    def test_merged_requirement_complex_full_page_snapshot_uses_higher_resolution_budget(self) -> None:
+        width = ta._complex_full_page_snapshot_width_px(
+            {"complex_family": "merged_requirement_matrix"}
+        )
+        self.assertGreater(width, 2160)
+
+    @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
+    def test_enrich_complex_full_page_group_keeps_readable_snapshot_height(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            row = {
+                "entry_id": "REQ-CX-merged-network",
+                "req_code": "REQ-CX-merged-network",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "网络安全",
+                "raw_text": "网络安全",
+                "requirement_text": "网络安全",
+                "source_page": 17,
+                "source_page_end": 20,
+                "complex_table_mode": True,
+                "complex_zone_id": "cx-merged-requirement-matrix-p17-p22",
+                "complex_family": "merged_requirement_matrix",
+                "complex_role": "group",
+                "complex_group_label": "网络安全",
+                "complex_split_level": "group",
+                "complex_warnings": ["跨页复杂表"],
+                "complex_row_policy": "exportable_group",
+                "complex_snapshot_mode": "full_page_span",
+                "complex_snapshot_title": "网络安全",
+                "complex_after_label_hint": "",
+                "complex_shadow_signatures": ["sig-1"],
+                "table_refs": [],
+                "content_blocks": [],
+                "has_table_asset": False,
+                "table_render_mode": "",
+            }
+
+            enriched, assets = ta._enrich_complex_table_row(
+                row,
+                document_id="doc-complex-full-span",
+                snapshot_root=Path(tmpdir),
+                source_file_path=str(_OIL_PUMP_SAMPLE_PDF),
+                source_snapshot_cache={},
+                source_table_detection_cache={},
+                source_line_detection_cache={},
+            )
+
+            self.assertTrue(enriched["has_table_asset"])
+            self.assertEqual(len(assets), 1)
+            source_snapshot_path = Path(enriched["table_refs"][0]["source_snapshot_path"])
+            with PILImage.open(source_snapshot_path) as image:
+                self.assertGreaterEqual(image.width, 1800)
+                self.assertGreater(image.height, 1800)
+            self.assertEqual(enriched["table_refs"][0]["complex_snapshot_mode"], "full_page_span")
+
+    @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
+    def test_enrich_complex_anchor_window_group_keeps_full_band_body(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            row = {
+                "entry_id": "REQ-CX-lifecycle-general",
+                "req_code": "REQ-CX-lifecycle-general",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "1 总体要求",
+                "raw_text": "1 总体要求",
+                "requirement_text": "1 总体要求",
+                "source_page": 23,
+                "source_page_end": 23,
+                "complex_table_mode": True,
+                "complex_zone_id": "cx-lifecycle-matrix-p23-p25",
+                "complex_family": "lifecycle_matrix",
+                "complex_role": "group",
+                "complex_group_label": "1 总体要求",
+                "complex_split_level": "group",
+                "complex_warnings": ["跨页宽矩阵，按阶段 band 做高置信拆分"],
+                "complex_row_policy": "exportable_group",
+                "complex_snapshot_mode": "anchor_window",
+                "complex_snapshot_title": "1 总体要求",
+                "complex_after_label_hint": "2 概念设计",
+                "complex_shadow_signatures": ["sig-1"],
+                "table_refs": [],
+                "content_blocks": [],
+                "has_table_asset": False,
+                "table_render_mode": "",
+            }
+
+            enriched, assets = ta._enrich_complex_table_row(
+                row,
+                document_id="doc-complex-band",
+                snapshot_root=Path(tmpdir),
+                source_file_path=str(_OIL_PUMP_SAMPLE_PDF),
+                source_snapshot_cache={},
+                source_table_detection_cache={},
+                source_line_detection_cache={},
+            )
+
+            self.assertTrue(enriched["has_table_asset"])
+            self.assertEqual(len(assets), 1)
+            source_snapshot_path = Path(enriched["table_refs"][0]["source_snapshot_path"])
+            with PILImage.open(source_snapshot_path) as image:
+                self.assertEqual(image.width, 920)
+                self.assertGreater(image.height, 320)
+
     @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
     def test_source_recovery_prefers_actual_delivery_table_over_merged_page_candidate(self) -> None:
         recovered = _recover_table_from_pdf_source(
@@ -2212,6 +3113,240 @@ class TableAssetsParsingTest(unittest.TestCase):
         self.assertEqual(rows[0][1], "轮廓尺寸要求")
         self.assertEqual(rows[0][3], "长度L＜405mm，宽度b＜122mm，高度h＜158.2mm")
         self.assertEqual(notes, ["3）油泵总成接口要求（油泵总成接口需满足整车布置要求）"])
+
+    def test_row_slice_start_anchor_accepts_embedded_numeric_marker(self) -> None:
+        self.assertTrue(
+            ta._row_slice_bbox_is_start_anchor_compatible(
+                start_anchor={
+                    "text": "12",
+                    "bbox": (66.72, 529.68, 71.62, 534.58),
+                },
+                row_slice_bbox=(42.11, 296.40, 548.88, 767.51),
+            )
+        )
+
+    def test_row_slice_start_anchor_accepts_embedded_short_heading_marker(self) -> None:
+        self.assertTrue(
+            ta._row_slice_bbox_is_start_anchor_compatible(
+                start_anchor={
+                    "text": "温湿度循环(仅防水件)",
+                    "bbox": (84.47, 526.68, 133.12, 531.58),
+                },
+                row_slice_bbox=(42.11, 296.40, 548.88, 767.51),
+            )
+        )
+
+    @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
+    def test_refine_table_page_indices_prunes_unrelated_following_page_for_common_algorithm_table(self) -> None:
+        import fitz
+
+        headers = [
+            "用途",
+            "Col2",
+            "常见不安全密码算法",
+            "可遗留使用密码算法",
+            "推荐使用的强密码算法",
+        ]
+        rows = [
+            ["对称加密", "分组加密", "Blowfish, DES, DESX, RC2, Skipjack, 2TDEA, TEA、3DES", "", "AES-GCM(≥128 bits)"],
+            ["对称加密", "流加密", "SEAL, CYLINK MEK, RC4", "", "AES-CTR(≥128 bits) AES-OFB(≥128 bits) chacha20-poly1305"],
+            ["哈希算法", "", "SHA0, MD2, MD4, MD5, SHA1, RIPEMD, RIPEMD-128", "SHA-1, SHA224, SHA512/224, SHA3-224", "SHA256或以上 SHA3-256或以上"],
+        ]
+        match_fragments = ta._build_table_match_fragments(
+            table_text="",
+            table_title="常见不安全密码算法",
+            headers=headers,
+            rows=rows,
+            notes=[],
+        )
+        with fitz.open(str(_OIL_PUMP_SAMPLE_PDF)) as document:
+            refined = ta._refine_table_page_indices(
+                document,
+                source_key=str(_OIL_PUMP_SAMPLE_PDF.resolve()),
+                page_indices=[25, 26],
+                match_fragments=match_fragments,
+                headers=headers,
+                slice_rows=rows,
+                detection_cache={},
+            )
+        self.assertEqual(refined, [25])
+
+    @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
+    def test_refine_table_page_indices_prunes_leading_page_for_confidentiality_table(self) -> None:
+        import fitz
+
+        headers = ["工作产出保密性级别 Confidentiality Level of WP", ""]
+        rows = [
+            ["高度机密 highly confidential", "only the organization who created the work product is allowed to access it"],
+            ["机密 confidential", "Both customer and supplier are allowed to access the work product"],
+            ["可与第三方共享 shared with third parties", "This work product is allowed to be shared with external parties"],
+        ]
+        match_fragments = ta._build_table_match_fragments(
+            table_text="",
+            table_title="工作产出保密性级别 Confidentiality Level",
+            headers=headers,
+            rows=rows,
+            notes=[],
+        )
+        with fitz.open(str(_OIL_PUMP_SAMPLE_PDF)) as document:
+            refined = ta._refine_table_page_indices(
+                document,
+                source_key=str(_OIL_PUMP_SAMPLE_PDF.resolve()),
+                page_indices=[25, 26],
+                match_fragments=match_fragments,
+                headers=headers,
+                slice_rows=rows,
+                detection_cache={},
+            )
+        self.assertEqual(refined, [26])
+
+    @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
+    def test_refine_table_page_indices_extends_numbered_section_tail_to_next_page(self) -> None:
+        import fitz
+
+        headers = [
+            "15",
+            "高温寿命(仅防水件) High Temperature Exposure",
+            "外观 Visual Inspection",
+            "USCAR-2 Rev 6 5.1.8",
+            "目视检查",
+            "无外观损伤",
+            "PV",
+            "10",
+            "C Sample",
+        ]
+        rows = [
+            ["15", "高温寿命(仅防水件) High Temperature Exposure", "连接器或端子插拔 Connector and/or Terminal Cycling", "USCAR-2 Rev 6 5.1.7", "完成一对连接器或端子的10次插拔；", "连接器无变形等外观损伤", "PV", "10", "C Sample"],
+            ["15", "高温寿命(仅防水件) High Temperature Exposure", "绝缘电阻 Insulation Resistance", "USCAR-2 Rev 6 5.5.1", "端子与端子之间,端子与塑壳之间", "1）环境前：100MΩ @ 500V 60s 2）环境后：100MΩ @ 500V 60s", "PV", "10", "C Sample"],
+        ]
+        match_fragments = ta._build_table_match_fragments(
+            table_text="",
+            table_title="15 高温寿命(仅防水件) High Temperature Exposure",
+            headers=headers,
+            rows=rows,
+            notes=[],
+        )
+        with fitz.open(str(_OIL_PUMP_SAMPLE_PDF)) as document:
+            refined = ta._refine_table_page_indices(
+                document,
+                source_key=str(_OIL_PUMP_SAMPLE_PDF.resolve()),
+                page_indices=[32],
+                match_fragments=match_fragments,
+                headers=headers,
+                slice_rows=rows,
+                detection_cache={},
+            )
+        self.assertEqual(refined, [32, 33])
+
+    @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
+    def test_append_numbered_section_tail_from_following_page(self) -> None:
+        import fitz
+
+        headers = [
+            "15",
+            "高温寿命(仅防水件) High Temperature Exposure",
+            "外观 Visual Inspection",
+            "USCAR-2 Rev 6 5.1.8",
+            "目视检查",
+            "无外观损伤",
+            "PV",
+            "10",
+            "C Sample",
+        ]
+        rows = [
+            ["15", "高温寿命(仅防水件) High Temperature Exposure", "连接器或端子插拔 Connector and/or Terminal Cycling", "USCAR-2 Rev 6 5.1.7", "完成一对连接器或端子的10次插拔；", "连接器无变形等外观损伤", "PV", "10", "C Sample"],
+            ["15", "高温寿命(仅防水件) High Temperature Exposure", "绝缘电阻 Insulation Resistance", "USCAR-2 Rev 6 5.5.1", "端子与端子之间,端子与塑壳之间", "1）环境前：100MΩ @ 500V 60s 2）环境后：100MΩ @ 500V 60s", "PV", "10", "C Sample"],
+            ["15", "高温寿命(仅防水件) High Temperature Exposure", "浸没 Submersion", "USCAR-2 Rev 6 5.6.5", "按照浸泡模式条件测试", "测试条件", "PV", "10", "C Sample"],
+        ]
+        with fitz.open(str(_OIL_PUMP_SAMPLE_PDF)) as document:
+            extended = ta._append_numbered_section_continuation_rows(
+                document,
+                source_key=str(_OIL_PUMP_SAMPLE_PDF.resolve()),
+                page_indices=[32, 33],
+                headers=headers,
+                rows=rows,
+                detection_cache={},
+            )
+        self.assertTrue(any("高压水喷射" in str(row[2]) for row in extended))
+        self.assertTrue(any("产品无进水" in str(row[5]) for row in extended))
+
+    @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
+    def test_extend_structured_table_rows_from_source_updates_page_span_for_numbered_tail(self) -> None:
+        headers = [
+            "15",
+            "高温寿命(仅防水件) High Temperature Exposure",
+            "外观 Visual Inspection",
+            "USCAR-2 Rev 6 5.1.8",
+            "目视检查",
+            "无外观损伤",
+            "PV",
+            "10",
+            "C Sample",
+        ]
+        rows = [
+            ["15", "高温寿命(仅防水件) High Temperature Exposure", "连接器或端子插拔 Connector and/or Terminal Cycling", "USCAR-2 Rev 6 5.1.7", "完成一对连接器或端子的10次插拔；", "连接器无变形等外观损伤", "PV", "10", "C Sample"],
+            ["15", "高温寿命(仅防水件) High Temperature Exposure", "绝缘电阻 Insulation Resistance", "USCAR-2 Rev 6 5.5.1", "端子与端子之间,端子与塑壳之间", "1）环境前：100MΩ @ 500V 60s 2）环境后：100MΩ @ 500V 60s", "PV", "10", "C Sample"],
+            ["15", "高温寿命(仅防水件) High Temperature Exposure", "浸没 Submersion", "USCAR-2 Rev 6 5.6.5", "按照浸泡模式条件测试", "测试条件", "PV", "10", "C Sample"],
+        ]
+        extended, start_page, end_page = ta._extend_structured_table_rows_from_source(
+            source_file_path=str(_OIL_PUMP_SAMPLE_PDF),
+            source_page=33,
+            source_page_end=33,
+            table_text="15 高温寿命(仅防水件) High Temperature Exposure",
+            table_title="15 高温寿命(仅防水件) High Temperature Exposure",
+            headers=headers,
+            rows=rows,
+            notes=[],
+            source_table_detection_cache={},
+        )
+        self.assertEqual(start_page, 33)
+        self.assertEqual(end_page, 34)
+        self.assertTrue(any("高压水喷射" in str(row[2]) for row in extended))
+
+    @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
+    def test_select_best_pdf_crop_candidate_prefers_compact_delivery_table_before_next_heading(self) -> None:
+        import fitz
+
+        headers = ["交付物清单", "类别", "交付时间", "备注"]
+        rows = [
+            ["1", "设计方案说明书", "/", "TR阶段"],
+            ["2", "初版3D数模", "/", "TR阶段"],
+            ["3", "初版2D总成图纸", "/", "软模阶段交样前"],
+            ["4", "BOM", "/", "软模阶段交样前"],
+            ["5", "DFMEA", "/", ""],
+            ["6", "尺寸检测报告", "/", ""],
+            ["7", "性能检测报告", "/", ""],
+            ["8", "DVP测试报告", "/", ""],
+            ["9", "产品描述书", "/", ""],
+        ]
+        match_fragments = ta._build_table_match_fragments(
+            table_text="5.2 交付物要求",
+            table_title="5.2 交付物要求",
+            headers=headers,
+            rows=rows,
+            notes=[],
+        )
+        with fitz.open(str(_OIL_PUMP_SAMPLE_PDF)) as document:
+            end_anchor = {
+                "page_index": 9,
+                "bbox": (51.192, 316.997, 103.973, 325.828),
+                "text": "5.3 数据开发阶段",
+            }
+            candidates = ta._load_pdf_table_candidates(
+                document,
+                source_key=str(_OIL_PUMP_SAMPLE_PDF.resolve()),
+                page_index=9,
+                detection_cache={},
+            )
+            chosen = ta._select_best_pdf_crop_candidate(
+                candidates,
+                match_fragments=match_fragments,
+                headers=headers,
+                slice_rows=rows,
+                end_anchor=end_anchor,
+            )
+        self.assertIsNotNone(chosen)
+        self.assertAlmostEqual(float(chosen["bbox"][2]), 492.78001403808594, places=1)
 
     @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
     def test_source_recovery_handles_decoupling_table_with_local_clause_boundary(self) -> None:

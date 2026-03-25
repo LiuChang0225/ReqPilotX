@@ -2,7 +2,10 @@ import sys
 import unittest
 
 
-sys.path.insert(0, "/Users/liuchang/Documents/New project/worktrees/_active/extraction-optimization/prototype")
+from pathlib import Path
+
+
+sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from app.services.parser import _extract_clean_lines
 from app.services.parser import _should_preserve_structured_table_page

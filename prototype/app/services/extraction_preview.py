@@ -366,8 +366,12 @@ def _split_requirement_preview_rows(
     rows: list[dict[str, Any]] = []
     for idx, chunk in enumerate(chunks):
         clause_code, clause_title = _extract_local_clause_code_and_title(chunk)
-        chunk_section_code = clause_code or section_code
-        chunk_section_title = clause_title or section_title_hint
+        promote_clause_section = _should_promote_local_clause_to_section(
+            parent_section_code=section_code,
+            clause_code=clause_code,
+        )
+        chunk_section_code = clause_code if promote_clause_section else section_code
+        chunk_section_title = (clause_title if promote_clause_section else "") or section_title_hint
         chunk_section_key = _join_section_key(appendix_scope, chunk_section_code)
         if not chunk_section_key and chunk_section_title:
             chunk_section_key = _join_title_section_key(appendix_scope, chunk_section_title)
@@ -407,6 +411,22 @@ def _split_requirement_preview_rows(
     return rows
 
 
+def _should_promote_local_clause_to_section(*, parent_section_code: str, clause_code: str) -> bool:
+    parent_code = str(parent_section_code or "").strip()
+    local_code = str(clause_code or "").strip()
+    if not local_code:
+        return False
+    if not parent_code:
+        return True
+    if local_code == parent_code:
+        return False
+    if "." in local_code:
+        return True
+    if local_code.startswith(f"{parent_code}."):
+        return True
+    return False
+
+
 def _extract_local_clause_code_and_title(text: str) -> tuple[str, str]:
     lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
     if not lines:
@@ -435,24 +455,33 @@ def _dedupe_table_assets(assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
 
 def _extract_section_code(anchor: str) -> str:
     clause_match = CLAUSE_ANCHOR_RE.search(anchor or "")
-    if clause_match:
-        return str(clause_match.group(1) or "").strip()
     match = SECTION_ANCHOR_RE.search(anchor or "")
-    return str(match.group(1) or "").strip() if match else ""
+    section_code = str(match.group(1) or "").strip() if match else ""
+    clause_code = str(clause_match.group(1) or "").strip() if clause_match else ""
+    if clause_code and _should_promote_local_clause_to_section(parent_section_code=section_code, clause_code=clause_code):
+        return clause_code
+    return section_code or clause_code
 
 
 def _extract_section_title(anchor: str) -> str:
     clause_match = CLAUSE_ANCHOR_RE.search(anchor or "")
+    match = SECTION_ANCHOR_RE.search(anchor or "")
+    section_code = str(match.group(1) or "").strip() if match else ""
+    clause_code = str(clause_match.group(1) or "").strip() if clause_match else ""
+    if clause_match and _should_promote_local_clause_to_section(parent_section_code=section_code, clause_code=clause_code):
+        title = str(clause_match.group(2) or "").strip()
+        title = re.sub(r"\s+", " ", title)
+        if title:
+            return title[:120]
+    if match:
+        title = str(match.group(2) or "").strip()
+        title = re.sub(r"\s+", " ", title)
+        return title[:120]
     if clause_match:
         title = str(clause_match.group(2) or "").strip()
         title = re.sub(r"\s+", " ", title)
         if title:
             return title[:120]
-    match = SECTION_ANCHOR_RE.search(anchor or "")
-    if match:
-        title = str(match.group(2) or "").strip()
-        title = re.sub(r"\s+", " ", title)
-        return title[:120]
     title_match = TITLE_ANCHOR_RE.search(anchor or "")
     if not title_match:
         return ""

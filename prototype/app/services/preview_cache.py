@@ -17,7 +17,7 @@ logger = logging.getLogger(__name__)
 _PREVIEW_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="preview-cache")
 _PREVIEW_LOCK = threading.Lock()
 _ACTIVE_REFRESHES: set[str] = set()
-_PREVIEW_CACHE_VERSION = "preview-cache-v4"
+_PREVIEW_CACHE_VERSION = "preview-cache-v21"
 
 
 def _now_iso() -> str:

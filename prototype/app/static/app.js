@@ -25,6 +25,7 @@ const state = {
   exportStatusTone: "",
   tableViewByTableId: {},
 };
+const WORKSPACE_SELECTION_KEY = "reqpilotx.workspace-selection-v1";
 
 const el = {
   projectForm: document.querySelector("#project-form"),
@@ -95,10 +96,38 @@ init().catch((error) => {
 });
 
 async function init() {
+  restoreWorkspaceSelection();
   bindEvents();
   syncStageFromUrl();
   syncStagePanels();
   await loadProjects();
+}
+
+function restoreWorkspaceSelection() {
+  try {
+    const payload = JSON.parse(window.localStorage.getItem(WORKSPACE_SELECTION_KEY) || "{}");
+    if (payload && typeof payload === "object") {
+      state.projectId = payload.projectId || null;
+      state.currentSorDocumentId = payload.documentId || null;
+    }
+  } catch (_error) {
+    state.projectId = state.projectId || null;
+    state.currentSorDocumentId = state.currentSorDocumentId || null;
+  }
+}
+
+function persistWorkspaceSelection() {
+  try {
+    window.localStorage.setItem(
+      WORKSPACE_SELECTION_KEY,
+      JSON.stringify({
+        projectId: state.projectId || "",
+        documentId: state.currentSorDocumentId || "",
+      })
+    );
+  } catch (_error) {
+    // Best effort only.
+  }
 }
 
 function onStageSwitcherClicked(event) {
@@ -199,6 +228,7 @@ async function onProjectChanged() {
   setAnalyzeStatus("");
   el.downloadLink.textContent = "";
   el.downloadLink.removeAttribute("href");
+  persistWorkspaceSelection();
   if (state.projectId) {
     await loadSorDocuments();
     await Promise.all([loadWorkspace(), loadExportJobs()]);
@@ -218,6 +248,7 @@ async function onSorDocumentChanged() {
   state.exportStatusMessage = "";
   state.exportStatusTone = "";
   state.tableViewByTableId = {};
+  persistWorkspaceSelection();
   await loadWorkspace();
 }
 
@@ -463,6 +494,7 @@ async function renderProjectOptions(projects) {
   if (!current && projects.length) {
     state.projectId = projects[0].id;
     el.projectSelect.value = state.projectId;
+    persistWorkspaceSelection();
     await onProjectChanged();
   }
 }
@@ -481,6 +513,7 @@ async function loadSorDocuments(preferredDocumentId = null) {
   } else if (!state.currentSorDocumentId || !docs.some((doc) => doc.id === state.currentSorDocumentId)) {
     state.currentSorDocumentId = docs.length ? docs[0].id : null;
   }
+  persistWorkspaceSelection();
   renderSorDocumentOptions();
 }
 
@@ -919,7 +952,7 @@ function renderTableDecisionSummary(row) {
     `<span class="table-export-badge">${
       recommendedSource > 0 ? `推荐截图 ${recommendedSource}/${refs.length}` : `默认表格 ${refs.length}/${refs.length}`
     }</span>`,
-    `<span class="table-export-chip">当前截图 ${selectedSource}/${refs.length}</span>`,
+    `<span class="table-export-chip">导出截图 ${selectedSource}/${refs.length}</span>`,
     ...reasons.map((reason) => `<span class="table-export-chip is-reason">${escapeHtml(reason)}</span>`),
   ];
   return `<div class="table-export-summary">${chips.join("")}</div>`;
@@ -1872,13 +1905,13 @@ function renderRequirementContent(row) {
       if (kind !== "table") {
         return "";
       }
-      return renderTableRef(tableRefs.get(String(block?.table_id || "")));
+      return renderTableRef(tableRefs.get(String(block?.table_id || "")), row);
     })
     .filter(Boolean);
   return rendered.join("") || renderRichRequirementText(row?.raw_text || row?.display_text || row?.requirement_text || "");
 }
 
-function renderTableRef(ref) {
+function renderTableRef(ref, row = null) {
   if (!ref) {
     return "";
   }
@@ -1890,11 +1923,11 @@ function renderTableRef(ref) {
     String(ref.slice_render_mode || "") === "structured" && headers.length ? "结构化切片" : "切片快照";
   let content = "";
   if (variant === "source" && ref.source_snapshot_url) {
-    content = renderTableSnapshot(ref.source_snapshot_url, "source table snapshot");
+    content = renderTableSnapshot(ref, row, ref.source_snapshot_url, "source table snapshot");
   } else if (String(ref.slice_render_mode || "") === "structured" && headers.length) {
     content = renderStructuredTable(headers, rows);
   } else if (ref.slice_snapshot_url) {
-    content = renderTableSnapshot(ref.slice_snapshot_url, "table snapshot");
+    content = renderTableSnapshot(ref, row, ref.slice_snapshot_url, "table snapshot");
   } else {
     content = `<div class="md-text-block">${escapeHtml(String(ref.slice_ai_projection || "")).replaceAll("\n", "<br>")}</div>`;
   }
@@ -1904,7 +1937,7 @@ function renderTableRef(ref) {
   return `
     <div class="table-asset-switcher" data-table-id="${escapeHtml(tableId)}">
       <div class="table-view-toolbar">
-        <span class="table-view-label">导出内容</span>
+        <span class="table-view-label">查看内容</span>
         <button type="button" class="table-view-btn${variant === "slice" ? " is-active" : ""}" data-table-id="${escapeHtml(
           tableId
         )}" data-table-variant="slice">表格</button>
@@ -1931,6 +1964,9 @@ function activeTableVariant(ref) {
   }
   const dbVariant = String(ref?.export_variant || "").trim().toLowerCase();
   if (dbVariant === "source" || dbVariant === "slice") {
+    if (ref?.source_snapshot_url) {
+      return "source";
+    }
     if (dbVariant === "source" && !ref?.source_snapshot_url) {
       return "slice";
     }
@@ -1939,10 +1975,19 @@ function activeTableVariant(ref) {
   return ref?.source_snapshot_url ? "source" : "slice";
 }
 
-function renderTableSnapshot(url, altText) {
-  return `<div class="asset-snapshot-wrap"><img class="asset-snapshot" src="${escapeHtml(
+function isComplexFullPageSpanSnapshot(ref, row) {
+  const refMode = String(ref?.complex_snapshot_mode || "").trim().toLowerCase();
+  const rowMode = String(row?.complex_snapshot_mode || "").trim().toLowerCase();
+  return Boolean(ref?.complex_table_mode || row?.complex_table_mode) && (refMode === "full_page_span" || rowMode === "full_page_span");
+}
+
+function renderTableSnapshot(ref, row, url, altText) {
+  const fullSpan = isComplexFullPageSpanSnapshot(ref, row);
+  const wrapClass = `asset-snapshot-wrap${fullSpan ? " asset-snapshot-wrap-complex-full-span" : ""}`;
+  const imageClass = `asset-snapshot${fullSpan ? " asset-snapshot-complex-full-span" : ""}`;
+  return `<div class="${wrapClass}"><a href="${escapeHtml(url)}" target="_blank" rel="noopener noreferrer"><img class="${imageClass}" src="${escapeHtml(
     url
-  )}" alt="${escapeHtml(altText)}" loading="lazy" /></div>`;
+  )}" alt="${escapeHtml(altText)}" loading="lazy" /></a></div>`;
 }
 
 function renderStructuredTable(headers, rows) {
