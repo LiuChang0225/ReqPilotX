@@ -477,11 +477,7 @@ function renderPreview(data) {
   renderSummary(data);
   renderEngineTable(data.preview?.summary?.selected_engine_pages || {});
   renderSectionOverviewTable(
-    buildSectionOverviewRows(
-      data.preview?.section_tree || data.preview?.section_outline || [],
-      data.preview?.sections || [],
-      data.review_entries || []
-    )
+    buildSectionOverviewRows(data.preview?.section_tree || data.preview?.sections || data.preview?.section_outline || [])
   );
   renderConsistencyTable(data.preview?.section_consistency || {});
   renderTypeFilter(state.reviewEntries);
@@ -509,8 +505,13 @@ function renderSummary(data) {
     ["完整条目", summary.complete_entries_count ?? 0],
     ["原始条目", summary.complete_entries_raw_count ?? 0],
     ["章节数", summary.sections_count ?? 0],
-    ["章节树节点", summary.section_outline_count ?? 0],
+    ["章节树节点", summary.section_tree_count ?? summary.section_outline_count ?? 0],
+    ["原始 Outline", summary.section_outline_count ?? 0],
+    ["顺序模型", summary.section_order_model || "-"],
     ["章节一致性问题", summary.section_consistency_issues_total ?? 0],
+    ["零直挂父章", summary.zero_direct_requirement_parent_count ?? 0],
+    ["Synthetic 章节", summary.synthetic_section_count ?? 0],
+    ["Orphan 章节", summary.orphan_section_count ?? 0],
     ["需求覆盖页", summary.pages_with_requirements ?? 0],
     ["表格页", summary.table_pages ?? 0],
     ["表格注入", summary.table_block_injected_count ?? 0],
@@ -541,7 +542,7 @@ function renderSummary(data) {
     generatedAt ? ` @ ${generatedAt}` : ""
   }，章节节点 ${
     summary.section_outline_count || 0
-  }，需求条目 ${summary.requirements_count || 0}，一致性问题 ${summary.section_consistency_issues_total || 0}，低置信页 ${summary.low_confidence_page_count || 0}。`;
+  }，需求条目 ${summary.requirements_count || 0}，一致性问题 ${summary.section_consistency_issues_total || 0}，低置信页 ${summary.low_confidence_page_count || 0}，顺序模型 ${summary.section_order_model || "-"}.`;
 }
 
 function renderEngineTable(engineMap) {
@@ -556,74 +557,27 @@ function renderEngineTable(engineMap) {
     .join("");
 }
 
-function buildSectionOverviewRows(outlineRows, sectionRows, requirements) {
-  const rowsByKey = new Map();
-
-  (sectionRows || []).forEach((row, index) => {
-    const key = buildSectionKey(row);
-    if (!key) {
-      return;
-    }
-    rowsByKey.set(key, {
-      appendix_scope: row.appendix_scope,
+function buildSectionOverviewRows(rows) {
+  return (rows || [])
+    .map((row, index) => ({
+      appendix_scope: row.appendix_scope || "",
       section_code: row.section_code || "",
       section_title: row.section_title || "",
       section_level: Number(row.section_level || 0),
       parent_section_code: row.parent_section_code || "",
-      source_page_start: row.source_page_start,
-      source_page_end: row.source_page_end,
+      source_page_start: row.source_page_start ?? null,
+      source_page_end: row.source_page_end ?? null,
       requirement_count: row.requirement_count ?? 0,
       total_chars: row.total_chars ?? row.section_char_count ?? row.char_count ?? 0,
       requirement_like: row.requirement_like,
-      outline_order: Number.MAX_SAFE_INTEGER,
+      outline_order: Number.isFinite(Number(row.tree_order))
+        ? Number(row.tree_order)
+        : Number.isFinite(Number(row.outline_order))
+        ? Number(row.outline_order)
+        : index,
       section_order: index,
-    });
-  });
-
-  (outlineRows || []).forEach((row, index) => {
-    const key = buildSectionKey(row);
-    if (!key) {
-      return;
-    }
-    const existing = rowsByKey.get(key) || {
-      appendix_scope: row.appendix_scope,
-      section_code: row.section_code || "",
-      section_title: "",
-      section_level: 0,
-      parent_section_code: "",
-      source_page_start: null,
-      source_page_end: null,
-      requirement_count: 0,
-      total_chars: 0,
-      requirement_like: false,
-      outline_order: Number.MAX_SAFE_INTEGER,
-      section_order: Number.MAX_SAFE_INTEGER,
-    };
-    rowsByKey.set(key, {
-      ...existing,
-      appendix_scope: row.appendix_scope ?? existing.appendix_scope,
-      section_code: row.section_code || existing.section_code,
-      section_title: row.section_title || existing.section_title,
-      section_level: Number(row.section_level || existing.section_level || 0),
-      parent_section_code: row.parent_section_code || existing.parent_section_code,
-      source_page_start: row.source_page_start ?? existing.source_page_start,
-      source_page_end: row.source_page_end ?? existing.source_page_end,
-      total_chars:
-        row.char_count ??
-        row.section_char_count ??
-        existing.total_chars ??
-        0,
-      requirement_like:
-        typeof row.requirement_like === "boolean"
-          ? row.requirement_like
-          : existing.requirement_like,
-      outline_order: index,
-    });
-  });
-
-  mergeRequirementOnlySectionRows(rowsByKey, requirements || []);
-
-  return [...rowsByKey.values()].sort(compareSectionOverviewRows);
+    }))
+    .filter((row) => row.section_code || row.section_title);
 }
 
 function renderSectionOverviewTable(rows) {
@@ -650,31 +604,6 @@ function renderSectionOverviewTable(rows) {
       </tr>`;
     })
     .join("");
-}
-
-function buildSectionKey(row) {
-  const scope = String(row?.appendix_scope || "MAIN").trim().toUpperCase() || "MAIN";
-  const sectionCode = String(row?.section_code || "").trim();
-  const title = normalizeSectionTitle(row?.section_title || "");
-  const level = Number(row?.section_level || 0);
-  const instanceKey = String(row?.section_instance_key || "").trim();
-  if (instanceKey) {
-    const normInstance = instanceKey.toUpperCase();
-    const normCode = sectionCode.toUpperCase();
-    const normScopedCode = normCode ? `${scope}:${normCode}` : "";
-    const isBaseInstance = Boolean(normCode) && (normInstance === normCode || normInstance === normScopedCode);
-    // Keep non-base instances (e.g. duplicate numeric code with different title via "#...").
-    if (!isBaseInstance || instanceKey.includes("#")) {
-      return `${scope}::${instanceKey}`;
-    }
-  }
-
-  // Keep appendix/main heading rows even when code is empty.
-  if (!sectionCode && !title) {
-    return "";
-  }
-  // Avoid collapsing duplicated numeric section codes with different titles (e.g. U:63 + U:63 EMC).
-  return `${scope}::${sectionCode}::${title}::L${level}`;
 }
 
 function compareSectionOverviewRows(a, b) {
@@ -721,130 +650,6 @@ function normalizeSectionTitle(value) {
     .trim()
     .replace(/\s+/g, " ")
     .toLowerCase();
-}
-
-function mergeRequirementOnlySectionRows(rowsByKey, requirements) {
-  const grouped = new Map();
-  (requirements || []).forEach((row, index) => {
-    const sectionCode = String(row?.section_code || "").trim();
-    const sectionTitle = String(row?.section_title || "").trim();
-    if (!sectionCode && !sectionTitle) {
-      return;
-    }
-    const sectionLevel =
-      Number(row?.section_level || 0) || inferSectionLevel(sectionCode);
-    const candidate = {
-      appendix_scope: row?.appendix_scope || "",
-      section_code: sectionCode,
-      section_title: sectionTitle,
-      section_level: sectionLevel,
-    };
-    const key = buildSectionKey(candidate);
-    if (!key) {
-      return;
-    }
-    const sourcePage = Number(row?.source_page ?? 0) || 0;
-    const sourcePageEnd = Number(row?.source_page_end ?? sourcePage) || sourcePage;
-    const textLength = Number(row?.text_length ?? 0) || 0;
-    const current = grouped.get(key) || {
-      ...candidate,
-      source_page_start: sourcePage || null,
-      source_page_end: sourcePageEnd || null,
-      requirement_count: 0,
-      total_chars: 0,
-      requirement_like: true,
-      req_order: index,
-    };
-    current.requirement_count += 1;
-    current.total_chars += textLength;
-    if (sourcePage && (current.source_page_start === null || sourcePage < current.source_page_start)) {
-      current.source_page_start = sourcePage;
-    }
-    if (sourcePageEnd && (current.source_page_end === null || sourcePageEnd > current.source_page_end)) {
-      current.source_page_end = sourcePageEnd;
-    }
-    grouped.set(key, current);
-  });
-
-  grouped.forEach((agg, key) => {
-    const existing = rowsByKey.get(key);
-    if (existing) {
-      existing.requirement_count = Math.max(existing.requirement_count ?? 0, agg.requirement_count);
-      existing.total_chars = Math.max(existing.total_chars ?? 0, agg.total_chars ?? 0);
-      if (!existing.source_page_start && agg.source_page_start) {
-        existing.source_page_start = agg.source_page_start;
-      }
-      if (!existing.source_page_end && agg.source_page_end) {
-        existing.source_page_end = agg.source_page_end;
-      }
-      if (existing.requirement_like == null) {
-        existing.requirement_like = true;
-      }
-      return;
-    }
-    rowsByKey.set(key, {
-      appendix_scope: agg.appendix_scope,
-      section_code: agg.section_code,
-      section_title: agg.section_title,
-      section_level: agg.section_level,
-      parent_section_code: "",
-      source_page_start: agg.source_page_start,
-      source_page_end: agg.source_page_end,
-      requirement_count: agg.requirement_count,
-      total_chars: agg.total_chars,
-      requirement_like: true,
-      outline_order: Number.MAX_SAFE_INTEGER,
-      section_order: Number.MAX_SAFE_INTEGER - 1,
-      req_order: agg.req_order,
-    });
-  });
-}
-
-function inferSectionLevel(sectionCode) {
-  const code = String(sectionCode || "").trim();
-  if (!code) {
-    return 0;
-  }
-  if (/^\d+(?:\.\d+){0,8}$/.test(code)) {
-    return code.split(".").length;
-  }
-  return 1;
-}
-
-function ensureMainRootRow(rowsByKey) {
-  const rows = [...rowsByKey.values()];
-  const hasMainSections = rows.some(
-    (row) => String(row.appendix_scope || "MAIN").trim().toUpperCase() === "MAIN"
-  );
-  if (!hasMainSections) {
-    return;
-  }
-  const hasMainRoot = rows.some((row) => {
-    const scope = String(row.appendix_scope || "MAIN").trim().toUpperCase();
-    const code = String(row.section_code || "").trim();
-    return scope === "MAIN" && !code;
-  });
-  if (hasMainRoot) {
-    return;
-  }
-  const firstMainRow = rows.find(
-    (row) => String(row.appendix_scope || "MAIN").trim().toUpperCase() === "MAIN"
-  );
-  const root = {
-    appendix_scope: "",
-    section_code: "",
-    section_title: "正文（Main）",
-    section_level: 0,
-    parent_section_code: "",
-    source_page_start: firstMainRow?.source_page_start ?? "",
-    source_page_end: firstMainRow?.source_page_end ?? "",
-    requirement_count: 0,
-    total_chars: 0,
-    requirement_like: false,
-    outline_order: -1,
-    section_order: -1,
-  };
-  rowsByKey.set(buildSectionKey(root), root);
 }
 
 function renderConsistencyTable(consistency) {
@@ -1831,9 +1636,6 @@ function activeTableVariant(ref) {
   }
   const dbVariant = String(ref?.export_variant || "").trim().toLowerCase();
   if (dbVariant === "source" || dbVariant === "slice") {
-    if (ref?.source_snapshot_url) {
-      return "source";
-    }
     if (dbVariant === "source" && !ref?.source_snapshot_url) {
       return "slice";
     }

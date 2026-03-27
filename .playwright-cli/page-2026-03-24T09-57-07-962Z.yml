@@ -1,0 +1,113 @@
+- generic [active] [ref=e1]:
+  - banner [ref=e2]:
+    - generic [ref=e4]:
+      - link "SOR Copilot" [ref=e5] [cursor=pointer]:
+        - /url: "#top"
+        - img [ref=e6]
+        - text: SOR Copilot
+      - navigation [ref=e8]:
+        - link "概览" [ref=e9] [cursor=pointer]:
+          - /url: "#overview"
+        - link "优势" [ref=e10] [cursor=pointer]:
+          - /url: "#features"
+        - link "技术" [ref=e11] [cursor=pointer]:
+          - /url: "#technology"
+      - link "开始体验" [ref=e13] [cursor=pointer]:
+        - /url: /workspace
+  - main [ref=e14]:
+    - generic [ref=e15]:
+      - heading "Automotive Requirement Intelligence" [level=2] [ref=e16]
+      - heading "下一代 SOR 解析， 现已就绪。" [level=1] [ref=e17]:
+        - text: 下一代 SOR 解析，
+        - text: 现已就绪。
+      - paragraph [ref=e18]:
+        - text: 把繁重的 SOR 拆解留给机器，把高价值的工程决策还给人类。
+        - text: 构建从文档到合规矩阵的可追溯智能协同。
+      - generic [ref=e19]:
+        - link "进入客户主控台" [ref=e20] [cursor=pointer]:
+          - /url: /workspace
+          - text: 进入客户主控台
+        - link "了解开发者工具 →" [ref=e22] [cursor=pointer]:
+          - /url: "#dev-tools"
+          - text: 了解开发者工具
+          - generic [ref=e23]: →
+    - generic [ref=e45]:
+      - generic [ref=e46]:
+        - heading "用数据定义高效。" [level=2] [ref=e47]
+        - paragraph [ref=e48]: 实时迭代指标，展现持续进化的 AI 能力。
+      - generic [ref=e49]:
+        - generic [ref=e50]:
+          - paragraph [ref=e52]: 服务状态
+          - heading "ONLINE" [level=3] [ref=e53]
+          - paragraph [ref=e54]: FastAPI backend is healthy
+        - generic [ref=e55]:
+          - paragraph [ref=e57]: 拆解准确率
+          - heading "100.00%" [level=3] [ref=e58]
+          - paragraph [ref=e59]: "latest: r32_text_only"
+        - generic [ref=e60]:
+          - paragraph [ref=e62]: 质量门禁
+          - heading "95.45%" [level=3] [ref=e63]
+          - paragraph [ref=e64]: checks quality
+        - generic [ref=e65]:
+          - paragraph [ref=e67]: 累计迭代
+          - heading "33" [level=3] [ref=e68]
+          - paragraph [ref=e69]: "projects: 14"
+        - generic [ref=e71]:
+          - heading "我们解决的核心问题" [level=3] [ref=e72]
+          - paragraph [ref=e73]: 人工拆解到 Excel 效率极低且错误率高；复杂 PDF 中的章节容易发生漏识别。我们提供全自动提取底稿、AI 辅助研判，以及严格打样的复核体系，让需求分析工作**全流程可回溯**。
+          - paragraph [ref=e74]: 当前最新轮次 r32_text_only：split 100.00%，parse 100.00%，pages 95/100。
+    - generic [ref=e75]:
+      - generic [ref=e76]:
+        - generic [ref=e77]:
+          - heading "章节完整性优先。" [level=3] [ref=e78]
+          - paragraph [ref=e79]: 拆解的目标从来都不是简单的句子切分。我们在引擎中应用章节树理念，确保大段复杂需求、表格甚至测量值的上下文完整保留，防止语义割裂。
+          - list [ref=e80]:
+            - listitem [ref=e81]:
+              - img [ref=e82]
+              - text: 章节头规则与上下文修复
+            - listitem [ref=e84]:
+              - img [ref=e85]
+              - text: 跨页连续性智能还原
+        - generic [ref=e96]: 1.1.2 Power Supply
+      - generic [ref=e98]:
+        - generic [ref=e106]: Fusion Parser
+        - generic [ref=e107]:
+          - heading "极致去噪，多维解析。" [level=3] [ref=e108]
+          - paragraph [ref=e109]: 面对真实业务中错综复杂的排版、水印与页眉干扰，我们融合 pypdf, pdfplumber 与 mupdf4llm，执行页级选优，输出前所未有纯净的文本流。
+          - list [ref=e110]:
+            - listitem [ref=e111]:
+              - img [ref=e112]
+              - text: Span 级别水印特征过滤
+            - listitem [ref=e114]:
+              - img [ref=e115]
+              - text: 表格误识别强力抑制
+    - generic [ref=e118]:
+      - generic [ref=e119]:
+        - heading "工程化的迭代链路。" [level=2] [ref=e120]
+        - paragraph [ref=e121]: 不仅提供开箱即用的分析工具，更内置完整的开发者工具链，确保模型表现可打样、可评测、可治理。
+      - generic [ref=e122]:
+        - link "拆解审阅台 基于原始 PDF，通过章节树和去噪特征分布，可视化核查提取质量。" [ref=e123] [cursor=pointer]:
+          - /url: /workspace?stage=review
+          - img [ref=e125]
+          - heading "拆解审阅台" [level=3] [ref=e127]
+          - paragraph [ref=e128]: 基于原始 PDF，通过章节树和去噪特征分布，可视化核查提取质量。
+        - link "项目进度看板 实时大盘观测，包含质量门禁跑分、迭代趋势与里程碑追踪。" [ref=e129] [cursor=pointer]:
+          - /url: /project-progress
+          - img [ref=e131]
+          - heading "项目进度看板" [level=3] [ref=e133]
+          - paragraph [ref=e134]: 实时大盘观测，包含质量门禁跑分、迭代趋势与里程碑追踪。
+        - link "Phase 0 标注台 回归测试与 Benchmark 创建入口，通过严谨人工标注构建高质真值集。" [ref=e135] [cursor=pointer]:
+          - /url: /phase0-review
+          - img [ref=e137]
+          - heading "Phase 0 标注台" [level=3] [ref=e139]
+          - paragraph [ref=e140]: 回归测试与 Benchmark 创建入口，通过严谨人工标注构建高质真值集。
+  - contentinfo [ref=e141]:
+    - generic [ref=e143]:
+      - generic [ref=e144]: © 2026 SOR Copilot Prototype. AI Engineering Team.
+      - generic [ref=e145]:
+        - link "隐私政策" [ref=e146] [cursor=pointer]:
+          - /url: "#"
+        - link "使用条款" [ref=e147] [cursor=pointer]:
+          - /url: "#"
+        - link "系统状态" [ref=e148] [cursor=pointer]:
+          - /url: /api/health

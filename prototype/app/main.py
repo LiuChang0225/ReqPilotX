@@ -480,11 +480,8 @@ def get_document_workspace(project_id: str, document_id: str, include_preview: b
     requirements = db.list_requirements(project_id, document_id)
     requirements = _enrich_requirements_with_preview_context(requirements, str(document.get("file_path") or ""))
     knowledge_docs = db.list_knowledge_documents(project_id)
-    preview = None
-    preview_meta = get_preview_cache_state(document)
-    if include_preview:
-        preview, preview_meta = load_cached_preview(document)
-    return _build_document_workspace(
+    preview, preview_meta = load_cached_preview(document)
+    workspace = _build_document_workspace(
         project=project,
         document=document,
         requirements=requirements,
@@ -492,6 +489,7 @@ def get_document_workspace(project_id: str, document_id: str, include_preview: b
         preview=preview,
         preview_meta=preview_meta,
     )
+    return workspace if include_preview else _strip_workspace_preview(workspace)
 
 
 @app.get("/api/projects/{project_id}/sor-documents/{document_id}/file")

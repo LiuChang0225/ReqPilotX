@@ -15,7 +15,7 @@ from PIL import Image as PILImage
 
 from app import db, main
 from app.services.complex_table_mode import _row_shadow_signature
-from app.services import exporter, preview_cache, table_assets
+from app.services import exporter, extraction_preview, preview_cache, table_assets, extractor
 from app.services.exporter import export_compliance_matrix
 
 
@@ -823,6 +823,28 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertFalse(meta["preview_cache_hit"])
         self.assertEqual(meta["preview_error"], "cached preview is outdated")
 
+    def test_load_cached_preview_marks_old_build_token_as_stale(self) -> None:
+        project, document = self._create_project_with_document("-old-build-token-preview-cache")
+        cache_path = preview_cache.preview_cache_path(document["id"])
+        payload = _fake_preview()
+        payload["_preview_cache_version"] = preview_cache._PREVIEW_CACHE_VERSION
+        payload["_preview_build_token"] = "preview-cache-v28-numbered-heading-anchor-fragments|source-crop-v56"
+        cache_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
+        db.update_sor_document_preview_state(
+            document["id"],
+            preview_status="READY",
+            preview_generated_at="2026-03-24T10:00:00+00:00",
+            preview_file_mtime=preview_cache._source_mtime_token(document["file_path"]),
+            preview_error="",
+        )
+
+        preview, meta = preview_cache.load_cached_preview(db.get_sor_document(document["id"]))
+
+        self.assertIsNone(preview)
+        self.assertEqual(meta["preview_status"], "STALE")
+        self.assertFalse(meta["preview_cache_hit"])
+        self.assertEqual(meta["preview_error"], "cached preview is outdated")
+
     def test_preview_refresh_purges_stale_snapshot_root_before_rebuild(self) -> None:
         project, document = self._create_project_with_document("-refresh-purge")
         cache_path = preview_cache.preview_cache_path(document["id"])
@@ -896,6 +918,42 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual([row["source_order"] for row in workspace["requirements"]], [1, 2])
         self.assertEqual(workspace["summary"]["order_source"], "review_overlay")
         self.assertEqual(workspace["summary"]["order_mismatch_count"], 0)
+
+    def test_workspace_uses_cached_preview_order_even_without_preview_payload(self) -> None:
+        project, document = self._create_project_with_document("-ordering-no-preview-payload")
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0023",
+            source_page=5,
+            source_anchor="Main > 5.7",
+            requirement_text="5.7 次条需求",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+        )
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0024",
+            source_page=5,
+            source_anchor="Main > 5.1",
+            requirement_text="5.1 首条需求",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+
+        preview_cache.persist_preview_cache(
+            db.get_sor_document(document["id"]) or {},
+            _fake_preview_with_reversed_req_codes(),
+        )
+        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=False)
+
+        self.assertEqual([row["req_code"] for row in workspace["requirements"]], ["REQ0024", "REQ0023"])
+        self.assertEqual(workspace["summary"]["order_source"], "review_overlay")
+        self.assertEqual(workspace["summary"]["order_mismatch_count"], 0)
+        self.assertNotIn("review_entries", workspace)
+        self.assertNotIn("preview", workspace)
 
     def test_workspace_order_prefers_source_signature_over_stale_req_code(self) -> None:
         project, document = self._create_project_with_document("-ordering-stale-req")
@@ -1694,6 +1752,45 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(anchor["page_index"], 1)
         self.assertEqual(anchor["text"], "前减振器")
 
+    def test_context_anchor_prefers_later_exact_self_anchor_over_earlier_noise(self) -> None:
+        page_lines = {
+            0: [
+                {
+                    "text": "[√]前减振器、蓄能器等需供应商发货",
+                    "norm": "前减振器蓄能器等需供应商发货",
+                    "bbox": (0.0, 500.0, 120.0, 510.0),
+                }
+            ],
+            1: [
+                {
+                    "text": "前减振器",
+                    "norm": "前减振器",
+                    "bbox": (0.0, 180.0, 80.0, 190.0),
+                }
+            ],
+        }
+
+        def fake_load_lines(document, *, source_key, page_index, detection_cache):
+            return page_lines.get(page_index, [])
+
+        with patch.object(table_assets, "_load_pdf_page_line_records", side_effect=fake_load_lines):
+            anchor = table_assets._find_context_anchor(
+                object(),
+                source_key="dummy",
+                page_indices=[0, 1],
+                candidates=table_assets._build_current_entry_anchor_fragments(
+                    table_text="|1|2|2905100 X 8D1110|0.0|左前减振器总成|",
+                    table_title="前减振器",
+                    before_context_text="前减振器",
+                ),
+                detection_cache={},
+                prefer_score_across_pages=True,
+            )
+
+        self.assertIsNotNone(anchor)
+        self.assertEqual(anchor["page_index"], 1)
+        self.assertEqual(anchor["text"], "前减振器")
+
     def test_context_anchor_fragments_include_short_label_prefix(self) -> None:
         fragments = table_assets._build_context_anchor_fragments(
             "备注：0、该表格零部件号与OEM系统内零部件号一致。",
@@ -1702,6 +1799,333 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         values = [value for value, _ in fragments]
 
         self.assertIn("备注", values)
+
+    def test_preview_does_not_promote_unrelated_dotted_local_clause(self) -> None:
+        self.assertFalse(
+            extraction_preview._should_promote_local_clause_to_section(
+                parent_section_code="3.2.2",
+                clause_code="6.6",
+            )
+        )
+        self.assertTrue(
+            extraction_preview._should_promote_local_clause_to_section(
+                parent_section_code="3.2",
+                clause_code="3.2.1",
+            )
+        )
+
+    def test_preview_keeps_standard_ids_inside_parent_section(self) -> None:
+        rows = extraction_preview._split_requirement_preview_rows(
+            item={
+                "req_code": "REQ-0001",
+                "source_anchor": "Page 7 | Section 4.4 依据标准",
+                "requirement_type": "FUNCTIONAL",
+                "priority": "MEDIUM",
+                "source_line_index": 15,
+                "source_line_index_end": 18,
+            },
+            source_page=7,
+            source_page_end=7,
+            appendix_scope="",
+            section_code="4.4",
+            section_title_hint="依据标准",
+            text=(
+                "4.4 依据标准\n"
+                "GB/T 30512 汽车禁用物质要求\n"
+                "GB/T 28046.5 道路车辆电气及电子设备的环境条件和试验第5部分：化学负荷\n"
+                "GB/T 28046.4 道路车辆电气及电子设备的环境条件和试验第4部分：气候负荷"
+            ),
+            req_order_start=0,
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["section_code"], "4.4")
+        self.assertIn("28046.5", rows[0]["requirement_text"])
+        self.assertIn("28046.4", rows[0]["requirement_text"])
+
+    def test_serial_table_bare_numeric_rows_are_not_promoted_to_sections(self) -> None:
+        line_entries = [
+            {
+                "text": "3.2.2 产品详细描述",
+                "source_page": 1,
+                "source_anchor": "Page 1",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 0,
+            },
+            {
+                "text": "2）后减振器布置要求",
+                "source_page": 1,
+                "source_anchor": "Page 1",
+                "table_count": 0,
+                "source_line_index": 1,
+                "global_line_index": 1,
+            },
+            {
+                "text": "|序号|项目|要求|",
+                "source_page": 1,
+                "source_anchor": "Page 1",
+                "table_count": 1,
+                "source_line_index": 2,
+                "global_line_index": 2,
+            },
+            {
+                "text": "12 减振器强度要求",
+                "source_page": 1,
+                "source_anchor": "Page 1",
+                "table_count": 1,
+                "source_line_index": 3,
+                "global_line_index": 3,
+            },
+            {
+                "text": "3）减振器阻尼力基础要求",
+                "source_page": 1,
+                "source_anchor": "Page 1",
+                "table_count": 0,
+                "source_line_index": 4,
+                "global_line_index": 4,
+            },
+        ]
+
+        blocks = extractor._extract_section_blocks(line_entries)
+
+        self.assertNotIn("12", [str(block.get("section_code") or "") for block in blocks])
+
+    def test_merge_duplicate_section_block_recomputes_line_indices_from_entries(self) -> None:
+        base = {
+            "appendix_scope": "",
+            "section_code": "6.9",
+            "section_title": "商务报价",
+            "section_level": 2,
+            "_discovery_order": 1,
+            "source_page": 9,
+            "source_page_end": 9,
+            "source_line_index": 0,
+            "source_line_index_end": 20,
+            "entries": [
+                {"source_page": 9, "source_line_index": 18, "text": "6.9 商务报价"},
+                {"source_page": 9, "source_line_index": 19, "text": "产过程费用"},
+                {"source_page": 9, "source_line_index": 20, "text": "包含以上所有费用。"},
+            ],
+        }
+        incoming = {
+            "appendix_scope": "",
+            "section_code": "6.9",
+            "section_title": "商务报价",
+            "section_level": 2,
+            "_discovery_order": 2,
+            "source_page": 9,
+            "source_page_end": 9,
+            "source_line_index": 18,
+            "source_line_index_end": 20,
+            "entries": [
+                {"source_page": 9, "source_line_index": 18, "text": "6.9 商务报价"},
+                {"source_page": 9, "source_line_index": 19, "text": "产过程费用"},
+                {"source_page": 9, "source_line_index": 20, "text": "包含以上所有费用。"},
+            ],
+        }
+
+        merged = extractor._merge_duplicate_section_block(base, incoming)
+
+        self.assertEqual(merged["source_line_index"], 18)
+        self.assertEqual(merged["source_line_index_end"], 20)
+
+    def test_numbered_outline_rows_prefer_row_slice_snapshot(self) -> None:
+        self.assertFalse(
+            table_assets._should_prefer_source_clause_window(
+                table_title="12 活塞杆弯曲强度",
+                render_mode="snapshot_only",
+                headers=["序号", "项目", "参考标准", "试验方法", "要求"],
+                rows=[["12", "活塞杆弯曲强度", "-", "台架", "通过"]],
+                source_page=11,
+                source_page_end=11,
+                notes=[],
+                trailing_context_text="",
+            )
+        )
+
+    def test_visual_snapshot_infers_numbered_outline_row_slice(self) -> None:
+        self.assertEqual(
+            table_assets._derive_visual_snapshot_slice_rows("12 活塞杆弯曲强度"),
+            [["12", "活塞杆弯曲强度"]],
+        )
+
+    def test_trial_outline_single_row_header_inference_applies_to_appendix_t(self) -> None:
+        headers = table_assets._infer_contextual_single_row_header(
+            lines=[
+                "|12|活塞杆弯曲强度|-|台架试验|通过|DV/PV|供应商|6件/OTS|1天|"
+            ],
+            row={
+                "appendix_scope": "T",
+                "parent_section_code": "12",
+                "parent_section_title": "主动前减振器试验大纲",
+                "source_anchor": "Appendix T | 主动前减振器试验大纲",
+            },
+            table_title="12 活塞杆弯曲强度",
+        )
+
+        self.assertEqual(
+            headers,
+            ["序号", "项目", "参考标准", "试验方法", "要求", "DV/PV", "责任方", "样件", "周期"],
+        )
+
+    def test_canonical_section_tree_keeps_parent_before_child_without_direct_requirements(self) -> None:
+        sections, stats = extraction_preview._build_canonical_section_rows(
+            [
+                {
+                    "appendix_scope": "",
+                    "section_code": "1",
+                    "section_key": "1",
+                    "section_instance_key": "1",
+                    "section_title": "概述",
+                    "section_level": 1,
+                    "parent_section_code": "",
+                    "source_page_start": 1,
+                    "source_page_end": 1,
+                    "source_line_index_start": 13,
+                    "source_line_index_end": 13,
+                    "has_children": True,
+                    "is_leaf": False,
+                    "requirement_count": 0,
+                    "first_req_order": None,
+                    "outline_order": 0,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "1.1",
+                    "section_key": "1.1",
+                    "section_instance_key": "1.1",
+                    "section_title": "范围",
+                    "section_level": 2,
+                    "parent_section_code": "1",
+                    "source_page_start": 1,
+                    "source_page_end": 1,
+                    "source_line_index_start": 14,
+                    "source_line_index_end": 14,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 0,
+                    "outline_order": 1,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "1.5",
+                    "section_key": "1.5",
+                    "section_instance_key": "1.5",
+                    "section_title": "其他",
+                    "section_level": 2,
+                    "parent_section_code": "1",
+                    "source_page_start": 1,
+                    "source_page_end": 1,
+                    "source_line_index_start": 34,
+                    "source_line_index_end": 34,
+                    "has_children": True,
+                    "is_leaf": False,
+                    "requirement_count": 0,
+                    "first_req_order": None,
+                    "outline_order": 5,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "1.5.1",
+                    "section_key": "1.5.1",
+                    "section_instance_key": "1.5.1",
+                    "section_title": "简体中文",
+                    "section_level": 3,
+                    "parent_section_code": "1.5",
+                    "source_page_start": 1,
+                    "source_page_end": 1,
+                    "source_line_index_start": 35,
+                    "source_line_index_end": 35,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 4,
+                    "outline_order": 6,
+                },
+            ]
+        )
+
+        self.assertEqual([row["section_code"] for row in sections], ["1", "1.1", "1.5", "1.5.1"])
+        self.assertEqual([row["tree_order"] for row in sections], [0, 1, 2, 3])
+        self.assertEqual(sections[1]["structural_parent_key"], "1")
+        self.assertEqual(sections[3]["structural_parent_key"], "1.5")
+        self.assertEqual(stats["zero_direct_requirement_parent_count"], 2)
+
+    def test_canonical_section_tree_preserves_outline_order_over_stale_line_indices(self) -> None:
+        sections, _ = extraction_preview._build_canonical_section_rows(
+            [
+                {
+                    "appendix_scope": "",
+                    "section_code": "5.8",
+                    "section_key": "5.8",
+                    "section_instance_key": "5.8",
+                    "section_title": "禁用物质要求",
+                    "section_level": 2,
+                    "parent_section_code": "5",
+                    "source_page_start": 9,
+                    "source_page_end": 9,
+                    "source_line_index_start": 2,
+                    "source_line_index_end": 2,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 62,
+                    "outline_order": 37,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "6.9",
+                    "section_key": "6.9",
+                    "section_instance_key": "6.9",
+                    "section_title": "商务报价",
+                    "section_level": 2,
+                    "parent_section_code": "6",
+                    "source_page_start": 9,
+                    "source_page_end": 9,
+                    "source_line_index_start": 0,
+                    "source_line_index_end": 0,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 71,
+                    "outline_order": 47,
+                },
+            ]
+        )
+
+        self.assertEqual([row["section_code"] for row in sections], ["5.8", "6.9"])
+
+    def test_preview_section_sort_key_uses_tree_order_when_available(self) -> None:
+        earlier = extraction_preview._preview_section_row_sort_key(
+            {
+                "section_code": "1",
+                "section_key": "1",
+                "tree_order": 0,
+                "source_page_start": 1,
+                "source_line_index_start": 13,
+                "first_req_order": None,
+                "outline_order": 0,
+                "section_level": 1,
+                "structural_kind": "outline",
+            }
+        )
+        later = extraction_preview._preview_section_row_sort_key(
+            {
+                "section_code": "1.1",
+                "section_key": "1.1",
+                "tree_order": 1,
+                "source_page_start": 1,
+                "source_line_index_start": 14,
+                "first_req_order": 0,
+                "outline_order": 1,
+                "section_level": 2,
+                "structural_kind": "outline",
+            }
+        )
+
+        self.assertLess(earlier, later)
 
     def test_exporter_uses_table_refs_without_markdown_roundtrip(self) -> None:
         _, file_path = export_compliance_matrix(

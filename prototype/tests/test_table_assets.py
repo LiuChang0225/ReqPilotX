@@ -43,6 +43,14 @@ _OIL_PUMP_SAMPLE_PDF = next(
     ),
     None,
 )
+_DAMPER_SAMPLE_PDF = next(
+    (
+        sample
+        for upload_dir in _UPLOAD_DIR_CANDIDATES
+        for sample in sorted(upload_dir.glob("*全主动减振器总成*.pdf"))
+    ),
+    None,
+)
 
 
 class TableAssetsParsingTest(unittest.TestCase):
@@ -513,6 +521,41 @@ class TableAssetsParsingTest(unittest.TestCase):
                 ],
                 notes=[],
             )
+        )
+
+    def test_compact_labeled_info_table_does_not_retry_into_clause_window(self) -> None:
+        image = PILImage.new("RGB", (920, 140), "white")
+        output = BytesIO()
+        image.save(output, format="PNG")
+        rendered = output.getvalue()
+
+        self.assertFalse(
+            ta._should_retry_source_snapshot_with_clause_window(
+                rendered=rendered,
+                render_meta={"page_span_count": 1},
+                table_title="整车应用基本信息",
+                headers=["用电器端基本信息", "说明"],
+                rows=[
+                    ["布置位置", "前舱发动机本体 乘员舱仪表台"],
+                    ["工作温度", "示例：-40-+105°C（T2乘员舱：-40°C-+100°C / T3前舱：-40°C-+125°C）"],
+                    ["防水等级", "示例：S2(防水区域)/S3(防水区域并有直接水泼溅)"],
+                ],
+                notes=["整车用电器与线束匹配评估表"],
+            )
+        )
+
+    def test_heading_anchor_context_preserves_numeric_section_code(self) -> None:
+        self.assertEqual(
+            ta._entry_anchor_context_text(
+                {
+                    "entry_kind": "HEADING",
+                    "section_code": "46",
+                    "section_title": "上支撑—橡胶衬套硬度",
+                    "display_text": "上支撑—橡胶衬套硬度",
+                },
+                from_end=True,
+            ),
+            "46 上支撑—橡胶衬套硬度",
         )
 
     def test_axis_symbol_table_prefers_clause_window(self) -> None:
@@ -1053,6 +1096,137 @@ class TableAssetsParsingTest(unittest.TestCase):
         )
         self.assertEqual(bbox[1], 112.0)
         self.assertEqual(bbox[3], 408.0)
+
+    def test_compose_page_crop_bbox_keeps_single_row_slice_when_end_anchor_is_inline_table_cell(self) -> None:
+        class _Rect:
+            width = 400.0
+            height = 500.0
+
+        class _Page:
+            rect = _Rect()
+
+        bbox = _compose_page_crop_bbox(
+            _Page(),
+            chosen={
+                "bbox": (10.0, 10.0, 300.0, 400.0),
+                "rows_text": [
+                    ["序号", "项目", "DV/PV"],
+                    ["4", "滑动摩擦力", "DV/PV"],
+                    ["5", "抗泡沫性", "DV/PV"],
+                ],
+                "row_bboxes": [
+                    (10.0, 100.0, 300.0, 120.0),
+                    (10.0, 120.0, 300.0, 180.0),
+                    (10.0, 180.0, 300.0, 240.0),
+                ],
+            },
+            start_anchor={"bbox": (12.0, 118.0, 280.0, 128.0), "text": "滑动摩擦力"},
+            end_anchor={"bbox": (250.0, 145.0, 280.0, 156.0), "text": "DV/PV"},
+            headers=["序号", "项目", "DV/PV"],
+            slice_rows=[["4", "滑动摩擦力", "DV/PV"]],
+        )
+        self.assertEqual(bbox[1], 92.0)
+        self.assertEqual(bbox[3], 188.0)
+
+    def test_compose_page_crop_bbox_tightens_shallow_single_row_slice_horizontally(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 500.0
+
+        class _Page:
+            rect = _Rect()
+
+            def get_text(self, mode: str) -> dict:
+                if mode != "dict":
+                    raise AssertionError(mode)
+                return {
+                    "blocks": [
+                        {
+                            "type": 0,
+                            "lines": [
+                                {"bbox": (59.2, 121.2, 63.3, 125.3), "spans": [{"text": "96"}]},
+                                {"bbox": (68.1, 121.1, 89.8, 125.4), "spans": [{"text": "防尘罩拔脱"}]},
+                                {"bbox": (112.0, 118.4, 220.3, 122.8), "spans": [{"text": "固定上支撑一端，使用拉力机拉动防尘罩，方向：上支撑"}]},
+                                {"bbox": (112.0, 123.8, 188.0, 128.2), "spans": [{"text": "轴向方向,加载速度30mm/min,温度23℃,"}]},
+                                {"bbox": (223.5, 121.1, 249.7, 125.4), "spans": [{"text": "拔脱力≥100N"}]},
+                                {"bbox": (364.3, 121.2, 374.6, 125.3), "spans": [{"text": "DV/PV"}]},
+                                {"bbox": (386.1, 121.1, 388.4, 125.4), "spans": [{"text": "3"}]},
+                                {"bbox": (406.3, 121.2, 420.8, 125.3), "spans": [{"text": "3件/OTS"}]},
+                                {"bbox": (436.0, 121.2, 442.2, 125.3), "spans": [{"text": "1天"}]},
+                            ],
+                        }
+                    ]
+                }
+
+            def get_drawings(self) -> list[dict]:
+                return [
+                    {"rect": type("Rect", (), {"x0": 42.8, "y0": 108.9, "x1": 546.0, "y1": 138.4})()},
+                ]
+
+        bbox = _compose_page_crop_bbox(
+            _Page(),
+            chosen={
+                "bbox": (42.8, 60.9, 546.0, 156.0),
+                "rows_text": [
+                    ["95", "吊环衬套-高温耐久试验"],
+                    ["96", "防尘罩拔脱", "-", "固定上支撑一端，使用拉力机拉动防尘罩，方向：上支撑 轴向方向,加载速度30mm/min,温度23℃,", "拔脱力≥100N", "DV/PV", "3", "3件/OTS", "1天"],
+                    ["63", "EMC"],
+                ],
+                "row_bboxes": [
+                    (54.8, 72.9, 534.0, 108.9),
+                    (54.8, 108.9, 534.0, 138.4),
+                    (54.8, 138.4, 534.0, 144.0),
+                ],
+            },
+            start_anchor=None,
+            end_anchor=None,
+            headers=["序号", "项目", "参考标准", "试验方法", "要求", "DV/PV", "责任方", "样件", "周期"],
+            slice_rows=[["96", "防尘罩拔脱", "-", "固定上支撑一端，使用拉力机拉动防尘罩，方向：上支撑 轴向方向,加载速度30mm/min,温度23℃,", "拔脱力≥100N", "DV/PV", "3", "3件/OTS", "1天"]],
+        )
+        self.assertAlmostEqual(bbox[1], 100.9, places=1)
+        self.assertAlmostEqual(bbox[3], 146.4, places=1)
+        self.assertGreater(bbox[0], 45.0)
+        self.assertLess(bbox[2], 470.0)
+
+    def test_compose_page_crop_bbox_ignores_late_generic_start_anchor_below_row_slice(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _Page:
+            rect = _Rect()
+
+        bbox = _compose_page_crop_bbox(
+            _Page(),
+            chosen={
+                "bbox": (42.4, 60.3, 788.8, 477.5),
+                "rows_text": [
+                    ["整车用电器与线束匹配评估表", "", ""],
+                    ["整车应用基本信息", "", ""],
+                    ["项目", "", ""],
+                    ["布置位置", "前舱发动机本体 乘员舱仪表台"],
+                    ["工作温度", "示例：-40-+105°C"],
+                    ["防水等级", "示例：S2/S3"],
+                ],
+                "row_bboxes": [
+                    (42.4, 80.0, 788.8, 120.0),
+                    (42.4, 180.0, 788.8, 205.0),
+                    (42.4, 205.0, 788.8, 220.0),
+                    (42.4, 220.3, 788.8, 236.0),
+                    (42.4, 236.0, 788.8, 252.0),
+                    (42.4, 252.0, 788.8, 269.7),
+                ],
+            },
+            start_anchor={"bbox": (285.5, 535.9, 295.9, 557.0), "text": "项目"},
+            end_anchor=None,
+            headers=["用电器端基本信息", "说明"],
+            slice_rows=[
+                ["布置位置", "前舱发动机本体 乘员舱仪表台"],
+                ["工作温度", "示例：-40-+105°C"],
+                ["防水等级", "示例：S2/S3"],
+            ],
+        )
+        self.assertEqual(bbox, (42.4, 197.0, 600.0, 277.7))
 
     def test_compose_page_crop_bbox_ignores_stale_page_floor_when_anchor_starts_above_it(self) -> None:
         class _Rect:
@@ -1771,6 +1945,95 @@ class TableAssetsParsingTest(unittest.TestCase):
         self.assertEqual(len(plan), 1)
         self.assertGreater(plan[0][1][3], 430.0)
 
+    def test_build_pdf_crop_plan_ignores_immediate_next_numbered_anchor_for_clean_single_row_table(self) -> None:
+        class _Rect:
+            width = 600.0
+            height = 900.0
+
+        class _Page:
+            rect = _Rect()
+
+            def get_text(self, _mode: str) -> dict:
+                return {
+                    "blocks": [
+                        {
+                            "type": 0,
+                            "lines": [
+                                {"spans": [{"text": "96 防尘罩拔脱"}], "bbox": (54.8, 121.1, 118.0, 125.4)},
+                                {"spans": [{"text": "63 EMC"}], "bbox": (54.8, 138.4, 96.0, 144.0)},
+                            ],
+                        }
+                    ]
+                }
+
+            def get_drawings(self) -> list[dict]:
+                return [
+                    {"rect": type("Rect", (), {"x0": 42.8, "y0": 108.9, "x1": 546.0, "y1": 138.4})()},
+                ]
+
+        class _Document:
+            def load_page(self, _page_index: int) -> _Page:
+                return _Page()
+
+        plan = _build_pdf_crop_plan(
+            _Document(),
+            source_key="sample",
+            page_indices=[0],
+            match_fragments=[("防尘罩拔脱", 18)],
+            headers=["序号", "项目", "参考标准", "试验方法", "要求", "DV/PV", "责任方", "样件", "周期"],
+            slice_rows=[
+                [
+                    "96",
+                    "防尘罩拔脱",
+                    "-",
+                    "固定上支撑一端，使用拉力机拉动防尘罩，方向：上支撑 轴向方向,加载速度30mm/min,温度23℃,",
+                    "拔脱力≥100N",
+                    "DV/PV",
+                    "3",
+                    "3件/OTS",
+                    "1天",
+                ]
+            ],
+            start_anchor=None,
+            end_anchor=None,
+            detection_cache={
+                ("sample", 0): [
+                    {
+                        "bbox": (42.8, 60.9, 546.0, 156.0),
+                        "text": "主动后减振器试验大纲",
+                        "area": 47913.51,
+                        "rows_text": [
+                            ["95", "吊环衬套-高温耐久试验"],
+                            [
+                                "96",
+                                "防尘罩拔脱",
+                                "-",
+                                "固定上支撑一端，使用拉力机拉动防尘罩，方向：上支撑 轴向方向,加载速度30mm/min,温度23℃,",
+                                "拔脱力≥100N",
+                                "DV/PV",
+                                "3",
+                                "3件/OTS",
+                                "1天",
+                            ],
+                            ["63", "EMC"],
+                        ],
+                        "row_bboxes": [
+                            (54.8, 72.9, 534.0, 108.9),
+                            (54.8, 108.9, 534.0, 138.4),
+                            (54.8, 138.4, 534.0, 144.0),
+                        ],
+                    }
+                ]
+            },
+            source_page_floor_offsets={},
+            prefer_anchor_window=False,
+        )
+
+        self.assertEqual(len(plan), 1)
+        self.assertAlmostEqual(plan[0][1][1], 100.9, places=1)
+        self.assertAlmostEqual(plan[0][1][3], 146.4, places=1)
+        self.assertGreater(plan[0][1][3] - plan[0][1][1], 40.0)
+
     def test_build_pdf_crop_plan_keeps_large_row_slice_when_inline_numbered_sentence_exists(self) -> None:
         class _Rect:
             width = 600.0
@@ -2229,6 +2492,16 @@ class TableAssetsParsingTest(unittest.TestCase):
             from_end=True,
         )
         self.assertFalse(any(fragment == "refiso21434annexc" for fragment, _ in candidates))
+
+    def test_context_anchor_fragments_keep_plain_numbered_heading_specific(self) -> None:
+        candidates = _build_context_anchor_fragments(
+            "46 上支撑—橡胶衬套硬度",
+            from_end=True,
+        )
+        fragments = {fragment for fragment, _ in candidates}
+        self.assertIn("46上支撑橡胶衬套硬度", fragments)
+        self.assertNotIn("上支撑橡胶衬套硬度", fragments)
+        self.assertFalse(any(fragment.startswith("上支撑橡胶") for fragment in fragments))
 
     def test_sparse_matrix_rows_can_use_inherited_wide_header(self) -> None:
         header = [
@@ -3025,6 +3298,52 @@ class TableAssetsParsingTest(unittest.TestCase):
         self.assertEqual(rows[0], ["1", "软件开发质量要求", ""])
         self.assertEqual(rows[-1], ["12", "Appendix", ""])
         self.assertEqual(notes, ["7、附件目录"])
+
+    @unittest.skipUnless(_DAMPER_SAMPLE_PDF and _DAMPER_SAMPLE_PDF.exists(), "damper sample pdf not available")
+    def test_source_recovery_keeps_numbered_test_outline_row_when_context_is_heading_only(self) -> None:
+        row = {
+            "entry_id": "REQ-T3",
+            "req_code": "REQ-T3",
+            "entry_kind": "REQUIREMENT",
+            "appendix_scope": "T",
+            "section_code": "3",
+            "section_key": "T:3",
+            "section_instance_key": "T:3",
+            "section_title": "减振器的阻尼力与气体反弹力",
+            "source_page": 10,
+            "source_page_end": 10,
+            "source_anchor": "Page 10 | Appendix T | Section 3 减振器的阻尼力与气体反弹力 | 主动前减振器试验大纲",
+            "requirement_text": (
+                "|3|减振器的阻尼力与气体反弹力|-|试验行程：±50mm（若行程不足，则可减少行程进行检测，如 ±40mm、±25mm） "
+                "环境温度：在（23±3）℃的恒温箱保持不少于6h； 检测速度：0.05m/s, 0.1m/s, 0.2m/s, 0.3m/s, 0.6m/s, "
+                "1.0m/s,1.5m/s 电流加载：0.3A/1.0A/1.6A（两电磁阀同时） 试验方向：垂向预行程：在测量相应电流前，"
+                "进行±50mm，0.3m/s，5个循环 （0A）对充气式减振器，按以下条件先测量气体反弹力： 测量位置：Ldesign "
+                "振幅：±5mm 活塞速度：0.4mm/s 同时记录F-V和F-S曲线。 电流：0.3A|气反力公差±29N; 0.3A，1.0A，"
+                "1.6A电流下阻尼力公差为下表所示，或35N，两者取大值； 1.0m/s以上的速度点，在0.3A电流下，"
+                "可能会切换至失效模式，此时阻尼力上限需基于结果调整速度（m 0.05 0.1 0.2 0.3 0.6 1 1.5 公差 "
+                "±17.5% ±15% ±10% ±10% ±10% ±10% ±7.5% 阻尼力公差气反力公差|DV/PV|供应商|6件/OTS|1天|"
+                "JAC：阻尼力、阻尼力公差、气返力、气返力公差根据调校结果更新、确定|"
+            ),
+            "display_text": "",
+            "raw_text": "",
+        }
+        enriched, _ = enrich_entry_with_table_assets(
+            row,
+            document_id="damper-doc",
+            snapshot_root=Path(tempfile.mkdtemp()),
+            source_file_path=str(_DAMPER_SAMPLE_PDF),
+            source_snapshot_cache={},
+            source_table_detection_cache={},
+            source_line_detection_cache={},
+            previous_entry_text="减振器的阻尼力与气体反弹力",
+            next_entry_text="滑动摩擦力",
+            inherited_header=None,
+        )
+        ref = (enriched.get("table_refs") or [None])[0]
+        self.assertIsNotNone(ref)
+        self.assertGreaterEqual(len(ref.get("inherited_headers") or []), 9)
+        self.assertEqual((ref.get("slice_rows") or [[]])[0][0], "3")
+        self.assertIn("减振器的阻尼力与气体反弹力", (ref.get("slice_rows") or [[]])[0][1])
 
     @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
     def test_source_recovery_uses_current_clause_anchor_for_small_local_table(self) -> None:

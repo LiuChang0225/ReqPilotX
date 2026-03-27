@@ -141,27 +141,49 @@
 ## 6. 页面与受众分层
 
 ### 6.1 项目首页（宣讲页）
-- URL：`http://127.0.0.1:8010/`
+- URL：`http://127.0.0.1:8000/`
 - 作用：展示产品价值、优势、目标、技术路径与实时指标。
 
 ### 6.2 客户主控台（对外）
-- URL：`http://127.0.0.1:8010/workspace`
+- URL：`http://127.0.0.1:8000/workspace`
 - 作用：客户日常使用，上传-分析-复核-导出。
 
 ### 6.3 开发者工具（对内）
-- 拆解审阅台：`http://127.0.0.1:8010/extraction-review`
-- 进度看板：`http://127.0.0.1:8010/project-progress`
-- 标注台：`http://127.0.0.1:8010/phase0-review`
+- 拆解审阅台：`http://127.0.0.1:8000/workspace?stage=review`
+- 进度看板：`http://127.0.0.1:8000/project-progress`
+- 标注台：`http://127.0.0.1:8000/phase0-review`
 
 ---
 
 ## 7. 运行方式
 
+稳定后台模式（默认，推荐日常使用）：
+
 ```bash
 cd /Users/liuchang/Documents/New\ project/prototype
-python3 -m venv .venv
-.venv/bin/pip install -r requirements.txt
-.venv/bin/uvicorn app.main:app --reload --port 8010
+./start.sh
+```
+
+常用命令：
+
+```bash
+./status.sh        # 查看 8000 服务状态、HTTP 可达性与最近日志
+./stop.sh          # 停止 8000 服务
+./start.sh 8011    # 在其他端口启动稳定后台服务
+```
+
+开发调试模式（前台 + 自动重载）：
+
+```bash
+cd /Users/liuchang/Documents/New\ project/prototype
+./start-dev.sh
+```
+
+等价命令：
+
+```bash
+./start.sh --dev
+./start.sh --dev --port 8010
 ```
 
 ---

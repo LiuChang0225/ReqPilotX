@@ -36,7 +36,7 @@ _SNAPSHOT_MAX_WIDTH_PX = 920
 _SNAPSHOT_MAX_HEIGHT_PX = 1480
 _COMPLEX_FULL_PAGE_SNAPSHOT_MAX_WIDTH_PX = 2160
 _MERGED_REQUIREMENT_COMPLEX_FULL_PAGE_SNAPSHOT_MAX_WIDTH_PX = 3200
-_SOURCE_SNAPSHOT_SIGNATURE_VERSION = "source-crop-v50"
+_SOURCE_SNAPSHOT_SIGNATURE_VERSION = "source-crop-v57"
 _EMBEDDED_ANCHOR_LINE_SPLIT_RE = re.compile(
     r"(?<!\d)(?:\d+(?:\.\d+)+(?:\s*[）)\]】:：.\-．、]\s*|\s+)|\d{1,2}\s*[）)\]】:：.\-．、]\s*)(?=[A-Za-z\u4e00-\u9fff])"
 )
@@ -563,6 +563,10 @@ def prepare_table_ref_urls(
     return copied
 
 
+def current_source_snapshot_build_token() -> str:
+    return _SOURCE_SNAPSHOT_SIGNATURE_VERSION
+
+
 def _build_visual_snapshot_ref(
     row: dict[str, Any],
     *,
@@ -580,6 +584,17 @@ def _build_visual_snapshot_ref(
     if not text or not _should_generate_visual_snapshot(text, title=title):
         return None, None
     first_line = text.splitlines()[0].strip()
+    visual_rows = _derive_visual_snapshot_slice_rows(text, title=title)
+    prefer_clause_window = _should_prefer_source_clause_window(
+        table_title=first_line,
+        render_mode="snapshot_only",
+        headers=[],
+        rows=visual_rows,
+        source_page=_coerce_int(row.get("source_page")),
+        source_page_end=_coerce_int(row.get("source_page_end")) or _coerce_int(row.get("source_page")),
+        notes=[],
+        trailing_context_text=next_entry_text,
+    )
     table_id = _build_table_id(row, f"visual::{text}", 0)
     snapshot_path = _write_snapshot(
         table_id=table_id,
@@ -597,7 +612,7 @@ def _build_visual_snapshot_ref(
         table_text=text,
         table_title=first_line,
         headers=[],
-        rows=[],
+        rows=visual_rows,
         notes=[],
         before_context_text=previous_entry_text,
         after_context_text=next_entry_text,
@@ -605,7 +620,7 @@ def _build_visual_snapshot_ref(
         source_table_detection_cache=source_table_detection_cache,
         source_line_detection_cache=source_line_detection_cache,
         source_page_floor_offsets={},
-        prefer_clause_window=True,
+        prefer_clause_window=prefer_clause_window,
     )
     if not source_snapshot_path:
         return None, None
@@ -632,7 +647,7 @@ def _build_visual_snapshot_ref(
         },
         "table_title": title or first_line,
         "headers": [],
-        "rows": [],
+        "rows": visual_rows,
         "group_labels": [],
         "notes": [],
         "render_mode": "snapshot_only",
@@ -650,7 +665,7 @@ def _build_visual_snapshot_ref(
             "row_ids": [],
             "table_title": title or first_line,
             "inherited_headers": [],
-            "slice_rows": [],
+            "slice_rows": visual_rows,
             "inherited_group_title": "",
             "inherited_notes": [],
             "slice_ai_projection": ai_projection,
@@ -665,6 +680,26 @@ def _build_visual_snapshot_ref(
         }
     )
     return ref, asset
+
+
+def _derive_visual_snapshot_slice_rows(text: str, *, title: str = "") -> list[list[str]]:
+    lines = [line.strip() for line in str(text or "").splitlines() if line.strip()]
+    candidates = []
+    if lines:
+        candidates.append(lines[0])
+    if title:
+        candidates.append(str(title).strip())
+
+    for candidate in candidates:
+        match = re.match(r"^\s*(\d{1,3})(?:\s*[）)]\s*|\s+)(.+)$", candidate)
+        if not match:
+            continue
+        number = str(match.group(1) or "").strip()
+        label = str(match.group(2) or "").strip()
+        if not number or not label or len(label) > 120:
+            continue
+        return [[number, label]]
+    return []
 
 
 def normalize_preserved_entry_table_assets(row: dict[str, Any]) -> dict[str, Any]:
@@ -1148,6 +1183,10 @@ def _entry_source_text(row: dict[str, Any]) -> str:
 
 
 def _entry_anchor_context_text(row: dict[str, Any], *, from_end: bool) -> str:
+    if str(row.get("entry_kind") or "").strip().upper() == "HEADING":
+        heading_context = _heading_anchor_context_text(row)
+        if heading_context:
+            return heading_context
     blocks = _normalize_content_blocks(row.get("content_blocks"))
     paragraph_texts = [
         _clean_paragraph_block_text(str(block.get("text") or "").strip())
@@ -1165,6 +1204,24 @@ def _entry_anchor_context_text(row: dict[str, Any], *, from_end: bool) -> str:
         if title:
             return title
     return _entry_source_text(row)
+
+
+def _heading_anchor_context_text(row: dict[str, Any]) -> str:
+    title = str(
+        row.get("section_title")
+        or row.get("display_text")
+        or row.get("requirement_text")
+        or row.get("raw_text")
+        or ""
+    ).strip()
+    code = str(row.get("section_code") or "").strip()
+    if not code:
+        return title
+    title_normalized = _normalize_match_text(title)
+    code_normalized = _normalize_match_text(code)
+    if title_normalized.startswith(code_normalized):
+        return title
+    return f"{code} {title}".strip()
 
 
 def _refresh_enriched_entry_text_fields(row: dict[str, Any]) -> dict[str, Any]:
@@ -1808,7 +1865,11 @@ def _infer_contextual_single_row_header(
         )
         if str(value or "").strip()
     )
-    if appendix_scope == "Y" or parent_code.startswith("Y.") or "用电器试验大纲" in context_text:
+    if (
+        appendix_scope in {"T", "U", "V", "Y"}
+        or parent_code.startswith(("T.", "U.", "V.", "Y."))
+        or "试验大纲" in context_text
+    ):
         return _infer_test_outline_single_row_headers(cells)
     return []
 
@@ -2627,6 +2688,8 @@ def _should_retry_source_snapshot_with_clause_window(
         return False
     if _has_explicit_numbered_row_slice_label(rows) and page_span_count <= 1:
         return False
+    if page_span_count <= 1 and _looks_like_labeled_info_source_first_table(headers, rows):
+        return False
     if not heading_like and len(headers) < 6 and page_span_count <= 1:
         return False
     min_height = max(120, int(width * 0.18))
@@ -2882,6 +2945,14 @@ def _recover_table_from_pdf_source(
                 if not recovered:
                     continue
                 headers, rows, recovered_notes = recovered
+                trimmed_rows = _trim_recovered_rows_to_explicit_current_section(
+                    recovered_headers=headers,
+                    recovered_rows=rows,
+                    current_rows=current_rows,
+                )
+                if trimmed_rows is None:
+                    continue
+                rows = trimmed_rows
                 score = _table_quality_score(headers, rows)
                 score += _score_pdf_table_candidate(candidate_text, match_fragments)
                 score += _score_pdf_table_candidate(candidate_text, required_match_fragments) * 2
@@ -2906,6 +2977,75 @@ def _recover_table_from_pdf_source(
             detection_cache=source_table_detection_cache,
         )
         return best_headers, best_rows, best_notes or []
+
+
+def _trim_recovered_rows_to_explicit_current_section(
+    *,
+    recovered_headers: list[str],
+    recovered_rows: list[list[str]],
+    current_rows: list[list[str]],
+) -> list[list[str]] | None:
+    target_rows = [row for row in current_rows if isinstance(row, list) and row]
+    if not target_rows or not recovered_rows:
+        return recovered_rows
+    if not _has_explicit_numbered_row_slice_label(target_rows):
+        return recovered_rows
+
+    section_number = _shared_row_slice_section_number(target_rows)
+    if not section_number:
+        return recovered_rows
+
+    section_start = _find_candidate_section_start(recovered_rows, section_number)
+    if section_start is not None:
+        section_stop = _find_candidate_section_stop(recovered_rows, section_start, section_number)
+        section_rows = [
+            list(row)
+            for row in recovered_rows[section_start:section_stop]
+            if isinstance(row, list) and row
+        ]
+        if _recovered_rows_look_like_current_section(section_rows, target_rows, section_number=section_number):
+            return section_rows
+
+    matches = _resolve_row_slice_match_indices(
+        recovered_rows,
+        headers=recovered_headers,
+        target_rows=target_rows,
+    )
+    if not matches:
+        return None
+    start_index, end_index = matches
+    matched_rows = [
+        list(row)
+        for row in recovered_rows[start_index : end_index + 1]
+        if isinstance(row, list) and row
+    ]
+    if not _recovered_rows_look_like_current_section(matched_rows, target_rows, section_number=section_number):
+        return None
+    return matched_rows
+
+
+def _recovered_rows_look_like_current_section(
+    candidate_rows: list[list[str]],
+    target_rows: list[list[str]],
+    *,
+    section_number: str,
+) -> bool:
+    if not candidate_rows or not target_rows:
+        return False
+    if _candidate_row_section_number(candidate_rows[0]) != section_number:
+        return False
+
+    target_title = ""
+    candidate_title = ""
+    if len(target_rows[0]) > 1:
+        target_title = _normalize_match_text(str(target_rows[0][1] or ""))
+    if len(candidate_rows[0]) > 1:
+        candidate_title = _normalize_match_text(str(candidate_rows[0][1] or ""))
+    if target_title and candidate_title and not (
+        target_title in candidate_title or candidate_title in target_title
+    ):
+        return False
+    return True
 
 
 def _slice_pdf_candidate_rows_to_anchor_window(
@@ -3772,6 +3912,11 @@ def _should_prefer_source_clause_window(
 ) -> bool:
     normalized_mode = str(render_mode or "").strip().lower()
     title = str(table_title or "").strip()
+    explicit_numbered_row_slice = _has_explicit_numbered_row_slice_label(rows)
+    if explicit_numbered_row_slice:
+        # Appendix/test-outline single-row items are more stable when cropped from the
+        # matched table row instead of a broad heading-to-heading clause window.
+        return False
     heading_like = (
         _looks_like_local_clause_title(title)
         or _looks_like_headingish_single_cell(title)
@@ -3779,9 +3924,6 @@ def _should_prefer_source_clause_window(
         or _looks_like_attachment_table_title(title)
     )
     cross_page = source_page > 0 and source_page_end > source_page
-    explicit_numbered_row_slice = _has_explicit_numbered_row_slice_label(rows)
-    if cross_page and explicit_numbered_row_slice:
-        return False
     if trailing_context_text:
         return True
     if normalized_mode != "structured":
@@ -4090,6 +4232,30 @@ def _looks_like_compact_threshold_source_first_table(
     long_cells = sum(1 for length in visual_lengths if length >= 12)
     note_length = _estimate_cell_visual_length(" ".join(notes))
     return max(visual_lengths, default=0) >= 24 and long_cells >= 2 and note_length >= 12
+
+
+def _looks_like_labeled_info_source_first_table(headers: list[str], rows: list[list[str]]) -> bool:
+    col_count = max(len(headers), max((len(row) for row in rows), default=0))
+    if col_count < 2 or col_count > 4 or len(rows) < 2 or len(rows) > 6:
+        return False
+    if _has_explicit_numbered_row_slice_label(rows):
+        return False
+
+    labels: list[str] = []
+    long_value_cells = 0
+    for row in rows:
+        if not isinstance(row, list) or len(row) < 2:
+            return False
+        label = str(row[0] or "").strip()
+        if not label or _estimate_cell_visual_length(label) > 16:
+            return False
+        populated_values = [str(cell or "").strip() for cell in row[1:] if str(cell or "").strip()]
+        if not populated_values:
+            return False
+        labels.append(label)
+        long_value_cells += sum(1 for cell in populated_values if _estimate_cell_visual_length(cell) >= 12)
+
+    return len(set(labels)) >= max(2, len(labels) - 1) and long_value_cells >= max(2, len(rows) - 1)
 
 
 def _is_detail_header(label: str) -> bool:
@@ -5064,8 +5230,19 @@ def _build_pdf_crop_plan(
                 slice_rows=slice_rows,
             )
         page_end_anchor = effective_end_anchor if page_index == effective_end_page else None
+        page_end_anchor_from_section = False
         if page_end_anchor is None and section_end_anchor is not None:
             page_end_anchor = section_end_anchor
+            page_end_anchor_from_section = True
+        if _should_ignore_section_end_anchor_for_clean_single_row_slice(
+            page_end_anchor_from_section=page_end_anchor_from_section,
+            chosen=chosen,
+            headers=headers,
+            slice_rows=slice_rows,
+            row_slice_bbox=row_slice_preview,
+            end_anchor=page_end_anchor,
+        ):
+            page_end_anchor = None
         if (
             chosen is not None
             and page_end_anchor is not None
@@ -5345,11 +5522,13 @@ def _build_context_anchor_fragments(text: str, *, from_end: bool) -> list[tuple[
         local_clause_variant = _extract_local_clause_anchor_prefix(line)
         if local_clause_variant:
             variants.append(local_clause_variant)
-        variants.append(_strip_anchor_line_prefix(line))
+        plain_numbered_heading = _looks_like_plain_numbered_heading_line(line)
+        if not plain_numbered_heading:
+            variants.append(_strip_anchor_line_prefix(line))
         label_variant = _extract_anchor_label_prefix(line)
         if label_variant:
             variants.append(label_variant)
-        mixed_variants = _extract_mixed_heading_anchor_parts(line)
+        mixed_variants = [] if plain_numbered_heading else _extract_mixed_heading_anchor_parts(line)
         variants.extend(mixed_variants)
         for variant in variants:
             normalized = _normalize_match_text(variant)
@@ -5370,6 +5549,15 @@ def _build_context_anchor_fragments(text: str, *, from_end: bool) -> list[tuple[
 
 def _strip_anchor_line_prefix(line: str) -> str:
     return re.sub(r"^\s*[0-9一二三四五六七八九十IVXivx\.\-、()（）]+\s*", "", str(line or "")).strip()
+
+
+def _looks_like_plain_numbered_heading_line(text: str) -> bool:
+    value = str(text or "").strip()
+    if not value or "|" in value or len(value) > 80:
+        return False
+    if re.search(r"[。！？!?]", value):
+        return False
+    return bool(re.match(r"^\d{1,3}\s+[A-Za-z\u4e00-\u9fff]", value))
 
 
 def _extract_anchor_label_prefix(line: str) -> str:
@@ -5436,6 +5624,7 @@ def _find_context_anchor_window(
         page_indices=page_indices,
         candidates=self_candidates or [],
         detection_cache=detection_cache,
+        prefer_score_across_pages=True,
     )
     start_anchor = _prefer_later_context_anchor(start_anchor, current_anchor)
 
@@ -5790,6 +5979,7 @@ def _find_context_anchor(
     first_page_only: int | None = None,
     prefer_last: bool = False,
     min_score: int = 1,
+    prefer_score_across_pages: bool = False,
 ) -> dict[str, Any] | None:
     if not candidates or not page_indices:
         return None
@@ -5836,8 +6026,16 @@ def _find_context_anchor(
             if candidate["bbox"][1] > best["bbox"][1]:
                 best = candidate
             continue
+        if prefer_score_across_pages:
+            if int(candidate["score"]) > int(best["score"]):
+                best = candidate
+                continue
+            if int(candidate["score"]) < int(best["score"]):
+                continue
         if int(candidate["page_index"]) < int(best["page_index"]):
             best = candidate
+            continue
+        if int(candidate["page_index"]) > int(best["page_index"]):
             continue
         if int(candidate["page_index"]) == int(best["page_index"]):
             if int(candidate["score"]) > int(best["score"]):
@@ -6001,6 +6199,7 @@ def _collect_anchor_window_content_bboxes(
     *,
     window_top: float,
     window_bottom: float,
+    include_drawings: bool = True,
 ) -> list[tuple[float, float, float, float]]:
     if window_bottom <= window_top + 2.0:
         return []
@@ -6047,7 +6246,7 @@ def _collect_anchor_window_content_bboxes(
                 continue
             content_bboxes.append((image_bbox[0], clipped_top, image_bbox[2], clipped_bottom))
 
-    if content_bboxes:
+    if include_drawings and content_bboxes:
         try:
             drawings = page.get_drawings()
         except Exception:
@@ -6073,6 +6272,54 @@ def _collect_anchor_window_content_bboxes(
                 continue
             content_bboxes.append((drawing_bbox[0], clipped_top, drawing_bbox[2], clipped_bottom))
     return content_bboxes
+
+
+def _tighten_shallow_single_row_slice_horizontal_bbox(
+    page,
+    *,
+    current_bbox: tuple[float, float, float, float],
+    row_slice_bbox: tuple[float, float, float, float] | None,
+    slice_rows: list[list[str]],
+) -> tuple[float, float, float, float]:
+    if row_slice_bbox is None or len(slice_rows) != 1:
+        return current_bbox
+
+    current_width = float(current_bbox[2]) - float(current_bbox[0])
+    current_height = float(current_bbox[3]) - float(current_bbox[1])
+    if current_width <= 0.0 or current_height <= 0.0:
+        return current_bbox
+    if current_height / current_width >= 0.12:
+        return current_bbox
+
+    window_top = max(0.0, float(row_slice_bbox[1]) - 2.0)
+    window_bottom = min(float(page.rect.height), float(row_slice_bbox[3]) + 2.0)
+    content_bboxes = _collect_anchor_window_content_bboxes(
+        page,
+        window_top=window_top,
+        window_bottom=window_bottom,
+        include_drawings=False,
+    )
+    if not content_bboxes:
+        return current_bbox
+
+    content_left = min(float(bbox[0]) for bbox in content_bboxes)
+    content_right = max(float(bbox[2]) for bbox in content_bboxes)
+    tightened_left = max(0.0, content_left - 12.0)
+    tightened_right = min(float(page.rect.width), content_right + 12.0)
+    tightened_width = tightened_right - tightened_left
+    if tightened_width <= 0.0:
+        return current_bbox
+    if tightened_width >= current_width - 24.0:
+        return current_bbox
+    if tightened_width >= current_width * 0.94:
+        return current_bbox
+
+    return (
+        tightened_left,
+        float(current_bbox[1]),
+        tightened_right,
+        float(current_bbox[3]),
+    )
 
 
 def _tighten_anchor_window_crop_bbox(
@@ -6142,6 +6389,7 @@ def _compose_page_crop_bbox(
     page_height = float(page.rect.height)
     row_slice_bbox: tuple[float, float, float, float] | None = None
     numbered_section_row_slice = False
+    end_anchor_text = str(end_anchor.get("text") or "").strip() if end_anchor is not None else ""
     row_slice_mentions_end_anchor = _row_slice_mentions_anchor_text(slice_rows, end_anchor) or (
         _row_slice_candidate_mentions_anchor_text(
             chosen,
@@ -6152,7 +6400,9 @@ def _compose_page_crop_bbox(
         if chosen is not None
         else False
     )
+    single_row_end_anchor_overlap = len(slice_rows) <= 1 and row_slice_mentions_end_anchor
     floor_reference_top: float | None = None
+    effective_start_anchor = start_anchor
     if chosen:
         chosen_bbox = tuple(float(value) for value in chosen["bbox"])
         floor_reference_top = float(chosen_bbox[1])
@@ -6171,12 +6421,28 @@ def _compose_page_crop_bbox(
         )
         row_slice_bbox = _match_row_slice_bbox(chosen, headers=headers, slice_rows=slice_rows)
         numbered_section_row_slice = numbered_section_span_bbox is not None or numbered_continuation_bbox is not None
+        if _start_anchor_looks_like_late_generic_table_cell(
+            start_anchor=effective_start_anchor,
+            chosen_bbox=chosen_bbox,
+            row_slice_bbox=row_slice_bbox,
+        ):
+            effective_start_anchor = None
         if row_slice_bbox is not None and not _row_slice_bbox_is_start_anchor_compatible(
-            start_anchor=start_anchor,
+            start_anchor=effective_start_anchor,
             row_slice_bbox=row_slice_bbox,
         ):
             row_slice_bbox = None
-        if row_slice_bbox is not None and len(slice_rows) <= 1 and row_slice_mentions_end_anchor:
+        single_row_inline_end_anchor_overlap = (
+            single_row_end_anchor_overlap
+            and _end_anchor_overlap_looks_like_inline_table_cell(
+                end_anchor=end_anchor,
+                row_slice_bbox=row_slice_bbox,
+            )
+        )
+        single_row_boundary_end_anchor_overlap = (
+            single_row_end_anchor_overlap and not single_row_inline_end_anchor_overlap
+        )
+        if row_slice_bbox is not None and single_row_boundary_end_anchor_overlap:
             row_slice_bbox = None
         applied_row_slice = row_slice_bbox is not None
         if row_slice_bbox is not None:
@@ -6188,9 +6454,9 @@ def _compose_page_crop_bbox(
         left, top, right, bottom = 24.0, 24.0, max(24.0, page_width - 24.0), max(24.0, page_height - 24.0)
         applied_row_slice = False
 
-    if start_anchor:
-        anchor_bbox = tuple(float(value) for value in start_anchor["bbox"])
-        anchor_text = str(start_anchor.get("text") or "")
+    if effective_start_anchor:
+        anchor_bbox = tuple(float(value) for value in effective_start_anchor["bbox"])
+        anchor_text = str(effective_start_anchor.get("text") or "")
         floor_reference_top = float(anchor_bbox[1])
         anchor_top_padding = 6.0 if _looks_like_local_clause_heading(anchor_text) else 12.0
         if not applied_row_slice:
@@ -6198,7 +6464,7 @@ def _compose_page_crop_bbox(
             right = min(page_width, max(right, anchor_bbox[2] + 12.0))
             top = max(0.0, anchor_bbox[1] - anchor_top_padding)
 
-    if end_anchor and not (len(slice_rows) <= 1 and row_slice_mentions_end_anchor):
+    if end_anchor and not single_row_end_anchor_overlap:
         anchor_bbox = tuple(float(value) for value in end_anchor["bbox"])
         end_anchor_gap = 18.0 if applied_row_slice and len(slice_rows) <= 1 else 12.0
         candidate_bottom = max(0.0, anchor_bbox[1] - end_anchor_gap)
@@ -6214,7 +6480,15 @@ def _compose_page_crop_bbox(
         bottom = min(page_height, top + 20.0)
     if right <= left + 20.0:
         right = min(page_width, left + 20.0)
-    return (left, top, right, bottom)
+    bbox = (left, top, right, bottom)
+    if applied_row_slice and row_slice_bbox is not None:
+        bbox = _tighten_shallow_single_row_slice_horizontal_bbox(
+            page,
+            current_bbox=bbox,
+            row_slice_bbox=row_slice_bbox,
+            slice_rows=slice_rows,
+        )
+    return bbox
 
 
 def _row_slice_bbox_is_start_anchor_compatible(
@@ -6249,6 +6523,55 @@ def _row_slice_bbox_is_start_anchor_compatible(
     return delta <= max_delta
 
 
+def _end_anchor_overlap_looks_like_inline_table_cell(
+    *,
+    end_anchor: dict[str, Any] | None,
+    row_slice_bbox: tuple[float, float, float, float] | None,
+) -> bool:
+    if end_anchor is None or row_slice_bbox is None:
+        return False
+    anchor_text = str(end_anchor.get("text") or "").strip()
+    anchor_bbox = tuple(end_anchor.get("bbox") or ())
+    if not anchor_text or len(anchor_bbox) < 4:
+        return False
+    if (
+        _looks_like_local_clause_heading(anchor_text)
+        or _looks_like_headingish_single_cell(anchor_text)
+        or _looks_like_attachment_heading_anchor(anchor_text)
+    ):
+        return False
+
+    anchor_width = float(anchor_bbox[2]) - float(anchor_bbox[0])
+    if anchor_width > 140.0:
+        return False
+
+    # True section boundaries are typically left-aligned; compact tokens such as
+    # DV/PV or supplier/sample cells often sit well inside the matched row band.
+    return float(anchor_bbox[0]) >= float(row_slice_bbox[0]) + 40.0
+
+
+def _start_anchor_looks_like_late_generic_table_cell(
+    *,
+    start_anchor: dict[str, Any] | None,
+    chosen_bbox: tuple[float, float, float, float] | None,
+    row_slice_bbox: tuple[float, float, float, float] | None,
+) -> bool:
+    if start_anchor is None or row_slice_bbox is None:
+        return False
+    anchor_text = str(start_anchor.get("text") or "").strip()
+    anchor_bbox = tuple(start_anchor.get("bbox") or ())
+    if not anchor_text or len(anchor_bbox) < 4:
+        return False
+    if not _is_generic_table_anchor_text(anchor_text):
+        return False
+    if float(anchor_bbox[1]) <= float(row_slice_bbox[3]) + 4.0:
+        return False
+    if chosen_bbox is not None and float(anchor_bbox[1]) > float(chosen_bbox[3]) + 2.0:
+        return True
+    anchor_width = float(anchor_bbox[2]) - float(anchor_bbox[0])
+    return anchor_width <= 180.0 and float(anchor_bbox[1]) >= float(row_slice_bbox[3]) + 24.0
+
+
 def _row_slice_candidate_mentions_anchor_text(
     candidate: dict[str, Any],
     *,
@@ -6274,6 +6597,36 @@ def _row_slice_candidate_mentions_anchor_text(
         if str(cell or "").strip()
     )
     return _text_mentions_anchor_text(span_text, anchor)
+
+
+def _should_ignore_section_end_anchor_for_clean_single_row_slice(
+    *,
+    page_end_anchor_from_section: bool,
+    chosen: dict[str, Any] | None,
+    headers: list[str],
+    slice_rows: list[list[str]],
+    row_slice_bbox: tuple[float, float, float, float] | None,
+    end_anchor: dict[str, Any] | None,
+) -> bool:
+    if (
+        not page_end_anchor_from_section
+        or chosen is None
+        or end_anchor is None
+        or row_slice_bbox is None
+        or len(slice_rows) != 1
+    ):
+        return False
+    if _row_slice_mentions_anchor_text(slice_rows, end_anchor) or _row_slice_candidate_mentions_anchor_text(
+        chosen,
+        headers=headers,
+        slice_rows=slice_rows,
+        anchor=end_anchor,
+    ):
+        return False
+    end_bbox = tuple(end_anchor.get("bbox") or ())
+    if len(end_bbox) < 4:
+        return False
+    return float(end_bbox[1]) <= float(row_slice_bbox[3]) + 12.0
 
 
 def _row_slice_mentions_anchor_text(

@@ -11,13 +11,14 @@ from typing import Any
 
 from app import db
 from app.services.extraction_preview import build_extraction_preview
+from app.services.table_assets import current_source_snapshot_build_token
 
 logger = logging.getLogger(__name__)
 
 _PREVIEW_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="preview-cache")
 _PREVIEW_LOCK = threading.Lock()
 _ACTIVE_REFRESHES: set[str] = set()
-_PREVIEW_CACHE_VERSION = "preview-cache-v21"
+_PREVIEW_CACHE_VERSION = "preview-cache-v28-numbered-heading-anchor-fragments"
 
 
 def _now_iso() -> str:
@@ -64,6 +65,15 @@ def _source_mtime_token(file_path: str) -> str:
         return str(path.stat().st_mtime_ns)
     except OSError:
         return ""
+
+
+def _preview_build_token() -> str:
+    return "|".join(
+        [
+            _PREVIEW_CACHE_VERSION,
+            current_source_snapshot_build_token(),
+        ]
+    )
 
 
 def get_preview_cache_state(document: dict | None) -> dict[str, Any]:
@@ -126,7 +136,11 @@ def load_cached_preview(document: dict | None) -> tuple[dict | None, dict[str, A
         meta["preview_error"] = f"cached preview read failed: {exc}"
         return None, meta
 
-    if not isinstance(preview, dict) or str(preview.get("_preview_cache_version") or "") != _PREVIEW_CACHE_VERSION:
+    if (
+        not isinstance(preview, dict)
+        or str(preview.get("_preview_cache_version") or "") != _PREVIEW_CACHE_VERSION
+        or str(preview.get("_preview_build_token") or "") != _preview_build_token()
+    ):
         meta["preview_status"] = "STALE"
         meta["preview_cache_hit"] = False
         meta["preview_error"] = "cached preview is outdated"
@@ -148,6 +162,7 @@ def persist_preview_cache(document: dict | None, preview: dict[str, Any]) -> dic
     temp_path = cache_path.with_suffix(".tmp")
     payload = dict(preview)
     payload["_preview_cache_version"] = _PREVIEW_CACHE_VERSION
+    payload["_preview_build_token"] = _preview_build_token()
     temp_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
     temp_path.replace(cache_path)
     generated_at = _now_iso()

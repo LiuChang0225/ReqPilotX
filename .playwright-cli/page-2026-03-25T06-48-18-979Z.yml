@@ -1,0 +1,128 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "SOR 智能合规分析原型" [level=1] [ref=e5]
+      - paragraph [ref=e6]: 客户工作台：上传 SOR 后自动拆解、生成初判建议、人工确认并导出 Compliance Matrix。
+    - navigation [ref=e7]:
+      - link "项目首页" [ref=e8] [cursor=pointer]:
+        - /url: /home
+      - link "拆解审阅台" [ref=e9] [cursor=pointer]:
+        - /url: /workspace?stage=review
+  - generic [ref=e10]:
+    - paragraph
+  - generic [ref=e11]:
+    - heading "1. 项目管理" [level=2] [ref=e12]
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - text: 项目名称
+          - textbox "项目名称" [ref=e16]:
+            - /placeholder: "例如: BMS Platform Gen3"
+        - generic [ref=e17]:
+          - text: 客户名称
+          - textbox "客户名称" [ref=e18]:
+            - /placeholder: "例如: OEM-A"
+        - button "创建项目" [ref=e19] [cursor=pointer]
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - text: 当前项目
+          - combobox "当前项目" [ref=e22]:
+            - option "请选择项目"
+            - option "tmp_apply_review / tmp" [selected]
+            - option "tmp_dedupe_check2 / tmp"
+            - option "tmp_dedupe_check / tmp"
+            - option "mda阀 / jac"
+            - option "MDA / JAC"
+            - option "MDA / GAC"
+            - option "baic nox / baic"
+            - option "SectionModeCheck / Test"
+            - option "Real Sample Tuning / BAIC"
+            - option "Tune Smoke / OEM-T"
+            - option "Smoke Test / OEM-Z"
+            - option "Prototype E2E / OEM-Y"
+            - option "Prototype Demo / OEM-X"
+            - option "Prototype Demo / OEM-X"
+        - generic [ref=e23]:
+          - text: 当前 SOR 文档
+          - combobox "当前 SOR 文档" [ref=e24]
+        - button "刷新项目列表" [ref=e25] [cursor=pointer]
+  - generic [ref=e26]:
+    - heading "2. 文档上传" [level=2] [ref=e27]
+    - generic [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - text: 上传 SOR 文档（PDF / DOCX）
+          - button "上传 SOR 文档（PDF / DOCX）" [ref=e31]
+        - button "上传 SOR" [ref=e32] [cursor=pointer]
+        - paragraph [ref=e33]
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - text: 上传知识库文档（规格/标准/历史案例）
+          - button "上传知识库文档（规格/标准/历史案例）" [ref=e36]
+        - button "上传知识文档" [ref=e37] [cursor=pointer]
+        - paragraph
+  - generic [ref=e38]:
+    - heading "3. 分析与导出" [level=2] [ref=e39]
+    - generic [ref=e40]:
+      - button "生成条目集" [ref=e41] [cursor=pointer]
+      - button "锁定条目集" [ref=e42] [cursor=pointer]
+      - button "运行 AI 分析" [ref=e43] [cursor=pointer]
+      - button "刷新工作区" [ref=e44] [cursor=pointer]
+      - textbox "导出版本标识，例如 r33" [ref=e45]
+      - combobox [ref=e46]:
+        - option "不做版本对比" [selected]
+      - button "刷新导出版本" [ref=e47] [cursor=pointer]
+      - button "导出 Compliance Matrix" [ref=e48] [cursor=pointer]
+    - paragraph
+    - paragraph
+  - generic [ref=e49]:
+    - heading "4. 工作阶段" [level=2] [ref=e50]
+    - generic [ref=e51]:
+      - button "1. 条目审阅" [ref=e52] [cursor=pointer]
+      - button "2. AI 分析" [ref=e53] [cursor=pointer]
+      - button "3. Compliance Matrix" [ref=e54] [cursor=pointer]
+  - generic [ref=e55]:
+    - heading "审阅工作台" [level=2] [ref=e56]
+    - generic [ref=e57]:
+      - generic [ref=e58]:
+        - generic [ref=e59]:
+          - generic [ref=e60]:
+            - text: 分类
+            - combobox "分类" [ref=e61]
+          - generic [ref=e62]:
+            - text: 章节
+            - textbox "章节" [ref=e63]:
+              - /placeholder: 例如 5.3.6.2 或 A:1.2.3
+          - generic [ref=e64]:
+            - text: 关键词
+            - textbox "关键词" [ref=e65]:
+              - /placeholder: 关键词过滤原文需求
+          - generic [ref=e66]:
+            - button "全部保留" [ref=e67] [cursor=pointer]
+            - button "全部移除" [ref=e68] [cursor=pointer]
+            - button "仅看推荐截图" [ref=e69] [cursor=pointer]
+            - button "刷新预览" [ref=e70] [cursor=pointer]
+        - paragraph
+        - group [ref=e71]:
+          - generic "开发诊断（折叠）" [ref=e72] [cursor=pointer]
+        - table [ref=e74]:
+          - rowgroup [ref=e81]:
+            - row "保留 分类 章节 原文需求 页范围" [ref=e82]:
+              - columnheader "保留" [ref=e83]:
+                - generic [ref=e84]:
+                  - checkbox "保留" [ref=e85]
+                  - generic [ref=e86]: 保留
+              - columnheader "分类" [ref=e87]
+              - columnheader "章节" [ref=e88]
+              - columnheader "原文需求" [ref=e89]
+              - columnheader "页范围" [ref=e90]
+          - rowgroup
+      - complementary [ref=e91]:
+        - button "PDF对照" [ref=e92] [cursor=pointer]
+        - generic:
+          - generic:
+            - heading "原 PDF 对照" [level=3]
+            - button "新窗口打开"
+          - paragraph: 点击左侧条目定位原文页。
+          - iframe [ref=e93]:
+            

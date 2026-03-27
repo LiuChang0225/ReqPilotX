@@ -1,0 +1,153 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "SOR 智能合规分析原型" [level=1] [ref=e5]
+      - paragraph [ref=e6]: 客户工作台：上传 SOR 后自动拆解、生成初判建议、人工确认并导出 Compliance Matrix。
+    - navigation [ref=e7]:
+      - link "项目首页" [ref=e8] [cursor=pointer]:
+        - /url: /home
+      - link "拆解审阅台" [ref=e9] [cursor=pointer]:
+        - /url: /workspace?stage=review
+  - generic [ref=e10]:
+    - generic [ref=e11]:
+      - article [ref=e12]:
+        - generic [ref=e13]: 当前文档
+        - generic [ref=e14]: 产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf
+      - article [ref=e15]:
+        - generic [ref=e16]: 工作流
+        - generic [ref=e17]: 审阅中
+      - article [ref=e18]:
+        - generic [ref=e19]: 条目集版本
+        - generic [ref=e20]: "503"
+      - article [ref=e21]:
+        - generic [ref=e22]: AI 状态
+        - generic [ref=e23]: 未运行
+      - article [ref=e24]:
+        - generic [ref=e25]: 预览状态
+        - generic [ref=e26]: 已就绪
+      - article [ref=e27]:
+        - generic [ref=e28]: 知识库版本
+        - generic [ref=e29]: "0"
+      - article [ref=e30]:
+        - generic [ref=e31]: 知识文档
+        - generic [ref=e32]: "0"
+      - article [ref=e33]:
+        - generic [ref=e34]: 矩阵条目
+        - generic [ref=e35]: "182"
+      - article [ref=e36]:
+        - generic [ref=e37]: 已人工确认
+        - generic [ref=e38]: "0"
+      - article [ref=e39]:
+        - generic [ref=e40]: HYBRID
+        - generic [ref=e41]: "6"
+    - paragraph [ref=e42]: 当前文档 产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf，阶段 审阅中，条目集版本 503，未锁定，AI 未运行，预览 已就绪。
+  - generic [ref=e43]:
+    - heading "1. 项目管理" [level=2] [ref=e44]
+    - generic [ref=e45]:
+      - generic [ref=e46]:
+        - generic [ref=e47]:
+          - text: 项目名称
+          - textbox "项目名称" [ref=e48]:
+            - /placeholder: "例如: BMS Platform Gen3"
+        - generic [ref=e49]:
+          - text: 客户名称
+          - textbox "客户名称" [ref=e50]:
+            - /placeholder: "例如: OEM-A"
+        - button "创建项目" [ref=e51] [cursor=pointer]
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - text: 当前项目
+          - combobox "当前项目" [ref=e54]:
+            - option "请选择项目"
+            - option "MDA / JAC" [selected]
+        - generic [ref=e55]:
+          - text: 当前 SOR 文档
+          - combobox "当前 SOR 文档" [ref=e56]:
+            - option "请选择 SOR 文档"
+            - option "产品设计规格说明书（PDS）-DE前后油泵总成-V1.1-20251215.pdf" [selected]
+        - button "刷新项目列表" [ref=e57] [cursor=pointer]
+  - generic [ref=e58]:
+    - heading "2. 文档上传" [level=2] [ref=e59]
+    - generic [ref=e60]:
+      - generic [ref=e61]:
+        - generic [ref=e62]:
+          - text: 上传 SOR 文档（PDF / DOCX）
+          - button "上传 SOR 文档（PDF / DOCX）" [ref=e63]
+        - button "上传 SOR" [ref=e64] [cursor=pointer]
+        - paragraph [ref=e65]
+      - generic [ref=e66]:
+        - generic [ref=e67]:
+          - text: 上传知识库文档（规格/标准/历史案例）
+          - button "上传知识库文档（规格/标准/历史案例）" [ref=e68]
+        - button "上传知识文档" [ref=e69] [cursor=pointer]
+        - paragraph
+  - generic [ref=e70]:
+    - heading "3. 分析与导出" [level=2] [ref=e71]
+    - generic [ref=e72]:
+      - button "生成条目集" [ref=e73] [cursor=pointer]
+      - button "锁定条目集" [ref=e74] [cursor=pointer]
+      - button "运行 AI 分析" [disabled] [ref=e75]
+      - button "刷新工作区" [ref=e76] [cursor=pointer]
+      - textbox "导出版本标识，例如 r33" [ref=e77]
+      - combobox [ref=e78]:
+        - option "不做版本对比" [selected]
+        - option "mda_compliance_matrix_20260313_151255.xlsx (2026/03/13 15:12:56)"
+        - option "mda_compliance_matrix_20260313_151233.xlsx (2026/03/13 15:12:34)"
+        - option "mda_compliance_matrix_20260313_150523.xlsx (2026/03/13 15:05:24)"
+        - option "mda_compliance_matrix_20260313_150228.xlsx (2026/03/13 15:02:29)"
+        - option "mda_compliance_matrix_20260313_110424.xlsx (2026/03/13 11:04:24)"
+      - button "刷新导出版本" [ref=e79] [cursor=pointer]
+      - button "导出 Compliance Matrix" [disabled] [ref=e80]
+    - paragraph
+    - paragraph [ref=e81]: 导出 Compliance Matrix 前，请先锁定当前条目集。
+  - generic [ref=e82]:
+    - heading "4. 工作阶段" [level=2] [ref=e83]
+    - generic [ref=e84]:
+      - button "1. 条目审阅" [ref=e85] [cursor=pointer]
+      - button "2. AI 分析" [ref=e86] [cursor=pointer]
+      - button "3. Compliance Matrix" [ref=e87] [cursor=pointer]
+  - generic [ref=e88]:
+    - heading "审阅工作台" [level=2] [ref=e89]
+    - generic [ref=e90]:
+      - generic [ref=e91]:
+        - generic [ref=e92]:
+          - generic [ref=e93]:
+            - text: 分类
+            - combobox "分类" [ref=e94]:
+              - option "全部" [selected]
+          - generic [ref=e95]:
+            - text: 章节
+            - textbox "章节" [ref=e96]:
+              - /placeholder: 例如 5.3.6.2 或 A:1.2.3
+          - generic [ref=e97]:
+            - text: 关键词
+            - textbox "关键词" [ref=e98]:
+              - /placeholder: 关键词过滤原文需求
+          - generic [ref=e99]:
+            - button "全部保留" [disabled] [ref=e100]
+            - button "全部移除" [disabled] [ref=e101]
+            - button "仅看推荐截图" [disabled] [ref=e102]
+            - button "预览生成中..." [disabled] [ref=e103]
+        - paragraph
+        - group [ref=e104]:
+          - generic "开发诊断（折叠）" [ref=e105] [cursor=pointer]
+        - table [ref=e107]:
+          - rowgroup [ref=e114]:
+            - row "保留 分类 章节 原文需求 页范围" [ref=e115]:
+              - columnheader "保留" [ref=e116]
+              - columnheader "分类" [ref=e117]
+              - columnheader "章节" [ref=e118]
+              - columnheader "原文需求" [ref=e119]
+              - columnheader "页范围" [ref=e120]
+          - rowgroup [ref=e121]:
+            - row "暂无可审阅条目" [ref=e122]:
+              - cell "暂无可审阅条目" [ref=e123]
+      - complementary [ref=e124]:
+        - button "展开PDF" [ref=e125] [cursor=pointer]
+        - generic:
+          - generic:
+            - heading "原 PDF 对照" [level=3]
+            - button "新窗口打开"
+          - paragraph: 点击左侧条目定位原文页。
+          - iframe [ref=e126]:
+            

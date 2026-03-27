@@ -1,0 +1,2 @@
+[     108ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:8000/favicon.ico:0
+[ 3059428ms] [ERROR] Failed to load resource: the server responded with a status of 500 (Internal Server Error) @ http://127.0.0.1:8000/api/projects/fd1fd903-c9c5-47dc-8880-69a6c1497f33/sor-documents/365c0e7a-9805-4314-8352-3d4e459f8109/review-entry:0
