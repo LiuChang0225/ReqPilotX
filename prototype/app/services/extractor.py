@@ -526,6 +526,14 @@ def _looks_like_valid_embedded_local_clause_chunk(chunk: str) -> bool:
     match = EMBEDDED_LOCAL_CLAUSE_HEAD_RE.match(value)
     if not match:
         return False
+    code = _normalize_line(str(match.group(1) or ""))
+    code_tuple = _parse_section_code_tuple(code)
+    if not code_tuple:
+        return False
+    # Standard identifiers like "28046.5 ..." are often carried inside section content
+    # and should not be split as local clauses.
+    if code_tuple[0] > 80:
+        return False
     title = _normalize_line(str(match.group(2) or ""))
     if not title or len(title) > 220 or "|" in title:
         return False
@@ -1411,7 +1419,8 @@ def _is_serial_table_row_candidate(line: str, header: dict[str, Any]) -> bool:
     raw = str(line or "").strip()
     if level != 1 or not code or not title:
         return False
-    if _looks_like_attachment_title_phrase(title):
+    bare_numeric_row = bool(re.match(r"^\d+\s+\S+", raw))
+    if _looks_like_attachment_title_phrase(title) and not bare_numeric_row:
         return False
     if _looks_like_measurement_title(title) or _looks_like_component_bom_title(title):
         return False
@@ -4946,19 +4955,41 @@ def _trim_boundary_curr_text(text: str) -> str:
 
 
 def _refresh_block_page_span(block: dict[str, Any]) -> None:
-    pages = [int(e.get("source_page")) for e in list(block.get("entries", [])) if isinstance(e.get("source_page"), int)]
-    line_indices = [
-        int(e.get("source_line_index"))
-        for e in list(block.get("entries", []))
-        if isinstance(e.get("source_line_index"), int)
-    ]
+    entries = list(block.get("entries", []))
+    pages = [int(e.get("source_page")) for e in entries if isinstance(e.get("source_page"), int)]
     if not pages:
         return
-    block["source_page"] = min(pages)
-    block["source_page_end"] = max(pages)
-    if line_indices:
-        block["source_line_index"] = min(line_indices)
-        block["source_line_index_end"] = max(line_indices)
+    start_page = min(pages)
+    end_page = max(pages)
+    block["source_page"] = start_page
+    block["source_page_end"] = end_page
+
+    start_line_indices = [
+        int(e.get("source_line_index"))
+        for e in entries
+        if isinstance(e.get("source_line_index"), int) and int(e.get("source_page", -1)) == start_page
+    ]
+    end_line_indices = [
+        int(e.get("source_line_index"))
+        for e in entries
+        if isinstance(e.get("source_line_index"), int) and int(e.get("source_page", -1)) == end_page
+    ]
+    if not start_line_indices:
+        start_line_indices = [
+            int(e.get("source_line_index"))
+            for e in entries
+            if isinstance(e.get("source_line_index"), int)
+        ]
+    if not end_line_indices:
+        end_line_indices = [
+            int(e.get("source_line_index"))
+            for e in entries
+            if isinstance(e.get("source_line_index"), int)
+        ]
+    if start_line_indices:
+        block["source_line_index"] = min(start_line_indices)
+    if end_line_indices:
+        block["source_line_index_end"] = max(end_line_indices)
 
 
 def _merge_duplicate_section_block(base: dict[str, Any], incoming: dict[str, Any]) -> dict[str, Any]:
@@ -5010,6 +5041,7 @@ def _merge_duplicate_section_block(base: dict[str, Any], incoming: dict[str, Any
     base_order = int(base.get("_discovery_order", 10**9) or 10**9)
     in_order = int(incoming.get("_discovery_order", 10**9) or 10**9)
     merged["_discovery_order"] = min(base_order, in_order)
+    _refresh_block_page_span(merged)
     return merged
 
 

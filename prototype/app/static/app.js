@@ -788,10 +788,15 @@ function renderReviewDiagnostics() {
       ["预览状态", formatPreviewStatus(workspaceSummary.preview_status)],
       ["缓存命中", workspaceSummary.preview_cache_hit ? "是" : "否"],
       ["融合模式", summary.merge_mode || "-"],
+      ["顺序模型", summary.section_order_model || "-"],
       ["完整条目", summary.complete_entries_count ?? 0],
       ["原始条目", summary.complete_entries_raw_count ?? 0],
       ["章节数", summary.sections_count ?? 0],
+      ["章节树节点", summary.section_tree_count ?? summary.section_outline_count ?? 0],
       ["一致性问题", summary.section_consistency_issues_total ?? 0],
+      ["零直挂父章", summary.zero_direct_requirement_parent_count ?? 0],
+      ["Synthetic 章节", summary.synthetic_section_count ?? 0],
+      ["Orphan 章节", summary.orphan_section_count ?? 0],
       ["低置信页", summary.low_confidence_page_count ?? 0],
       ["顺序来源", workspaceSummary.order_source || "-"],
       ["顺序异常", workspaceSummary.order_mismatch_count ?? 0],
@@ -1964,9 +1969,6 @@ function activeTableVariant(ref) {
   }
   const dbVariant = String(ref?.export_variant || "").trim().toLowerCase();
   if (dbVariant === "source" || dbVariant === "slice") {
-    if (ref?.source_snapshot_url) {
-      return "source";
-    }
     if (dbVariant === "source" && !ref?.source_snapshot_url) {
       return "slice";
     }

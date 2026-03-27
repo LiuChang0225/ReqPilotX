@@ -239,7 +239,7 @@ def build_extraction_preview(
             }
         )
 
-    sections = sorted(sections, key=_preview_section_row_sort_key)
+    sections, section_tree_stats = _build_canonical_section_rows(sections)
     _attach_requirement_section_context(req_rows, sections)
     complex_table_zones = detect_complex_table_zones(
         segments=segments,
@@ -263,6 +263,11 @@ def build_extraction_preview(
         complete_entries,
         zones=complex_table_zones,
     )
+    sections = rewrite_preview_sections_for_complex_tables(
+        sections,
+        zones=complex_table_zones,
+    )
+    section_tree = [dict(row) for row in sections]
     table_snapshot_root = snapshot_root or (Path(file_path).resolve().parent / "table_snapshots")
     table_document_id = document_id or Path(file_path).stem
     complete_entries_raw, raw_table_assets = enrich_entries_with_table_assets(
@@ -293,6 +298,7 @@ def build_extraction_preview(
         "hybrid_entries_count": sum(1 for row in complete_entries if str(row.get("entry_kind")) == "HYBRID"),
         "sections_count": sum(1 for row in sections if not bool(row.get("is_appendix_marker", False))),
         "section_outline_count": len(raw_section_outline),
+        "section_tree_count": len(section_tree),
         "appendix_marker_count": len(appendix_markers),
         "test_outline_marker_count": len(test_outline_markers),
         "section_consistency_issues_total": section_consistency.get("total_issues", 0),
@@ -325,6 +331,10 @@ def build_extraction_preview(
         "dedupe_version": "heading_requirement_v1",
         "complex_table_zone_count": len(complex_table_zones),
         "complex_table_group_count": sum(len(zone.get("groups") or []) for zone in complex_table_zones),
+        "section_order_model": "canonical_tree_v1",
+        "zero_direct_requirement_parent_count": int(section_tree_stats.get("zero_direct_requirement_parent_count", 0)),
+        "synthetic_section_count": int(section_tree_stats.get("synthetic_section_count", 0)),
+        "orphan_section_count": int(section_tree_stats.get("orphan_section_count", 0)),
     }
 
     return {
@@ -334,6 +344,7 @@ def build_extraction_preview(
         "complete_requirement_entries": complete_entries,
         "complete_requirement_entries_raw": complete_entries_raw,
         "sections": sections,
+        "section_tree": section_tree,
         "section_outline": section_outline,
         "appendix_markers": appendix_markers,
         "test_outline_markers": test_outline_markers,
@@ -420,8 +431,6 @@ def _should_promote_local_clause_to_section(*, parent_section_code: str, clause_
         return True
     if local_code == parent_code:
         return False
-    if "." in local_code:
-        return True
     if local_code.startswith(f"{parent_code}."):
         return True
     return False
@@ -647,15 +656,147 @@ def _optional_nonnegative_int_sort_key(value: Any, *, allow_zero: bool = True) -
     return parsed
 
 
-def _preview_section_row_sort_key(row: dict[str, Any]) -> tuple[int, int, int, int, int, int, str]:
+def _preview_section_row_sort_key(row: dict[str, Any]) -> tuple[int, int, int, int, int, int, int, str]:
+    tree_order = _outline_order_sort_key(row.get("tree_order"))
     source_page = _optional_nonnegative_int_sort_key(row.get("source_page_start"), allow_zero=False)
     source_line = _optional_nonnegative_int_sort_key(row.get("source_line_index_start"))
     first_req_order = _optional_nonnegative_int_sort_key(row.get("first_req_order"))
     outline_order = _outline_order_sort_key(row.get("outline_order"))
     section_level = _optional_nonnegative_int_sort_key(row.get("section_level"))
+    structural_kind = str(row.get("structural_kind") or "").strip().lower()
+    kind_rank = 0 if structural_kind == "outline" or row.get("outline_order") is not None else 1
     section_instance_key = str(row.get("section_instance_key") or row.get("section_key") or "")
     return (
+        0 if tree_order < 10**9 else 1,
+        tree_order,
         1 if source_page >= 10**9 else 0,
+        source_page,
+        kind_rank,
+        outline_order,
+        source_line,
+        first_req_order,
+        section_level,
+        section_instance_key,
+    )
+
+
+def _build_canonical_section_rows(
+    sections: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], dict[str, int]]:
+    if not sections:
+        return [], {
+            "zero_direct_requirement_parent_count": 0,
+            "synthetic_section_count": 0,
+            "orphan_section_count": 0,
+        }
+
+    copied = [dict(row) for row in sections]
+    node_key_by_section_key: dict[str, str] = {}
+    any_node_key_by_section_key: dict[str, str] = {}
+    children_by_parent_key: dict[str, list[dict[str, Any]]] = {}
+    root_nodes: list[dict[str, Any]] = []
+
+    for index, node in enumerate(copied):
+        node_key = str(node.get("section_instance_key") or node.get("section_key") or "").strip()
+        if not node_key:
+            node_key = f"section-node-{index}"
+        node["_structural_node_key"] = node_key
+        structural_kind = "outline" if node.get("outline_order") is not None else "synthetic"
+        node["structural_kind"] = structural_kind
+        section_key = str(node.get("section_key") or "").strip()
+        if section_key and section_key not in any_node_key_by_section_key:
+            any_node_key_by_section_key[section_key] = node_key
+        if structural_kind == "outline" and section_key and section_key not in node_key_by_section_key:
+            node_key_by_section_key[section_key] = node_key
+
+    for node in copied:
+        parent_key = _resolve_structural_parent_node_key(
+            node,
+            outline_node_key_by_section_key=node_key_by_section_key,
+            any_node_key_by_section_key=any_node_key_by_section_key,
+        )
+        if parent_key == node.get("_structural_node_key"):
+            parent_key = ""
+        node["structural_parent_key"] = parent_key
+        if parent_key:
+            children_by_parent_key.setdefault(parent_key, []).append(node)
+        else:
+            root_nodes.append(node)
+
+    ordered: list[dict[str, Any]] = []
+
+    def visit(node: dict[str, Any]) -> None:
+        node["tree_order"] = len(ordered)
+        ordered.append(node)
+        node_key = str(node.get("_structural_node_key") or "").strip()
+        children = children_by_parent_key.get(node_key, [])
+        for child in sorted(children, key=_section_tree_child_sort_key):
+            visit(child)
+
+    for node in sorted(root_nodes, key=_section_tree_child_sort_key):
+        visit(node)
+
+    for node in ordered:
+        node.pop("_structural_node_key", None)
+
+    stats = {
+        "zero_direct_requirement_parent_count": sum(
+            1 for row in ordered if bool(row.get("has_children")) and _to_int(row.get("requirement_count")) <= 0
+        ),
+        "synthetic_section_count": sum(1 for row in ordered if str(row.get("structural_kind") or "") == "synthetic"),
+        "orphan_section_count": sum(
+            1
+            for row in ordered
+            if str(row.get("structural_kind") or "") == "synthetic"
+            and not str(row.get("structural_parent_key") or "").strip()
+        ),
+    }
+    return ordered, stats
+
+
+def _resolve_structural_parent_node_key(
+    node: dict[str, Any],
+    *,
+    outline_node_key_by_section_key: dict[str, str],
+    any_node_key_by_section_key: dict[str, str],
+) -> str:
+    appendix_scope = str(node.get("appendix_scope") or "").strip().upper()
+    section_code = str(node.get("section_code") or "").strip()
+    parent_code = str(node.get("parent_section_code") or "").strip()
+    if not parent_code:
+        parent_code = _parent_section_code(section_code)
+
+    while parent_code:
+        parent_section_key = _join_section_key(appendix_scope, parent_code)
+        parent_key = outline_node_key_by_section_key.get(parent_section_key) or any_node_key_by_section_key.get(
+            parent_section_key
+        )
+        if parent_key:
+            return parent_key
+        parent_code = _parent_section_code(parent_code)
+    return ""
+
+
+def _section_tree_child_sort_key(row: dict[str, Any]) -> tuple[int, int, int, int, int, int, str]:
+    structural_kind = str(row.get("structural_kind") or "").strip().lower()
+    outline_order = _outline_order_sort_key(row.get("outline_order"))
+    source_page = _optional_nonnegative_int_sort_key(row.get("source_page_start"), allow_zero=False)
+    source_line = _optional_nonnegative_int_sort_key(row.get("source_line_index_start"))
+    first_req_order = _optional_nonnegative_int_sort_key(row.get("first_req_order"))
+    section_level = _optional_nonnegative_int_sort_key(row.get("section_level"))
+    section_instance_key = str(row.get("section_instance_key") or row.get("section_key") or "")
+    if structural_kind == "outline":
+        return (
+            0,
+            outline_order,
+            source_page,
+            source_line,
+            first_req_order,
+            section_level,
+            section_instance_key,
+        )
+    return (
+        1,
         source_page,
         source_line,
         first_req_order,
