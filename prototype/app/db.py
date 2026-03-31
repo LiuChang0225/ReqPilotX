@@ -97,6 +97,12 @@ def _normalize_requirement_record(item: dict[str, Any]) -> dict[str, Any]:
     item["content_blocks"] = _decode_json_payload(item.get("content_blocks"), default=[])
     item["has_table_asset"] = bool(int(item.get("has_table_asset") or 0))
     item["table_render_mode"] = str(item.get("table_render_mode") or "")
+    item["assessment_mode"] = str(item.get("assessment_mode") or "")
+    item["analysis_label"] = str(item.get("analysis_label") or "")
+    item["analysis_basis"] = str(item.get("analysis_basis") or "")
+    item["normalized_requirement"] = str(item.get("normalized_requirement") or "")
+    item["risk_level"] = str(item.get("risk_level") or "")
+    item["clarification_question"] = str(item.get("clarification_question") or "")
     if item["table_refs"] or item["content_blocks"]:
         item = normalize_preserved_entry_table_assets(item)
         item = _refresh_enriched_entry_text_fields(item)
@@ -116,6 +122,10 @@ def get_conn() -> sqlite3.Connection:
         yield conn
         conn.commit()
     finally:
+        try:
+            conn.execute("PRAGMA wal_checkpoint(TRUNCATE);")
+        except sqlite3.DatabaseError:
+            pass
         conn.close()
 
 
@@ -149,6 +159,14 @@ def init_db() -> None:
                 file_type TEXT NOT NULL,
                 file_path TEXT NOT NULL,
                 extracted_text TEXT NOT NULL,
+                doc_type TEXT NOT NULL DEFAULT 'REFERENCE',
+                doc_version TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'ACTIVE',
+                effective_from TEXT NOT NULL DEFAULT '',
+                effective_to TEXT NOT NULL DEFAULT '',
+                retrieval_sync_status TEXT NOT NULL DEFAULT 'PENDING',
+                retrieval_sync_error TEXT NOT NULL DEFAULT '',
+                retrieval_synced_at TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
                 FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
             );
@@ -180,6 +198,12 @@ def init_db() -> None:
                 ai_decision TEXT NOT NULL,
                 ai_reason TEXT NOT NULL,
                 ai_confidence REAL NOT NULL,
+                assessment_mode TEXT NOT NULL DEFAULT 'heuristic',
+                analysis_label TEXT NOT NULL DEFAULT 'REQUIREMENT',
+                analysis_basis TEXT NOT NULL DEFAULT '',
+                normalized_requirement TEXT NOT NULL DEFAULT '',
+                risk_level TEXT NOT NULL DEFAULT 'HIGH',
+                clarification_question TEXT NOT NULL DEFAULT '',
                 final_decision TEXT,
                 engineer_reason TEXT,
                 model_name TEXT NOT NULL,
@@ -193,12 +217,29 @@ def init_db() -> None:
                 requirement_id TEXT NOT NULL,
                 source_doc_id TEXT NOT NULL,
                 source_doc_name TEXT NOT NULL,
+                source_doc_version TEXT NOT NULL DEFAULT '',
                 source_location TEXT NOT NULL,
                 excerpt TEXT NOT NULL,
                 relevance REAL NOT NULL,
                 FOREIGN KEY(requirement_id) REFERENCES requirements(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_evidences_requirement_id ON evidences(requirement_id);
+
+            CREATE TABLE IF NOT EXISTS assessment_runs (
+                id TEXT PRIMARY KEY,
+                requirement_id TEXT NOT NULL,
+                mode TEXT NOT NULL,
+                retrieval_backend TEXT NOT NULL,
+                model_name TEXT NOT NULL,
+                prompt_version TEXT NOT NULL,
+                input_payload_json TEXT NOT NULL,
+                output_payload_json TEXT NOT NULL,
+                validation_status TEXT NOT NULL,
+                fallback_reason TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(requirement_id) REFERENCES requirements(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_assessment_runs_requirement_id ON assessment_runs(requirement_id);
 
             CREATE TABLE IF NOT EXISTS review_logs (
                 id TEXT PRIMARY KEY,
@@ -259,6 +300,14 @@ def init_db() -> None:
         _ensure_column(conn, "requirements", "table_render_mode", "TEXT DEFAULT ''")
         _ensure_requirements_document_unique(conn)
         _cleanup_orphan_records(conn)
+        _ensure_column(conn, "knowledge_documents", "doc_type", "TEXT DEFAULT 'REFERENCE'")
+        _ensure_column(conn, "knowledge_documents", "doc_version", "TEXT DEFAULT ''")
+        _ensure_column(conn, "knowledge_documents", "status", "TEXT DEFAULT 'ACTIVE'")
+        _ensure_column(conn, "knowledge_documents", "effective_from", "TEXT DEFAULT ''")
+        _ensure_column(conn, "knowledge_documents", "effective_to", "TEXT DEFAULT ''")
+        _ensure_column(conn, "knowledge_documents", "retrieval_sync_status", "TEXT DEFAULT 'PENDING'")
+        _ensure_column(conn, "knowledge_documents", "retrieval_sync_error", "TEXT DEFAULT ''")
+        _ensure_column(conn, "knowledge_documents", "retrieval_synced_at", "TEXT DEFAULT ''")
         _ensure_column(conn, "sor_documents", "workflow_stage", "TEXT DEFAULT 'UPLOADED'")
         _ensure_column(conn, "sor_documents", "requirement_set_version", "INTEGER DEFAULT 0")
         _ensure_column(conn, "sor_documents", "extraction_locked_at", "TEXT DEFAULT ''")
@@ -274,6 +323,13 @@ def init_db() -> None:
         _ensure_column(conn, "export_jobs", "version_label", "TEXT")
         _ensure_column(conn, "export_jobs", "compare_export_id", "TEXT")
         _ensure_column(conn, "export_jobs", "snapshot_json", "TEXT")
+        _ensure_column(conn, "assessments", "assessment_mode", "TEXT DEFAULT 'heuristic'")
+        _ensure_column(conn, "assessments", "analysis_label", "TEXT DEFAULT 'REQUIREMENT'")
+        _ensure_column(conn, "assessments", "analysis_basis", "TEXT DEFAULT ''")
+        _ensure_column(conn, "assessments", "normalized_requirement", "TEXT DEFAULT ''")
+        _ensure_column(conn, "assessments", "risk_level", "TEXT DEFAULT 'HIGH'")
+        _ensure_column(conn, "assessments", "clarification_question", "TEXT DEFAULT ''")
+        _ensure_column(conn, "evidences", "source_doc_version", "TEXT DEFAULT ''")
 
 
 def create_project(name: str, customer_name: str) -> dict[str, Any]:
@@ -552,7 +608,17 @@ def update_sor_document_preview_state(
 
 
 def add_knowledge_document(
-    project_id: str, file_name: str, file_type: str, file_path: str, extracted_text: str
+    project_id: str,
+    file_name: str,
+    file_type: str,
+    file_path: str,
+    extracted_text: str,
+    *,
+    doc_type: str = "REFERENCE",
+    doc_version: str = "",
+    status: str = "ACTIVE",
+    effective_from: str = "",
+    effective_to: str = "",
 ) -> dict[str, Any]:
     document_id = str(uuid.uuid4())
     created_at = _now_iso()
@@ -560,10 +626,25 @@ def add_knowledge_document(
         conn.execute(
             """
             INSERT INTO knowledge_documents
-            (id, project_id, file_name, file_type, file_path, extracted_text, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?)
+            (id, project_id, file_name, file_type, file_path, extracted_text,
+             doc_type, doc_version, status, effective_from, effective_to,
+             retrieval_sync_status, retrieval_sync_error, retrieval_synced_at, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 'PENDING', '', '', ?)
             """,
-            (document_id, project_id, file_name, file_type, file_path, extracted_text, created_at),
+            (
+                document_id,
+                project_id,
+                file_name,
+                file_type,
+                file_path,
+                extracted_text,
+                doc_type,
+                doc_version,
+                status,
+                effective_from,
+                effective_to,
+                created_at,
+            ),
         )
         row = conn.execute(
             "SELECT * FROM knowledge_documents WHERE id = ?", (document_id,)
@@ -611,6 +692,36 @@ def list_knowledge_documents(project_id: str) -> list[dict[str, Any]]:
     return _to_dict_list(rows)
 
 
+def update_knowledge_document_retrieval_state(
+    document_id: str,
+    *,
+    retrieval_sync_status: str | None = None,
+    retrieval_sync_error: str | None = None,
+    retrieval_synced_at: str | None = None,
+) -> dict[str, Any]:
+    with get_conn() as conn:
+        current = conn.execute("SELECT * FROM knowledge_documents WHERE id = ?", (document_id,)).fetchone()
+        if current is None:
+            return {}
+        conn.execute(
+            """
+            UPDATE knowledge_documents
+            SET retrieval_sync_status = ?,
+                retrieval_sync_error = ?,
+                retrieval_synced_at = ?
+            WHERE id = ?
+            """,
+            (
+                str(retrieval_sync_status if retrieval_sync_status is not None else current["retrieval_sync_status"] or "PENDING"),
+                str(retrieval_sync_error if retrieval_sync_error is not None else current["retrieval_sync_error"] or ""),
+                str(retrieval_synced_at if retrieval_synced_at is not None else current["retrieval_synced_at"] or ""),
+                document_id,
+            ),
+        )
+        row = conn.execute("SELECT * FROM knowledge_documents WHERE id = ?", (document_id,)).fetchone()
+    return _to_dict(row) or {}
+
+
 def clear_requirements_for_document(sor_document_id: str) -> None:
     with get_conn() as conn:
         req_rows = conn.execute(
@@ -627,6 +738,9 @@ def clear_requirements_for_document(sor_document_id: str) -> None:
             )
             conn.execute(
                 f"DELETE FROM assessments WHERE requirement_id IN ({placeholders})", req_ids
+            )
+            conn.execute(
+                f"DELETE FROM assessment_runs WHERE requirement_id IN ({placeholders})", req_ids
             )
         conn.execute("DELETE FROM document_table_assets WHERE sor_document_id = ?", (sor_document_id,))
         conn.execute("DELETE FROM requirements WHERE sor_document_id = ?", (sor_document_id,))
@@ -786,6 +900,7 @@ def delete_requirement(requirement_id: str) -> None:
         conn.execute("DELETE FROM review_logs WHERE requirement_id = ?", (requirement_id,))
         conn.execute("DELETE FROM evidences WHERE requirement_id = ?", (requirement_id,))
         conn.execute("DELETE FROM assessments WHERE requirement_id = ?", (requirement_id,))
+        conn.execute("DELETE FROM assessment_runs WHERE requirement_id = ?", (requirement_id,))
         conn.execute("DELETE FROM requirements WHERE id = ?", (requirement_id,))
         if row is not None:
             conn.execute("DELETE FROM document_table_assets WHERE sor_document_id = ?", (row["sor_document_id"],))
@@ -796,7 +911,10 @@ def list_requirements(project_id: str, sor_document_id: str | None = None) -> li
         if sor_document_id:
             rows = conn.execute(
                 """
-                SELECT r.*, a.ai_decision, a.ai_reason, a.ai_confidence, a.final_decision, a.engineer_reason
+                SELECT r.*, a.ai_decision, a.ai_reason, a.ai_confidence, a.assessment_mode, a.analysis_label,
+                       a.analysis_basis,
+                       a.normalized_requirement, a.risk_level, a.clarification_question,
+                       a.final_decision, a.engineer_reason
                 FROM requirements r
                 LEFT JOIN assessments a ON a.requirement_id = r.id
                 WHERE r.project_id = ? AND r.sor_document_id = ?
@@ -807,7 +925,10 @@ def list_requirements(project_id: str, sor_document_id: str | None = None) -> li
         else:
             rows = conn.execute(
                 """
-                SELECT r.*, a.ai_decision, a.ai_reason, a.ai_confidence, a.final_decision, a.engineer_reason
+                SELECT r.*, a.ai_decision, a.ai_reason, a.ai_confidence, a.assessment_mode, a.analysis_label,
+                       a.analysis_basis,
+                       a.normalized_requirement, a.risk_level, a.clarification_question,
+                       a.final_decision, a.engineer_reason
                 FROM requirements r
                 LEFT JOIN assessments a ON a.requirement_id = r.id
                 WHERE r.project_id = ?
@@ -821,7 +942,7 @@ def list_requirements(project_id: str, sor_document_id: str | None = None) -> li
             item = _normalize_requirement_record(_to_dict(row) or {})
             evidence_rows = conn.execute(
                 """
-                SELECT source_doc_id, source_doc_name, source_location, excerpt, relevance
+                SELECT source_doc_id, source_doc_name, source_doc_version, source_location, excerpt, relevance
                 FROM evidences
                 WHERE requirement_id = ?
                 ORDER BY relevance DESC
@@ -835,10 +956,32 @@ def list_requirements(project_id: str, sor_document_id: str | None = None) -> li
 
 def get_requirement(requirement_id: str) -> dict[str, Any] | None:
     with get_conn() as conn:
-        row = conn.execute("SELECT * FROM requirements WHERE id = ?", (requirement_id,)).fetchone()
-    if row is None:
-        return None
-    return _normalize_requirement_record(_to_dict(row) or {})
+        row = conn.execute(
+            """
+            SELECT r.*, a.ai_decision, a.ai_reason, a.ai_confidence, a.assessment_mode, a.analysis_label,
+                   a.analysis_basis,
+                   a.normalized_requirement, a.risk_level, a.clarification_question,
+                   a.final_decision, a.engineer_reason
+            FROM requirements r
+            LEFT JOIN assessments a ON a.requirement_id = r.id
+            WHERE r.id = ?
+            """,
+            (requirement_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        item = _normalize_requirement_record(_to_dict(row) or {})
+        evidence_rows = conn.execute(
+            """
+            SELECT source_doc_id, source_doc_name, source_doc_version, source_location, excerpt, relevance
+            FROM evidences
+            WHERE requirement_id = ?
+            ORDER BY relevance DESC
+            """,
+            (requirement_id,),
+        ).fetchall()
+        item["evidences"] = _to_dict_list(evidence_rows)
+    return item
 
 
 def get_assessment(requirement_id: str) -> dict[str, Any] | None:
@@ -854,6 +997,12 @@ def upsert_assessment(
     ai_decision: str,
     ai_reason: str,
     ai_confidence: float,
+    assessment_mode: str,
+    analysis_label: str,
+    analysis_basis: str,
+    normalized_requirement: str,
+    risk_level: str,
+    clarification_question: str,
     model_name: str,
     prompt_version: str,
 ) -> dict[str, Any]:
@@ -868,14 +1017,21 @@ def upsert_assessment(
             conn.execute(
                 """
                 UPDATE assessments
-                SET ai_decision = ?, ai_reason = ?, ai_confidence = ?, model_name = ?,
-                    prompt_version = ?, updated_at = ?
+                SET ai_decision = ?, ai_reason = ?, ai_confidence = ?, assessment_mode = ?, analysis_label = ?,
+                    analysis_basis = ?, normalized_requirement = ?, risk_level = ?, clarification_question = ?,
+                    model_name = ?, prompt_version = ?, updated_at = ?
                 WHERE requirement_id = ?
                 """,
                 (
                     ai_decision,
                     ai_reason,
                     ai_confidence,
+                    assessment_mode,
+                    analysis_label,
+                    analysis_basis,
+                    normalized_requirement,
+                    risk_level,
+                    clarification_question,
                     model_name,
                     prompt_version,
                     updated_at,
@@ -886,9 +1042,10 @@ def upsert_assessment(
             conn.execute(
                 """
                 INSERT INTO assessments
-                (id, requirement_id, ai_decision, ai_reason, ai_confidence, final_decision,
-                 engineer_reason, model_name, prompt_version, updated_at)
-                VALUES (?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
+                (id, requirement_id, ai_decision, ai_reason, ai_confidence,
+                 assessment_mode, analysis_label, analysis_basis, normalized_requirement, risk_level, clarification_question,
+                 final_decision, engineer_reason, model_name, prompt_version, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
                 """,
                 (
                     assessment_id,
@@ -896,6 +1053,12 @@ def upsert_assessment(
                     ai_decision,
                     ai_reason,
                     ai_confidence,
+                    assessment_mode,
+                    analysis_label,
+                    analysis_basis,
+                    normalized_requirement,
+                    risk_level,
+                    clarification_question,
                     model_name,
                     prompt_version,
                     updated_at,
@@ -914,19 +1077,74 @@ def replace_evidences(requirement_id: str, evidences: list[dict[str, Any]]) -> N
             conn.execute(
                 """
                 INSERT INTO evidences
-                (id, requirement_id, source_doc_id, source_doc_name, source_location, excerpt, relevance)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (id, requirement_id, source_doc_id, source_doc_name, source_doc_version, source_location, excerpt, relevance)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid.uuid4()),
                     requirement_id,
                     evidence["source_doc_id"],
                     evidence["source_doc_name"],
+                    str(evidence.get("source_doc_version") or ""),
                     evidence["source_location"],
                     evidence["excerpt"],
                     float(evidence["relevance"]),
                 ),
             )
+
+
+def add_assessment_run(
+    requirement_id: str,
+    *,
+    mode: str,
+    retrieval_backend: str,
+    model_name: str,
+    prompt_version: str,
+    input_payload_json: str,
+    output_payload_json: str,
+    validation_status: str,
+    fallback_reason: str = "",
+) -> dict[str, Any]:
+    run_id = str(uuid.uuid4())
+    created_at = _now_iso()
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO assessment_runs
+            (id, requirement_id, mode, retrieval_backend, model_name, prompt_version,
+             input_payload_json, output_payload_json, validation_status, fallback_reason, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                run_id,
+                requirement_id,
+                mode,
+                retrieval_backend,
+                model_name,
+                prompt_version,
+                input_payload_json,
+                output_payload_json,
+                validation_status,
+                fallback_reason,
+                created_at,
+            ),
+        )
+        row = conn.execute("SELECT * FROM assessment_runs WHERE id = ?", (run_id,)).fetchone()
+    return _to_dict(row) or {}
+
+
+def list_assessment_runs(requirement_id: str) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM assessment_runs
+            WHERE requirement_id = ?
+            ORDER BY created_at DESC
+            """,
+            (requirement_id,),
+        ).fetchall()
+    return _to_dict_list(rows)
 
 
 def update_requirement_parent_sections(updates: list[dict[str, str]]) -> None:
@@ -977,9 +1195,10 @@ def update_final_decision(requirement_id: str, final_decision: str, engineer_rea
             conn.execute(
                 """
                 INSERT INTO assessments
-                (id, requirement_id, ai_decision, ai_reason, ai_confidence, final_decision,
-                 engineer_reason, model_name, prompt_version, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                (id, requirement_id, ai_decision, ai_reason, ai_confidence,
+                 assessment_mode, analysis_label, analysis_basis, normalized_requirement, risk_level, clarification_question,
+                 final_decision, engineer_reason, model_name, prompt_version, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid.uuid4()),
@@ -987,6 +1206,12 @@ def update_final_decision(requirement_id: str, final_decision: str, engineer_rea
                     "NEED_CLARIFICATION",
                     "No AI assessment available.",
                     0.0,
+                    "manual",
+                    "REQUIREMENT",
+                    "",
+                    "",
+                    "HIGH",
+                    "",
                     final_decision,
                     engineer_reason,
                     "manual",
@@ -1293,6 +1518,9 @@ def _cleanup_orphan_records(conn: sqlite3.Connection) -> None:
         WHERE requirement_id NOT IN (SELECT id FROM requirements);
 
         DELETE FROM assessments
+        WHERE requirement_id NOT IN (SELECT id FROM requirements);
+
+        DELETE FROM assessment_runs
         WHERE requirement_id NOT IN (SELECT id FROM requirements);
         """
     )

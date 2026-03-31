@@ -70,6 +70,22 @@
   grid-template-columns: repeat(2, minmax(0, 1fr));
 }
 
+.form-grid {
+  display: grid;
+  gap: 10px;
+}
+
+.form-grid.two {
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+}
+
+.panel-head {
+  display: flex;
+  justify-content: space-between;
+  align-items: baseline;
+  gap: 12px;
+}
+
 .summary-strip {
   grid-column: 1 / -1;
   padding: 12px;
@@ -110,6 +126,11 @@
   gap: 10px;
 }
 
+.knowledge-docs-table th,
+.knowledge-docs-table td {
+  vertical-align: top;
+}
+
 .download {
   text-decoration: none;
   font-weight: 600;
@@ -131,6 +152,11 @@
 
 .is-hidden {
   display: none !important;
+}
+
+.row-action-stack {
+  display: grid;
+  gap: 6px;
 }
 
 .stage-switcher {
@@ -462,6 +488,64 @@ table {
   border: 1px solid #f4d99a;
 }
 
+.mini-chip-outline {
+  color: #334155;
+  background: #f8fafc;
+  border: 1px solid #d7dee7;
+}
+
+.mini-chip-risk-low {
+  color: #166534;
+  background: #e8f7ee;
+  border: 1px solid #cfe8d8;
+}
+
+.mini-chip-risk-medium {
+  color: #9a6700;
+  background: #fff4db;
+  border: 1px solid #f2ddb0;
+}
+
+.mini-chip-risk-high {
+  color: #b42318;
+  background: #fff1f3;
+  border: 1px solid #fecdd3;
+}
+
+.ai-result-card {
+  padding: 10px 12px;
+  border-radius: 12px;
+  border: 1px solid #e4eaf4;
+  background: #f8fbff;
+}
+
+.ai-result-head {
+  display: flex;
+  align-items: center;
+  justify-content: space-between;
+  gap: 8px;
+  margin-bottom: 8px;
+}
+
+.ai-result-label {
+  color: #475467;
+  font-size: 0.78rem;
+  font-weight: 700;
+}
+
+.ai-result-basis {
+  margin: 0;
+  color: #334155;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
+.matrix-muted {
+  color: #667085;
+  font-size: 0.86rem;
+  line-height: 1.5;
+}
+
 .req-text .md-table-wrap {
   margin-top: 8px;
   max-width: 100%;
@@ -658,7 +742,11 @@ table {
 }
 
 #requirements-table .col-req-text {
-  width: 60%;
+  width: 44%;
+}
+
+#requirements-table .col-ai-result {
+  width: 20rem;
 }
 
 #requirements-table .col-final {
@@ -724,6 +812,16 @@ table {
 .chip-clarify {
   color: #1a4f94;
   background: #e8f1ff;
+}
+
+.chip-screening {
+  color: #7a3e00;
+  background: #fff1df;
+}
+
+.chip-info {
+  color: #475467;
+  background: #eef2f6;
 }
 
 @media (max-width: 940px) {

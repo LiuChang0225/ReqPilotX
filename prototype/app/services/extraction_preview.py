@@ -433,6 +433,10 @@ def _should_promote_local_clause_to_section(*, parent_section_code: str, clause_
         return False
     if local_code.startswith(f"{parent_code}."):
         return True
+    # Three-level clause numbering like 8.1.2 is specific enough to treat as a
+    # real local clause anchor even when the parent section token is stale.
+    if local_code.count(".") >= 2:
+        return True
     return False
 
 

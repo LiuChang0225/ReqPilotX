@@ -752,6 +752,34 @@ class TableAssetsParsingTest(unittest.TestCase):
             "1 总体要求 General Requirements\n项目开展前总体要求 General Requirements before the Project Launches",
         )
 
+    def test_normalize_pdf_candidate_row_repairs_fragmented_cjk_label(self) -> None:
+        row = ta._normalize_pdf_candidate_row(
+            ["高 Pr压 es水 su喷 re射 p/ aH yigh S r", "产品无进水"]
+        )
+
+        self.assertIn("高压水喷射", row[0])
+        self.assertEqual(row[1], "产品无进水")
+
+    def test_normalize_pdf_candidate_row_repairs_fragmented_decimal_cells(self) -> None:
+        row = ta._normalize_pdf_candidate_row(["-2 .5", "25 .", "-0 .5", "05 ."])
+
+        self.assertEqual(row, ["-2.5", "2.5", "-0.5", "0.5"])
+
+    def test_normalize_pdf_candidate_row_repairs_shifted_cjk_punctuation(self) -> None:
+        row = ta._normalize_pdf_candidate_row(["7 附件目录 、"])
+
+        self.assertEqual(row, ["7、附件目录"])
+
+    def test_normalize_pdf_candidate_row_repairs_decimal_inside_mixed_text(self) -> None:
+        row = ta._normalize_pdf_candidate_row(["长度L＜405mm，宽度b＜122mm，高度h＜158 .2mm"])
+
+        self.assertEqual(row, ["长度L＜405mm，宽度b＜122mm，高度h＜158.2mm"])
+
+    def test_normalize_pdf_candidate_row_repairs_fragmented_plusminus_decimals(self) -> None:
+        row = ta._normalize_pdf_candidate_row(["±005 ±05 . 、 ."])
+
+        self.assertEqual(row, ["±0.05、±0.5"])
+
     def test_resolve_table_block_title_prefers_neighbor_heading(self) -> None:
         self.assertEqual(
             ta._resolve_table_block_title(

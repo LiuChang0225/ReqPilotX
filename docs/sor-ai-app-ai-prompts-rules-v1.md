@@ -1,5 +1,9 @@
 # SOR 智能合规分析平台 AI 提示词与判定规则模板 v1
 
+> 说明：本文保留 `v1` 提示词与规则模板，主要用于记录早期目标协议。  
+> 当前真实 AI 流水线已经拆成 `screening + assessment`，并增加了 `INFO` 标注、`assessment_runs` 审计轨迹、Azure `RBAC/API key` 双模式。  
+> 最新实现态请优先参考：`/Users/liuchang/Documents/New project/docs/项目.md`
+
 ## 1. 总体策略
 - `LLM` 负责语义理解、归纳与结构化输出。
 - `Rule Engine` 负责硬约束（法规红线、禁配、平台边界）。

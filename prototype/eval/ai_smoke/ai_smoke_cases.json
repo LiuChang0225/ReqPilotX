@@ -1,0 +1,176 @@
+{
+  "cases": [
+    {
+      "id": "SMOKE-001",
+      "title": "Info screening",
+      "row": {
+        "id": "req-info-1",
+        "req_code": "REQ-INFO-1",
+        "display_text": "Functional status A",
+        "requirement_type": "FUNCTIONAL",
+        "parent_section_label": "4.5 Status"
+      },
+      "knowledge_docs": [
+        {
+          "id": "kb-info-1",
+          "project_id": "project-smoke",
+          "file_name": "status-reference.txt",
+          "status": "ACTIVE",
+          "doc_version": "v1.0",
+          "extracted_text": "Status naming reference only."
+        }
+      ],
+      "expect": {
+        "analysis_label": "INFO",
+        "ai_decision": "",
+        "assessment_mode": "screening_only",
+        "requires_evidence": false
+      }
+    },
+    {
+      "id": "SMOKE-002",
+      "title": "Requirement without knowledge docs stays screening_only",
+      "row": {
+        "id": "req-no-kb-1",
+        "req_code": "REQ-NO-KB-1",
+        "display_text": "ECU shall support wake-up time less than 100ms.",
+        "requirement_type": "FUNCTIONAL",
+        "parent_section_label": "5.1 Startup"
+      },
+      "knowledge_docs": [],
+      "expect": {
+        "analysis_label": "REQUIREMENT",
+        "ai_decision": "",
+        "assessment_mode": "screening_only",
+        "requires_evidence": false
+      }
+    },
+    {
+      "id": "SMOKE-003",
+      "title": "Plain requirement with active evidence",
+      "row": {
+        "id": "req-plain-1",
+        "req_code": "REQ-PLAIN-1",
+        "display_text": "ECU shall support wake-up time less than 100ms.",
+        "requirement_type": "FUNCTIONAL",
+        "parent_section_label": "5.1 Startup"
+      },
+      "knowledge_docs": [
+        {
+          "id": "kb-plain-1",
+          "project_id": "project-smoke",
+          "file_name": "platform-spec.txt",
+          "status": "ACTIVE",
+          "doc_version": "v1.2",
+          "extracted_text": "5.1 Startup\nThe ECU shall support wake-up time less than 100ms.\nMeasured wake-up time is 80ms at -20C."
+        }
+      ],
+      "expect": {
+        "analysis_label": "REQUIREMENT",
+        "ai_decision": "ACCEPT",
+        "assessment_mode": "heuristic",
+        "requires_evidence": true
+      }
+    },
+    {
+      "id": "SMOKE-004",
+      "title": "Table requirement uses table context",
+      "row": {
+        "id": "req-table-1",
+        "req_code": "REQ-TABLE-1",
+        "display_text": "Pressure drop shall be less than 10kPa.",
+        "requirement_type": "FUNCTIONAL",
+        "parent_section_label": "7.2 Fluid Test",
+        "table_refs": [
+          {
+            "table_id": "tbl-1",
+            "slice_ai_projection": "|Condition|Target|\n|Pressure drop|<10kPa|"
+          }
+        ],
+        "content_blocks": [
+          {
+            "kind": "paragraph",
+            "text": "Applies at nominal flow condition."
+          }
+        ]
+      },
+      "knowledge_docs": [
+        {
+          "id": "kb-table-1",
+          "project_id": "project-smoke",
+          "file_name": "fluid-spec.txt",
+          "status": "ACTIVE",
+          "doc_version": "v2.0",
+          "extracted_text": "7.2 Fluid Test\n|Condition|Target|\n|Pressure drop|<10kPa|\nApplies at nominal flow condition."
+        }
+      ],
+      "expect": {
+        "analysis_label": "REQUIREMENT",
+        "assessment_mode": "heuristic",
+        "requires_evidence": true
+      }
+    },
+    {
+      "id": "SMOKE-005",
+      "title": "Regulation without compliance signal falls back",
+      "row": {
+        "id": "req-reg-1",
+        "req_code": "REQ-REG-1",
+        "display_text": "Component shall comply with Regulation X section 5.",
+        "requirement_type": "REGULATION",
+        "parent_section_label": "6.2 Compliance"
+      },
+      "knowledge_docs": [
+        {
+          "id": "kb-reg-1",
+          "project_id": "project-smoke",
+          "file_name": "regulation-note.txt",
+          "status": "ACTIVE",
+          "doc_version": "v1.0",
+          "extracted_text": "Regulation X section 5 applies to this component.\nReference boundary and applicable scope are listed below."
+        }
+      ],
+      "expect": {
+        "analysis_label": "REQUIREMENT",
+        "ai_decision": "NEED_CLARIFICATION",
+        "assessment_mode": "heuristic",
+        "requires_evidence": true
+      }
+    },
+    {
+      "id": "SMOKE-006",
+      "title": "Conflicting evidence falls back to clarify",
+      "row": {
+        "id": "req-conflict-1",
+        "req_code": "REQ-CONFLICT-1",
+        "display_text": "Valve shall support pressure drop less than 10kPa.",
+        "requirement_type": "FUNCTIONAL",
+        "parent_section_label": "7.2 Fluid Test"
+      },
+      "knowledge_docs": [
+        {
+          "id": "kb-conflict-1",
+          "project_id": "project-smoke",
+          "file_name": "positive.txt",
+          "status": "ACTIVE",
+          "doc_version": "v1.0",
+          "extracted_text": "Valve pressure drop is less than 10kPa and passed validation."
+        },
+        {
+          "id": "kb-conflict-2",
+          "project_id": "project-smoke",
+          "file_name": "negative.txt",
+          "status": "ACTIVE",
+          "doc_version": "v1.1",
+          "extracted_text": "Valve does not meet pressure drop less than 10kPa and failed validation."
+        }
+      ],
+      "expect": {
+        "analysis_label": "REQUIREMENT",
+        "ai_decision": "NEED_CLARIFICATION",
+        "assessment_mode": "heuristic",
+        "requires_evidence": true
+      }
+    }
+  ]
+}

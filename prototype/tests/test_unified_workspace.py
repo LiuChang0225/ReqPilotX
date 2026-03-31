@@ -1,7 +1,11 @@
 from __future__ import annotations
 
+import asyncio
+import io
 import json
+import os
 import tempfile
+import time
 import unittest
 import sqlite3
 from contextlib import ExitStack
@@ -12,6 +16,7 @@ import fitz
 from fastapi import HTTPException
 from openpyxl import load_workbook
 from PIL import Image as PILImage
+from starlette.datastructures import UploadFile
 
 from app import db, main
 from app.services.complex_table_mode import _row_shadow_signature
@@ -364,6 +369,17 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
     def tearDown(self) -> None:
         self.exit_stack.close()
+        db_file = self.tmp_path / "app.db"
+        for _ in range(5):
+            try:
+                for suffix in ("-wal", "-shm"):
+                    sidecar = Path(f"{db_file}{suffix}")
+                    if sidecar.exists():
+                        sidecar.unlink()
+                self.tmpdir.cleanup()
+                return
+            except OSError:
+                time.sleep(0.05)
         self.tmpdir.cleanup()
 
     def _create_project_with_document(self, suffix: str = "") -> tuple[dict, dict]:
@@ -756,11 +772,14 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         workspace_locked = main.lock_document_extraction(project["id"], document["id"])
         self.assertTrue(workspace_locked["summary"]["locked"])
         self.assertTrue(workspace_locked["actions"]["can_export"])
-        self.assertFalse(workspace_locked["actions"]["can_run_ai_analysis"])
+        self.assertTrue(workspace_locked["actions"]["can_run_ai_analysis"])
 
-        with self.assertRaises(HTTPException) as ai_without_kb_exc:
-            main.run_document_ai_analysis(project["id"], document["id"])
-        self.assertEqual(ai_without_kb_exc.exception.status_code, 422)
+        ai_without_kb = main.run_document_ai_analysis(project["id"], document["id"])
+        self.assertEqual(ai_without_kb["ai_processed_requirements"], 0)
+        self.assertGreater(ai_without_kb["ai_screened_requirements"], 0)
+        self.assertEqual(ai_without_kb["knowledge_docs_used"], 0)
+        self.assertGreater(ai_without_kb["summary"]["ai_eligible_count"], 0)
+        self.assertGreater(ai_without_kb["summary"]["assessment_target_count"], 0)
 
         self._add_knowledge_document(project["id"], "-gate")
         workspace = main.get_document_workspace(project["id"], document["id"], include_preview=False)
@@ -2368,6 +2387,252 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         with patch.object(main, "build_extraction_preview", return_value=_fake_preview()):
             result = main.export_project(project["id"], main.ExportRequest(document_id=document["id"]))
         self.assertTrue((self.tmp_path / "exports" / result["file_name"]).exists())
+
+    def test_run_ai_analysis_persists_extended_assessment_fields_and_runs(self) -> None:
+        project, document = self._create_project_with_document("-ai-copilot")
+        table_refs = json.dumps(
+            [
+                {
+                    "table_id": "tbl_ai",
+                    "slice_ai_projection": "|Temperature|85C|Voltage|12V|",
+                }
+            ],
+            ensure_ascii=False,
+        )
+        content_blocks = json.dumps(
+            [{"kind": "paragraph", "text": "适用于整车冷启动工况。"}],
+            ensure_ascii=False,
+        )
+        requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1 | Section 5.1",
+            requirement_text="ECU shall support wake-up time less than 100ms.",
+            raw_text="ECU shall support wake-up time less than 100ms.",
+            display_text="ECU shall support wake-up time less than 100ms.",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="5.1",
+            parent_section_title="Startup",
+            parent_section_label="5.1 Startup",
+            table_refs=table_refs,
+            content_blocks=content_blocks,
+            has_table_asset=True,
+            table_render_mode="structured",
+        )
+        db.add_knowledge_document(
+            project_id=project["id"],
+            file_name="platform-spec.txt",
+            file_type="txt",
+            file_path=str(self.tmp_path / "platform-spec.txt"),
+            extracted_text=(
+                "5.1 Startup\n"
+                "The ECU shall support wake-up time less than 100ms.\n"
+                "Measured wake-up time is 80ms at -20C.\n"
+            ),
+            doc_version="v1.0",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        main.lock_document_extraction(project["id"], document["id"])
+
+        with patch.dict(
+            os.environ,
+            {
+                "REQPILOT_AI_ASSESSMENT_MODE": "heuristic",
+                "REQPILOT_AI_TRACE_DIR": str(self.tmp_path / "ai_traces"),
+            },
+            clear=False,
+        ):
+            result = main.run_document_ai_analysis(project["id"], document["id"])
+
+        row = next(item for item in result["requirements"] if item["id"] == requirement["id"])
+        self.assertTrue(row["ai_decision"])
+        self.assertEqual(row["assessment_mode"], "heuristic")
+        self.assertEqual(row["analysis_label"], "REQUIREMENT")
+        self.assertTrue(row["normalized_requirement"])
+        self.assertIn(row["risk_level"], {"LOW", "MEDIUM", "HIGH"})
+        self.assertIn("source_doc_version", row["evidences"][0])
+
+        runs = db.list_assessment_runs(requirement["id"])
+        self.assertEqual(len(runs), 2)
+        self.assertEqual({run["mode"] for run in runs}, {"screening_heuristic", "heuristic"})
+        backend_by_mode = {run["mode"]: run["retrieval_backend"] for run in runs}
+        self.assertEqual(backend_by_mode["screening_heuristic"], "screening_only")
+        self.assertEqual(backend_by_mode["heuristic"], "local")
+
+    def test_run_ai_analysis_marks_info_rows_and_skips_manual_decision(self) -> None:
+        project, document = self._create_project_with_document("-ai-info")
+        info_requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1 | Section 4.5",
+            requirement_text="Functional status A",
+            raw_text="Functional status A",
+            display_text="Functional status A",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="4.5",
+            parent_section_title="Status",
+            parent_section_label="4.5 Status",
+        )
+        db.add_knowledge_document(
+            project_id=project["id"],
+            file_name="platform-spec.txt",
+            file_type="txt",
+            file_path=str(self.tmp_path / "platform-spec-info.txt"),
+            extracted_text="Status naming reference only.",
+            doc_version="v1.0",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        main.lock_document_extraction(project["id"], document["id"])
+
+        with patch.dict(
+            os.environ,
+            {
+                "REQPILOT_AI_ASSESSMENT_MODE": "heuristic",
+                "REQPILOT_AI_TRACE_DIR": str(self.tmp_path / "ai_traces_info"),
+            },
+            clear=False,
+        ):
+            result = main.run_document_ai_analysis(project["id"], document["id"])
+
+        row = next(item for item in result["requirements"] if item["id"] == info_requirement["id"])
+        self.assertEqual(row["analysis_label"], "INFO")
+        self.assertTrue(row["analysis_basis"])
+        self.assertEqual(row["ai_decision"], "")
+        self.assertEqual(row["evidences"], [])
+        self.assertEqual(result["ai_processed_requirements"], 0)
+        self.assertEqual(result["ai_info_requirements"], 1)
+
+    def test_override_analysis_label_promotes_info_row_back_to_requirement(self) -> None:
+        project, document = self._create_project_with_document("-override-info")
+        info_requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1 | Section 4.5",
+            requirement_text="Functional status A",
+            raw_text="Functional status A",
+            display_text="Functional status A",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="4.5",
+            parent_section_title="Status",
+            parent_section_label="4.5 Status",
+        )
+        db.add_knowledge_document(
+            project_id=project["id"],
+            file_name="status-spec.txt",
+            file_type="txt",
+            file_path=str(self.tmp_path / "status-spec.txt"),
+            extracted_text=(
+                "4.5 Status\n"
+                "Functional status A shall be supported during and after the test.\n"
+                "Status A validation passed in historical project baseline.\n"
+            ),
+            doc_version="v1.0",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        main.lock_document_extraction(project["id"], document["id"])
+
+        with patch.dict(
+            os.environ,
+            {
+                "REQPILOT_AI_ASSESSMENT_MODE": "heuristic",
+                "REQPILOT_AI_TRACE_DIR": str(self.tmp_path / "ai_traces_override"),
+            },
+            clear=False,
+        ):
+            main.run_document_ai_analysis(project["id"], document["id"])
+            row_before = db.get_requirement(info_requirement["id"])
+            self.assertEqual(row_before["analysis_label"], "INFO")
+
+            result = main.override_analysis_label(
+                info_requirement["id"],
+                main.AnalysisLabelOverrideRequest(analysis_label="REQUIREMENT", rerun_assessment=True),
+            )
+
+        updated = db.get_requirement(info_requirement["id"])
+        self.assertEqual(updated["analysis_label"], "REQUIREMENT")
+        self.assertTrue(updated["analysis_basis"])
+        self.assertTrue(updated["ai_decision"])
+        self.assertEqual(result["assessment"]["analysis_label"], "REQUIREMENT")
+        self.assertGreaterEqual(result["assessment_runs_recorded"], 1)
+        runs = db.list_assessment_runs(info_requirement["id"])
+        self.assertIn("screening_manual_override", {run["mode"] for run in runs})
+
+    def test_run_ai_analysis_without_knowledge_docs_only_screens_requirement_rows(self) -> None:
+        project, document = self._create_project_with_document("-screen-only")
+        requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1 | Section 4.5",
+            requirement_text="ECU shall support wake-up time less than 100ms.",
+            raw_text="ECU shall support wake-up time less than 100ms.",
+            display_text="ECU shall support wake-up time less than 100ms.",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="4.5",
+            parent_section_title="Status",
+            parent_section_label="4.5 Status",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        main.lock_document_extraction(project["id"], document["id"])
+
+        with patch.dict(
+            os.environ,
+            {
+                "REQPILOT_AI_ASSESSMENT_MODE": "heuristic",
+                "REQPILOT_AI_TRACE_DIR": str(self.tmp_path / "ai_traces_screen_only"),
+            },
+            clear=False,
+        ):
+            result = main.run_document_ai_analysis(project["id"], document["id"])
+
+        row = next(item for item in result["requirements"] if item["id"] == requirement["id"])
+        self.assertEqual(row["analysis_label"], "REQUIREMENT")
+        self.assertEqual(row["assessment_mode"], "screening_only")
+        self.assertTrue(row["analysis_basis"])
+        self.assertEqual(row["ai_decision"], "")
+        self.assertEqual(row["evidences"], [])
+        self.assertEqual(result["ai_processed_requirements"], 0)
+        self.assertEqual(result["ai_info_requirements"], 0)
+        self.assertEqual(result["ai_screened_requirements"], 1)
+
+    def test_upload_knowledge_document_accepts_metadata_fields(self) -> None:
+        project, _document = self._create_project_with_document("-knowledge-metadata")
+        knowledge_dir = self.tmp_path / "knowledge"
+        knowledge_dir.mkdir(parents=True, exist_ok=True)
+        upload = UploadFile(filename="spec.txt", file=io.BytesIO("Spec content".encode("utf-8")))
+
+        with patch.object(main, "KNOWLEDGE_DIR", knowledge_dir):
+            created = asyncio.run(
+                main.upload_knowledge_document(
+                    project["id"],
+                    file=upload,
+                    doc_type="STANDARD",
+                    doc_version="V1.2",
+                    status="ACTIVE",
+                    effective_from="2026-01-01",
+                    effective_to="2026-12-31",
+                )
+            )
+
+        listed = main.list_knowledge_documents(project["id"])
+        self.assertEqual(created["doc_type"], "STANDARD")
+        self.assertEqual(created["doc_version"], "V1.2")
+        self.assertEqual(created["status"], "ACTIVE")
+        self.assertEqual(created["effective_from"], "2026-01-01")
+        self.assertEqual(created["effective_to"], "2026-12-31")
+        self.assertEqual(listed[0]["doc_type"], "STANDARD")
+        self.assertEqual(listed[0]["doc_version"], "V1.2")
 
     def test_export_works_without_cached_preview(self) -> None:
         project, document = self._create_project_with_document("-export-no-preview")
