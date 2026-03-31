@@ -4,6 +4,7 @@ const state = {
   currentSorDocumentId: null,
   currentStage: "review",
   workspace: null,
+  knowledgeDocuments: [],
   reviewPreview: null,
   requirements: [],
   reviewEntries: [],
@@ -39,7 +40,14 @@ const el = {
   sorUploadResult: document.querySelector("#sor-upload-result"),
   kbForm: document.querySelector("#kb-upload-form"),
   kbFile: document.querySelector("#kb-file"),
+  kbDocType: document.querySelector("#kb-doc-type"),
+  kbDocVersion: document.querySelector("#kb-doc-version"),
+  kbDocStatus: document.querySelector("#kb-doc-status"),
+  kbEffectiveFrom: document.querySelector("#kb-effective-from"),
+  kbEffectiveTo: document.querySelector("#kb-effective-to"),
   kbUploadResult: document.querySelector("#kb-upload-result"),
+  knowledgeDocsSummary: document.querySelector("#knowledge-docs-summary"),
+  knowledgeDocsBody: document.querySelector("#knowledge-docs-body"),
   analyzeBtn: document.querySelector("#analyze-btn"),
   lockExtractionBtn: document.querySelector("#lock-extraction-btn"),
   runAiBtn: document.querySelector("#run-ai-btn"),
@@ -231,9 +239,11 @@ async function onProjectChanged() {
   persistWorkspaceSelection();
   if (state.projectId) {
     await loadSorDocuments();
-    await Promise.all([loadWorkspace(), loadExportJobs()]);
+    await Promise.all([loadWorkspace(), loadExportJobs(), loadKnowledgeDocuments()]);
   } else {
+    state.knowledgeDocuments = [];
     renderRequirements([]);
+    renderKnowledgeDocuments();
     renderExportOptions([]);
     renderWorkspaceSummary();
     renderReviewDiagnostics();
@@ -288,12 +298,23 @@ async function onUploadKnowledge(event) {
   }
   const form = new FormData();
   form.append("file", file);
+  form.append("doc_type", el.kbDocType?.value || "REFERENCE");
+  form.append("doc_version", el.kbDocVersion?.value?.trim() || "");
+  form.append("status", el.kbDocStatus?.value || "ACTIVE");
+  form.append("effective_from", el.kbEffectiveFrom?.value || "");
+  form.append("effective_to", el.kbEffectiveTo?.value || "");
   const document = await api(`/api/projects/${state.projectId}/knowledge-documents`, {
     method: "POST",
     body: form,
   });
-  el.kbUploadResult.textContent = `已上传: ${document.file_name}，知识库版本 ${document.knowledge_base_version}`;
+  el.kbUploadResult.textContent = `已上传: ${document.file_name}，${document.doc_type || "REFERENCE"} ${document.doc_version || ""}，知识库版本 ${document.knowledge_base_version}`;
   el.kbFile.value = "";
+  if (el.kbDocVersion) el.kbDocVersion.value = "";
+  if (el.kbEffectiveFrom) el.kbEffectiveFrom.value = "";
+  if (el.kbEffectiveTo) el.kbEffectiveTo.value = "";
+  if (el.kbDocType) el.kbDocType.value = "REFERENCE";
+  if (el.kbDocStatus) el.kbDocStatus.value = "ACTIVE";
+  await loadKnowledgeDocuments();
   await loadWorkspace();
 }
 
@@ -388,7 +409,7 @@ async function onRunAiAnalysis() {
     renderRequirements(state.requirements);
     renderWorkspaceSummary();
     setAnalyzeStatus(
-      `AI 分析完成：处理 ${workspace.ai_processed_requirements || 0} 条，知识文档 ${workspace.knowledge_docs_used || 0} 份。`,
+      `AI 分析完成：判定 ${workspace.ai_processed_requirements || 0} 条，标记 INFO ${workspace.ai_info_requirements || 0} 条，待分析 ${workspace.ai_screened_requirements || 0} 条，知识文档 ${workspace.knowledge_docs_used || 0} 份。`,
       "success"
     );
   } finally {
@@ -542,6 +563,7 @@ async function loadWorkspace() {
   stopReviewPreviewPolling();
   if (!state.projectId || !state.currentSorDocumentId) {
     state.workspace = null;
+    state.knowledgeDocuments = [];
     state.reviewPreview = null;
     state.requirements = [];
     state.reviewEntries = [];
@@ -551,6 +573,7 @@ async function loadWorkspace() {
     state.reviewPdfDrawerOpen = false;
     initReviewPdfViewer();
     renderRequirements([]);
+    renderKnowledgeDocuments();
     renderWorkspaceSummary();
     renderReviewDiagnostics();
     renderReviewKindFilter();
@@ -580,6 +603,17 @@ async function loadWorkspace() {
   if (state.currentStage === "review") {
     await loadReviewPreview();
   }
+}
+
+async function loadKnowledgeDocuments() {
+  if (!state.projectId) {
+    state.knowledgeDocuments = [];
+    renderKnowledgeDocuments();
+    return;
+  }
+  const docs = await api(`/api/projects/${state.projectId}/knowledge-documents`);
+  state.knowledgeDocuments = Array.isArray(docs) ? docs : [];
+  renderKnowledgeDocuments();
 }
 
 async function loadReviewPreview() {
@@ -734,6 +768,7 @@ function renderWorkspaceSummary() {
   const total = state.requirements.length;
   const finalCount = state.requirements.filter((item) => Boolean(item.final_decision)).length;
   const hybridCount = state.requirements.filter((item) => String(item.entry_kind || "").toUpperCase() === "HYBRID").length;
+  const infoCount = state.requirements.filter((item) => String(item.analysis_label || "").toUpperCase() === "INFO").length;
   const cards = [
     ["当前文档", workspaceDoc.file_name || currentDoc?.file_name || "未选择"],
     ["工作流", formatWorkflowStage(workspaceDoc.workflow_stage)],
@@ -743,6 +778,7 @@ function renderWorkspaceSummary() {
     ["知识库版本", String(workspaceProject.knowledge_base_version ?? 0)],
     ["知识文档", String(workspaceSummary.knowledge_doc_count ?? 0)],
     ["矩阵条目", String(total)],
+    ["INFO 条目", String(infoCount)],
     ["已人工确认", String(finalCount)],
     ["HYBRID", String(hybridCount)],
   ];
@@ -766,6 +802,38 @@ function renderWorkspaceSummary() {
       workspaceDoc.requirement_set_version ?? 0
     }，${locked}，AI ${aiStatus}，预览 ${previewStatus}。`;
   }
+}
+
+function renderKnowledgeDocuments() {
+  if (!el.knowledgeDocsBody) {
+    return;
+  }
+  const docs = Array.isArray(state.knowledgeDocuments) ? state.knowledgeDocuments : [];
+  if (el.knowledgeDocsSummary) {
+    el.knowledgeDocsSummary.textContent = docs.length ? `当前项目共 ${docs.length} 份知识文档。` : "当前项目还没有上传知识文档。";
+  }
+  if (!docs.length) {
+    el.knowledgeDocsBody.innerHTML = `<tr><td colspan="6">暂无知识文档</td></tr>`;
+    return;
+  }
+  el.knowledgeDocsBody.innerHTML = docs
+    .map((doc) => {
+      const effectiveRange = [String(doc.effective_from || "").trim(), String(doc.effective_to || "").trim()].filter(Boolean).join(" ~ ") || "-";
+      const syncStatus = [String(doc.retrieval_sync_status || "PENDING").trim(), String(doc.retrieval_synced_at || "").trim() ? formatTime(doc.retrieval_synced_at) : ""]
+        .filter(Boolean)
+        .join(" / ");
+      return `
+        <tr>
+          <td>${escapeHtml(String(doc.file_name || ""))}</td>
+          <td>${escapeHtml(String(doc.doc_type || "REFERENCE"))}</td>
+          <td>${escapeHtml(String(doc.doc_version || "-"))}</td>
+          <td>${escapeHtml(String(doc.status || "ACTIVE"))}</td>
+          <td>${escapeHtml(effectiveRange)}</td>
+          <td>${escapeHtml(syncStatus || "-")}</td>
+        </tr>
+      `;
+    })
+    .join("");
 }
 
 function syncStagePanels() {
@@ -1537,10 +1605,14 @@ function renderAiStage() {
   }
   if (el.aiStageStatus) {
     const document = state.workspace?.document || {};
+    const summary = state.workspace?.summary || {};
     el.aiStageStatus.innerHTML = `
       <p>当前阶段：<strong>${escapeHtml(formatWorkflowStage(document.workflow_stage))}</strong></p>
       <p>AI 状态：<strong>${escapeHtml(formatAiStatus(document.ai_status, document.ai_stale))}</strong></p>
       <p>条目集版本：<strong>${escapeHtml(String(document.requirement_set_version ?? 0))}</strong></p>
+      <p>AI 模式：<strong>${escapeHtml(String(document.configured_assessment_mode || "heuristic"))}</strong></p>
+      <p>Retrieval：<strong>${escapeHtml(String(summary.configured_retrieval_backend || "local"))}</strong></p>
+      <p>Azure Auth：<strong>${escapeHtml(String(summary.configured_azure_auth_mode || "auto"))}</strong></p>
     `;
   }
 }
@@ -1564,7 +1636,7 @@ function syncWorkspaceActions() {
   }
   if (el.runAiBtn) {
     el.runAiBtn.disabled = !hasDoc || !Boolean(actions.can_run_ai_analysis) || aiStatus === "RUNNING";
-    if (aiStale) {
+    if (aiStale || aiStatus === "READY") {
       el.runAiBtn.textContent = "重新运行 AI";
     } else {
       el.runAiBtn.textContent = "运行 AI 分析";
@@ -1719,7 +1791,7 @@ function renderRequirements(items) {
   el.tableBody.innerHTML = "";
   if (!items.length) {
     const row = document.createElement("tr");
-    row.innerHTML = `<td colspan="6">暂无需求数据，请上传并分析SOR文档。</td>`;
+    row.innerHTML = `<td colspan="7">暂无需求数据，请上传并分析SOR文档。</td>`;
     el.tableBody.appendChild(row);
     return;
   }
@@ -1728,8 +1800,10 @@ function renderRequirements(items) {
     .sort((left, right) => Number(left.display_sort_index || 0) - Number(right.display_sort_index || 0))
     .forEach((item) => {
     const row = document.createElement("tr");
-    const aiDecision = item.ai_decision || "NEED_CLARIFICATION";
-    const finalDecision = item.final_decision || aiDecision;
+    const analysisLabel = getAnalysisLabel(item);
+    const aiDecision = analysisLabel === "INFO" ? "" : String(item.ai_decision || "").trim().toUpperCase();
+    const finalDecision = String(item.final_decision || aiDecision || "NEED_CLARIFICATION").trim().toUpperCase();
+    const infoOnly = analysisLabel === "INFO";
     const entryKind = String(item.entry_kind || "REQUIREMENT").toUpperCase();
     const textMeta = [];
     if (entryKind === "HYBRID") {
@@ -1744,17 +1818,21 @@ function renderRequirements(items) {
       <td class="req-text">${
         textMeta.length ? `<div class="req-meta">${textMeta.join("")}</div>` : ""
       }${renderRequirementContent(item)}</td>
-      <td class="decision">${decisionSelect(item.id, finalDecision)}</td>
-      <td><textarea data-reason="${item.id}" placeholder="填写 Schaeffler Comments">${escapeHtml(
+      <td class="ai-result">${renderAiAssessmentCell(item)}</td>
+      <td class="decision">${infoOnly ? renderInfoDecisionPlaceholder() : decisionSelect(item.id, finalDecision)}</td>
+      <td><textarea data-reason="${item.id}" placeholder="填写 Schaeffler Comments" ${infoOnly ? "disabled" : ""}>${escapeHtml(
         item.engineer_reason || ""
       )}</textarea></td>
-      <td><button data-save="${item.id}" type="button">保存</button></td>
+      <td>${infoOnly ? renderInfoActionCell(item.id) : `<button data-save="${item.id}" type="button">保存</button>`}</td>
     `;
     el.tableBody.appendChild(row);
   });
 
   el.tableBody.querySelectorAll("[data-save]").forEach((button) => {
     button.addEventListener("click", wrap(onSaveDecision));
+  });
+  el.tableBody.querySelectorAll("[data-reclassify]").forEach((button) => {
+    button.addEventListener("click", wrap(onReclassifyRequirement));
   });
 }
 
@@ -1796,6 +1874,21 @@ async function onSaveDecision(event) {
   await loadWorkspace();
 }
 
+async function onReclassifyRequirement(event) {
+  const requirementId = event.currentTarget.getAttribute("data-reclassify");
+  await api(`/api/requirements/${requirementId}/analysis-label`, {
+    method: "POST",
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify({
+      analysis_label: "REQUIREMENT",
+      rerun_assessment: true,
+      reason: "人工覆盖：该条目应作为真实需求继续分析。",
+    }),
+  });
+  setAnalyzeStatus(`已将 ${requirementId} 改为 REQUIREMENT，并重新进入 AI 分析。`, "success");
+  await loadWorkspace();
+}
+
 function decisionSelect(requirementId, value) {
   const options = ["ACCEPT", "REJECT", "DEVIATION_ACCEPT", "NEED_CLARIFICATION"];
   const html = options
@@ -1807,12 +1900,27 @@ function decisionSelect(requirementId, value) {
   return `<select data-decision="${requirementId}">${html}</select>`;
 }
 
+function renderInfoDecisionPlaceholder() {
+  return `<div class="matrix-muted">INFO 条目不参与合规判定</div>`;
+}
+
+function renderInfoActionCell(requirementId) {
+  return `
+    <div class="row-action-stack">
+      <button data-reclassify="${escapeHtml(String(requirementId || ""))}" type="button">改为需求</button>
+      <span class="matrix-muted">改后会重新进入 AI 分析</span>
+    </div>
+  `;
+}
+
 function decisionChip(decision) {
   const map = {
     ACCEPT: ["chip-accept", "ACCEPT"],
     REJECT: ["chip-reject", "REJECT"],
     DEVIATION_ACCEPT: ["chip-deviation", "DEVIATION"],
     NEED_CLARIFICATION: ["chip-clarify", "CLARIFY"],
+    REQUIREMENT: ["chip-screening", "待分析"],
+    INFO: ["chip-info", "INFO"],
   };
   const [cls, label] = map[decision] || map.NEED_CLARIFICATION;
   return `<span class="status-chip ${cls}">${label}</span>`;
@@ -1914,6 +2022,55 @@ function renderRequirementContent(row) {
     })
     .filter(Boolean);
   return rendered.join("") || renderRichRequirementText(row?.raw_text || row?.display_text || row?.requirement_text || "");
+}
+
+function getAnalysisLabel(row) {
+  const label = String(row?.analysis_label || "").trim().toUpperCase();
+  return label || "REQUIREMENT";
+}
+
+function renderAiAssessmentCell(row) {
+  const analysisLabel = getAnalysisLabel(row);
+  const outcome = analysisLabel === "INFO" ? "INFO" : String(row?.ai_decision || "").trim().toUpperCase();
+  const decisionReason = String(row?.ai_reason || "").trim();
+  const analysisBasis = String(row?.analysis_basis || "").trim();
+  if (analysisLabel === "INFO") {
+    return `
+      <div class="ai-result-card">
+        <div class="ai-result-head">
+          <span class="ai-result-label">AI 标签</span>
+          ${decisionChip("INFO")}
+        </div>
+        <p class="ai-result-basis">${escapeHtml(analysisBasis || "条目被识别为说明性信息。")}</p>
+      </div>
+    `;
+  }
+  if (!outcome) {
+    if (!analysisBasis) {
+      return `<div class="matrix-muted">未运行 AI 分析</div>`;
+    }
+    return `
+      <div class="ai-result-card">
+        <div class="ai-result-head">
+          <span class="ai-result-label">分析状态</span>
+          ${decisionChip("REQUIREMENT")}
+        </div>
+        <p class="ai-result-basis">${escapeHtml(analysisBasis)}</p>
+      </div>
+    `;
+  }
+  if (!decisionReason && !analysisBasis) {
+    return `<div class="matrix-muted">未运行 AI 分析</div>`;
+  }
+  return `
+    <div class="ai-result-card">
+      <div class="ai-result-head">
+        <span class="ai-result-label">判定结果</span>
+        ${decisionChip(outcome || "NEED_CLARIFICATION")}
+      </div>
+      <p class="ai-result-basis">${escapeHtml(decisionReason || analysisBasis || "暂无")}</p>
+    </div>
+  `;
 }
 
 function renderTableRef(ref, row = null) {

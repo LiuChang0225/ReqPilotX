@@ -30,7 +30,7 @@ def assess_requirement(
     if not evidences:
         return {
             "ai_decision": "NEED_CLARIFICATION",
-            "ai_reason": "未检索到可用内部证据，建议补充对应平台规范或历史案例后再判定。",
+            "ai_reason": "未检索到可直接覆盖该需求的内部证据。",
             "ai_confidence": 0.28,
             "risk_level": "HIGH",
             "model_name": MODEL_NAME,
@@ -52,37 +52,37 @@ def assess_requirement(
 
     if has_negative and score >= 0.55:
         decision = "REJECT"
-        reason = f"主要证据（{top_doc}）显示存在不满足/不支持迹象（相关度 {score:.2f}），当前不建议接受。"
+        reason = f"主要证据（{top_doc}）显示存在不满足或不支持迹象（相关度 {score:.2f}）。"
         risk = "HIGH"
     elif requirement_type == "REGULATION":
         if score >= 0.62 and has_compliance:
             decision = "ACCEPT"
-            reason = f"法规类条目在 {top_doc} 中存在直接符合性证据（相关度 {score:.2f}），建议接受。"
+            reason = f"法规类条目在 {top_doc} 中检索到直接符合性证据（相关度 {score:.2f}）。"
             risk = "LOW"
         elif score >= 0.45:
             decision = "DEVIATION_ACCEPT"
-            reason = f"法规类条目仅有部分匹配证据（{top_doc}, {score:.2f}），建议偏差接受并补齐合规证明。"
+            reason = f"法规类条目仅检索到部分匹配证据（{top_doc}, {score:.2f}）。"
             risk = "HIGH"
         else:
             decision = "NEED_CLARIFICATION"
-            reason = f"法规类条目证据不足（最佳相关度 {score:.2f}），建议先澄清法规适用边界。"
+            reason = f"法规类条目缺少直接覆盖证据（最佳相关度 {score:.2f}）。"
             risk = "HIGH"
     else:
         if score >= 0.65:
             decision = "ACCEPT"
-            reason = f"内部证据与需求高匹配（{top_doc}, 相关度 {score:.2f}），建议接受。"
+            reason = f"内部证据与需求高度匹配（{top_doc}, 相关度 {score:.2f}）。"
             risk = "LOW"
         elif score >= 0.46:
             decision = "DEVIATION_ACCEPT"
-            reason = f"存在可复用证据但非完全覆盖（{top_doc}, {score:.2f}），建议偏差接受并约束边界。"
+            reason = f"存在可复用证据，但覆盖不完整（{top_doc}, {score:.2f}）。"
             risk = "MEDIUM"
         elif score >= 0.30:
             decision = "NEED_CLARIFICATION"
-            reason = f"证据相关度有限（{top_doc}, {score:.2f}），建议补充输入条件后再判定。"
+            reason = f"证据相关度有限（{top_doc}, {score:.2f}），无法直接形成结论。"
             risk = "HIGH"
         else:
             decision = "NEED_CLARIFICATION"
-            reason = f"检索到的证据关联度过低（{score:.2f}），无法形成可靠判定。"
+            reason = f"检索证据关联度过低（{score:.2f}）。"
             risk = "HIGH"
 
     base = 0.45 if decision in {"ACCEPT", "REJECT"} else 0.38

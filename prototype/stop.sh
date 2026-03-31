@@ -37,7 +37,12 @@ PIDS="$(lsof -ti TCP:"$PORT" -sTCP:LISTEN || true)"
 if [[ -n "$PIDS" ]]; then
   echo "[INFO] 正在停止端口 $PORT 上的监听进程: $PIDS"
   kill $PIDS || true
-  sleep 1
+  for _ in $(seq 1 10); do
+    sleep 1
+    if ! lsof -ti TCP:"$PORT" -sTCP:LISTEN >/dev/null 2>&1; then
+      break
+    fi
+  done
 fi
 
 REMAIN="$(lsof -ti TCP:"$PORT" -sTCP:LISTEN || true)"

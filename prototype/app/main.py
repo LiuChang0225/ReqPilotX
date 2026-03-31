@@ -8,16 +8,17 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from typing import Any
 from urllib.parse import quote
 
-from fastapi import FastAPI, File, HTTPException, Response, UploadFile
+from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import FileResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app import db
-from app.services.assessor import assess_requirement
+from app.services.ai_copilot import load_ai_copilot_config, run_ai_copilot_assessment, sync_knowledge_document_index
 from app.services.complex_table_mode import (
     hydrate_complex_row_metadata,
     is_complex_review_only_row,
@@ -48,7 +49,6 @@ from app.services.preview_cache import (
     reset_document_snapshot_root,
     request_preview_refresh,
 )
-from app.services.rag import retrieve_evidence
 from app.services.table_assets import (
     _refresh_enriched_entry_text_fields,
     enrich_entries_with_table_assets,
@@ -226,6 +226,12 @@ class ExportRequest(BaseModel):
     version_label: str | None = Field(default=None, max_length=64)
     compare_export_id: str | None = Field(default=None, max_length=64)
     document_id: str | None = None
+
+
+class AnalysisLabelOverrideRequest(BaseModel):
+    analysis_label: str = Field(pattern="^(REQUIREMENT)$")
+    rerun_assessment: bool = True
+    reason: str = Field(default="", max_length=4000)
 
 
 class Phase0ItemUpdate(BaseModel):
@@ -517,7 +523,38 @@ def get_sor_document_file(project_id: str, document_id: str) -> FileResponse:
 
 
 @app.post("/api/projects/{project_id}/knowledge-documents")
-async def upload_knowledge_document(project_id: str, file: UploadFile = File(...)) -> dict:
+def _normalize_knowledge_doc_type(value: str) -> str:
+    normalized = str(value or "").strip().upper()
+    if normalized in {"REFERENCE", "STANDARD", "SPEC", "REGULATION", "CASE"}:
+        return normalized
+    return "REFERENCE"
+
+
+def _normalize_knowledge_doc_status(value: str) -> str:
+    normalized = str(value or "").strip().upper()
+    if normalized in {"ACTIVE", "DRAFT", "SUPERSEDED", "ARCHIVED"}:
+        return normalized
+    return "ACTIVE"
+
+
+def _normalize_optional_date(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return ""
+    if not re.fullmatch(r"\d{4}-\d{2}-\d{2}", text):
+        raise HTTPException(status_code=422, detail="Knowledge document dates must use YYYY-MM-DD format.")
+    return text
+
+
+async def upload_knowledge_document(
+    project_id: str,
+    file: UploadFile = File(...),
+    doc_type: str = Form("REFERENCE"),
+    doc_version: str = Form(""),
+    status: str = Form("ACTIVE"),
+    effective_from: str = Form(""),
+    effective_to: str = Form(""),
+) -> dict:
     _require_project(project_id)
     suffix = Path(file.filename or "").suffix or ".txt"
     file_name = file.filename or f"knowledge_{uuid.uuid4().hex}{suffix}"
@@ -532,11 +569,25 @@ async def upload_knowledge_document(project_id: str, file: UploadFile = File(...
         file_type=file_type,
         file_path=str(target),
         extracted_text=extracted_text,
+        doc_type=_normalize_knowledge_doc_type(doc_type),
+        doc_version=str(doc_version or "").strip(),
+        status=_normalize_knowledge_doc_status(status),
+        effective_from=_normalize_optional_date(effective_from),
+        effective_to=_normalize_optional_date(effective_to),
     )
+    sync = sync_knowledge_document_index(project_id, document)
+    document = db.update_knowledge_document_retrieval_state(
+        document["id"],
+        retrieval_sync_status=str(sync.get("status") or "READY"),
+        retrieval_sync_error=str(sync.get("error") or ""),
+        retrieval_synced_at=str(sync.get("synced_at") or ""),
+    ) or document
     project = db.bump_project_knowledge_base_version(project_id)
     return {
         **document,
         "knowledge_base_version": int(project.get("knowledge_base_version") or 0),
+        "retrieval_chunk_count": int(sync.get("chunk_count") or 0),
+        "retrieval_payload_path": str(sync.get("payload_path") or ""),
     }
 
 
@@ -587,30 +638,39 @@ def run_document_ai_analysis(project_id: str, document_id: str) -> dict:
         raise HTTPException(status_code=422, detail="No eligible requirement rows available for AI analysis.")
 
     knowledge_docs = db.list_knowledge_documents(project_id)
-    if not knowledge_docs:
-        raise HTTPException(status_code=422, detail="No knowledge documents uploaded for this project.")
-
     db.update_sor_document_ai_state(document_id, ai_status="RUNNING", workflow_stage="AI_ANALYZING")
+    analyzed_count = 0
+    info_count = 0
+    screened_count = 0
     try:
         for row in eligible_rows:
-            requirement_text = str(row.get("display_text") or row.get("requirement_text") or "").strip()
-            if not requirement_text:
+            display_text = str(row.get("display_text") or row.get("requirement_text") or "").strip()
+            if not display_text:
                 continue
-            evidences = retrieve_evidence(requirement_text, knowledge_docs, top_k=3)
-            assessment = assess_requirement(
-                requirement_text=requirement_text,
-                requirement_type=str(row.get("requirement_type") or "FUNCTIONAL").strip() or "FUNCTIONAL",
-                evidences=evidences,
-            )
+            result = run_ai_copilot_assessment(row, knowledge_docs)
+            assessment = result["assessment"]
             db.upsert_assessment(
                 requirement_id=str(row.get("id") or ""),
                 ai_decision=assessment["ai_decision"],
                 ai_reason=assessment["ai_reason"],
                 ai_confidence=float(assessment["ai_confidence"]),
+                assessment_mode=str(assessment.get("assessment_mode") or ""),
+                analysis_label=str(assessment.get("analysis_label") or "REQUIREMENT"),
+                analysis_basis=str(assessment.get("analysis_basis") or ""),
+                normalized_requirement=str(assessment.get("normalized_requirement") or ""),
+                risk_level=str(assessment.get("risk_level") or ""),
+                clarification_question=str(assessment.get("clarification_question") or ""),
                 model_name=assessment["model_name"],
                 prompt_version=assessment["prompt_version"],
             )
-            db.replace_evidences(requirement_id=str(row.get("id") or ""), evidences=evidences)
+            db.replace_evidences(requirement_id=str(row.get("id") or ""), evidences=result["evidences"])
+            _record_assessment_runs(str(row.get("id") or ""), result.get("runs") or [])
+            if _is_info_only_requirement(assessment):
+                info_count += 1
+            elif str(assessment.get("ai_decision") or "").strip():
+                analyzed_count += 1
+            else:
+                screened_count += 1
     except Exception:
         db.update_sor_document_ai_state(document_id, ai_status="STALE", workflow_stage="EXTRACTION_LOCKED")
         raise
@@ -636,7 +696,9 @@ def run_document_ai_analysis(project_id: str, document_id: str) -> dict:
     )
     return {
         **_strip_workspace_preview(workspace),
-        "ai_processed_requirements": len(eligible_rows),
+        "ai_processed_requirements": analyzed_count,
+        "ai_info_requirements": info_count,
+        "ai_screened_requirements": screened_count,
         "knowledge_docs_used": len(knowledge_docs),
     }
 
@@ -880,6 +942,8 @@ def batch_update_decisions(project_id: str, payload: BatchDecisionRequest) -> di
 
     updated = 0
     for row in rows:
+        if _is_info_only_requirement(row):
+            continue
         if payload.only_without_final and row.get("final_decision"):
             continue
         section_code = _extract_section_code_from_anchor(str(row.get("source_anchor") or ""))
@@ -918,12 +982,59 @@ def update_decision(requirement_id: str, payload: DecisionRequest) -> dict:
     requirement = db.get_requirement(requirement_id)
     if not requirement:
         raise HTTPException(status_code=404, detail="Requirement not found.")
+    if _is_info_only_requirement(requirement):
+        raise HTTPException(status_code=409, detail="INFO rows do not require final decision.")
     assessment = db.update_final_decision(
         requirement_id=requirement_id,
         final_decision=payload.final_decision,
         engineer_reason=payload.engineer_reason.strip(),
     )
     return {"requirement_id": requirement_id, "assessment": assessment}
+
+
+@app.post("/api/requirements/{requirement_id}/analysis-label")
+def override_analysis_label(requirement_id: str, payload: AnalysisLabelOverrideRequest) -> dict:
+    requirement = db.get_requirement(requirement_id)
+    if not requirement:
+        raise HTTPException(status_code=404, detail="Requirement not found.")
+    if not _is_ai_eligible_requirement(requirement):
+        raise HTTPException(status_code=409, detail="Only requirement-like rows can be reclassified for AI analysis.")
+
+    target_label = str(payload.analysis_label or "").strip().upper()
+    if target_label != "REQUIREMENT":
+        raise HTTPException(status_code=422, detail="Only REQUIREMENT override is currently supported.")
+
+    reason = str(payload.reason or "").strip() or "人工覆盖：该条目应作为真实需求继续分析。"
+    knowledge_docs = db.list_knowledge_documents(str(requirement.get("project_id") or ""))
+    result = run_ai_copilot_assessment(
+        requirement,
+        knowledge_docs if payload.rerun_assessment else [],
+        forced_analysis_label="REQUIREMENT",
+        forced_analysis_basis=reason,
+    )
+    assessment = result["assessment"]
+    saved = db.upsert_assessment(
+        requirement_id=requirement_id,
+        ai_decision=assessment["ai_decision"],
+        ai_reason=assessment["ai_reason"],
+        ai_confidence=float(assessment["ai_confidence"]),
+        assessment_mode=str(assessment.get("assessment_mode") or ""),
+        analysis_label=str(assessment.get("analysis_label") or "REQUIREMENT"),
+        analysis_basis=str(assessment.get("analysis_basis") or reason),
+        normalized_requirement=str(assessment.get("normalized_requirement") or ""),
+        risk_level=str(assessment.get("risk_level") or ""),
+        clarification_question=str(assessment.get("clarification_question") or ""),
+        model_name=assessment["model_name"],
+        prompt_version=assessment["prompt_version"],
+    )
+    db.replace_evidences(requirement_id=requirement_id, evidences=result["evidences"])
+    _record_assessment_runs(requirement_id, result.get("runs") or [])
+    return {
+        "requirement_id": requirement_id,
+        "assessment": saved,
+        "knowledge_docs_used": len(knowledge_docs),
+        "assessment_runs_recorded": len(result.get("runs") or []),
+    }
 
 
 @app.get("/api/requirements/{requirement_id}/review-logs")
@@ -1189,6 +1300,12 @@ def _dump_snapshot_json(requirements: list[dict]) -> str:
                 "ai_decision": row.get("ai_decision"),
                 "ai_reason": row.get("ai_reason"),
                 "ai_confidence": row.get("ai_confidence"),
+                "assessment_mode": row.get("assessment_mode"),
+                "analysis_label": row.get("analysis_label"),
+                "analysis_basis": row.get("analysis_basis"),
+                "normalized_requirement": row.get("normalized_requirement"),
+                "risk_level": row.get("risk_level"),
+                "clarification_question": row.get("clarification_question"),
                 "final_decision": row.get("final_decision"),
                 "engineer_reason": row.get("engineer_reason"),
                 "status": row.get("status"),
@@ -1348,21 +1465,36 @@ def _persist_requirements(
             table_render_mode=str(item.get("table_render_mode") or ""),
         )
         if knowledge_docs:
-            evidences = retrieve_evidence(display_text, knowledge_docs, top_k=3)
-            assessment = assess_requirement(
-                requirement_text=display_text,
-                requirement_type=str(item.get("requirement_type") or "FUNCTIONAL").strip() or "FUNCTIONAL",
-                evidences=evidences,
-            )
+            assessment_input = {
+                **req,
+                "display_text": display_text,
+                "requirement_text": display_text,
+                "requirement_type": str(item.get("requirement_type") or "FUNCTIONAL").strip() or "FUNCTIONAL",
+                "parent_section_code": str(item.get("parent_section_code") or "").strip(),
+                "parent_section_title": str(item.get("parent_section_title") or "").strip(),
+                "parent_section_label": str(item.get("parent_section_label") or "").strip(),
+                "heading_text": heading_text,
+                "content_blocks": item.get("content_blocks") or [],
+                "table_refs": item.get("table_refs") or [],
+            }
+            result = run_ai_copilot_assessment(assessment_input, knowledge_docs)
+            assessment = result["assessment"]
             db.upsert_assessment(
                 requirement_id=req["id"],
                 ai_decision=assessment["ai_decision"],
                 ai_reason=assessment["ai_reason"],
                 ai_confidence=float(assessment["ai_confidence"]),
+                assessment_mode=str(assessment.get("assessment_mode") or ""),
+                analysis_label=str(assessment.get("analysis_label") or "REQUIREMENT"),
+                analysis_basis=str(assessment.get("analysis_basis") or ""),
+                normalized_requirement=str(assessment.get("normalized_requirement") or ""),
+                risk_level=str(assessment.get("risk_level") or ""),
+                clarification_question=str(assessment.get("clarification_question") or ""),
                 model_name=assessment["model_name"],
                 prompt_version=assessment["prompt_version"],
             )
-            db.replace_evidences(requirement_id=req["id"], evidences=evidences)
+            db.replace_evidences(requirement_id=req["id"], evidences=result["evidences"])
+            _record_assessment_runs(req["id"], result.get("runs") or [])
         inserted += 1
     db.replace_document_table_assets(project_id, sor_document_id, table_assets)
     return inserted
@@ -1610,6 +1742,7 @@ def _build_document_workspace(
     preview: dict | None = None,
     preview_meta: dict | None = None,
 ) -> dict:
+    ai_runtime = load_ai_copilot_config()
     project_id = str(project.get("id") or "")
     document_id = str(document.get("id") or "")
     preview = _attach_table_asset_urls_to_preview(preview, project_id=project_id, document_id=document_id)
@@ -1654,6 +1787,8 @@ def _build_document_workspace(
         )
 
     ai_eligible_count = sum(1 for row in presented_requirements if _is_ai_eligible_requirement(row))
+    assessment_target_count = sum(1 for row in presented_requirements if _is_assessment_target_requirement(row))
+    info_count = sum(1 for row in presented_requirements if _is_info_only_requirement(row))
     presented_requirements = _attach_table_asset_urls_to_rows(
         presented_requirements,
         project_id=project_id,
@@ -1685,13 +1820,18 @@ def _build_document_workspace(
             "ai_requirement_set_version": ai_requirement_set_version,
             "ai_knowledge_base_version": ai_knowledge_base_version,
             "ai_stale": ai_stale,
+            "configured_assessment_mode": ai_runtime.assessment_mode,
             "created_at": document.get("created_at"),
             "updated_at": document.get("updated_at"),
         },
         "summary": {
             "requirement_count": len(presented_requirements),
             "ai_eligible_count": ai_eligible_count,
+            "assessment_target_count": assessment_target_count,
+            "info_count": info_count,
             "knowledge_doc_count": int(knowledge_docs_count or 0),
+            "configured_retrieval_backend": ai_runtime.retrieval_backend,
+            "configured_azure_auth_mode": ai_runtime.azure_auth_mode,
             "locked": bool(str(document.get("extraction_locked_at") or "").strip()),
             "order_source": str(order_diagnostics.get("order_source") or "fallback_page_anchor"),
             "order_mismatch_count": int(order_diagnostics.get("order_mismatch_count") or 0),
@@ -1705,8 +1845,7 @@ def _build_document_workspace(
             "can_export": bool(str(document.get("extraction_locked_at") or "").strip())
             and len(presented_requirements) > 0,
             "can_run_ai_analysis": bool(str(document.get("extraction_locked_at") or "").strip())
-            and ai_eligible_count > 0
-            and int(knowledge_docs_count or 0) > 0,
+            and ai_eligible_count > 0,
         },
         "requirements": presented_requirements,
     }
@@ -2127,8 +2266,33 @@ def _coerce_positive_int(value: object) -> int:
     return number if number > 0 else 0
 
 
+def _record_assessment_runs(requirement_id: str, runs: list[dict[str, Any]]) -> None:
+    for run in runs:
+        if not isinstance(run, dict):
+            continue
+        db.add_assessment_run(
+            requirement_id=requirement_id,
+            mode=str(run.get("mode") or ""),
+            retrieval_backend=str(run.get("retrieval_backend") or ""),
+            model_name=str(run.get("model_name") or ""),
+            prompt_version=str(run.get("prompt_version") or ""),
+            input_payload_json=str(run.get("input_payload_json") or "{}"),
+            output_payload_json=str(run.get("output_payload_json") or ""),
+            validation_status=str(run.get("validation_status") or ""),
+            fallback_reason=str(run.get("fallback_reason") or ""),
+        )
+
+
 def _is_ai_eligible_requirement(row: dict) -> bool:
     return str(row.get("entry_kind") or "REQUIREMENT").strip().upper() in {"REQUIREMENT", "HYBRID"}
+
+
+def _is_info_only_requirement(row: dict) -> bool:
+    return str(row.get("analysis_label") or "").strip().upper() == "INFO"
+
+
+def _is_assessment_target_requirement(row: dict) -> bool:
+    return _is_ai_eligible_requirement(row) and not _is_info_only_requirement(row)
 
 
 def _coerce_int(value: object) -> int:
@@ -2169,6 +2333,12 @@ def _overlay_review_entries(rows: object, persisted_requirements: list[dict], *,
             row["ai_decision"] = persisted.get("ai_decision")
             row["ai_reason"] = persisted.get("ai_reason")
             row["ai_confidence"] = persisted.get("ai_confidence")
+            row["assessment_mode"] = persisted.get("assessment_mode")
+            row["analysis_label"] = persisted.get("analysis_label")
+            row["analysis_basis"] = persisted.get("analysis_basis")
+            row["normalized_requirement"] = persisted.get("normalized_requirement")
+            row["risk_level"] = persisted.get("risk_level")
+            row["clarification_question"] = persisted.get("clarification_question")
             row["final_decision"] = persisted.get("final_decision")
             row["engineer_reason"] = persisted.get("engineer_reason")
             row["evidences"] = persisted.get("evidences", [])

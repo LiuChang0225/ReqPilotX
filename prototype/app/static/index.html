@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SOR 智能合规分析原型</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=20260325-1" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260329-2" />
   </head>
   <body>
     <main class="page">
@@ -70,9 +70,66 @@
               上传知识库文档（规格/标准/历史案例）
               <input id="kb-file" type="file" accept=".pdf,.docx,.doc,.txt" required />
             </label>
+            <div class="form-grid two">
+              <label>
+                文档类型
+                <select id="kb-doc-type">
+                  <option value="REFERENCE">REFERENCE</option>
+                  <option value="STANDARD">STANDARD</option>
+                  <option value="SPEC">SPEC</option>
+                  <option value="REGULATION">REGULATION</option>
+                  <option value="CASE">CASE</option>
+                </select>
+              </label>
+              <label>
+                版本
+                <input id="kb-doc-version" type="text" maxlength="120" placeholder="例如 V1.2 / 2026.03" />
+              </label>
+              <label>
+                状态
+                <select id="kb-doc-status">
+                  <option value="ACTIVE">ACTIVE</option>
+                  <option value="DRAFT">DRAFT</option>
+                  <option value="SUPERSEDED">SUPERSEDED</option>
+                  <option value="ARCHIVED">ARCHIVED</option>
+                </select>
+              </label>
+              <label>
+                生效起始
+                <input id="kb-effective-from" type="date" />
+              </label>
+              <label>
+                生效截止
+                <input id="kb-effective-to" type="date" />
+              </label>
+            </div>
             <button type="submit">上传知识文档</button>
             <p class="hint" id="kb-upload-result"></p>
           </form>
+        </div>
+      </section>
+
+      <section class="panel span-wide">
+        <div class="card">
+          <div class="panel-head">
+            <h3>知识文档清单</h3>
+            <p class="hint" id="knowledge-docs-summary"></p>
+          </div>
+          <div class="table-wrap">
+            <table class="knowledge-docs-table">
+              <thead>
+                <tr>
+                  <th>文件</th>
+                  <th>类型</th>
+                  <th>版本</th>
+                  <th>状态</th>
+                  <th>生效期</th>
+                  <th>检索同步</th>
+                </tr>
+              </thead>
+              <tbody id="knowledge-docs-body"></tbody>
+            </table>
+          </div>
         </div>
       </section>
 
@@ -268,6 +325,7 @@
               <col class="col-req-id" />
               <col class="col-parent-section" />
               <col class="col-req-text" />
+              <col class="col-ai-result" />
               <col class="col-final" />
               <col class="col-reason" />
               <col class="col-actions" />
@@ -277,6 +335,7 @@
                 <th>Req-ID</th>
                 <th>上级章节</th>
                 <th>客户需求</th>
+                <th>AI 结果</th>
                 <th>Final Decision</th>
                 <th>Schaeffler Comments</th>
                 <th>操作</th>
@@ -288,6 +347,6 @@
       </section>
     </main>
 
-    <script src="/assets/app.js?v=20260325-1" type="module"></script>
+    <script src="/assets/app.js?v=20260329-1" type="module"></script>
   </body>
 </html>

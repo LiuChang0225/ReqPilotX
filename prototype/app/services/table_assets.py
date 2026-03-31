@@ -3236,8 +3236,67 @@ def _normalize_pdf_candidate_row(row: list[Any]) -> list[str]:
     normalized: list[str] = []
     for cell in row:
         value = re.sub(r"\s+", " ", str(cell or "").replace("_", " ")).strip()
+        value = _repair_fragmented_mixed_language_cell(value)
+        value = _repair_fragmented_numeric_cell(value)
+        value = _repair_fragmented_cjk_punctuation_cell(value)
         normalized.append(value)
     return normalized
+
+
+def _repair_fragmented_mixed_language_cell(value: str) -> str:
+    text = str(value or "").strip()
+    if not text or not re.search(r"[A-Za-z]", text):
+        return text
+
+    cjk_runs = re.findall(r"[\u4e00-\u9fff]+", text)
+    if len(cjk_runs) < 4 or max((len(run) for run in cjk_runs), default=0) > 1:
+        return text
+
+    collapsed_cjk = "".join(cjk_runs)
+    if len(collapsed_cjk) < 4:
+        return text
+
+    ascii_tokens = [token for token in re.findall(r"[A-Za-z]{2,}", text) if len(token) >= 2]
+    ascii_part = " ".join(ascii_tokens[:4]).strip()
+    if ascii_part:
+        return f"{collapsed_cjk} / {ascii_part}"
+    return collapsed_cjk
+
+
+def _repair_fragmented_numeric_cell(value: str) -> str:
+    text = str(value or "").strip()
+    if not text:
+        return text
+
+    repaired = re.sub(r"(?<=\d)\s*\.\s*(?=\d)", ".", text)
+    repaired = re.sub(r"(?<=[+\-])\s+(?=\d)", "", repaired)
+    if re.search(r"[A-Za-z\u4e00-\u9fff]", repaired):
+        return repaired
+
+    repaired = re.sub(r"±0(\d{2})(?![\d.])", r"±0.\1", repaired)
+    repaired = re.sub(r"([±+\-])0(\d)\s*\.", r"\g<1>0.\2", repaired)
+    repaired = re.sub(r"(?<=\d)\s+(?=[±+\-])", "、", repaired)
+    repaired = re.sub(r"\s*、\s*", "、", repaired)
+
+    trailing_decimal = re.fullmatch(r"([+\-]?)(\d)(\d)\s*\.", repaired)
+    if trailing_decimal:
+        sign, integer, fraction = trailing_decimal.groups()
+        repaired = f"{sign}{integer}.{fraction}"
+
+    repaired = re.sub(r"(?:\s*[、.])+$", "", repaired)
+    return repaired
+
+
+def _repair_fragmented_cjk_punctuation_cell(value: str) -> str:
+    text = str(value or "").strip()
+    if not text or re.search(r"[A-Za-z]", text):
+        return text
+
+    enumerated = re.fullmatch(r"(\d+)\s+(.+?)\s*、", text)
+    if enumerated:
+        number, body = enumerated.groups()
+        return f"{number}、{body.strip()}"
+    return text
 
 
 def _looks_like_pdf_noise_band_row(row: list[str]) -> bool:

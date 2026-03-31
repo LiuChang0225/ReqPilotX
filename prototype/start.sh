@@ -95,11 +95,16 @@ mkdir -p "$LOG_DIR"
 if [[ -f "$PID_FILE" ]]; then
   EXISTING_PID="$(cat "$PID_FILE" 2>/dev/null || true)"
   if [[ -n "$EXISTING_PID" ]] && kill -0 "$EXISTING_PID" >/dev/null 2>&1; then
-    echo "[INFO] 服务已经在运行。"
-    echo "PID: $EXISTING_PID"
-    echo "URL: http://$HOST:$PORT"
-    echo "LOG: $LOG_FILE"
-    exit 0
+    if curl -fsS "http://$HOST:$PORT$HEALTH_PATH" >/dev/null 2>&1; then
+      echo "[INFO] 服务已经在运行。"
+      echo "PID: $EXISTING_PID"
+      echo "URL: http://$HOST:$PORT"
+      echo "LOG: $LOG_FILE"
+      exit 0
+    fi
+    echo "[WARN] PID 文件对应进程仍在，但健康检查失败，先清理旧进程。"
+    kill "$EXISTING_PID" >/dev/null 2>&1 || true
+    sleep 1
   fi
   rm -f "$PID_FILE"
 fi

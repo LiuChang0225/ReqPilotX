@@ -39,36 +39,61 @@ SYNONYM_MAP = {
 def retrieve_evidence(
     requirement_text: str, knowledge_docs: list[dict[str, Any]], top_k: int = 3
 ) -> list[dict[str, Any]]:
-    req_tokens = _expand_tokens(_tokenize(requirement_text))
-    if not req_tokens:
-        return []
-    req_numbers = _extract_number_units(requirement_text)
-
     candidates: list[dict[str, Any]] = []
     for doc in knowledge_docs:
         chunks = _chunk_text(doc.get("extracted_text", ""))
         for idx, chunk in enumerate(chunks, start=1):
-            chunk_tokens = _expand_tokens(_tokenize(chunk))
-            if not chunk_tokens:
-                continue
-            lexical = _f1_overlap(req_tokens, chunk_tokens)
-            coverage = _coverage(req_tokens, chunk_tokens)
-            numeric = _number_match(req_numbers, _extract_number_units(chunk))
-            score = 0.60 * lexical + 0.25 * coverage + 0.15 * numeric
-            if score <= 0:
-                continue
             candidates.append(
                 {
                     "source_doc_id": doc["id"],
                     "source_doc_name": doc["file_name"],
                     "source_location": f"Chunk {idx}",
                     "excerpt": chunk[:380],
-                    "relevance": round(min(0.99, score), 4),
+                    "content": chunk,
                 }
             )
+    return score_candidate_evidences(requirement_text, candidates, top_k=top_k)
 
-    candidates.sort(key=lambda item: item["relevance"], reverse=True)
-    return candidates[:top_k]
+
+def score_candidate_evidences(
+    requirement_text: str,
+    candidates: list[dict[str, Any]],
+    *,
+    top_k: int = 3,
+) -> list[dict[str, Any]]:
+    req_tokens = _expand_tokens(_tokenize(requirement_text))
+    if not req_tokens:
+        return []
+    req_numbers = _extract_number_units(requirement_text)
+
+    scored: list[dict[str, Any]] = []
+    for candidate in candidates:
+        content = str(candidate.get("content") or candidate.get("excerpt") or "").strip()
+        chunk_tokens = _expand_tokens(_tokenize(content))
+        if not chunk_tokens:
+            continue
+        lexical = _f1_overlap(req_tokens, chunk_tokens)
+        coverage = _coverage(req_tokens, chunk_tokens)
+        numeric = _number_match(req_numbers, _extract_number_units(content))
+        score = 0.60 * lexical + 0.25 * coverage + 0.15 * numeric
+        boost = _coerce_relevance_boost(candidate.get("relevance_boost"))
+        final_score = max(0.0, min(0.99, score * boost))
+        if final_score <= 0:
+            continue
+        scored.append(
+            {
+                "source_doc_id": str(candidate.get("source_doc_id") or ""),
+                "source_doc_name": str(candidate.get("source_doc_name") or ""),
+                "source_doc_version": str(candidate.get("source_doc_version") or ""),
+                "source_location": str(candidate.get("source_location") or ""),
+                "excerpt": str(candidate.get("excerpt") or content[:380]),
+                "relevance": round(final_score, 4),
+                "content_kind": str(candidate.get("content_kind") or ""),
+            }
+        )
+
+    scored.sort(key=lambda item: item["relevance"], reverse=True)
+    return scored[:top_k]
 
 
 def _chunk_text(text: str, lines_per_chunk: int = 6, overlap: int = 2) -> list[str]:
@@ -151,3 +176,11 @@ def _number_match(req_numbers: set[str], chunk_numbers: set[str]) -> float:
         return 0.0
     overlap = len(req_numbers.intersection(chunk_numbers))
     return overlap / len(req_numbers)
+
+
+def _coerce_relevance_boost(value: object) -> float:
+    try:
+        number = float(value or 1.0)
+    except (TypeError, ValueError):
+        return 1.0
+    return max(0.0, min(1.5, number))

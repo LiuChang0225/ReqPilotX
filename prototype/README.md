@@ -3,7 +3,8 @@
 面向汽车行业 SOR（Statement of Requirements）的需求分析平台。  
 目标是把工程师从大量低增值“拆解/抄录”工作中解放出来，让团队把精力集中在真正增值的技术判断与客户沟通上。
 
-当前实现态、系统架构图、优化计划与并行开发分支说明见：`/Users/liuchang/Documents/New project/docs/项目.md`
+当前实现态、系统架构图、模块盘点、开发优先级与文档地图见：`/Users/liuchang/Documents/New project/docs/项目.md`  
+可执行开发任务卡见：`/Users/liuchang/Documents/New project/docs/开发执行清单.md`
 
 ---
 
@@ -34,7 +35,8 @@
 - 创建项目与客户档案。
 - 上传 SOR（PDF/DOCX/TXT）与知识库文档。
 - 一键分析并生成 Compliance Matrix。
-- AI 给出初判建议：`ACCEPT / REJECT / DEVIATION_ACCEPT / NEED_CLARIFICATION`。
+- AI 当前先做 `REQUIREMENT / INFO` screening，再只对真实需求做判定。
+- AI 判定支持 `ACCEPT / REJECT / DEVIATION_ACCEPT / NEED_CLARIFICATION`。
 - 工程师可逐条改判并记录原因。
 - 支持批量判定模板（按类型/章节前缀/关键词过滤后批量落库）。
 - 支持版本化导出（版本标签 + 与历史导出版本差异 Sheet）。
@@ -266,8 +268,9 @@ PYTHONPATH=. .venv/bin/python scripts/fidelity_benchmark.py \
 - `project-progress` 页面会自动读取 `eval/regression_suite/*/regression_suite_summary.json`
 - 无需手动写入，运行回归后刷新看板即可看到最新回归门禁状态与历史记录
 
-### 8.7 P0/P1 执行清单
-- 文档：`docs/p0_p1_execution_backlog.md`
+### 8.8 执行清单
+- 当前总账：`/Users/liuchang/Documents/New project/docs/项目.md`
+- 历史 P0/P1 执行清单：`/Users/liuchang/Documents/New project/prototype/docs/p0_p1_execution_backlog.md`
 - 看板同步：`eval/progress/progress_tracker.json`
 
 ---
@@ -285,20 +288,18 @@ PYTHONPATH=. .venv/bin/python scripts/fidelity_benchmark.py \
 ## 10. 下一阶段目标（Roadmap）
 
 ### P0（当前主线）
-- `codex/table-assets-mainline`
-  - 表格资产化主线：截图优先、Web/Excel 同源展示、`table_asset / table_ref`
-- `codex/workspace-stabilization`
-  - 统一工作台稳定性、性能、虚拟滚动、锁定/导出链路一致性
+- Azure OpenAI screening 落地
+- Azure AI Search index / retrieval 落地
+- `llm_shadow -> llm_primary` 切换验证
 
 ### P1
-- `codex/ai-slice-integration`
-  - AI 输入切换到 `slice_ai_projection + requirement 正文 + section context`
-- 质量门禁分档（按文档类型/项目类型差异化阈值）
+- knowledge docs metadata 上传入口
+- 人工覆盖 `INFO -> REQUIREMENT`
+- 规则收口与评测集完善
 
 ### P2
-- 引入更强 OCR 管线，系统支持扫描件质量提升
-- 检索升级为向量检索 + reranker
-- 判定升级为 LLM 驱动，并保持可追溯审计
+- 工作台状态表达、运维脚本、性能继续收口
+- OCR / 扫描件专项
 
 ---
 

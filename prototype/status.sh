@@ -33,6 +33,11 @@ echo "PORT: $PORT"
 if [[ -n "$PID" ]]; then
   echo "PID_FILE: $PID_FILE"
   echo "PID: $PID"
+  if kill -0 "$PID" >/dev/null 2>&1; then
+    echo "PID_STATUS: alive"
+  else
+    echo "PID_STATUS: stale"
+  fi
 else
   echo "PID_FILE: (none)"
 fi
