@@ -1,30 +1,74 @@
 # Extraction Active Context
 
-更新时间：2026-03-31 10:29 CST  
+更新时间：2026-04-02 05:23 CST  
 分支：`main`
 
 ## 分支目的
 
+- Windows 本机 Azure knowledge sync 的 TLS/证书链问题已收口：此前 `Knowledge sync for Azure is incomplete` 对应的真实根因是 `SSL: CERTIFICATE_VERIFY_FAILED / Missing Authority Key Identifier`；当前阻塞知识文档已重同步为 `READY`，Azure chunk 数 `222`
+- 应用现已在导入最早期自动 best-effort 注入 `truststore`；`prototype/requirements.txt` 也补了 `truststore + python-certifi-win32`，后续重启 `8000` 不需要再手工打证书补丁
+- `_prepare_document_ai_analysis_request(..., 'azure')` 已重新验证通过，之前那条 Azure knowledge sync `409` 路径已恢复
+
+- 已确认前端“暂无可选 AI 路径”不是 profile readiness 语义问题，而是 `8000` 上的旧 `uvicorn` 进程仍在返回旧版 `/workspace` schema；排障时必须先对比 live `/workspace` 是否含 `ai_profiles`
+- 当前 `8000` 已用当前源码和 Azure 运行变量重新拉起；`/api/health` 为 `ready=true`，`/workspace` 已恢复 `ai_profiles=2`，默认和唯一 runnable profile 都是 `azure`
+
+- 当前新增的 AI 主线是固定双 profile 运行时：`Azure` 主路径保留，`Aliyun` 作为本次运行级别可选的备份路径
+- Aliyun 当前不再暴露 `qdrant / dashvector / local` 检索路径；active runtime 会固定返回 `retrieval_backend=disabled`，等待新的远程检索方案
+- 当前 Aliyun blocker 已确认：仓库没有自带 Qdrant 部署工件，开发机未验证到 Qdrant / DashVector 资源，而 `local` fallback 已被质量要求否决
+- workspace、AI job、assessment、assessment runs 与 knowledge sync 现已具备 profile/provider provenance，不再只有 Azure 单链路视角
+- readiness 现已改为 profile-aware；前端 action bar 也已新增 Azure/Aliyun 选择器
+- 本轮双 profile 改造后的完整 Python 回归已通过：`prototype/tests` 全量 `289` 条通过、`23` 条跳过
+
+- 已完成生产化接手评估：当前 repo 的核心风险是生产底座不足，不是 extraction/table-assets 主链继续扩展
+- 当前已明确停止 Azure cloud/App Service 的近端落地执行：正式放行和权限申请窗口开启前，不再继续 `azd provision --preview`、`azd up` 或新的云端部署尝试
+- 当前执行主线切到“本地服务器运维”：以 `main + 8000` 为准，优先维持服务可用性、readiness 可诊断、AI smoke/benchmark 可复跑
+- 生产化路线已明确：先补配置/可观测性/readiness/后台任务可靠性/DB 抽象，再决定前端重写与 parser 云替换
+- `OPS-02` 第一轮 runtime readiness 已落地：health/readiness 现返回结构化依赖状态，startup 失败不再只剩进程退出或模糊日志
+- Azure App Service 首轮落地脚手架已补到仓库根目录：`azure.yaml + infra/`
+- 本机已安装 `azd`，并已创建本地 `reqpilotx-dev` 环境，按已恢复的 Azure OpenAI/Search 基线完成首轮环境注入
+- `docs/项目.md` 与 `docs/开发执行清单.md` 已同步到当前真实执行顺序：Azure App Service pilot 仍保留为后续技术目标，但当前阶段改为本地运维优先，云端部署等待正式放行
+- 已新增 `docs/next-agent-handoff-prompt.md`，供新窗口 agent 直接接手当前 repo 状态与下一步任务
+- 应用运行时现支持 `REQPILOT_STORAGE_DIR`，云端不再必须写回 `prototype/storage`
 - 用 oil pump PDS 维持 benchmark 基线
 - 用 减振器 PDS 回归试验大纲截图精度
 - 章节顺序已经稳定，当前 extraction/table-assets 转入维护态
 - 当前以 `8000` 上的真实 review/workspace 结果为准
+- 当前 UI 主线已切到“AI 可信度可见化”：document 级步骤日志、当前阶段、证据链、最终结论优先
+- requirement detail 中的“规范化需求”现已转向“结构化摘要 + facets”，不再把 whitespace 清洗后的原文直接当作最终展示结果
 - `U:96 / REQ-0231` 与油泵 PDS 第 30 页缺失都已收口
 - 当前新增主线：Azure 对齐的自动 AI 判定 Copilot 已在 `main` 接入 heuristic/local 版本，并补上独立 `INFO screening`
-- 当前 Azure 接入已补成 `API key + RBAC` 双模式，但 live 验证仍受公司网络限制
-- 当前本地非 Azure 链路已收口到可用状态：AI smoke `6/6`、table gate `137`、核心回归 `270` 条顺序通过
+- 当前 Azure 接入已补成 `API key + RBAC` 双模式，且公司网络下 `screening -> index upsert -> retrieval + llm_shadow` live smoke 已通过
+- 已从本机 Azure CLI/profile 直接恢复 live Azure 运行配置；当前 `8000` 已回到 `llm_shadow + azure_sdk + rbac` 基线
+- `prototype/scripts/azure_rag_smoke.py` 现已参数化，可直接接自定义 SOR、多个 standard/reference knowledge docs，以及自定义 project name 做 benchmark
+- `prototype/scripts/azure_rag_smoke.py` 现已新增 `--max-requirements`，可在 extraction 后抽样保留少量真实 requirement 做最小可信 benchmark
+- 外部真实样本 `sample10` 已验证通过：`532 -> 10` 条 requirement 抽样、`gpt-5.4 + azure_sdk + llm_shadow` 绿色通过
+- 当前本地非 Azure 链路已收口到可用状态：AI smoke `6/6`、table gate `137`、核心回归 `270` 条顺序通过；Azure smoke 也已形成可复跑基线
 - 当前接手 Azure 联调时，统一先看 [`/Users/liuchang/Documents/New project/docs/Azure环境接手清单.md`](/Users/liuchang/Documents/New%20project/docs/Azure%E7%8E%AF%E5%A2%83%E6%8E%A5%E6%89%8B%E6%B8%85%E5%8D%95.md)
 
 ## 当前样本
 
 - benchmark：`/Users/liuchang/Documents/New project/prototype/storage/uploads/6fd15d3fb7104ea882d544d10f32372d_产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf`
 - 回归：`/Users/liuchang/Documents/New project/prototype/storage/uploads/1e4079e33aef4432bb379d5d0ef95d50_产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf`
+- 外部真实 SOR：`C:\Users\uib03712\OneDrive - Vitesco Technologies\00_WORK SPACE\CE PMT\VibeCoding\Test Sor\Q-JLY J7111029E-2024-汽车电气和电子零部件通用技术规范.pdf`
+- 外部真实 knowledge：`C:\Users\uib03712\OneDrive - Vitesco Technologies\00_WORK SPACE\CE PMT\VibeCoding\Test Knowledge\eSigned_EMC_88033918_FIL_000_AA 4.pdf`
+- 外部真实 knowledge：`C:\Users\uib03712\OneDrive - Vitesco Technologies\00_WORK SPACE\CE PMT\VibeCoding\Test Knowledge\eSigned_ET_88033919_FIL_000_AA 3.pdf`
 
 ## 最近已修
 
+- 双 profile 主线：
+  - `prototype/app/services/ai_copilot.py` 已新增固定 `azure / aliyun` profile 与 Aliyun engines，但当前已把 Aliyun `qdrant / dashvector / local` 检索链路从 active runtime 移除
+  - `prototype/app/db.py` 已新增 `knowledge_document_syncs`，并为 assessment/job/event/run 补齐 `profile_id / provider`
+  - `prototype/app/main.py` 已把 `profile_id` 贯穿到 start/status/detail/workspace 与落库路径
+  - `prototype/app/static/app.js` / `index.html` 已新增 AI 路径选择器与 readiness hint
+  - `prototype/app/runtime_readiness.py` 已改为 Azure/Aliyun 双 profile readiness，并会显式暴露 Aliyun retrieval disabled blocker
+  - `prototype/app/main.py` 的 workspace summary runnable 统计已切到序列化 `ready` 字段
+  - `prototype/tests/test_ai_copilot.py`、`prototype/tests/test_runtime_readiness.py`、`prototype/tests/test_unified_workspace.py` 已开始切换到 Aliyun retrieval disabled 与 summary 语义回归
 - `prototype/app/services/ai_copilot.py`
+  - `REQPILOT_AZURE_AUTH_MODE` 现接受 `managed_identity`，内部映射到现有 `rbac` 逻辑，方便 App Service 直接表达托管身份模式
   - 新增 assessment context、retriever/engine/reconciler、trace 统一 pipeline
   - 支持 `heuristic / llm_shadow / llm_primary`
+  - `llm_shadow` 现已允许接管最终结果：当 LLM screening/assessment 输出通过校验时，最终 assessment 不再强制落 heuristic，而会以 `assessment_mode=llm_shadow` 落库
+  - 当未显式设置 `REQPILOT_AI_ASSESSMENT_MODE` 但 Azure runtime 已配置时，默认模式现会自动切到 `llm_shadow`
   - knowledge 文档上传后会生成 local retrieval payload，并为 Azure/Haystack 接口保留入口
   - 新增 requirement screening，先把保留条目标记成 `REQUIREMENT / INFO`
   - `INFO` 只落 `analysis_label / analysis_basis`
@@ -35,30 +79,77 @@
   - Azure AI Search 现支持：
     - API key 环境走 `azure_haystack`
     - RBAC 环境走 `azure_sdk`
+  - Azure RBAC credential 链现排除 `VisualStudioCodeCredential / SharedTokenCacheCredential`，避免错误租户缓存 token 抢占 CLI token
+  - Azure Search chunk id 已切成 key-safe 形式，search/reranker score 已统一归一化到 `0..1`
+  - evidence reference validator 已放宽为“同一 chunk/location 下的 excerpt 子串匹配”，live `llm_shadow` 不再误回退 `evidence_reference_out_of_scope`
   - 当前没有真实 Azure/LLM 配置时，仍走本地 lexical retrieval + heuristic assessor
+  - `analysis_basis` 现已对 `REQUIREMENT` 行改为阶段摘要，写明采用链路、检索后端、候选证据条数，以及 heuristic/LLM 分歧时当前采用谁；不再简单复用 screening reason
+  - requirement normalization 现已拆成“展示摘要”与“检索文本”两条路径，detail/UI 可直接消费结构化 summary + facets
+  - 已验证 `REQ-0006` 的 detail API 会返回结构化摘要：`系统/组件应定义并满足可连续运行的环境最低温度Tmin和最高温度Tmax。`
+  - `llm_shadow` screening 当前已新增 temperature-boundary guardrail：当 LLM 把显式温度边界 requirement 误打成 `INFO` 时，保留 heuristic 的 `REQUIREMENT`
 - `prototype/app/db.py`
+  - 存储根目录现统一经 `prototype/app/runtime_paths.py` 解析，支持 `REQPILOT_STORAGE_DIR`
   - `assessments` 新增 `assessment_mode / normalized_requirement / risk_level / clarification_question`
   - `assessments` 新增 `analysis_label / analysis_basis`
   - 新增 `assessment_runs`
   - `knowledge_documents` 新增 metadata 与 retrieval sync 字段
+  - `get_conn` 的 contextmanager 返回类型已改为 `Generator[sqlite3.Connection, None, None]` 兼容签名，清掉本地静态诊断
 - `prototype/app/main.py`
+  - `UPLOADS_DIR / KNOWLEDGE_DIR / EXPORTS_DIR / TABLE_SNAPSHOT_DIR` 现统一支持 `REQPILOT_STORAGE_DIR`
+  - 导入阶段不再抢先创建运行目录；startup 初始化失败会保留进程并通过 readiness 输出失败原因
+  - 新增 `/api/readiness`，并让 `/api/health` 直接承载结构化 readiness 结果与 `200/503` 状态码
   - `run-ai-analysis` 已改走 AI Copilot pipeline
   - 自动落库扩展 assessment 字段、evidence 与 assessment runs
   - `run-ai-analysis` 现会先跑全量 screening，再只分析 `REQUIREMENT`
+  - 新增 `ai_analysis_jobs / ai_analysis_events`，用于 document 级后台 AI 运行态与步骤日志持久化
+  - 新增 `run-ai-analysis/start`、`ai-analysis-status`、`analysis-detail` 三个 UI 专用 API
+  - `analysis-detail` 现已额外返回 `normalization.summary / normalization.facets / normalization.retrieval_text`
+  - `analysis-detail` 现优先回到 workspace 展示态 requirement，右侧 detail 与左侧 AI 列表统一使用 `display_req_code / display_sort_index`，不再把数据库里残留的历史 `req_code` 当作当前显示编号
+  - 原同步 `run-ai-analysis` 保留给 smoke / 既有测试，前端改为 start + poll + detail 新链路
   - 无 knowledge docs 时不再 422，可先完成 `INFO`/`REQUIREMENT` 标注
   - `INFO` 行不再进入人工 final decision / batch decision
+  - `knowledge-documents` 上传 route 装饰器已重新挂到真实 upload handler，multipart 上传恢复
   - 新增 `INFO -> REQUIREMENT` 的人工覆盖 API，可直接重新进入分析
   - workspace 现可看到当前 `configured_azure_auth_mode`
+  - AI job 现已补 queued、started、completed、failed、orphan-finalized 的最小日志
+  - workspace 从 reviewed preview 重建 requirements 时，现已跳过 `keep=false` review entries；锁定后排除的 heading/条目不会再回流到 AI stage 与 matrix
+- `prototype/app/runtime_readiness.py`
+  - 新增统一 readiness probe：覆盖 startup 状态、storage writability、SQLite schema reachability 与 Azure config presence
+- `prototype/app/__init__.py`
+  - 当前会在应用导入最早期 best-effort 注入 `truststore`，优先使用系统证书栈，避免 Windows 企业网络下 Azure HTTPS 调用把 knowledge sync 卡成 TLS 错误
+- `prototype/requirements.txt`
+  - 已补 `truststore==0.10.4`
+  - 已补 `python-certifi-win32==1.6.1; platform_system == "Windows"`
 - `prototype/app/static/app.js`
   - matrix 已改成独立 `AI 结果` 列
   - `INFO` 行显示 `INFO + analysis_basis`
   - `screening_only` 的真实需求显示 `待分析`
   - `置信度 / 风险 / 澄清问题 / 规范化需求` 已从主视图移除
   - `INFO` 行现在支持“改为需求”
-  - knowledge upload UI 现已支持 metadata 输入
-  - workspace 现已显示知识文档清单
+  - knowledge upload UI 现已回收为极简入口：默认按参考知识文档上传，不再要求用户填写 metadata 字段
+  - workspace 知识文档清单现已简化成文件 / 上传时间 / 检索同步三列
+  - AI stage 现已补 document 级进度卡、步骤时间线、requirement detail inspector
+  - AI 步骤日志完成态现已收成紧凑摘要卡：任务完成或失败后，顶部 metrics 不再占掉大块首屏空间，时间线会更早进入视野
+  - AI stage 第二轮布局现已完成：顶部门禁/状态压成紧凑信息格，document 级日志约占左侧 `1/3`，右侧 requirement inspector 占主区
+  - AI 主区两张核心卡现已提升为接近满屏工作区高度：步骤日志和 requirement inspector 默认对齐 review 工作区的 viewport-based 高度，不再是偏矮卡片
+  - AI 顶部门禁卡现已与当前状态卡保持等高，summary row 不再出现高度不一致
+  - 上传区两个主按钮现已改成显式文件选择/提交流程：无文件时先拉起选择器，有文件时再提交上传
+  - knowledge documents 现已视为“项目内规范化文件名唯一”：重复文件名上传会被 `409` 拦截，知识文档清单与相关计数会折叠历史遗留的同名记录
+  - requirement inspector 现已是独立双栏滚动布局：左侧 req list 有稳定滚动槽并会自动对齐当前选中项，右侧 detail 在切换条目后会回到顶部
+  - matrix 的 `AI 结果` 现可直接跳转查看 requirement 证据链
+  - requirement detail 的“规范化需求”现已显示结构化摘要 + facets，不再只是一段复制文本
+  - review 过滤输入已加 debounce，先减轻本地输入卡顿
+  - Compliance Matrix 现已做第一轮密度重排：`Req-ID + 上级章节` 合并为定位列，人工判定与保存动作合并，客户需求扩成主阅读区
+  - AI rerun 与终态 refresh 现会主动清空 `aiRequirementDetailCache`，避免同一文档重跑后右侧证据链继续显示上一轮缓存结果
 - `prototype/start.sh` / `status.sh` / `stop.sh`
+  - `start.sh` 与 `status.sh` 的默认 health probe 已切到 `/api/health`
   - 本地 `start -> status -> stop` 已完成 smoke，旧 PID 误判口径收了一轮
+  - readiness 失败时，脚本现在会直接打印 readiness body，便于区分 storage / SQLite / Azure config 问题
+  - 2026-04-02 追加确认：若前端 selector 再次显示空，先检查 `8000` 是否仍是旧进程；本轮已通过“旧 `8000` vs 当前源码 `8001`”对比坐实 schema mismatch，并在重启 `8000` 后恢复正常
+- Azure 部署脚手架
+  - 新增根目录 `azure.yaml`
+  - 新增 `infra/main.bicep`、`infra/resources.bicep`、`infra/main.parameters.json`
+  - IaC 当前默认创建 Linux App Service、App Service Plan、Application Insights、Log Analytics Workspace，并注入 App Service 所需运行时设置
 - 文档体系
   - `/Users/liuchang/Documents/New project/docs/项目.md` 已更新为当前总账，包含当前主线、模块盘点、待开发/待测试清单
   - `/Users/liuchang/Documents/New project/docs/开发执行清单.md` 已新增可执行任务卡，供 Azure/AI 主线按模块排期
@@ -66,10 +157,18 @@
   - `p0_p1_execution_backlog.md` 已标记为历史执行清单
 - `prototype/tests/test_ai_copilot.py`
   - 新增 `INFO` 预筛、AI pipeline / fallback / indexing 单测
+  - 新增 Qdrant collection 维度不匹配回归，避免 embedding 模型切换后继续复用旧 collection
+  - 新增 Azure RBAC credential、Azure Search chunk id/score、same-chunk excerpt 校验回归
+  - 新增 requirement normalization 回归：温度边界定义摘要、旧 persisted summary 自动刷新、表格参数 facets
 - `prototype/tests/test_unified_workspace.py`
   - 新增 AI assessment integration 覆盖
   - 新增 metadata 上传与人工覆盖 `INFO -> REQUIREMENT` 覆盖
+  - 新增 multipart knowledge upload route 回归
+  - 新增 AI job API 回归：后台 start/status/detail 成功/失败路径
+  - 新增回归：`analysis-detail` 与 AI event `requirement_code` 使用 workspace `display_req_code`，以及 `keep=false` review entry 不再回流 workspace requirements
   - SQLite tempdir `-wal/-shm` 清理抖动已通过 teardown 重试收口
+- `prototype/tests/test_runtime_readiness.py`
+  - 新增 readiness 回归：ready、Azure 配置缺失、startup 失败但服务仍可诊断
 - `prototype/app/services/table_assets.py`
   - 单行条目中，`DV/PV` / supplier / sample 这类行内单元格不再被误当作 `end_anchor`
   - generic start-anchor（如 `项目`）不再把 `W` 类小信息表裁成空白
@@ -90,6 +189,16 @@
 - 回归门禁
   - `prototype/scripts/ai_smoke_suite.py` 当前 `6/6`
   - `prototype/scripts/table_asset_regression_gate.py` 当前 `137` 条通过
+  - `prototype/scripts/azure_screening_smoke.py` 当前 `overall_pass: True`
+  - `prototype/scripts/azure_rag_smoke.py` 当前 `overall_pass: True`
+  - `prototype/scripts/azure_screening_smoke.py` 与 `prototype/scripts/azure_rag_smoke.py` 现已默认切到独立 `prototype/storage/smoke/azure_screening|azure_rag`，summary 会记录 `storage_root / db_path`
+  - 两个 smoke 脚本当前显式拒绝 live `prototype/storage`；如必须复用旧行为，需要手工传 `--allow-live-storage`
+  - `prototype/scripts/azure_rag_smoke.py` 现已补强最终结果门禁：除了检查 `llm_shadow` run 外，还检查最终 requirement rows 是否真的以 `llm_shadow` 落库，以及 `ai_reason / analysis_basis` 是否形成最终分析输出
+  - `prototype/scripts/azure_rag_smoke.py` 的参数化 probe 当前也通过，说明 benchmark 入口可用
+  - `prototype/scripts/azure_rag_smoke.py` 的真实样本 `sample10` 当前也通过，说明最小可信 benchmark 面已具备
+  - 已恢复 live Azure 基线：subscription `0adac5c3-3e8b-4670-9c15-cc95ea432b0f`、Azure OpenAI `oaicspq001reqpilotbdpsgcq`、Azure AI Search `cscspq001reqpilotbdpsgcq`、index `reqpilot-knowledge`
+  - `REQ-0006` 已在恢复后的 live rerun 下重新命中真实需求链路：`analysis_label=REQUIREMENT`、`assessment_mode=llm_shadow`、`ai_decision=ACCEPT`、`evidence_count=2`
+  - Windows / system Python 下外部 `site-packages/tests` 抢占本地 `tests` 包的问题已收口：`prototype/tests/__init__.py` 已补齐，table gate 改为 `unittest discover`
   - 核心非 Azure 套件顺序通过 `270` 条
 
 ## 当前样本状态
@@ -109,16 +218,53 @@
 
 ## 当前已知问题
 
+- Aliyun 目前还没有真实资源 smoke 结果；当前只完成了本地实现与回归测试
+- 双 profile 相关的环境变量模板与运维文档还不够成体系，接手者仍需额外整理一轮
+- 生产化首阶段暂不直接做前端框架迁移，也不直接把 parser 切成 Azure Document Intelligence；先把现有主链做成可运维、可观测、可迁移
+- `OPS-02` 的 readiness 第一轮已收口；当前剩余的是 settings/secret 统一口径、更系统的 observability，以及 App Service 真实 health probe 验证
 - 当前无已知截图主线 blocker；若再报新编号，再按 anchor/crop plan 链路复现
-- 当前开发环境不在公司网络，Azure RBAC 代码路径虽然已接好，但 `llm_shadow / llm_primary` 还未做真实云端验证
+- 当前无已知 Azure screening / Azure Search / `llm_shadow` blocker；剩余重点是扩大真实 knowledge docs benchmark
+- 本轮已修 AI ownership / stage summary / smoke gate 第一轮，但尚未做 Azure live 复测；当前主要剩余风险是“真实 benchmark 下 LLM 结果是否足够稳定、是否仍需 heuristic hard-rule 继续收口”
+- 当前已补“运行过程可见”，但语义可信度仍需人工抽查：real sample 的 evidence relevance 仍偏低，不应把 smoke green 误当成质量 green
+- Windows 下 review / matrix / AI stage 的滑动卡顿与 layout friction 已明确记为近端 UX 问题，需要单独收口；最新一轮已完成工作台上传区、matrix 密度、AI 步骤日志完成态与 AI inspector 布局优化，但滚动根因还没被定位
+- Azure AI Search 当前已无接入 blocker，但检索质量调优仍未系统化；chunking、metadata filter、semantic config、hybrid retrieval 与 reranker 仍需专项验收
+- 当前工作区暂时没有内置真实 benchmark 文件；已验证的 `sample10` 仍依赖外部本机路径，跨机器复跑前需把样本放入工作区或共享可访问路径
 - 试验大纲/附件起点的人机确认锚点仍是第二期，不在本轮代码内
+- `llm_primary` 仍未做 live 验证；升级前先保留 `llm_shadow + azure_sdk`
+- Windows 下 Azure smoke 的 live DB 污染主风险已被第一轮切断：脚本默认改走 `prototype/storage/smoke/*`，且显式指向 live `prototype/storage` 会 fail-fast；当前剩余问题是隔离 smoke DB 自身的 cleanup warning 仍待继续收口
+- Azure extension/MCP 当前仍有 tenant mismatch；本轮真正稳定的认证路径是 Azure CLI 默认订阅 + `AzureCliCredential`
+- 已确认目标资源确实位于 `Schaeffler Pre-Merger` tenant，当前 Azure token 解析到的 Entra 对象是 `chang.4.liu@vitesco.com`；该对象通过组 `RL_cspq001_reqpilotbdpsgcq_AI_DEVELOPER_AAD` 已拥有 Azure smoke 所需的数据面/读取权限
+- 当前已确认的组继承权限包括：资源组 `Reader`、Azure OpenAI `Cognitive Services OpenAI User` + custom OpenAI dev role、Azure AI Search custom Search dev role、Log Analytics Reader、Storage Blob Data Contributor
+- 但该对象仍缺少 App Service 部署所需的管理面权限：`Microsoft.Resources/subscriptions/resourcegroups/write` 与 `Microsoft.Resources/deployments/whatIf/action`；因此 Azure cloud 若恢复执行，技术 blocker 仍收口到 management-plane RBAC，而不是 `infra/` 模板本身有问题
+- 结合当前阶段尚未获得正式 Azure cloud 放行，`AZD-01` 已转入暂停状态；现阶段不再继续云端宿主部署，只保留已完成的脚手架、环境和诊断结论作为恢复点
 - Azure 侧下一步执行顺序、验证命令、通过标准，已单独整理到 `docs/Azure环境接手清单.md`
+- 当前全量 document 级 Azure rerun 速度仍偏慢；按 live 验证观察，`REQ-0006` 在处理到 `6/532` 时已完成，但整份文档跑完仍需较长时间
+- 当前 Azure Web App 仍受一个明确运行约束：SQLite + 进程内后台线程尚未替换前，实例数必须维持 `1`
+- 托管 Azure 数据库、Azure Blob Storage、Azure Document Intelligence 当前都作为显式迁移路线记录，但不并入首发 pilot 的即时 gate
 
 ## 下一步
 
-- 切到公司网络后，先按 `docs/Azure环境接手清单.md` 跑 screening-only smoke
-- 再验证 Azure AI Search 的 `index upsert / hybrid retrieval`
-- 用真实 knowledge docs 评估自动 decision 与 evidence trace
+- 先补 Aliyun 最小 live smoke，确认 DashScope 与 DashVector 在真实凭据下能完成最小闭环
+- 然后把 Azure/Aliyun 双 profile 的环境变量、运维步骤和故障排查口径单独成文
+- 当前阶段先按本地服务器运维推进：以 `8000` 为稳定服务口，持续检查 readiness、日志、存储目录与 SQLite 可用性
+- 当前正式执行顺序以 `docs/项目.md + docs/开发执行清单.md` 为准：先做 `OPS-02 / OPS-03 / QA-01`，再推进 `AI-05 / UX-02 / SEARCH-01`；`AZD-01` 转为等待正式放行后的恢复任务
+- 继续保持 `azure_screening_smoke.py`、`azure_rag_smoke.py` 和 `sample10` benchmark 可复跑，把 Azure OpenAI/Search 作为当前本地运维期内的外部依赖基线
+- 正式放行前不再推进 `azd provision --preview`、`azd up`、托管身份角色分配或云端健康检查；相关上下文统一保留在 `docs/Azure环境接手清单.md`
+- 本地运维阶段优先收口 settings/secret、smoke DB 隔离、人工抽查与性能问题，而不是继续扩云端宿主变更
+- 先在 `8001` 预览口人工检查新的 AI stage：步骤日志、证据链、最终结论是否足够支持审阅
+- 当前 Azure live 基线已恢复；后续若要重启服务，直接复用本轮已确认的 Azure CLI + RBAC 环境块
+- 可继续用 `REQ-0006` 做人工抽查样本，重点看结构化摘要、facets、evidence/runs 是否满足“不是只给相关度”的目标
+- 下一轮优先做 Azure live 复测与真实样本人工抽查，确认 `llm_shadow` 最终结果已真正落到 UI/DB，并观察 heuristic/LLM 冲突面
+- 再跑 `azure_rag_smoke.py` 前，先隔离 smoke DB 或停掉 live 服务，避免再次把 smoke 项目库切成在线库
+- 继续补 regression：显式断言 heuristic/LLM 分歧时最终采用链路、以及 `ai_reason` 不退化成纯相关度模板话术
+- 然后继续做第一轮性能收口：减少隐藏 stage 无意义重绘、避免大表反复全量刷新
+- 把 Windows 下的滚动性能与 layout 细化当成显式任务，优先盯 review 大表、matrix、detail inspector 与 PDF/evidence 联动；下一轮先对 DOM 重绘、overflow 滚动容器和 PDF/evidence 联动做专项定位
+- 保持 `llm_shadow + azure_sdk` 作为当前 live 基线，先基于已通过的 `sample10` 做人工抽查并收口评测阈值
+- 如需扩大覆盖，继续用 `azure_rag_smoke.py --sor-file ... --knowledge-file ... --reference-file ... --max-requirements ...` 跑 benchmark
+- benchmark 基线稳定后，再针对 Azure AI Search 做 chunking / filter / semantic config / hybrid retrieval / reranker 的专项调优
+- 在 live `screening -> index upsert -> retrieval + llm_shadow` 已稳定的前提下，再评估 `llm_primary`
+- parser 主链当前保持不动；Azure Document Intelligence 只先做 shadow evaluation，再决定是否迁移
+- 如需收口日志噪音，再单独处理 Windows 下 smoke DB 清理 warning
 - 继续补领域规则，但当前本地第一轮 hard-rule 已足够支撑非 Azure 路径
 - 把评测重点转到 Azure smoke 与真实 RAG benchmark，不再重复补本地 smoke
 - 文档接续默认顺序：
@@ -138,3 +284,5 @@
 - 若 `8000` 不可达，优先执行：
   - `cd prototype && ./status.sh`
   - `cd prototype && ./start.sh`
+- 当前唯一 live 口：`http://127.0.0.1:8000/workspace?stage=ai`
+- `8001` 旧临时预览口已清空，无监听进程

@@ -5,6 +5,13 @@ const state = {
   currentStage: "review",
   workspace: null,
   knowledgeDocuments: [],
+  aiAnalysisJob: null,
+  aiAnalysisEvents: [],
+  aiAnalysisPollHandle: null,
+  aiSelectedRequirementId: "",
+  aiSelectedProfileId: "",
+  aiRequirementDetailCache: {},
+  aiRequirementDetailLoadingId: "",
   reviewPreview: null,
   requirements: [],
   reviewEntries: [],
@@ -25,6 +32,7 @@ const state = {
   exportStatusMessage: "",
   exportStatusTone: "",
   tableViewByTableId: {},
+  reviewRenderDebounceHandle: null,
 };
 const WORKSPACE_SELECTION_KEY = "reqpilotx.workspace-selection-v1";
 
@@ -37,9 +45,11 @@ const el = {
   refreshProjects: document.querySelector("#refresh-projects"),
   sorForm: document.querySelector("#sor-upload-form"),
   sorFile: document.querySelector("#sor-file"),
+  sorUploadBtn: document.querySelector("#sor-upload-btn"),
   sorUploadResult: document.querySelector("#sor-upload-result"),
   kbForm: document.querySelector("#kb-upload-form"),
   kbFile: document.querySelector("#kb-file"),
+  kbUploadBtn: document.querySelector("#kb-upload-btn"),
   kbDocType: document.querySelector("#kb-doc-type"),
   kbDocVersion: document.querySelector("#kb-doc-version"),
   kbDocStatus: document.querySelector("#kb-doc-status"),
@@ -51,6 +61,8 @@ const el = {
   analyzeBtn: document.querySelector("#analyze-btn"),
   lockExtractionBtn: document.querySelector("#lock-extraction-btn"),
   runAiBtn: document.querySelector("#run-ai-btn"),
+  aiProfileSelect: document.querySelector("#ai-profile-select"),
+  aiProfileHint: document.querySelector("#ai-profile-hint"),
   reloadBtn: document.querySelector("#reload-btn"),
   analyzeResult: document.querySelector("#analyze-result"),
   exportBtn: document.querySelector("#export-btn"),
@@ -96,6 +108,12 @@ const el = {
   reviewPdfFrame: document.querySelector("#review-pdf-frame"),
   aiStageChecklist: document.querySelector("#ai-stage-checklist"),
   aiStageStatus: document.querySelector("#ai-stage-status"),
+  aiJobSummary: document.querySelector("#ai-job-summary"),
+  aiProgressCurrent: document.querySelector("#ai-progress-current"),
+  aiProgressTimeline: document.querySelector("#ai-progress-timeline"),
+  aiRequirementList: document.querySelector("#ai-requirement-list"),
+  aiRequirementDetail: document.querySelector("#ai-requirement-detail"),
+  aiDetailSummary: document.querySelector("#ai-detail-summary"),
 };
 
 init().catch((error) => {
@@ -153,6 +171,8 @@ function onStageSwitcherClicked(event) {
   syncWorkspaceActions();
   if (nextStage === "review") {
     wrap(loadReviewPreview)();
+  } else if (nextStage === "ai") {
+    void ensureAiStageHydrated();
   } else {
     stopReviewPreviewPolling();
   }
@@ -178,17 +198,20 @@ function bindEvents() {
   el.sorDocumentSelect.addEventListener("change", wrap(onSorDocumentChanged));
   el.sorForm.addEventListener("submit", wrap(onUploadSor));
   el.kbForm.addEventListener("submit", wrap(onUploadKnowledge));
+  el.sorUploadBtn?.addEventListener("click", onSorUploadButtonClicked);
+  el.kbUploadBtn?.addEventListener("click", onKnowledgeUploadButtonClicked);
   el.analyzeBtn.addEventListener("click", wrap(onAnalyze));
   el.lockExtractionBtn.addEventListener("click", wrap(onLockExtraction));
   el.runAiBtn.addEventListener("click", wrap(onRunAiAnalysis));
+  el.aiProfileSelect?.addEventListener("change", onAiProfileChanged);
   el.reloadBtn.addEventListener("click", wrap(onReload));
   el.exportBtn.addEventListener("click", wrap(onExport));
   el.refreshExportsBtn.addEventListener("click", wrap(loadExportJobs));
   el.batchApplyBtn.addEventListener("click", wrap(onApplyBatchDecision));
   el.stageSwitcher?.addEventListener("click", onStageSwitcherClicked);
   el.reviewKindFilter?.addEventListener("change", onReviewKindFilterChanged);
-  el.reviewSectionFilter?.addEventListener("input", renderReviewEntries);
-  el.reviewKeywordFilter?.addEventListener("input", renderReviewEntries);
+  el.reviewSectionFilter?.addEventListener("input", scheduleReviewEntriesRender);
+  el.reviewKeywordFilter?.addEventListener("input", scheduleReviewEntriesRender);
   el.reviewVisibleKeepToggle?.addEventListener("change", wrap(onReviewVisibleKeepToggleChanged));
   el.reviewSelectAllBtn?.addEventListener("click", wrap(() => bulkSetReviewKeep(true)));
   el.reviewUnselectAllBtn?.addEventListener("click", wrap(() => bulkSetReviewKeep(false)));
@@ -196,10 +219,362 @@ function bindEvents() {
   el.reviewRefreshPreviewBtn?.addEventListener("click", wrap(onRefreshReviewPreview));
   el.reviewTableBody?.addEventListener("change", wrap(onReviewTableChanged));
   el.reviewTableBody?.addEventListener("click", wrap(onReviewTableClicked));
+  el.aiRequirementList?.addEventListener("click", wrap(onAiRequirementListClicked));
   el.tableBody?.addEventListener("click", onRequirementTableClicked);
   el.reviewPdfToggle?.addEventListener("click", onReviewPdfToggleClicked);
   el.reviewOpenPdfBtn?.addEventListener("click", openReviewPdfInNewWindow);
   window.addEventListener("message", onReviewPdfViewerMessage);
+}
+
+function scheduleReviewEntriesRender() {
+  if (state.reviewRenderDebounceHandle) {
+    window.clearTimeout(state.reviewRenderDebounceHandle);
+  }
+  state.reviewRenderDebounceHandle = window.setTimeout(() => {
+    state.reviewRenderDebounceHandle = null;
+    renderReviewEntries();
+  }, 140);
+}
+
+function requestUploadFromButton(form, fileInput) {
+  if (!(form instanceof HTMLFormElement) || !(fileInput instanceof HTMLInputElement)) {
+    return;
+  }
+  if (!fileInput.files?.length) {
+    fileInput.click();
+    return;
+  }
+  form.requestSubmit();
+}
+
+function onSorUploadButtonClicked() {
+  requestUploadFromButton(el.sorForm, el.sorFile);
+}
+
+function onKnowledgeUploadButtonClicked() {
+  requestUploadFromButton(el.kbForm, el.kbFile);
+}
+
+function stopAiAnalysisPolling() {
+  if (state.aiAnalysisPollHandle) {
+    window.clearTimeout(state.aiAnalysisPollHandle);
+    state.aiAnalysisPollHandle = null;
+  }
+}
+
+function shouldPollAiAnalysis() {
+  const status = String(state.aiAnalysisJob?.status || "").trim().toUpperCase();
+  return status === "PENDING" || status === "RUNNING";
+}
+
+function scheduleAiAnalysisPolling(delayMs = 1600) {
+  stopAiAnalysisPolling();
+  if (!shouldPollAiAnalysis() || !state.projectId || !state.currentSorDocumentId) {
+    return;
+  }
+  state.aiAnalysisPollHandle = window.setTimeout(async () => {
+    state.aiAnalysisPollHandle = null;
+    await loadAiAnalysisStatus({ suppressErrors: true });
+  }, delayMs);
+}
+
+function resetAiAnalysisState() {
+  stopAiAnalysisPolling();
+  state.aiAnalysisJob = null;
+  state.aiAnalysisEvents = [];
+  state.aiSelectedRequirementId = "";
+  invalidateAiRequirementDetailCache();
+}
+
+function invalidateAiRequirementDetailCache() {
+  state.aiRequirementDetailCache = {};
+  state.aiRequirementDetailLoadingId = "";
+}
+
+function getAiInspectableRequirements() {
+  const currentRequirementId = String(state.aiAnalysisJob?.current_requirement_id || "").trim();
+  return [...(Array.isArray(state.requirements) ? state.requirements : [])]
+    .filter((row) => {
+      const requirementId = String(row?.id || "").trim();
+      return Boolean(requirementId) && (
+        requirementId === currentRequirementId ||
+        Boolean(row?.ai_decision) ||
+        Boolean(row?.analysis_basis) ||
+        Boolean(row?.ai_reason) ||
+        getAnalysisLabel(row) === "INFO" ||
+        (Array.isArray(row?.evidences) && row.evidences.length > 0)
+      );
+    })
+    .sort((left, right) => Number(left.display_sort_index || 0) - Number(right.display_sort_index || 0));
+}
+
+function ensureAiRequirementSelection() {
+  const rows = getAiInspectableRequirements();
+  const selectedId = String(state.aiSelectedRequirementId || "").trim();
+  if (selectedId && rows.some((row) => String(row?.id || "") === selectedId)) {
+    return selectedId;
+  }
+  const currentRequirementId = String(state.aiAnalysisJob?.current_requirement_id || "").trim();
+  if (currentRequirementId && rows.some((row) => String(row?.id || "") === currentRequirementId)) {
+    state.aiSelectedRequirementId = currentRequirementId;
+    return currentRequirementId;
+  }
+  state.aiSelectedRequirementId = String(rows[0]?.id || "").trim();
+  return state.aiSelectedRequirementId;
+}
+
+function escapeSelectorValue(value) {
+  const text = String(value || "");
+  if (typeof CSS !== "undefined" && typeof CSS.escape === "function") {
+    return CSS.escape(text);
+  }
+  return text.replace(/(["\\])/g, "\\$1");
+}
+
+function syncAiRequirementViewports(selectedId, { resetDetail = false } = {}) {
+  requestAnimationFrame(() => {
+    if (resetDetail && el.aiRequirementDetail) {
+      el.aiRequirementDetail.scrollTop = 0;
+    }
+    if (!el.aiRequirementList || !selectedId) {
+      return;
+    }
+    const activeItem = el.aiRequirementList.querySelector(
+      `[data-ai-requirement="${escapeSelectorValue(selectedId)}"]`
+    );
+    if (activeItem instanceof HTMLElement) {
+      activeItem.scrollIntoView({ block: "nearest", inline: "nearest" });
+    }
+  });
+}
+
+function getAiProfiles() {
+  return Array.isArray(state.workspace?.ai_profiles) ? state.workspace.ai_profiles : [];
+}
+
+function resolveDefaultAiProfileId() {
+  const profiles = getAiProfiles();
+  const explicitDefault = String(state.workspace?.document?.default_ai_profile_id || "").trim();
+  if (explicitDefault && profiles.some((profile) => String(profile.id || "") === explicitDefault)) {
+    return explicitDefault;
+  }
+  const flaggedDefault = profiles.find((profile) => Boolean(profile.default));
+  if (flaggedDefault) {
+    return String(flaggedDefault.id || "").trim();
+  }
+  return String(profiles[0]?.id || "").trim();
+}
+
+function getSelectedAiProfileId() {
+  const profiles = getAiProfiles();
+  const selected = String(state.aiSelectedProfileId || "").trim();
+  if (selected && profiles.some((profile) => String(profile.id || "") === selected)) {
+    return selected;
+  }
+  const fallback = resolveDefaultAiProfileId();
+  state.aiSelectedProfileId = fallback;
+  return fallback;
+}
+
+function getSelectedAiProfile() {
+  const selectedId = getSelectedAiProfileId();
+  return getAiProfiles().find((profile) => String(profile.id || "") === selectedId) || null;
+}
+
+function formatAiProfileOption(profile) {
+  const label = String(profile.label || profile.id || "").trim() || "未命名路径";
+  const mode = String(profile.assessment_mode || "").trim() || "heuristic";
+  const retrieval = String(profile.retrieval_backend || "").trim() || "local";
+  return `${label} · ${mode} / ${retrieval}`;
+}
+
+function formatAiProfileHint(profile) {
+  if (!profile) {
+    return "";
+  }
+  const sync = profile.knowledge_sync || {};
+  const syncStatus = String(sync.status || "NOT_REQUIRED").trim().toUpperCase();
+  const syncText =
+    syncStatus === "READY"
+      ? `知识同步 ${sync.ready_count || 0}/${sync.total_count || 0}`
+      : syncStatus === "NOT_REQUIRED"
+      ? "当前无需知识同步"
+      : `知识同步 ${syncStatus}`;
+  const missing = Array.isArray(profile.missing) ? profile.missing.filter(Boolean) : [];
+  if (profile.ready) {
+    return `${profile.label || profile.id} 可运行，${syncText}。`;
+  }
+  if (missing.length) {
+    return `${profile.label || profile.id} 尚未就绪，缺少：${missing.join(", ")}。`;
+  }
+  return `${profile.label || profile.id} 尚未就绪，${syncText}。`;
+}
+
+function renderAiProfileSelector() {
+  if (!el.aiProfileSelect) {
+    return;
+  }
+  const profiles = getAiProfiles();
+  if (!profiles.length) {
+    el.aiProfileSelect.innerHTML = `<option value="">暂无可选 AI 路径</option>`;
+    el.aiProfileSelect.disabled = true;
+    if (el.aiProfileHint) {
+      el.aiProfileHint.textContent = "当前工作区还没有可渲染的 AI 路径配置。";
+    }
+    return;
+  }
+  const selectedId = getSelectedAiProfileId();
+  el.aiProfileSelect.innerHTML = profiles
+    .map((profile) => {
+      const profileId = String(profile.id || "").trim();
+      const suffix = profile.ready ? "可用" : "未就绪";
+      const selected = profileId === selectedId ? " selected" : "";
+      return `<option value="${escapeHtml(profileId)}"${selected}>${escapeHtml(
+        `${formatAiProfileOption(profile)} · ${suffix}`
+      )}</option>`;
+    })
+    .join("");
+  el.aiProfileSelect.disabled = false;
+  if (el.aiProfileHint) {
+    el.aiProfileHint.textContent = formatAiProfileHint(getSelectedAiProfile());
+  }
+}
+
+function onAiProfileChanged(event) {
+  state.aiSelectedProfileId = String(event?.target?.value || "").trim();
+  renderAiProfileSelector();
+  renderAiStage();
+  syncWorkspaceActions();
+}
+
+async function ensureAiStageHydrated() {
+  if (!state.projectId || !state.currentSorDocumentId) {
+    return;
+  }
+  await loadAiAnalysisStatus({ suppressErrors: true, refreshWorkspaceOnTerminal: false });
+  const selectedId = ensureAiRequirementSelection();
+  renderAiStage();
+  if (selectedId && !state.aiRequirementDetailCache[selectedId]) {
+    void selectAiRequirement(selectedId, { silent: true });
+  }
+}
+
+function applyAiAnalysisStatus(payload) {
+  state.aiAnalysisJob = payload?.job || null;
+  state.aiAnalysisEvents = Array.isArray(payload?.events) ? payload.events : [];
+  if (payload?.job?.profile_id) {
+    state.aiSelectedProfileId = String(payload.job.profile_id || "").trim();
+  }
+  if (payload?.document) {
+    state.workspace = {
+      ...(state.workspace || {}),
+      document: {
+        ...((state.workspace && state.workspace.document) || {}),
+        ...payload.document,
+      },
+    };
+  }
+  if (Array.isArray(payload?.ai_profiles)) {
+    state.workspace = {
+      ...(state.workspace || {}),
+      ai_profiles: payload.ai_profiles,
+    };
+  }
+  ensureAiRequirementSelection();
+  renderAiStage();
+  syncWorkspaceActions();
+  if (shouldPollAiAnalysis()) {
+    scheduleAiAnalysisPolling();
+  } else {
+    stopAiAnalysisPolling();
+  }
+}
+
+async function loadAiAnalysisStatus({ suppressErrors = false, refreshWorkspaceOnTerminal = true } = {}) {
+  if (!state.projectId || !state.currentSorDocumentId) {
+    return null;
+  }
+  const previousStatus = String(state.aiAnalysisJob?.status || "").trim().toUpperCase();
+  try {
+    const payload = await api(
+      `/api/projects/${state.projectId}/sor-documents/${state.currentSorDocumentId}/ai-analysis-status`
+    );
+    applyAiAnalysisStatus(payload);
+    const nextStatus = String(payload?.job?.status || "").trim().toUpperCase();
+    if (
+      refreshWorkspaceOnTerminal &&
+      previousStatus &&
+      previousStatus !== nextStatus &&
+      ["COMPLETED", "FAILED"].includes(nextStatus)
+    ) {
+      invalidateAiRequirementDetailCache();
+      await loadWorkspace({ skipAiStatus: true });
+    }
+    return payload;
+  } catch (error) {
+    if (!suppressErrors) {
+      setAnalyzeStatus(normalizeApiError(error, "AI 状态刷新失败，请稍后重试。"), "error");
+    }
+    return null;
+  }
+}
+
+async function selectAiRequirement(requirementId, { force = false, silent = false } = {}) {
+  const nextId = String(requirementId || "").trim();
+  const previousId = String(state.aiSelectedRequirementId || "").trim();
+  const selectionChanged = nextId !== previousId;
+  state.aiSelectedRequirementId = nextId;
+  if (!nextId) {
+    renderAiStage();
+    return null;
+  }
+  if (!force && state.aiRequirementDetailCache[nextId]) {
+    renderAiStage();
+    syncAiRequirementViewports(nextId, { resetDetail: selectionChanged });
+    return state.aiRequirementDetailCache[nextId];
+  }
+  state.aiRequirementDetailLoadingId = nextId;
+  renderAiStage();
+  syncAiRequirementViewports(nextId, { resetDetail: selectionChanged });
+  try {
+    const detail = await api(`/api/requirements/${nextId}/analysis-detail`);
+    state.aiRequirementDetailCache[nextId] = detail;
+    return detail;
+  } catch (error) {
+    if (!silent) {
+      setAnalyzeStatus(normalizeApiError(error, "AI 证据详情加载失败，请稍后重试。"), "error");
+    }
+    return null;
+  } finally {
+    if (state.aiRequirementDetailLoadingId === nextId) {
+      state.aiRequirementDetailLoadingId = "";
+    }
+    renderAiStage();
+  }
+}
+
+async function onAiRequirementListClicked(event) {
+  const button = event.target.closest("[data-ai-requirement]");
+  if (!(button instanceof HTMLButtonElement)) {
+    return;
+  }
+  const requirementId = String(button.getAttribute("data-ai-requirement") || "").trim();
+  if (!requirementId) {
+    return;
+  }
+  await selectAiRequirement(requirementId);
+}
+
+function openAiRequirementDetail(requirementId) {
+  const nextId = String(requirementId || "").trim();
+  if (!nextId) {
+    return;
+  }
+  state.currentStage = "ai";
+  syncStagePanels();
+  syncStageUrl();
+  syncWorkspaceActions();
+  void selectAiRequirement(nextId);
 }
 
 async function onCreateProject(event) {
@@ -227,6 +602,7 @@ async function onProjectChanged() {
   state.currentSorDocumentId = null;
   state.sorDocuments = [];
   state.workspace = null;
+  resetAiAnalysisState();
   state.reviewPreview = null;
   state.exportStatusMessage = "";
   state.exportStatusTone = "";
@@ -254,6 +630,7 @@ async function onProjectChanged() {
 
 async function onSorDocumentChanged() {
   state.currentSorDocumentId = el.sorDocumentSelect.value || null;
+  resetAiAnalysisState();
   state.reviewPreview = null;
   state.exportStatusMessage = "";
   state.exportStatusTone = "";
@@ -298,16 +675,13 @@ async function onUploadKnowledge(event) {
   }
   const form = new FormData();
   form.append("file", file);
-  form.append("doc_type", el.kbDocType?.value || "REFERENCE");
-  form.append("doc_version", el.kbDocVersion?.value?.trim() || "");
-  form.append("status", el.kbDocStatus?.value || "ACTIVE");
-  form.append("effective_from", el.kbEffectiveFrom?.value || "");
-  form.append("effective_to", el.kbEffectiveTo?.value || "");
+  form.append("doc_type", "REFERENCE");
+  form.append("status", "ACTIVE");
   const document = await api(`/api/projects/${state.projectId}/knowledge-documents`, {
     method: "POST",
     body: form,
   });
-  el.kbUploadResult.textContent = `已上传: ${document.file_name}，${document.doc_type || "REFERENCE"} ${document.doc_version || ""}，知识库版本 ${document.knowledge_base_version}`;
+  el.kbUploadResult.textContent = `已上传: ${document.file_name}，知识库版本 ${document.knowledge_base_version}`;
   el.kbFile.value = "";
   if (el.kbDocVersion) el.kbDocVersion.value = "";
   if (el.kbEffectiveFrom) el.kbEffectiveFrom.value = "";
@@ -378,8 +752,10 @@ async function onLockExtraction() {
     );
     state.workspace = workspace;
     state.requirements = Array.isArray(workspace.requirements) ? workspace.requirements : [];
+    ensureAiRequirementSelection();
     renderRequirements(state.requirements);
     renderWorkspaceSummary();
+    renderAiStage();
     syncWorkspaceActions();
     state.exportStatusMessage = "";
     state.exportStatusTone = "";
@@ -397,21 +773,29 @@ async function onRunAiAnalysis() {
     alert("请先选择项目和 SOR 文档");
     return;
   }
+  stopAiAnalysisPolling();
+  invalidateAiRequirementDetailCache();
   el.runAiBtn.disabled = true;
-  setAnalyzeStatus("AI 分析中，请稍候...");
+  setAnalyzeStatus("AI 分析已启动，页面会持续显示阶段、证据链和最终结论。", "warning");
   try {
-    const workspace = await api(
-      `/api/projects/${state.projectId}/sor-documents/${state.currentSorDocumentId}/run-ai-analysis`,
-      { method: "POST" }
+    const selectedProfileId = getSelectedAiProfileId();
+    const payload = await api(
+      `/api/projects/${state.projectId}/sor-documents/${state.currentSorDocumentId}/run-ai-analysis/start`,
+      {
+        method: "POST",
+        headers: { "Content-Type": "application/json" },
+        body: JSON.stringify({ profile_id: selectedProfileId || null }),
+      }
     );
-    state.workspace = workspace;
-    state.requirements = Array.isArray(workspace.requirements) ? workspace.requirements : [];
-    renderRequirements(state.requirements);
-    renderWorkspaceSummary();
-    setAnalyzeStatus(
-      `AI 分析完成：判定 ${workspace.ai_processed_requirements || 0} 条，标记 INFO ${workspace.ai_info_requirements || 0} 条，待分析 ${workspace.ai_screened_requirements || 0} 条，知识文档 ${workspace.knowledge_docs_used || 0} 份。`,
-      "success"
-    );
+    applyAiAnalysisStatus(payload);
+    state.currentStage = "ai";
+    syncStagePanels();
+    syncStageUrl();
+    const selectedId = ensureAiRequirementSelection();
+    if (selectedId) {
+      void selectAiRequirement(selectedId, { silent: true });
+    }
+    scheduleAiAnalysisPolling(1200);
   } finally {
     syncWorkspaceActions();
   }
@@ -559,11 +943,13 @@ function renderSorDocumentOptions() {
   el.sorDocumentSelect.value = state.currentSorDocumentId || "";
 }
 
-async function loadWorkspace() {
+async function loadWorkspace(options = {}) {
+  const skipAiStatus = Boolean(options?.skipAiStatus);
   stopReviewPreviewPolling();
   if (!state.projectId || !state.currentSorDocumentId) {
     state.workspace = null;
     state.knowledgeDocuments = [];
+    resetAiAnalysisState();
     state.reviewPreview = null;
     state.requirements = [];
     state.reviewEntries = [];
@@ -592,6 +978,7 @@ async function loadWorkspace() {
   state.reviewActiveEntryId = "";
   state.reviewPdfDrawerOpen = false;
   initReviewPdfViewer();
+  ensureAiRequirementSelection();
   renderRequirements(state.requirements);
   renderWorkspaceSummary();
   renderReviewDiagnostics();
@@ -600,6 +987,12 @@ async function loadWorkspace() {
   setReviewStatus("");
   renderAiStage();
   syncWorkspaceActions();
+  if (!skipAiStatus) {
+    await loadAiAnalysisStatus({ suppressErrors: true, refreshWorkspaceOnTerminal: false });
+  }
+  if (state.currentStage === "ai" && state.aiSelectedRequirementId && !state.aiRequirementDetailCache[state.aiSelectedRequirementId]) {
+    void selectAiRequirement(state.aiSelectedRequirementId, { silent: true });
+  }
   if (state.currentStage === "review") {
     await loadReviewPreview();
   }
@@ -764,6 +1157,7 @@ function renderWorkspaceSummary() {
   const workspaceDoc = workspace.document || {};
   const workspaceProject = workspace.project || {};
   const workspaceSummary = workspace.summary || {};
+  const selectedProfile = getSelectedAiProfile();
   const currentDoc = state.sorDocuments.find((doc) => doc.id === state.currentSorDocumentId) || null;
   const total = state.requirements.length;
   const finalCount = state.requirements.filter((item) => Boolean(item.final_decision)).length;
@@ -777,6 +1171,8 @@ function renderWorkspaceSummary() {
     ["预览状态", formatPreviewStatus(workspaceSummary.preview_status)],
     ["知识库版本", String(workspaceProject.knowledge_base_version ?? 0)],
     ["知识文档", String(workspaceSummary.knowledge_doc_count ?? 0)],
+    ["当前 AI 路径", selectedProfile?.label || workspaceDoc.default_ai_profile_id || "未选择"],
+    ["可运行路径", String(workspaceSummary.runnable_ai_profile_count ?? 0)],
     ["矩阵条目", String(total)],
     ["INFO 条目", String(infoCount)],
     ["已人工确认", String(finalCount)],
@@ -798,9 +1194,10 @@ function renderWorkspaceSummary() {
     const aiStatus = formatAiStatus(workspaceDoc.ai_status, workspaceDoc.ai_stale);
     const locked = workspaceSummary.locked ? "已锁定" : "未锁定";
     const previewStatus = formatPreviewStatus(workspaceSummary.preview_status);
+    const profileLabel = selectedProfile?.label || workspaceDoc.default_ai_profile_id || "未选择";
     el.workspaceStatus.textContent = `当前文档 ${workspaceDoc.file_name || currentDoc?.file_name || ""}，阶段 ${stage}，条目集版本 ${
       workspaceDoc.requirement_set_version ?? 0
-    }，${locked}，AI ${aiStatus}，预览 ${previewStatus}。`;
+    }，${locked}，AI ${aiStatus}，路径 ${profileLabel}，预览 ${previewStatus}。`;
   }
 }
 
@@ -813,23 +1210,33 @@ function renderKnowledgeDocuments() {
     el.knowledgeDocsSummary.textContent = docs.length ? `当前项目共 ${docs.length} 份知识文档。` : "当前项目还没有上传知识文档。";
   }
   if (!docs.length) {
-    el.knowledgeDocsBody.innerHTML = `<tr><td colspan="6">暂无知识文档</td></tr>`;
+    el.knowledgeDocsBody.innerHTML = `<tr><td colspan="3">暂无知识文档</td></tr>`;
     return;
   }
   el.knowledgeDocsBody.innerHTML = docs
     .map((doc) => {
-      const effectiveRange = [String(doc.effective_from || "").trim(), String(doc.effective_to || "").trim()].filter(Boolean).join(" ~ ") || "-";
-      const syncStatus = [String(doc.retrieval_sync_status || "PENDING").trim(), String(doc.retrieval_synced_at || "").trim() ? formatTime(doc.retrieval_synced_at) : ""]
-        .filter(Boolean)
-        .join(" / ");
+      const syncs = Array.isArray(doc.retrieval_syncs) ? doc.retrieval_syncs : [];
+      const syncStatus = syncs.length
+        ? syncs
+            .map((sync) => {
+              const label = String(sync.profile_id || sync.provider || "").trim() || "default";
+              const status = String(sync.status || "PENDING").trim();
+              const syncedAt = String(sync.synced_at || "").trim();
+              return `${label}: ${status}${syncedAt ? ` / ${formatTime(syncedAt)}` : ""}`;
+            })
+            .join("; ")
+        : [String(doc.retrieval_sync_status || "PENDING").trim(), String(doc.retrieval_synced_at || "").trim() ? formatTime(doc.retrieval_synced_at) : ""]
+            .filter(Boolean)
+            .join(" / ");
+      const uploadedAt = formatTime(doc.created_at) || "-";
       return `
         <tr>
-          <td>${escapeHtml(String(doc.file_name || ""))}</td>
-          <td>${escapeHtml(String(doc.doc_type || "REFERENCE"))}</td>
-          <td>${escapeHtml(String(doc.doc_version || "-"))}</td>
-          <td>${escapeHtml(String(doc.status || "ACTIVE"))}</td>
-          <td>${escapeHtml(effectiveRange)}</td>
-          <td>${escapeHtml(syncStatus || "-")}</td>
+          <td class="knowledge-doc-name">
+            <div class="knowledge-doc-title">${escapeHtml(String(doc.file_name || ""))}</div>
+            <div class="knowledge-doc-meta">上传于 ${escapeHtml(formatTime(doc.created_at) || "-")}</div>
+          </td>
+          <td><div class="knowledge-doc-uploaded">${escapeHtml(uploadedAt)}</div></td>
+          <td><div class="knowledge-doc-sync">${escapeHtml(syncStatus || "-")}</div></td>
         </tr>
       `;
     })
@@ -1107,6 +1514,7 @@ function applyWorkspacePayload(workspace) {
   state.reviewPreview = workspace?.preview || state.reviewPreview || null;
   state.requirements = Array.isArray(workspace?.requirements) ? workspace.requirements : [];
   state.reviewEntries = Array.isArray(workspace?.review_entries) ? workspace.review_entries : [];
+  ensureAiRequirementSelection();
   renderRequirements(state.requirements);
   renderWorkspaceSummary();
   renderReviewDiagnostics();
@@ -1114,6 +1522,9 @@ function applyWorkspacePayload(workspace) {
   renderReviewEntries();
   renderAiStage();
   syncWorkspaceActions();
+  if (state.currentStage === "ai" && state.aiSelectedRequirementId && !state.aiRequirementDetailCache[state.aiSelectedRequirementId]) {
+    void selectAiRequirement(state.aiSelectedRequirementId, { silent: true });
+  }
 }
 
 async function bulkSetReviewKeep(nextKeep) {
@@ -1308,6 +1719,11 @@ function setReviewTableExportVariant(tableId, nextVariant) {
 function onRequirementTableClicked(event) {
   const target = event.target;
   if (!(target instanceof HTMLElement)) {
+    return;
+  }
+  const detailButton = target.closest("[data-ai-detail]");
+  if (detailButton instanceof HTMLButtonElement) {
+    openAiRequirementDetail(String(detailButton.getAttribute("data-ai-detail") || ""));
     return;
   }
   if (handleTableViewToggle(target)) {
@@ -1585,6 +2001,7 @@ function buildReviewHighlightText(row) {
 }
 
 function renderAiStage() {
+  renderAiProfileSelector();
   if (el.aiStageChecklist) {
     const workspace = state.workspace || {};
     const document = workspace.document || {};
@@ -1606,13 +2023,220 @@ function renderAiStage() {
   if (el.aiStageStatus) {
     const document = state.workspace?.document || {};
     const summary = state.workspace?.summary || {};
+    const job = state.aiAnalysisJob || {};
+    const jobStatus = String(job.status || "").trim().toUpperCase();
+    const selectedProfile = getSelectedAiProfile();
+    const activeProfileLabel = String(job.profile_id || "").trim()
+      ? `${job.profile_id}${job.provider ? ` / ${job.provider}` : ""}`
+      : selectedProfile?.label || document.default_ai_profile_id || "未选择";
+    const statusItems = [
+      ["阶段", formatWorkflowStage(document.workflow_stage)],
+      ["AI 状态", formatAiStatus(document.ai_status, document.ai_stale)],
+      ["任务", formatAiJobStatus(jobStatus || "IDLE")],
+      ["步骤", formatAiJobStage(job.current_stage || document.workflow_stage || "queued")],
+      ["条目集", String(document.requirement_set_version ?? 0)],
+      ["运行路径", activeProfileLabel],
+      ["AI 模式", String(job.assessment_mode || selectedProfile?.assessment_mode || document.configured_assessment_mode || "heuristic")],
+      ["Retrieval", String(job.retrieval_backend || selectedProfile?.retrieval_backend || summary.configured_retrieval_backend || "local")],
+      ["认证", String(job.provider === "aliyun" ? "api_key" : selectedProfile?.auth_mode || summary.configured_azure_auth_mode || "auto")],
+    ];
     el.aiStageStatus.innerHTML = `
-      <p>当前阶段：<strong>${escapeHtml(formatWorkflowStage(document.workflow_stage))}</strong></p>
-      <p>AI 状态：<strong>${escapeHtml(formatAiStatus(document.ai_status, document.ai_stale))}</strong></p>
-      <p>条目集版本：<strong>${escapeHtml(String(document.requirement_set_version ?? 0))}</strong></p>
-      <p>AI 模式：<strong>${escapeHtml(String(document.configured_assessment_mode || "heuristic"))}</strong></p>
-      <p>Retrieval：<strong>${escapeHtml(String(summary.configured_retrieval_backend || "local"))}</strong></p>
-      <p>Azure Auth：<strong>${escapeHtml(String(summary.configured_azure_auth_mode || "auto"))}</strong></p>
+      <div class="ai-stage-status-grid">
+        ${statusItems
+          .map(
+            ([label, value]) => `
+              <div class="ai-stage-status-item">
+                <div class="ai-stage-status-label">${escapeHtml(label)}</div>
+                <div class="ai-stage-status-value">${escapeHtml(String(value || "-"))}</div>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    `;
+  }
+  renderAiProgressPanel();
+  renderAiRequirementInspector();
+}
+
+function renderAiProgressPanel() {
+  const job = state.aiAnalysisJob || null;
+  const events = Array.isArray(state.aiAnalysisEvents) ? state.aiAnalysisEvents : [];
+  const jobStatus = String(job?.status || "").trim().toUpperCase();
+  const isTerminalJob = ["COMPLETED", "FAILED"].includes(jobStatus);
+  if (el.aiJobSummary) {
+    el.aiJobSummary.textContent = job
+      ? `${formatAiJobStatus(job.status)} · ${formatAiJobStage(job.current_stage)} · ${formatTime(job.updated_at || job.created_at) || "刚刚"}`
+      : "尚未运行 AI 分析";
+  }
+  if (el.aiProgressCurrent) {
+    el.aiProgressCurrent.className = `ai-progress-current${isTerminalJob ? " is-compact" : ""}`;
+    if (!job) {
+      el.aiProgressCurrent.innerHTML = `<div class="ai-progress-empty">锁定条目集后运行 AI，页面会在这里持续显示当前阶段、处理进度和步骤日志。</div>`;
+    } else {
+      const total = Number(job.total_requirements || 0);
+      const completed = Number(job.completed_requirements || 0);
+      const progress = total > 0 ? Math.min(100, Math.round((completed / total) * 100)) : 0;
+      const renderProgressMetric = (label, value) =>
+        `<div class="ai-progress-metric"><div class="ai-progress-metric-label">${escapeHtml(label)}</div><div class="ai-progress-metric-value">${escapeHtml(String(value))}</div></div>`;
+      const renderInlineMetric = (label, value) =>
+        `<div class="ai-progress-inline-metric"><span class="ai-progress-inline-metric-label">${escapeHtml(label)}</span><strong class="ai-progress-inline-metric-value">${escapeHtml(String(value))}</strong></div>`;
+      const metricsMarkup = isTerminalJob
+        ? `
+          <div class="ai-progress-inline-metrics">
+            ${renderInlineMetric("总条目", total)}
+            ${renderInlineMetric("已完成", completed)}
+            ${renderInlineMetric("已判定", job.analyzed_requirements || 0)}
+            ${renderInlineMetric("INFO / 待分析", `${job.info_requirements || 0} / ${job.screened_requirements || 0}`)}
+          </div>
+        `
+        : `
+          <div class="ai-progress-metrics">
+            ${renderProgressMetric("总条目", total)}
+            ${renderProgressMetric("已完成", completed)}
+            ${renderProgressMetric("已判定", job.analyzed_requirements || 0)}
+            ${renderProgressMetric("INFO / 待分析", `${job.info_requirements || 0} / ${job.screened_requirements || 0}`)}
+          </div>
+        `;
+      el.aiProgressCurrent.innerHTML = `
+        <div class="ai-progress-head">
+          <div>
+            <div class="ai-progress-label">${escapeHtml(formatAiJobStatus(job.status))}</div>
+            <p class="ai-progress-message">${escapeHtml(String(job.last_message || "AI 分析已排队。"))}</p>
+          </div>
+          ${decisionChip(job.status === "FAILED" ? "REJECT" : job.status === "COMPLETED" ? "ACCEPT" : "NEED_CLARIFICATION")}
+        </div>
+        <div class="ai-progress-bar"><span style="width: ${progress}%;"></span></div>
+        ${metricsMarkup}
+      `;
+    }
+  }
+  if (el.aiProgressTimeline) {
+    if (!events.length) {
+      el.aiProgressTimeline.innerHTML = `<div class="ai-progress-empty">暂无步骤日志。</div>`;
+      return;
+    }
+    el.aiProgressTimeline.innerHTML = events
+      .map((event) => {
+        const meta = [
+          formatAiJobStage(event.stage),
+          event.requirement_code ? `需求 ${event.requirement_code}` : "",
+        ]
+          .filter(Boolean)
+          .join(" · ");
+        return `
+          <article class="ai-progress-event ${getAiEventToneClass(event)}">
+            <div class="ai-progress-event-head">
+              <div class="ai-progress-event-type">${escapeHtml(formatAiEventType(event.event_type))}</div>
+              <div class="ai-progress-event-time">${escapeHtml(formatTime(event.created_at) || "刚刚")}</div>
+            </div>
+            <p class="ai-progress-event-message">${escapeHtml(String(event.message || ""))}</p>
+            ${meta ? `<div class="ai-progress-event-meta">${escapeHtml(meta)}</div>` : ""}
+          </article>
+        `;
+      })
+      .join("");
+  }
+}
+
+function renderAiRequirementInspector() {
+  const rows = getAiInspectableRequirements();
+  const selectedId = ensureAiRequirementSelection();
+  const detail = selectedId ? state.aiRequirementDetailCache[selectedId] : null;
+  const loading = Boolean(selectedId) && state.aiRequirementDetailLoadingId === selectedId;
+  if (el.aiDetailSummary) {
+    if (!selectedId) {
+      el.aiDetailSummary.textContent = rows.length
+        ? "从左侧选择一个条目查看证据链。"
+        : "AI 运行后会在这里展示条目级证据链和最终结论。";
+    } else if (loading) {
+      el.aiDetailSummary.textContent = "正在加载条目级证据链...";
+    } else {
+      const reqCode = detail?.requirement?.display_req_code || detail?.requirement?.req_code || selectedId;
+      el.aiDetailSummary.textContent = `当前查看：${reqCode}`;
+    }
+  }
+  if (el.aiRequirementList) {
+    if (!rows.length) {
+      el.aiRequirementList.innerHTML = `<div class="ai-requirement-empty">暂无可展示的 AI 条目。运行分析后会在这里列出每条需求的最终结论。</div>`;
+    } else {
+      el.aiRequirementList.innerHTML = rows
+        .map((row) => {
+          const requirementId = String(row.id || "");
+          const analysisLabel = getAnalysisLabel(row);
+          const outcome = analysisLabel === "INFO" ? "INFO" : String(row.ai_decision || "").trim().toUpperCase() || "REQUIREMENT";
+          const activeClass = requirementId === selectedId ? "is-active" : "";
+          return `
+            <button class="ai-requirement-item ${activeClass}" type="button" data-ai-requirement="${escapeHtml(requirementId)}">
+              <div class="ai-requirement-item-head">
+                <div class="ai-requirement-code">${escapeHtml(String(row.display_req_code || row.req_code || requirementId))}</div>
+                ${decisionChip(outcome)}
+              </div>
+              <div class="ai-requirement-snippet">${escapeHtml(String(row.display_text || row.requirement_text || row.raw_text || "").trim())}</div>
+              <div class="ai-requirement-meta">${escapeHtml(renderParentSectionPlainText(row))}</div>
+            </button>
+          `;
+        })
+        .join("");
+      syncAiRequirementViewports(selectedId);
+    }
+  }
+  if (el.aiRequirementDetail) {
+    if (!selectedId) {
+      el.aiRequirementDetail.innerHTML = `<div class="ai-requirement-empty">选择一个条目后，可查看当前阶段、证据链、模型运行记录和最终结论。</div>`;
+      return;
+    }
+    if (loading && !detail) {
+      el.aiRequirementDetail.innerHTML = `<div class="ai-requirement-empty">正在加载条目级证据链...</div>`;
+      return;
+    }
+    const requirement = detail?.requirement || getAiInspectableRequirements().find((row) => String(row.id || "") === selectedId) || {};
+    const assessment = detail?.assessment || {};
+    const normalization = detail?.normalization || {};
+    const evidences = Array.isArray(detail?.evidences) ? detail.evidences : [];
+    const runs = Array.isArray(detail?.assessment_runs) ? detail.assessment_runs : [];
+    const analysisLabel = getAnalysisLabel(requirement);
+    const outcome = analysisLabel === "INFO" ? "INFO" : String(assessment.ai_decision || requirement.ai_decision || "").trim().toUpperCase() || "REQUIREMENT";
+    const currentStageText = String(assessment.analysis_basis || requirement.analysis_basis || "").trim() || "当前暂无阶段说明。";
+    const finalConclusion = String(assessment.ai_reason || requirement.ai_reason || "").trim() || "暂无最终结论。";
+    const clarificationQuestion = String(assessment.clarification_question || "").trim();
+    const riskLevel = String(assessment.risk_level || "").trim().toUpperCase();
+    el.aiRequirementDetail.innerHTML = `
+      <div class="ai-detail-header">
+        <div>
+          <h3 class="ai-detail-title">${escapeHtml(String(requirement.display_req_code || requirement.req_code || selectedId))}</h3>
+          <div class="ai-detail-meta">${escapeHtml(renderParentSectionPlainText(requirement))}</div>
+        </div>
+        <div>
+          ${decisionChip(outcome)}
+          ${riskLevel ? `<div class="knowledge-doc-meta">风险 ${escapeHtml(riskLevel)}</div>` : ""}
+        </div>
+      </div>
+      <div class="ai-detail-block">
+        <h4>原始需求</h4>
+        <p>${escapeHtml(String(requirement.display_text || requirement.requirement_text || requirement.raw_text || "").trim() || "-")}</p>
+      </div>
+      <div class="ai-detail-block">
+        <h4>当前阶段</h4>
+        <p>${escapeHtml(currentStageText)}</p>
+      </div>
+      <div class="ai-detail-block">
+        <h4>最终结论</h4>
+        <p>${escapeHtml(finalConclusion)}</p>
+      </div>
+      ${renderAiNormalizationPanel({
+        summary: normalization.summary || assessment.normalized_requirement || "",
+        facets: normalization.facets || [],
+      })}
+      ${clarificationQuestion ? `<div class="ai-detail-block"><h4>待确认问题</h4><p>${escapeHtml(clarificationQuestion)}</p></div>` : ""}
+      <div class="ai-detail-block">
+        <h4>证据链</h4>
+        ${renderAiEvidenceList(evidences)}
+      </div>
+      <div class="ai-detail-block">
+        <h4>模型运行记录</h4>
+        ${renderAiRunList(runs)}
+      </div>
     `;
   }
 }
@@ -1620,9 +2244,11 @@ function renderAiStage() {
 function syncWorkspaceActions() {
   const workspace = state.workspace || {};
   const actions = workspace.actions || {};
+  const selectedProfile = getSelectedAiProfile();
   const hasDoc = Boolean(state.projectId && state.currentSorDocumentId);
   const workflowStage = String(workspace.document?.workflow_stage || "").toUpperCase();
   const aiStatus = String(workspace.document?.ai_status || "NOT_RUN").toUpperCase();
+  const aiJobStatus = String(state.aiAnalysisJob?.status || "").toUpperCase();
   const aiStale = Boolean(workspace.document?.ai_stale);
   const previewStatus = String(workspace.summary?.preview_status || "NOT_READY").toUpperCase();
 
@@ -1635,12 +2261,16 @@ function syncWorkspaceActions() {
     el.lockExtractionBtn.textContent = state.lockInFlight ? "锁定中..." : "锁定条目集";
   }
   if (el.runAiBtn) {
-    el.runAiBtn.disabled = !hasDoc || !Boolean(actions.can_run_ai_analysis) || aiStatus === "RUNNING";
-    if (aiStale || aiStatus === "READY") {
+    const aiRunning = aiStatus === "RUNNING" || aiJobStatus === "PENDING" || aiJobStatus === "RUNNING";
+    el.runAiBtn.disabled = !hasDoc || !Boolean(actions.can_run_ai_analysis) || !Boolean(selectedProfile?.ready) || aiRunning;
+    if (aiRunning) {
+      el.runAiBtn.textContent = "AI 运行中...";
+    } else if (aiStale || aiStatus === "READY") {
       el.runAiBtn.textContent = "重新运行 AI";
     } else {
       el.runAiBtn.textContent = "运行 AI 分析";
     }
+    el.runAiBtn.title = selectedProfile?.ready ? "" : formatAiProfileHint(selectedProfile);
   }
   if (el.exportBtn) {
     const canExport = hasDoc && Boolean(actions.can_export);
@@ -1791,7 +2421,7 @@ function renderRequirements(items) {
   el.tableBody.innerHTML = "";
   if (!items.length) {
     const row = document.createElement("tr");
-    row.innerHTML = `<td colspan="7">暂无需求数据，请上传并分析SOR文档。</td>`;
+    row.innerHTML = `<td colspan="5">暂无需求数据，请上传并分析SOR文档。</td>`;
     el.tableBody.appendChild(row);
     return;
   }
@@ -1813,17 +2443,15 @@ function renderRequirements(items) {
       textMeta.push(`<span class="mini-chip mini-chip-delta">HEADING</span>`);
     }
     row.innerHTML = `
-      <td>${escapeHtml(item.display_req_code || item.req_code || "")}</td>
-      <td class="parent-section">${renderParentSectionLabel(item)}</td>
+      <td class="matrix-locator">${renderMatrixLocatorCell(item)}</td>
       <td class="req-text">${
         textMeta.length ? `<div class="req-meta">${textMeta.join("")}</div>` : ""
       }${renderRequirementContent(item)}</td>
       <td class="ai-result">${renderAiAssessmentCell(item)}</td>
-      <td class="decision">${infoOnly ? renderInfoDecisionPlaceholder() : decisionSelect(item.id, finalDecision)}</td>
-      <td><textarea data-reason="${item.id}" placeholder="填写 Schaeffler Comments" ${infoOnly ? "disabled" : ""}>${escapeHtml(
+      <td class="matrix-manual">${renderManualDecisionCell(item.id, finalDecision, infoOnly)}</td>
+      <td><textarea class="matrix-comment-input" data-reason="${item.id}" placeholder="填写 Schaeffler Comments" ${infoOnly ? "disabled" : ""}>${escapeHtml(
         item.engineer_reason || ""
       )}</textarea></td>
-      <td>${infoOnly ? renderInfoActionCell(item.id) : `<button data-save="${item.id}" type="button">保存</button>`}</td>
     `;
     el.tableBody.appendChild(row);
   });
@@ -1901,7 +2529,7 @@ function decisionSelect(requirementId, value) {
 }
 
 function renderInfoDecisionPlaceholder() {
-  return `<div class="matrix-muted">INFO 条目不参与合规判定</div>`;
+  return `<div class="matrix-muted">INFO 条目不参与人工判定</div>`;
 }
 
 function renderInfoActionCell(requirementId) {
@@ -1909,6 +2537,31 @@ function renderInfoActionCell(requirementId) {
     <div class="row-action-stack">
       <button data-reclassify="${escapeHtml(String(requirementId || ""))}" type="button">改为需求</button>
       <span class="matrix-muted">改后会重新进入 AI 分析</span>
+    </div>
+  `;
+}
+
+function renderMatrixLocatorCell(item) {
+  const reqCode = String(item.display_req_code || item.req_code || "-").trim() || "-";
+  const parentSection = renderParentSectionPlainText(item);
+  return `
+    <div class="matrix-locator-cell">
+      <div class="matrix-locator-code">${escapeHtml(reqCode)}</div>
+      <div class="matrix-locator-section">${escapeHtml(parentSection)}</div>
+    </div>
+  `;
+}
+
+function renderManualDecisionCell(requirementId, finalDecision, infoOnly) {
+  if (infoOnly) {
+    return `<div class="matrix-manual-cell matrix-manual-cell-info">${renderInfoDecisionPlaceholder()}${renderInfoActionCell(
+      requirementId
+    )}</div>`;
+  }
+  return `
+    <div class="matrix-manual-cell">
+      ${decisionSelect(requirementId, finalDecision)}
+      <button data-save="${escapeHtml(String(requirementId || ""))}" type="button" class="button-compact matrix-save-btn">保存</button>
     </div>
   `;
 }
@@ -1931,6 +2584,10 @@ function renderParentSectionLabel(item) {
   return escapeHtml(label || "-");
 }
 
+function renderParentSectionPlainText(item) {
+  return getParentSectionLabel(item) || "-";
+}
+
 function getParentSectionLabel(item) {
   return (
     buildSectionLabel(item.parent_section_label, item.parent_section_code, item.parent_section_title) ||
@@ -1938,6 +2595,153 @@ function getParentSectionLabel(item) {
     extractSectionLabelFromAnchor(item.source_anchor) ||
     String(item.heading_text || "").trim()
   );
+}
+
+function formatAiJobStatus(status) {
+  const normalized = String(status || "").trim().toUpperCase();
+  const mapping = {
+    IDLE: "未启动",
+    PENDING: "排队中",
+    RUNNING: "运行中",
+    COMPLETED: "已完成",
+    FAILED: "失败",
+  };
+  return mapping[normalized] || normalized || "未启动";
+}
+
+function formatAiJobStage(stage) {
+  const normalized = String(stage || "").trim().toLowerCase();
+  const mapping = {
+    queued: "排队",
+    starting: "准备上下文",
+    assessment: "逐条分析",
+    completed: "完成",
+    failed: "失败",
+    ai_analyzing: "逐条分析",
+    ai_ready: "完成",
+    extraction_locked: "等待 AI 启动",
+  };
+  return mapping[normalized] || normalized || "待机";
+}
+
+function formatAiEventType(eventType) {
+  const normalized = String(eventType || "").trim().toLowerCase();
+  const mapping = {
+    job_created: "任务已创建",
+    job_started: "任务已启动",
+    requirement_started: "开始分析需求",
+    requirement_completed: "完成需求分析",
+    job_completed: "任务完成",
+    job_failed: "任务失败",
+  };
+  return mapping[normalized] || normalized || "状态更新";
+}
+
+function getAiEventToneClass(event) {
+  const eventType = String(event?.event_type || "").trim().toLowerCase();
+  if (eventType === "job_failed") {
+    return "is-failed";
+  }
+  if (eventType === "job_completed") {
+    return "is-completed";
+  }
+  return "is-running";
+}
+
+function formatEvidenceRelevance(value) {
+  const number = Number(value);
+  if (!Number.isFinite(number)) {
+    return "-";
+  }
+  return number.toFixed(3);
+}
+
+function renderAiEvidenceList(evidences) {
+  if (!Array.isArray(evidences) || !evidences.length) {
+    return `<div class="ai-requirement-empty">当前条目暂无可用证据。请结合步骤日志检查检索与回退路径。</div>`;
+  }
+  return `<div class="ai-evidence-list">${evidences
+    .map((evidence) => {
+      const sourceName = String(evidence.source_doc_name || "").trim() || "未知知识文档";
+      const sourceVersion = String(evidence.source_doc_version || "").trim();
+      const location = String(evidence.source_location || "").trim();
+      const header = sourceVersion ? `${sourceName} · ${sourceVersion}` : sourceName;
+      return `
+        <article class="ai-evidence-card">
+          <div class="ai-evidence-head">
+            <div>
+              <div class="ai-evidence-source">${escapeHtml(header)}</div>
+              <div class="ai-evidence-location">${escapeHtml(location || "未标注位置")}</div>
+            </div>
+            <div class="ai-evidence-location">相关度 ${escapeHtml(formatEvidenceRelevance(evidence.relevance))}</div>
+          </div>
+          <p class="ai-evidence-excerpt">${escapeHtml(String(evidence.excerpt || "").trim() || "无摘录")}</p>
+        </article>
+      `;
+    })
+    .join("")}</div>`;
+}
+
+function renderAiNormalizationPanel(normalization) {
+  const summary = String(normalization?.summary || "").trim();
+  const facets = Array.isArray(normalization?.facets) ? normalization.facets : [];
+  if (!summary && !facets.length) {
+    return "";
+  }
+  const facetMarkup = facets.length
+    ? `<div class="ai-normalization-grid">${facets
+        .map((facet) => {
+          const label = String(facet?.label || "").trim();
+          const value = String(facet?.value || "").trim();
+          if (!label || !value) {
+            return "";
+          }
+          return `
+            <div class="ai-normalization-item">
+              <div class="ai-normalization-label">${escapeHtml(label)}</div>
+              <div class="ai-normalization-value">${escapeHtml(value)}</div>
+            </div>
+          `;
+        })
+        .join("")}</div>`
+    : "";
+  return `
+    <div class="ai-detail-block">
+      <h4>规范化需求</h4>
+      ${summary ? `<p class="ai-normalization-summary">${escapeHtml(summary)}</p>` : ""}
+      ${facetMarkup}
+    </div>
+  `;
+}
+
+function renderAiRunList(runs) {
+  if (!Array.isArray(runs) || !runs.length) {
+    return `<div class="ai-requirement-empty">当前条目暂无模型运行记录。</div>`;
+  }
+  return `<div class="ai-run-list">${runs
+    .map((run) => {
+      const title = [String(run.mode || "").trim() || "unknown", String(run.model_name || "").trim() || "model"]
+        .filter(Boolean)
+        .join(" · ");
+      const meta = [
+        String(run.retrieval_backend || "").trim() || "local",
+        String(run.validation_status || "").trim() || "未校验",
+        formatTime(run.created_at) || "刚刚",
+      ]
+        .filter(Boolean)
+        .join(" · ");
+      const body = String(run.fallback_reason || "").trim() || "无回退，直接生成最终结果。";
+      return `
+        <article class="ai-run-card">
+          <div class="ai-run-head">
+            <div class="ai-run-title">${escapeHtml(title)}</div>
+            <div class="ai-run-meta">${escapeHtml(meta)}</div>
+          </div>
+          <p class="ai-run-body">${escapeHtml(body)}</p>
+        </article>
+      `;
+    })
+    .join("")}</div>`;
 }
 
 function buildSectionLabel(label, code, title) {
@@ -2034,6 +2838,9 @@ function renderAiAssessmentCell(row) {
   const outcome = analysisLabel === "INFO" ? "INFO" : String(row?.ai_decision || "").trim().toUpperCase();
   const decisionReason = String(row?.ai_reason || "").trim();
   const analysisBasis = String(row?.analysis_basis || "").trim();
+  const detailAction = row?.id
+    ? `<button class="ai-inline-action" data-ai-detail="${escapeHtml(String(row.id || ""))}" type="button">查看证据</button>`
+    : "";
   if (analysisLabel === "INFO") {
     return `
       <div class="ai-result-card">
@@ -2042,6 +2849,7 @@ function renderAiAssessmentCell(row) {
           ${decisionChip("INFO")}
         </div>
         <p class="ai-result-basis">${escapeHtml(analysisBasis || "条目被识别为说明性信息。")}</p>
+        ${detailAction}
       </div>
     `;
   }
@@ -2056,6 +2864,7 @@ function renderAiAssessmentCell(row) {
           ${decisionChip("REQUIREMENT")}
         </div>
         <p class="ai-result-basis">${escapeHtml(analysisBasis)}</p>
+        ${detailAction}
       </div>
     `;
   }
@@ -2069,6 +2878,7 @@ function renderAiAssessmentCell(row) {
         ${decisionChip(outcome || "NEED_CLARIFICATION")}
       </div>
       <p class="ai-result-basis">${escapeHtml(decisionReason || analysisBasis || "暂无")}</p>
+        ${detailAction}
     </div>
   `;
 }

@@ -21,7 +21,11 @@ def main() -> None:
     out_dir = (project_dir / args.out_dir).resolve()
     out_dir.mkdir(parents=True, exist_ok=True)
 
-    suite = unittest.defaultTestLoader.loadTestsFromName("tests.test_table_assets")
+    suite = unittest.defaultTestLoader.discover(
+        start_dir=str(project_dir / "tests"),
+        pattern="test_table_assets.py",
+        top_level_dir=str(project_dir),
+    )
     result = unittest.TestResult()
     suite.run(result)
 

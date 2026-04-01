@@ -1,10 +1,24 @@
 .venv/
 __pycache__/
 *.pyc
+.tmp_sdk_inspect/
 
 storage/app.db
+storage/*.appdb
+storage/*.appdb-wal
+storage/*.appdb-shm
+storage/ai_traces/
 storage/exports/
+storage/knowledge_index/
+storage/smoke/
+storage/table_snapshots/preview/
+storage/table_snapshots/persisted/*/
+storage/table_snapshots/persisted/preview/*.png
 storage/uploads/
 storage/knowledge/
+
+eval/azure_smoke/
+eval/ai_smoke/latest/
+eval/table_assets/latest/
 
 tmp_demo/

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import re
 import sqlite3
 import subprocess
@@ -8,17 +9,29 @@ import shutil
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
+from threading import Lock, Thread
 from typing import Any
 from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
 from fastapi.middleware.cors import CORSMiddleware
-from fastapi.responses import FileResponse, RedirectResponse
+from fastapi.responses import FileResponse, JSONResponse, RedirectResponse
 from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app import db
-from app.services.ai_copilot import load_ai_copilot_config, run_ai_copilot_assessment, sync_knowledge_document_index
+from app.runtime_readiness import build_readiness_report, ensure_runtime_directories, runtime_directory_map
+from app.runtime_paths import resolve_storage_dir
+from app.services.ai_copilot import (
+    build_requirement_normalization_detail,
+    ensure_ai_profile_runnable,
+    get_ai_profile_missing_config,
+    list_ai_copilot_profiles,
+    load_ai_copilot_config,
+    run_ai_copilot_assessment,
+    serialize_ai_profile,
+    sync_knowledge_document_index,
+)
 from app.services.complex_table_mode import (
     hydrate_complex_row_metadata,
     is_complex_review_only_row,
@@ -62,15 +75,24 @@ from app.services.table_assets import (
 
 APP_DIR = Path(__file__).resolve().parent
 PROTOTYPE_DIR = APP_DIR.parent
-STORAGE_DIR = PROTOTYPE_DIR / "storage"
+STORAGE_DIR = resolve_storage_dir(PROTOTYPE_DIR)
 UPLOADS_DIR = STORAGE_DIR / "uploads"
 KNOWLEDGE_DIR = STORAGE_DIR / "knowledge"
 EXPORTS_DIR = STORAGE_DIR / "exports"
 TABLE_SNAPSHOT_DIR = STORAGE_DIR / "table_snapshots"
 STATIC_DIR = APP_DIR / "static"
 
-for directory in (UPLOADS_DIR, KNOWLEDGE_DIR, EXPORTS_DIR, TABLE_SNAPSHOT_DIR):
-    directory.mkdir(parents=True, exist_ok=True)
+
+logger = logging.getLogger(__name__)
+
+
+_AI_ANALYSIS_THREAD_LOCK = Lock()
+_AI_ANALYSIS_THREADS: dict[str, Thread] = {}
+_APP_STARTUP_STATE = {
+    "initialized": False,
+    "error": "",
+    "checked_at": "",
+}
 
 
 _ASSET_RESPONSE_HEADERS = {
@@ -148,6 +170,10 @@ class CreateProjectRequest(BaseModel):
 
 class AnalyzeRequest(BaseModel):
     document_id: str
+
+
+class RunAIAnalysisRequest(BaseModel):
+    profile_id: str | None = None
 
 
 class ReviewedRequirementEntry(BaseModel):
@@ -297,9 +323,239 @@ app.add_middleware(
 app.mount("/assets", StaticFiles(directory=STATIC_DIR), name="assets")
 
 
+def _runtime_directories(ai_config: Any | None = None) -> dict[str, Path]:
+    config = ai_config or load_ai_copilot_config()
+    return runtime_directory_map(
+        storage_dir=STORAGE_DIR,
+        uploads_dir=UPLOADS_DIR,
+        knowledge_dir=KNOWLEDGE_DIR,
+        exports_dir=EXPORTS_DIR,
+        table_snapshot_dir=TABLE_SNAPSHOT_DIR,
+        ai_trace_dir=config.trace_dir,
+    )
+
+
+def _record_startup_state(*, initialized: bool, error: str = "") -> None:
+    _APP_STARTUP_STATE["initialized"] = initialized
+    _APP_STARTUP_STATE["error"] = error
+    _APP_STARTUP_STATE["checked_at"] = datetime.now(timezone.utc).isoformat()
+
+
+def _build_health_response() -> JSONResponse:
+    ai_profiles = list_ai_copilot_profiles()
+    ai_config = ai_profiles[0] if ai_profiles else load_ai_copilot_config()
+    payload = build_readiness_report(
+        storage_root=STORAGE_DIR,
+        runtime_directories=_runtime_directories(ai_config),
+        db_path=db.DB_PATH,
+        ai_profiles=ai_profiles,
+        startup_initialized=bool(_APP_STARTUP_STATE.get("initialized")),
+        startup_error=str(_APP_STARTUP_STATE.get("error") or ""),
+        startup_checked_at=str(_APP_STARTUP_STATE.get("checked_at") or ""),
+    )
+    status_code = 200 if payload["ready"] else 503
+    return JSONResponse(status_code=status_code, content=payload)
+
+
 @app.on_event("startup")
 def startup() -> None:
-    db.init_db()
+    ai_config = load_ai_copilot_config()
+    try:
+        ensure_runtime_directories(_runtime_directories(ai_config))
+        db.init_db()
+    except Exception as exc:
+        _record_startup_state(initialized=False, error=str(exc))
+        logger.exception("Application startup initialization failed.")
+        return
+    _record_startup_state(initialized=True)
+    logger.info(
+        "Application startup initialization completed. storage_root=%s db_path=%s assessment_mode=%s retrieval_backend=%s",
+        STORAGE_DIR,
+        db.DB_PATH,
+        ai_config.assessment_mode,
+        ai_config.retrieval_backend,
+    )
+
+
+def _register_ai_analysis_thread(document_id: str, thread: Thread) -> None:
+    with _AI_ANALYSIS_THREAD_LOCK:
+        _AI_ANALYSIS_THREADS[document_id] = thread
+
+
+def _get_ai_analysis_thread(document_id: str) -> Thread | None:
+    with _AI_ANALYSIS_THREAD_LOCK:
+        return _AI_ANALYSIS_THREADS.get(document_id)
+
+
+def _clear_ai_analysis_thread(document_id: str, *, thread: Thread | None = None) -> None:
+    with _AI_ANALYSIS_THREAD_LOCK:
+        current = _AI_ANALYSIS_THREADS.get(document_id)
+        if current is None:
+            return
+        if thread is not None and current is not thread:
+            return
+        _AI_ANALYSIS_THREADS.pop(document_id, None)
+
+
+def _attach_knowledge_syncs(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    attached: list[dict[str, Any]] = []
+    for document in documents:
+        current = dict(document)
+        current["retrieval_syncs"] = db.list_knowledge_document_syncs(str(current.get("id") or ""))
+        attached.append(current)
+    return attached
+
+
+def _sync_knowledge_document_targets(
+    project_id: str,
+    document: dict[str, Any],
+    *,
+    profile_ids: list[str] | None = None,
+) -> dict[str, Any]:
+    sync = sync_knowledge_document_index(project_id, document, profile_ids=profile_ids)
+    for target in (sync.get("targets") or {}).values():
+        db.upsert_knowledge_document_sync(
+            str(document.get("id") or ""),
+            profile_id=str(target.get("profile_id") or "").strip(),
+            provider=str(target.get("provider") or "").strip(),
+            retrieval_backend=str(target.get("retrieval_backend") or "").strip(),
+            status=str(target.get("status") or "PENDING").strip().upper() or "PENDING",
+            error_message=str(target.get("error") or ""),
+            synced_at=str(target.get("synced_at") or ""),
+            chunk_count=int(target.get("chunk_count") or 0),
+            payload_path=str(target.get("payload_path") or ""),
+        )
+    updated = db.update_knowledge_document_retrieval_state(
+        str(document.get("id") or ""),
+        retrieval_sync_status=str(sync.get("status") or "READY"),
+        retrieval_sync_error=str(sync.get("error") or ""),
+        retrieval_synced_at=str(sync.get("synced_at") or ""),
+    ) or document
+    updated["retrieval_syncs"] = db.list_knowledge_document_syncs(str(document.get("id") or ""))
+    return updated
+
+
+def _ensure_profile_knowledge_syncs(
+    project_id: str,
+    knowledge_docs: list[dict[str, Any]],
+    ai_config: Any,
+) -> list[dict[str, Any]]:
+    refreshed_docs: list[dict[str, Any]] = []
+    pending_files: list[str] = []
+    for document in _attach_knowledge_syncs(knowledge_docs):
+        sync_state = next(
+            (
+                item
+                for item in (document.get("retrieval_syncs") or [])
+                if str(item.get("profile_id") or "").strip() == ai_config.profile_id
+            ),
+            None,
+        )
+        if not sync_state or str(sync_state.get("status") or "").strip().upper() != "READY":
+            document = _sync_knowledge_document_targets(project_id, document, profile_ids=[ai_config.profile_id])
+            sync_state = next(
+                (
+                    item
+                    for item in (document.get("retrieval_syncs") or [])
+                    if str(item.get("profile_id") or "").strip() == ai_config.profile_id
+                ),
+                None,
+            )
+        if sync_state and str(sync_state.get("status") or "").strip().upper() == "READY":
+            refreshed_docs.append(document)
+            continue
+        pending_files.append(str(document.get("file_name") or document.get("id") or "knowledge-document"))
+        refreshed_docs.append(document)
+    if pending_files:
+        names = ", ".join(pending_files)
+        raise HTTPException(
+            status_code=409,
+            detail=f"Knowledge sync for {ai_config.display_name} is incomplete: {names}",
+        )
+    return refreshed_docs
+
+
+def _build_ai_profile_catalog(knowledge_docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    default_profile_id = load_ai_copilot_config().profile_id
+    sync_index: dict[tuple[str, str], dict[str, Any]] = {}
+    for document in knowledge_docs:
+        for sync in document.get("retrieval_syncs") or []:
+            sync_index[(str(document.get("id") or ""), str(sync.get("profile_id") or ""))] = sync
+
+    profile_payloads: list[dict[str, Any]] = []
+    for config in list_ai_copilot_profiles():
+        ready_count = 0
+        error_count = 0
+        for document in knowledge_docs:
+            sync = sync_index.get((str(document.get("id") or ""), config.profile_id))
+            state = str((sync or {}).get("status") or "").strip().upper()
+            if state == "READY":
+                ready_count += 1
+            elif state == "ERROR":
+                error_count += 1
+        knowledge_total = len(knowledge_docs)
+        if knowledge_total <= 0:
+            sync_status = "NOT_REQUIRED"
+        elif ready_count == knowledge_total:
+            sync_status = "READY"
+        elif error_count == knowledge_total:
+            sync_status = "ERROR"
+        else:
+            sync_status = "PARTIAL"
+        profile_payloads.append(
+            {
+                **serialize_ai_profile(config),
+                "default": config.profile_id == default_profile_id,
+                "missing": get_ai_profile_missing_config(config),
+                "knowledge_sync": {
+                    "status": sync_status,
+                    "ready_count": ready_count,
+                    "total_count": knowledge_total,
+                },
+            }
+        )
+    return profile_payloads
+
+
+def _has_live_ai_analysis_thread(document_id: str) -> bool:
+    thread = _get_ai_analysis_thread(document_id)
+    return bool(thread and thread.is_alive())
+
+
+def _finalize_orphaned_ai_analysis_job(document_id: str) -> dict[str, Any] | None:
+    job = db.get_running_ai_analysis_job(document_id)
+    if not job:
+        return None
+    if _has_live_ai_analysis_thread(document_id):
+        return job
+    timestamp = datetime.now(timezone.utc).isoformat()
+    updated = db.update_ai_analysis_job(
+        str(job.get("id") or ""),
+        status="FAILED",
+        current_stage="failed",
+        last_message="AI analysis worker stopped unexpectedly.",
+        error_message="AI analysis worker is not active.",
+        finished_at=timestamp,
+        current_requirement_id="",
+        current_requirement_code="",
+    )
+    db.add_ai_analysis_event(
+        job_id=str(job.get("id") or ""),
+        sor_document_id=document_id,
+        profile_id=str(job.get("profile_id") or ""),
+        provider=str(job.get("provider") or ""),
+        event_type="job_failed",
+        stage="failed",
+        message="AI analysis worker is not active. Please retry.",
+        payload={"reason": "orphaned_worker"},
+    )
+    db.update_sor_document_ai_state(document_id, ai_status="STALE", workflow_stage="EXTRACTION_LOCKED")
+    logger.warning(
+        "Finalized orphaned AI analysis job %s for document %s.",
+        str(job.get("id") or ""),
+        document_id,
+    )
+    return updated or job
 
 
 @app.get("/")
@@ -333,8 +589,9 @@ def project_progress_page() -> FileResponse:
 
 
 @app.get("/api/health")
-def health() -> dict[str, str]:
-    return {"status": "ok"}
+@app.get("/api/readiness")
+def health() -> JSONResponse:
+    return _build_health_response()
 
 
 @app.post("/api/projects")
@@ -354,6 +611,7 @@ async def upload_sor_document(project_id: str, file: UploadFile = File(...)) -> 
     file_name = file.filename or f"sor_{uuid.uuid4().hex}{suffix}"
     target = UPLOADS_DIR / f"{uuid.uuid4().hex}_{_safe_name(file_name)}"
     contents = await file.read()
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(contents)
 
     extracted_text, _, file_type = parse_document(str(target))
@@ -485,7 +743,7 @@ def get_document_workspace(project_id: str, document_id: str, include_preview: b
     document = db.backfill_sor_document_runtime(document_id) or document
     requirements = db.list_requirements(project_id, document_id)
     requirements = _enrich_requirements_with_preview_context(requirements, str(document.get("file_path") or ""))
-    knowledge_docs = db.list_knowledge_documents(project_id)
+    knowledge_docs = _list_project_knowledge_documents(project_id)
     preview, preview_meta = load_cached_preview(document)
     workspace = _build_document_workspace(
         project=project,
@@ -522,7 +780,6 @@ def get_sor_document_file(project_id: str, document_id: str) -> FileResponse:
     return FileResponse(path, filename=file_name, media_type=media_type)
 
 
-@app.post("/api/projects/{project_id}/knowledge-documents")
 def _normalize_knowledge_doc_type(value: str) -> str:
     normalized = str(value or "").strip().upper()
     if normalized in {"REFERENCE", "STANDARD", "SPEC", "REGULATION", "CASE"}:
@@ -546,6 +803,40 @@ def _normalize_optional_date(value: str) -> str:
     return text
 
 
+def _normalize_knowledge_document_file_name(file_name: str) -> str:
+    base_name = Path(str(file_name or "")).name
+    collapsed = re.sub(r"\s+", " ", base_name).strip()
+    return collapsed.casefold()
+
+
+def _dedupe_knowledge_documents_by_file_name(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    deduped: list[dict[str, Any]] = []
+    seen_names: set[str] = set()
+    for document in documents or []:
+        normalized_name = _normalize_knowledge_document_file_name(str(document.get("file_name") or ""))
+        dedupe_key = normalized_name or str(document.get("id") or "")
+        if dedupe_key in seen_names:
+            continue
+        seen_names.add(dedupe_key)
+        deduped.append(document)
+    return deduped
+
+
+def _list_project_knowledge_documents(project_id: str) -> list[dict[str, Any]]:
+    return _dedupe_knowledge_documents_by_file_name(db.list_knowledge_documents(project_id))
+
+
+def _find_duplicate_knowledge_document(project_id: str, file_name: str) -> dict[str, Any] | None:
+    normalized_name = _normalize_knowledge_document_file_name(file_name)
+    if not normalized_name:
+        return None
+    for document in db.list_knowledge_documents(project_id):
+        if _normalize_knowledge_document_file_name(str(document.get("file_name") or "")) == normalized_name:
+            return document
+    return None
+
+
+@app.post("/api/projects/{project_id}/knowledge-documents")
 async def upload_knowledge_document(
     project_id: str,
     file: UploadFile = File(...),
@@ -558,8 +849,15 @@ async def upload_knowledge_document(
     _require_project(project_id)
     suffix = Path(file.filename or "").suffix or ".txt"
     file_name = file.filename or f"knowledge_{uuid.uuid4().hex}{suffix}"
+    duplicate = _find_duplicate_knowledge_document(project_id, file_name)
+    if duplicate is not None:
+        raise HTTPException(
+            status_code=409,
+            detail=f"Knowledge document '{file_name}' already exists in this project.",
+        )
     target = KNOWLEDGE_DIR / f"{uuid.uuid4().hex}_{_safe_name(file_name)}"
     contents = await file.read()
+    target.parent.mkdir(parents=True, exist_ok=True)
     target.write_bytes(contents)
 
     extracted_text, _, file_type = parse_document(str(target))
@@ -575,26 +873,31 @@ async def upload_knowledge_document(
         effective_from=_normalize_optional_date(effective_from),
         effective_to=_normalize_optional_date(effective_to),
     )
-    sync = sync_knowledge_document_index(project_id, document)
-    document = db.update_knowledge_document_retrieval_state(
-        document["id"],
-        retrieval_sync_status=str(sync.get("status") or "READY"),
-        retrieval_sync_error=str(sync.get("error") or ""),
-        retrieval_synced_at=str(sync.get("synced_at") or ""),
-    ) or document
+    document = _sync_knowledge_document_targets(project_id, document)
     project = db.bump_project_knowledge_base_version(project_id)
     return {
         **document,
         "knowledge_base_version": int(project.get("knowledge_base_version") or 0),
-        "retrieval_chunk_count": int(sync.get("chunk_count") or 0),
-        "retrieval_payload_path": str(sync.get("payload_path") or ""),
+        "retrieval_chunk_count": max(
+            [int(item.get("chunk_count") or 0) for item in document.get("retrieval_syncs") or []] or [0]
+        ),
+        "retrieval_payload_path": str(
+            next(
+                (
+                    item.get("payload_path")
+                    for item in document.get("retrieval_syncs") or []
+                    if str(item.get("payload_path") or "").strip()
+                ),
+                "",
+            )
+        ),
     }
 
 
 @app.get("/api/projects/{project_id}/knowledge-documents")
 def list_knowledge_documents(project_id: str) -> list[dict]:
     _require_project(project_id)
-    return db.list_knowledge_documents(project_id)
+    return _attach_knowledge_syncs(_list_project_knowledge_documents(project_id))
 
 
 @app.post("/api/projects/{project_id}/sor-documents/{document_id}/lock-extraction")
@@ -609,7 +912,7 @@ def lock_document_extraction(project_id: str, document_id: str) -> dict:
     locked = db.lock_sor_document_extraction(document_id)
     requirements = db.list_requirements(project_id, document_id)
     requirements = _enrich_requirements_with_preview_context(requirements, str(document.get("file_path") or ""))
-    knowledge_docs = db.list_knowledge_documents(project_id)
+    knowledge_docs = _list_project_knowledge_documents(project_id)
     preview, preview_meta = load_cached_preview(locked)
     workspace = _build_document_workspace(
         project=project,
@@ -637,7 +940,9 @@ def run_document_ai_analysis(project_id: str, document_id: str) -> dict:
     if not eligible_rows:
         raise HTTPException(status_code=422, detail="No eligible requirement rows available for AI analysis.")
 
-    knowledge_docs = db.list_knowledge_documents(project_id)
+    knowledge_docs = _list_project_knowledge_documents(project_id)
+    ai_config = load_ai_copilot_config()
+    _ensure_profile_knowledge_syncs(project_id, knowledge_docs, ai_config)
     db.update_sor_document_ai_state(document_id, ai_status="RUNNING", workflow_stage="AI_ANALYZING")
     analyzed_count = 0
     info_count = 0
@@ -647,14 +952,17 @@ def run_document_ai_analysis(project_id: str, document_id: str) -> dict:
             display_text = str(row.get("display_text") or row.get("requirement_text") or "").strip()
             if not display_text:
                 continue
-            result = run_ai_copilot_assessment(row, knowledge_docs)
+            result = run_ai_copilot_assessment(row, knowledge_docs, config=ai_config)
             assessment = result["assessment"]
             db.upsert_assessment(
                 requirement_id=str(row.get("id") or ""),
+                profile_id=str(assessment.get("profile_id") or ai_config.profile_id),
+                provider=str(assessment.get("provider") or ai_config.provider),
                 ai_decision=assessment["ai_decision"],
                 ai_reason=assessment["ai_reason"],
                 ai_confidence=float(assessment["ai_confidence"]),
                 assessment_mode=str(assessment.get("assessment_mode") or ""),
+                retrieval_backend=str(assessment.get("retrieval_backend") or ai_config.retrieval_backend),
                 analysis_label=str(assessment.get("analysis_label") or "REQUIREMENT"),
                 analysis_basis=str(assessment.get("analysis_basis") or ""),
                 normalized_requirement=str(assessment.get("normalized_requirement") or ""),
@@ -728,7 +1036,7 @@ def analyze_document(project_id: str, payload: AnalyzeRequest) -> dict:
     )
     document_state = db.increment_sor_document_requirement_set_version(payload.document_id, "EXTRACTED")
     document_state = persist_preview_cache(document_state, preview) or document_state
-    knowledge_docs = db.list_knowledge_documents(project_id)
+    knowledge_docs = _list_project_knowledge_documents(project_id)
 
     return {
         "project_id": project_id,
@@ -767,7 +1075,7 @@ def apply_reviewed_extraction(project_id: str, document_id: str, payload: ApplyR
         dedupe_version=_detect_dedupe_version(reviewed_rows),
     )
     document_state = db.increment_sor_document_requirement_set_version(document_id, "REVIEWING")
-    knowledge_docs = db.list_knowledge_documents(project_id)
+    knowledge_docs = _list_project_knowledge_documents(project_id)
     return {
         "project_id": project_id,
         "document_id": document_id,
@@ -929,6 +1237,536 @@ def list_requirements(project_id: str, document_id: str | None = None) -> list[d
     return _present_requirements(rows)
 
 
+def _prepare_document_ai_analysis_request(
+    project_id: str,
+    document_id: str,
+    profile_id: str | None = None,
+) -> tuple[dict[str, Any], dict[str, Any], list[dict[str, Any]], list[dict[str, Any]], list[dict[str, Any]], Any]:
+    project = _require_project(project_id)
+    document = db.get_sor_document(document_id)
+    if not document or document["project_id"] != project_id:
+        raise HTTPException(status_code=404, detail="SOR document not found for this project.")
+    document = db.backfill_sor_document_runtime(document_id) or document
+    if not str(document.get("extraction_locked_at") or "").strip():
+        raise HTTPException(status_code=409, detail="Lock the reviewed requirement set before running AI analysis.")
+
+    requirements = db.list_requirements(project_id, document_id)
+    requirements = _enrich_requirements_with_preview_context(requirements, str(document.get("file_path") or ""))
+    preview, _ = load_cached_preview(document)
+    presented_requirements, _order_diagnostics = _prepare_requirements_for_display(requirements, preview=preview)
+    presented_by_id = {
+        str(row.get("id") or "").strip(): row
+        for row in presented_requirements
+        if str(row.get("id") or "").strip()
+    }
+    requirements = [
+        {
+            **row,
+            **(
+                {
+                    "display_req_code": str(displayed.get("display_req_code") or ""),
+                    "display_sort_index": int(displayed.get("display_sort_index") or 0),
+                }
+                if (displayed := presented_by_id.get(str(row.get("id") or "").strip()))
+                else {}
+            ),
+        }
+        for row in requirements
+    ]
+    eligible_rows = [row for row in requirements if _is_ai_eligible_requirement(row)]
+    if not eligible_rows:
+        raise HTTPException(status_code=422, detail="No eligible requirement rows available for AI analysis.")
+    ai_config = load_ai_copilot_config(profile_id)
+    ensure_ai_profile_runnable(ai_config)
+    knowledge_docs = _ensure_profile_knowledge_syncs(
+        project_id,
+        _list_project_knowledge_documents(project_id),
+        ai_config,
+    )
+    return project, document, requirements, eligible_rows, knowledge_docs, ai_config
+
+
+def _serialize_ai_analysis_document(document: dict[str, Any] | None) -> dict[str, Any]:
+    current = document or {}
+    return {
+        "id": current.get("id"),
+        "workflow_stage": str(current.get("workflow_stage") or "UPLOADED"),
+        "ai_status": str(current.get("ai_status") or "NOT_RUN"),
+        "ai_assessed_at": str(current.get("ai_assessed_at") or ""),
+        "requirement_set_version": int(current.get("requirement_set_version") or 0),
+        "ai_requirement_set_version": int(current.get("ai_requirement_set_version") or 0),
+        "ai_knowledge_base_version": int(current.get("ai_knowledge_base_version") or 0),
+    }
+
+
+def _serialize_assessment_run_for_ui(run: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "id": run.get("id"),
+        "profile_id": str(run.get("profile_id") or ""),
+        "provider": str(run.get("provider") or ""),
+        "mode": str(run.get("mode") or ""),
+        "retrieval_backend": str(run.get("retrieval_backend") or ""),
+        "model_name": str(run.get("model_name") or ""),
+        "prompt_version": str(run.get("prompt_version") or ""),
+        "validation_status": str(run.get("validation_status") or ""),
+        "fallback_reason": str(run.get("fallback_reason") or ""),
+        "created_at": str(run.get("created_at") or ""),
+    }
+
+
+def _build_ai_analysis_status_payload(
+    project_id: str,
+    document_id: str,
+    *,
+    job: dict[str, Any] | None = None,
+    event_limit: int = 40,
+) -> dict[str, Any]:
+    _require_project(project_id)
+    document = db.get_sor_document(document_id)
+    if not document or document["project_id"] != project_id:
+        raise HTTPException(status_code=404, detail="SOR document not found for this project.")
+    latest_job = job or _finalize_orphaned_ai_analysis_job(document_id) or db.get_latest_ai_analysis_job(document_id)
+    job_payload = dict(latest_job) if latest_job else None
+    if job_payload:
+        job_payload["has_live_worker"] = _has_live_ai_analysis_thread(document_id)
+    refreshed_document = db.backfill_sor_document_runtime(document_id) or document
+    events = db.list_ai_analysis_events(str(job_payload.get("id") or ""), limit=event_limit) if job_payload else []
+    knowledge_docs = _attach_knowledge_syncs(_list_project_knowledge_documents(project_id))
+    return {
+        "job": job_payload,
+        "events": events,
+        "document": _serialize_ai_analysis_document(refreshed_document),
+        "ai_profiles": _build_ai_profile_catalog(knowledge_docs),
+    }
+
+
+def _execute_document_ai_analysis(
+    project: dict[str, Any],
+    document: dict[str, Any],
+    eligible_rows: list[dict[str, Any]],
+    knowledge_docs: list[dict[str, Any]],
+    *,
+    ai_config: Any,
+    job_id: str | None = None,
+) -> dict[str, Any]:
+    project_id = str(project.get("id") or "")
+    document_id = str(document.get("id") or "")
+    total_requirements = len(eligible_rows)
+    started_at = datetime.now(timezone.utc).isoformat()
+    logger.info(
+        "Starting AI analysis job %s for document %s with profile %s (%s), %s requirement(s) and %s knowledge document(s).",
+        job_id or "sync",
+        document_id,
+        ai_config.profile_id,
+        ai_config.provider,
+        total_requirements,
+        len(knowledge_docs),
+    )
+    db.update_sor_document_ai_state(document_id, ai_status="RUNNING", workflow_stage="AI_ANALYZING")
+    if job_id:
+        db.update_ai_analysis_job(
+            job_id,
+            status="RUNNING",
+            total_requirements=total_requirements,
+            current_stage="starting",
+            started_at=started_at,
+            last_message=f"AI analysis started for {total_requirements} requirement(s).",
+            error_message="",
+        )
+        db.add_ai_analysis_event(
+            job_id=job_id,
+            sor_document_id=document_id,
+            profile_id=ai_config.profile_id,
+            provider=ai_config.provider,
+            event_type="job_started",
+            stage="starting",
+            message=f"AI 分析启动，共 {total_requirements} 条待分析需求。",
+            payload={
+                "profile_id": ai_config.profile_id,
+                "provider": ai_config.provider,
+                "total_requirements": total_requirements,
+                "knowledge_docs_used": len(knowledge_docs),
+            },
+        )
+
+    analyzed_count = 0
+    info_count = 0
+    screened_count = 0
+    try:
+        for index, row in enumerate(eligible_rows, start=1):
+            display_text = str(row.get("display_text") or row.get("requirement_text") or "").strip()
+            if not display_text:
+                continue
+            requirement_id = str(row.get("id") or "")
+            requirement_code = str(row.get("display_req_code") or row.get("req_code") or requirement_id)
+            if job_id:
+                db.update_ai_analysis_job(
+                    job_id,
+                    current_requirement_id=requirement_id,
+                    current_requirement_code=requirement_code,
+                    current_requirement_index=index,
+                    current_stage="assessment",
+                    last_message=f"正在分析 {requirement_code}（{index}/{total_requirements}）",
+                )
+                db.add_ai_analysis_event(
+                    job_id=job_id,
+                    sor_document_id=document_id,
+                    profile_id=ai_config.profile_id,
+                    provider=ai_config.provider,
+                    event_type="requirement_started",
+                    stage="assessment",
+                    message=f"开始分析 {requirement_code}（{index}/{total_requirements}）",
+                    requirement_id=requirement_id,
+                    requirement_code=requirement_code,
+                    payload={"index": index, "total": total_requirements},
+                )
+
+            result = run_ai_copilot_assessment(row, knowledge_docs, config=ai_config)
+            assessment = result["assessment"]
+            db.upsert_assessment(
+                requirement_id=requirement_id,
+                profile_id=str(assessment.get("profile_id") or ai_config.profile_id),
+                provider=str(assessment.get("provider") or ai_config.provider),
+                ai_decision=assessment["ai_decision"],
+                ai_reason=assessment["ai_reason"],
+                ai_confidence=float(assessment["ai_confidence"]),
+                assessment_mode=str(assessment.get("assessment_mode") or ""),
+                retrieval_backend=str(assessment.get("retrieval_backend") or ai_config.retrieval_backend),
+                analysis_label=str(assessment.get("analysis_label") or "REQUIREMENT"),
+                analysis_basis=str(assessment.get("analysis_basis") or ""),
+                normalized_requirement=str(assessment.get("normalized_requirement") or ""),
+                risk_level=str(assessment.get("risk_level") or ""),
+                clarification_question=str(assessment.get("clarification_question") or ""),
+                model_name=assessment["model_name"],
+                prompt_version=assessment["prompt_version"],
+            )
+            db.replace_evidences(requirement_id=requirement_id, evidences=result["evidences"])
+            _record_assessment_runs(requirement_id, result.get("runs") or [])
+
+            analysis_label = str(assessment.get("analysis_label") or "").strip().upper()
+            ai_decision = str(assessment.get("ai_decision") or "").strip().upper()
+            if _is_info_only_requirement(assessment):
+                info_count += 1
+                result_label = "INFO"
+            elif ai_decision:
+                analyzed_count += 1
+                result_label = ai_decision
+            else:
+                screened_count += 1
+                result_label = "待分析"
+
+            fallback_reasons = [
+                str(run.get("fallback_reason") or "").strip()
+                for run in (result.get("runs") or [])
+                if str(run.get("fallback_reason") or "").strip()
+            ]
+            validation_statuses = sorted(
+                {
+                    str(run.get("validation_status") or "").strip()
+                    for run in (result.get("runs") or [])
+                    if str(run.get("validation_status") or "").strip()
+                }
+            )
+            event_payload = {
+                "profile_id": ai_config.profile_id,
+                "provider": ai_config.provider,
+                "analysis_label": analysis_label,
+                "ai_decision": ai_decision,
+                "assessment_mode": str(assessment.get("assessment_mode") or ""),
+                "evidence_count": len(result.get("evidences") or []),
+                "fallback_reasons": fallback_reasons,
+                "validation_statuses": validation_statuses,
+            }
+            event_message = f"完成 {requirement_code}：{result_label}，证据 {len(result.get('evidences') or [])} 条。"
+            if job_id:
+                db.update_ai_analysis_job(
+                    job_id,
+                    completed_requirements=index,
+                    analyzed_requirements=analyzed_count,
+                    info_requirements=info_count,
+                    screened_requirements=screened_count,
+                    current_stage="assessment",
+                    last_message=event_message,
+                )
+                db.add_ai_analysis_event(
+                    job_id=job_id,
+                    sor_document_id=document_id,
+                    profile_id=ai_config.profile_id,
+                    provider=ai_config.provider,
+                    event_type="requirement_completed",
+                    stage="assessment",
+                    message=event_message,
+                    requirement_id=requirement_id,
+                    requirement_code=requirement_code,
+                    payload=event_payload,
+                )
+    except Exception as exc:
+        logger.exception(
+            "AI analysis execution failed for job %s on document %s.",
+            job_id or "sync",
+            document_id,
+        )
+        db.update_sor_document_ai_state(document_id, ai_status="STALE", workflow_stage="EXTRACTION_LOCKED")
+        if job_id:
+            finished_at = datetime.now(timezone.utc).isoformat()
+            db.update_ai_analysis_job(
+                job_id,
+                status="FAILED",
+                current_stage="failed",
+                last_message=f"AI 分析失败：{exc}",
+                error_message=str(exc),
+                finished_at=finished_at,
+                current_requirement_id="",
+                current_requirement_code="",
+            )
+            db.add_ai_analysis_event(
+                job_id=job_id,
+                sor_document_id=document_id,
+                profile_id=ai_config.profile_id,
+                provider=ai_config.provider,
+                event_type="job_failed",
+                stage="failed",
+                message=f"AI 分析失败：{exc}",
+                payload={"reason": str(exc)},
+            )
+        raise
+
+    updated_document = db.update_sor_document_ai_state(
+        document_id,
+        ai_status="READY",
+        ai_assessed_at=datetime.now(timezone.utc).isoformat(),
+        ai_requirement_set_version=int(document.get("requirement_set_version") or 0),
+        ai_knowledge_base_version=int(project.get("knowledge_base_version") or 0),
+        workflow_stage="AI_READY",
+    )
+    requirements = db.list_requirements(project_id, document_id)
+    requirements = _enrich_requirements_with_preview_context(requirements, str(document.get("file_path") or ""))
+    preview, preview_meta = load_cached_preview(updated_document)
+    workspace = _build_document_workspace(
+        project=project,
+        document=updated_document,
+        requirements=requirements,
+        knowledge_docs_count=len(knowledge_docs),
+        preview=preview,
+        preview_meta=preview_meta,
+    )
+    if job_id:
+        completion_message = (
+            f"AI 分析完成：判定 {analyzed_count} 条，标记 INFO {info_count} 条，待分析 {screened_count} 条，知识文档 {len(knowledge_docs)} 份。"
+        )
+        db.update_ai_analysis_job(
+            job_id,
+            status="COMPLETED",
+            completed_requirements=total_requirements,
+            analyzed_requirements=analyzed_count,
+            info_requirements=info_count,
+            screened_requirements=screened_count,
+            current_requirement_id="",
+            current_requirement_code="",
+            current_requirement_index=total_requirements,
+            current_stage="completed",
+            last_message=completion_message,
+            error_message="",
+            finished_at=datetime.now(timezone.utc).isoformat(),
+        )
+        db.add_ai_analysis_event(
+            job_id=job_id,
+            sor_document_id=document_id,
+            profile_id=ai_config.profile_id,
+            provider=ai_config.provider,
+            event_type="job_completed",
+            stage="completed",
+            message=completion_message,
+            payload={
+                "profile_id": ai_config.profile_id,
+                "provider": ai_config.provider,
+                "analyzed_requirements": analyzed_count,
+                "info_requirements": info_count,
+                "screened_requirements": screened_count,
+                "knowledge_docs_used": len(knowledge_docs),
+            },
+        )
+    logger.info(
+        "Completed AI analysis job %s for document %s: analyzed=%s info=%s screened=%s knowledge_docs=%s.",
+        job_id or "sync",
+        document_id,
+        analyzed_count,
+        info_count,
+        screened_count,
+        len(knowledge_docs),
+    )
+    return {
+        **_strip_workspace_preview(workspace),
+        "ai_processed_requirements": analyzed_count,
+        "ai_info_requirements": info_count,
+        "ai_screened_requirements": screened_count,
+        "knowledge_docs_used": len(knowledge_docs),
+    }
+
+
+def _run_document_ai_analysis_worker(job_id: str, project_id: str, document_id: str) -> None:
+    try:
+        project, document, _requirements, eligible_rows, knowledge_docs, ai_config = _prepare_document_ai_analysis_request(
+            project_id,
+            document_id,
+            profile_id=str((db.get_ai_analysis_job(job_id) or {}).get("profile_id") or ""),
+        )
+        _execute_document_ai_analysis(
+            project,
+            document,
+            eligible_rows,
+            knowledge_docs,
+            ai_config=ai_config,
+            job_id=job_id,
+        )
+    except Exception as exc:
+        logger.exception(
+            "AI analysis worker failed for job %s on document %s.",
+            job_id,
+            document_id,
+        )
+        current = db.get_ai_analysis_job(job_id) or {}
+        current_status = str(current.get("status") or "").strip().upper()
+        if current_status not in {"FAILED", "COMPLETED"}:
+            finished_at = datetime.now(timezone.utc).isoformat()
+            db.update_ai_analysis_job(
+                job_id,
+                status="FAILED",
+                current_stage="failed",
+                last_message=f"AI 分析失败：{exc}",
+                error_message=str(exc),
+                finished_at=finished_at,
+                current_requirement_id="",
+                current_requirement_code="",
+            )
+            db.add_ai_analysis_event(
+                job_id=job_id,
+                sor_document_id=document_id,
+                profile_id=str(current.get("profile_id") or ""),
+                provider=str(current.get("provider") or ""),
+                event_type="job_failed",
+                stage="failed",
+                message=f"AI 分析失败：{exc}",
+                payload={"reason": str(exc)},
+            )
+            try:
+                db.update_sor_document_ai_state(document_id, ai_status="STALE", workflow_stage="EXTRACTION_LOCKED")
+            except Exception:
+                pass
+    finally:
+        _clear_ai_analysis_thread(document_id)
+
+
+@app.post("/api/projects/{project_id}/sor-documents/{document_id}/run-ai-analysis/start")
+def start_document_ai_analysis(
+    project_id: str,
+    document_id: str,
+    payload: RunAIAnalysisRequest | None = None,
+) -> dict:
+    _finalize_orphaned_ai_analysis_job(document_id)
+    requested_profile_id = str((payload.profile_id if payload else "") or "").strip().lower() or None
+    project, document, _requirements, eligible_rows, _knowledge_docs, ai_config = _prepare_document_ai_analysis_request(
+        project_id,
+        document_id,
+        requested_profile_id,
+    )
+    existing = db.get_running_ai_analysis_job(document_id)
+    if existing and _has_live_ai_analysis_thread(document_id):
+        return _build_ai_analysis_status_payload(project_id, document_id, job=existing)
+
+    queued_message = f"AI 分析已排队，共 {len(eligible_rows)} 条待分析需求。"
+    job = db.create_ai_analysis_job(
+        project_id=str(project.get("id") or ""),
+        sor_document_id=str(document.get("id") or ""),
+        profile_id=ai_config.profile_id,
+        provider=ai_config.provider,
+        assessment_mode=ai_config.assessment_mode,
+        retrieval_backend=ai_config.retrieval_backend,
+        chat_model=ai_config.chat_model,
+        embedding_model=ai_config.embedding_model,
+        total_requirements=len(eligible_rows),
+        current_stage="queued",
+        last_message=queued_message,
+    )
+    db.add_ai_analysis_event(
+        job_id=str(job.get("id") or ""),
+        sor_document_id=document_id,
+        profile_id=ai_config.profile_id,
+        provider=ai_config.provider,
+        event_type="job_created",
+        stage="queued",
+        message=queued_message,
+        payload={
+            "profile_id": ai_config.profile_id,
+            "provider": ai_config.provider,
+            "total_requirements": len(eligible_rows),
+        },
+    )
+    db.update_sor_document_ai_state(document_id, ai_status="RUNNING", workflow_stage="AI_ANALYZING")
+    thread = Thread(
+        target=_run_document_ai_analysis_worker,
+        args=(str(job.get("id") or ""), project_id, document_id),
+        name=f"ai-analysis-{document_id[:8]}",
+        daemon=True,
+    )
+    _register_ai_analysis_thread(document_id, thread)
+    thread.start()
+    logger.info(
+        "Queued AI analysis job %s for document %s using profile %s with %s requirement(s).",
+        str(job.get("id") or ""),
+        document_id,
+        ai_config.profile_id,
+        len(eligible_rows),
+    )
+    return _build_ai_analysis_status_payload(project_id, document_id)
+
+
+@app.get("/api/projects/{project_id}/sor-documents/{document_id}/ai-analysis-status")
+def get_document_ai_analysis_status(project_id: str, document_id: str, event_limit: int = 40) -> dict:
+    return _build_ai_analysis_status_payload(project_id, document_id, event_limit=max(10, min(event_limit, 200)))
+
+
+@app.get("/api/requirements/{requirement_id}/analysis-detail")
+def get_requirement_analysis_detail(requirement_id: str) -> dict:
+    requirement = db.get_requirement(requirement_id)
+    if not requirement:
+        raise HTTPException(status_code=404, detail="Requirement not found.")
+    presented_requirement = requirement
+    project_id = str(requirement.get("project_id") or "").strip()
+    document_id = str(requirement.get("sor_document_id") or "").strip()
+    if project_id and document_id:
+        document = db.get_sor_document(document_id)
+        if document and document.get("project_id") == project_id:
+            requirements = db.list_requirements(project_id, document_id)
+            requirements = _enrich_requirements_with_preview_context(requirements, str(document.get("file_path") or ""))
+            preview, _ = load_cached_preview(document)
+            presented_requirements, _order_diagnostics = _prepare_requirements_for_display(requirements, preview=preview)
+            matched_requirement = next(
+                (
+                    row
+                    for row in presented_requirements
+                    if str(row.get("id") or "").strip() == requirement_id
+                ),
+                None,
+            )
+            if matched_requirement is not None:
+                presented_requirement = {**requirement, **matched_requirement}
+    assessment = db.get_assessment(requirement_id)
+    runs = [_serialize_assessment_run_for_ui(item) for item in db.list_assessment_runs(requirement_id)]
+    normalization = build_requirement_normalization_detail(
+        presented_requirement,
+        persisted_summary=str((assessment or {}).get("normalized_requirement") or ""),
+    )
+    return {
+        "requirement_id": requirement_id,
+        "requirement": presented_requirement,
+        "assessment": assessment,
+        "normalization": normalization,
+        "evidences": presented_requirement.get("evidences", []),
+        "assessment_runs": runs,
+    }
+
+
 @app.post("/api/projects/{project_id}/requirements/batch-decision")
 def batch_update_decisions(project_id: str, payload: BatchDecisionRequest) -> dict:
     _require_project(project_id)
@@ -1005,20 +1843,29 @@ def override_analysis_label(requirement_id: str, payload: AnalysisLabelOverrideR
         raise HTTPException(status_code=422, detail="Only REQUIREMENT override is currently supported.")
 
     reason = str(payload.reason or "").strip() or "人工覆盖：该条目应作为真实需求继续分析。"
-    knowledge_docs = db.list_knowledge_documents(str(requirement.get("project_id") or ""))
+    project_id = str(requirement.get("project_id") or "")
+    knowledge_docs = _list_project_knowledge_documents(project_id)
+    current_assessment = db.get_assessment(requirement_id) or {}
+    selected_profile_id = str(current_assessment.get("profile_id") or "").strip() or None
+    ai_config = load_ai_copilot_config(selected_profile_id)
+    _ensure_profile_knowledge_syncs(project_id, knowledge_docs, ai_config)
     result = run_ai_copilot_assessment(
         requirement,
         knowledge_docs if payload.rerun_assessment else [],
+        config=ai_config,
         forced_analysis_label="REQUIREMENT",
         forced_analysis_basis=reason,
     )
     assessment = result["assessment"]
     saved = db.upsert_assessment(
         requirement_id=requirement_id,
+        profile_id=str(assessment.get("profile_id") or ai_config.profile_id),
+        provider=str(assessment.get("provider") or ai_config.provider),
         ai_decision=assessment["ai_decision"],
         ai_reason=assessment["ai_reason"],
         ai_confidence=float(assessment["ai_confidence"]),
         assessment_mode=str(assessment.get("assessment_mode") or ""),
+        retrieval_backend=str(assessment.get("retrieval_backend") or ai_config.retrieval_backend),
         analysis_label=str(assessment.get("analysis_label") or "REQUIREMENT"),
         analysis_basis=str(assessment.get("analysis_basis") or reason),
         normalized_requirement=str(assessment.get("normalized_requirement") or ""),
@@ -1066,7 +1913,7 @@ def export_project(project_id: str, payload: ExportRequest | None = None) -> dic
             project=project,
             document=document,
             requirements=requirements,
-            knowledge_docs_count=len(db.list_knowledge_documents(project_id)),
+            knowledge_docs_count=len(_list_project_knowledge_documents(project_id)),
             preview=None,
             preview_meta=get_preview_cache_state(document),
         )["requirements"]
@@ -1084,6 +1931,7 @@ def export_project(project_id: str, payload: ExportRequest | None = None) -> dic
         compare_requirements = _parse_snapshot_json(compare_job.get("snapshot_json"))
         compare_version_label = str(compare_job.get("version_label") or compare_job.get("file_name") or "")
 
+    EXPORTS_DIR.mkdir(parents=True, exist_ok=True)
     file_name, file_path = export_compliance_matrix(
         project_name=project["name"],
         customer_name=project["customer_name"],
@@ -1465,6 +2313,8 @@ def _persist_requirements(
             table_render_mode=str(item.get("table_render_mode") or ""),
         )
         if knowledge_docs:
+            ai_config = load_ai_copilot_config()
+            _ensure_profile_knowledge_syncs(project_id, knowledge_docs, ai_config)
             assessment_input = {
                 **req,
                 "display_text": display_text,
@@ -1477,14 +2327,17 @@ def _persist_requirements(
                 "content_blocks": item.get("content_blocks") or [],
                 "table_refs": item.get("table_refs") or [],
             }
-            result = run_ai_copilot_assessment(assessment_input, knowledge_docs)
+            result = run_ai_copilot_assessment(assessment_input, knowledge_docs, config=ai_config)
             assessment = result["assessment"]
             db.upsert_assessment(
                 requirement_id=req["id"],
+                profile_id=str(assessment.get("profile_id") or ai_config.profile_id),
+                provider=str(assessment.get("provider") or ai_config.provider),
                 ai_decision=assessment["ai_decision"],
                 ai_reason=assessment["ai_reason"],
                 ai_confidence=float(assessment["ai_confidence"]),
                 assessment_mode=str(assessment.get("assessment_mode") or ""),
+                retrieval_backend=str(assessment.get("retrieval_backend") or ai_config.retrieval_backend),
                 analysis_label=str(assessment.get("analysis_label") or "REQUIREMENT"),
                 analysis_basis=str(assessment.get("analysis_basis") or ""),
                 normalized_requirement=str(assessment.get("normalized_requirement") or ""),
@@ -1745,6 +2598,8 @@ def _build_document_workspace(
     ai_runtime = load_ai_copilot_config()
     project_id = str(project.get("id") or "")
     document_id = str(document.get("id") or "")
+    knowledge_docs = _attach_knowledge_syncs(_list_project_knowledge_documents(project_id))
+    ai_profiles = _build_ai_profile_catalog(knowledge_docs)
     preview = _attach_table_asset_urls_to_preview(preview, project_id=project_id, document_id=document_id)
     requirement_set_version = _coerce_int(document.get("requirement_set_version"))
     knowledge_base_version = _coerce_int(project.get("knowledge_base_version"))
@@ -1821,6 +2676,7 @@ def _build_document_workspace(
             "ai_knowledge_base_version": ai_knowledge_base_version,
             "ai_stale": ai_stale,
             "configured_assessment_mode": ai_runtime.assessment_mode,
+            "default_ai_profile_id": ai_runtime.profile_id,
             "created_at": document.get("created_at"),
             "updated_at": document.get("updated_at"),
         },
@@ -1832,6 +2688,7 @@ def _build_document_workspace(
             "knowledge_doc_count": int(knowledge_docs_count or 0),
             "configured_retrieval_backend": ai_runtime.retrieval_backend,
             "configured_azure_auth_mode": ai_runtime.azure_auth_mode,
+            "runnable_ai_profile_count": sum(1 for profile in ai_profiles if profile.get("ready")),
             "locked": bool(str(document.get("extraction_locked_at") or "").strip()),
             "order_source": str(order_diagnostics.get("order_source") or "fallback_page_anchor"),
             "order_mismatch_count": int(order_diagnostics.get("order_mismatch_count") or 0),
@@ -1845,8 +2702,10 @@ def _build_document_workspace(
             "can_export": bool(str(document.get("extraction_locked_at") or "").strip())
             and len(presented_requirements) > 0,
             "can_run_ai_analysis": bool(str(document.get("extraction_locked_at") or "").strip())
-            and ai_eligible_count > 0,
+            and ai_eligible_count > 0
+            and any(bool(profile.get("ready")) for profile in ai_profiles),
         },
+        "ai_profiles": ai_profiles,
         "requirements": presented_requirements,
     }
     if preview is not None:
@@ -2272,6 +3131,8 @@ def _record_assessment_runs(requirement_id: str, runs: list[dict[str, Any]]) -> 
             continue
         db.add_assessment_run(
             requirement_id=requirement_id,
+            profile_id=str(run.get("profile_id") or ""),
+            provider=str(run.get("provider") or ""),
             mode=str(run.get("mode") or ""),
             retrieval_backend=str(run.get("retrieval_backend") or ""),
             model_name=str(run.get("model_name") or ""),
@@ -2444,6 +3305,8 @@ def _build_workspace_requirements_from_review_entries(
 ) -> tuple[list[dict], dict[str, object]]:
     current_rows: list[dict] = []
     for row in rows or []:
+        if not bool(row.get("keep", True)):
+            continue
         copied = hydrate_complex_row_metadata(dict(row))
         copied["requirement_text"] = str(
             row.get("raw_text") or row.get("requirement_text") or row.get("display_text") or ""

@@ -4,7 +4,7 @@
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>SOR 智能合规分析原型</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=20260329-2" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260401-ui1" />
   </head>
   <body>
     <main class="page">
@@ -56,54 +56,26 @@
       <section class="panel">
         <h2>2. 文档上传</h2>
         <div class="grid two">
-          <form id="sor-upload-form" class="card">
+          <form id="sor-upload-form" class="card upload-card">
             <label>
               上传 SOR 文档（PDF / DOCX）
               <input id="sor-file" type="file" accept=".pdf,.docx,.doc,.txt" required />
             </label>
-            <button type="submit">上传 SOR</button>
+            <div class="upload-card-actions">
+              <button id="sor-upload-btn" type="button" class="button-compact">上传 SOR</button>
+            </div>
             <p class="hint" id="sor-upload-result"></p>
           </form>
 
-          <form id="kb-upload-form" class="card">
+          <form id="kb-upload-form" class="card upload-card">
             <label>
               上传知识库文档（规格/标准/历史案例）
               <input id="kb-file" type="file" accept=".pdf,.docx,.doc,.txt" required />
             </label>
-            <div class="form-grid two">
-              <label>
-                文档类型
-                <select id="kb-doc-type">
-                  <option value="REFERENCE">REFERENCE</option>
-                  <option value="STANDARD">STANDARD</option>
-                  <option value="SPEC">SPEC</option>
-                  <option value="REGULATION">REGULATION</option>
-                  <option value="CASE">CASE</option>
-                </select>
-              </label>
-              <label>
-                版本
-                <input id="kb-doc-version" type="text" maxlength="120" placeholder="例如 V1.2 / 2026.03" />
-              </label>
-              <label>
-                状态
-                <select id="kb-doc-status">
-                  <option value="ACTIVE">ACTIVE</option>
-                  <option value="DRAFT">DRAFT</option>
-                  <option value="SUPERSEDED">SUPERSEDED</option>
-                  <option value="ARCHIVED">ARCHIVED</option>
-                </select>
-              </label>
-              <label>
-                生效起始
-                <input id="kb-effective-from" type="date" />
-              </label>
-              <label>
-                生效截止
-                <input id="kb-effective-to" type="date" />
-              </label>
+            <p class="hint">直接上传文件即可，系统按默认知识文档配置入库，不再要求填写类型、版本、状态和生效日期。</p>
+            <div class="upload-card-actions">
+              <button id="kb-upload-btn" type="button" class="button-compact">上传知识文档</button>
             </div>
-            <button type="submit">上传知识文档</button>
             <p class="hint" id="kb-upload-result"></p>
           </form>
         </div>
@@ -117,13 +89,15 @@
           </div>
           <div class="table-wrap">
             <table class="knowledge-docs-table">
+              <colgroup>
+                <col class="knowledge-col-file" />
+                <col class="knowledge-col-uploaded" />
+                <col class="knowledge-col-sync" />
+              </colgroup>
               <thead>
                 <tr>
                   <th>文件</th>
-                  <th>类型</th>
-                  <th>版本</th>
-                  <th>状态</th>
-                  <th>生效期</th>
+                  <th>上传时间</th>
                   <th>检索同步</th>
                 </tr>
               </thead>
@@ -139,6 +113,10 @@
           <button id="analyze-btn" type="button">生成条目集</button>
           <button id="lock-extraction-btn" type="button">锁定条目集</button>
           <button id="run-ai-btn" type="button">运行 AI 分析</button>
+          <label class="ai-profile-field" for="ai-profile-select">
+            <span>AI 路径</span>
+            <select id="ai-profile-select"></select>
+          </label>
           <button id="reload-btn" type="button">刷新工作区</button>
           <input id="export-version-label" type="text" maxlength="64" placeholder="导出版本标识，例如 r33" />
           <select id="export-compare-select">
@@ -148,6 +126,7 @@
           <button id="export-btn" type="button">导出 Compliance Matrix</button>
           <a id="download-link" class="download" target="_blank" rel="noreferrer"></a>
         </div>
+        <p class="hint inline-hint" id="ai-profile-hint"></p>
         <p class="hint" id="analyze-result"></p>
         <p class="hint" id="export-status"></p>
       </section>
@@ -263,14 +242,34 @@
 
       <section id="ai-stage-panel" class="panel span-wide workspace-stage-panel is-hidden">
         <h2>AI 分析阶段</h2>
-        <div class="grid two">
-          <div class="card">
+        <div class="grid two ai-stage-summary-grid">
+          <div class="card ai-stage-summary-card ai-stage-gate-card">
             <h3>阶段门禁</h3>
             <ul class="stage-checklist" id="ai-stage-checklist"></ul>
           </div>
-          <div class="card">
+          <div class="card ai-stage-summary-card ai-stage-status-card">
             <h3>当前状态</h3>
             <div id="ai-stage-status" class="stage-status"></div>
+          </div>
+        </div>
+        <div class="ai-analysis-layout">
+          <div class="card ai-progress-card">
+            <div class="panel-head">
+              <h3>步骤日志</h3>
+              <p id="ai-job-summary" class="hint"></p>
+            </div>
+            <div id="ai-progress-current" class="ai-progress-current"></div>
+            <div id="ai-progress-timeline" class="ai-progress-timeline"></div>
+          </div>
+          <div class="card ai-detail-card">
+            <div class="panel-head">
+              <h3>证据链与最终结论</h3>
+              <p id="ai-detail-summary" class="hint"></p>
+            </div>
+            <div class="ai-requirement-shell">
+              <div id="ai-requirement-list" class="ai-requirement-list"></div>
+              <div id="ai-requirement-detail" class="ai-requirement-detail"></div>
+            </div>
           </div>
         </div>
       </section>
@@ -322,23 +321,19 @@
         <div class="table-wrap">
           <table id="requirements-table">
             <colgroup>
-              <col class="col-req-id" />
-              <col class="col-parent-section" />
+              <col class="col-locator" />
               <col class="col-req-text" />
               <col class="col-ai-result" />
-              <col class="col-final" />
+              <col class="col-manual" />
               <col class="col-reason" />
-              <col class="col-actions" />
             </colgroup>
             <thead>
               <tr>
-                <th>Req-ID</th>
-                <th>上级章节</th>
+                <th>Req / 章节</th>
                 <th>客户需求</th>
                 <th>AI 结果</th>
-                <th>Final Decision</th>
+                <th>人工判定</th>
                 <th>Schaeffler Comments</th>
-                <th>操作</th>
               </tr>
             </thead>
             <tbody></tbody>
@@ -347,6 +342,6 @@
       </section>
     </main>
 
-    <script src="/assets/app.js?v=20260329-1" type="module"></script>
+    <script src="/assets/app.js?v=20260401-ui1" type="module"></script>
   </body>
 </html>

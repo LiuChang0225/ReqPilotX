@@ -10,7 +10,7 @@ PID_FILE="$ROOT_DIR/tmp/uvicorn_${PORT}.pid"
 LOG_FILE="$ROOT_DIR/tmp/uvicorn_${PORT}.log"
 SESSION_FILE="$ROOT_DIR/tmp/uvicorn_${PORT}.screen"
 SCREEN_NAME="reqpilotx_${PORT}"
-URL="http://$HOST:$PORT/workspace?stage=review"
+URL="http://$HOST:$PORT/api/health"
 
 PID=""
 if [[ -f "$PID_FILE" ]]; then
@@ -18,6 +18,7 @@ if [[ -f "$PID_FILE" ]]; then
 fi
 
 LISTENER="$(lsof -ti TCP:"$PORT" -sTCP:LISTEN || true)"
+READINESS_BODY="$(curl -sS "$URL" 2>/dev/null || true)"
 HTTP_CODE="$(curl -sS -o /dev/null -w '%{http_code}' "$URL" 2>/dev/null || true)"
 SCREEN_STATUS="n/a"
 if command -v screen >/dev/null 2>&1; then
@@ -58,6 +59,12 @@ if [[ "$HTTP_CODE" == "200" ]]; then
   echo "URL: $URL"
 else
   echo "HTTP: $HTTP_CODE"
+  echo "URL: $URL"
+fi
+
+if [[ -n "$READINESS_BODY" ]]; then
+  echo "--- readiness body ---"
+  echo "$READINESS_BODY"
 fi
 
 if [[ -f "$LOG_FILE" ]]; then
