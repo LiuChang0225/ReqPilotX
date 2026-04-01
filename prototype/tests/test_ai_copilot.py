@@ -4,12 +4,21 @@ import json
 import tempfile
 import unittest
 from pathlib import Path
-from unittest.mock import patch
+from types import ModuleType
+from unittest.mock import Mock, call, patch, sentinel
 
 from app.services.ai_copilot import (
+    ALIYUN_RETRIEVAL_DISABLED_REASON,
     AICopilotConfig,
+    _default_azure_credential,
+    _azure_search_item_to_evidence,
+    _validate_evidence_references,
+    AssessmentEvidenceSchema,
+    build_requirement_normalization_detail,
+    build_knowledge_chunks,
     build_assessment_context,
     fallback_need_clarification,
+    get_ai_profile_missing_config,
     load_ai_copilot_config,
     reconcile_assessment_output,
     run_ai_copilot_assessment,
@@ -62,6 +71,91 @@ class AICopilotTests(unittest.TestCase):
         self.assertIn("5.1 Startup", context["retrieval_query"])
         self.assertIn("Applies to cold start validation.", context["content_summary"])
         self.assertIn("|Voltage|12V|", context["table_context"])
+
+    def test_build_assessment_context_creates_structured_temperature_summary(self) -> None:
+        row = {
+            "id": "req-temp-1",
+            "req_code": "REQ-TEMP-1",
+            "display_text": (
+                "3.3\n"
+                "temperature Tmin /Tmax\n"
+                "系统/组件能够连续运行时的周围环境的最低或最高值。\n"
+                "Lowest/highest value of the ambient temperature at which the systems/components can be operated continuously"
+            ),
+            "requirement_type": "PERFORMANCE",
+            "parent_section_code": "3.3",
+            "parent_section_title": "最低工作温度和最高工作温度 lowest operating temperature and highest operating",
+            "parent_section_label": "3.3 最低工作温度和最高工作温度 lowest operating temperature and highest operating",
+        }
+
+        context = build_assessment_context(row)
+
+        self.assertEqual(
+            context["normalized_requirement"],
+            "系统/组件应定义并满足可连续运行的环境最低温度Tmin和最高温度Tmax。",
+        )
+        self.assertIn("Tmin", context["retrieval_requirement"])
+        self.assertIn("Tmax", context["retrieval_requirement"])
+        self.assertTrue(context["normalization_facets"])
+        facet_values = " | ".join(str(item.get("value") or "") for item in context["normalization_facets"])
+        self.assertNotIn("CAN", facet_values)
+
+    def test_build_requirement_normalization_detail_refreshes_stale_persisted_summary(self) -> None:
+        row = {
+            "id": "req-temp-2",
+            "req_code": "REQ-TEMP-2",
+            "display_text": (
+                "3.3\n"
+                "temperature Tmin /Tmax\n"
+                "系统/组件能够连续运行时的周围环境的最低或最高值。\n"
+                "Lowest/highest value of the ambient temperature at which the systems/components can be operated continuously"
+            ),
+            "requirement_type": "PERFORMANCE",
+            "parent_section_code": "3.3",
+            "parent_section_title": "最低工作温度和最高工作温度 lowest operating temperature and highest operating",
+            "parent_section_label": "3.3 最低工作温度和最高工作温度 lowest operating temperature and highest operating",
+        }
+
+        detail = build_requirement_normalization_detail(
+            row,
+            persisted_summary=(
+                "3.3 temperature Tmin /Tmax 系统/组件能够连续运行时的周围环境的最低或最高值。 "
+                "Lowest/highest value of the ambient temperature at which the systems/components can be operated continuously"
+            ),
+        )
+
+        self.assertEqual(
+            detail["summary"],
+            "系统/组件应定义并满足可连续运行的环境最低温度Tmin和最高温度Tmax。",
+        )
+
+    def test_build_requirement_normalization_detail_exposes_table_facets(self) -> None:
+        row = {
+            "id": "req-table-1",
+            "req_code": "REQ-TABLE-1",
+            "display_text": "跳跃启动的试验参数见表16和图6。",
+            "requirement_type": "TEST",
+            "parent_section_code": "5.1.11.2",
+            "parent_section_title": "试验参数 Test parameters",
+            "table_refs": [
+                {
+                    "table_title": "表16 试验参数--跳跃启动",
+                    "slice_rows": [
+                        ["项目 Item", "要求 Requirement"],
+                        ["Umin", "10.8V"],
+                        ["Umax", "26 V"],
+                        ["循环次数 Number cycles", "1"],
+                    ],
+                }
+            ],
+        }
+
+        detail = build_requirement_normalization_detail(row)
+
+        self.assertIn("Umin=10.8V", detail["summary"])
+        self.assertIn("Umax=26 V", detail["summary"])
+        self.assertEqual(detail["facets"][0]["label"], "Umin")
+        self.assertEqual(detail["facets"][0]["value"], "10.8V")
 
     def test_run_ai_copilot_assessment_returns_extended_fields_and_trace(self) -> None:
         row = {
@@ -368,6 +462,72 @@ class AICopilotTests(unittest.TestCase):
         self.assertIn("paragraph", content_kinds)
         self.assertIn("table_slice", content_kinds)
 
+    def test_build_knowledge_chunks_uses_azure_search_safe_chunk_ids(self) -> None:
+        knowledge_doc = {
+            "id": "kb-2",
+            "file_name": "knowledge.txt",
+            "doc_version": "2026.03",
+            "doc_type": "STANDARD",
+            "status": "ACTIVE",
+            "effective_from": "2026-01-01",
+            "effective_to": "",
+            "extracted_text": (
+                "启动时延要求如下。\n"
+                "|Item|Condition|\n"
+                "|---|---|\n"
+                "|Latency|150ms|\n"
+            ),
+        }
+
+        chunks = build_knowledge_chunks("project-1", knowledge_doc)
+
+        self.assertGreater(len(chunks), 0)
+        for chunk in chunks:
+            self.assertNotIn(":", chunk["chunk_id"])
+            self.assertTrue(chunk["chunk_id"].startswith("kb-2_"))
+
+    def test_azure_search_item_to_evidence_normalizes_reranker_score(self) -> None:
+        evidence = _azure_search_item_to_evidence(
+            {
+                "source_doc_id": "kb-1",
+                "source_doc_name": "knowledge.txt",
+                "source_doc_version": "2026.03",
+                "source_location": "Chunk 1",
+                "content": "Latency target is 150ms.",
+                "@search.reranker_score": 2.0,
+            }
+        )
+
+        self.assertEqual(evidence["source_doc_id"], "kb-1")
+        self.assertEqual(evidence["relevance"], 0.5)
+
+    def test_validate_evidence_references_allows_excerpt_substrings_from_same_chunk(self) -> None:
+        cited = [
+            AssessmentEvidenceSchema(
+                source_doc_id="kb-1",
+                source_doc_name="knowledge.txt",
+                source_location="Chunk 1",
+                excerpt="OTA update module supports rollback after validation failure.",
+                relevance=0.5564,
+                source_doc_version="2026.03",
+            )
+        ]
+        retrieved = [
+            {
+                "source_doc_id": "kb-1",
+                "source_doc_name": "knowledge.txt",
+                "source_location": "Chunk 1",
+                "excerpt": (
+                    "Platform startup latency in cold condition is 120ms P95.\n"
+                    "OTA update module supports rollback after validation failure."
+                ),
+                "relevance": 0.6181,
+                "source_doc_version": "2026.03",
+            }
+        ]
+
+        self.assertEqual(_validate_evidence_references(cited, retrieved), "")
+
     def test_fallback_need_clarification_keeps_candidate_evidence(self) -> None:
         context = {
             "normalized_requirement": "The component shall comply with regulation X.",
@@ -390,6 +550,233 @@ class AICopilotTests(unittest.TestCase):
         self.assertEqual(result["evidences"][0]["source_doc_id"], "kb-3")
         self.assertEqual(result["fallback_reason"], "invalid_output")
 
+    def test_run_ai_copilot_assessment_llm_shadow_prefers_llm_final_result(self) -> None:
+        llm_shadow_config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="local",
+            top_k=5,
+            trace_dir=self.trace_dir,
+            azure_auth_mode="auto",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_api_key="",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+        )
+        row = {
+            "id": "req-shadow-1",
+            "req_code": "REQ-SHADOW-1",
+            "display_text": "System shall define Tmin and Tmax for continuous operation.",
+            "requirement_type": "PERFORMANCE",
+            "parent_section_label": "3.3 Temperature",
+        }
+        retrieved_evidences = [
+            {
+                "source_doc_id": "kb-1",
+                "source_doc_name": "temperature-spec.txt",
+                "source_location": "Line 124",
+                "excerpt": "Tmin = -40 C Minimum operating temperature Tmax = 125 C Maximum operating temperature",
+                "relevance": 0.6246,
+                "source_doc_version": "2026.03",
+            }
+        ]
+
+        with patch(
+            "app.services.ai_copilot.HeuristicRequirementScreeningEngine.screen",
+            return_value={"analysis_label": "REQUIREMENT", "reason": "条目包含明确边界条件。"},
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
+            return_value={"analysis_label": "REQUIREMENT", "reason": "该条目是需要判定的性能需求。"},
+        ), patch(
+            "app.services.ai_copilot.HeuristicEvidenceRetriever.retrieve",
+            return_value=retrieved_evidences,
+        ), patch(
+            "app.services.ai_copilot.HeuristicAssessmentEngine.assess",
+            return_value={
+                "normalized_requirement": "System shall define Tmin and Tmax for continuous operation.",
+                "proposed_decision": "DEVIATION_ACCEPT",
+                "confidence": 0.62,
+                "reason": "存在可复用证据，但覆盖不完整。",
+                "risk_level": "MEDIUM",
+                "clarification_question": "",
+                "evidences": [
+                    {
+                        "source_doc_id": "kb-1",
+                        "source_doc_name": "temperature-spec.txt",
+                        "source_location": "Line 124",
+                        "excerpt": "Tmin = -40 C Minimum operating temperature Tmax = 125 C Maximum operating temperature",
+                        "relevance": 0.6246,
+                        "source_doc_version": "2026.03",
+                    }
+                ],
+            },
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIAssessmentEngine.assess",
+            return_value={
+                "normalized_requirement": "系统/组件应定义并满足可连续运行的环境最低温度Tmin和最高温度Tmax。",
+                "proposed_decision": "NEED_CLARIFICATION",
+                "confidence": 0.72,
+                "reason": "候选证据给出了 Tmin/Tmax 的明确边界，但仍缺少连续运行验证结果，因此需要澄清判定标准。",
+                "risk_level": "MEDIUM",
+                "clarification_question": "该要求是否仅要求定义温度边界，还是要求已完成连续运行验证？",
+                "evidences": [
+                    {
+                        "source_doc_id": "kb-1",
+                        "source_doc_name": "temperature-spec.txt",
+                        "source_location": "Line 124",
+                        "excerpt": "Tmin = -40 C Minimum operating temperature Tmax = 125 C Maximum operating temperature",
+                        "relevance": 0.6246,
+                        "source_doc_version": "2026.03",
+                    }
+                ],
+            },
+        ):
+            result = run_ai_copilot_assessment(row, [{"id": "kb-1"}], config=llm_shadow_config)
+
+        assessment = result["assessment"]
+        self.assertEqual(assessment["assessment_mode"], "llm_shadow")
+        self.assertEqual(assessment["ai_decision"], "NEED_CLARIFICATION")
+        self.assertIn("仍缺少连续运行验证结果", assessment["ai_reason"])
+        self.assertIn("当前采用LLM结论", assessment["analysis_basis"])
+        self.assertIn("检索后端 local", assessment["analysis_basis"])
+        self.assertEqual({run["mode"] for run in result["runs"]}, {"screening_heuristic", "screening_llm_shadow", "heuristic", "llm_shadow"})
+
+    def test_run_ai_copilot_assessment_llm_shadow_uses_llm_screening_result(self) -> None:
+        llm_shadow_config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="local",
+            top_k=5,
+            trace_dir=self.trace_dir,
+            azure_auth_mode="auto",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_api_key="",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+        )
+        row = {
+            "id": "req-shadow-info-1",
+            "req_code": "REQ-SHADOW-INFO-1",
+            "display_text": "temperature Tmin / Tmax lowest and highest ambient values",
+            "requirement_type": "PERFORMANCE",
+            "parent_section_label": "3.3 Temperature",
+        }
+
+        with patch(
+            "app.services.ai_copilot.HeuristicRequirementScreeningEngine.screen",
+            return_value={"analysis_label": "REQUIREMENT", "reason": "条目包含温度边界关键词。"},
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
+            return_value={"analysis_label": "INFO", "reason": "该条目仅在定义 Tmin/Tmax 的含义，不构成待判定义务。"},
+        ):
+            result = run_ai_copilot_assessment(row, [{"id": "kb-1"}], config=llm_shadow_config)
+
+        assessment = result["assessment"]
+        self.assertEqual(assessment["analysis_label"], "INFO")
+        self.assertEqual(assessment["ai_decision"], "")
+        self.assertIn("信息条目", assessment["analysis_basis"])
+        self.assertEqual({run["mode"] for run in result["runs"]}, {"screening_heuristic", "screening_llm_shadow"})
+
+    def test_run_ai_copilot_assessment_llm_shadow_keeps_temperature_boundary_requirement(self) -> None:
+        llm_shadow_config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="local",
+            top_k=5,
+            trace_dir=self.trace_dir,
+            azure_auth_mode="auto",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_api_key="",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+        )
+        row = {
+            "id": "req-shadow-temp-1",
+            "req_code": "REQ-SHADOW-TEMP-1",
+            "display_text": (
+                "3.3\n"
+                "temperature Tmin /Tmax\n"
+                "系统/组件能够连续运行时的周围环境的最低或最高值。\n"
+                "Lowest/highest value of the ambient temperature at which the systems/components can be operated continuously"
+            ),
+            "requirement_type": "PERFORMANCE",
+            "parent_section_code": "3.3",
+            "parent_section_title": "最低工作温度和最高工作温度 lowest operating temperature and highest operating",
+            "parent_section_label": "3.3 最低工作温度和最高工作温度 lowest operating temperature and highest operating",
+        }
+
+        with patch(
+            "app.services.ai_copilot.HeuristicRequirementScreeningEngine.screen",
+            return_value={"analysis_label": "REQUIREMENT", "reason": "条目定义了连续运行的温度边界，应进入需求分析。"},
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
+            return_value={"analysis_label": "INFO", "reason": "该条目仅在定义 Tmin/Tmax 的含义，不构成待判定义务。"},
+        ):
+            result = run_ai_copilot_assessment(row, [], config=llm_shadow_config)
+
+        assessment = result["assessment"]
+        self.assertEqual(assessment["analysis_label"], "REQUIREMENT")
+        self.assertEqual(assessment["assessment_mode"], "screening_only")
+        self.assertEqual(
+            assessment["normalized_requirement"],
+            "系统/组件应定义并满足可连续运行的环境最低温度Tmin和最高温度Tmax。",
+        )
+        self.assertIn("需求分析", assessment["analysis_basis"])
+        self.assertEqual({run["mode"] for run in result["runs"]}, {"screening_heuristic", "screening_llm_shadow"})
+
+    def test_load_ai_copilot_config_defaults_to_llm_shadow_when_azure_runtime_is_configured(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "AZURE_AI_SEARCH_ENDPOINT": "https://search.example.search.windows.net",
+                "AZURE_AI_SEARCH_INDEX_NAME": "reqpilot-knowledge",
+                "AZURE_OPENAI_ENDPOINT": "https://openai.example.openai.azure.com",
+                "AZURE_OPENAI_CHAT_DEPLOYMENT": "gpt-5.4",
+                "AZURE_OPENAI_EMBEDDING_DEPLOYMENT": "text-embedding-3-large",
+            },
+            clear=True,
+        ):
+            config = load_ai_copilot_config()
+
+        self.assertEqual(config.assessment_mode, "llm_shadow")
+
+    def test_load_ai_copilot_config_keeps_heuristic_local_azure_profile_runnable(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "REQPILOT_AI_ASSESSMENT_MODE": "heuristic",
+                "REQPILOT_RETRIEVAL_BACKEND": "local",
+            },
+            clear=True,
+        ):
+            config = load_ai_copilot_config()
+
+        self.assertEqual(config.profile_id, "azure")
+        self.assertEqual(config.assessment_mode, "heuristic")
+        self.assertEqual(config.retrieval_backend, "local")
+        self.assertTrue(config.provider_ready)
+
     def test_load_ai_copilot_config_prefers_rbac_sdk_backend_without_keys(self) -> None:
         with patch.dict(
             "os.environ",
@@ -402,7 +789,7 @@ class AICopilotTests(unittest.TestCase):
                 "AZURE_OPENAI_CHAT_DEPLOYMENT": "gpt-4.1-mini",
                 "AZURE_OPENAI_EMBEDDING_DEPLOYMENT": "text-embedding-3-large",
             },
-            clear=False,
+            clear=True,
         ):
             config = load_ai_copilot_config()
 
@@ -411,6 +798,27 @@ class AICopilotTests(unittest.TestCase):
         self.assertTrue(config.uses_rbac_for_openai)
         self.assertTrue(config.uses_rbac_for_search)
         self.assertTrue(config.azure_ready)
+
+    def test_load_ai_copilot_config_treats_managed_identity_as_rbac(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "REQPILOT_AI_ASSESSMENT_MODE": "llm_primary",
+                "REQPILOT_AZURE_AUTH_MODE": "managed_identity",
+                "AZURE_AI_SEARCH_ENDPOINT": "https://search.example.search.windows.net",
+                "AZURE_AI_SEARCH_INDEX_NAME": "reqpilot-knowledge",
+                "AZURE_OPENAI_ENDPOINT": "https://openai.example.openai.azure.com",
+                "AZURE_OPENAI_CHAT_DEPLOYMENT": "gpt-4.1-mini",
+                "AZURE_OPENAI_EMBEDDING_DEPLOYMENT": "text-embedding-3-large",
+            },
+            clear=True,
+        ):
+            config = load_ai_copilot_config()
+
+        self.assertEqual(config.azure_auth_mode, "rbac")
+        self.assertEqual(config.retrieval_backend, "azure_sdk")
+        self.assertTrue(config.uses_rbac_for_openai)
+        self.assertTrue(config.uses_rbac_for_search)
 
     def test_load_ai_copilot_config_prefers_haystack_backend_with_api_keys(self) -> None:
         with patch.dict(
@@ -426,7 +834,7 @@ class AICopilotTests(unittest.TestCase):
                 "AZURE_OPENAI_CHAT_DEPLOYMENT": "gpt-4.1-mini",
                 "AZURE_OPENAI_EMBEDDING_DEPLOYMENT": "text-embedding-3-large",
             },
-            clear=False,
+            clear=True,
         ):
             config = load_ai_copilot_config()
 
@@ -435,3 +843,110 @@ class AICopilotTests(unittest.TestCase):
         self.assertTrue(config.uses_api_key_for_openai)
         self.assertTrue(config.uses_api_key_for_search)
         self.assertTrue(config.azure_ready)
+
+    def test_load_ai_copilot_config_disables_aliyun_retrieval_backends(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "REQPILOT_ALIYUN_API_KEY": "aliyun-key",
+                "REQPILOT_ALIYUN_CHAT_MODEL": "qwen3.5-plus",
+                "REQPILOT_ALIYUN_EMBEDDING_MODEL": "tongyi-embedding-vision-flash-2026-03-06",
+                "REQPILOT_ALIYUN_RETRIEVAL_BACKEND": "qdrant",
+                "REQPILOT_QDRANT_URL": "http://localhost:6333",
+            },
+            clear=True,
+        ):
+            config = load_ai_copilot_config("aliyun")
+
+        self.assertEqual(config.profile_id, "aliyun")
+        self.assertEqual(config.provider, "aliyun")
+        self.assertEqual(config.retrieval_backend, "disabled")
+        self.assertFalse(config.retrieval_runtime_ready)
+        self.assertFalse(config.provider_ready)
+        self.assertIn(ALIYUN_RETRIEVAL_DISABLED_REASON, get_ai_profile_missing_config(config))
+
+    def test_sync_knowledge_document_index_marks_aliyun_retrieval_as_disabled(self) -> None:
+        config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="disabled",
+            top_k=5,
+            trace_dir=self.trace_dir,
+            azure_auth_mode="",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="",
+            azure_search_api_key="",
+            azure_search_index_name="",
+            azure_openai_endpoint="",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="",
+            azure_openai_embedding_deployment="",
+            azure_openai_embedding_dimensions=0,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            profile_id="aliyun",
+            provider="aliyun",
+            profile_label="Aliyun",
+            chat_model="qwen3.5-plus",
+            embedding_model="tongyi-embedding-vision-flash-2026-03-06",
+            dashscope_api_key="aliyun-key",
+        )
+        knowledge_doc = {
+            "id": "kb-aliyun-1",
+            "file_name": "knowledge-aliyun.txt",
+            "doc_version": "2026.04",
+            "doc_type": "STANDARD",
+            "status": "ACTIVE",
+            "effective_from": "2026-01-01",
+            "effective_to": "",
+            "extracted_text": (
+                "1 Overview\n"
+                "Aliyun knowledge sync.\n"
+                "|Item|Condition|\n"
+                "|---|---|\n"
+                "|Voltage|12V|\n"
+            ),
+        }
+
+        with patch("app.services.ai_copilot.INDEX_PAYLOAD_DIR", self.index_dir):
+            sync = sync_knowledge_document_index("project-1", knowledge_doc, config=config)
+
+        self.assertEqual(sync["status"], "ERROR")
+        self.assertEqual(sync["targets"]["aliyun"]["retrieval_backend"], "disabled")
+        self.assertIn("intentionally removed", sync["targets"]["aliyun"]["error"])
+
+    def test_default_azure_credential_prefers_cli_over_local_cached_tokens(self) -> None:
+        fake_azure = ModuleType("azure")
+        fake_azure.__path__ = []
+        fake_identity = ModuleType("azure.identity")
+        credential_ctor = Mock(side_effect=[sentinel.non_interactive, sentinel.interactive])
+        fake_identity.DefaultAzureCredential = credential_ctor
+        fake_azure.identity = fake_identity
+
+        _default_azure_credential.cache_clear()
+        try:
+            with patch.dict(
+                "sys.modules",
+                {"azure": fake_azure, "azure.identity": fake_identity},
+                clear=False,
+            ):
+                self.assertIs(_default_azure_credential(False), sentinel.non_interactive)
+                self.assertIs(_default_azure_credential(True), sentinel.interactive)
+        finally:
+            _default_azure_credential.cache_clear()
+
+        self.assertEqual(
+            credential_ctor.call_args_list,
+            [
+                call(
+                    exclude_interactive_browser_credential=True,
+                    exclude_shared_token_cache_credential=True,
+                    exclude_visual_studio_code_credential=True,
+                ),
+                call(
+                    exclude_interactive_browser_credential=False,
+                    exclude_shared_token_cache_credential=True,
+                    exclude_visual_studio_code_credential=True,
+                ),
+            ],
+        )

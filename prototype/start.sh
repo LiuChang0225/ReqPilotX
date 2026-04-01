@@ -6,7 +6,7 @@ cd "$ROOT_DIR"
 
 HOST="${HOST:-127.0.0.1}"
 APP_MODULE="${APP_MODULE:-app.main:app}"
-HEALTH_PATH="${HEALTH_PATH:-/workspace?stage=review}"
+HEALTH_PATH="${HEALTH_PATH:-/api/health}"
 LOG_DIR="$ROOT_DIR/tmp"
 
 MODE="stable"
@@ -145,7 +145,13 @@ for _ in $(seq 1 20); do
 done
 
 if [[ "$READY" != "true" ]]; then
-  echo "[ERROR] 服务已启动但健康检查未通过。"
+  echo "[ERROR] 服务已启动但 readiness 未通过。"
+  echo "READINESS_URL: http://$HOST:$PORT$HEALTH_PATH"
+  READINESS_BODY="$(curl -sS "http://$HOST:$PORT$HEALTH_PATH" 2>/dev/null || true)"
+  if [[ -n "$READINESS_BODY" ]]; then
+    echo "--- readiness response ---"
+    echo "$READINESS_BODY"
+  fi
   echo "LOG: $LOG_FILE"
   if command -v screen >/dev/null 2>&1; then
     screen -S "$SCREEN_NAME" -X quit >/dev/null 2>&1 || true

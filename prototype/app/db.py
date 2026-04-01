@@ -7,15 +7,16 @@ import uuid
 from contextlib import contextmanager
 from datetime import datetime, timezone
 from pathlib import Path
-from typing import Any, Iterable
+from typing import Any, Generator, Iterable
 
+from app.runtime_paths import resolve_storage_dir
 from app.services.complex_table_mode import hydrate_complex_row_metadata
 from app.services.table_assets import _refresh_enriched_entry_text_fields, normalize_preserved_entry_table_assets
 
 
 APP_DIR = Path(__file__).resolve().parent
 PROTOTYPE_DIR = APP_DIR.parent
-STORAGE_DIR = PROTOTYPE_DIR / "storage"
+STORAGE_DIR = resolve_storage_dir(PROTOTYPE_DIR)
 DB_PATH = STORAGE_DIR / "app.db"
 
 
@@ -98,11 +99,16 @@ def _normalize_requirement_record(item: dict[str, Any]) -> dict[str, Any]:
     item["has_table_asset"] = bool(int(item.get("has_table_asset") or 0))
     item["table_render_mode"] = str(item.get("table_render_mode") or "")
     item["assessment_mode"] = str(item.get("assessment_mode") or "")
+    item["profile_id"] = str(item.get("profile_id") or "")
+    item["provider"] = str(item.get("provider") or "")
+    item["retrieval_backend"] = str(item.get("retrieval_backend") or "")
     item["analysis_label"] = str(item.get("analysis_label") or "")
     item["analysis_basis"] = str(item.get("analysis_basis") or "")
     item["normalized_requirement"] = str(item.get("normalized_requirement") or "")
     item["risk_level"] = str(item.get("risk_level") or "")
     item["clarification_question"] = str(item.get("clarification_question") or "")
+    item["model_name"] = str(item.get("model_name") or "")
+    item["prompt_version"] = str(item.get("prompt_version") or "")
     if item["table_refs"] or item["content_blocks"]:
         item = normalize_preserved_entry_table_assets(item)
         item = _refresh_enriched_entry_text_fields(item)
@@ -110,7 +116,7 @@ def _normalize_requirement_record(item: dict[str, Any]) -> dict[str, Any]:
 
 
 @contextmanager
-def get_conn() -> sqlite3.Connection:
+def get_conn() -> Generator[sqlite3.Connection, None, None]:
     STORAGE_DIR.mkdir(parents=True, exist_ok=True)
     conn = sqlite3.connect(DB_PATH, timeout=30.0)
     conn.row_factory = sqlite3.Row
@@ -195,6 +201,9 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS assessments (
                 id TEXT PRIMARY KEY,
                 requirement_id TEXT NOT NULL UNIQUE,
+                profile_id TEXT NOT NULL DEFAULT '',
+                provider TEXT NOT NULL DEFAULT '',
+                retrieval_backend TEXT NOT NULL DEFAULT '',
                 ai_decision TEXT NOT NULL,
                 ai_reason TEXT NOT NULL,
                 ai_confidence REAL NOT NULL,
@@ -228,6 +237,8 @@ def init_db() -> None:
             CREATE TABLE IF NOT EXISTS assessment_runs (
                 id TEXT PRIMARY KEY,
                 requirement_id TEXT NOT NULL,
+                profile_id TEXT NOT NULL DEFAULT '',
+                provider TEXT NOT NULL DEFAULT '',
                 mode TEXT NOT NULL,
                 retrieval_backend TEXT NOT NULL,
                 model_name TEXT NOT NULL,
@@ -240,6 +251,73 @@ def init_db() -> None:
                 FOREIGN KEY(requirement_id) REFERENCES requirements(id) ON DELETE CASCADE
             );
             CREATE INDEX IF NOT EXISTS idx_assessment_runs_requirement_id ON assessment_runs(requirement_id);
+
+            CREATE TABLE IF NOT EXISTS ai_analysis_jobs (
+                id TEXT PRIMARY KEY,
+                project_id TEXT NOT NULL,
+                sor_document_id TEXT NOT NULL,
+                profile_id TEXT NOT NULL DEFAULT '',
+                provider TEXT NOT NULL DEFAULT '',
+                assessment_mode TEXT NOT NULL DEFAULT '',
+                retrieval_backend TEXT NOT NULL DEFAULT '',
+                chat_model TEXT NOT NULL DEFAULT '',
+                embedding_model TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                total_requirements INTEGER NOT NULL DEFAULT 0,
+                completed_requirements INTEGER NOT NULL DEFAULT 0,
+                analyzed_requirements INTEGER NOT NULL DEFAULT 0,
+                info_requirements INTEGER NOT NULL DEFAULT 0,
+                screened_requirements INTEGER NOT NULL DEFAULT 0,
+                current_requirement_id TEXT NOT NULL DEFAULT '',
+                current_requirement_code TEXT NOT NULL DEFAULT '',
+                current_requirement_index INTEGER NOT NULL DEFAULT 0,
+                current_stage TEXT NOT NULL DEFAULT '',
+                last_message TEXT NOT NULL DEFAULT '',
+                error_message TEXT NOT NULL DEFAULT '',
+                created_at TEXT NOT NULL,
+                started_at TEXT NOT NULL DEFAULT '',
+                finished_at TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY(sor_document_id) REFERENCES sor_documents(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_analysis_jobs_document_id ON ai_analysis_jobs(sor_document_id, created_at DESC);
+            CREATE INDEX IF NOT EXISTS idx_ai_analysis_jobs_status ON ai_analysis_jobs(status, updated_at DESC);
+
+            CREATE TABLE IF NOT EXISTS ai_analysis_events (
+                id TEXT PRIMARY KEY,
+                job_id TEXT NOT NULL,
+                sor_document_id TEXT NOT NULL,
+                profile_id TEXT NOT NULL DEFAULT '',
+                provider TEXT NOT NULL DEFAULT '',
+                event_type TEXT NOT NULL,
+                stage TEXT NOT NULL DEFAULT '',
+                message TEXT NOT NULL,
+                requirement_id TEXT NOT NULL DEFAULT '',
+                requirement_code TEXT NOT NULL DEFAULT '',
+                payload_json TEXT NOT NULL DEFAULT '{}',
+                created_at TEXT NOT NULL,
+                FOREIGN KEY(job_id) REFERENCES ai_analysis_jobs(id) ON DELETE CASCADE,
+                FOREIGN KEY(sor_document_id) REFERENCES sor_documents(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_ai_analysis_events_job_id ON ai_analysis_events(job_id, created_at DESC);
+
+            CREATE TABLE IF NOT EXISTS knowledge_document_syncs (
+                id TEXT PRIMARY KEY,
+                knowledge_document_id TEXT NOT NULL,
+                profile_id TEXT NOT NULL,
+                provider TEXT NOT NULL DEFAULT '',
+                retrieval_backend TEXT NOT NULL DEFAULT '',
+                status TEXT NOT NULL DEFAULT 'PENDING',
+                error_message TEXT NOT NULL DEFAULT '',
+                synced_at TEXT NOT NULL DEFAULT '',
+                chunk_count INTEGER NOT NULL DEFAULT 0,
+                payload_path TEXT NOT NULL DEFAULT '',
+                updated_at TEXT NOT NULL,
+                UNIQUE(knowledge_document_id, profile_id),
+                FOREIGN KEY(knowledge_document_id) REFERENCES knowledge_documents(id) ON DELETE CASCADE
+            );
+            CREATE INDEX IF NOT EXISTS idx_knowledge_document_syncs_document_id ON knowledge_document_syncs(knowledge_document_id, updated_at DESC);
 
             CREATE TABLE IF NOT EXISTS review_logs (
                 id TEXT PRIMARY KEY,
@@ -324,12 +402,25 @@ def init_db() -> None:
         _ensure_column(conn, "export_jobs", "compare_export_id", "TEXT")
         _ensure_column(conn, "export_jobs", "snapshot_json", "TEXT")
         _ensure_column(conn, "assessments", "assessment_mode", "TEXT DEFAULT 'heuristic'")
+        _ensure_column(conn, "assessments", "profile_id", "TEXT DEFAULT ''")
+        _ensure_column(conn, "assessments", "provider", "TEXT DEFAULT ''")
+        _ensure_column(conn, "assessments", "retrieval_backend", "TEXT DEFAULT ''")
         _ensure_column(conn, "assessments", "analysis_label", "TEXT DEFAULT 'REQUIREMENT'")
         _ensure_column(conn, "assessments", "analysis_basis", "TEXT DEFAULT ''")
         _ensure_column(conn, "assessments", "normalized_requirement", "TEXT DEFAULT ''")
         _ensure_column(conn, "assessments", "risk_level", "TEXT DEFAULT 'HIGH'")
         _ensure_column(conn, "assessments", "clarification_question", "TEXT DEFAULT ''")
         _ensure_column(conn, "evidences", "source_doc_version", "TEXT DEFAULT ''")
+        _ensure_column(conn, "assessment_runs", "profile_id", "TEXT DEFAULT ''")
+        _ensure_column(conn, "assessment_runs", "provider", "TEXT DEFAULT ''")
+        _ensure_column(conn, "ai_analysis_jobs", "profile_id", "TEXT DEFAULT ''")
+        _ensure_column(conn, "ai_analysis_jobs", "provider", "TEXT DEFAULT ''")
+        _ensure_column(conn, "ai_analysis_jobs", "assessment_mode", "TEXT DEFAULT ''")
+        _ensure_column(conn, "ai_analysis_jobs", "retrieval_backend", "TEXT DEFAULT ''")
+        _ensure_column(conn, "ai_analysis_jobs", "chat_model", "TEXT DEFAULT ''")
+        _ensure_column(conn, "ai_analysis_jobs", "embedding_model", "TEXT DEFAULT ''")
+        _ensure_column(conn, "ai_analysis_events", "profile_id", "TEXT DEFAULT ''")
+        _ensure_column(conn, "ai_analysis_events", "provider", "TEXT DEFAULT ''")
 
 
 def create_project(name: str, customer_name: str) -> dict[str, Any]:
@@ -691,7 +782,106 @@ def list_knowledge_documents(project_id: str) -> list[dict[str, Any]]:
         ).fetchall()
     return _to_dict_list(rows)
 
+def list_knowledge_document_syncs(knowledge_document_id: str) -> list[dict[str, Any]]:
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM knowledge_document_syncs
+            WHERE knowledge_document_id = ?
+            ORDER BY updated_at DESC
+            """,
+            (knowledge_document_id,),
+        ).fetchall()
+    return _to_dict_list(rows)
 
+def get_knowledge_document_sync(knowledge_document_id: str, profile_id: str) -> dict[str, Any] | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM knowledge_document_syncs
+            WHERE knowledge_document_id = ? AND profile_id = ?
+            """,
+            (knowledge_document_id, profile_id),
+        ).fetchone()
+    return _to_dict(row)
+
+def upsert_knowledge_document_sync(
+    knowledge_document_id: str,
+    *,
+    profile_id: str,
+    provider: str,
+    retrieval_backend: str,
+    status: str,
+    error_message: str = "",
+    synced_at: str = "",
+    chunk_count: int = 0,
+    payload_path: str = "",
+) -> dict[str, Any]:
+    sync_id = str(uuid.uuid4())
+    updated_at = _now_iso()
+    with get_conn() as conn:
+        existing = conn.execute(
+            """
+            SELECT id
+            FROM knowledge_document_syncs
+            WHERE knowledge_document_id = ? AND profile_id = ?
+            """,
+            (knowledge_document_id, profile_id),
+        ).fetchone()
+        if existing:
+            conn.execute(
+                """
+                UPDATE knowledge_document_syncs
+                SET provider = ?, retrieval_backend = ?, status = ?, error_message = ?,
+                    synced_at = ?, chunk_count = ?, payload_path = ?, updated_at = ?
+                WHERE knowledge_document_id = ? AND profile_id = ?
+                """,
+                (
+                    str(provider or "").strip(),
+                    str(retrieval_backend or "").strip(),
+                    str(status or "PENDING").strip().upper(),
+                    str(error_message or ""),
+                    str(synced_at or ""),
+                    max(int(chunk_count or 0), 0),
+                    str(payload_path or ""),
+                    updated_at,
+                    knowledge_document_id,
+                    profile_id,
+                ),
+            )
+        else:
+            conn.execute(
+                """
+                INSERT INTO knowledge_document_syncs
+                (id, knowledge_document_id, profile_id, provider, retrieval_backend, status,
+                 error_message, synced_at, chunk_count, payload_path, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+                """,
+                (
+                    sync_id,
+                    knowledge_document_id,
+                    str(profile_id or "").strip(),
+                    str(provider or "").strip(),
+                    str(retrieval_backend or "").strip(),
+                    str(status or "PENDING").strip().upper(),
+                    str(error_message or ""),
+                    str(synced_at or ""),
+                    max(int(chunk_count or 0), 0),
+                    str(payload_path or ""),
+                    updated_at,
+                ),
+            )
+        row = conn.execute(
+            """
+            SELECT *
+            FROM knowledge_document_syncs
+            WHERE knowledge_document_id = ? AND profile_id = ?
+            """,
+            (knowledge_document_id, profile_id),
+        ).fetchone()
+    return _to_dict(row) or {}
 def update_knowledge_document_retrieval_state(
     document_id: str,
     *,
@@ -911,9 +1101,9 @@ def list_requirements(project_id: str, sor_document_id: str | None = None) -> li
         if sor_document_id:
             rows = conn.execute(
                 """
-                SELECT r.*, a.ai_decision, a.ai_reason, a.ai_confidence, a.assessment_mode, a.analysis_label,
+                  SELECT r.*, a.profile_id, a.provider, a.retrieval_backend, a.ai_decision, a.ai_reason, a.ai_confidence, a.assessment_mode, a.analysis_label,
                        a.analysis_basis,
-                       a.normalized_requirement, a.risk_level, a.clarification_question,
+                      a.normalized_requirement, a.risk_level, a.clarification_question, a.model_name, a.prompt_version,
                        a.final_decision, a.engineer_reason
                 FROM requirements r
                 LEFT JOIN assessments a ON a.requirement_id = r.id
@@ -925,9 +1115,9 @@ def list_requirements(project_id: str, sor_document_id: str | None = None) -> li
         else:
             rows = conn.execute(
                 """
-                SELECT r.*, a.ai_decision, a.ai_reason, a.ai_confidence, a.assessment_mode, a.analysis_label,
+                  SELECT r.*, a.profile_id, a.provider, a.retrieval_backend, a.ai_decision, a.ai_reason, a.ai_confidence, a.assessment_mode, a.analysis_label,
                        a.analysis_basis,
-                       a.normalized_requirement, a.risk_level, a.clarification_question,
+                      a.normalized_requirement, a.risk_level, a.clarification_question, a.model_name, a.prompt_version,
                        a.final_decision, a.engineer_reason
                 FROM requirements r
                 LEFT JOIN assessments a ON a.requirement_id = r.id
@@ -958,9 +1148,9 @@ def get_requirement(requirement_id: str) -> dict[str, Any] | None:
     with get_conn() as conn:
         row = conn.execute(
             """
-            SELECT r.*, a.ai_decision, a.ai_reason, a.ai_confidence, a.assessment_mode, a.analysis_label,
+                 SELECT r.*, a.profile_id, a.provider, a.retrieval_backend, a.ai_decision, a.ai_reason, a.ai_confidence, a.assessment_mode, a.analysis_label,
                    a.analysis_basis,
-                   a.normalized_requirement, a.risk_level, a.clarification_question,
+                     a.normalized_requirement, a.risk_level, a.clarification_question, a.model_name, a.prompt_version,
                    a.final_decision, a.engineer_reason
             FROM requirements r
             LEFT JOIN assessments a ON a.requirement_id = r.id
@@ -994,10 +1184,13 @@ def get_assessment(requirement_id: str) -> dict[str, Any] | None:
 
 def upsert_assessment(
     requirement_id: str,
+    profile_id: str,
+    provider: str,
     ai_decision: str,
     ai_reason: str,
     ai_confidence: float,
     assessment_mode: str,
+    retrieval_backend: str,
     analysis_label: str,
     analysis_basis: str,
     normalized_requirement: str,
@@ -1017,12 +1210,16 @@ def upsert_assessment(
             conn.execute(
                 """
                 UPDATE assessments
-                SET ai_decision = ?, ai_reason = ?, ai_confidence = ?, assessment_mode = ?, analysis_label = ?,
+                SET profile_id = ?, provider = ?, retrieval_backend = ?,
+                    ai_decision = ?, ai_reason = ?, ai_confidence = ?, assessment_mode = ?, analysis_label = ?,
                     analysis_basis = ?, normalized_requirement = ?, risk_level = ?, clarification_question = ?,
                     model_name = ?, prompt_version = ?, updated_at = ?
                 WHERE requirement_id = ?
                 """,
                 (
+                    profile_id,
+                    provider,
+                    retrieval_backend,
                     ai_decision,
                     ai_reason,
                     ai_confidence,
@@ -1042,14 +1239,17 @@ def upsert_assessment(
             conn.execute(
                 """
                 INSERT INTO assessments
-                (id, requirement_id, ai_decision, ai_reason, ai_confidence,
+                (id, requirement_id, profile_id, provider, retrieval_backend, ai_decision, ai_reason, ai_confidence,
                  assessment_mode, analysis_label, analysis_basis, normalized_requirement, risk_level, clarification_question,
                  final_decision, engineer_reason, model_name, prompt_version, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, NULL, NULL, ?, ?, ?)
                 """,
                 (
                     assessment_id,
                     requirement_id,
+                    profile_id,
+                    provider,
+                    retrieval_backend,
                     ai_decision,
                     ai_reason,
                     ai_confidence,
@@ -1096,6 +1296,8 @@ def replace_evidences(requirement_id: str, evidences: list[dict[str, Any]]) -> N
 def add_assessment_run(
     requirement_id: str,
     *,
+    profile_id: str,
+    provider: str,
     mode: str,
     retrieval_backend: str,
     model_name: str,
@@ -1111,13 +1313,15 @@ def add_assessment_run(
         conn.execute(
             """
             INSERT INTO assessment_runs
-            (id, requirement_id, mode, retrieval_backend, model_name, prompt_version,
+            (id, requirement_id, profile_id, provider, mode, retrieval_backend, model_name, prompt_version,
              input_payload_json, output_payload_json, validation_status, fallback_reason, created_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 run_id,
                 requirement_id,
+                profile_id,
+                provider,
                 mode,
                 retrieval_backend,
                 model_name,
@@ -1145,6 +1349,234 @@ def list_assessment_runs(requirement_id: str) -> list[dict[str, Any]]:
             (requirement_id,),
         ).fetchall()
     return _to_dict_list(rows)
+
+
+def create_ai_analysis_job(
+    project_id: str,
+    sor_document_id: str,
+    *,
+    profile_id: str = "",
+    provider: str = "",
+    assessment_mode: str = "",
+    retrieval_backend: str = "",
+    chat_model: str = "",
+    embedding_model: str = "",
+    total_requirements: int,
+    status: str = "PENDING",
+    current_stage: str = "queued",
+    last_message: str = "AI analysis queued.",
+) -> dict[str, Any]:
+    job_id = str(uuid.uuid4())
+    timestamp = _now_iso()
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO ai_analysis_jobs
+            (id, project_id, sor_document_id, profile_id, provider, assessment_mode, retrieval_backend, chat_model, embedding_model, status, total_requirements,
+             completed_requirements, analyzed_requirements, info_requirements, screened_requirements,
+             current_requirement_id, current_requirement_code, current_requirement_index,
+             current_stage, last_message, error_message,
+             created_at, started_at, finished_at, updated_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, 0, 0, 0, 0, '', '', 0, ?, ?, '', ?, '', '', ?)
+            """,
+            (
+                job_id,
+                project_id,
+                sor_document_id,
+                str(profile_id or "").strip(),
+                str(provider or "").strip(),
+                str(assessment_mode or "").strip(),
+                str(retrieval_backend or "").strip(),
+                str(chat_model or "").strip(),
+                str(embedding_model or "").strip(),
+                str(status or "PENDING").strip().upper() or "PENDING",
+                max(int(total_requirements or 0), 0),
+                str(current_stage or "queued").strip(),
+                str(last_message or "AI analysis queued.").strip(),
+                timestamp,
+                timestamp,
+            ),
+        )
+        row = conn.execute("SELECT * FROM ai_analysis_jobs WHERE id = ?", (job_id,)).fetchone()
+    return _to_dict(row) or {}
+
+
+def get_ai_analysis_job(job_id: str) -> dict[str, Any] | None:
+    with get_conn() as conn:
+        row = conn.execute("SELECT * FROM ai_analysis_jobs WHERE id = ?", (job_id,)).fetchone()
+    return _to_dict(row)
+
+
+def get_latest_ai_analysis_job(sor_document_id: str) -> dict[str, Any] | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM ai_analysis_jobs
+            WHERE sor_document_id = ?
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (sor_document_id,),
+        ).fetchone()
+    return _to_dict(row)
+
+
+def get_running_ai_analysis_job(sor_document_id: str) -> dict[str, Any] | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            """
+            SELECT *
+            FROM ai_analysis_jobs
+            WHERE sor_document_id = ?
+              AND status IN ('PENDING', 'RUNNING')
+            ORDER BY created_at DESC
+            LIMIT 1
+            """,
+            (sor_document_id,),
+        ).fetchone()
+    return _to_dict(row)
+
+
+def update_ai_analysis_job(
+    job_id: str,
+    *,
+    status: str | None = None,
+    total_requirements: int | None = None,
+    completed_requirements: int | None = None,
+    analyzed_requirements: int | None = None,
+    info_requirements: int | None = None,
+    screened_requirements: int | None = None,
+    current_requirement_id: str | None = None,
+    current_requirement_code: str | None = None,
+    current_requirement_index: int | None = None,
+    current_stage: str | None = None,
+    last_message: str | None = None,
+    error_message: str | None = None,
+    started_at: str | None = None,
+    finished_at: str | None = None,
+) -> dict[str, Any]:
+    updated_at = _now_iso()
+    assignments: list[str] = []
+    values: list[Any] = []
+
+    if status is not None:
+        assignments.append("status = ?")
+        values.append(str(status or "").strip().upper())
+    if total_requirements is not None:
+        assignments.append("total_requirements = ?")
+        values.append(max(int(total_requirements or 0), 0))
+    if completed_requirements is not None:
+        assignments.append("completed_requirements = ?")
+        values.append(max(int(completed_requirements or 0), 0))
+    if analyzed_requirements is not None:
+        assignments.append("analyzed_requirements = ?")
+        values.append(max(int(analyzed_requirements or 0), 0))
+    if info_requirements is not None:
+        assignments.append("info_requirements = ?")
+        values.append(max(int(info_requirements or 0), 0))
+    if screened_requirements is not None:
+        assignments.append("screened_requirements = ?")
+        values.append(max(int(screened_requirements or 0), 0))
+    if current_requirement_id is not None:
+        assignments.append("current_requirement_id = ?")
+        values.append(str(current_requirement_id or ""))
+    if current_requirement_code is not None:
+        assignments.append("current_requirement_code = ?")
+        values.append(str(current_requirement_code or ""))
+    if current_requirement_index is not None:
+        assignments.append("current_requirement_index = ?")
+        values.append(max(int(current_requirement_index or 0), 0))
+    if current_stage is not None:
+        assignments.append("current_stage = ?")
+        values.append(str(current_stage or "").strip())
+    if last_message is not None:
+        assignments.append("last_message = ?")
+        values.append(str(last_message or ""))
+    if error_message is not None:
+        assignments.append("error_message = ?")
+        values.append(str(error_message or ""))
+    if started_at is not None:
+        assignments.append("started_at = ?")
+        values.append(str(started_at or ""))
+    if finished_at is not None:
+        assignments.append("finished_at = ?")
+        values.append(str(finished_at or ""))
+
+    assignments.append("updated_at = ?")
+    values.append(updated_at)
+    values.append(job_id)
+
+    with get_conn() as conn:
+        conn.execute(
+            f"UPDATE ai_analysis_jobs SET {', '.join(assignments)} WHERE id = ?",
+            values,
+        )
+        row = conn.execute("SELECT * FROM ai_analysis_jobs WHERE id = ?", (job_id,)).fetchone()
+    return _to_dict(row) or {}
+
+
+def add_ai_analysis_event(
+    *,
+    job_id: str,
+    sor_document_id: str,
+    profile_id: str = "",
+    provider: str = "",
+    event_type: str,
+    message: str,
+    stage: str = "",
+    requirement_id: str = "",
+    requirement_code: str = "",
+    payload: dict[str, Any] | None = None,
+) -> dict[str, Any]:
+    event_id = str(uuid.uuid4())
+    created_at = _now_iso()
+    with get_conn() as conn:
+        conn.execute(
+            """
+            INSERT INTO ai_analysis_events
+            (id, job_id, sor_document_id, profile_id, provider, event_type, stage, message,
+             requirement_id, requirement_code, payload_json, created_at)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            """,
+            (
+                event_id,
+                job_id,
+                sor_document_id,
+                str(profile_id or "").strip(),
+                str(provider or "").strip(),
+                str(event_type or "").strip(),
+                str(stage or "").strip(),
+                str(message or "").strip(),
+                str(requirement_id or "").strip(),
+                str(requirement_code or "").strip(),
+                json.dumps(payload or {}, ensure_ascii=False),
+                created_at,
+            ),
+        )
+        row = conn.execute("SELECT * FROM ai_analysis_events WHERE id = ?", (event_id,)).fetchone()
+    item = _to_dict(row) or {}
+    item["payload"] = _decode_json_payload(item.get("payload_json"), default={})
+    return item
+
+
+def list_ai_analysis_events(job_id: str, *, limit: int = 80) -> list[dict[str, Any]]:
+    safe_limit = max(1, min(int(limit or 80), 500))
+    with get_conn() as conn:
+        rows = conn.execute(
+            """
+            SELECT *
+            FROM ai_analysis_events
+            WHERE job_id = ?
+            ORDER BY created_at DESC
+            LIMIT ?
+            """,
+            (job_id, safe_limit),
+        ).fetchall()
+    items = list(reversed(_to_dict_list(rows)))
+    for item in items:
+        item["payload"] = _decode_json_payload(item.get("payload_json"), default={})
+    return items
 
 
 def update_requirement_parent_sections(updates: list[dict[str, str]]) -> None:
@@ -1522,5 +1954,13 @@ def _cleanup_orphan_records(conn: sqlite3.Connection) -> None:
 
         DELETE FROM assessment_runs
         WHERE requirement_id NOT IN (SELECT id FROM requirements);
+
+          DELETE FROM ai_analysis_jobs
+          WHERE project_id NOT IN (SELECT id FROM projects)
+              OR sor_document_id NOT IN (SELECT id FROM sor_documents);
+
+          DELETE FROM ai_analysis_events
+          WHERE job_id NOT IN (SELECT id FROM ai_analysis_jobs)
+              OR sor_document_id NOT IN (SELECT id FROM sor_documents);
         """
     )

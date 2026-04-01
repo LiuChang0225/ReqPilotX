@@ -34,6 +34,7 @@
 ### 2.1 客户侧能力（主控台）
 - 创建项目与客户档案。
 - 上传 SOR（PDF/DOCX/TXT）与知识库文档。
+- AI 工作台现支持固定双路径选择：`Azure` 主路径与 `Aliyun` 备份路径，且选择仅作用于本次运行。
 - 一键分析并生成 Compliance Matrix。
 - AI 当前先做 `REQUIREMENT / INFO` screening，再只对真实需求做判定。
 - AI 判定支持 `ACCEPT / REJECT / DEVIATION_ACCEPT / NEED_CLARIFICATION`。
@@ -187,6 +188,77 @@ cd /Users/liuchang/Documents/New\ project/prototype
 ./start.sh --dev
 ./start.sh --dev --port 8010
 ```
+
+### 7.1 Azure App Service 部署（azd）
+
+仓库根目录现在提供了最小 Azure Web App 落地脚手架：
+
+- `azure.yaml`：`azd` 服务定义，部署 `prototype/` 目录为 Python App Service
+- `infra/main.bicep` 与 `infra/resources.bicep`：Linux App Service、App Service Plan、Application Insights、Log Analytics Workspace
+- `infra/main.parameters.json`：从 `azd env` 读取 Azure OpenAI / Azure AI Search 连接参数
+
+部署前先准备 `azd` 环境变量：
+
+```bash
+azd env set AZURE_LOCATION eastasia
+azd env set AZURE_OPENAI_ENDPOINT 'https://<your-openai>.openai.azure.com/'
+azd env set AZURE_OPENAI_CHAT_DEPLOYMENT '<chat-deployment>'
+azd env set AZURE_OPENAI_EMBEDDING_DEPLOYMENT '<embedding-deployment>'
+azd env set AZURE_AI_SEARCH_ENDPOINT 'https://<your-search>.search.windows.net'
+azd env set AZURE_AI_SEARCH_INDEX_NAME 'reqpilot-knowledge'
+azd env set AZURE_AI_SEARCH_SEMANTIC_CONFIGURATION '<semantic-config>'
+```
+
+预览并部署：
+
+```bash
+azd provision --preview
+azd up
+```
+
+当前 Azure 运行约束：
+
+- App Service 健康检查路径固定为 `/api/health`
+
+### 7.2 双 Profile 运行时
+
+当前后端固定提供两个 AI profile：
+
+- `azure`：延续现有 Azure OpenAI + Azure AI Search 路径
+- `aliyun`：使用 DashScope OpenAI-compatible 接口，但知识驱动检索链路当前已被显式禁用；`qdrant`、`dashvector`、`local` 都不再属于可运行路径
+
+Aliyun 默认模型：
+
+- chat：`qwen3.5-plus`
+- embedding：`tongyi-embedding-vision-flash-2026-03-06`
+
+Aliyun 当前仅保留 LLM 基础配置：
+
+```bash
+REQPILOT_ALIYUN_API_KEY=<dashscope-api-key>
+REQPILOT_DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
+REQPILOT_ALIYUN_CHAT_MODEL=qwen3.5-plus
+REQPILOT_ALIYUN_EMBEDDING_MODEL=tongyi-embedding-vision-flash-2026-03-06
+```
+
+Aliyun 当前阻塞点：
+
+- 仓库只实现了“连接外部 Qdrant”的代码路径，但不包含本地 Qdrant 部署工件
+- 当前开发机未验证到可用的 Qdrant 实例，也没有可复跑的 DashVector 资源基线
+- `local` 启发式检索已被明确判定为质量不可接受，因此不再作为 fallback
+- 在选定并验证新的远程检索后端前，Aliyun profile 会保持 `retrieval_backend=disabled`，且不会被视为 runnable
+
+运行时说明：
+
+- 前端只暴露 `Azure / Aliyun` 两个固定 profile，不支持任意新增 provider
+- profile 选择仅作用于当前一次 AI 运行，不会改写进程级默认环境
+- readiness 当前按 profile 聚合：只要两个 profile 中有一个可运行，系统整体可判 ready
+- Aliyun profile 当前会显式报告 `retrieval_backend=disabled`；legacy `qdrant / dashvector / local` 环境变量不再形成可运行链路
+- 默认启动命令为 `gunicorn --bind=0.0.0.0:8000 --workers 1 --worker-class uvicorn.workers.UvicornWorker --timeout 600 --access-logfile - --error-logfile - app.main:app`
+- 持久化目录通过 `REQPILOT_STORAGE_DIR=/home/site/data/reqpilotx/storage` 注入，避免继续写到代码目录
+- Azure 端默认注入 `REQPILOT_AZURE_AUTH_MODE=managed_identity`；应用内已将其兼容映射为现有 `rbac` 路径
+- 在 PostgreSQL/外部任务队列落地前，请保持 App Service 实例数 `1`、Gunicorn workers `1`
+- 部署后仍需给 Web App 的系统分配托管身份补齐现有资源角色：Azure OpenAI 至少授予 `Cognitive Services OpenAI User`，Azure AI Search 至少授予 `Search Service Contributor` 与 `Search Index Data Contributor`
 
 ---
 

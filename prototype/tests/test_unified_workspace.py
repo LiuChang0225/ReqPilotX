@@ -14,6 +14,7 @@ from unittest.mock import patch
 
 import fitz
 from fastapi import HTTPException
+from fastapi.testclient import TestClient
 from openpyxl import load_workbook
 from PIL import Image as PILImage
 from starlette.datastructures import UploadFile
@@ -22,6 +23,25 @@ from app import db, main
 from app.services.complex_table_mode import _row_shadow_signature
 from app.services import exporter, extraction_preview, preview_cache, table_assets, extractor
 from app.services.exporter import export_compliance_matrix
+
+
+class ImmediateThread:
+    def __init__(self, target=None, args=(), kwargs=None, name=None, daemon=None):
+        self._target = target
+        self._args = args
+        self._kwargs = kwargs or {}
+        self._alive = False
+
+    def start(self) -> None:
+        self._alive = True
+        try:
+            if self._target:
+                self._target(*self._args, **self._kwargs)
+        finally:
+            self._alive = False
+
+    def is_alive(self) -> bool:
+        return self._alive
 
 
 def _fake_preview() -> dict:
@@ -783,6 +803,70 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         self._add_knowledge_document(project["id"], "-gate")
         workspace = main.get_document_workspace(project["id"], document["id"], include_preview=False)
+        self.assertTrue(workspace["actions"]["can_run_ai_analysis"])
+
+    def test_workspace_summary_counts_runnable_profiles_from_ready_flag(self) -> None:
+        project, document = self._create_project_with_document("-ready-flag")
+        requirements = [
+            {
+                "id": "req-ready-1",
+                "req_code": "REQ0001",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "供应商需要满足总成试验要求。",
+                "raw_text": "供应商需要满足总成试验要求。",
+                "requirement_text": "供应商需要满足总成试验要求。",
+                "requirement_type": "FUNCTIONAL",
+                "priority": "MEDIUM",
+                "source_page": 1,
+                "source_anchor": "Main > 1",
+                "parent_section_code": "1",
+                "parent_section_title": "概述",
+                "parent_section_label": "1 概述",
+            }
+        ]
+        locked_document = {
+            **document,
+            "workflow_stage": "EXTRACTION_LOCKED",
+            "requirement_set_version": 1,
+            "extraction_locked_at": "2026-04-01T00:00:00+00:00",
+        }
+
+        with patch.dict(
+            os.environ,
+            {
+                "REQPILOT_AI_ASSESSMENT_MODE": "heuristic",
+                "REQPILOT_RETRIEVAL_BACKEND": "local",
+            },
+            clear=True,
+        ), patch.object(
+            main,
+            "_build_ai_profile_catalog",
+            return_value=[
+                {
+                    "id": "aliyun",
+                    "provider": "aliyun",
+                    "label": "Aliyun",
+                    "assessment_mode": "llm_shadow",
+                    "retrieval_backend": "qdrant",
+                    "ready": True,
+                    "provider_ready": False,
+                    "llm_ready": True,
+                    "retrieval_ready": True,
+                    "missing": [],
+                    "knowledge_sync": {"status": "NOT_REQUIRED", "ready_count": 0, "total_count": 0},
+                }
+            ],
+        ):
+            workspace = main._build_document_workspace(
+                project=project,
+                document=locked_document,
+                requirements=requirements,
+                knowledge_docs_count=0,
+                preview=None,
+                preview_meta={},
+            )
+
+        self.assertEqual(workspace["summary"]["runnable_ai_profile_count"], 1)
         self.assertTrue(workspace["actions"]["can_run_ai_analysis"])
 
     def test_refresh_preview_endpoint_builds_and_persists_cache(self) -> None:
@@ -2337,6 +2421,50 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(rows[0]["req_code"], complex_row["req_code"])
         self.assertTrue(any(row["req_code"] == "REQ-LEGIT" for row in rows))
 
+    def test_workspace_review_entries_skip_rows_marked_keep_false(self) -> None:
+        excluded_heading = {
+            "entry_id": "H-1",
+            "req_code": "H-1",
+            "entry_kind": "HEADING",
+            "keep": False,
+            "source_page": 1,
+            "source_page_end": 1,
+            "source_anchor": "Main > 1",
+            "display_text": "1 概述",
+            "raw_text": "1 概述",
+            "requirement_text": "1 概述",
+            "parent_section_code": "1",
+            "parent_section_title": "概述",
+            "parent_section_label": "1 概述",
+        }
+        kept_requirement = {
+            "entry_id": "REQ0024",
+            "req_code": "REQ0024",
+            "entry_kind": "REQUIREMENT",
+            "keep": True,
+            "source_page": 1,
+            "source_page_end": 1,
+            "source_anchor": "Main > 1.1",
+            "display_text": "5.1 首条需求",
+            "raw_text": "5.1 首条需求",
+            "requirement_text": "5.1 首条需求",
+            "parent_section_code": "1.1",
+            "parent_section_title": "首条需求",
+            "parent_section_label": "1.1 首条需求",
+            "requirement_type": "FUNCTIONAL",
+            "priority": "MEDIUM",
+        }
+
+        rows, _ = main._build_workspace_requirements_from_review_entries(
+            [excluded_heading, kept_requirement],
+            fallback_requirements=[],
+            preview=None,
+        )
+
+        self.assertEqual([row["req_code"] for row in rows], ["REQ0024"])
+        self.assertTrue(all(bool(row.get("keep", True)) for row in rows))
+        self.assertTrue(all(str(row.get("entry_kind") or "") != "HEADING" for row in rows))
+
     def test_save_review_entry_preserves_complex_metadata_via_table_refs(self) -> None:
         project, document = self._create_project_with_document("-complex-save")
         source_path = self.tmp_path / "complex-source.png"
@@ -2461,6 +2589,208 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         backend_by_mode = {run["mode"]: run["retrieval_backend"] for run in runs}
         self.assertEqual(backend_by_mode["screening_heuristic"], "screening_only")
         self.assertEqual(backend_by_mode["heuristic"], "local")
+
+    def test_ai_analysis_job_api_exposes_status_events_and_requirement_detail(self) -> None:
+        project, document = self._create_project_with_document("-ai-job-api")
+        requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1 | Section 5.1",
+            requirement_text="ECU shall support wake-up time less than 100ms.",
+            raw_text="ECU shall support wake-up time less than 100ms.",
+            display_text="ECU shall support wake-up time less than 100ms.",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="5.1",
+            parent_section_title="Startup",
+            parent_section_label="5.1 Startup",
+        )
+        db.add_knowledge_document(
+            project_id=project["id"],
+            file_name="platform-spec.txt",
+            file_type="txt",
+            file_path=str(self.tmp_path / "platform-spec-job-api.txt"),
+            extracted_text=(
+                "5.1 Startup\n"
+                "The ECU shall support wake-up time less than 100ms.\n"
+                "Measured wake-up time is 80ms at -20C.\n"
+            ),
+            doc_version="v1.0",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        main.lock_document_extraction(project["id"], document["id"])
+
+        with patch.dict(
+            os.environ,
+            {
+                "REQPILOT_AI_ASSESSMENT_MODE": "heuristic",
+                "REQPILOT_AI_TRACE_DIR": str(self.tmp_path / "ai_traces_job_api"),
+            },
+            clear=False,
+        ):
+            with patch.object(main, "Thread", ImmediateThread):
+                with TestClient(main.app) as client:
+                    start_response = client.post(
+                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                        json={"profile_id": "azure"},
+                    )
+                    self.assertEqual(start_response.status_code, 200)
+                    start_payload = start_response.json()
+                    self.assertTrue(start_payload["job"]["id"])
+                    self.assertEqual(start_payload["job"]["profile_id"], "azure")
+                    self.assertTrue(any(item["id"] == "azure" for item in start_payload["ai_profiles"]))
+
+                    status_response = client.get(
+                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
+                    )
+                    self.assertEqual(status_response.status_code, 200)
+                    status_payload = status_response.json()
+                    self.assertEqual(status_payload["job"]["status"], "COMPLETED")
+                    self.assertEqual(status_payload["job"]["profile_id"], "azure")
+                    self.assertTrue(
+                        any(item["event_type"] == "requirement_completed" for item in status_payload["events"])
+                    )
+                    self.assertTrue(any(item["event_type"] == "job_completed" for item in status_payload["events"]))
+
+                    detail_response = client.get(f"/api/requirements/{requirement['id']}/analysis-detail")
+                    self.assertEqual(detail_response.status_code, 200)
+                    detail_payload = detail_response.json()
+                    self.assertEqual(detail_payload["requirement"]["id"], requirement["id"])
+                    self.assertEqual(detail_payload["assessment"]["analysis_label"], "REQUIREMENT")
+                    self.assertGreaterEqual(len(detail_payload["assessment_runs"]), 1)
+                    self.assertIsInstance(detail_payload["evidences"], list)
+
+    def test_ai_analysis_detail_and_events_use_display_req_codes_from_workspace_order(self) -> None:
+        project, document = self._create_project_with_document("-ai-display-order")
+        later_requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0023",
+            source_page=5,
+            source_anchor="Main > 5.7",
+            requirement_text="5.7 次条需求",
+            raw_text="5.7 次条需求",
+            display_text="5.7 次条需求",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="5.7",
+            parent_section_title="次条需求",
+            parent_section_label="5.7 次条需求",
+        )
+        first_requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0024",
+            source_page=5,
+            source_anchor="Main > 5.1",
+            requirement_text="5.1 首条需求",
+            raw_text="5.1 首条需求",
+            display_text="5.1 首条需求",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="5.1",
+            parent_section_title="首条需求",
+            parent_section_label="5.1 首条需求",
+        )
+        db.add_knowledge_document(
+            project_id=project["id"],
+            file_name="platform-spec.txt",
+            file_type="txt",
+            file_path=str(self.tmp_path / "platform-spec-display-order.txt"),
+            extracted_text=(
+                "5.1 首条需求\n"
+                "系统应满足首条需求。\n"
+                "5.7 次条需求\n"
+                "系统应满足次条需求。\n"
+            ),
+            doc_version="v1.0",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        preview_cache.persist_preview_cache(
+            db.get_sor_document(document["id"]) or {},
+            _fake_preview_with_reversed_req_codes(),
+        )
+        main.lock_document_extraction(project["id"], document["id"])
+
+        with patch.dict(
+            os.environ,
+            {
+                "REQPILOT_AI_ASSESSMENT_MODE": "heuristic",
+                "REQPILOT_AI_TRACE_DIR": str(self.tmp_path / "ai_traces_display_order"),
+            },
+            clear=False,
+        ):
+            with patch.object(main, "Thread", ImmediateThread):
+                with TestClient(main.app) as client:
+                    start_response = client.post(
+                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                        json={"profile_id": "azure"},
+                    )
+                    self.assertEqual(start_response.status_code, 200)
+
+                    status_response = client.get(
+                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
+                    )
+                    self.assertEqual(status_response.status_code, 200)
+                    status_payload = status_response.json()
+                    completed_codes = {
+                        str(item.get("requirement_code") or "")
+                        for item in status_payload["events"]
+                        if item.get("event_type") == "requirement_completed"
+                    }
+
+                    detail_response = client.get(f"/api/requirements/{first_requirement['id']}/analysis-detail")
+                    self.assertEqual(detail_response.status_code, 200)
+                    detail_payload = detail_response.json()
+
+        self.assertEqual(status_payload["job"]["status"], "COMPLETED")
+        self.assertEqual(completed_codes, {"REQ0001", "REQ0002"})
+        self.assertNotIn("REQ0023", completed_codes)
+        self.assertNotIn("REQ0024", completed_codes)
+        self.assertEqual(detail_payload["requirement"]["req_code"], first_requirement["req_code"])
+        self.assertEqual(detail_payload["requirement"]["display_req_code"], "REQ0001")
+        self.assertEqual(detail_payload["requirement"]["display_sort_index"], 1)
+        self.assertEqual(later_requirement["req_code"], "REQ0023")
+
+    def test_ai_analysis_job_api_reports_failed_runs(self) -> None:
+        project, document = self._create_project_with_document("-ai-job-failed")
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1 | Section 5.1",
+            requirement_text="ECU shall support wake-up time less than 100ms.",
+            raw_text="ECU shall support wake-up time less than 100ms.",
+            display_text="ECU shall support wake-up time less than 100ms.",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="5.1",
+            parent_section_title="Startup",
+            parent_section_label="5.1 Startup",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        main.lock_document_extraction(project["id"], document["id"])
+
+        with patch.object(main, "run_ai_copilot_assessment", side_effect=RuntimeError("simulated ai failure")):
+            with patch.object(main, "Thread", ImmediateThread):
+                with TestClient(main.app) as client:
+                    start_response = client.post(
+                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start"
+                    )
+                    self.assertEqual(start_response.status_code, 200)
+
+                    status_response = client.get(
+                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
+                    )
+                    self.assertEqual(status_response.status_code, 200)
+                    status_payload = status_response.json()
+                    self.assertEqual(status_payload["job"]["status"], "FAILED")
+                    self.assertIn("simulated ai failure", status_payload["job"]["error_message"])
+                    self.assertEqual(status_payload["document"]["ai_status"], "STALE")
+                    self.assertTrue(any(item["event_type"] == "job_failed" for item in status_payload["events"]))
 
     def test_run_ai_analysis_marks_info_rows_and_skips_manual_decision(self) -> None:
         project, document = self._create_project_with_document("-ai-info")
@@ -2633,6 +2963,79 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(created["effective_to"], "2026-12-31")
         self.assertEqual(listed[0]["doc_type"], "STANDARD")
         self.assertEqual(listed[0]["doc_version"], "V1.2")
+
+    def test_upload_knowledge_document_route_accepts_multipart_payload(self) -> None:
+        project, _document = self._create_project_with_document("-knowledge-route")
+        knowledge_dir = self.tmp_path / "knowledge_route"
+        knowledge_dir.mkdir(parents=True, exist_ok=True)
+
+        with patch.object(main, "KNOWLEDGE_DIR", knowledge_dir):
+            with TestClient(main.app) as client:
+                response = client.post(
+                    f"/api/projects/{project['id']}/knowledge-documents",
+                    files={"file": ("spec.txt", io.BytesIO(b"Spec content"), "text/plain")},
+                    data={
+                        "doc_type": "STANDARD",
+                        "doc_version": "V1.2",
+                        "status": "ACTIVE",
+                        "effective_from": "2026-01-01",
+                        "effective_to": "2026-12-31",
+                    },
+                )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["doc_type"], "STANDARD")
+        self.assertEqual(payload["doc_version"], "V1.2")
+        self.assertEqual(payload["status"], "ACTIVE")
+
+    def test_upload_knowledge_document_route_rejects_duplicate_file_name(self) -> None:
+        project, _document = self._create_project_with_document("-knowledge-duplicate")
+        knowledge_dir = self.tmp_path / "knowledge_duplicate"
+        knowledge_dir.mkdir(parents=True, exist_ok=True)
+
+        with patch.object(main, "KNOWLEDGE_DIR", knowledge_dir):
+            with TestClient(main.app) as client:
+                first = client.post(
+                    f"/api/projects/{project['id']}/knowledge-documents",
+                    files={"file": ("spec.txt", io.BytesIO(b"Spec content"), "text/plain")},
+                )
+                duplicate = client.post(
+                    f"/api/projects/{project['id']}/knowledge-documents",
+                    files={"file": ("spec.txt", io.BytesIO(b"Updated spec content"), "text/plain")},
+                )
+
+        self.assertEqual(first.status_code, 200)
+        self.assertEqual(duplicate.status_code, 409)
+        self.assertIn("already exists", duplicate.json()["detail"])
+        self.assertEqual(len(db.list_knowledge_documents(project["id"])), 1)
+
+    def test_list_knowledge_documents_collapses_existing_duplicate_file_names(self) -> None:
+        project, _document = self._create_project_with_document("-knowledge-list-dedupe")
+        first_path = self.tmp_path / "dup-a.txt"
+        second_path = self.tmp_path / "dup-b.txt"
+        first_path.write_text("alpha", encoding="utf-8")
+        second_path.write_text("beta", encoding="utf-8")
+        db.add_knowledge_document(
+            project_id=project["id"],
+            file_name="platform-spec.txt",
+            file_type="txt",
+            file_path=str(first_path),
+            extracted_text="alpha",
+        )
+        db.add_knowledge_document(
+            project_id=project["id"],
+            file_name="platform-spec.txt",
+            file_type="txt",
+            file_path=str(second_path),
+            extracted_text="beta",
+        )
+
+        listed = main.list_knowledge_documents(project["id"])
+
+        self.assertEqual(len(db.list_knowledge_documents(project["id"])), 2)
+        self.assertEqual(len(listed), 1)
+        self.assertEqual(listed[0]["file_name"], "platform-spec.txt")
 
     def test_export_works_without_cached_preview(self) -> None:
         project, document = self._create_project_with_document("-export-no-preview")
