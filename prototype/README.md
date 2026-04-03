@@ -189,6 +189,21 @@ cd /Users/liuchang/Documents/New\ project/prototype
 ./start.sh --dev --port 8010
 ```
 
+Windows PowerShell 本地启动：
+
+```powershell
+Set-Location 'c:\Users\uib03712\OneDrive - Vitesco Technologies\00_WORK SPACE\CE PMT\VibeCoding\ReqPilotX\prototype'
+.\start.ps1
+.\start.ps1 -WithQdrant
+```
+
+说明：
+
+- `start.ps1` 会在当前 PowerShell 会话里前台启动 FastAPI 服务，默认端口 `8000`
+- `-WithQdrant` 会先检查 `http://127.0.0.1:6333/collections`，若本地不可用则通过 `docker run` 启动 `reqpilotx-qdrant`
+- Qdrant 数据目录默认挂载到 `prototype/storage/qdrant`
+- 这只负责把本地 Qdrant 服务拉起；若要真正启用 Aliyun 本地检索链路，还需要同时配置 DashScope 凭证，并将 `REQPILOT_ALIYUN_RETRIEVAL_BACKEND=qdrant`
+
 ### 7.1 Azure App Service 部署（azd）
 
 仓库根目录现在提供了最小 Azure Web App 落地脚手架：

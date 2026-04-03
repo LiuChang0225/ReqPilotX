@@ -782,6 +782,18 @@ def list_knowledge_documents(project_id: str) -> list[dict[str, Any]]:
         ).fetchall()
     return _to_dict_list(rows)
 
+
+def delete_knowledge_document(document_id: str) -> dict[str, Any] | None:
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM knowledge_documents WHERE id = ?",
+            (document_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        conn.execute("DELETE FROM knowledge_documents WHERE id = ?", (document_id,))
+    return _to_dict(row)
+
 def list_knowledge_document_syncs(knowledge_document_id: str) -> list[dict[str, Any]]:
     with get_conn() as conn:
         rows = conn.execute(

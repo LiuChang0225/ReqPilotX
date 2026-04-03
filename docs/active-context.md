@@ -1,57 +1,50 @@
 # Active Context
 
-更新时间：2026-04-03 13:40 CST  
+更新时间：2026-04-03 14:59 CST  
 适用仓库：`/Users/liuchang/Documents/New project`
 
 长期背景：[`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/项目.md)
 
 ## 当前目标
 
-- 上线前做一轮整体 code review、功能测试、发布风险梳理
-- 确认 `ReqPilotX` 主流程在 `main + 8000` 下可发布，不把已知高风险带到服务器
-- 保持 live AI / review / matrix 流程现状不回退
+- 完成 workspace 前端小迭代：知识库文档支持移除，分析/导出区去掉重复 AI 路径选择
+- 保持 `main + 8000` 的本地 Azure 路径可运行
+- 给 Windows 本地联调补一个可复用的 Qdrant 联动启动入口
 
 ## 活跃分支 / 工作树
 
-- 当前权威分支：`main`
-- 当前远端对齐：`HEAD == origin/main == c537a85`
-- 并行 worktrees：`codex/extraction-optimization`、`codex/screenshot-precision-maintenance`、`codex/table-asset-lifecycle`、`codex/table-assets-mainline`
+- 当前分支：`main`
+- 当前状态：存在未提交本地改动，涉及 `knowledge document delete`、workspace UI 精简、`prototype/start.ps1`、README 与上下文文档
 
 ## 当前样本
 
-- 当前 live 验证页：`/`、`/workspace`、`/workspace?stage=review`、`/project-progress`、`/phase0-review`
-- 当前 smoke 项目 / 文档：`codex-aliyun-mini-101619` / `aliyun_sor_XXXX.txt`
-- 当前标注样本目录：`eval/iterations/r27`
+- 当前 live 验证页：`/workspace`
+- 当前验证端口：`8000`
+- 当前目标链路：项目选择 -> 知识文档上传/移除 -> 锁定 -> AI 分析 -> 导出
 
 ## 最近已修 / 已验证
 
-- 本轮未改代码；已完成上线前静态审查 + 自动化验证 + 真实浏览器检查
-- 自动化结果：`unittest discover` 通过 `330/330`，`table_asset_regression_gate` 通过 `137/137`
-- AI smoke 在补 `PYTHONPATH=.` 后通过 `6/6`
-- 真实浏览器可正常打开 `/`、`/workspace`、`/workspace?stage=review`、`/project-progress`、`/phase0-review`
-
-## 当前验证结论
-
-- 当前主页面与核心只读接口在 `8000` 上可访问，浏览器检查未出现 500
-- 自动化主干回归总体为绿，但发现若干上线前应处理的工程风险
-- 当前 smoke 项目里 `Aliyun` 知识同步记录仍是 `ERROR`，`Azure` 默认路径仍可运行
+- 后端新增 `DELETE /api/projects/{project_id}/knowledge-documents/{document_id}`
+- 删除知识文档时会一并移除同名历史重复记录，级联删除 sync 记录，并 best-effort 清理本地上传文件与 payload JSON
+- 前端知识文档清单已新增“移除文档”按钮
+- 第 4 步“分析与导出”已移除重复的 AI 路径选择器；AI 运行现在直接沿用第 2 步默认路径
+- 新增 `prototype/start.ps1`；可用 `-WithQdrant` 先拉起或复用本地 `reqpilotx-qdrant` 容器，再启动应用
+- 定向回归：5 个 `UnifiedWorkspaceTests` 通过
+- live 校验：`/api/health` 返回 `ready=true`，`/workspace` 返回新 asset 版本，旧 `ai-profile-select` 标记已不再输出
 
 ## 当前 blockers
 
-- `prototype/app/db.py` 的 `get_conn()` 在 `yield` 前做 SQLite PRAGMA 初始化；若这里抛错会泄漏连接，测试已出现 `ResourceWarning: unclosed database`
-- `prototype/app/runtime_readiness.py` 当前只要“任一 profile 可运行”就返回 ready；这会让默认/主发布路径异常时仍可能通过健康检查
-- `prototype/app/main.py` 的上传接口会在请求内同步 `file.read()`、`parse_document()`，知识文档上传还会同步做检索写入；单实例/单 worker 发布下容易卡请求或超时
-- `prototype/scripts/ai_smoke_suite.py` 直接运行会因缺少 `sys.path/PYTHONPATH` 引导而失败，当前 QA 脚本存在可复跑性缺口
-- 首页仍使用 Tailwind CDN，`workspace` 仍有既有的 multiple forms DOM 提示
+- 知识文档删除当前不会主动硬删远端 Azure Search / Qdrant 索引，只是通过数据库过滤让已删文档不再参与检索；远端存储仍可能漂移
+- `start.ps1 -WithQdrant` 依赖 Docker Desktop，且只负责拉起 Qdrant 服务；若要让 Aliyun 本地 POC 真正 runnable，仍需配置 DashScope 与 `REQPILOT_ALIYUN_RETRIEVAL_BACKEND=qdrant`
+- 现有 readiness 语义、SQLite 连接泄漏风险、请求内同步上传/知识同步长任务问题仍未处理
 
 ## 下一步
 
-- 先修 SQLite 连接泄漏 / checkpoint 策略，再补一轮高并发或长任务稳定性验证
-- 收紧 readiness 语义：至少区分默认 profile、发布主路径、备用路径
-- 把上传链路改成可流式落盘或后台任务，不要在请求内做完整解析和知识同步
-- 修复 `ai_smoke_suite.py` 的可执行入口，再重跑上线前 smoke / export / AI 主流程检查
+- 如需 UI 实际操作验收，再补一轮浏览器点击测试，验证“移除文档”按钮的真实交互
+- 评估是否给知识文档删除补远端索引硬删除
+- 若本地 Qdrant 变成常用链路，再把 `start.ps1` 的 Qdrant 联动逻辑同步到其他启动脚本或统一 launcher
 
 ## 活跃端口
 
-- `8000`：本地 ReqPilotX live 服务；本轮 UI 验证使用此端口
-- `6333`：本机原生 Qdrant HTTP
+- `8000`：本地 ReqPilotX live 服务，当前通过 `prototype/start.ps1` 启动，PID `67384`
+- `6333`：可选本地 Qdrant HTTP 端口；使用 `prototype/start.ps1 -WithQdrant` 时会检查/拉起

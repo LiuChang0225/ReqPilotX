@@ -3930,6 +3930,80 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertIn("already exists", duplicate.json()["detail"])
         self.assertEqual(len(db.list_knowledge_documents(project["id"])), 1)
 
+    def test_delete_knowledge_document_route_removes_files_and_bumps_version(self) -> None:
+        project, _document = self._create_project_with_document("-knowledge-delete")
+        knowledge_path = self.tmp_path / "knowledge-delete.txt"
+        knowledge_path.write_text("knowledge", encoding="utf-8")
+        payload_dir = self.tmp_path / "knowledge_payloads"
+        payload_dir.mkdir(parents=True, exist_ok=True)
+        payload_path = payload_dir / "payload-delete.json"
+        payload_path.write_text('{"chunks": []}', encoding="utf-8")
+        knowledge_document = db.add_knowledge_document(
+            project_id=project["id"],
+            file_name="knowledge-delete.txt",
+            file_type="txt",
+            file_path=str(knowledge_path),
+            extracted_text="knowledge",
+        )
+        db.upsert_knowledge_document_sync(
+            knowledge_document["id"],
+            profile_id="azure",
+            provider="azure",
+            retrieval_backend="azure_sdk",
+            status="READY",
+            synced_at="2026-04-03T06:00:00+00:00",
+            chunk_count=4,
+            payload_path=str(payload_path),
+        )
+
+        with patch.object(main, "INDEX_PAYLOAD_DIR", payload_dir):
+            with TestClient(main.app) as client:
+                response = client.delete(
+                    f"/api/projects/{project['id']}/knowledge-documents/{knowledge_document['id']}"
+                )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["removed_count"], 1)
+        self.assertEqual(payload["knowledge_base_version"], 1)
+        self.assertFalse(knowledge_path.exists())
+        self.assertFalse(payload_path.exists())
+        self.assertEqual(db.list_knowledge_documents(project["id"]), [])
+        self.assertEqual(db.list_knowledge_document_syncs(knowledge_document["id"]), [])
+
+    def test_delete_knowledge_document_route_removes_legacy_same_name_duplicates(self) -> None:
+        project, _document = self._create_project_with_document("-knowledge-delete-duplicates")
+        first_path = self.tmp_path / "legacy-dup-a.txt"
+        second_path = self.tmp_path / "legacy-dup-b.txt"
+        first_path.write_text("alpha", encoding="utf-8")
+        second_path.write_text("beta", encoding="utf-8")
+        db.add_knowledge_document(
+            project_id=project["id"],
+            file_name="platform-spec.txt",
+            file_type="txt",
+            file_path=str(first_path),
+            extracted_text="alpha",
+        )
+        latest_document = db.add_knowledge_document(
+            project_id=project["id"],
+            file_name="platform-spec.txt",
+            file_type="txt",
+            file_path=str(second_path),
+            extracted_text="beta",
+        )
+
+        with TestClient(main.app) as client:
+            response = client.delete(
+                f"/api/projects/{project['id']}/knowledge-documents/{latest_document['id']}"
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["removed_count"], 2)
+        self.assertFalse(first_path.exists())
+        self.assertFalse(second_path.exists())
+        self.assertEqual(db.list_knowledge_documents(project["id"]), [])
+
     def test_list_knowledge_documents_collapses_existing_duplicate_file_names(self) -> None:
         project, _document = self._create_project_with_document("-knowledge-list-dedupe")
         first_path = self.tmp_path / "dup-a.txt"

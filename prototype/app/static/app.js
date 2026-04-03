@@ -36,6 +36,7 @@ const state = {
   tableViewByTableId: {},
   reviewRenderDebounceHandle: null,
   knowledgeSyncRetryingId: "",
+  knowledgeDeletingId: "",
 };
 const WORKSPACE_SELECTION_KEY = "reqpilotx.workspace-selection-v1";
 const AI_TIMELINE_RENDER_LIMIT = 18;
@@ -545,10 +546,21 @@ function formatAiProfileRuntimeDetail(profile) {
 }
 
 function renderAiProfileSelector() {
+  const profiles = getAiProfiles();
+  const selectedProfile = getSelectedAiProfile();
+  const defaultProfile = getConfiguredDefaultProfile() || selectedProfile;
   if (!el.aiProfileSelect) {
+    if (el.aiProfileHint) {
+      if (!profiles.length) {
+        el.aiProfileHint.textContent = "当前工作区还没有可渲染的 AI 路径配置。";
+      } else if (defaultProfile) {
+        el.aiProfileHint.textContent = `AI 分析会直接沿用第 2 步默认路径：${formatAiProfileHint(defaultProfile)}`;
+      } else {
+        el.aiProfileHint.textContent = "请先在第 2 步完成默认 AI 路径设置。";
+      }
+    }
     return;
   }
-  const profiles = getAiProfiles();
   if (!profiles.length) {
     el.aiProfileSelect.innerHTML = `<option value="">暂无可选 AI 路径</option>`;
     el.aiProfileSelect.disabled = true;
@@ -570,7 +582,9 @@ function renderAiProfileSelector() {
     .join("");
   el.aiProfileSelect.disabled = false;
   if (el.aiProfileHint) {
-    el.aiProfileHint.textContent = formatAiProfileHint(getSelectedAiProfile());
+    el.aiProfileHint.textContent = defaultProfile
+      ? `AI 分析会直接沿用第 2 步默认路径：${formatAiProfileHint(defaultProfile)}`
+      : formatAiProfileHint(selectedProfile);
   }
 }
 
@@ -639,7 +653,9 @@ function onAiProviderSetupSelectionChanged() {
 
 function applyAiProviderSetup(payload) {
   state.aiProviderSetup = payload || null;
+  state.aiSelectedProfileId = getConfiguredDefaultProfileId();
   renderAiProviderSetup();
+  renderAiProfileSelector();
   syncWorkspaceActions();
 }
 
@@ -1112,7 +1128,7 @@ async function onRunAiAnalysis() {
   el.runAiBtn.disabled = true;
   setAnalyzeStatus("AI 分析已启动，页面会持续显示阶段、证据链和最终结论。", "warning");
   try {
-    const selectedProfileId = getSelectedAiProfileId();
+    const selectedProfileId = getConfiguredDefaultProfileId();
     const payload = await api(
       `/api/projects/${state.projectId}/sor-documents/${state.currentSorDocumentId}/run-ai-analysis/start`,
       {
@@ -1388,41 +1404,82 @@ async function loadWorkspace(options = {}) {
 async function loadKnowledgeDocuments() {
   if (!state.projectId) {
     state.knowledgeDocuments = [];
+    state.knowledgeDeletingId = "";
     renderKnowledgeDocuments();
     return;
   }
   const docs = await api(`/api/projects/${state.projectId}/knowledge-documents`);
   state.knowledgeDocuments = Array.isArray(docs) ? docs : [];
+  state.knowledgeDeletingId = "";
   renderKnowledgeDocuments();
 }
 
 async function onKnowledgeDocumentTableClicked(event) {
   const retryButton = event.target instanceof Element ? event.target.closest("[data-knowledge-sync-retry]") : null;
-  if (!retryButton) {
+  if (retryButton) {
+    const documentId = String(retryButton.getAttribute("data-knowledge-sync-retry") || "").trim();
+    if (!documentId || !state.projectId || state.knowledgeSyncRetryingId || state.knowledgeDeletingId) {
+      return;
+    }
+    state.knowledgeSyncRetryingId = documentId;
+    renderKnowledgeDocuments();
+    if (el.kbUploadResult) {
+      el.kbUploadResult.textContent = "正在重试知识文档同步...";
+    }
+    try {
+      await api(`/api/projects/${state.projectId}/knowledge-documents/${documentId}/resync`, {
+        method: "POST",
+      });
+      await loadKnowledgeDocuments();
+      if (state.projectId && state.currentSorDocumentId) {
+        await loadWorkspace({ skipAiStatus: true });
+      }
+      if (el.kbUploadResult) {
+        el.kbUploadResult.textContent = "知识文档同步已重试，请查看最新状态。";
+      }
+    } finally {
+      state.knowledgeSyncRetryingId = "";
+      renderKnowledgeDocuments();
+    }
     return;
   }
-  const documentId = String(retryButton.getAttribute("data-knowledge-sync-retry") || "").trim();
-  if (!documentId || !state.projectId || state.knowledgeSyncRetryingId) {
+
+  const removeButton = event.target instanceof Element ? event.target.closest("[data-knowledge-remove]") : null;
+  if (!removeButton) {
     return;
   }
-  state.knowledgeSyncRetryingId = documentId;
+  const documentId = String(removeButton.getAttribute("data-knowledge-remove") || "").trim();
+  if (!documentId || !state.projectId || state.knowledgeDeletingId || state.knowledgeSyncRetryingId) {
+    return;
+  }
+  const targetDocument = state.knowledgeDocuments.find((item) => String(item.id || "") === documentId) || null;
+  const fileName = String(targetDocument?.file_name || "该知识文档").trim() || "该知识文档";
+  const accepted = window.confirm(`移除知识文档“${fileName}”？这会让当前 AI 结果标记为过期。`);
+  if (!accepted) {
+    return;
+  }
+
+  state.knowledgeDeletingId = documentId;
   renderKnowledgeDocuments();
   if (el.kbUploadResult) {
-    el.kbUploadResult.textContent = "正在重试知识文档同步...";
+    el.kbUploadResult.textContent = "正在移除知识文档...";
   }
   try {
-    await api(`/api/projects/${state.projectId}/knowledge-documents/${documentId}/resync`, {
-      method: "POST",
+    const result = await api(`/api/projects/${state.projectId}/knowledge-documents/${documentId}`, {
+      method: "DELETE",
     });
     await loadKnowledgeDocuments();
     if (state.projectId && state.currentSorDocumentId) {
       await loadWorkspace({ skipAiStatus: true });
     }
     if (el.kbUploadResult) {
-      el.kbUploadResult.textContent = "知识文档同步已重试，请查看最新状态。";
+      const removedCount = Number(result?.removed_count || 1);
+      el.kbUploadResult.textContent = removedCount > 1
+        ? `已移除: ${result.file_name}（含 ${removedCount} 条同名历史记录），知识库版本 ${result.knowledge_base_version}`
+        : `已移除: ${result.file_name}，知识库版本 ${result.knowledge_base_version}`;
     }
   } finally {
-    state.knowledgeSyncRetryingId = "";
+    state.knowledgeDeletingId = "";
     renderKnowledgeDocuments();
   }
 }
@@ -1648,6 +1705,8 @@ function renderKnowledgeDocuments() {
             .join(" / ");
       const canRetry = !syncs.length || syncs.some((sync) => String(sync.status || "PENDING").trim().toUpperCase() !== "READY");
       const retrying = state.knowledgeSyncRetryingId === String(doc.id || "");
+      const deleting = state.knowledgeDeletingId === String(doc.id || "");
+      const actionDisabled = retrying || deleting;
       const uploadedAt = formatTime(doc.created_at) || "-";
       return `
         <tr>
@@ -1658,16 +1717,20 @@ function renderKnowledgeDocuments() {
           <td><div class="knowledge-doc-uploaded">${escapeHtml(uploadedAt)}</div></td>
           <td>
             <div class="knowledge-doc-sync">${escapeHtml(syncStatus || "-")}</div>
-            ${
-              canRetry
-                ? `<button type="button" class="button-compact" data-knowledge-sync-retry="${escapeHtml(String(doc.id || ""))}"${
-                    retrying ? " disabled" : ""
-                  }>${retrying ? "重试中..." : "重试同步"}</button>`
-                : ""
-            }
+            <div class="knowledge-doc-actions">
+              ${
+                canRetry
+                  ? `<button type="button" class="button-compact" data-knowledge-sync-retry="${escapeHtml(String(doc.id || ""))}"${
+                      actionDisabled ? " disabled" : ""
+                    }>${retrying ? "重试中..." : "重试同步"}</button>`
+                  : ""
+              }
+              <button type="button" class="button-compact button-danger-subtle" data-knowledge-remove="${escapeHtml(
+                String(doc.id || "")
+              )}"${actionDisabled ? " disabled" : ""}>${deleting ? "移除中..." : "移除文档"}</button>
+            </div>
           </td>
-        </tr>
-      `;
+        </tr>`;
     })
     .join("");
 }

@@ -30,6 +30,7 @@ from app.runtime_readiness import (
 from app.runtime_paths import resolve_storage_dir
 from app.services.ai_copilot import (
     AIAnalysisCancelledError,
+    INDEX_PAYLOAD_DIR,
     apply_runtime_ai_provider_setup,
     build_runtime_ai_provider_setup,
     build_requirement_normalization_detail,
@@ -1000,6 +1001,54 @@ def _find_duplicate_knowledge_document(project_id: str, file_name: str) -> dict[
     return None
 
 
+def _list_matching_knowledge_documents(project_id: str, file_name: str) -> list[dict[str, Any]]:
+    normalized_name = _normalize_knowledge_document_file_name(file_name)
+    if not normalized_name:
+        return []
+    return [
+        document
+        for document in db.list_knowledge_documents(project_id)
+        if _normalize_knowledge_document_file_name(str(document.get("file_name") or "")) == normalized_name
+    ]
+
+
+def _collect_knowledge_document_cleanup_paths(documents: list[dict[str, Any]]) -> list[Path]:
+    paths: list[Path] = []
+    seen: set[str] = set()
+    for document in documents or []:
+        raw_paths = [str(document.get("file_path") or "").strip()]
+        raw_paths.extend(
+            str(sync.get("payload_path") or "").strip()
+            for sync in document.get("retrieval_syncs") or []
+        )
+        fallback_payload = INDEX_PAYLOAD_DIR / f"{str(document.get('id') or '').strip()}.json"
+        raw_paths.append(str(fallback_payload))
+        for raw_path in raw_paths:
+            if not raw_path:
+                continue
+            normalized_path = str(Path(raw_path))
+            if normalized_path in seen:
+                continue
+            seen.add(normalized_path)
+            paths.append(Path(raw_path))
+    return paths
+
+
+def _cleanup_knowledge_document_files(paths: list[Path]) -> tuple[list[str], list[str]]:
+    deleted_paths: list[str] = []
+    cleanup_errors: list[str] = []
+    for path in paths:
+        if not path.exists() or not path.is_file():
+            continue
+        try:
+            path.unlink()
+            deleted_paths.append(str(path))
+        except OSError as exc:
+            logger.warning("Failed to delete knowledge document artifact %s: %s", path, exc)
+            cleanup_errors.append(f"{path}: {exc}")
+    return deleted_paths, cleanup_errors
+
+
 @app.post("/api/projects/{project_id}/knowledge-documents")
 async def upload_knowledge_document(
     project_id: str,
@@ -1076,6 +1125,43 @@ async def upload_knowledge_document(
 def list_knowledge_documents(project_id: str) -> list[dict]:
     _require_project(project_id)
     return _attach_knowledge_syncs(_list_project_knowledge_documents(project_id))
+
+
+@app.delete("/api/projects/{project_id}/knowledge-documents/{document_id}")
+def delete_knowledge_document(project_id: str, document_id: str) -> dict:
+    _require_project(project_id)
+    target = next(
+        (
+            item
+            for item in db.list_knowledge_documents(project_id)
+            if str(item.get("id") or "").strip() == document_id
+        ),
+        None,
+    )
+    if not target:
+        raise HTTPException(status_code=404, detail="Knowledge document not found for this project.")
+
+    related_documents = _list_matching_knowledge_documents(project_id, str(target.get("file_name") or "")) or [target]
+    related_documents = _attach_knowledge_syncs(related_documents)
+    cleanup_paths = _collect_knowledge_document_cleanup_paths(related_documents)
+
+    removed_document_ids: list[str] = []
+    for document in related_documents:
+        removed = db.delete_knowledge_document(str(document.get("id") or ""))
+        if removed is not None:
+            removed_document_ids.append(str(removed.get("id") or ""))
+
+    project = db.bump_project_knowledge_base_version(project_id)
+    deleted_paths, cleanup_errors = _cleanup_knowledge_document_files(cleanup_paths)
+    return {
+        "file_name": str(target.get("file_name") or ""),
+        "removed_document_id": document_id,
+        "removed_document_ids": removed_document_ids,
+        "removed_count": len(removed_document_ids),
+        "knowledge_base_version": int(project.get("knowledge_base_version") or 0),
+        "deleted_paths": deleted_paths,
+        "cleanup_errors": cleanup_errors,
+    }
 
 
 @app.post("/api/projects/{project_id}/knowledge-documents/{document_id}/resync")
