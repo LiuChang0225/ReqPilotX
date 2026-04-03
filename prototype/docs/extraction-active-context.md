@@ -1,44 +1,42 @@
 # Extraction Active Context
 
-更新时间：2026-04-03 13:40 CST  
+更新时间：2026-04-03 14:59 CST  
 分支：`main`
 
 ## 分支目的
 
-- 在 `main + 8000` 上做上线前总体验收
-- 收口 code review、功能测试和发布风险，不把高风险问题带到服务器
-- 保持 live workflow / review / matrix 现有逻辑不变
+- 完成 workspace 小范围 UX/ops 收口，不改动主分析流程语义
+- 把知识库文档生命周期补齐到“可上传、可重试同步、可移除”
+- 给 Windows 本地联调补一个可复用的 Qdrant 启动入口
 
 ## 当前样本
 
-- live 验证页：`/`、`/workspace`、`/workspace?stage=review`、`/project-progress`、`/phase0-review`
-- smoke 项目 / 文档：`codex-aliyun-mini-101619` / `aliyun_sor_XXXX.txt`
-- Phase0 目录：`eval/iterations/r27`
+- live 验证页：`/workspace`
+- 当前主验证端口：`8000`
+- 当前关注链路：知识文档表、AI 分析启动区、Windows 本地启动脚本
 
 ## 最近已修
 
-- 本轮未改代码；已完成上线前静态审查和验证
-- `unittest discover` 通过 `330/330`
-- `table_asset_regression_gate` 通过 `137/137`
-- `ai_smoke_suite.py` 补 `PYTHONPATH=.` 后通过 `6/6`
-- 真实浏览器已复查首页、工作台、进度看板、Phase0
+- `app/main.py` 新增知识文档删除接口，删除同名 legacy duplicate 时按整组处理
+- `app/static/app.js` 为知识文档表新增“移除文档”操作，并在删除后刷新 workspace / knowledge docs 状态
+- `app/static/index.html` 已移除第 4 步重复的 `AI 路径` 选择器；AI 分析直接使用第 2 步默认路径
+- `start.ps1` 已加入仓库，支持 `-WithQdrant` 拉起本地 `reqpilotx-qdrant` 容器
+- 定向 `unittest` 通过 5 个相关用例；live `/workspace` 已返回新 JS asset 版本
 
 ## 当前已知问题
 
-- `app/db.py` 的 SQLite 连接初始化失败时会泄漏连接，测试里已出现 `ResourceWarning`
-- readiness 当前按“任一 profile 可运行”判 ready，不够适合作为发布门禁
-- 上传接口会在请求内同步做 `read + parse + knowledge sync`，单实例发布有阻塞风险
-- `scripts/ai_smoke_suite.py` 缺少路径引导，裸跑不可用
-- 首页仍依赖 Tailwind CDN，`workspace` 仍有既有的 multiple forms DOM 提示
+- 知识文档删除当前只清理本地文件与 payload，不硬删远端 Azure Search / Qdrant 索引
+- `start.ps1 -WithQdrant` 只负责本地服务启动，不会自动补齐 Aliyun/DashScope 配置
+- readiness / SQLite 连接 / 请求内长任务问题仍是后续主线技术债
 
 ## 当前验证结论
 
-- `/`、`/workspace`、`/workspace?stage=review`、`/project-progress`、`/phase0-review` 均能正常加载
-- 当前主要风险不在 UI 壳层，而在 SQLite/health semantics/长请求阻塞/QA 脚本可复跑性
-- 当前 smoke 项目里 `Aliyun` knowledge sync 记录仍为 `ERROR`，默认 `Azure` 路径仍可运行
+- `/api/health` 在 `8000` 返回 `ready=true`
+- `/workspace` 已不再输出旧的 `ai-profile-select` 标记，新的前端 asset 已生效
+- 知识文档删除后会递增 `knowledge_base_version`，并让相关 AI 状态进入 stale 流程
 
 ## 下一步
 
-- 先修 SQLite 连接泄漏与上传长请求问题
-- 再收紧 readiness 门禁语义并修好 `ai_smoke_suite.py`
-- 修完后重跑 smoke / table gate / 浏览器检查，必要时补一次真实导出与 AI 主流程验收
+- 如需产品级验收，再做一次浏览器点击验证，确认“移除文档”按钮体验和提示文案
+- 若知识文档删除要做彻底回收，下一步补远端索引硬删除
+- 如果 `-WithQdrant` 成为常用入口，再考虑把同样逻辑并入其他平台启动脚本

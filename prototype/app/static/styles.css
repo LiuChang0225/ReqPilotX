@@ -240,6 +240,24 @@
   overflow-wrap: anywhere;
 }
 
+.knowledge-doc-actions {
+  margin-top: 10px;
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.button-danger-subtle {
+  border-color: #e6c5c5;
+  color: #8b1e2d;
+  background: linear-gradient(180deg, #fff7f7, #fff0f0);
+}
+
+.button-danger-subtle:hover:not(:disabled) {
+  border-color: #d99aa2;
+  background: linear-gradient(180deg, #fff2f2, #ffe7e7);
+}
+
 .download {
   text-decoration: none;
   font-weight: 600;
@@ -1167,6 +1185,7 @@
   line-height: 1.45;
   display: -webkit-box;
   overflow: hidden;
+  line-clamp: 2;
   -webkit-line-clamp: 2;
   -webkit-box-orient: vertical;
 }
