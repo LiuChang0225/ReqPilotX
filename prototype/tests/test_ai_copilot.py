@@ -3,23 +3,39 @@ from __future__ import annotations
 import json
 import tempfile
 import unittest
+import uuid
+import dataclasses
 from pathlib import Path
-from types import ModuleType
+from types import ModuleType, SimpleNamespace
 from unittest.mock import Mock, call, patch, sentinel
 
 from app.services.ai_copilot import (
+    ALIYUN_API_KEY_NON_ASCII_REASON,
+    ALIYUN_QDRANT_API_KEY_NON_ASCII_REASON,
+    AIAnalysisCancelledError,
+    apply_runtime_ai_provider_setup,
     ALIYUN_RETRIEVAL_DISABLED_REASON,
     AICopilotConfig,
+    AssessmentOutputSchema,
     _default_azure_credential,
+    _azure_json_completion,
+    _dashscope_json_completion,
+    _ensure_qdrant_collection,
+    _embed_texts,
+    _qdrant_point_id,
     _azure_search_item_to_evidence,
     _validate_evidence_references,
     AssessmentEvidenceSchema,
     build_requirement_normalization_detail,
     build_knowledge_chunks,
     build_assessment_context,
+    build_runtime_ai_provider_setup,
+    clear_runtime_ai_provider_overrides,
     fallback_need_clarification,
     get_ai_profile_missing_config,
+    is_ascii_runtime_secret,
     load_ai_copilot_config,
+    QdrantEvidenceRetriever,
     reconcile_assessment_output,
     run_ai_copilot_assessment,
     sync_knowledge_document_index,
@@ -28,6 +44,7 @@ from app.services.ai_copilot import (
 
 class AICopilotTests(unittest.TestCase):
     def setUp(self) -> None:
+        clear_runtime_ai_provider_overrides()
         self.tmpdir = tempfile.TemporaryDirectory()
         self.tmp_path = Path(self.tmpdir.name)
         self.trace_dir = self.tmp_path / "traces"
@@ -53,6 +70,7 @@ class AICopilotTests(unittest.TestCase):
         )
 
     def tearDown(self) -> None:
+        clear_runtime_ai_provider_overrides()
         self.tmpdir.cleanup()
 
     def test_build_assessment_context_includes_section_and_table_projection(self) -> None:
@@ -128,6 +146,23 @@ class AICopilotTests(unittest.TestCase):
             detail["summary"],
             "系统/组件应定义并满足可连续运行的环境最低温度Tmin和最高温度Tmax。",
         )
+
+    def test_build_requirement_normalization_detail_keeps_text_when_heading_strip_would_overtruncate(self) -> None:
+        row = {
+            "id": "req-camds-1",
+            "req_code": "REQ-0025",
+            "display_text": "5.4 材料数据申报要求 供应商需满足禁限用物质要求，同时在规定期限内如实填报 CAMDS 数据。",
+            "requirement_type": "REGULATION",
+            "parent_section_code": "5.4",
+            "parent_section_title": "材料数据申报要求",
+            "parent_section_label": "5.4 材料数据申报要求",
+            "heading_text": "材料数据申报要求",
+        }
+
+        detail = build_requirement_normalization_detail(row)
+
+        self.assertIn("供应商需满足禁限用物质要求", detail["summary"])
+        self.assertIn("CAMDS", detail["summary"])
 
     def test_build_requirement_normalization_detail_exposes_table_facets(self) -> None:
         row = {
@@ -486,6 +521,121 @@ class AICopilotTests(unittest.TestCase):
             self.assertNotIn(":", chunk["chunk_id"])
             self.assertTrue(chunk["chunk_id"].startswith("kb-2_"))
 
+    def test_qdrant_point_id_is_stable_uuid_for_non_uuid_chunk_ids(self) -> None:
+        point_id = _qdrant_point_id("kb-2_paragraph_1")
+
+        self.assertEqual(point_id, _qdrant_point_id("kb-2_paragraph_1"))
+        self.assertNotEqual(point_id, "kb-2_paragraph_1")
+        self.assertEqual(str(uuid.UUID(point_id)), point_id)
+
+    def test_ensure_qdrant_collection_tolerates_existing_collection_race(self) -> None:
+        class FakeAlreadyExistsError(Exception):
+            def __init__(self) -> None:
+                super().__init__("Unexpected Response: 409 (Conflict)")
+                self.status_code = 409
+                self.content = (
+                    b'{"status":{"error":"Wrong input: Collection `reqpilot-knowledge-aliyun-local` already exists!"}}'
+                )
+
+        config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="qdrant",
+            top_k=5,
+            trace_dir=self.trace_dir,
+            azure_auth_mode="",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="",
+            azure_search_api_key="",
+            azure_search_index_name="",
+            azure_openai_endpoint="",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="",
+            azure_openai_embedding_deployment="",
+            azure_openai_embedding_dimensions=0,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            profile_id="aliyun",
+            provider="aliyun",
+            profile_label="Aliyun",
+            chat_model="qwen3.5-plus",
+            embedding_model="text-embedding-v4",
+            dashscope_api_key="aliyun-key",
+            dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            qdrant_url="http://localhost:6333",
+            qdrant_collection_name="reqpilot-knowledge-aliyun-local",
+        )
+        collection_info = type("CollectionInfo", (), {"size": 1024})()
+        client = Mock()
+        client.get_collection.side_effect = [RuntimeError("not found"), collection_info]
+        client.create_collection.side_effect = FakeAlreadyExistsError()
+
+        _ensure_qdrant_collection(
+            client,
+            config,
+            dimension=1024,
+            create_if_missing=True,
+        )
+
+        self.assertEqual(client.get_collection.call_count, 2)
+        client.create_collection.assert_called_once()
+
+    def test_qdrant_retriever_returns_no_evidence_for_regulation_without_authoritative_docs(self) -> None:
+        config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="qdrant",
+            top_k=5,
+            trace_dir=self.trace_dir,
+            azure_auth_mode="",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="",
+            azure_search_api_key="",
+            azure_search_index_name="",
+            azure_openai_endpoint="",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="",
+            azure_openai_embedding_deployment="",
+            azure_openai_embedding_dimensions=0,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            profile_id="aliyun",
+            provider="aliyun",
+            profile_label="Aliyun",
+            chat_model="qwen3.5-plus",
+            embedding_model="text-embedding-v4",
+            dashscope_api_key="aliyun-key",
+            dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            qdrant_url="http://localhost:6333",
+            qdrant_collection_name="reqpilot-knowledge-aliyun-local",
+        )
+        retriever = QdrantEvidenceRetriever(config)
+        context = {
+            "requirement_type": "REGULATION",
+            "requirement_text": "Supplier shall comply with Regulation X section 5.",
+            "dense_retrieval_query": "Supplier shall comply with Regulation X section 5.",
+            "sparse_retrieval_query": "Supplier shall comply with Regulation X section 5.",
+            "retrieval_gate_reason": "",
+        }
+
+        evidences = retriever.retrieve(
+            context,
+            [
+                {
+                    "id": "kb-1",
+                    "project_id": "project-1",
+                    "file_name": "emc-reference.txt",
+                    "doc_type": "REFERENCE",
+                    "status": "ACTIVE",
+                    "extracted_text": "EMC cover page only.",
+                }
+            ],
+            top_k=5,
+        )
+
+        self.assertEqual(evidences, [])
+        self.assertIn("缺少法规类知识文档", context["retrieval_gate_reason"])
+
     def test_azure_search_item_to_evidence_normalizes_reranker_score(self) -> None:
         evidence = _azure_search_item_to_evidence(
             {
@@ -588,9 +738,11 @@ class AICopilotTests(unittest.TestCase):
             }
         ]
 
+        heuristic_screen = Mock()
+        heuristic_assess = Mock()
         with patch(
             "app.services.ai_copilot.HeuristicRequirementScreeningEngine.screen",
-            return_value={"analysis_label": "REQUIREMENT", "reason": "条目包含明确边界条件。"},
+            heuristic_screen,
         ), patch(
             "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
             return_value={"analysis_label": "REQUIREMENT", "reason": "该条目是需要判定的性能需求。"},
@@ -599,24 +751,7 @@ class AICopilotTests(unittest.TestCase):
             return_value=retrieved_evidences,
         ), patch(
             "app.services.ai_copilot.HeuristicAssessmentEngine.assess",
-            return_value={
-                "normalized_requirement": "System shall define Tmin and Tmax for continuous operation.",
-                "proposed_decision": "DEVIATION_ACCEPT",
-                "confidence": 0.62,
-                "reason": "存在可复用证据，但覆盖不完整。",
-                "risk_level": "MEDIUM",
-                "clarification_question": "",
-                "evidences": [
-                    {
-                        "source_doc_id": "kb-1",
-                        "source_doc_name": "temperature-spec.txt",
-                        "source_location": "Line 124",
-                        "excerpt": "Tmin = -40 C Minimum operating temperature Tmax = 125 C Maximum operating temperature",
-                        "relevance": 0.6246,
-                        "source_doc_version": "2026.03",
-                    }
-                ],
-            },
+            heuristic_assess,
         ), patch(
             "app.services.ai_copilot.AzureOpenAIAssessmentEngine.assess",
             return_value={
@@ -644,9 +779,11 @@ class AICopilotTests(unittest.TestCase):
         self.assertEqual(assessment["assessment_mode"], "llm_shadow")
         self.assertEqual(assessment["ai_decision"], "NEED_CLARIFICATION")
         self.assertIn("仍缺少连续运行验证结果", assessment["ai_reason"])
-        self.assertIn("当前采用LLM结论", assessment["analysis_basis"])
+        self.assertIn("最终结论采用 LLM 输出", assessment["analysis_basis"])
         self.assertIn("检索后端 local", assessment["analysis_basis"])
-        self.assertEqual({run["mode"] for run in result["runs"]}, {"screening_heuristic", "screening_llm_shadow", "heuristic", "llm_shadow"})
+        self.assertEqual({run["mode"] for run in result["runs"]}, {"screening_llm_shadow", "llm_shadow"})
+        heuristic_screen.assert_not_called()
+        heuristic_assess.assert_not_called()
 
     def test_run_ai_copilot_assessment_llm_shadow_uses_llm_screening_result(self) -> None:
         llm_shadow_config = AICopilotConfig(
@@ -676,9 +813,10 @@ class AICopilotTests(unittest.TestCase):
             "parent_section_label": "3.3 Temperature",
         }
 
+        heuristic_screen = Mock()
         with patch(
             "app.services.ai_copilot.HeuristicRequirementScreeningEngine.screen",
-            return_value={"analysis_label": "REQUIREMENT", "reason": "条目包含温度边界关键词。"},
+            heuristic_screen,
         ), patch(
             "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
             return_value={"analysis_label": "INFO", "reason": "该条目仅在定义 Tmin/Tmax 的含义，不构成待判定义务。"},
@@ -689,9 +827,10 @@ class AICopilotTests(unittest.TestCase):
         self.assertEqual(assessment["analysis_label"], "INFO")
         self.assertEqual(assessment["ai_decision"], "")
         self.assertIn("信息条目", assessment["analysis_basis"])
-        self.assertEqual({run["mode"] for run in result["runs"]}, {"screening_heuristic", "screening_llm_shadow"})
+        self.assertEqual({run["mode"] for run in result["runs"]}, {"screening_llm_shadow"})
+        heuristic_screen.assert_not_called()
 
-    def test_run_ai_copilot_assessment_llm_shadow_keeps_temperature_boundary_requirement(self) -> None:
+    def test_run_ai_copilot_assessment_llm_shadow_respects_llm_screening_result(self) -> None:
         llm_shadow_config = AICopilotConfig(
             assessment_mode="llm_shadow",
             retrieval_backend="local",
@@ -726,9 +865,10 @@ class AICopilotTests(unittest.TestCase):
             "parent_section_label": "3.3 最低工作温度和最高工作温度 lowest operating temperature and highest operating",
         }
 
+        heuristic_screen = Mock()
         with patch(
             "app.services.ai_copilot.HeuristicRequirementScreeningEngine.screen",
-            return_value={"analysis_label": "REQUIREMENT", "reason": "条目定义了连续运行的温度边界，应进入需求分析。"},
+            heuristic_screen,
         ), patch(
             "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
             return_value={"analysis_label": "INFO", "reason": "该条目仅在定义 Tmin/Tmax 的含义，不构成待判定义务。"},
@@ -736,14 +876,179 @@ class AICopilotTests(unittest.TestCase):
             result = run_ai_copilot_assessment(row, [], config=llm_shadow_config)
 
         assessment = result["assessment"]
-        self.assertEqual(assessment["analysis_label"], "REQUIREMENT")
+        self.assertEqual(assessment["analysis_label"], "INFO")
         self.assertEqual(assessment["assessment_mode"], "screening_only")
-        self.assertEqual(
-            assessment["normalized_requirement"],
-            "系统/组件应定义并满足可连续运行的环境最低温度Tmin和最高温度Tmax。",
+        self.assertEqual(assessment["ai_decision"], "")
+        self.assertIn("信息条目", assessment["analysis_basis"])
+        self.assertEqual({run["mode"] for run in result["runs"]}, {"screening_llm_shadow"})
+        heuristic_screen.assert_not_called()
+
+    def test_run_ai_copilot_assessment_llm_shadow_fails_closed_when_screening_errors(self) -> None:
+        llm_shadow_config = dataclasses.replace(
+            self.config,
+            assessment_mode="llm_shadow",
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
         )
-        self.assertIn("需求分析", assessment["analysis_basis"])
-        self.assertEqual({run["mode"] for run in result["runs"]}, {"screening_heuristic", "screening_llm_shadow"})
+        row = {
+            "id": "req-shadow-failed-screening-1",
+            "req_code": "REQ-SHADOW-FAILED-SCREENING-1",
+            "display_text": "Supplier shall provide EMC validation evidence.",
+            "requirement_type": "REGULATION",
+            "parent_section_label": "5.1 Compliance",
+        }
+
+        with patch(
+            "app.services.ai_copilot.HeuristicRequirementScreeningEngine.screen",
+            side_effect=AssertionError("heuristic screening should not run in live llm_shadow mode"),
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
+            side_effect=TimeoutError("Request timed out."),
+        ), patch(
+            "app.services.ai_copilot.HeuristicEvidenceRetriever.retrieve",
+            side_effect=AssertionError("retrieval should not run after screening failure"),
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIAssessmentEngine.assess",
+            side_effect=AssertionError("assessment should not run after screening failure"),
+        ):
+            result = run_ai_copilot_assessment(row, [{"id": "kb-1"}], config=llm_shadow_config)
+
+        assessment = result["assessment"]
+        self.assertEqual(assessment["assessment_mode"], "screening_failed")
+        self.assertEqual(assessment["analysis_label"], "REQUIREMENT")
+        self.assertEqual(assessment["ai_decision"], "")
+        self.assertEqual(result["evidences"], [])
+        self.assertIn("LLM screening failed; analysis stopped.", assessment["analysis_basis"])
+        self.assertEqual(len(result["runs"]), 1)
+        self.assertEqual(result["runs"][0]["mode"], "screening_llm_shadow")
+        self.assertEqual(result["runs"][0]["validation_status"], "failed")
+
+    def test_run_ai_copilot_assessment_llm_shadow_fails_closed_when_assessment_errors(self) -> None:
+        llm_shadow_config = dataclasses.replace(
+            self.config,
+            assessment_mode="llm_shadow",
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+        )
+        row = {
+            "id": "req-shadow-failed-analysis-1",
+            "req_code": "REQ-SHADOW-FAILED-ANALYSIS-1",
+            "display_text": "System shall support wake-up time less than 100ms.",
+            "requirement_type": "FUNCTIONAL",
+            "parent_section_label": "5.1 Startup",
+        }
+        retrieved_evidences = [
+            {
+                "source_doc_id": "kb-1",
+                "source_doc_name": "platform-spec.txt",
+                "source_location": "Chunk 1",
+                "excerpt": "System wake-up time is 80ms in validation runs.",
+                "relevance": 0.71,
+                "source_doc_version": "v1.0",
+            }
+        ]
+
+        with patch(
+            "app.services.ai_copilot.HeuristicRequirementScreeningEngine.screen",
+            side_effect=AssertionError("heuristic screening should not run in live llm_shadow mode"),
+        ), patch(
+            "app.services.ai_copilot.HeuristicAssessmentEngine.assess",
+            side_effect=AssertionError("heuristic assessment should not run in live llm_shadow mode"),
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
+            return_value={"analysis_label": "REQUIREMENT", "reason": "该条目表达了明确可验证义务。"},
+        ), patch(
+            "app.services.ai_copilot.HeuristicEvidenceRetriever.retrieve",
+            return_value=retrieved_evidences,
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIAssessmentEngine.assess",
+            side_effect=ConnectionError("Connection error."),
+        ):
+            result = run_ai_copilot_assessment(row, [{"id": "kb-1"}], config=llm_shadow_config)
+
+        assessment = result["assessment"]
+        self.assertEqual(assessment["assessment_mode"], "analysis_failed")
+        self.assertEqual(assessment["analysis_label"], "REQUIREMENT")
+        self.assertEqual(assessment["ai_decision"], "")
+        self.assertEqual(result["evidences"], [])
+        self.assertIn("LLM requirement analysis failed; analysis stopped.", assessment["analysis_basis"])
+        self.assertEqual({run["mode"] for run in result["runs"]}, {"screening_llm_shadow", "llm_shadow"})
+        llm_run = next(run for run in result["runs"] if run["mode"] == "llm_shadow")
+        self.assertEqual(llm_run["validation_status"], "failed")
+
+    def test_run_ai_copilot_assessment_propagates_cancelled_screening(self) -> None:
+        llm_shadow_config = dataclasses.replace(
+            self.config,
+            assessment_mode="llm_shadow",
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+        )
+        row = {
+            "id": "req-shadow-cancel-screening-1",
+            "req_code": "REQ-SHADOW-CANCEL-SCREENING-1",
+            "display_text": "Supplier shall provide EMC validation evidence.",
+            "requirement_type": "REGULATION",
+        }
+
+        with patch(
+            "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
+            side_effect=AIAnalysisCancelledError("cancelled"),
+        ):
+            with self.assertRaises(AIAnalysisCancelledError):
+                run_ai_copilot_assessment(row, [{"id": "kb-1"}], config=llm_shadow_config)
+
+    def test_run_ai_copilot_assessment_propagates_cancelled_assessment(self) -> None:
+        llm_shadow_config = dataclasses.replace(
+            self.config,
+            assessment_mode="llm_shadow",
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+        )
+        row = {
+            "id": "req-shadow-cancel-analysis-1",
+            "req_code": "REQ-SHADOW-CANCEL-ANALYSIS-1",
+            "display_text": "System shall support wake-up time less than 100ms.",
+            "requirement_type": "FUNCTIONAL",
+        }
+        retrieved_evidences = [
+            {
+                "source_doc_id": "kb-1",
+                "source_doc_name": "platform-spec.txt",
+                "source_location": "Chunk 1",
+                "excerpt": "System wake-up time is 80ms in validation runs.",
+                "relevance": 0.71,
+                "source_doc_version": "v1.0",
+            }
+        ]
+
+        with patch(
+            "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
+            return_value={"analysis_label": "REQUIREMENT", "reason": "该条目表达了明确可验证义务。"},
+        ), patch(
+            "app.services.ai_copilot.HeuristicEvidenceRetriever.retrieve",
+            return_value=retrieved_evidences,
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIAssessmentEngine.assess",
+            side_effect=AIAnalysisCancelledError("cancelled"),
+        ):
+            with self.assertRaises(AIAnalysisCancelledError):
+                run_ai_copilot_assessment(row, [{"id": "kb-1"}], config=llm_shadow_config)
 
     def test_load_ai_copilot_config_defaults_to_llm_shadow_when_azure_runtime_is_configured(self) -> None:
         with patch.dict(
@@ -849,10 +1154,9 @@ class AICopilotTests(unittest.TestCase):
             "os.environ",
             {
                 "REQPILOT_ALIYUN_API_KEY": "aliyun-key",
+                "REQPILOT_DASHSCOPE_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
                 "REQPILOT_ALIYUN_CHAT_MODEL": "qwen3.5-plus",
-                "REQPILOT_ALIYUN_EMBEDDING_MODEL": "tongyi-embedding-vision-flash-2026-03-06",
-                "REQPILOT_ALIYUN_RETRIEVAL_BACKEND": "qdrant",
-                "REQPILOT_QDRANT_URL": "http://localhost:6333",
+                "REQPILOT_ALIYUN_EMBEDDING_MODEL": "text-embedding-v4",
             },
             clear=True,
         ):
@@ -864,6 +1168,467 @@ class AICopilotTests(unittest.TestCase):
         self.assertFalse(config.retrieval_runtime_ready)
         self.assertFalse(config.provider_ready)
         self.assertIn(ALIYUN_RETRIEVAL_DISABLED_REASON, get_ai_profile_missing_config(config))
+
+    def test_load_ai_copilot_config_enables_aliyun_local_qdrant_poc(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "REQPILOT_ALIYUN_API_KEY": "aliyun-key",
+                "REQPILOT_DASHSCOPE_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "REQPILOT_ALIYUN_CHAT_MODEL": "qwen3.5-plus",
+                "REQPILOT_ALIYUN_EMBEDDING_MODEL": "text-embedding-v4",
+                "REQPILOT_ALIYUN_RETRIEVAL_BACKEND": "qdrant",
+                "REQPILOT_ALIYUN_QDRANT_URL": "http://localhost:6333",
+                "REQPILOT_ALIYUN_QDRANT_COLLECTION": "reqpilot-knowledge-aliyun-local",
+            },
+            clear=True,
+        ):
+            config = load_ai_copilot_config("aliyun")
+
+        self.assertEqual(config.profile_id, "aliyun")
+        self.assertEqual(config.retrieval_backend, "qdrant")
+        self.assertEqual(config.qdrant_url, "http://localhost:6333")
+        self.assertEqual(config.qdrant_collection_name, "reqpilot-knowledge-aliyun-local")
+        self.assertTrue(config.retrieval_runtime_ready)
+        self.assertTrue(config.provider_ready)
+        self.assertNotIn(ALIYUN_RETRIEVAL_DISABLED_REASON, get_ai_profile_missing_config(config))
+        self.assertEqual(config.openai_max_retries, 0)
+        self.assertEqual(config.embedding_batch_size, 10)
+        self.assertEqual(config.screening_model, "qwen3.5-flash")
+
+    def test_embed_texts_batches_aliyun_embedding_requests(self) -> None:
+        config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="qdrant",
+            top_k=5,
+            trace_dir=self.trace_dir,
+            azure_auth_mode="",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="",
+            azure_search_api_key="",
+            azure_search_index_name="",
+            azure_openai_endpoint="",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="",
+            azure_openai_embedding_deployment="",
+            azure_openai_embedding_dimensions=0,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            provider="aliyun",
+            profile_id="aliyun",
+            chat_model="qwen3.5-plus",
+            screening_model="qwen3.5-flash",
+            embedding_model="text-embedding-v4",
+            dashscope_api_key="aliyun-key",
+            dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            embedding_batch_size=10,
+        )
+        create = Mock(
+            side_effect=[
+                SimpleNamespace(
+                    data=[SimpleNamespace(index=index, embedding=[float(index)]) for index in range(10)]
+                ),
+                SimpleNamespace(
+                    data=[SimpleNamespace(index=index, embedding=[float(index + 10)]) for index in range(2)]
+                ),
+            ]
+        )
+        fake_client = SimpleNamespace(embeddings=SimpleNamespace(create=create))
+
+        with patch("app.services.ai_copilot._aliyun_openai_client", return_value=fake_client):
+            vectors = _embed_texts([f"chunk-{index}" for index in range(12)], config=config)
+
+        self.assertEqual(create.call_count, 2)
+        self.assertEqual(len(create.call_args_list[0].kwargs["input"]), 10)
+        self.assertEqual(len(create.call_args_list[1].kwargs["input"]), 2)
+        self.assertEqual(len(vectors), 12)
+        self.assertEqual(vectors[0], [0.0])
+        self.assertEqual(vectors[-1], [11.0])
+
+    def test_dashscope_json_completion_retries_without_response_format_on_bad_request(self) -> None:
+        class FakeBadRequest(Exception):
+            def __init__(self) -> None:
+                super().__init__("response_format json_object is not supported")
+                self.status_code = 400
+
+        create = Mock(
+            side_effect=[
+                FakeBadRequest(),
+                SimpleNamespace(choices=[SimpleNamespace(message=SimpleNamespace(content='{"ok": true}'))]),
+            ]
+        )
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        aliyun_config = dataclasses.replace(
+            self.config,
+            provider="aliyun",
+            profile_id="aliyun",
+            chat_model="qwen3.5-plus",
+            dashscope_api_key="aliyun-key",
+            dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        )
+
+        with patch("app.services.ai_copilot._aliyun_openai_client", return_value=fake_client):
+            payload = _dashscope_json_completion(
+                aliyun_config,
+                [{"role": "user", "content": "return json"}],
+            )
+
+        self.assertEqual(payload, {"ok": True})
+        self.assertEqual(create.call_count, 2)
+
+    def test_dashscope_json_completion_does_not_retry_on_timeout(self) -> None:
+        create = Mock(side_effect=TimeoutError("Request timed out."))
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(create=create)))
+        aliyun_config = dataclasses.replace(
+            self.config,
+            provider="aliyun",
+            profile_id="aliyun",
+            chat_model="qwen3.5-plus",
+            dashscope_api_key="aliyun-key",
+            dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+        )
+
+        with patch("app.services.ai_copilot._aliyun_openai_client", return_value=fake_client):
+            with self.assertRaises(TimeoutError):
+                _dashscope_json_completion(
+                    aliyun_config,
+                    [{"role": "user", "content": "return json"}],
+                )
+
+        self.assertEqual(create.call_count, 1)
+
+    def test_azure_json_completion_streams_structured_output(self) -> None:
+        streamed_events: list[dict[str, object]] = []
+
+        class FakeStream:
+            def __init__(self, events: list[object], completion: object) -> None:
+                self._events = events
+                self._completion = completion
+
+            def __enter__(self) -> "FakeStream":
+                return self
+
+            def __exit__(self, exc_type, exc, tb) -> bool:
+                return False
+
+            def __iter__(self):
+                return iter(self._events)
+
+            def get_final_completion(self) -> object:
+                return self._completion
+
+        parsed_payload = AssessmentOutputSchema(
+            normalized_requirement="Supplier shall submit CAMDS data before SOP.",
+            proposed_decision="NEED_CLARIFICATION",
+            confidence=0.81,
+            reason="Evidence does not directly prove CAMDS submission.",
+            risk_level="HIGH",
+            clarification_question="请补充 CAMDS 数据提交记录。",
+            evidences=[],
+        )
+        completion = SimpleNamespace(
+            choices=[
+                SimpleNamespace(
+                    message=SimpleNamespace(parsed=parsed_payload, refusal=""),
+                    finish_reason="stop",
+                )
+            ],
+            usage=SimpleNamespace(prompt_tokens=120, completion_tokens=48, total_tokens=168),
+        )
+        fake_stream = FakeStream(
+            [
+                SimpleNamespace(type="content.delta", delta='{"normalized_requirement":"Supplier shall submit CAMDS data before SOP.",'),
+                SimpleNamespace(type="content.delta", delta='"proposed_decision":"NEED_CLARIFICATION"}'),
+            ],
+            completion,
+        )
+        stream = Mock(return_value=fake_stream)
+        parse = Mock()
+        fake_client = SimpleNamespace(chat=SimpleNamespace(completions=SimpleNamespace(stream=stream, parse=parse)))
+        azure_config = dataclasses.replace(
+            self.config,
+            provider="azure",
+            profile_id="azure",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+        )
+
+        with patch("app.services.ai_copilot._azure_openai_client", return_value=fake_client):
+            payload = _azure_json_completion(
+                azure_config,
+                [{"role": "user", "content": "return json"}],
+                model_name="gpt-5.4",
+                response_format=AssessmentOutputSchema,
+                progress_callback=streamed_events.append,
+            )
+
+        self.assertEqual(payload["proposed_decision"], "NEED_CLARIFICATION")
+        self.assertEqual(stream.call_count, 1)
+        self.assertEqual(parse.call_count, 0)
+        self.assertTrue(any(item.get("type") == "answer" for item in streamed_events))
+        self.assertTrue(any(item.get("type") == "complete" for item in streamed_events))
+
+    def test_run_ai_copilot_assessment_emits_stage_progress_for_screening_and_assessment(self) -> None:
+        llm_shadow_config = dataclasses.replace(
+            self.config,
+            assessment_mode="llm_shadow",
+            retrieval_backend="local",
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+        )
+        row = {
+            "id": "req-progress-1",
+            "req_code": "REQ-PROGRESS-1",
+            "display_text": "Supplier shall submit CAMDS data before SOP.",
+            "requirement_type": "REGULATION",
+            "parent_section_label": "5.4 Compliance",
+        }
+        retrieved_evidences = [
+            {
+                "source_doc_id": "kb-1",
+                "source_doc_name": "baseline.txt",
+                "source_location": "Chunk 1",
+                "excerpt": "No direct CAMDS submission record is attached in this baseline.",
+                "relevance": 0.42,
+                "source_doc_version": "v1.0",
+            }
+        ]
+        progress_events: list[dict[str, object]] = []
+
+        def fake_screen(
+            _self: object,
+            context: dict[str, object],
+            *,
+            progress_callback=None,
+        ) -> dict[str, object]:
+            if progress_callback:
+                progress_callback(
+                    {
+                        "type": "reasoning",
+                        "delta": "先判断该条是否属于真实 requirement。",
+                        "content": "先判断该条是否属于真实 requirement。",
+                        "characters_emitted": 18,
+                    }
+                )
+                progress_callback(
+                    {
+                        "type": "answer",
+                        "delta": "{\"analysis_label\":\"REQUIREMENT\"}",
+                        "content": "{\"analysis_label\":\"REQUIREMENT\"}",
+                        "characters_emitted": 30,
+                    }
+                )
+            return {"analysis_label": "REQUIREMENT", "reason": "该条表达了明确的 CAMDS 数据提交义务。"}
+
+        def fake_assess(
+            _self: object,
+            context: dict[str, object],
+            evidences: list[dict[str, object]],
+            *,
+            progress_callback=None,
+        ) -> dict[str, object]:
+            if progress_callback:
+                progress_callback(
+                    {
+                        "type": "answer",
+                        "delta": "{\"proposed_decision\":\"NEED_CLARIFICATION\"}",
+                        "content": "{\"proposed_decision\":\"NEED_CLARIFICATION\"}",
+                        "characters_emitted": 42,
+                    }
+                )
+            return {
+                "normalized_requirement": "Supplier shall submit CAMDS data before SOP.",
+                "proposed_decision": "NEED_CLARIFICATION",
+                "confidence": 0.77,
+                "reason": "Evidence is indirect and cannot prove CAMDS submission.",
+                "risk_level": "HIGH",
+                "clarification_question": "请补充 CAMDS 数据提交记录。",
+                "evidences": [],
+            }
+
+        with patch(
+            "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
+            autospec=True,
+            side_effect=fake_screen,
+        ), patch(
+            "app.services.ai_copilot.HeuristicEvidenceRetriever.retrieve",
+            return_value=retrieved_evidences,
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIAssessmentEngine.assess",
+            autospec=True,
+            side_effect=fake_assess,
+        ):
+            result = run_ai_copilot_assessment(
+                row,
+                [{"id": "kb-1"}],
+                config=llm_shadow_config,
+                progress_callback=progress_events.append,
+            )
+
+        self.assertEqual(result["assessment"]["assessment_mode"], "llm_shadow")
+        self.assertTrue(any(item.get("type") == "stage" and item.get("stage") == "screening" for item in progress_events))
+        self.assertTrue(any(item.get("type") == "stage" and item.get("stage") == "retrieval" for item in progress_events))
+        self.assertTrue(any(item.get("type") == "stage" and item.get("stage") == "assessment" for item in progress_events))
+        self.assertTrue(
+            any(
+                item.get("type") == "reasoning"
+                and item.get("stage") == "screening"
+                and item.get("mode") == "screening_llm_shadow"
+                for item in progress_events
+            )
+        )
+        self.assertTrue(
+            any(
+                item.get("type") == "answer"
+                and item.get("stage") == "assessment"
+                and item.get("mode") == "llm_shadow"
+                for item in progress_events
+            )
+        )
+
+    def test_default_profile_stays_azure_when_aliyun_local_qdrant_poc_is_ready(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "REQPILOT_AI_ASSESSMENT_MODE": "llm_shadow",
+                "REQPILOT_RETRIEVAL_BACKEND": "azure_sdk",
+                "AZURE_OPENAI_ENDPOINT": "https://openai.example.openai.azure.com",
+                "AZURE_OPENAI_CHAT_DEPLOYMENT": "gpt-5.4",
+                "AZURE_OPENAI_EMBEDDING_DEPLOYMENT": "text-embedding-3-large",
+                "AZURE_AI_SEARCH_ENDPOINT": "https://search.example.search.windows.net",
+                "AZURE_AI_SEARCH_INDEX_NAME": "reqpilot-knowledge",
+                "REQPILOT_ALIYUN_API_KEY": "aliyun-key",
+                "REQPILOT_DASHSCOPE_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                "REQPILOT_ALIYUN_CHAT_MODEL": "qwen3.5-plus",
+                "REQPILOT_ALIYUN_EMBEDDING_MODEL": "text-embedding-v4",
+                "REQPILOT_ALIYUN_RETRIEVAL_BACKEND": "qdrant",
+                "REQPILOT_ALIYUN_QDRANT_URL": "http://localhost:6333",
+                "REQPILOT_ALIYUN_QDRANT_COLLECTION": "reqpilot-knowledge-aliyun-local",
+            },
+            clear=True,
+        ):
+            config = load_ai_copilot_config()
+
+        self.assertEqual(config.profile_id, "azure")
+        self.assertEqual(config.provider, "azure")
+
+    def test_apply_runtime_ai_provider_setup_can_switch_default_profile_to_aliyun(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "AZURE_OPENAI_ENDPOINT": "https://openai.example.openai.azure.com",
+                "AZURE_OPENAI_CHAT_DEPLOYMENT": "gpt-5.4",
+                "AZURE_OPENAI_EMBEDDING_DEPLOYMENT": "text-embedding-3-large",
+                "AZURE_AI_SEARCH_ENDPOINT": "https://search.example.search.windows.net",
+                "AZURE_AI_SEARCH_INDEX_NAME": "reqpilot-knowledge",
+            },
+            clear=True,
+        ):
+            payload = apply_runtime_ai_provider_setup(
+                {
+                    "default_profile_id": "aliyun",
+                    "aliyun": {
+                        "api_key": "aliyun-key",
+                        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                        "chat_model": "qwen3.5-plus",
+                        "embedding_model": "text-embedding-v4",
+                        "qdrant_url": "http://localhost:6333",
+                        "qdrant_collection": "reqpilot-knowledge-aliyun-local",
+                    },
+                }
+            )
+            config = load_ai_copilot_config()
+
+        self.assertEqual(payload["default_profile_id"], "aliyun")
+        self.assertEqual(config.profile_id, "aliyun")
+        self.assertEqual(config.retrieval_backend, "qdrant")
+        self.assertEqual(config.qdrant_url, "http://localhost:6333")
+        self.assertEqual(config.embedding_model, "text-embedding-v4")
+
+    def test_explicit_default_profile_prefers_aliyun_even_when_not_ready(self) -> None:
+        with patch.dict(
+            "os.environ",
+            {
+                "REQPILOT_AI_DEFAULT_PROFILE": "aliyun",
+                "AZURE_OPENAI_ENDPOINT": "https://openai.example.openai.azure.com",
+                "AZURE_OPENAI_CHAT_DEPLOYMENT": "gpt-5.4",
+                "AZURE_OPENAI_EMBEDDING_DEPLOYMENT": "text-embedding-3-large",
+                "AZURE_AI_SEARCH_ENDPOINT": "https://search.example.search.windows.net",
+                "AZURE_AI_SEARCH_INDEX_NAME": "reqpilot-knowledge",
+            },
+            clear=True,
+        ):
+            config = load_ai_copilot_config()
+
+        self.assertEqual(config.profile_id, "aliyun")
+        self.assertFalse(config.provider_ready)
+
+    def test_build_runtime_ai_provider_setup_exposes_masked_provider_form_defaults(self) -> None:
+        apply_runtime_ai_provider_setup(
+            {
+                "default_profile_id": "aliyun",
+                "aliyun": {
+                    "api_key": "aliyun-key",
+                    "chat_model": "qwen3.5-plus",
+                    "embedding_model": "text-embedding-v4",
+                    "qdrant_url": "http://localhost:6333",
+                    "qdrant_collection": "reqpilot-knowledge-aliyun-local",
+                },
+            }
+        )
+
+        payload = build_runtime_ai_provider_setup()
+
+        self.assertEqual(payload["default_profile_id"], "aliyun")
+        self.assertTrue(payload["aliyun"]["api_key_configured"])
+        self.assertEqual(payload["aliyun"]["chat_model"], "qwen3.5-plus")
+        self.assertEqual(payload["aliyun"]["embedding_model"], "text-embedding-v4")
+        self.assertEqual(payload["aliyun"]["qdrant_url"], "http://localhost:6333")
+
+    def test_get_ai_profile_missing_config_flags_non_ascii_aliyun_keys(self) -> None:
+        config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="qdrant",
+            top_k=5,
+            trace_dir=self.trace_dir,
+            azure_auth_mode="",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="",
+            azure_search_api_key="",
+            azure_search_index_name="",
+            azure_openai_endpoint="",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="",
+            azure_openai_embedding_deployment="",
+            azure_openai_embedding_dimensions=0,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            profile_id="aliyun",
+            provider="aliyun",
+            profile_label="Aliyun",
+            chat_model="qwen3.5-plus",
+            embedding_model="text-embedding-v4",
+            dashscope_api_key="sk-测试key",
+            dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            qdrant_url="http://localhost:6333",
+            qdrant_api_key="测试-qdrant",
+            qdrant_collection_name="reqpilot-knowledge-aliyun-local",
+        )
+
+        missing = get_ai_profile_missing_config(config)
+
+        self.assertIn(ALIYUN_API_KEY_NON_ASCII_REASON, missing)
+        self.assertIn(ALIYUN_QDRANT_API_KEY_NON_ASCII_REASON, missing)
+        self.assertFalse(is_ascii_runtime_secret("sk-测试key"))
+        self.assertTrue(is_ascii_runtime_secret("sk-test"))
 
     def test_sync_knowledge_document_index_marks_aliyun_retrieval_as_disabled(self) -> None:
         config = AICopilotConfig(
@@ -888,7 +1653,7 @@ class AICopilotTests(unittest.TestCase):
             provider="aliyun",
             profile_label="Aliyun",
             chat_model="qwen3.5-plus",
-            embedding_model="tongyi-embedding-vision-flash-2026-03-06",
+            embedding_model="text-embedding-v4",
             dashscope_api_key="aliyun-key",
         )
         knowledge_doc = {
@@ -913,7 +1678,60 @@ class AICopilotTests(unittest.TestCase):
 
         self.assertEqual(sync["status"], "ERROR")
         self.assertEqual(sync["targets"]["aliyun"]["retrieval_backend"], "disabled")
-        self.assertIn("intentionally removed", sync["targets"]["aliyun"]["error"])
+        self.assertIn("local Qdrant POC is disabled", sync["targets"]["aliyun"]["error"])
+
+    def test_sync_knowledge_document_index_uses_qdrant_for_aliyun_local_poc(self) -> None:
+        config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="qdrant",
+            top_k=5,
+            trace_dir=self.trace_dir,
+            azure_auth_mode="",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="",
+            azure_search_api_key="",
+            azure_search_index_name="",
+            azure_openai_endpoint="",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="",
+            azure_openai_embedding_deployment="",
+            azure_openai_embedding_dimensions=0,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            profile_id="aliyun",
+            provider="aliyun",
+            profile_label="Aliyun",
+            chat_model="qwen3.5-plus",
+            embedding_model="text-embedding-v4",
+            dashscope_api_key="aliyun-key",
+            dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            qdrant_url="http://localhost:6333",
+            qdrant_collection_name="reqpilot-knowledge-aliyun-local",
+        )
+        knowledge_doc = {
+            "id": "kb-aliyun-qdrant-1",
+            "file_name": "knowledge-aliyun-qdrant.txt",
+            "doc_version": "2026.04",
+            "doc_type": "STANDARD",
+            "status": "ACTIVE",
+            "effective_from": "2026-01-01",
+            "effective_to": "",
+            "extracted_text": "Aliyun Qdrant sync test.\nThe system shall support wake-up behavior.",
+        }
+        fake_indexer = Mock()
+        fake_indexer.upsert_chunks.return_value = 2
+
+        with patch("app.services.ai_copilot.INDEX_PAYLOAD_DIR", self.index_dir), patch(
+            "app.services.ai_copilot._select_indexer",
+            return_value=fake_indexer,
+        ):
+            sync = sync_knowledge_document_index("project-1", knowledge_doc, config=config)
+
+        self.assertEqual(sync["status"], "READY")
+        self.assertEqual(sync["targets"]["aliyun"]["retrieval_backend"], "qdrant")
+        self.assertEqual(sync["targets"]["aliyun"]["status"], "READY")
+        fake_indexer.upsert_chunks.assert_called_once()
 
     def test_default_azure_credential_prefers_cli_over_local_cached_tokens(self) -> None:
         fake_azure = ModuleType("azure")

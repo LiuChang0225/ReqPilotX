@@ -3,15 +3,24 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>PDF Viewer</title>
-    <link rel="stylesheet" href="/assets/pdf-viewer.css?v=20260304-1" />
+    <title>ReqPilotX PDF Viewer</title>
+    <link rel="icon" href="/assets/reqpilotx-logo.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/reqpilotx-brand.css?v=20260403-reqx2" />
+    <link rel="stylesheet" href="/assets/pdf-viewer.css?v=20260403-brandfix2" />
   </head>
   <body>
     <main class="pdf-viewer-page">
       <header class="toolbar">
-        <div class="meta">
-          <span id="status-text">加载中...</span>
-          <span id="page-text">- / -</span>
+        <div class="reqx-toolbar-brand">
+          <img src="/assets/schaeffler-logo.svg" alt="Schaeffler" class="reqx-brand-logo is-compact" />
+          <div class="reqx-brand-copy">
+            <span class="reqx-brand-name">ReqPilotX</span>
+            <span class="reqx-brand-caption">PDF Viewer</span>
+          </div>
+          <div class="meta">
+            <span id="status-text">加载中...</span>
+            <span id="page-text">- / -</span>
+          </div>
         </div>
         <div class="actions">
           <button id="prev-page" type="button" aria-label="上一页">‹</button>
@@ -32,6 +41,6 @@
     </main>
 
     <script src="/assets/vendor/pdfjs/pdf.min.js"></script>
-    <script type="module" src="/assets/pdf-viewer.js?v=20260304-1"></script>
+    <script type="module" src="/assets/pdf-viewer.js?v=20260403-reqx1"></script>
   </body>
 </html>

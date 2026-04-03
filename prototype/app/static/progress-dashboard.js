@@ -101,7 +101,7 @@ async function loadRoundOptions() {
 
 function renderSnapshot(snapshot) {
   const tracker = snapshot.tracker || {};
-  el.projectTitle.textContent = tracker.project_name || "项目进度看板";
+  el.projectTitle.textContent = tracker.project_name || "ReqPilotX 项目进度看板";
   el.northStar.textContent = tracker.north_star || "";
   el.lastRefresh.textContent = `最后刷新: ${formatTime(snapshot.generated_at)}`;
   el.activityAt.textContent = `最近活动: ${formatTime(snapshot.latest_activity_at)}`;
@@ -494,8 +494,8 @@ function renderSplitChart(points) {
     .map((tick) => {
       const y = yAt(tick);
       return `<g>
-        <line x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}" stroke="#dbe6f0" stroke-width="1" />
-        <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#607286">${tick}%</text>
+        <line x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}" stroke="#d9e5dc" stroke-width="1" />
+        <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#5e6e64">${tick}%</text>
       </g>`;
     })
     .join("");
@@ -506,7 +506,7 @@ function renderSplitChart(points) {
         return "";
       }
       const x = xAt(idx);
-      return `<text x="${x}" y="${height - 12}" text-anchor="middle" font-size="10" fill="#607286">${escapeHtml(
+      return `<text x="${x}" y="${height - 12}" text-anchor="middle" font-size="10" fill="#5e6e64">${escapeHtml(
         item.round_id || ""
       )}</text>`;
     })
@@ -517,10 +517,10 @@ function renderSplitChart(points) {
     <rect x="0" y="0" width="${width}" height="${height}" fill="#fbfdff"></rect>
     ${grid}
     <polyline fill="none" stroke="#f05b2a" stroke-width="2.6" points="${splitPoints}"></polyline>
-    <polyline fill="none" stroke="#2b8af0" stroke-width="2.4" stroke-dasharray="6 4" points="${parsePoints}"></polyline>
+    <polyline fill="none" stroke="#476e75" stroke-width="2.4" stroke-dasharray="6 4" points="${parsePoints}"></polyline>
     <text x="${pad.left + 4}" y="${pad.top + 2}" font-size="11" fill="#f05b2a">split accuracy</text>
-    <text x="${pad.left + 124}" y="${pad.top + 2}" font-size="11" fill="#2b8af0">parse coverage</text>
-    <text x="${width - pad.right}" y="${pad.top + 2}" text-anchor="end" font-size="11" fill="#4a6179">
+    <text x="${pad.left + 124}" y="${pad.top + 2}" font-size="11" fill="#476e75">parse coverage</text>
+    <text x="${width - pad.right}" y="${pad.top + 2}" text-anchor="end" font-size="11" fill="#4e6257">
       latest: ${escapeHtml(latest.round_id || "")}
     </text>
     ${xLabels}
@@ -552,8 +552,8 @@ function renderVolumeChart(points) {
     const value = Math.round((maxValue / yTicks) * idx);
     const y = toY(value);
     return `<g>
-      <line x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}" stroke="#dbe6f0" stroke-width="1" />
-      <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#607286">${value}</text>
+      <line x1="${pad.left}" y1="${y}" x2="${width - pad.right}" y2="${y}" stroke="#d9e5dc" stroke-width="1" />
+      <text x="${pad.left - 8}" y="${y + 4}" text-anchor="end" font-size="10" fill="#5e6e64">${value}</text>
     </g>`;
   });
   const bars = data
@@ -565,7 +565,7 @@ function renderVolumeChart(points) {
       const labeledY = toY(labeled);
       return `
         <rect x="${baseX}" y="${autoY}" width="${barW}" height="${pad.top + plotH - autoY}" fill="#f05b2a" rx="2"></rect>
-        <rect x="${baseX + barW + 2}" y="${labeledY}" width="${barW}" height="${pad.top + plotH - labeledY}" fill="#2b8af0" rx="2"></rect>
+        <rect x="${baseX + barW + 2}" y="${labeledY}" width="${barW}" height="${pad.top + plotH - labeledY}" fill="#476e75" rx="2"></rect>
       `;
     })
     .join("");
@@ -576,7 +576,7 @@ function renderVolumeChart(points) {
         return "";
       }
       const x = pad.left + idx * band + band / 2;
-      return `<text x="${x}" y="${height - 12}" text-anchor="middle" font-size="10" fill="#607286">${escapeHtml(
+      return `<text x="${x}" y="${height - 12}" text-anchor="middle" font-size="10" fill="#5e6e64">${escapeHtml(
         item.round_id || ""
       )}</text>`;
     })
@@ -587,7 +587,7 @@ function renderVolumeChart(points) {
     ${grid.join("")}
     ${bars}
     <text x="${pad.left + 4}" y="${pad.top + 2}" font-size="11" fill="#f05b2a">auto predicted</text>
-    <text x="${pad.left + 122}" y="${pad.top + 2}" font-size="11" fill="#2b8af0">labeled predicted</text>
+    <text x="${pad.left + 122}" y="${pad.top + 2}" font-size="11" fill="#476e75">labeled predicted</text>
     ${xLabels}
   `;
 }

@@ -3,22 +3,32 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>开发者-项目进度看板</title>
-    <link rel="stylesheet" href="/assets/progress-dashboard.css" />
+    <title>ReqPilotX 项目进度看板</title>
+    <link rel="icon" href="/assets/reqpilotx-logo.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/progress-dashboard.css?v=20260403-brandfix2" />
   </head>
   <body>
     <main class="layout">
       <header class="hero">
-        <div>
-          <p class="eyebrow">PROJECT CONTROL TOWER</p>
-          <h1 id="project-title">SOR 拆解优化项目进度看板（内部）</h1>
-          <p id="north-star" class="hero-text"></p>
+        <div class="reqx-hero-cluster">
+          <div class="reqx-brand-lockup">
+            <img src="/assets/schaeffler-logo.svg" alt="Schaeffler" class="reqx-brand-logo" />
+            <div class="reqx-brand-copy">
+              <span class="reqx-brand-name">ReqPilotX</span>
+              <span class="reqx-brand-caption">Project Control Tower</span>
+            </div>
+          </div>
+          <div>
+            <p class="eyebrow">PROJECT CONTROL TOWER</p>
+            <h1 id="project-title">ReqPilotX 项目进度看板（内部）</h1>
+            <p id="north-star" class="hero-text"></p>
+          </div>
         </div>
         <div class="hero-tools">
           <button id="refresh-btn" type="button">立即刷新</button>
-          <a class="tool-link" href="/home" target="_blank" rel="noreferrer">项目首页</a>
-          <a class="tool-link" href="/workspace" target="_blank" rel="noreferrer">主控台</a>
-          <a class="tool-link" href="/workspace?stage=review" target="_blank" rel="noreferrer">拆解审阅台</a>
+          <a class="tool-link" href="/home" target="_blank" rel="noreferrer">产品首页</a>
+          <a class="tool-link" href="/workspace" target="_blank" rel="noreferrer">ReqPilotX 工作台</a>
+          <a class="tool-link" href="/workspace?stage=review" target="_blank" rel="noreferrer">条目审阅台</a>
           <p id="last-refresh" class="meta">最后刷新: -</p>
           <p id="activity-at" class="meta">最近活动: -</p>
         </div>

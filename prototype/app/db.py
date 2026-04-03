@@ -1429,7 +1429,7 @@ def get_running_ai_analysis_job(sor_document_id: str) -> dict[str, Any] | None:
             SELECT *
             FROM ai_analysis_jobs
             WHERE sor_document_id = ?
-              AND status IN ('PENDING', 'RUNNING')
+              AND status IN ('PENDING', 'RUNNING', 'CANCEL_REQUESTED')
             ORDER BY created_at DESC
             LIMIT 1
             """,

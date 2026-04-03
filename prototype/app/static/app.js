@@ -8,8 +8,10 @@ const state = {
   aiAnalysisJob: null,
   aiAnalysisEvents: [],
   aiAnalysisPollHandle: null,
+  aiFollowCurrentRequirement: true,
   aiSelectedRequirementId: "",
   aiSelectedProfileId: "",
+  aiProviderSetup: null,
   aiRequirementDetailCache: {},
   aiRequirementDetailLoadingId: "",
   reviewPreview: null,
@@ -33,8 +35,20 @@ const state = {
   exportStatusTone: "",
   tableViewByTableId: {},
   reviewRenderDebounceHandle: null,
+  knowledgeSyncRetryingId: "",
 };
 const WORKSPACE_SELECTION_KEY = "reqpilotx.workspace-selection-v1";
+const AI_TIMELINE_RENDER_LIMIT = 18;
+const AI_LIVE_PREVIEW_LIMIT = 2400;
+const AI_TIMELINE_PREVIEW_LIMIT = 560;
+const AI_STAGE_ORDER = ["screening", "retrieval", "assessment"];
+const AI_STREAM_EVENT_TYPES = new Set([
+  "requirement_reasoning",
+  "requirement_output",
+  "requirement_answer_started",
+  "requirement_screening_reasoning",
+  "requirement_screening_output",
+]);
 
 const el = {
   projectForm: document.querySelector("#project-form"),
@@ -56,11 +70,29 @@ const el = {
   kbEffectiveFrom: document.querySelector("#kb-effective-from"),
   kbEffectiveTo: document.querySelector("#kb-effective-to"),
   kbUploadResult: document.querySelector("#kb-upload-result"),
+  providerSetupForm: document.querySelector("#provider-setup-form"),
+  providerSetupSaveBtn: document.querySelector("#provider-setup-save-btn"),
+  providerSetupResult: document.querySelector("#provider-setup-result"),
+  setupDefaultProfileSelect: document.querySelector("#setup-default-profile-select"),
+  setupProfileHint: document.querySelector("#setup-profile-hint"),
+  setupAzureFields: document.querySelector("#setup-azure-fields"),
+  setupAzureAllowInteractive: document.querySelector("#setup-azure-allow-interactive"),
+  setupAzureProbeBtn: document.querySelector("#setup-azure-probe-btn"),
+  setupAzureProbeResult: document.querySelector("#setup-azure-probe-result"),
+  setupAliyunFields: document.querySelector("#setup-aliyun-fields"),
+  setupAliyunApiKey: document.querySelector("#setup-aliyun-api-key"),
+  setupAliyunChatModel: document.querySelector("#setup-aliyun-chat-model"),
+  setupAliyunEmbeddingModel: document.querySelector("#setup-aliyun-embedding-model"),
+  setupAliyunBaseUrl: document.querySelector("#setup-aliyun-base-url"),
+  setupAliyunQdrantUrl: document.querySelector("#setup-aliyun-qdrant-url"),
+  setupAliyunQdrantCollection: document.querySelector("#setup-aliyun-qdrant-collection"),
+  setupAliyunQdrantApiKey: document.querySelector("#setup-aliyun-qdrant-api-key"),
   knowledgeDocsSummary: document.querySelector("#knowledge-docs-summary"),
   knowledgeDocsBody: document.querySelector("#knowledge-docs-body"),
   analyzeBtn: document.querySelector("#analyze-btn"),
   lockExtractionBtn: document.querySelector("#lock-extraction-btn"),
   runAiBtn: document.querySelector("#run-ai-btn"),
+  stopAiBtn: document.querySelector("#stop-ai-btn"),
   aiProfileSelect: document.querySelector("#ai-profile-select"),
   aiProfileHint: document.querySelector("#ai-profile-hint"),
   reloadBtn: document.querySelector("#reload-btn"),
@@ -110,10 +142,12 @@ const el = {
   aiStageStatus: document.querySelector("#ai-stage-status"),
   aiJobSummary: document.querySelector("#ai-job-summary"),
   aiProgressCurrent: document.querySelector("#ai-progress-current"),
+  aiLiveReasoning: document.querySelector("#ai-live-reasoning"),
   aiProgressTimeline: document.querySelector("#ai-progress-timeline"),
   aiRequirementList: document.querySelector("#ai-requirement-list"),
   aiRequirementDetail: document.querySelector("#ai-requirement-detail"),
   aiDetailSummary: document.querySelector("#ai-detail-summary"),
+  aiFollowCurrentToggle: document.querySelector("#ai-follow-current-toggle"),
 };
 
 init().catch((error) => {
@@ -126,6 +160,7 @@ async function init() {
   bindEvents();
   syncStageFromUrl();
   syncStagePanels();
+  await loadAiProviderSetup();
   await loadProjects();
 }
 
@@ -198,12 +233,17 @@ function bindEvents() {
   el.sorDocumentSelect.addEventListener("change", wrap(onSorDocumentChanged));
   el.sorForm.addEventListener("submit", wrap(onUploadSor));
   el.kbForm.addEventListener("submit", wrap(onUploadKnowledge));
+  el.providerSetupForm?.addEventListener("submit", wrap(onSaveAiProviderSetup));
   el.sorUploadBtn?.addEventListener("click", onSorUploadButtonClicked);
   el.kbUploadBtn?.addEventListener("click", onKnowledgeUploadButtonClicked);
+  el.setupDefaultProfileSelect?.addEventListener("change", onAiProviderSetupSelectionChanged);
+  el.setupAzureProbeBtn?.addEventListener("click", wrap(onProbeAzureRbac));
   el.analyzeBtn.addEventListener("click", wrap(onAnalyze));
   el.lockExtractionBtn.addEventListener("click", wrap(onLockExtraction));
   el.runAiBtn.addEventListener("click", wrap(onRunAiAnalysis));
+  el.stopAiBtn?.addEventListener("click", wrap(onStopAiAnalysis));
   el.aiProfileSelect?.addEventListener("change", onAiProfileChanged);
+  el.aiFollowCurrentToggle?.addEventListener("change", onAiFollowCurrentToggleChanged);
   el.reloadBtn.addEventListener("click", wrap(onReload));
   el.exportBtn.addEventListener("click", wrap(onExport));
   el.refreshExportsBtn.addEventListener("click", wrap(loadExportJobs));
@@ -217,9 +257,11 @@ function bindEvents() {
   el.reviewUnselectAllBtn?.addEventListener("click", wrap(() => bulkSetReviewKeep(false)));
   el.reviewSourceRecommendedBtn?.addEventListener("click", toggleReviewRecommendedSourceOnly);
   el.reviewRefreshPreviewBtn?.addEventListener("click", wrap(onRefreshReviewPreview));
+  el.knowledgeDocsBody?.addEventListener("click", wrap(onKnowledgeDocumentTableClicked));
   el.reviewTableBody?.addEventListener("change", wrap(onReviewTableChanged));
   el.reviewTableBody?.addEventListener("click", wrap(onReviewTableClicked));
   el.aiRequirementList?.addEventListener("click", wrap(onAiRequirementListClicked));
+  el.aiLiveReasoning?.addEventListener("click", wrap(onAiLiveReasoningClicked));
   el.tableBody?.addEventListener("click", onRequirementTableClicked);
   el.reviewPdfToggle?.addEventListener("click", onReviewPdfToggleClicked);
   el.reviewOpenPdfBtn?.addEventListener("click", openReviewPdfInNewWindow);
@@ -264,10 +306,10 @@ function stopAiAnalysisPolling() {
 
 function shouldPollAiAnalysis() {
   const status = String(state.aiAnalysisJob?.status || "").trim().toUpperCase();
-  return status === "PENDING" || status === "RUNNING";
+  return status === "PENDING" || status === "RUNNING" || status === "CANCEL_REQUESTED";
 }
 
-function scheduleAiAnalysisPolling(delayMs = 1600) {
+function scheduleAiAnalysisPolling(delayMs = 900) {
   stopAiAnalysisPolling();
   if (!shouldPollAiAnalysis() || !state.projectId || !state.currentSorDocumentId) {
     return;
@@ -282,8 +324,17 @@ function resetAiAnalysisState() {
   stopAiAnalysisPolling();
   state.aiAnalysisJob = null;
   state.aiAnalysisEvents = [];
+  state.aiFollowCurrentRequirement = true;
   state.aiSelectedRequirementId = "";
   invalidateAiRequirementDetailCache();
+}
+
+function getCurrentAiRunningRequirementId() {
+  const status = String(state.aiAnalysisJob?.status || "").trim().toUpperCase();
+  if (!["PENDING", "RUNNING", "CANCEL_REQUESTED"].includes(status)) {
+    return "";
+  }
+  return String(state.aiAnalysisJob?.current_requirement_id || "").trim();
 }
 
 function invalidateAiRequirementDetailCache() {
@@ -292,7 +343,7 @@ function invalidateAiRequirementDetailCache() {
 }
 
 function getAiInspectableRequirements() {
-  const currentRequirementId = String(state.aiAnalysisJob?.current_requirement_id || "").trim();
+  const currentRequirementId = getCurrentAiRunningRequirementId();
   return [...(Array.isArray(state.requirements) ? state.requirements : [])]
     .filter((row) => {
       const requirementId = String(row?.id || "").trim();
@@ -311,16 +362,32 @@ function getAiInspectableRequirements() {
 function ensureAiRequirementSelection() {
   const rows = getAiInspectableRequirements();
   const selectedId = String(state.aiSelectedRequirementId || "").trim();
+  const currentRequirementId = getCurrentAiRunningRequirementId();
+  if (state.aiFollowCurrentRequirement && currentRequirementId && rows.some((row) => String(row?.id || "") === currentRequirementId)) {
+    state.aiSelectedRequirementId = currentRequirementId;
+    return currentRequirementId;
+  }
   if (selectedId && rows.some((row) => String(row?.id || "") === selectedId)) {
     return selectedId;
   }
-  const currentRequirementId = String(state.aiAnalysisJob?.current_requirement_id || "").trim();
   if (currentRequirementId && rows.some((row) => String(row?.id || "") === currentRequirementId)) {
     state.aiSelectedRequirementId = currentRequirementId;
     return currentRequirementId;
   }
   state.aiSelectedRequirementId = String(rows[0]?.id || "").trim();
   return state.aiSelectedRequirementId;
+}
+
+function syncAiFollowCurrentToggle() {
+  if (!el.aiFollowCurrentToggle) {
+    return;
+  }
+  el.aiFollowCurrentToggle.checked = Boolean(state.aiFollowCurrentRequirement);
+  const currentRequirementId = getCurrentAiRunningRequirementId();
+  el.aiFollowCurrentToggle.disabled = false;
+  el.aiFollowCurrentToggle.title = currentRequirementId
+    ? "开启后，右侧详情会自动跟随当前正在运行的条目。"
+    : "当前没有正在运行的条目；下次 live 运行时会自动生效。";
 }
 
 function escapeSelectorValue(value) {
@@ -381,6 +448,23 @@ function getSelectedAiProfile() {
   return getAiProfiles().find((profile) => String(profile.id || "") === selectedId) || null;
 }
 
+function getAiProviderSetupProfiles() {
+  return Array.isArray(state.aiProviderSetup?.profiles) ? state.aiProviderSetup.profiles : [];
+}
+
+function getConfiguredDefaultProfileId() {
+  const explicit = String(state.aiProviderSetup?.default_profile_id || "").trim();
+  if (explicit) {
+    return explicit;
+  }
+  return resolveDefaultAiProfileId();
+}
+
+function getConfiguredDefaultProfile() {
+  const defaultId = getConfiguredDefaultProfileId();
+  return getAiProviderSetupProfiles().find((profile) => String(profile.id || "") === defaultId) || null;
+}
+
 function formatAiProfileOption(profile) {
   const label = String(profile.label || profile.id || "").trim() || "未命名路径";
   const mode = String(profile.assessment_mode || "").trim() || "heuristic";
@@ -392,6 +476,7 @@ function formatAiProfileHint(profile) {
   if (!profile) {
     return "";
   }
+  const runtimeDetail = formatAiProfileRuntimeDetail(profile);
   const sync = profile.knowledge_sync || {};
   const syncStatus = String(sync.status || "NOT_REQUIRED").trim().toUpperCase();
   const syncText =
@@ -400,14 +485,63 @@ function formatAiProfileHint(profile) {
       : syncStatus === "NOT_REQUIRED"
       ? "当前无需知识同步"
       : `知识同步 ${syncStatus}`;
-  const missing = Array.isArray(profile.missing) ? profile.missing.filter(Boolean) : [];
+  const missing = getAiProfileIssues(profile);
   if (profile.ready) {
     return `${profile.label || profile.id} 可运行，${syncText}。`;
+  }
+  if (runtimeDetail) {
+    return `${profile.label || profile.id} 尚未就绪，${runtimeDetail}`;
   }
   if (missing.length) {
     return `${profile.label || profile.id} 尚未就绪，缺少：${missing.join(", ")}。`;
   }
   return `${profile.label || profile.id} 尚未就绪，${syncText}。`;
+}
+
+function getAiProfileIssues(profile) {
+  const rawIssues = Array.isArray(profile?.runtime_missing) && profile.runtime_missing.length
+    ? profile.runtime_missing
+    : Array.isArray(profile?.missing)
+    ? profile.missing
+    : [];
+  return rawIssues
+    .map((item) => formatAiProfileIssue(String(item || "").trim()))
+    .filter(Boolean);
+}
+
+function formatAiProfileIssue(issue) {
+  const mapping = {
+    REQPILOT_ALIYUN_API_KEY_NON_ASCII: "DashScope API Key 含有非 ASCII 字符",
+    REQPILOT_ALIYUN_QDRANT_API_KEY_NON_ASCII: "Qdrant API Key 含有非 ASCII 字符",
+    ALIYUN_QDRANT_UNREACHABLE: "本地 Qdrant 服务不可达",
+    ALIYUN_RETRIEVAL_BACKEND_DISABLED: "Aliyun 检索后端尚未启用",
+    DASHSCOPE_API_KEY: "DashScope API Key",
+    REQPILOT_DASHSCOPE_BASE_URL: "DashScope Base URL",
+    REQPILOT_ALIYUN_CHAT_MODEL: "Aliyun Chat 模型",
+    REQPILOT_ALIYUN_EMBEDDING_MODEL: "Aliyun Embedding 模型",
+    REQPILOT_ALIYUN_QDRANT_URL: "Qdrant URL",
+    REQPILOT_ALIYUN_QDRANT_COLLECTION: "Qdrant Collection",
+    AZURE_OPENAI_ENDPOINT: "Azure OpenAI Endpoint",
+    AZURE_OPENAI_CHAT_DEPLOYMENT: "Azure OpenAI Chat Deployment",
+    AZURE_OPENAI_EMBEDDING_DEPLOYMENT: "Azure OpenAI Embedding Deployment",
+    AZURE_AI_SEARCH_ENDPOINT: "Azure AI Search Endpoint",
+    AZURE_AI_SEARCH_INDEX_NAME: "Azure AI Search Index Name",
+    AZURE_OPENAI_API_KEY: "Azure OpenAI API Key",
+    AZURE_AI_SEARCH_API_KEY: "Azure AI Search API Key",
+  };
+  return mapping[issue] || issue;
+}
+
+function formatAiProfileRuntimeDetail(profile) {
+  const detail = String(profile?.runtime_detail || "").trim();
+  if (!detail) {
+    return "";
+  }
+  const issues = getAiProfileIssues(profile);
+  if (issues.includes("本地 Qdrant 服务不可达")) {
+    return "本地 Qdrant 服务不可达，请先启动 `http://localhost:6333` 对应实例。";
+  }
+  return detail;
 }
 
 function renderAiProfileSelector() {
@@ -447,6 +581,178 @@ function onAiProfileChanged(event) {
   syncWorkspaceActions();
 }
 
+function renderAiProviderSetup(selectedProfileId = "") {
+  if (!el.setupDefaultProfileSelect) {
+    return;
+  }
+  const setup = state.aiProviderSetup || {};
+  const defaultProfileId = String(selectedProfileId || "").trim() || getConfiguredDefaultProfileId() || "azure";
+  const profiles = getAiProviderSetupProfiles();
+  const defaultProfile =
+    profiles.find((profile) => String(profile.id || "").trim() === defaultProfileId) || getConfiguredDefaultProfile();
+  const azureSetup = setup.azure || {};
+  const aliyunSetup = setup.aliyun || {};
+
+  el.setupDefaultProfileSelect.value = defaultProfileId;
+  if (el.setupProfileHint) {
+    el.setupProfileHint.textContent = defaultProfile
+      ? formatAiProfileHint(defaultProfile)
+      : "请先选择默认 AI 路径，再上传知识库文档。";
+  }
+  if (el.setupAzureFields) {
+    el.setupAzureFields.hidden = defaultProfileId !== "azure";
+  }
+  if (el.setupAliyunFields) {
+    el.setupAliyunFields.hidden = defaultProfileId !== "aliyun";
+  }
+  if (el.setupAzureAllowInteractive) {
+    el.setupAzureAllowInteractive.checked = Boolean(azureSetup.allow_interactive_login);
+  }
+  if (el.setupAliyunChatModel) {
+    el.setupAliyunChatModel.value = aliyunSetup.chat_model || "qwen3.5-plus";
+  }
+  if (el.setupAliyunEmbeddingModel) {
+    el.setupAliyunEmbeddingModel.value = aliyunSetup.embedding_model || "text-embedding-v4";
+  }
+  if (el.setupAliyunBaseUrl) {
+    el.setupAliyunBaseUrl.value = aliyunSetup.base_url || "https://dashscope.aliyuncs.com/compatible-mode/v1";
+  }
+  if (el.setupAliyunQdrantUrl) {
+    el.setupAliyunQdrantUrl.value = aliyunSetup.qdrant_url || "http://localhost:6333";
+  }
+  if (el.setupAliyunQdrantCollection) {
+    el.setupAliyunQdrantCollection.value = aliyunSetup.qdrant_collection || "reqpilot-knowledge-aliyun-local";
+  }
+  if (el.setupAliyunApiKey) {
+    el.setupAliyunApiKey.placeholder = aliyunSetup.api_key_configured ? "已配置，留空则保持不变" : "sk-...";
+  }
+  if (el.setupAliyunQdrantApiKey) {
+    el.setupAliyunQdrantApiKey.placeholder = aliyunSetup.qdrant_api_key_configured ? "已配置，留空则保持不变" : "可选";
+  }
+}
+
+function onAiProviderSetupSelectionChanged() {
+  const selectedProfileId = String(el.setupDefaultProfileSelect?.value || "").trim() || "azure";
+  renderAiProviderSetup(selectedProfileId);
+  syncWorkspaceActions();
+}
+
+function applyAiProviderSetup(payload) {
+  state.aiProviderSetup = payload || null;
+  renderAiProviderSetup();
+  syncWorkspaceActions();
+}
+
+async function loadAiProviderSetup() {
+  const payload = await api("/api/runtime/ai-provider-setup");
+  applyAiProviderSetup(payload);
+  return payload;
+}
+
+async function onSaveAiProviderSetup(event) {
+  event.preventDefault();
+  const defaultProfileId = String(el.setupDefaultProfileSelect?.value || "azure").trim() || "azure";
+  const payload = {
+    default_profile_id: defaultProfileId,
+    azure: {
+      auth_mode: "rbac",
+      allow_interactive_login: Boolean(el.setupAzureAllowInteractive?.checked),
+    },
+    aliyun: {
+      retrieval_backend: "qdrant",
+      base_url: String(el.setupAliyunBaseUrl?.value || "").trim(),
+      chat_model: String(el.setupAliyunChatModel?.value || "").trim(),
+      embedding_model: String(el.setupAliyunEmbeddingModel?.value || "").trim(),
+      qdrant_url: String(el.setupAliyunQdrantUrl?.value || "").trim(),
+      qdrant_collection: String(el.setupAliyunQdrantCollection?.value || "").trim(),
+    },
+  };
+  const apiKey = String(el.setupAliyunApiKey?.value || "").trim();
+  if (apiKey && !isAsciiText(apiKey)) {
+    if (el.providerSetupResult) {
+      el.providerSetupResult.textContent = "DashScope API Key 含有非 ASCII 字符，请重新粘贴原始 key，不要带中文标点或全角字符。";
+    }
+    return;
+  }
+  if (apiKey) {
+    payload.aliyun.api_key = apiKey;
+  }
+  const qdrantApiKey = String(el.setupAliyunQdrantApiKey?.value || "").trim();
+  if (qdrantApiKey && !isAsciiText(qdrantApiKey)) {
+    if (el.providerSetupResult) {
+      el.providerSetupResult.textContent = "Qdrant API Key 含有非 ASCII 字符，请重新粘贴原始 key。";
+    }
+    return;
+  }
+  if (qdrantApiKey) {
+    payload.aliyun.qdrant_api_key = qdrantApiKey;
+  }
+  if (el.providerSetupSaveBtn) {
+    el.providerSetupSaveBtn.disabled = true;
+  }
+  if (el.providerSetupResult) {
+    el.providerSetupResult.textContent = "AI 路径配置已提交，正在刷新状态...";
+  }
+  try {
+    const result = await api("/api/runtime/ai-provider-setup", {
+      method: "POST",
+      headers: { "Content-Type": "application/json" },
+      body: JSON.stringify(payload),
+    });
+    applyAiProviderSetup(result);
+    if (el.setupAliyunApiKey) {
+      el.setupAliyunApiKey.value = "";
+    }
+    if (el.setupAliyunQdrantApiKey) {
+      el.setupAliyunQdrantApiKey.value = "";
+    }
+    if (el.providerSetupResult) {
+      el.providerSetupResult.textContent = `默认 AI 路径已切到 ${defaultProfileId === "aliyun" ? "Aliyun" : "Azure"}。`;
+    }
+    if (state.projectId && state.currentSorDocumentId) {
+      await loadWorkspace({ skipAiStatus: true });
+    }
+  } finally {
+    if (el.providerSetupSaveBtn) {
+      el.providerSetupSaveBtn.disabled = false;
+    }
+    syncWorkspaceActions();
+  }
+}
+
+async function onProbeAzureRbac() {
+  if (el.setupAzureProbeBtn) {
+    el.setupAzureProbeBtn.disabled = true;
+  }
+  if (el.setupAzureProbeResult) {
+    el.setupAzureProbeResult.textContent = "正在检查 Azure RBAC，本地首次调用可能触发系统浏览器登录...";
+  }
+  try {
+    const result = await api("/api/runtime/ai-provider-setup/azure-rbac-probe", { method: "POST" });
+    const checks = Array.isArray(result?.checks) ? result.checks : [];
+    const summary = checks
+      .map((item) => {
+        const label = item.name || item.scope || "scope";
+        const status = String(item.status || "").toUpperCase();
+        return status === "OK" ? `${label}: OK` : `${label}: ${item.detail || status}`;
+      })
+      .join("；");
+    if (el.setupAzureProbeResult) {
+      el.setupAzureProbeResult.textContent = result?.ok
+        ? `Azure RBAC 检查通过。${summary}`
+        : `Azure RBAC 仍未就绪。${summary}`;
+    }
+    await loadAiProviderSetup();
+    if (state.projectId && state.currentSorDocumentId) {
+      await loadWorkspace({ skipAiStatus: true });
+    }
+  } finally {
+    if (el.setupAzureProbeBtn) {
+      el.setupAzureProbeBtn.disabled = false;
+    }
+  }
+}
+
 async function ensureAiStageHydrated() {
   if (!state.projectId || !state.currentSorDocumentId) {
     return;
@@ -460,6 +766,7 @@ async function ensureAiStageHydrated() {
 }
 
 function applyAiAnalysisStatus(payload) {
+  const previousSelectedId = String(state.aiSelectedRequirementId || "").trim();
   state.aiAnalysisJob = payload?.job || null;
   state.aiAnalysisEvents = Array.isArray(payload?.events) ? payload.events : [];
   if (payload?.job?.profile_id) {
@@ -480,9 +787,19 @@ function applyAiAnalysisStatus(payload) {
       ai_profiles: payload.ai_profiles,
     };
   }
-  ensureAiRequirementSelection();
+  const nextSelectedId = ensureAiRequirementSelection();
+  syncAiFollowCurrentToggle();
   renderAiStage();
   syncWorkspaceActions();
+  if (
+    state.currentStage === "ai" &&
+    nextSelectedId &&
+    nextSelectedId !== previousSelectedId &&
+    !state.aiRequirementDetailCache[nextSelectedId] &&
+    state.aiRequirementDetailLoadingId !== nextSelectedId
+  ) {
+    void selectAiRequirement(nextSelectedId, { silent: true });
+  }
   if (shouldPollAiAnalysis()) {
     scheduleAiAnalysisPolling();
   } else {
@@ -497,7 +814,7 @@ async function loadAiAnalysisStatus({ suppressErrors = false, refreshWorkspaceOn
   const previousStatus = String(state.aiAnalysisJob?.status || "").trim().toUpperCase();
   try {
     const payload = await api(
-      `/api/projects/${state.projectId}/sor-documents/${state.currentSorDocumentId}/ai-analysis-status`
+      `/api/projects/${state.projectId}/sor-documents/${state.currentSorDocumentId}/ai-analysis-status?event_limit=120`
     );
     applyAiAnalysisStatus(payload);
     const nextStatus = String(payload?.job?.status || "").trim().toUpperCase();
@@ -505,7 +822,7 @@ async function loadAiAnalysisStatus({ suppressErrors = false, refreshWorkspaceOn
       refreshWorkspaceOnTerminal &&
       previousStatus &&
       previousStatus !== nextStatus &&
-      ["COMPLETED", "FAILED"].includes(nextStatus)
+      ["COMPLETED", "FAILED", "CANCELLED"].includes(nextStatus)
     ) {
       invalidateAiRequirementDetailCache();
       await loadWorkspace({ skipAiStatus: true });
@@ -562,6 +879,11 @@ async function onAiRequirementListClicked(event) {
   if (!requirementId) {
     return;
   }
+  const currentRequirementId = getCurrentAiRunningRequirementId();
+  if (currentRequirementId && requirementId !== currentRequirementId) {
+    state.aiFollowCurrentRequirement = false;
+    syncAiFollowCurrentToggle();
+  }
   await selectAiRequirement(requirementId);
 }
 
@@ -569,6 +891,11 @@ function openAiRequirementDetail(requirementId) {
   const nextId = String(requirementId || "").trim();
   if (!nextId) {
     return;
+  }
+  const currentRequirementId = getCurrentAiRunningRequirementId();
+  if (currentRequirementId && nextId !== currentRequirementId) {
+    state.aiFollowCurrentRequirement = false;
+    syncAiFollowCurrentToggle();
   }
   state.currentStage = "ai";
   syncStagePanels();
@@ -666,6 +993,11 @@ async function onUploadKnowledge(event) {
   event.preventDefault();
   if (!state.projectId) {
     alert("请先选择项目");
+    return;
+  }
+  const defaultKnowledgeProfile = getConfiguredDefaultProfile();
+  if (!defaultKnowledgeProfile?.retrieval_ready) {
+    alert(`请先完成默认 AI 路径配置。${formatAiProfileHint(defaultKnowledgeProfile)}`);
     return;
   }
   const file = el.kbFile.files?.[0];
@@ -775,6 +1107,8 @@ async function onRunAiAnalysis() {
   }
   stopAiAnalysisPolling();
   invalidateAiRequirementDetailCache();
+  state.aiFollowCurrentRequirement = true;
+  syncAiFollowCurrentToggle();
   el.runAiBtn.disabled = true;
   setAnalyzeStatus("AI 分析已启动，页面会持续显示阶段、证据链和最终结论。", "warning");
   try {
@@ -798,6 +1132,59 @@ async function onRunAiAnalysis() {
     scheduleAiAnalysisPolling(1200);
   } finally {
     syncWorkspaceActions();
+  }
+}
+
+async function onStopAiAnalysis() {
+  if (!state.projectId || !state.currentSorDocumentId) {
+    alert("请先选择项目和 SOR 文档");
+    return;
+  }
+  const jobStatus = String(state.aiAnalysisJob?.status || "").trim().toUpperCase();
+  if (!["PENDING", "RUNNING", "CANCEL_REQUESTED"].includes(jobStatus)) {
+    return;
+  }
+  if (jobStatus !== "CANCEL_REQUESTED") {
+    const accepted = window.confirm("停止当前 AI 分析？已完成的条目会保留，未完成条目将停止继续消耗 token。");
+    if (!accepted) {
+      return;
+    }
+  }
+  setAnalyzeStatus("已请求停止 AI 分析，正在等待当前调用安全中断。", "warning");
+  try {
+    const payload = await api(
+      `/api/projects/${state.projectId}/sor-documents/${state.currentSorDocumentId}/run-ai-analysis/stop`,
+      { method: "POST" }
+    );
+    applyAiAnalysisStatus(payload);
+    scheduleAiAnalysisPolling(700);
+  } finally {
+    syncWorkspaceActions();
+  }
+}
+
+function onAiFollowCurrentToggleChanged(event) {
+  const nextFollow = Boolean(event?.target?.checked);
+  state.aiFollowCurrentRequirement = nextFollow;
+  syncAiFollowCurrentToggle();
+  if (!nextFollow) {
+    renderAiStage();
+    syncWorkspaceActions();
+    return;
+  }
+  const currentRequirementId = getCurrentAiRunningRequirementId();
+  if (currentRequirementId) {
+    void selectAiRequirement(currentRequirementId, { silent: true });
+    return;
+  }
+  renderAiStage();
+  syncWorkspaceActions();
+}
+
+function onAiLiveReasoningClicked(event) {
+  const stopTrigger = event.target instanceof Element ? event.target.closest("[data-ai-stop]") : null;
+  if (stopTrigger) {
+    return onStopAiAnalysis();
   }
 }
 
@@ -1007,6 +1394,37 @@ async function loadKnowledgeDocuments() {
   const docs = await api(`/api/projects/${state.projectId}/knowledge-documents`);
   state.knowledgeDocuments = Array.isArray(docs) ? docs : [];
   renderKnowledgeDocuments();
+}
+
+async function onKnowledgeDocumentTableClicked(event) {
+  const retryButton = event.target instanceof Element ? event.target.closest("[data-knowledge-sync-retry]") : null;
+  if (!retryButton) {
+    return;
+  }
+  const documentId = String(retryButton.getAttribute("data-knowledge-sync-retry") || "").trim();
+  if (!documentId || !state.projectId || state.knowledgeSyncRetryingId) {
+    return;
+  }
+  state.knowledgeSyncRetryingId = documentId;
+  renderKnowledgeDocuments();
+  if (el.kbUploadResult) {
+    el.kbUploadResult.textContent = "正在重试知识文档同步...";
+  }
+  try {
+    await api(`/api/projects/${state.projectId}/knowledge-documents/${documentId}/resync`, {
+      method: "POST",
+    });
+    await loadKnowledgeDocuments();
+    if (state.projectId && state.currentSorDocumentId) {
+      await loadWorkspace({ skipAiStatus: true });
+    }
+    if (el.kbUploadResult) {
+      el.kbUploadResult.textContent = "知识文档同步已重试，请查看最新状态。";
+    }
+  } finally {
+    state.knowledgeSyncRetryingId = "";
+    renderKnowledgeDocuments();
+  }
 }
 
 async function loadReviewPreview() {
@@ -1228,6 +1646,8 @@ function renderKnowledgeDocuments() {
         : [String(doc.retrieval_sync_status || "PENDING").trim(), String(doc.retrieval_synced_at || "").trim() ? formatTime(doc.retrieval_synced_at) : ""]
             .filter(Boolean)
             .join(" / ");
+      const canRetry = !syncs.length || syncs.some((sync) => String(sync.status || "PENDING").trim().toUpperCase() !== "READY");
+      const retrying = state.knowledgeSyncRetryingId === String(doc.id || "");
       const uploadedAt = formatTime(doc.created_at) || "-";
       return `
         <tr>
@@ -1236,7 +1656,16 @@ function renderKnowledgeDocuments() {
             <div class="knowledge-doc-meta">上传于 ${escapeHtml(formatTime(doc.created_at) || "-")}</div>
           </td>
           <td><div class="knowledge-doc-uploaded">${escapeHtml(uploadedAt)}</div></td>
-          <td><div class="knowledge-doc-sync">${escapeHtml(syncStatus || "-")}</div></td>
+          <td>
+            <div class="knowledge-doc-sync">${escapeHtml(syncStatus || "-")}</div>
+            ${
+              canRetry
+                ? `<button type="button" class="button-compact" data-knowledge-sync-retry="${escapeHtml(String(doc.id || ""))}"${
+                    retrying ? " disabled" : ""
+                  }>${retrying ? "重试中..." : "重试同步"}</button>`
+                : ""
+            }
+          </td>
         </tr>
       `;
     })
@@ -1873,7 +2302,7 @@ function initReviewPdfViewer() {
 
 function buildReviewPdfViewerUrl(pageNo) {
   const encodedPdf = encodeURIComponent(state.reviewPdfBaseUrl || "");
-  return `/assets/pdf-viewer.html?v=20260306-3&pdf=${encodedPdf}&page=${Number(pageNo || 1)}`;
+  return `/assets/pdf-viewer.html?v=20260403-reqx1&pdf=${encodedPdf}&page=${Number(pageNo || 1)}`;
 }
 
 function onReviewPdfViewerMessage(event) {
@@ -2063,7 +2492,7 @@ function renderAiProgressPanel() {
   const job = state.aiAnalysisJob || null;
   const events = Array.isArray(state.aiAnalysisEvents) ? state.aiAnalysisEvents : [];
   const jobStatus = String(job?.status || "").trim().toUpperCase();
-  const isTerminalJob = ["COMPLETED", "FAILED"].includes(jobStatus);
+  const isTerminalJob = ["COMPLETED", "FAILED", "CANCELLED"].includes(jobStatus);
   if (el.aiJobSummary) {
     el.aiJobSummary.textContent = job
       ? `${formatAiJobStatus(job.status)} · ${formatAiJobStage(job.current_stage)} · ${formatTime(job.updated_at || job.created_at) || "刚刚"}`
@@ -2104,19 +2533,31 @@ function renderAiProgressPanel() {
             <div class="ai-progress-label">${escapeHtml(formatAiJobStatus(job.status))}</div>
             <p class="ai-progress-message">${escapeHtml(String(job.last_message || "AI 分析已排队。"))}</p>
           </div>
-          ${decisionChip(job.status === "FAILED" ? "REJECT" : job.status === "COMPLETED" ? "ACCEPT" : "NEED_CLARIFICATION")}
+          ${decisionChip(
+            job.status === "FAILED"
+              ? "REJECT"
+              : job.status === "COMPLETED"
+              ? "ACCEPT"
+              : job.status === "CANCELLED"
+              ? "STOPPED"
+              : job.status === "CANCEL_REQUESTED"
+              ? "STOPPING"
+              : "NEED_CLARIFICATION"
+          )}
         </div>
         <div class="ai-progress-bar"><span style="width: ${progress}%;"></span></div>
         ${metricsMarkup}
       `;
     }
   }
+  renderAiLiveReasoning();
   if (el.aiProgressTimeline) {
-    if (!events.length) {
+    const timelineEvents = getAiTimelineEvents(events);
+    if (!timelineEvents.length) {
       el.aiProgressTimeline.innerHTML = `<div class="ai-progress-empty">暂无步骤日志。</div>`;
       return;
     }
-    el.aiProgressTimeline.innerHTML = events
+    el.aiProgressTimeline.innerHTML = timelineEvents
       .map((event) => {
         const meta = [
           formatAiJobStage(event.stage),
@@ -2124,6 +2565,7 @@ function renderAiProgressPanel() {
         ]
           .filter(Boolean)
           .join(" · ");
+        const detailPreview = getAiEventDetailPreview(event);
         return `
           <article class="ai-progress-event ${getAiEventToneClass(event)}">
             <div class="ai-progress-event-head">
@@ -2131,6 +2573,7 @@ function renderAiProgressPanel() {
               <div class="ai-progress-event-time">${escapeHtml(formatTime(event.created_at) || "刚刚")}</div>
             </div>
             <p class="ai-progress-event-message">${escapeHtml(String(event.message || ""))}</p>
+            ${detailPreview ? `<pre class="ai-progress-event-stream">${escapeHtml(detailPreview)}</pre>` : ""}
             ${meta ? `<div class="ai-progress-event-meta">${escapeHtml(meta)}</div>` : ""}
           </article>
         `;
@@ -2139,11 +2582,305 @@ function renderAiProgressPanel() {
   }
 }
 
+function getCurrentAiReasoningSnapshot() {
+  const job = state.aiAnalysisJob || {};
+  const currentRequirementId = String(job.current_requirement_id || "").trim();
+  if (!currentRequirementId) {
+    return null;
+  }
+  let latestStageEvent = null;
+  let latestStreamEvent = null;
+  for (const event of Array.isArray(state.aiAnalysisEvents) ? state.aiAnalysisEvents : []) {
+    if (String(event?.requirement_id || "").trim() !== currentRequirementId) {
+      continue;
+    }
+    const eventType = String(event?.event_type || "").trim().toLowerCase();
+    if (eventType === "requirement_stage_update") {
+      latestStageEvent = event;
+    }
+    if (AI_STREAM_EVENT_TYPES.has(eventType)) {
+      latestStreamEvent = event;
+    }
+  }
+  if (!latestStageEvent && !latestStreamEvent) {
+    return null;
+  }
+  const latestEvent = latestStreamEvent || latestStageEvent;
+  const payload = latestEvent?.payload || {};
+  const eventType = String(latestEvent?.event_type || "").trim().toLowerCase();
+  const rawPreview = String(payload.content_preview || "").trim();
+  const trimmedPreview = trimAiTextPreview(rawPreview, AI_LIVE_PREVIEW_LIMIT);
+  return {
+    requirementCode: String(latestEvent?.requirement_code || job.current_requirement_code || "").trim(),
+    stage: String(payload.stage || latestEvent?.stage || job.current_stage || "").trim().toLowerCase(),
+    phase: inferAiLivePhase(eventType, payload),
+    contentPreview: trimmedPreview,
+    charactersEmitted: Number(payload.characters_emitted || 0),
+    truncated: Boolean(payload.truncated) || trimmedPreview.length < rawPreview.length,
+    mode: String(payload.mode || "").trim(),
+    modelName: String(payload.model_name || "").trim(),
+    provider: String(payload.provider || latestEvent?.provider || job.provider || "").trim(),
+    updatedAt: String(latestEvent?.created_at || "").trim(),
+    message: String(latestEvent?.message || "").trim(),
+    sourceEventType: eventType,
+    hasModelReasoning:
+      eventType === "requirement_reasoning" || eventType === "requirement_screening_reasoning",
+  };
+}
+
+function renderAiLiveReasoning() {
+  if (!el.aiLiveReasoning) {
+    return;
+  }
+  const job = state.aiAnalysisJob || {};
+  const status = String(job.status || "").trim().toUpperCase();
+  const jobStatus = status;
+  if (!["PENDING", "RUNNING", "CANCEL_REQUESTED"].includes(status)) {
+    el.aiLiveReasoning.innerHTML = "";
+    el.aiLiveReasoning.classList.remove("is-visible");
+    return;
+  }
+  const snapshot = getCurrentAiReasoningSnapshot();
+  if (!snapshot) {
+    el.aiLiveReasoning.innerHTML = `
+      <div class="ai-live-reasoning-empty">
+        AI 运行后，这里会按“筛选 → 检索 → 分析”展示当前条目的实时轨迹。Aliyun 链路会展示 reasoning 片段，Azure 链路会展示结构化输出草稿。
+      </div>
+    `;
+    el.aiLiveReasoning.classList.add("is-visible");
+    return;
+  }
+  const badges = [
+    `<span class="ai-live-badge is-primary">实时链路</span>`,
+    `<span class="ai-live-badge">${escapeHtml(formatAiLiveStage(snapshot.stage || "screening"))}</span>`,
+    `<span class="ai-live-badge">${escapeHtml(formatAiLivePhase(snapshot))}</span>`,
+  ];
+  if (snapshot.provider) {
+    badges.push(`<span class="ai-live-badge is-muted">${escapeHtml(formatAiProvider(snapshot.provider))}</span>`);
+  }
+  if (snapshot.mode) {
+    badges.push(`<span class="ai-live-badge is-muted">${escapeHtml(snapshot.mode)}</span>`);
+  }
+  const stats = [
+    ["当前条目", snapshot.requirementCode || "-"],
+    ["当前模型", snapshot.modelName || "运行中"],
+    ["最近更新", formatTime(snapshot.updatedAt) || "刚刚"],
+    ["输出进度", snapshot.charactersEmitted > 0 ? `${snapshot.charactersEmitted} 字` : "等待首个片段"],
+    ["停止状态", jobStatus === "CANCEL_REQUESTED" ? "停止请求已发出" : "运行中"],
+  ];
+  const bodyText = snapshot.contentPreview || snapshot.message || "等待首个片段...";
+  const stageTrack = renderAiLiveStageTrack(snapshot, jobStatus);
+  const stopButtonLabel = jobStatus === "CANCEL_REQUESTED" ? "停止中..." : "停止本次运行";
+  el.aiLiveReasoning.innerHTML = `
+    <div class="ai-live-reasoning-top">
+      <div class="ai-live-badges">${badges.join("")}</div>
+      <div class="ai-live-reasoning-head">
+        <div>
+          <div class="ai-live-reasoning-label">${escapeHtml(formatAiLiveHeadline(snapshot))}</div>
+          <div class="ai-live-reasoning-meta">${escapeHtml(snapshot.message || "模型正在处理当前条目。")}</div>
+        </div>
+        <div class="ai-live-reasoning-head-actions">
+          <button
+            type="button"
+            class="button-compact ai-live-stop-btn"
+            data-ai-stop="true"
+            ${jobStatus === "CANCEL_REQUESTED" ? "disabled" : ""}
+          >${escapeHtml(stopButtonLabel)}</button>
+          <span class="ai-live-reasoning-pulse" aria-hidden="true"></span>
+        </div>
+      </div>
+    </div>
+    ${stageTrack}
+    <div class="ai-live-reasoning-grid">
+      <div class="ai-live-reasoning-main">
+        <pre class="ai-live-reasoning-body">${escapeHtml(bodyText)}</pre>
+        <div class="ai-live-reasoning-advisory">${escapeHtml(getAiLiveAdvisory(snapshot))}</div>
+      </div>
+      <div class="ai-live-reasoning-stats">
+        ${stats
+          .map(
+            ([label, value]) => `
+              <div class="ai-live-stat">
+                <div class="ai-live-stat-label">${escapeHtml(label)}</div>
+                <div class="ai-live-stat-value">${escapeHtml(String(value || "-"))}</div>
+              </div>
+            `
+          )
+          .join("")}
+      </div>
+    </div>
+  `;
+  el.aiLiveReasoning.classList.add("is-visible");
+}
+
+function getAiEventDetailPreview(event) {
+  const eventType = String(event?.event_type || "").trim().toLowerCase();
+  if (!AI_STREAM_EVENT_TYPES.has(eventType)) {
+    return "";
+  }
+  return trimAiTextPreview(String(event?.payload?.content_preview || "").trim(), AI_TIMELINE_PREVIEW_LIMIT);
+}
+
+function getAiTimelineEvents(events) {
+  const windowed = Array.isArray(events) ? events.slice(-80) : [];
+  const filtered = [];
+  for (let index = 0; index < windowed.length; index += 1) {
+    const event = windowed[index];
+    const eventType = String(event?.event_type || "").trim().toLowerCase();
+    if (eventType === "requirement_answer_started") {
+      const hasLaterOutput = windowed.slice(index + 1).some((candidate) => {
+        return (
+          String(candidate?.requirement_id || "").trim() === String(event?.requirement_id || "").trim() &&
+          String(candidate?.event_type || "").trim().toLowerCase() === "requirement_output"
+        );
+      });
+      if (hasLaterOutput) {
+        continue;
+      }
+    }
+    filtered.push(event);
+  }
+  return filtered.slice(-AI_TIMELINE_RENDER_LIMIT);
+}
+
+function inferAiLivePhase(eventType, payload) {
+  const explicitPhase = String(payload?.phase || "").trim().toLowerCase();
+  if (explicitPhase) {
+    return explicitPhase;
+  }
+  if (["requirement_reasoning", "requirement_screening_reasoning"].includes(eventType)) {
+    return "reasoning";
+  }
+  if (AI_STREAM_EVENT_TYPES.has(eventType)) {
+    return "output";
+  }
+  return "pending";
+}
+
+function trimAiTextPreview(text, limit) {
+  const normalized = String(text || "").trim();
+  if (!normalized || normalized.length <= limit) {
+    return normalized;
+  }
+  return `…${normalized.slice(-limit)}`;
+}
+
+function formatAiLiveStage(stage) {
+  const normalized = String(stage || "").trim().toLowerCase();
+  const mapping = {
+    screening: "筛选",
+    retrieval: "检索",
+    assessment: "分析",
+  };
+  return mapping[normalized] || "处理中";
+}
+
+function formatAiLivePhase(snapshot) {
+  const stage = String(snapshot?.stage || "").trim().toLowerCase();
+  const phase = String(snapshot?.phase || "").trim().toLowerCase();
+  if (stage === "screening") {
+    if (phase === "reasoning") {
+      return "筛选推理";
+    }
+    if (phase === "output") {
+      return "筛选输出";
+    }
+    return "筛选准备";
+  }
+  if (stage === "retrieval") {
+    return "证据检索";
+  }
+  if (phase === "reasoning") {
+    return "模型推理";
+  }
+  if (phase === "output") {
+    return "结构化输出";
+  }
+  return "处理中";
+}
+
+function formatAiLiveHeadline(snapshot) {
+  const stage = String(snapshot?.stage || "").trim().toLowerCase();
+  const phase = String(snapshot?.phase || "").trim().toLowerCase();
+  if (stage === "screening") {
+    return phase === "reasoning" ? "正在筛选推理" : phase === "output" ? "正在生成筛选结果" : "正在准备筛选";
+  }
+  if (stage === "retrieval") {
+    return "正在检索候选证据";
+  }
+  return phase === "reasoning" ? "正在推理" : phase === "output" ? "正在生成结构化结论" : "正在分析";
+}
+
+function formatAiProvider(provider) {
+  const normalized = String(provider || "").trim().toLowerCase();
+  if (normalized === "aliyun") {
+    return "Aliyun";
+  }
+  if (normalized === "azure") {
+    return "Azure";
+  }
+  return provider || "Provider";
+}
+
+function renderAiLiveStageTrack(snapshot, jobStatus) {
+  const currentStage = String(snapshot?.stage || "").trim().toLowerCase();
+  const currentIndex = AI_STAGE_ORDER.indexOf(currentStage);
+  const normalizedStatus = String(jobStatus || "").trim().toUpperCase();
+  const completedJob = normalizedStatus === "COMPLETED";
+  const stoppingJob = normalizedStatus === "CANCEL_REQUESTED";
+  const hints = {
+    screening: "判定该条目是否进入需求分析",
+    retrieval: "召回候选证据并过滤噪声块",
+    assessment: "生成结构化判断并校验输出",
+  };
+  return `
+    <div class="ai-live-stage-track">
+      ${AI_STAGE_ORDER.map((stage, index) => {
+        const classes = ["ai-live-stage-step"];
+        if (completedJob || (currentIndex >= 0 && index < currentIndex)) {
+          classes.push("is-complete");
+        }
+        if (stage === currentStage) {
+          classes.push("is-active");
+        }
+        if ((normalizedStatus === "FAILED" || normalizedStatus === "CANCELLED" || stoppingJob) && stage === currentStage) {
+          classes.push("is-failed");
+        }
+        return `
+          <div class="${classes.join(" ")}">
+            <div class="ai-live-stage-name">${escapeHtml(formatAiLiveStage(stage))}</div>
+            <div class="ai-live-stage-hint">${escapeHtml(hints[stage] || "")}</div>
+          </div>
+        `;
+      }).join("")}
+    </div>
+  `;
+}
+
+function getAiLiveAdvisory(snapshot) {
+  const jobStatus = String(state.aiAnalysisJob?.status || "").trim().toUpperCase();
+  if (jobStatus === "CANCEL_REQUESTED") {
+    return "已请求停止本次 AI 运行；当前调用会在安全中断点尽快结束，避免继续浪费 token。";
+  }
+  if (snapshot.hasModelReasoning) {
+    return "展示模型 reasoning 片段；随着模型继续推理，内容可能被补充或修正。";
+  }
+  if (snapshot.stage === "screening") {
+    return "当前展示筛选阶段的结构化输出草稿，最终是否继续分析以校验后的筛选结果为准。";
+  }
+  if (String(snapshot.provider || "").trim().toLowerCase() === "azure") {
+    return "Azure 当前链路展示的是结构化输出草稿，不一定包含隐藏 reasoning。";
+  }
+  return "当前展示结构化输出草稿，最终落库结果以校验后的 JSON 为准。";
+}
+
 function renderAiRequirementInspector() {
   const rows = getAiInspectableRequirements();
   const selectedId = ensureAiRequirementSelection();
+  syncAiFollowCurrentToggle();
   const detail = selectedId ? state.aiRequirementDetailCache[selectedId] : null;
   const loading = Boolean(selectedId) && state.aiRequirementDetailLoadingId === selectedId;
+  const currentRequirementId = getCurrentAiRunningRequirementId();
   if (el.aiDetailSummary) {
     if (!selectedId) {
       el.aiDetailSummary.textContent = rows.length
@@ -2153,7 +2890,12 @@ function renderAiRequirementInspector() {
       el.aiDetailSummary.textContent = "正在加载条目级证据链...";
     } else {
       const reqCode = detail?.requirement?.display_req_code || detail?.requirement?.req_code || selectedId;
-      el.aiDetailSummary.textContent = `当前查看：${reqCode}`;
+      const followStateText = currentRequirementId
+        ? state.aiFollowCurrentRequirement
+          ? "已跟随当前运行条目"
+          : "已暂停跟随当前运行条目"
+        : "当前无运行中条目";
+      el.aiDetailSummary.textContent = `当前查看：${reqCode} · ${followStateText}`;
     }
   }
   if (el.aiRequirementList) {
@@ -2163,8 +2905,7 @@ function renderAiRequirementInspector() {
       el.aiRequirementList.innerHTML = rows
         .map((row) => {
           const requirementId = String(row.id || "");
-          const analysisLabel = getAnalysisLabel(row);
-          const outcome = analysisLabel === "INFO" ? "INFO" : String(row.ai_decision || "").trim().toUpperCase() || "REQUIREMENT";
+          const outcome = getAiOutcome(row);
           const activeClass = requirementId === selectedId ? "is-active" : "";
           return `
             <button class="ai-requirement-item ${activeClass}" type="button" data-ai-requirement="${escapeHtml(requirementId)}">
@@ -2195,10 +2936,13 @@ function renderAiRequirementInspector() {
     const normalization = detail?.normalization || {};
     const evidences = Array.isArray(detail?.evidences) ? detail.evidences : [];
     const runs = Array.isArray(detail?.assessment_runs) ? detail.assessment_runs : [];
-    const analysisLabel = getAnalysisLabel(requirement);
-    const outcome = analysisLabel === "INFO" ? "INFO" : String(assessment.ai_decision || requirement.ai_decision || "").trim().toUpperCase() || "REQUIREMENT";
+    const outcome = getAiOutcome(requirement, assessment);
     const currentStageText = String(assessment.analysis_basis || requirement.analysis_basis || "").trim() || "当前暂无阶段说明。";
-    const finalConclusion = String(assessment.ai_reason || requirement.ai_reason || "").trim() || "暂无最终结论。";
+    const finalConclusion =
+      String(assessment.ai_reason || requirement.ai_reason || "").trim() ||
+      (outcome === "SCREENING_FAILED" || outcome === "ANALYSIS_FAILED"
+        ? currentStageText
+        : "暂无最终结论。");
     const clarificationQuestion = String(assessment.clarification_question || "").trim();
     const riskLevel = String(assessment.risk_level || "").trim().toUpperCase();
     el.aiRequirementDetail.innerHTML = `
@@ -2245,6 +2989,7 @@ function syncWorkspaceActions() {
   const workspace = state.workspace || {};
   const actions = workspace.actions || {};
   const selectedProfile = getSelectedAiProfile();
+  const defaultKnowledgeProfile = getConfiguredDefaultProfile();
   const hasDoc = Boolean(state.projectId && state.currentSorDocumentId);
   const workflowStage = String(workspace.document?.workflow_stage || "").toUpperCase();
   const aiStatus = String(workspace.document?.ai_status || "NOT_RUN").toUpperCase();
@@ -2260,17 +3005,40 @@ function syncWorkspaceActions() {
     el.lockExtractionBtn.disabled = !canLock || state.lockInFlight;
     el.lockExtractionBtn.textContent = state.lockInFlight ? "锁定中..." : "锁定条目集";
   }
+  if (el.kbUploadBtn) {
+    const canUploadKnowledge = Boolean(state.projectId) && Boolean(defaultKnowledgeProfile?.retrieval_ready);
+    el.kbUploadBtn.disabled = !canUploadKnowledge;
+    el.kbUploadBtn.title = canUploadKnowledge
+      ? ""
+      : `请先完成默认 AI 路径配置。${formatAiProfileHint(defaultKnowledgeProfile)}`;
+  }
+  if (el.kbFile) {
+    el.kbFile.disabled = !Boolean(state.projectId) || !Boolean(defaultKnowledgeProfile?.retrieval_ready);
+  }
   if (el.runAiBtn) {
-    const aiRunning = aiStatus === "RUNNING" || aiJobStatus === "PENDING" || aiJobStatus === "RUNNING";
+    const aiRunning =
+      aiStatus === "RUNNING" ||
+      aiJobStatus === "PENDING" ||
+      aiJobStatus === "RUNNING" ||
+      aiJobStatus === "CANCEL_REQUESTED";
     el.runAiBtn.disabled = !hasDoc || !Boolean(actions.can_run_ai_analysis) || !Boolean(selectedProfile?.ready) || aiRunning;
     if (aiRunning) {
-      el.runAiBtn.textContent = "AI 运行中...";
+      el.runAiBtn.textContent = aiJobStatus === "CANCEL_REQUESTED" ? "AI 停止中..." : "AI 运行中...";
     } else if (aiStale || aiStatus === "READY") {
       el.runAiBtn.textContent = "重新运行 AI";
     } else {
       el.runAiBtn.textContent = "运行 AI 分析";
     }
     el.runAiBtn.title = selectedProfile?.ready ? "" : formatAiProfileHint(selectedProfile);
+  }
+  if (el.stopAiBtn) {
+    const canStop =
+      hasDoc &&
+      Boolean(state.aiAnalysisJob?.has_live_worker) &&
+      ["PENDING", "RUNNING", "CANCEL_REQUESTED"].includes(aiJobStatus);
+    el.stopAiBtn.disabled = !canStop || aiJobStatus === "CANCEL_REQUESTED";
+    el.stopAiBtn.textContent = aiJobStatus === "CANCEL_REQUESTED" ? "停止中..." : "停止 AI";
+    el.stopAiBtn.title = canStop ? "停止当前 live AI 运行" : "当前没有可停止的 AI 运行";
   }
   if (el.exportBtn) {
     const canExport = hasDoc && Boolean(actions.can_export);
@@ -2572,7 +3340,11 @@ function decisionChip(decision) {
     REJECT: ["chip-reject", "REJECT"],
     DEVIATION_ACCEPT: ["chip-deviation", "DEVIATION"],
     NEED_CLARIFICATION: ["chip-clarify", "CLARIFY"],
+    STOPPING: ["chip-screening", "停止中"],
+    STOPPED: ["chip-info", "已停止"],
     REQUIREMENT: ["chip-screening", "待分析"],
+    SCREENING_FAILED: ["chip-reject", "筛选失败"],
+    ANALYSIS_FAILED: ["chip-reject", "分析失败"],
     INFO: ["chip-info", "INFO"],
   };
   const [cls, label] = map[decision] || map.NEED_CLARIFICATION;
@@ -2603,6 +3375,8 @@ function formatAiJobStatus(status) {
     IDLE: "未启动",
     PENDING: "排队中",
     RUNNING: "运行中",
+    CANCEL_REQUESTED: "停止中",
+    CANCELLED: "已停止",
     COMPLETED: "已完成",
     FAILED: "失败",
   };
@@ -2614,7 +3388,11 @@ function formatAiJobStage(stage) {
   const mapping = {
     queued: "排队",
     starting: "准备上下文",
+    screening: "筛选",
+    retrieval: "检索证据",
     assessment: "逐条分析",
+    cancelling: "停止中",
+    cancelled: "已停止",
     completed: "完成",
     failed: "失败",
     ai_analyzing: "逐条分析",
@@ -2629,7 +3407,15 @@ function formatAiEventType(eventType) {
   const mapping = {
     job_created: "任务已创建",
     job_started: "任务已启动",
-    requirement_started: "开始分析需求",
+    job_cancel_requested: "停止请求",
+    job_cancelled: "任务已停止",
+    requirement_started: "开始处理需求",
+    requirement_stage_update: "阶段更新",
+    requirement_screening_reasoning: "筛选推理",
+    requirement_screening_output: "筛选输出",
+    requirement_reasoning: "实时推理",
+    requirement_answer_started: "生成结论",
+    requirement_output: "结构化输出",
     requirement_completed: "完成需求分析",
     job_completed: "任务完成",
     job_failed: "任务失败",
@@ -2642,8 +3428,23 @@ function getAiEventToneClass(event) {
   if (eventType === "job_failed") {
     return "is-failed";
   }
+  if (eventType === "job_cancel_requested" || eventType === "job_cancelled") {
+    return "is-note";
+  }
   if (eventType === "job_completed") {
     return "is-completed";
+  }
+  if (eventType === "requirement_stage_update") {
+    return "is-note";
+  }
+  if (eventType === "requirement_screening_reasoning") {
+    return "is-screening";
+  }
+  if (eventType === "requirement_screening_output" || eventType === "requirement_output" || eventType === "requirement_answer_started") {
+    return "is-output";
+  }
+  if (eventType === "requirement_reasoning") {
+    return "is-reasoning";
   }
   return "is-running";
 }
@@ -2833,9 +3634,28 @@ function getAnalysisLabel(row) {
   return label || "REQUIREMENT";
 }
 
+function getAssessmentMode(row) {
+  return String(row?.assessment_mode || "").trim().toLowerCase();
+}
+
+function getAiOutcome(row, assessmentOverride) {
+  const analysisLabel = getAnalysisLabel(row);
+  if (analysisLabel === "INFO") {
+    return "INFO";
+  }
+  const assessmentMode = getAssessmentMode(assessmentOverride || row);
+  if (assessmentMode === "screening_failed") {
+    return "SCREENING_FAILED";
+  }
+  if (assessmentMode === "analysis_failed") {
+    return "ANALYSIS_FAILED";
+  }
+  return String((assessmentOverride || row)?.ai_decision || row?.ai_decision || "").trim().toUpperCase() || "REQUIREMENT";
+}
+
 function renderAiAssessmentCell(row) {
   const analysisLabel = getAnalysisLabel(row);
-  const outcome = analysisLabel === "INFO" ? "INFO" : String(row?.ai_decision || "").trim().toUpperCase();
+  const outcome = getAiOutcome(row);
   const decisionReason = String(row?.ai_reason || "").trim();
   const analysisBasis = String(row?.analysis_basis || "").trim();
   const detailAction = row?.id
@@ -2853,7 +3673,7 @@ function renderAiAssessmentCell(row) {
       </div>
     `;
   }
-  if (!outcome) {
+  if (!outcome || outcome === "REQUIREMENT") {
     if (!analysisBasis) {
       return `<div class="matrix-muted">未运行 AI 分析</div>`;
     }
@@ -3273,6 +4093,10 @@ function escapeHtml(value) {
     .replaceAll("<", "&lt;")
     .replaceAll(">", "&gt;")
     .replaceAll('"', "&quot;");
+}
+
+function isAsciiText(value) {
+  return /^[\x00-\x7F]+$/.test(String(value || ""));
 }
 
 function formatTime(value) {
