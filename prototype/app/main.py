@@ -6,11 +6,12 @@ import re
 import sqlite3
 import subprocess
 import shutil
+import time
 import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from threading import Lock, Thread
-from typing import Any
+from typing import Any, Callable
 from urllib.parse import quote
 
 from fastapi import FastAPI, File, Form, HTTPException, Response, UploadFile
@@ -20,14 +21,24 @@ from fastapi.staticfiles import StaticFiles
 from pydantic import BaseModel, Field
 
 from app import db
-from app.runtime_readiness import build_readiness_report, ensure_runtime_directories, runtime_directory_map
+from app.runtime_readiness import (
+    build_ai_profile_check,
+    build_readiness_report,
+    ensure_runtime_directories,
+    runtime_directory_map,
+)
 from app.runtime_paths import resolve_storage_dir
 from app.services.ai_copilot import (
+    AIAnalysisCancelledError,
+    apply_runtime_ai_provider_setup,
+    build_runtime_ai_provider_setup,
     build_requirement_normalization_detail,
     ensure_ai_profile_runnable,
     get_ai_profile_missing_config,
+    is_ascii_runtime_secret,
     list_ai_copilot_profiles,
     load_ai_copilot_config,
+    probe_runtime_azure_rbac,
     run_ai_copilot_assessment,
     serialize_ai_profile,
     sync_knowledge_document_index,
@@ -87,7 +98,7 @@ logger = logging.getLogger(__name__)
 
 
 _AI_ANALYSIS_THREAD_LOCK = Lock()
-_AI_ANALYSIS_THREADS: dict[str, Thread] = {}
+_AI_ANALYSIS_THREADS: dict[str, dict[str, Any]] = {}
 _APP_STARTUP_STATE = {
     "initialized": False,
     "error": "",
@@ -100,6 +111,11 @@ _ASSET_RESPONSE_HEADERS = {
     "Pragma": "no-cache",
     "Expires": "0",
 }
+
+_AI_REASONING_EVENT_PREVIEW_LIMIT = 3200
+_AI_REASONING_EVENT_CHAR_DELTA = 180
+_AI_REASONING_EVENT_FLUSH_INTERVAL_SECONDS = 0.9
+_AI_REASONING_OUTPUT_PREVIEW_LIMIT = 2200
 
 
 def _asset_file_ready(path_value: object) -> bool:
@@ -174,6 +190,28 @@ class AnalyzeRequest(BaseModel):
 
 class RunAIAnalysisRequest(BaseModel):
     profile_id: str | None = None
+
+
+class AzureProviderSetupRequest(BaseModel):
+    auth_mode: str | None = None
+    allow_interactive_login: bool = False
+
+
+class AliyunProviderSetupRequest(BaseModel):
+    api_key: str | None = None
+    base_url: str | None = None
+    chat_model: str | None = None
+    embedding_model: str | None = None
+    qdrant_url: str | None = None
+    qdrant_collection: str | None = None
+    qdrant_api_key: str | None = None
+    retrieval_backend: str | None = None
+
+
+class RuntimeAIProviderSetupRequest(BaseModel):
+    default_profile_id: str | None = None
+    azure: AzureProviderSetupRequest | None = None
+    aliyun: AliyunProviderSetupRequest | None = None
 
 
 class ReviewedRequirementEntry(BaseModel):
@@ -377,14 +415,41 @@ def startup() -> None:
     )
 
 
-def _register_ai_analysis_thread(document_id: str, thread: Thread) -> None:
+def _register_ai_analysis_thread(document_id: str, thread: Thread, *, job_id: str) -> None:
     with _AI_ANALYSIS_THREAD_LOCK:
-        _AI_ANALYSIS_THREADS[document_id] = thread
+        _AI_ANALYSIS_THREADS[document_id] = {
+            "thread": thread,
+            "job_id": str(job_id or "").strip(),
+            "cancel_requested": False,
+        }
 
 
 def _get_ai_analysis_thread(document_id: str) -> Thread | None:
     with _AI_ANALYSIS_THREAD_LOCK:
-        return _AI_ANALYSIS_THREADS.get(document_id)
+        runtime = _AI_ANALYSIS_THREADS.get(document_id)
+        if not runtime:
+            return None
+        return runtime.get("thread")
+
+
+def _is_ai_analysis_cancel_requested(document_id: str, job_id: str) -> bool:
+    with _AI_ANALYSIS_THREAD_LOCK:
+        runtime = _AI_ANALYSIS_THREADS.get(document_id) or {}
+        return (
+            str(runtime.get("job_id") or "").strip() == str(job_id or "").strip()
+            and bool(runtime.get("cancel_requested"))
+        )
+
+
+def _request_ai_analysis_cancel(document_id: str, job_id: str) -> bool:
+    with _AI_ANALYSIS_THREAD_LOCK:
+        runtime = _AI_ANALYSIS_THREADS.get(document_id)
+        if not runtime:
+            return False
+        if str(runtime.get("job_id") or "").strip() != str(job_id or "").strip():
+            return False
+        runtime["cancel_requested"] = True
+        return True
 
 
 def _clear_ai_analysis_thread(document_id: str, *, thread: Thread | None = None) -> None:
@@ -392,9 +457,86 @@ def _clear_ai_analysis_thread(document_id: str, *, thread: Thread | None = None)
         current = _AI_ANALYSIS_THREADS.get(document_id)
         if current is None:
             return
-        if thread is not None and current is not thread:
+        current_thread = current.get("thread")
+        if thread is not None and current_thread is not thread:
             return
         _AI_ANALYSIS_THREADS.pop(document_id, None)
+
+
+@app.get("/api/runtime/ai-provider-setup")
+def get_runtime_ai_provider_setup_route() -> dict[str, Any]:
+    return _build_runtime_ai_provider_setup_response()
+
+
+@app.post("/api/runtime/ai-provider-setup")
+def update_runtime_ai_provider_setup_route(payload: RuntimeAIProviderSetupRequest) -> dict[str, Any]:
+    payload_dict = payload.model_dump(exclude_none=True)
+    _validate_runtime_ai_provider_setup_payload(payload_dict)
+    apply_runtime_ai_provider_setup(payload_dict)
+    return _build_runtime_ai_provider_setup_response()
+
+
+@app.post("/api/runtime/ai-provider-setup/azure-rbac-probe")
+def probe_runtime_azure_rbac_route() -> dict[str, Any]:
+    return probe_runtime_azure_rbac()
+
+
+def _build_runtime_ai_provider_setup_response() -> dict[str, Any]:
+    payload = build_runtime_ai_provider_setup()
+    runtime_checks = {
+        config.profile_id: build_ai_profile_check(config)
+        for config in list_ai_copilot_profiles()
+    }
+    payload["profiles"] = [
+        _merge_ai_profile_runtime_state(dict(profile), runtime_checks.get(str(profile.get("id") or "").strip(), {}))
+        for profile in payload.get("profiles") or []
+    ]
+    for profile_id in ("azure", "aliyun"):
+        section = payload.get(profile_id)
+        if isinstance(section, dict):
+            payload[profile_id] = _merge_ai_profile_runtime_state(dict(section), runtime_checks.get(profile_id, {}))
+    return payload
+
+
+def _validate_runtime_ai_provider_setup_payload(payload: dict[str, Any]) -> None:
+    aliyun_payload = payload.get("aliyun") or {}
+    _validate_ascii_runtime_secret(
+        "DashScope API Key",
+        aliyun_payload.get("api_key"),
+    )
+    _validate_ascii_runtime_secret(
+        "Qdrant API Key",
+        aliyun_payload.get("qdrant_api_key"),
+    )
+
+
+def _validate_ascii_runtime_secret(label: str, value: Any) -> None:
+    text = str(value or "").strip()
+    if not text:
+        return
+    if is_ascii_runtime_secret(text):
+        return
+    raise HTTPException(
+        status_code=422,
+        detail=f"{label} contains non-ASCII characters. Re-enter the raw key without Chinese punctuation or full-width characters.",
+    )
+
+
+def _merge_ai_profile_runtime_state(
+    profile_payload: dict[str, Any],
+    runtime_check: dict[str, Any] | None,
+) -> dict[str, Any]:
+    check = runtime_check or {}
+    runtime_missing = [str(item).strip() for item in check.get("missing") or [] if str(item).strip()]
+    configured_missing = [str(item).strip() for item in profile_payload.get("missing") or [] if str(item).strip()]
+    return {
+        **profile_payload,
+        "ready": bool(check.get("runnable", profile_payload.get("ready"))),
+        "runtime_status": str(check.get("status") or ""),
+        "runtime_detail": str(check.get("detail") or ""),
+        "runtime_missing": runtime_missing,
+        "missing": runtime_missing or configured_missing,
+    }
 
 
 def _attach_knowledge_syncs(documents: list[dict[str, Any]]) -> list[dict[str, Any]]:
@@ -476,14 +618,19 @@ def _ensure_profile_knowledge_syncs(
 
 
 def _build_ai_profile_catalog(knowledge_docs: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    profiles = list_ai_copilot_profiles()
     default_profile_id = load_ai_copilot_config().profile_id
+    runtime_checks = {
+        config.profile_id: build_ai_profile_check(config)
+        for config in profiles
+    }
     sync_index: dict[tuple[str, str], dict[str, Any]] = {}
     for document in knowledge_docs:
         for sync in document.get("retrieval_syncs") or []:
             sync_index[(str(document.get("id") or ""), str(sync.get("profile_id") or ""))] = sync
 
     profile_payloads: list[dict[str, Any]] = []
-    for config in list_ai_copilot_profiles():
+    for config in profiles:
         ready_count = 0
         error_count = 0
         for document in knowledge_docs:
@@ -500,26 +647,41 @@ def _build_ai_profile_catalog(knowledge_docs: list[dict[str, Any]]) -> list[dict
             sync_status = "READY"
         elif error_count == knowledge_total:
             sync_status = "ERROR"
+        elif ready_count == 0 and error_count == 0:
+            sync_status = "PENDING"
         else:
             sync_status = "PARTIAL"
+        runtime_check = runtime_checks.get(config.profile_id, {})
         profile_payloads.append(
-            {
-                **serialize_ai_profile(config),
-                "default": config.profile_id == default_profile_id,
-                "missing": get_ai_profile_missing_config(config),
-                "knowledge_sync": {
-                    "status": sync_status,
-                    "ready_count": ready_count,
-                    "total_count": knowledge_total,
+            _merge_ai_profile_runtime_state(
+                {
+                    **serialize_ai_profile(config),
+                    "default": config.profile_id == default_profile_id,
+                    "missing": get_ai_profile_missing_config(config),
+                    "knowledge_sync": {
+                        "status": sync_status,
+                        "ready_count": ready_count,
+                        "total_count": knowledge_total,
+                    },
                 },
-            }
+                runtime_check,
+            )
         )
     return profile_payloads
+
+
+def _default_knowledge_sync_profile_ids() -> list[str]:
+    return [load_ai_copilot_config().profile_id]
 
 
 def _has_live_ai_analysis_thread(document_id: str) -> bool:
     thread = _get_ai_analysis_thread(document_id)
     return bool(thread and thread.is_alive())
+
+
+def _raise_if_ai_analysis_cancel_requested(document_id: str, job_id: str) -> None:
+    if _is_ai_analysis_cancel_requested(document_id, job_id):
+        raise AIAnalysisCancelledError("AI analysis cancelled by user.")
 
 
 def _finalize_orphaned_ai_analysis_job(document_id: str) -> dict[str, Any] | None:
@@ -529,12 +691,14 @@ def _finalize_orphaned_ai_analysis_job(document_id: str) -> dict[str, Any] | Non
     if _has_live_ai_analysis_thread(document_id):
         return job
     timestamp = datetime.now(timezone.utc).isoformat()
+    status = str(job.get("status") or "").strip().upper()
+    cancelled = status == "CANCEL_REQUESTED"
     updated = db.update_ai_analysis_job(
         str(job.get("id") or ""),
-        status="FAILED",
-        current_stage="failed",
-        last_message="AI analysis worker stopped unexpectedly.",
-        error_message="AI analysis worker is not active.",
+        status="CANCELLED" if cancelled else "FAILED",
+        current_stage="cancelled" if cancelled else "failed",
+        last_message="AI analysis was stopped." if cancelled else "AI analysis worker stopped unexpectedly.",
+        error_message="" if cancelled else "AI analysis worker is not active.",
         finished_at=timestamp,
         current_requirement_id="",
         current_requirement_code="",
@@ -544,10 +708,10 @@ def _finalize_orphaned_ai_analysis_job(document_id: str) -> dict[str, Any] | Non
         sor_document_id=document_id,
         profile_id=str(job.get("profile_id") or ""),
         provider=str(job.get("provider") or ""),
-        event_type="job_failed",
-        stage="failed",
-        message="AI analysis worker is not active. Please retry.",
-        payload={"reason": "orphaned_worker"},
+        event_type="job_cancelled" if cancelled else "job_failed",
+        stage="cancelled" if cancelled else "failed",
+        message="AI 分析已停止。" if cancelled else "AI analysis worker is not active. Please retry.",
+        payload={"reason": "cancelled_by_user" if cancelled else "orphaned_worker"},
     )
     db.update_sor_document_ai_state(document_id, ai_status="STALE", workflow_stage="EXTRACTION_LOCKED")
     logger.warning(
@@ -847,6 +1011,16 @@ async def upload_knowledge_document(
     effective_to: str = Form(""),
 ) -> dict:
     _require_project(project_id)
+    default_profile = load_ai_copilot_config()
+    if not default_profile.retrieval_runtime_ready:
+        missing = ", ".join(get_ai_profile_missing_config(default_profile))
+        raise HTTPException(
+            status_code=409,
+            detail=(
+                f"{default_profile.display_name} knowledge sync is not ready yet. "
+                f"Complete AI path setup before uploading knowledge documents: {missing}"
+            ),
+        )
     suffix = Path(file.filename or "").suffix or ".txt"
     file_name = file.filename or f"knowledge_{uuid.uuid4().hex}{suffix}"
     duplicate = _find_duplicate_knowledge_document(project_id, file_name)
@@ -873,7 +1047,11 @@ async def upload_knowledge_document(
         effective_from=_normalize_optional_date(effective_from),
         effective_to=_normalize_optional_date(effective_to),
     )
-    document = _sync_knowledge_document_targets(project_id, document)
+    document = _sync_knowledge_document_targets(
+        project_id,
+        document,
+        profile_ids=_default_knowledge_sync_profile_ids(),
+    )
     project = db.bump_project_knowledge_base_version(project_id)
     return {
         **document,
@@ -898,6 +1076,27 @@ async def upload_knowledge_document(
 def list_knowledge_documents(project_id: str) -> list[dict]:
     _require_project(project_id)
     return _attach_knowledge_syncs(_list_project_knowledge_documents(project_id))
+
+
+@app.post("/api/projects/{project_id}/knowledge-documents/{document_id}/resync")
+def resync_knowledge_document(project_id: str, document_id: str) -> dict:
+    _require_project(project_id)
+    document = next(
+        (
+            item
+            for item in _list_project_knowledge_documents(project_id)
+            if str(item.get("id") or "").strip() == document_id
+        ),
+        None,
+    )
+    if not document:
+        raise HTTPException(status_code=404, detail="Knowledge document not found for this project.")
+    refreshed = _sync_knowledge_document_targets(
+        project_id,
+        document,
+        profile_ids=_default_knowledge_sync_profile_ids(),
+    )
+    return refreshed
 
 
 @app.post("/api/projects/{project_id}/sor-documents/{document_id}/lock-extraction")
@@ -1340,6 +1539,203 @@ def _build_ai_analysis_status_payload(
     }
 
 
+class _AIReasoningEventEmitter:
+    def __init__(
+        self,
+        *,
+        job_id: str,
+        document_id: str,
+        requirement_id: str,
+        requirement_code: str,
+        profile_id: str,
+        provider: str,
+        cancel_checker: Callable[[], bool] | None = None,
+    ) -> None:
+        self.job_id = job_id
+        self.document_id = document_id
+        self.requirement_id = requirement_id
+        self.requirement_code = requirement_code
+        self.profile_id = profile_id
+        self.provider = provider
+        self._cancel_checker = cancel_checker
+        self._stream_buffers: dict[tuple[str, str], dict[str, Any]] = {}
+        self._last_stage_key = ""
+
+    def handle(self, payload: dict[str, Any]) -> None:
+        self._raise_if_cancelled()
+        event_type = str(payload.get("type") or "").strip().lower()
+        stage = self._normalize_stage(payload.get("stage"))
+        if event_type == "stage":
+            self._emit_stage_update(
+                stage=stage,
+                mode=str(payload.get("mode") or "").strip(),
+                model_name=str(payload.get("model_name") or "").strip(),
+                message=str(payload.get("message") or "").strip(),
+            )
+            return
+        if event_type not in {"reasoning", "answer"}:
+            return
+        delta = str(payload.get("delta") or "")
+        if not delta:
+            return
+        stream_kind = "reasoning" if event_type == "reasoning" else "output"
+        key = (stage, stream_kind)
+        buffer = self._stream_buffers.setdefault(
+            key,
+            {
+                "content": "",
+                "chars_emitted": 0,
+                "sequence": 0,
+                "last_emit_at": 0.0,
+                "mode": "",
+                "model_name": "",
+                "legacy_started_emitted": False,
+            },
+        )
+        buffer["content"] = str(buffer.get("content") or "") + delta
+        if str(payload.get("mode") or "").strip():
+            buffer["mode"] = str(payload.get("mode") or "").strip()
+        if str(payload.get("model_name") or "").strip():
+            buffer["model_name"] = str(payload.get("model_name") or "").strip()
+        self._emit_stream_if_needed(stage=stage, stream_kind=stream_kind, buffer=buffer, force=int(buffer.get("sequence") or 0) == 0)
+
+    def flush(self) -> None:
+        self._raise_if_cancelled()
+        for (stage, stream_kind), buffer in self._stream_buffers.items():
+            self._emit_stream_if_needed(stage=stage, stream_kind=stream_kind, buffer=buffer, force=True)
+
+    def _raise_if_cancelled(self) -> None:
+        if self._cancel_checker and self._cancel_checker():
+            raise AIAnalysisCancelledError("AI analysis cancelled by user.")
+
+    def _normalize_stage(self, value: object) -> str:
+        normalized = str(value or "").strip().lower()
+        if normalized in {"screening", "retrieval", "assessment"}:
+            return normalized
+        if self._last_stage_key:
+            return self._last_stage_key
+        return "assessment"
+
+    def _emit_stage_update(self, *, stage: str, mode: str, model_name: str, message: str) -> None:
+        final_message = message or self._default_stage_message(stage)
+        if not final_message:
+            return
+        self._last_stage_key = stage
+        db.update_ai_analysis_job(
+            self.job_id,
+            current_stage=stage,
+            last_message=final_message,
+        )
+        db.add_ai_analysis_event(
+            job_id=self.job_id,
+            sor_document_id=self.document_id,
+            profile_id=self.profile_id,
+            provider=self.provider,
+            event_type="requirement_stage_update",
+            stage=stage,
+            message=final_message,
+            requirement_id=self.requirement_id,
+            requirement_code=self.requirement_code,
+            payload={
+                "stage": stage,
+                "mode": mode,
+                "model_name": model_name,
+                "provider": self.provider,
+            },
+        )
+
+    def _emit_stream_if_needed(
+        self,
+        *,
+        stage: str,
+        stream_kind: str,
+        buffer: dict[str, Any],
+        force: bool,
+    ) -> None:
+        content = str(buffer.get("content") or "")
+        total_chars = len(content)
+        if total_chars <= 0:
+            return
+        now = time.monotonic()
+        chars_since_emit = total_chars - int(buffer.get("chars_emitted") or 0)
+        if not force and chars_since_emit < _AI_REASONING_EVENT_CHAR_DELTA:
+            last_emit_at = float(buffer.get("last_emit_at") or 0.0)
+            if last_emit_at and (now - last_emit_at) < _AI_REASONING_EVENT_FLUSH_INTERVAL_SECONDS:
+                return
+        buffer["chars_emitted"] = total_chars
+        buffer["sequence"] = int(buffer.get("sequence") or 0) + 1
+        buffer["last_emit_at"] = now
+        self._last_stage_key = stage
+        preview_limit = _AI_REASONING_OUTPUT_PREVIEW_LIMIT if stream_kind == "output" else _AI_REASONING_EVENT_PREVIEW_LIMIT
+        preview = content[-preview_limit:]
+        message = self._build_stream_message(stage=stage, stream_kind=stream_kind, total_chars=total_chars)
+        payload = {
+            "stage": stage,
+            "phase": "reasoning" if stream_kind == "reasoning" else "output",
+            "mode": str(buffer.get("mode") or ""),
+            "model_name": str(buffer.get("model_name") or ""),
+            "provider": self.provider,
+            "characters_emitted": total_chars,
+            "sequence": int(buffer.get("sequence") or 0),
+            "content_preview": preview,
+            "truncated": len(preview) < total_chars,
+        }
+        db.update_ai_analysis_job(
+            self.job_id,
+            current_stage=stage,
+            last_message=message,
+        )
+        if stage == "assessment" and stream_kind == "output" and not bool(buffer.get("legacy_started_emitted")):
+            buffer["legacy_started_emitted"] = True
+            db.add_ai_analysis_event(
+                job_id=self.job_id,
+                sor_document_id=self.document_id,
+                profile_id=self.profile_id,
+                provider=self.provider,
+                event_type="requirement_answer_started",
+                stage=stage,
+                message=f"{self.requirement_code} 正在生成结构化结论。",
+                requirement_id=self.requirement_id,
+                requirement_code=self.requirement_code,
+                payload=payload,
+            )
+        db.add_ai_analysis_event(
+            job_id=self.job_id,
+            sor_document_id=self.document_id,
+            profile_id=self.profile_id,
+            provider=self.provider,
+            event_type=self._stream_event_type(stage, stream_kind),
+            stage=stage,
+            message=message,
+            requirement_id=self.requirement_id,
+            requirement_code=self.requirement_code,
+            payload=payload,
+        )
+
+    def _stream_event_type(self, stage: str, stream_kind: str) -> str:
+        if stage == "screening":
+            return "requirement_screening_reasoning" if stream_kind == "reasoning" else "requirement_screening_output"
+        return "requirement_reasoning" if stream_kind == "reasoning" else "requirement_output"
+
+    def _default_stage_message(self, stage: str) -> str:
+        if stage == "screening":
+            return f"正在筛选 {self.requirement_code} 是否进入需求分析。"
+        if stage == "retrieval":
+            return f"{self.requirement_code} 筛选完成，正在检索候选证据。"
+        if stage == "assessment":
+            return f"{self.requirement_code} 候选证据已就绪，正在生成结构化结论。"
+        return ""
+
+    def _build_stream_message(self, *, stage: str, stream_kind: str, total_chars: int) -> str:
+        if stage == "screening":
+            if stream_kind == "reasoning":
+                return f"{self.requirement_code} 正在筛选推理（已生成 {total_chars} 字）"
+            return f"{self.requirement_code} 正在生成筛选结果（已输出 {total_chars} 字）"
+        if stream_kind == "reasoning":
+            return f"{self.requirement_code} 正在推理（已生成 {total_chars} 字）"
+        return f"{self.requirement_code} 正在生成结构化结论（已输出 {total_chars} 字）"
+
+
 def _execute_document_ai_analysis(
     project: dict[str, Any],
     document: dict[str, Any],
@@ -1394,6 +1790,8 @@ def _execute_document_ai_analysis(
     screened_count = 0
     try:
         for index, row in enumerate(eligible_rows, start=1):
+            if job_id:
+                _raise_if_ai_analysis_cancel_requested(document_id, job_id)
             display_text = str(row.get("display_text") or row.get("requirement_text") or "").strip()
             if not display_text:
                 continue
@@ -1405,8 +1803,8 @@ def _execute_document_ai_analysis(
                     current_requirement_id=requirement_id,
                     current_requirement_code=requirement_code,
                     current_requirement_index=index,
-                    current_stage="assessment",
-                    last_message=f"正在分析 {requirement_code}（{index}/{total_requirements}）",
+                    current_stage="screening",
+                    last_message=f"正在筛选 {requirement_code}（{index}/{total_requirements}）",
                 )
                 db.add_ai_analysis_event(
                     job_id=job_id,
@@ -1414,14 +1812,38 @@ def _execute_document_ai_analysis(
                     profile_id=ai_config.profile_id,
                     provider=ai_config.provider,
                     event_type="requirement_started",
-                    stage="assessment",
-                    message=f"开始分析 {requirement_code}（{index}/{total_requirements}）",
+                    stage="screening",
+                    message=f"开始处理 {requirement_code}（{index}/{total_requirements}）",
                     requirement_id=requirement_id,
                     requirement_code=requirement_code,
                     payload={"index": index, "total": total_requirements},
                 )
 
-            result = run_ai_copilot_assessment(row, knowledge_docs, config=ai_config)
+            reasoning_emitter = (
+                _AIReasoningEventEmitter(
+                    job_id=job_id,
+                    document_id=document_id,
+                    requirement_id=requirement_id,
+                    requirement_code=requirement_code,
+                    profile_id=ai_config.profile_id,
+                    provider=ai_config.provider,
+                    cancel_checker=(lambda: _is_ai_analysis_cancel_requested(document_id, str(job_id or ""))),
+                )
+                if job_id
+                else None
+            )
+            try:
+                result = run_ai_copilot_assessment(
+                    row,
+                    knowledge_docs,
+                    config=ai_config,
+                    progress_callback=reasoning_emitter.handle if reasoning_emitter else None,
+                )
+            finally:
+                if reasoning_emitter and not (job_id and _is_ai_analysis_cancel_requested(document_id, job_id)):
+                    reasoning_emitter.flush()
+            if job_id:
+                _raise_if_ai_analysis_cancel_requested(document_id, job_id)
             assessment = result["assessment"]
             db.upsert_assessment(
                 requirement_id=requirement_id,
@@ -1445,9 +1867,16 @@ def _execute_document_ai_analysis(
 
             analysis_label = str(assessment.get("analysis_label") or "").strip().upper()
             ai_decision = str(assessment.get("ai_decision") or "").strip().upper()
+            assessment_mode = str(assessment.get("assessment_mode") or "").strip().lower()
             if _is_info_only_requirement(assessment):
                 info_count += 1
                 result_label = "INFO"
+            elif assessment_mode == "screening_failed":
+                screened_count += 1
+                result_label = "筛选失败"
+            elif assessment_mode == "analysis_failed":
+                screened_count += 1
+                result_label = "分析失败"
             elif ai_decision:
                 analyzed_count += 1
                 result_label = ai_decision
@@ -1472,12 +1901,15 @@ def _execute_document_ai_analysis(
                 "provider": ai_config.provider,
                 "analysis_label": analysis_label,
                 "ai_decision": ai_decision,
-                "assessment_mode": str(assessment.get("assessment_mode") or ""),
+                "assessment_mode": assessment_mode,
                 "evidence_count": len(result.get("evidences") or []),
                 "fallback_reasons": fallback_reasons,
                 "validation_statuses": validation_statuses,
             }
-            event_message = f"完成 {requirement_code}：{result_label}，证据 {len(result.get('evidences') or [])} 条。"
+            if assessment_mode in {"screening_failed", "analysis_failed"}:
+                event_message = f"完成 {requirement_code}：{result_label}。"
+            else:
+                event_message = f"完成 {requirement_code}：{result_label}，证据 {len(result.get('evidences') or [])} 条。"
             if job_id:
                 db.update_ai_analysis_job(
                     job_id,
@@ -1500,6 +1932,66 @@ def _execute_document_ai_analysis(
                     requirement_code=requirement_code,
                     payload=event_payload,
                 )
+    except AIAnalysisCancelledError:
+        logger.info(
+            "AI analysis execution cancelled for job %s on document %s.",
+            job_id or "sync",
+            document_id,
+        )
+        db.update_sor_document_ai_state(document_id, ai_status="STALE", workflow_stage="EXTRACTION_LOCKED")
+        if job_id:
+            finished_at = datetime.now(timezone.utc).isoformat()
+            completion_message = (
+                f"AI 分析已停止：已完成 {analyzed_count + info_count + screened_count}/{total_requirements} 条。"
+            )
+            db.update_ai_analysis_job(
+                job_id,
+                status="CANCELLED",
+                completed_requirements=analyzed_count + info_count + screened_count,
+                analyzed_requirements=analyzed_count,
+                info_requirements=info_count,
+                screened_requirements=screened_count,
+                current_stage="cancelled",
+                last_message=completion_message,
+                error_message="",
+                finished_at=finished_at,
+                current_requirement_id="",
+                current_requirement_code="",
+            )
+            db.add_ai_analysis_event(
+                job_id=job_id,
+                sor_document_id=document_id,
+                profile_id=ai_config.profile_id,
+                provider=ai_config.provider,
+                event_type="job_cancelled",
+                stage="cancelled",
+                message=completion_message,
+                payload={
+                    "profile_id": ai_config.profile_id,
+                    "provider": ai_config.provider,
+                    "completed_requirements": analyzed_count + info_count + screened_count,
+                    "total_requirements": total_requirements,
+                },
+            )
+        updated_document = db.backfill_sor_document_runtime(document_id) or db.get_sor_document(document_id) or document
+        requirements = db.list_requirements(project_id, document_id)
+        requirements = _enrich_requirements_with_preview_context(requirements, str(document.get("file_path") or ""))
+        preview, preview_meta = load_cached_preview(updated_document)
+        workspace = _build_document_workspace(
+            project=project,
+            document=updated_document,
+            requirements=requirements,
+            knowledge_docs_count=len(knowledge_docs),
+            preview=preview,
+            preview_meta=preview_meta,
+        )
+        return {
+            **_strip_workspace_preview(workspace),
+            "ai_processed_requirements": analyzed_count,
+            "ai_info_requirements": info_count,
+            "ai_screened_requirements": screened_count,
+            "knowledge_docs_used": len(knowledge_docs),
+        }
     except Exception as exc:
         logger.exception(
             "AI analysis execution failed for job %s on document %s.",
@@ -1627,14 +2119,15 @@ def _run_document_ai_analysis_worker(job_id: str, project_id: str, document_id: 
         )
         current = db.get_ai_analysis_job(job_id) or {}
         current_status = str(current.get("status") or "").strip().upper()
-        if current_status not in {"FAILED", "COMPLETED"}:
+        if current_status not in {"FAILED", "COMPLETED", "CANCELLED"}:
             finished_at = datetime.now(timezone.utc).isoformat()
+            cancelled = current_status == "CANCEL_REQUESTED" or isinstance(exc, AIAnalysisCancelledError)
             db.update_ai_analysis_job(
                 job_id,
-                status="FAILED",
-                current_stage="failed",
-                last_message=f"AI 分析失败：{exc}",
-                error_message=str(exc),
+                status="CANCELLED" if cancelled else "FAILED",
+                current_stage="cancelled" if cancelled else "failed",
+                last_message="AI 分析已停止。" if cancelled else f"AI 分析失败：{exc}",
+                error_message="" if cancelled else str(exc),
                 finished_at=finished_at,
                 current_requirement_id="",
                 current_requirement_code="",
@@ -1644,10 +2137,10 @@ def _run_document_ai_analysis_worker(job_id: str, project_id: str, document_id: 
                 sor_document_id=document_id,
                 profile_id=str(current.get("profile_id") or ""),
                 provider=str(current.get("provider") or ""),
-                event_type="job_failed",
-                stage="failed",
-                message=f"AI 分析失败：{exc}",
-                payload={"reason": str(exc)},
+                event_type="job_cancelled" if cancelled else "job_failed",
+                stage="cancelled" if cancelled else "failed",
+                message="AI 分析已停止。" if cancelled else f"AI 分析失败：{exc}",
+                payload={"reason": "cancelled_by_user" if cancelled else str(exc)},
             )
             try:
                 db.update_sor_document_ai_state(document_id, ai_status="STALE", workflow_stage="EXTRACTION_LOCKED")
@@ -1709,7 +2202,7 @@ def start_document_ai_analysis(
         name=f"ai-analysis-{document_id[:8]}",
         daemon=True,
     )
-    _register_ai_analysis_thread(document_id, thread)
+    _register_ai_analysis_thread(document_id, thread, job_id=str(job.get("id") or ""))
     thread.start()
     logger.info(
         "Queued AI analysis job %s for document %s using profile %s with %s requirement(s).",
@@ -1719,6 +2212,45 @@ def start_document_ai_analysis(
         len(eligible_rows),
     )
     return _build_ai_analysis_status_payload(project_id, document_id)
+
+
+@app.post("/api/projects/{project_id}/sor-documents/{document_id}/run-ai-analysis/stop")
+def stop_document_ai_analysis(project_id: str, document_id: str) -> dict:
+    _require_project(project_id)
+    document = db.get_sor_document(document_id)
+    if not document or document["project_id"] != project_id:
+        raise HTTPException(status_code=404, detail="SOR document not found for this project.")
+    _finalize_orphaned_ai_analysis_job(document_id)
+    job = db.get_running_ai_analysis_job(document_id)
+    if not job:
+        return _build_ai_analysis_status_payload(project_id, document_id)
+    job_id = str(job.get("id") or "")
+    status = str(job.get("status") or "").strip().upper()
+    if status == "CANCEL_REQUESTED":
+        return _build_ai_analysis_status_payload(project_id, document_id, job=job)
+    if not _has_live_ai_analysis_thread(document_id):
+        finalized = _finalize_orphaned_ai_analysis_job(document_id)
+        return _build_ai_analysis_status_payload(project_id, document_id, job=finalized or job)
+    _request_ai_analysis_cancel(document_id, job_id)
+    message = "已请求停止当前 AI 分析，正在等待当前调用安全中断。"
+    updated = db.update_ai_analysis_job(
+        job_id,
+        status="CANCEL_REQUESTED",
+        current_stage="cancelling",
+        last_message=message,
+        error_message="",
+    )
+    db.add_ai_analysis_event(
+        job_id=job_id,
+        sor_document_id=document_id,
+        profile_id=str(job.get("profile_id") or ""),
+        provider=str(job.get("provider") or ""),
+        event_type="job_cancel_requested",
+        stage="cancelling",
+        message=message,
+        payload={"reason": "user_requested_stop"},
+    )
+    return _build_ai_analysis_status_payload(project_id, document_id, job=updated)
 
 
 @app.get("/api/projects/{project_id}/sor-documents/{document_id}/ai-analysis-status")

@@ -1,0 +1,32 @@
+[      69ms] [VERBOSE] [DOM] Multiple forms should be contained in their own form elements; break up complex forms into ones that represent a single action: (More info: https://goo.gl/9p2vKq) %o @ http://127.0.0.1:8000/workspace?stage=ai:0
+[      91ms] [ERROR] Failed to load resource: the server responded with a status of 404 (Not Found) @ http://127.0.0.1:8000/favicon.ico:0
+[   18027ms] ReferenceError: jobStatus is not defined
+    at renderAiLiveReasoning (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:2553:55)
+    at renderAiProgressPanel (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:2436:3)
+    at renderAiStage (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:2380:3)
+    at selectAiRequirement (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:812:3)
+    at loadWorkspace (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:1274:10)
+    at async Promise.all (index 0)
+    at async onProjectChanged (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:893:5)
+    at async HTMLSelectElement.<anonymous> (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:4011:7)
+[   77486ms] [ERROR] ReferenceError: jobStatus is not defined
+    at renderAiLiveReasoning (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:2553:55)
+    at renderAiProgressPanel (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:2436:3)
+    at renderAiStage (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:2380:3)
+    at selectAiRequirement (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:812:3)
+    at onAiRequirementListClicked (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:840:9)
+    at HTMLDivElement.<anonymous> (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:4011:13) @ http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:4012
+[   84742ms] ReferenceError: jobStatus is not defined
+    at renderAiLiveReasoning (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:2553:55)
+    at renderAiProgressPanel (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:2436:3)
+    at renderAiStage (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:2380:3)
+    at ensureAiStageHydrated (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:731:3)
+[  104049ms] ReferenceError: jobStatus is not defined
+    at renderAiLiveReasoning (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:2553:55)
+    at renderAiProgressPanel (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:2436:3)
+    at renderAiStage (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:2380:3)
+    at selectAiRequirement (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:812:3)
+    at loadWorkspace (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:1274:10)
+    at async Promise.all (index 0)
+    at async onProjectChanged (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:893:5)
+    at async HTMLSelectElement.<anonymous> (http://127.0.0.1:8000/assets/app.js?v=20260403-live-stream2:4011:7)

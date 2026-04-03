@@ -1,5 +1,12 @@
 :root {
   color-scheme: light;
+  --pdf-bg: #f6f6f6;
+  --pdf-surface: #ffffff;
+  --pdf-border: #d0d0d0;
+  --pdf-text: #343434;
+  --pdf-muted: #646464;
+  --pdf-primary: #00893d;
+  --pdf-primary-dark: #005e46;
 }
 
 html,
@@ -9,8 +16,10 @@ body {
   height: 100%;
   width: 100%;
   overflow: hidden;
-  background: #f5f7fb;
-  font-family: -apple-system, BlinkMacSystemFont, "Segoe UI", sans-serif;
+  background:
+    radial-gradient(circle at top right, rgba(0, 137, 61, 0.08), transparent 26%),
+    var(--pdf-bg);
+  font-family: "Noto Sans", "Segoe UI", sans-serif;
 }
 
 .pdf-viewer-page {
@@ -24,21 +33,23 @@ body {
   display: flex;
   justify-content: space-between;
   align-items: center;
-  gap: 8px;
-  padding: 8px 10px;
-  border-bottom: 1px solid #d8e1ef;
-  background: #ffffff;
+  gap: 12px;
+  padding: 10px 14px;
+  border-bottom: 1px solid var(--pdf-border);
+  background: rgba(255, 255, 255, 0.94);
+  backdrop-filter: blur(12px);
 }
 
 .meta {
   display: flex;
-  gap: 10px;
+  gap: 12px;
   align-items: center;
   min-width: 0;
+  flex-wrap: wrap;
 }
 
 #status-text {
-  color: #5f6f84;
+  color: var(--pdf-muted);
   font-size: 12px;
   white-space: nowrap;
   overflow: hidden;
@@ -46,7 +57,7 @@ body {
 }
 
 #page-text {
-  color: #24384f;
+  color: var(--pdf-text);
   font-size: 12px;
   font-weight: 600;
 }
@@ -60,11 +71,15 @@ body {
   width: 28px;
   height: 28px;
   border-radius: 8px;
-  border: 1px solid #cdd9ea;
+  border: 1px solid var(--pdf-border);
   background: #fff;
-  color: #23405e;
+  color: var(--pdf-primary-dark);
   font-weight: 700;
   cursor: pointer;
+}
+
+.actions button:hover {
+  background: #f0f6f2;
 }
 
 .actions button:disabled {
@@ -87,7 +102,7 @@ body {
 }
 
 .error-box a {
-  color: #0a4d9f;
+  color: var(--pdf-primary-dark);
   text-decoration: none;
   font-weight: 600;
 }
@@ -100,12 +115,12 @@ body {
   overflow: auto;
   display: grid;
   place-items: start center;
-  padding: 10px;
+  padding: 14px;
 }
 
 #pdf-canvas {
   display: block;
   background: #fff;
-  box-shadow: 0 6px 20px rgba(40, 70, 110, 0.14);
+  box-shadow: 0 12px 30px rgba(22, 44, 31, 0.12);
   border-radius: 4px;
 }

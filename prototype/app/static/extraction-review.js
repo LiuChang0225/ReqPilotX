@@ -23,7 +23,7 @@ const state = {
 };
 const WORKSPACE_SELECTION_KEY = "reqpilotx.workspace-selection-v1";
 const FRONTEND_BUILD = "20260310-2";
-const PDF_VIEWER_VERSION = "20260310-2";
+const PDF_VIEWER_VERSION = "20260403-reqx1";
 
 const el = {
   projectSelect: document.querySelector("#project-select"),

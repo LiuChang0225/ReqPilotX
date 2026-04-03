@@ -1,0 +1,178 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - generic [ref=e5]:
+        - img "Schaeffler" [ref=e6]
+        - generic [ref=e7]:
+          - generic [ref=e8]: ReqPilotX
+          - generic [ref=e9]: Enterprise Requirement Intelligence Workspace
+      - generic [ref=e10]:
+        - heading "ReqPilotX 智能合规工作台" [level=1] [ref=e11]
+        - paragraph [ref=e12]: 企业级需求分析工作台：上传 SOR 后自动拆解、生成初判建议、人工确认并导出 Compliance Matrix。
+    - navigation [ref=e13]:
+      - link "产品首页" [ref=e14] [cursor=pointer]:
+        - /url: /home
+      - link "条目审阅台" [ref=e15] [cursor=pointer]:
+        - /url: /workspace?stage=review
+  - generic [ref=e16]:
+    - paragraph
+  - generic [ref=e17]:
+    - heading "1. 项目管理" [level=2] [ref=e18]
+    - generic [ref=e19]:
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - text: 项目名称
+          - textbox "项目名称" [ref=e22]:
+            - /placeholder: "例如: BMS Platform Gen3"
+        - generic [ref=e23]:
+          - text: 客户名称
+          - textbox "客户名称" [ref=e24]:
+            - /placeholder: "例如: OEM-A"
+        - button "创建项目" [ref=e25] [cursor=pointer]
+      - generic [ref=e26]:
+        - generic [ref=e27]:
+          - text: 当前项目
+          - combobox "当前项目" [ref=e28]:
+            - option "请选择项目"
+            - option "codex-aliyun-mini-101619 / Codex Smoke" [selected]
+            - option "codex-aliyun-smoke-101454 / Codex Smoke"
+            - option "codex-aliyun-smoke-095709 / Codex Smoke"
+            - option "nox / geely"
+            - option "tmp_apply_review / tmp"
+            - option "tmp_dedupe_check2 / tmp"
+            - option "tmp_dedupe_check / tmp"
+            - option "mda阀 / jac"
+            - option "MDA / JAC"
+            - option "MDA / GAC"
+            - option "baic nox / baic"
+            - option "SectionModeCheck / Test"
+            - option "Real Sample Tuning / BAIC"
+            - option "Tune Smoke / OEM-T"
+            - option "Smoke Test / OEM-Z"
+            - option "Prototype E2E / OEM-Y"
+            - option "Prototype Demo / OEM-X"
+            - option "Prototype Demo / OEM-X"
+        - generic [ref=e29]:
+          - text: 当前 SOR 文档
+          - combobox "当前 SOR 文档" [ref=e30]:
+            - option "请选择 SOR 文档"
+            - option "aliyun_sor_XXXX.txt" [selected]
+        - button "刷新项目列表" [ref=e31] [cursor=pointer]
+  - generic [ref=e32]:
+    - heading "2. AI 路径设置" [level=2] [ref=e33]
+    - generic [ref=e34]:
+      - generic [ref=e35]:
+        - generic [ref=e36]:
+          - text: 默认知识库 / AI 路径
+          - combobox "默认知识库 / AI 路径" [ref=e37]:
+            - option "Azure" [selected]
+            - option "Aliyun"
+        - paragraph [ref=e38]: 这一步建议放在知识库上传之前。知识文档会按当前默认路径做同步，SOR 上传本身不受影响。
+        - paragraph [ref=e39]: Azure 可运行，当前无需知识同步。
+      - generic [ref=e40]:
+        - generic [ref=e41]:
+          - paragraph [ref=e42]: Azure 本地推荐使用 Azure CLI / RBAC。浏览器交互只作为 fallback，不建议作为默认主路径。
+          - generic [ref=e43]:
+            - checkbox "允许浏览器交互登录 fallback" [ref=e44]
+            - generic [ref=e45]: 允许浏览器交互登录 fallback
+          - button "检查 Azure RBAC" [ref=e47] [cursor=pointer]
+          - paragraph
+        - button "保存路径配置" [ref=e49] [cursor=pointer]
+        - paragraph
+  - generic [ref=e50]:
+    - heading "3. 文档上传" [level=2] [ref=e51]
+    - generic [ref=e52]:
+      - generic [ref=e53]:
+        - generic [ref=e54]:
+          - text: 上传 SOR 文档（PDF / DOCX）
+          - button "上传 SOR 文档（PDF / DOCX）" [ref=e55]
+        - button "上传 SOR" [ref=e57] [cursor=pointer]
+        - paragraph
+      - generic [ref=e58]:
+        - generic [ref=e59]:
+          - text: 上传知识库文档（规格/标准/历史案例）
+          - button "上传知识库文档（规格/标准/历史案例）" [disabled] [ref=e60]
+        - paragraph [ref=e61]: 请先完成上方 AI 路径设置。知识文档会按当前默认路径同步，不再要求填写类型、版本、状态和生效日期。
+        - button "上传知识文档" [disabled] [ref=e63]
+        - paragraph
+  - generic [ref=e65]:
+    - generic [ref=e66]:
+      - heading "知识文档清单" [level=3] [ref=e67]
+      - paragraph
+    - table [ref=e69]:
+      - rowgroup [ref=e74]:
+        - row "文件 上传时间 检索同步" [ref=e75]:
+          - columnheader "文件" [ref=e76]
+          - columnheader "上传时间" [ref=e77]
+          - columnheader "检索同步" [ref=e78]
+      - rowgroup
+  - generic [ref=e79]:
+    - heading "4. 分析与导出" [level=2] [ref=e80]
+    - generic [ref=e81]:
+      - button "生成条目集" [disabled] [ref=e82]
+      - button "锁定条目集" [disabled] [ref=e83]
+      - button "运行 AI 分析" [disabled] [ref=e84]
+      - button "停止 AI" [disabled] [ref=e85]
+      - generic [ref=e86]:
+        - generic [ref=e87]: AI 路径
+        - combobox "AI 路径" [ref=e88]
+      - button "刷新工作区" [ref=e89] [cursor=pointer]
+      - textbox "导出版本标识，例如 r33" [ref=e90]
+      - combobox [ref=e91]:
+        - option "不做版本对比" [selected]
+      - button "刷新导出版本" [ref=e92] [cursor=pointer]
+      - button "导出 Compliance Matrix" [disabled] [ref=e93]
+    - paragraph
+    - paragraph
+    - paragraph [ref=e94]: 选择项目和 SOR 文档后，才可导出 Compliance Matrix。
+  - generic [ref=e95]:
+    - heading "5. 工作阶段" [level=2] [ref=e96]
+    - generic [ref=e97]:
+      - button "1. 条目审阅" [ref=e98] [cursor=pointer]
+      - button "2. AI 分析" [ref=e99] [cursor=pointer]
+      - button "3. Compliance Matrix" [ref=e100] [cursor=pointer]
+  - generic [ref=e101]:
+    - heading "审阅工作台" [level=2] [ref=e102]
+    - generic [ref=e103]:
+      - generic [ref=e104]:
+        - generic [ref=e105]:
+          - generic [ref=e106]:
+            - text: 分类
+            - combobox "分类" [ref=e107]
+          - generic [ref=e108]:
+            - text: 章节
+            - textbox "章节" [ref=e109]:
+              - /placeholder: 例如 5.3.6.2 或 A:1.2.3
+          - generic [ref=e110]:
+            - text: 关键词
+            - textbox "关键词" [ref=e111]:
+              - /placeholder: 关键词过滤原文需求
+          - generic [ref=e112]:
+            - button "全部保留" [disabled] [ref=e113]
+            - button "全部移除" [disabled] [ref=e114]
+            - button "仅看推荐截图" [disabled] [ref=e115]
+            - button "刷新预览" [disabled] [ref=e116]
+        - paragraph
+        - group [ref=e117]:
+          - generic "开发诊断（折叠）" [ref=e118] [cursor=pointer]
+        - table [ref=e120]:
+          - rowgroup [ref=e127]:
+            - row "保留 分类 章节 原文需求 页范围" [ref=e128]:
+              - columnheader "保留" [ref=e129]:
+                - generic [ref=e130]:
+                  - checkbox "保留" [disabled] [ref=e131]
+                  - generic [ref=e132]: 保留
+              - columnheader "分类" [ref=e133]
+              - columnheader "章节" [ref=e134]
+              - columnheader "原文需求" [ref=e135]
+              - columnheader "页范围" [ref=e136]
+          - rowgroup
+      - complementary [ref=e137]:
+        - button "PDF对照" [ref=e138] [cursor=pointer]
+        - generic:
+          - generic:
+            - heading "原 PDF 对照" [level=3]
+            - button "新窗口打开"
+          - paragraph: 点击左侧条目定位原文页。
+          - iframe [ref=e139]:
+            

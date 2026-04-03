@@ -3,19 +3,29 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SOR 智能合规分析原型</title>
-    <link rel="stylesheet" href="/assets/styles.css?v=20260401-ui1" />
+    <title>ReqPilotX 智能合规工作台</title>
+    <link rel="icon" href="/assets/reqpilotx-logo.svg" type="image/svg+xml" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260403-live-stream6" />
   </head>
   <body>
     <main class="page">
       <header class="hero">
-        <div>
-          <h1>SOR 智能合规分析原型</h1>
-          <p>客户工作台：上传 SOR 后自动拆解、生成初判建议、人工确认并导出 Compliance Matrix。</p>
+        <div class="reqx-hero-cluster">
+          <div class="reqx-brand-lockup">
+            <img src="/assets/schaeffler-logo.svg" alt="Schaeffler" class="reqx-brand-logo" />
+            <div class="reqx-brand-copy">
+              <span class="reqx-brand-name">ReqPilotX</span>
+              <span class="reqx-brand-caption">Enterprise Requirement Intelligence Workspace</span>
+            </div>
+          </div>
+          <div class="reqx-hero-copy">
+            <h1>ReqPilotX 智能合规工作台</h1>
+            <p>企业级需求分析工作台：上传 SOR 后自动拆解、生成初判建议、人工确认并导出 Compliance Matrix。</p>
+          </div>
         </div>
         <nav class="hero-nav">
-          <a href="/home" target="_blank" rel="noreferrer">项目首页</a>
-          <a href="/workspace?stage=review" target="_blank" rel="noreferrer">拆解审阅台</a>
+          <a href="/home" target="_blank" rel="noreferrer">产品首页</a>
+          <a href="/workspace?stage=review" target="_blank" rel="noreferrer">条目审阅台</a>
         </nav>
       </header>
 
@@ -54,7 +64,78 @@
       </section>
 
       <section class="panel">
-        <h2>2. 文档上传</h2>
+        <h2>2. AI 路径设置</h2>
+        <div class="grid two">
+          <div class="card">
+            <label>
+              默认知识库 / AI 路径
+              <select id="setup-default-profile-select">
+                <option value="azure">Azure</option>
+                <option value="aliyun">Aliyun</option>
+              </select>
+            </label>
+            <p class="hint">
+              这一步建议放在知识库上传之前。知识文档会按当前默认路径做同步，SOR 上传本身不受影响。
+            </p>
+            <p id="setup-profile-hint" class="hint"></p>
+          </div>
+
+          <form id="provider-setup-form" class="card upload-card">
+            <div id="setup-azure-fields">
+              <p class="hint">
+                Azure 本地推荐使用 Azure CLI / RBAC。浏览器交互只作为 fallback，不建议作为默认主路径。
+              </p>
+              <label class="checkbox-row">
+                <input id="setup-azure-allow-interactive" type="checkbox" />
+                <span>允许浏览器交互登录 fallback</span>
+              </label>
+              <div class="upload-card-actions">
+                <button id="setup-azure-probe-btn" type="button" class="button-compact">检查 Azure RBAC</button>
+              </div>
+              <p id="setup-azure-probe-result" class="hint"></p>
+            </div>
+
+            <div id="setup-aliyun-fields" hidden>
+              <label>
+                DashScope API Key
+                <input id="setup-aliyun-api-key" type="password" placeholder="sk-..." />
+              </label>
+              <label>
+                Chat 模型
+                <input id="setup-aliyun-chat-model" value="qwen3.5-plus" />
+              </label>
+              <label>
+                Embedding 模型
+                <input id="setup-aliyun-embedding-model" value="text-embedding-v4" />
+              </label>
+              <label>
+                DashScope Base URL
+                <input id="setup-aliyun-base-url" value="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+              </label>
+              <label>
+                Qdrant URL
+                <input id="setup-aliyun-qdrant-url" value="http://localhost:6333" />
+              </label>
+              <label>
+                Qdrant Collection
+                <input id="setup-aliyun-qdrant-collection" value="reqpilot-knowledge-aliyun-local" />
+              </label>
+              <label>
+                Qdrant API Key（可选）
+                <input id="setup-aliyun-qdrant-api-key" type="password" />
+              </label>
+            </div>
+
+            <div class="upload-card-actions">
+              <button id="provider-setup-save-btn" type="submit" class="button-compact">保存路径配置</button>
+            </div>
+            <p id="provider-setup-result" class="hint"></p>
+          </form>
+        </div>
+      </section>
+
+      <section class="panel">
+        <h2>3. 文档上传</h2>
         <div class="grid two">
           <form id="sor-upload-form" class="card upload-card">
             <label>
@@ -72,7 +153,7 @@
               上传知识库文档（规格/标准/历史案例）
               <input id="kb-file" type="file" accept=".pdf,.docx,.doc,.txt" required />
             </label>
-            <p class="hint">直接上传文件即可，系统按默认知识文档配置入库，不再要求填写类型、版本、状态和生效日期。</p>
+            <p class="hint">请先完成上方 AI 路径设置。知识文档会按当前默认路径同步，不再要求填写类型、版本、状态和生效日期。</p>
             <div class="upload-card-actions">
               <button id="kb-upload-btn" type="button" class="button-compact">上传知识文档</button>
             </div>
@@ -108,11 +189,12 @@
       </section>
 
       <section class="panel span-wide">
-        <h2>3. 分析与导出</h2>
+        <h2>4. 分析与导出</h2>
         <div class="actions">
           <button id="analyze-btn" type="button">生成条目集</button>
           <button id="lock-extraction-btn" type="button">锁定条目集</button>
           <button id="run-ai-btn" type="button">运行 AI 分析</button>
+          <button id="stop-ai-btn" type="button">停止 AI</button>
           <label class="ai-profile-field" for="ai-profile-select">
             <span>AI 路径</span>
             <select id="ai-profile-select"></select>
@@ -132,7 +214,7 @@
       </section>
 
       <section class="panel span-wide">
-        <h2>4. 工作阶段</h2>
+        <h2>5. 工作阶段</h2>
         <div id="stage-switcher" class="stage-switcher">
           <button type="button" data-stage="review" class="stage-chip is-active">1. 条目审阅</button>
           <button type="button" data-stage="ai" class="stage-chip">2. AI 分析</button>
@@ -259,12 +341,19 @@
               <p id="ai-job-summary" class="hint"></p>
             </div>
             <div id="ai-progress-current" class="ai-progress-current"></div>
+            <div id="ai-live-reasoning" class="ai-live-reasoning"></div>
             <div id="ai-progress-timeline" class="ai-progress-timeline"></div>
           </div>
           <div class="card ai-detail-card">
             <div class="panel-head">
               <h3>证据链与最终结论</h3>
-              <p id="ai-detail-summary" class="hint"></p>
+              <div class="ai-detail-head-meta">
+                <p id="ai-detail-summary" class="hint"></p>
+                <label class="ai-follow-toggle" for="ai-follow-current-toggle">
+                  <input id="ai-follow-current-toggle" type="checkbox" checked />
+                  <span>跟随当前运行条目</span>
+                </label>
+              </div>
             </div>
             <div class="ai-requirement-shell">
               <div id="ai-requirement-list" class="ai-requirement-list"></div>
@@ -342,6 +431,6 @@
       </section>
     </main>
 
-    <script src="/assets/app.js?v=20260401-ui1" type="module"></script>
+    <script src="/assets/app.js?v=20260403-live-stream5" type="module"></script>
   </body>
 </html>

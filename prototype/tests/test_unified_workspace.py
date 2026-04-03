@@ -10,6 +10,7 @@ import unittest
 import sqlite3
 from contextlib import ExitStack
 from pathlib import Path
+from threading import Event
 from unittest.mock import patch
 
 import fitz
@@ -22,6 +23,7 @@ from starlette.datastructures import UploadFile
 from app import db, main
 from app.services.complex_table_mode import _row_shadow_signature
 from app.services import exporter, extraction_preview, preview_cache, table_assets, extractor
+from app.services.ai_copilot import AICopilotConfig, clear_runtime_ai_provider_overrides
 from app.services.exporter import export_compliance_matrix
 
 
@@ -379,6 +381,7 @@ def _complex_group_review_row(*, source_snapshot_path: str, shadow_rows: list[di
 
 class UnifiedWorkspaceTests(unittest.TestCase):
     def setUp(self) -> None:
+        clear_runtime_ai_provider_overrides()
         self.tmpdir = tempfile.TemporaryDirectory()
         self.tmp_path = Path(self.tmpdir.name)
         self.exit_stack = ExitStack()
@@ -388,6 +391,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         db.init_db()
 
     def tearDown(self) -> None:
+        clear_runtime_ai_provider_overrides()
         self.exit_stack.close()
         db_file = self.tmp_path / "app.db"
         for _ in range(5):
@@ -2792,6 +2796,181 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                     self.assertEqual(status_payload["document"]["ai_status"], "STALE")
                     self.assertTrue(any(item["event_type"] == "job_failed" for item in status_payload["events"]))
 
+    def test_ai_analysis_job_api_surfaces_screening_and_analysis_failed_statuses(self) -> None:
+        project, document = self._create_project_with_document("-ai-job-fail-closed")
+        screening_requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1 | Section 5.1",
+            requirement_text="Supplier shall provide EMC validation evidence.",
+            raw_text="Supplier shall provide EMC validation evidence.",
+            display_text="Supplier shall provide EMC validation evidence.",
+            requirement_type="REGULATION",
+            priority="MEDIUM",
+            parent_section_code="5.1",
+            parent_section_title="Compliance",
+            parent_section_label="5.1 Compliance",
+        )
+        analysis_requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0002",
+            source_page=2,
+            source_anchor="Page 2 | Section 5.2",
+            requirement_text="System shall support wake-up time less than 100ms.",
+            raw_text="System shall support wake-up time less than 100ms.",
+            display_text="System shall support wake-up time less than 100ms.",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="5.2",
+            parent_section_title="Startup",
+            parent_section_label="5.2 Startup",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        main.lock_document_extraction(project["id"], document["id"])
+        ai_config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="qdrant",
+            top_k=5,
+            trace_dir=self.tmp_path / "ai_traces_fail_closed",
+            azure_auth_mode="",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="",
+            azure_search_api_key="",
+            azure_search_index_name="",
+            azure_openai_endpoint="",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="",
+            azure_openai_embedding_deployment="",
+            azure_openai_embedding_dimensions=0,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            profile_id="aliyun",
+            provider="aliyun",
+            profile_label="Aliyun",
+            chat_model="qwen3.5-plus",
+            screening_model="qwen3.5-flash",
+            embedding_model="text-embedding-v4",
+            dashscope_api_key="aliyun-key",
+            dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            qdrant_url="http://localhost:6333",
+            qdrant_collection_name="reqpilot-knowledge-aliyun-local",
+        )
+        eligible_rows = db.list_requirements(project["id"], document["id"])
+        prepared = (project, document, eligible_rows, eligible_rows, [], ai_config)
+        screening_failed_result = {
+            "assessment": {
+                "profile_id": "aliyun",
+                "provider": "aliyun",
+                "analysis_label": "REQUIREMENT",
+                "analysis_basis": "LLM screening failed; analysis stopped. Request timed out.",
+                "ai_decision": "",
+                "ai_reason": "",
+                "ai_confidence": 0.0,
+                "risk_level": "",
+                "clarification_question": "",
+                "normalized_requirement": "Supplier shall provide EMC validation evidence.",
+                "assessment_mode": "screening_failed",
+                "retrieval_backend": "screening_only",
+                "model_name": "qwen3.5-flash",
+                "prompt_version": "v2.1-requirement-screening-aliyun",
+            },
+            "evidences": [],
+            "runs": [
+                {
+                    "profile_id": "aliyun",
+                    "provider": "aliyun",
+                    "mode": "screening_llm_shadow",
+                    "retrieval_backend": "screening_only",
+                    "model_name": "qwen3.5-flash",
+                    "prompt_version": "v2.1-requirement-screening-aliyun",
+                    "input_payload_json": "{}",
+                    "output_payload_json": "",
+                    "validation_status": "failed",
+                    "fallback_reason": "Request timed out.",
+                }
+            ],
+            "trace_path": str(self.tmp_path / "trace-screening-failed.json"),
+        }
+        analysis_failed_result = {
+            "assessment": {
+                "profile_id": "aliyun",
+                "provider": "aliyun",
+                "analysis_label": "REQUIREMENT",
+                "analysis_basis": "LLM requirement analysis failed; analysis stopped. Connection error.",
+                "ai_decision": "",
+                "ai_reason": "",
+                "ai_confidence": 0.0,
+                "risk_level": "",
+                "clarification_question": "",
+                "normalized_requirement": "System shall support wake-up time less than 100ms.",
+                "assessment_mode": "analysis_failed",
+                "retrieval_backend": "qdrant",
+                "model_name": "qwen3.5-plus",
+                "prompt_version": "v2.0-aliyun-rag-copilot",
+            },
+            "evidences": [],
+            "runs": [
+                {
+                    "profile_id": "aliyun",
+                    "provider": "aliyun",
+                    "mode": "screening_llm_shadow",
+                    "retrieval_backend": "screening_only",
+                    "model_name": "qwen3.5-flash",
+                    "prompt_version": "v2.1-requirement-screening-aliyun",
+                    "input_payload_json": "{}",
+                    "output_payload_json": "{\"analysis_label\":\"REQUIREMENT\"}",
+                    "validation_status": "accepted",
+                    "fallback_reason": "",
+                },
+                {
+                    "profile_id": "aliyun",
+                    "provider": "aliyun",
+                    "mode": "llm_shadow",
+                    "retrieval_backend": "qdrant",
+                    "model_name": "qwen3.5-plus",
+                    "prompt_version": "v2.0-aliyun-rag-copilot",
+                    "input_payload_json": "{}",
+                    "output_payload_json": "",
+                    "validation_status": "failed",
+                    "fallback_reason": "Connection error.",
+                },
+            ],
+            "trace_path": str(self.tmp_path / "trace-analysis-failed.json"),
+        }
+
+        with patch.object(main, "_prepare_document_ai_analysis_request", return_value=prepared), patch.object(
+            main,
+            "run_ai_copilot_assessment",
+            side_effect=[screening_failed_result, analysis_failed_result],
+        ), patch.object(main, "Thread", ImmediateThread):
+            with TestClient(main.app) as client:
+                start_response = client.post(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                    json={"profile_id": "aliyun"},
+                )
+                self.assertEqual(start_response.status_code, 200)
+                status_response = client.get(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
+                )
+                self.assertEqual(status_response.status_code, 200)
+                status_payload = status_response.json()
+
+        completed_messages = {
+            str(item.get("message") or "")
+            for item in status_payload["events"]
+            if item.get("event_type") == "requirement_completed"
+        }
+        self.assertIn("完成 REQ0001：筛选失败。", completed_messages)
+        self.assertIn("完成 REQ0002：分析失败。", completed_messages)
+        screening_row = db.get_requirement(screening_requirement["id"]) or {}
+        analysis_row = db.get_requirement(analysis_requirement["id"]) or {}
+        self.assertEqual(screening_row.get("assessment_mode"), "screening_failed")
+        self.assertEqual(analysis_row.get("assessment_mode"), "analysis_failed")
+
     def test_run_ai_analysis_marks_info_rows_and_skips_manual_decision(self) -> None:
         project, document = self._create_project_with_document("-ai-info")
         info_requirement = db.insert_requirement(
@@ -2837,6 +3016,391 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(row["evidences"], [])
         self.assertEqual(result["ai_processed_requirements"], 0)
         self.assertEqual(result["ai_info_requirements"], 1)
+
+    def test_ai_analysis_job_api_exposes_reasoning_stream_events(self) -> None:
+        project, document = self._create_project_with_document("-ai-reasoning-events")
+        requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1 | Section 4.5",
+            requirement_text="Supplier shall submit CAMDS data before SOP.",
+            raw_text="Supplier shall submit CAMDS data before SOP.",
+            display_text="Supplier shall submit CAMDS data before SOP.",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="4.5",
+            parent_section_title="Compliance",
+            parent_section_label="4.5 Compliance",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        main.lock_document_extraction(project["id"], document["id"])
+        ai_config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="qdrant",
+            top_k=5,
+            trace_dir=self.tmp_path / "ai_traces_reasoning_events",
+            azure_auth_mode="",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="",
+            azure_search_api_key="",
+            azure_search_index_name="",
+            azure_openai_endpoint="",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="",
+            azure_openai_embedding_deployment="",
+            azure_openai_embedding_dimensions=0,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            profile_id="aliyun",
+            provider="aliyun",
+            profile_label="Aliyun",
+            chat_model="qwen3.5-plus",
+            screening_model="qwen3.5-flash",
+            embedding_model="text-embedding-v4",
+            dashscope_api_key="aliyun-key",
+            dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            qdrant_url="http://localhost:6333",
+            qdrant_collection_name="reqpilot-knowledge-aliyun-local",
+        )
+        eligible_rows = db.list_requirements(project["id"], document["id"])
+        prepared = (project, document, eligible_rows, eligible_rows, [], ai_config)
+
+        def fake_run_ai_copilot_assessment(
+            requirement_row: dict[str, object],
+            knowledge_docs: list[dict[str, object]],
+            *,
+            config: AICopilotConfig | None = None,
+            forced_analysis_label: str | None = None,
+            forced_analysis_basis: str = "",
+            progress_callback=None,
+        ) -> dict[str, object]:
+            if progress_callback:
+                progress_callback(
+                    {
+                        "type": "stage",
+                        "stage": "screening",
+                        "mode": "screening_llm_shadow",
+                        "model_name": "qwen3.5-flash",
+                        "message": "正在进行 requirement / INFO 筛选。",
+                    }
+                )
+                progress_callback(
+                    {
+                        "type": "reasoning",
+                        "stage": "screening",
+                        "mode": "screening_llm_shadow",
+                        "model_name": "qwen3.5-flash",
+                        "delta": "先判断这条是否属于真正需要合规结论的 requirement。",
+                        "content": "先判断这条是否属于真正需要合规结论的 requirement。",
+                        "characters_emitted": 24,
+                    }
+                )
+                progress_callback(
+                    {
+                        "type": "answer",
+                        "stage": "screening",
+                        "mode": "screening_llm_shadow",
+                        "model_name": "qwen3.5-flash",
+                        "delta": "{\"analysis_label\":\"REQUIREMENT\",\"reason\":\"该条涉及 CAMDS 填报义务。\"}",
+                        "content": "{\"analysis_label\":\"REQUIREMENT\",\"reason\":\"该条涉及 CAMDS 填报义务。\"}",
+                        "characters_emitted": 58,
+                    }
+                )
+                progress_callback(
+                    {
+                        "type": "stage",
+                        "stage": "retrieval",
+                        "mode": "screening_llm_shadow",
+                        "model_name": "qwen3.5-flash",
+                        "message": "筛选完成，正在检索候选证据。",
+                    }
+                )
+                progress_callback(
+                    {
+                        "type": "stage",
+                        "stage": "assessment",
+                        "mode": "llm_shadow",
+                        "model_name": "qwen3.5-plus",
+                        "message": "候选证据已就绪，正在生成结构化结论。",
+                    }
+                )
+                progress_callback(
+                    {
+                        "type": "reasoning",
+                        "stage": "assessment",
+                        "mode": "llm_shadow",
+                        "model_name": "qwen3.5-plus",
+                        "delta": "先检查 requirement 的约束条件。",
+                        "content": "先检查 requirement 的约束条件。",
+                        "characters_emitted": 16,
+                    }
+                )
+                progress_callback(
+                    {
+                        "type": "reasoning",
+                        "stage": "assessment",
+                        "mode": "llm_shadow",
+                        "model_name": "qwen3.5-plus",
+                        "delta": " 再核对候选证据是否真正覆盖 CAMDS 义务。",
+                        "content": "先检查 requirement 的约束条件。 再核对候选证据是否真正覆盖 CAMDS 义务。",
+                        "characters_emitted": 40,
+                    }
+                )
+                progress_callback(
+                    {
+                        "type": "answer",
+                        "stage": "assessment",
+                        "mode": "llm_shadow",
+                        "model_name": "qwen3.5-plus",
+                        "delta": "{\"normalized_requirement\":\"Supplier shall submit CAMDS data before SOP.\",",
+                        "content": "{\"normalized_requirement\":\"Supplier shall submit CAMDS data before SOP.\",",
+                        "characters_emitted": 72,
+                    }
+                )
+            return {
+                "assessment": {
+                    "profile_id": "aliyun",
+                    "provider": "aliyun",
+                    "analysis_label": "REQUIREMENT",
+                    "analysis_basis": "已完成LLM分析。",
+                    "ai_decision": "NEED_CLARIFICATION",
+                    "ai_reason": "候选证据无法直接覆盖 CAMDS 数据填报义务。",
+                    "ai_confidence": 0.91,
+                    "risk_level": "HIGH",
+                    "clarification_question": "请补充 CAMDS 数据提交记录。",
+                    "normalized_requirement": "Supplier shall submit CAMDS data before SOP.",
+                    "assessment_mode": "llm_shadow",
+                    "retrieval_backend": "qdrant",
+                    "model_name": "qwen3.5-plus",
+                    "prompt_version": "v2.0-aliyun-rag-copilot",
+                },
+                "evidences": [],
+                "runs": [
+                    {
+                        "profile_id": "aliyun",
+                        "provider": "aliyun",
+                        "mode": "screening_llm_shadow",
+                        "retrieval_backend": "screening_only",
+                        "model_name": "qwen3.5-flash",
+                        "prompt_version": "v2.1-requirement-screening-aliyun",
+                        "input_payload_json": "{}",
+                        "output_payload_json": "{\"analysis_label\":\"REQUIREMENT\"}",
+                        "validation_status": "accepted",
+                        "fallback_reason": "",
+                    },
+                    {
+                        "profile_id": "aliyun",
+                        "provider": "aliyun",
+                        "mode": "llm_shadow",
+                        "retrieval_backend": "qdrant",
+                        "model_name": "qwen3.5-plus",
+                        "prompt_version": "v2.0-aliyun-rag-copilot",
+                        "input_payload_json": "{}",
+                        "output_payload_json": "{\"proposed_decision\":\"NEED_CLARIFICATION\"}",
+                        "validation_status": "accepted",
+                        "fallback_reason": "",
+                    },
+                ],
+                "trace_path": str(self.tmp_path / "trace-reasoning-events.json"),
+            }
+
+        with patch.object(main, "_prepare_document_ai_analysis_request", return_value=prepared), patch.object(
+            main,
+            "run_ai_copilot_assessment",
+            side_effect=fake_run_ai_copilot_assessment,
+        ), patch.object(main, "Thread", ImmediateThread):
+            with TestClient(main.app) as client:
+                start_response = client.post(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                    json={"profile_id": "aliyun"},
+                )
+                self.assertEqual(start_response.status_code, 200)
+                status_response = client.get(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
+                )
+                self.assertEqual(status_response.status_code, 200)
+                status_payload = status_response.json()
+
+        reasoning_events = [
+            item for item in status_payload["events"] if item.get("event_type") == "requirement_reasoning"
+        ]
+        self.assertTrue(reasoning_events)
+        self.assertTrue(
+            any("CAMDS" in str(item.get("payload", {}).get("content_preview") or "") for item in reasoning_events)
+        )
+        screening_reasoning_events = [
+            item for item in status_payload["events"] if item.get("event_type") == "requirement_screening_reasoning"
+        ]
+        self.assertTrue(screening_reasoning_events)
+        self.assertTrue(
+            any("REQUIREMENT" in str(item.get("payload", {}).get("content_preview") or "") for item in status_payload["events"] if item.get("event_type") == "requirement_screening_output")
+        )
+        self.assertTrue(
+            any(item.get("event_type") == "requirement_stage_update" for item in status_payload["events"])
+        )
+        self.assertTrue(
+            any(item.get("event_type") == "requirement_output" for item in status_payload["events"])
+        )
+        self.assertTrue(
+            any(item.get("event_type") == "requirement_answer_started" for item in status_payload["events"])
+        )
+        self.assertTrue(
+            any(item.get("event_type") == "requirement_completed" for item in status_payload["events"])
+        )
+        updated_row = db.get_requirement(requirement["id"]) or {}
+        self.assertEqual(updated_row.get("assessment_mode"), "llm_shadow")
+
+    def test_ai_analysis_job_can_be_stopped_from_api(self) -> None:
+        project, document = self._create_project_with_document("-ai-stop")
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1 | Section 4.5",
+            requirement_text="Supplier shall submit CAMDS data before SOP.",
+            raw_text="Supplier shall submit CAMDS data before SOP.",
+            display_text="Supplier shall submit CAMDS data before SOP.",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="4.5",
+            parent_section_title="Compliance",
+            parent_section_label="4.5 Compliance",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        main.lock_document_extraction(project["id"], document["id"])
+        ai_config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="qdrant",
+            top_k=5,
+            trace_dir=self.tmp_path / "ai_traces_stop",
+            azure_auth_mode="",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="",
+            azure_search_api_key="",
+            azure_search_index_name="",
+            azure_openai_endpoint="",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="",
+            azure_openai_embedding_deployment="",
+            azure_openai_embedding_dimensions=0,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            profile_id="aliyun",
+            provider="aliyun",
+            profile_label="Aliyun",
+            chat_model="qwen3.5-plus",
+            screening_model="qwen3.5-flash",
+            embedding_model="text-embedding-v4",
+            dashscope_api_key="aliyun-key",
+            dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            qdrant_url="http://localhost:6333",
+            qdrant_collection_name="reqpilot-knowledge-aliyun-local",
+        )
+        eligible_rows = db.list_requirements(project["id"], document["id"])
+        prepared = (project, document, eligible_rows, eligible_rows, [], ai_config)
+        started = Event()
+
+        def fake_run_ai_copilot_assessment(
+            requirement_row: dict[str, object],
+            knowledge_docs: list[dict[str, object]],
+            *,
+            config: AICopilotConfig | None = None,
+            forced_analysis_label: str | None = None,
+            forced_analysis_basis: str = "",
+            progress_callback=None,
+        ) -> dict[str, object]:
+            if progress_callback:
+                progress_callback(
+                    {
+                        "type": "stage",
+                        "stage": "assessment",
+                        "mode": "llm_shadow",
+                        "model_name": "qwen3.5-plus",
+                        "message": "候选证据已就绪，正在生成结构化结论。",
+                    }
+                )
+                started.set()
+                for index in range(200):
+                    progress_callback(
+                        {
+                            "type": "reasoning",
+                            "stage": "assessment",
+                            "mode": "llm_shadow",
+                            "model_name": "qwen3.5-plus",
+                            "delta": f"thinking-{index}-" + ("x" * 200),
+                            "content": f"thinking-{index}-" + ("x" * 200),
+                            "characters_emitted": (index + 1) * 210,
+                        }
+                    )
+                    time.sleep(0.02)
+            return {
+                "assessment": {
+                    "profile_id": "aliyun",
+                    "provider": "aliyun",
+                    "analysis_label": "REQUIREMENT",
+                    "analysis_basis": "已完成LLM分析。",
+                    "ai_decision": "NEED_CLARIFICATION",
+                    "ai_reason": "候选证据无法直接覆盖 CAMDS 数据填报义务。",
+                    "ai_confidence": 0.91,
+                    "risk_level": "HIGH",
+                    "clarification_question": "请补充 CAMDS 数据提交记录。",
+                    "normalized_requirement": "Supplier shall submit CAMDS data before SOP.",
+                    "assessment_mode": "llm_shadow",
+                    "retrieval_backend": "qdrant",
+                    "model_name": "qwen3.5-plus",
+                    "prompt_version": "v2.0-aliyun-rag-copilot",
+                },
+                "evidences": [],
+                "runs": [],
+                "trace_path": str(self.tmp_path / "trace-stop.json"),
+            }
+
+        with patch.object(main, "_prepare_document_ai_analysis_request", return_value=prepared), patch.object(
+            main,
+            "run_ai_copilot_assessment",
+            side_effect=fake_run_ai_copilot_assessment,
+        ):
+            with TestClient(main.app) as client:
+                start_response = client.post(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                    json={"profile_id": "aliyun"},
+                )
+                self.assertEqual(start_response.status_code, 200)
+                self.assertTrue(started.wait(timeout=1.5))
+
+                stop_response = client.post(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/stop"
+                )
+                self.assertEqual(stop_response.status_code, 200)
+                self.assertEqual(stop_response.json()["job"]["status"], "CANCEL_REQUESTED")
+
+                deadline = time.time() + 3.0
+                status_payload = stop_response.json()
+                while time.time() < deadline:
+                    status_response = client.get(
+                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
+                    )
+                    self.assertEqual(status_response.status_code, 200)
+                    status_payload = status_response.json()
+                    if str(status_payload.get("job", {}).get("status") or "").upper() == "CANCELLED":
+                        break
+                    time.sleep(0.05)
+
+        self.assertEqual(str(status_payload.get("job", {}).get("status") or "").upper(), "CANCELLED")
+        self.assertEqual(str(status_payload.get("job", {}).get("current_stage") or "").lower(), "cancelled")
+        event_types = [str(item.get("event_type") or "") for item in status_payload.get("events") or []]
+        self.assertIn("job_cancel_requested", event_types)
+        self.assertIn("job_cancelled", event_types)
+        self.assertTrue(
+            any("已停止" in str(item.get("message") or "") for item in status_payload.get("events") or [])
+        )
+        refreshed_document = db.get_sor_document(document["id"]) or {}
+        self.assertEqual(str(refreshed_document.get("ai_status") or "").upper(), "STALE")
 
     def test_override_analysis_label_promotes_info_row_back_to_requirement(self) -> None:
         project, document = self._create_project_with_document("-override-info")
@@ -2963,6 +3527,362 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(created["effective_to"], "2026-12-31")
         self.assertEqual(listed[0]["doc_type"], "STANDARD")
         self.assertEqual(listed[0]["doc_version"], "V1.2")
+
+    def test_upload_knowledge_document_syncs_only_default_profile_on_upload(self) -> None:
+        project, _document = self._create_project_with_document("-knowledge-default-sync")
+        knowledge_dir = self.tmp_path / "knowledge_default_sync"
+        knowledge_dir.mkdir(parents=True, exist_ok=True)
+        upload = UploadFile(filename="spec.txt", file=io.BytesIO("Spec content".encode("utf-8")))
+        captured: dict[str, object] = {}
+
+        def fake_sync(project_id: str, document: dict, *, profile_ids: list[str] | None = None) -> dict:
+            captured["project_id"] = project_id
+            captured["profile_ids"] = list(profile_ids or [])
+            return {
+                **document,
+                "retrieval_sync_status": "READY",
+                "retrieval_sync_error": "",
+                "retrieval_synced_at": "2026-04-02T00:00:00+00:00",
+                "retrieval_syncs": [
+                    {
+                        "profile_id": "azure",
+                        "provider": "azure",
+                        "retrieval_backend": "azure_sdk",
+                        "status": "READY",
+                        "synced_at": "2026-04-02T00:00:00+00:00",
+                        "chunk_count": 1,
+                        "payload_path": str(self.tmp_path / "payload.json"),
+                    }
+                ],
+            }
+
+        with patch.object(main, "KNOWLEDGE_DIR", knowledge_dir), patch.object(
+            main,
+            "_default_knowledge_sync_profile_ids",
+            return_value=["azure"],
+        ), patch.object(
+            main,
+            "_sync_knowledge_document_targets",
+            side_effect=fake_sync,
+        ):
+            created = asyncio.run(
+                main.upload_knowledge_document(
+                    project["id"],
+                    file=upload,
+                    doc_type="REFERENCE",
+                    doc_version="",
+                    status="ACTIVE",
+                    effective_from="",
+                    effective_to="",
+                )
+            )
+
+        self.assertEqual(captured["project_id"], project["id"])
+        self.assertEqual(captured["profile_ids"], ["azure"])
+        self.assertEqual(created["retrieval_syncs"][0]["profile_id"], "azure")
+
+    def test_runtime_ai_provider_setup_endpoint_can_switch_default_profile(self) -> None:
+        with TestClient(main.app) as client:
+            response = client.post(
+                "/api/runtime/ai-provider-setup",
+                json={
+                    "default_profile_id": "aliyun",
+                    "aliyun": {
+                        "api_key": "aliyun-key",
+                        "chat_model": "qwen3.5-plus",
+                        "embedding_model": "text-embedding-v4",
+                        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                        "qdrant_url": "http://localhost:6333",
+                        "qdrant_collection": "reqpilot-knowledge-aliyun-local",
+                    },
+                },
+            )
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["default_profile_id"], "aliyun")
+        self.assertTrue(payload["aliyun"]["api_key_configured"])
+        self.assertEqual(payload["aliyun"]["embedding_model"], "text-embedding-v4")
+
+    def test_runtime_ai_provider_setup_endpoint_rejects_non_ascii_aliyun_api_key(self) -> None:
+        with TestClient(main.app) as client:
+            response = client.post(
+                "/api/runtime/ai-provider-setup",
+                json={
+                    "default_profile_id": "aliyun",
+                    "aliyun": {
+                        "api_key": "sk-测试key",
+                        "chat_model": "qwen3.5-plus",
+                        "embedding_model": "text-embedding-v4",
+                        "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                        "qdrant_url": "http://localhost:6333",
+                        "qdrant_collection": "reqpilot-knowledge-aliyun-local",
+                    },
+                },
+            )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertIn("DashScope API Key contains non-ASCII characters", response.json()["detail"])
+
+    def test_upload_knowledge_document_requires_ready_default_profile(self) -> None:
+        project, _document = self._create_project_with_document("-knowledge-profile-gate")
+        upload = UploadFile(filename="spec.txt", file=io.BytesIO("Spec content".encode("utf-8")))
+
+        with patch.dict(
+            os.environ,
+            {
+                "REQPILOT_ALIYUN_API_KEY": "",
+                "REQPILOT_DASHSCOPE_API_KEY": "",
+                "DASHSCOPE_API_KEY": "",
+                "REQPILOT_ALIYUN_QDRANT_API_KEY": "",
+                "REQPILOT_QDRANT_API_KEY": "",
+                "QDRANT_API_KEY": "",
+            },
+            clear=False,
+        ):
+            with TestClient(main.app) as client:
+                setup_resp = client.post(
+                    "/api/runtime/ai-provider-setup",
+                    json={
+                        "default_profile_id": "aliyun",
+                        "aliyun": {
+                            "chat_model": "qwen3.5-plus",
+                            "embedding_model": "text-embedding-v4",
+                            "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+                            "qdrant_url": "http://localhost:6333",
+                            "qdrant_collection": "reqpilot-knowledge-aliyun-local",
+                        },
+                    },
+                )
+                self.assertEqual(setup_resp.status_code, 200)
+
+            with self.assertRaises(HTTPException) as ctx:
+                asyncio.run(
+                    main.upload_knowledge_document(
+                        project["id"],
+                        file=upload,
+                        doc_type="REFERENCE",
+                        doc_version="",
+                        status="ACTIVE",
+                        effective_from="",
+                        effective_to="",
+                    )
+                )
+
+        self.assertEqual(ctx.exception.status_code, 409)
+        self.assertIn("Aliyun knowledge sync is not ready yet", str(ctx.exception.detail))
+
+    def test_build_ai_profile_catalog_marks_unsynced_profile_as_pending(self) -> None:
+        azure_config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="azure_sdk",
+            top_k=5,
+            trace_dir=self.tmp_path / "trace-azure",
+            azure_auth_mode="rbac",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_api_key="",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            profile_id="azure",
+            provider="azure",
+            profile_label="Azure",
+            chat_model="gpt-5.4",
+            embedding_model="text-embedding-3-large",
+        )
+        aliyun_config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="qdrant",
+            top_k=5,
+            trace_dir=self.tmp_path / "trace-aliyun",
+            azure_auth_mode="",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="",
+            azure_search_api_key="",
+            azure_search_index_name="",
+            azure_openai_endpoint="",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="",
+            azure_openai_embedding_deployment="",
+            azure_openai_embedding_dimensions=0,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            profile_id="aliyun",
+            provider="aliyun",
+            profile_label="Aliyun",
+            chat_model="qwen3.5-plus",
+            embedding_model="text-embedding-v4",
+            dashscope_api_key="aliyun-key",
+            dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            qdrant_url="http://localhost:6333",
+            qdrant_collection_name="reqpilot-knowledge-aliyun-local",
+        )
+
+        with patch.object(main, "list_ai_copilot_profiles", return_value=[azure_config, aliyun_config]), patch.object(
+            main,
+            "load_ai_copilot_config",
+            return_value=azure_config,
+        ), patch.object(
+            main,
+            "build_ai_profile_check",
+            side_effect=[
+                {"status": "ok", "detail": "Azure ready.", "runnable": True, "missing": []},
+                {"status": "ok", "detail": "Aliyun ready.", "runnable": True, "missing": []},
+            ],
+        ):
+            payload = main._build_ai_profile_catalog(
+                [
+                    {
+                        "id": "kb-1",
+                        "retrieval_syncs": [
+                            {"profile_id": "azure", "status": "READY"},
+                        ],
+                    }
+                ]
+            )
+
+        by_id = {item["id"]: item for item in payload}
+        self.assertEqual(by_id["azure"]["knowledge_sync"]["status"], "READY")
+        self.assertEqual(by_id["aliyun"]["knowledge_sync"]["status"], "PENDING")
+        self.assertTrue(by_id["aliyun"]["ready"])
+
+    def test_build_ai_profile_catalog_uses_runtime_readiness_for_ready_flag(self) -> None:
+        azure_config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="azure_sdk",
+            top_k=5,
+            trace_dir=self.tmp_path / "trace-azure-runtime",
+            azure_auth_mode="rbac",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_api_key="",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            profile_id="azure",
+            provider="azure",
+            profile_label="Azure",
+            chat_model="gpt-5.4",
+            embedding_model="text-embedding-3-large",
+        )
+        aliyun_config = AICopilotConfig(
+            assessment_mode="llm_shadow",
+            retrieval_backend="qdrant",
+            top_k=5,
+            trace_dir=self.tmp_path / "trace-aliyun-runtime",
+            azure_auth_mode="",
+            azure_allow_interactive_login=False,
+            azure_search_endpoint="",
+            azure_search_api_key="",
+            azure_search_index_name="",
+            azure_openai_endpoint="",
+            azure_openai_api_key="",
+            azure_openai_api_version="2024-10-21",
+            azure_openai_chat_deployment="",
+            azure_openai_embedding_deployment="",
+            azure_openai_embedding_dimensions=0,
+            azure_search_semantic_configuration="",
+            llm_timeout_seconds=45.0,
+            profile_id="aliyun",
+            provider="aliyun",
+            profile_label="Aliyun",
+            chat_model="qwen3.5-plus",
+            embedding_model="text-embedding-v4",
+            dashscope_api_key="aliyun-key",
+            dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
+            qdrant_url="http://localhost:6333",
+            qdrant_collection_name="reqpilot-knowledge-aliyun-local",
+        )
+
+        with patch.object(main, "list_ai_copilot_profiles", return_value=[azure_config, aliyun_config]), patch.object(
+            main,
+            "load_ai_copilot_config",
+            return_value=aliyun_config,
+        ), patch.object(
+            main,
+            "build_ai_profile_check",
+            side_effect=[
+                {"status": "ok", "detail": "Azure ready.", "runnable": True, "missing": []},
+                {
+                    "status": "error",
+                    "detail": "Qdrant local service is unreachable.",
+                    "runnable": False,
+                    "missing": ["ALIYUN_QDRANT_UNREACHABLE"],
+                },
+            ],
+        ):
+            payload = main._build_ai_profile_catalog(
+                [
+                    {
+                        "id": "kb-1",
+                        "retrieval_syncs": [],
+                    }
+                ]
+            )
+
+        by_id = {item["id"]: item for item in payload}
+        self.assertFalse(by_id["aliyun"]["ready"])
+        self.assertEqual(by_id["aliyun"]["runtime_status"], "error")
+        self.assertEqual(by_id["aliyun"]["runtime_missing"], ["ALIYUN_QDRANT_UNREACHABLE"])
+        self.assertEqual(by_id["aliyun"]["missing"], ["ALIYUN_QDRANT_UNREACHABLE"])
+
+    def test_resync_knowledge_document_route_uses_default_profile(self) -> None:
+        project, _document = self._create_project_with_document("-knowledge-resync")
+        knowledge_path = self.tmp_path / "knowledge-resync.txt"
+        knowledge_path.write_text("knowledge", encoding="utf-8")
+        knowledge_document = db.add_knowledge_document(
+            project["id"],
+            "knowledge-resync.txt",
+            "txt",
+            str(knowledge_path),
+            "knowledge",
+        )
+
+        captured: dict[str, object] = {}
+
+        def fake_sync(project_id: str, document: dict, *, profile_ids: list[str] | None = None) -> dict:
+            captured["project_id"] = project_id
+            captured["document_id"] = document["id"]
+            captured["profile_ids"] = list(profile_ids or [])
+            return {
+                **document,
+                "retrieval_syncs": [
+                    {
+                        "profile_id": "aliyun",
+                        "status": "READY",
+                    }
+                ],
+            }
+
+        with patch.object(main, "_default_knowledge_sync_profile_ids", return_value=["aliyun"]), patch.object(
+            main,
+            "_sync_knowledge_document_targets",
+            side_effect=fake_sync,
+        ):
+            with TestClient(main.app) as client:
+                response = client.post(
+                    f"/api/projects/{project['id']}/knowledge-documents/{knowledge_document['id']}/resync"
+                )
+
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(captured["project_id"], project["id"])
+        self.assertEqual(captured["document_id"], knowledge_document["id"])
+        self.assertEqual(captured["profile_ids"], ["aliyun"])
+        self.assertEqual(response.json()["retrieval_syncs"][0]["status"], "READY")
 
     def test_upload_knowledge_document_route_accepts_multipart_payload(self) -> None:
         project, _document = self._create_project_with_document("-knowledge-route")

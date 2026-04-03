@@ -1,0 +1,279 @@
+- main [ref=e2]:
+  - generic [ref=e3]:
+    - generic [ref=e4]:
+      - heading "SOR 智能合规分析原型" [level=1] [ref=e5]
+      - paragraph [ref=e6]: 客户工作台：上传 SOR 后自动拆解、生成初判建议、人工确认并导出 Compliance Matrix。
+    - navigation [ref=e7]:
+      - link "项目首页" [ref=e8] [cursor=pointer]:
+        - /url: /home
+      - link "拆解审阅台" [ref=e9] [cursor=pointer]:
+        - /url: /workspace?stage=review
+  - generic [ref=e10]:
+    - generic [ref=e123]:
+      - article [ref=e124]:
+        - generic [ref=e125]: 当前文档
+        - generic [ref=e126]: aliyun_sor_XXXX.txt
+      - article [ref=e127]:
+        - generic [ref=e128]: 工作流
+        - generic [ref=e129]: AI 已完成
+      - article [ref=e130]:
+        - generic [ref=e131]: 条目集版本
+        - generic [ref=e132]: "1"
+      - article [ref=e133]:
+        - generic [ref=e134]: AI 状态
+        - generic [ref=e135]: 结果过期
+      - article [ref=e136]:
+        - generic [ref=e137]: 预览状态
+        - generic [ref=e138]: 已就绪
+      - article [ref=e139]:
+        - generic [ref=e140]: 知识库版本
+        - generic [ref=e141]: "1"
+      - article [ref=e142]:
+        - generic [ref=e143]: 知识文档
+        - generic [ref=e144]: "1"
+      - article [ref=e145]:
+        - generic [ref=e146]: 当前 AI 路径
+        - generic [ref=e147]: Azure
+      - article [ref=e148]:
+        - generic [ref=e149]: 可运行路径
+        - generic [ref=e150]: "2"
+      - article [ref=e151]:
+        - generic [ref=e152]: 矩阵条目
+        - generic [ref=e153]: "1"
+      - article [ref=e154]:
+        - generic [ref=e155]: INFO 条目
+        - generic [ref=e156]: "0"
+      - article [ref=e157]:
+        - generic [ref=e158]: 已人工确认
+        - generic [ref=e159]: "0"
+      - article [ref=e160]:
+        - generic [ref=e161]: HYBRID
+        - generic [ref=e162]: "0"
+    - paragraph [ref=e163]: 当前文档 aliyun_sor_XXXX.txt，阶段 AI 已完成，条目集版本 1，已锁定，AI 结果过期，路径 Azure，预览 已就绪。
+  - generic [ref=e11]:
+    - heading "1. 项目管理" [level=2] [ref=e12]
+    - generic [ref=e13]:
+      - generic [ref=e14]:
+        - generic [ref=e15]:
+          - text: 项目名称
+          - textbox "项目名称" [ref=e16]:
+            - /placeholder: "例如: BMS Platform Gen3"
+        - generic [ref=e17]:
+          - text: 客户名称
+          - textbox "客户名称" [ref=e18]:
+            - /placeholder: "例如: OEM-A"
+        - button "创建项目" [ref=e19] [cursor=pointer]
+      - generic [ref=e20]:
+        - generic [ref=e21]:
+          - text: 当前项目
+          - combobox "当前项目" [ref=e22]:
+            - option "请选择项目"
+            - option "codex-aliyun-mini-101619 / Codex Smoke"
+            - option "codex-aliyun-smoke-101454 / Codex Smoke"
+            - option "codex-aliyun-smoke-095709 / Codex Smoke"
+            - option "nox / geely"
+            - option "tmp_apply_review / tmp"
+            - option "tmp_dedupe_check2 / tmp"
+            - option "tmp_dedupe_check / tmp"
+            - option "mda阀 / jac"
+            - option "MDA / JAC"
+            - option "MDA / GAC"
+            - option "baic nox / baic" [selected]
+            - option "SectionModeCheck / Test"
+            - option "Real Sample Tuning / BAIC"
+            - option "Tune Smoke / OEM-T"
+            - option "Smoke Test / OEM-Z"
+            - option "Prototype E2E / OEM-Y"
+            - option "Prototype Demo / OEM-X"
+            - option "Prototype Demo / OEM-X"
+        - generic [ref=e23]:
+          - text: 当前 SOR 文档
+          - combobox "当前 SOR 文档" [ref=e24]:
+            - option "请选择 SOR 文档"
+            - option "aliyun_sor_XXXX.txt" [selected]
+        - button "刷新项目列表" [ref=e25] [cursor=pointer]
+  - generic [ref=e26]:
+    - heading "2. AI 路径设置" [level=2] [ref=e27]
+    - generic [ref=e28]:
+      - generic [ref=e29]:
+        - generic [ref=e30]:
+          - text: 默认知识库 / AI 路径
+          - combobox "默认知识库 / AI 路径" [ref=e31]:
+            - option "Azure" [selected]
+            - option "Aliyun"
+        - paragraph [ref=e32]: 这一步建议放在知识库上传之前。知识文档会按当前默认路径做同步，SOR 上传本身不受影响。
+        - paragraph [ref=e33]: Azure 可运行，当前无需知识同步。
+      - generic [ref=e34]:
+        - generic [ref=e35]:
+          - paragraph [ref=e36]: Azure 本地推荐使用 Azure CLI / RBAC。浏览器交互只作为 fallback，不建议作为默认主路径。
+          - generic [ref=e37]:
+            - checkbox "允许浏览器交互登录 fallback" [ref=e38]
+            - generic [ref=e39]: 允许浏览器交互登录 fallback
+          - button "检查 Azure RBAC" [ref=e41] [cursor=pointer]
+          - paragraph
+        - button "保存路径配置" [ref=e43] [cursor=pointer]
+        - paragraph
+  - generic [ref=e44]:
+    - heading "3. 文档上传" [level=2] [ref=e45]
+    - generic [ref=e46]:
+      - generic [ref=e47]:
+        - generic [ref=e48]:
+          - text: 上传 SOR 文档（PDF / DOCX）
+          - button "上传 SOR 文档（PDF / DOCX）" [ref=e49]
+        - button "上传 SOR" [ref=e51] [cursor=pointer]
+        - paragraph
+      - generic [ref=e52]:
+        - generic [ref=e53]:
+          - text: 上传知识库文档（规格/标准/历史案例）
+          - button "上传知识库文档（规格/标准/历史案例）" [ref=e54]
+        - paragraph [ref=e55]: 请先完成上方 AI 路径设置。知识文档会按当前默认路径同步，不再要求填写类型、版本、状态和生效日期。
+        - button "上传知识文档" [ref=e57] [cursor=pointer]
+        - paragraph
+  - generic [ref=e59]:
+    - generic [ref=e60]:
+      - heading "知识文档清单" [level=3] [ref=e61]
+      - paragraph [ref=e62]: 当前项目共 1 份知识文档。
+    - table [ref=e64]:
+      - rowgroup [ref=e69]:
+        - row "文件 上传时间 检索同步" [ref=e70]:
+          - columnheader "文件" [ref=e71]
+          - columnheader "上传时间" [ref=e72]
+          - columnheader "检索同步" [ref=e73]
+      - rowgroup [ref=e74]:
+        - 'row "aliyun_kb_XXXX.txt 上传于 2026/04/02 10:16:45 2026/04/02 10:16:45 aliyun: ERROR / 2026/04/02 10:16:45 重试同步" [ref=e75]':
+          - cell "aliyun_kb_XXXX.txt 上传于 2026/04/02 10:16:45" [ref=e76]:
+            - generic [ref=e77]: aliyun_kb_XXXX.txt
+            - generic [ref=e78]: 上传于 2026/04/02 10:16:45
+          - cell "2026/04/02 10:16:45" [ref=e79]:
+            - generic [ref=e80]: 2026/04/02 10:16:45
+          - 'cell "aliyun: ERROR / 2026/04/02 10:16:45 重试同步" [ref=e81]':
+            - generic [ref=e82]: "aliyun: ERROR / 2026/04/02 10:16:45"
+            - button "重试同步" [ref=e83] [cursor=pointer]
+  - generic [ref=e84]:
+    - heading "4. 分析与导出" [level=2] [ref=e85]
+    - generic [ref=e86]:
+      - button "生成条目集" [disabled] [ref=e87]
+      - button "锁定条目集" [ref=e88] [cursor=pointer]
+      - button "重新运行 AI" [ref=e164] [cursor=pointer]
+      - generic [ref=e90]:
+        - generic [ref=e91]: AI 路径
+        - combobox "AI 路径" [ref=e92]:
+          - option "Azure · heuristic / local · 可用" [selected]
+          - option "Aliyun · llm_shadow / qdrant · 可用"
+      - button "刷新工作区" [ref=e93] [cursor=pointer]
+      - textbox "导出版本标识，例如 r33" [ref=e94]
+      - combobox [ref=e95]:
+        - option "不做版本对比" [selected]
+      - button "刷新导出版本" [ref=e96] [cursor=pointer]
+      - button "导出 Compliance Matrix" [ref=e97] [cursor=pointer]
+    - paragraph [ref=e165]: Azure 可运行，知识同步 PENDING。
+    - paragraph
+    - paragraph
+  - generic [ref=e99]:
+    - heading "5. 工作阶段" [level=2] [ref=e100]
+    - generic [ref=e101]:
+      - button "1. 条目审阅" [ref=e102] [cursor=pointer]
+      - button "2. AI 分析" [ref=e103] [cursor=pointer]
+      - button "3. Compliance Matrix" [ref=e104] [cursor=pointer]
+  - generic [ref=e105]:
+    - heading "AI 分析阶段" [level=2] [ref=e106]
+    - generic [ref=e107]:
+      - generic [ref=e108]:
+        - heading "阶段门禁" [level=3] [ref=e109]
+        - list [ref=e166]:
+          - listitem [ref=e167]: 已满足：已生成并保存条目集
+          - listitem [ref=e168]: 已满足：条目集已锁定
+          - listitem [ref=e169]: 已满足：已上传知识文档（1）
+          - listitem [ref=e170]: 待完成：AI 结果已就绪
+      - generic [ref=e110]:
+        - heading "当前状态" [level=3] [ref=e111]
+        - generic [ref=e172]:
+          - generic [ref=e173]:
+            - generic [ref=e174]: 阶段
+            - generic [ref=e175]: AI 已完成
+          - generic [ref=e176]:
+            - generic [ref=e177]: AI 状态
+            - generic [ref=e178]: 结果过期
+          - generic [ref=e179]:
+            - generic [ref=e180]: 任务
+            - generic [ref=e181]: 未启动
+          - generic [ref=e182]:
+            - generic [ref=e183]: 步骤
+            - generic [ref=e184]: 完成
+          - generic [ref=e185]:
+            - generic [ref=e186]: 条目集
+            - generic [ref=e187]: "1"
+          - generic [ref=e188]:
+            - generic [ref=e189]: 运行路径
+            - generic [ref=e190]: Azure
+          - generic [ref=e191]:
+            - generic [ref=e192]: AI 模式
+            - generic [ref=e193]: heuristic
+          - generic [ref=e194]:
+            - generic [ref=e195]: Retrieval
+            - generic [ref=e196]: local
+          - generic [ref=e197]:
+            - generic [ref=e198]: 认证
+            - generic [ref=e199]: auto
+    - generic [ref=e112]:
+      - generic [ref=e113]:
+        - generic [ref=e114]:
+          - heading "步骤日志" [level=3] [ref=e115]
+          - paragraph [ref=e200]: 尚未运行 AI 分析
+        - generic [ref=e201]: 锁定条目集后运行 AI，页面会在这里持续显示当前阶段、处理进度和步骤日志。
+        - generic [ref=e203]: 暂无步骤日志。
+      - generic [ref=e117]:
+        - generic [ref=e118]:
+          - heading "证据链与最终结论" [level=3] [ref=e119]
+          - paragraph [ref=e204]: 当前查看：REQ0001
+        - generic [ref=e120]:
+          - button "REQ0001 待分析 The ECU shall support wake-up time less than 100ms under -20C condition. -" [ref=e205] [cursor=pointer]:
+            - generic [ref=e206]:
+              - generic [ref=e207]: REQ0001
+              - generic [ref=e208]: 待分析
+            - generic [ref=e209]: The ECU shall support wake-up time less than 100ms under -20C condition.
+            - generic [ref=e210]: "-"
+          - generic [ref=e122]:
+            - generic [ref=e211]:
+              - generic [ref=e212]:
+                - heading "REQ0001" [level=3] [ref=e213]
+                - generic [ref=e214]: "-"
+              - generic [ref=e216]: 待分析
+            - generic [ref=e217]:
+              - heading "原始需求" [level=4] [ref=e218]
+              - paragraph [ref=e219]: The ECU shall support wake-up time less than 100ms under -20C condition.
+            - generic [ref=e220]:
+              - heading "当前阶段" [level=4] [ref=e221]
+              - paragraph [ref=e222]: 已完成需求筛选，但当前没有知识文档，尚未进入需求分析。筛选依据：该条目表达了明确的性能边界和可验证义务。
+            - generic [ref=e223]:
+              - heading "最终结论" [level=4] [ref=e224]
+              - paragraph [ref=e225]: 暂无最终结论。
+            - generic [ref=e226]:
+              - heading "规范化需求" [level=4] [ref=e227]
+              - paragraph [ref=e228]: The ECU shall support wake-up time less than 100ms under -20C condition.
+              - generic [ref=e229]:
+                - generic [ref=e230]:
+                  - generic [ref=e231]: 对象
+                  - generic [ref=e232]: ECU
+                - generic [ref=e233]:
+                  - generic [ref=e234]: 约束/数值
+                  - generic [ref=e235]: 100ms
+                - generic [ref=e236]:
+                  - generic [ref=e237]: 适用条件
+                  - generic [ref=e238]: under -20C condition
+            - generic [ref=e239]:
+              - heading "证据链" [level=4] [ref=e240]
+              - generic [ref=e241]: 当前条目暂无可用证据。请结合步骤日志检查检索与回退路径。
+            - generic [ref=e242]:
+              - heading "模型运行记录" [level=4] [ref=e243]
+              - generic [ref=e244]:
+                - article [ref=e245]:
+                  - generic [ref=e246]:
+                    - generic [ref=e247]: screening_llm_shadow · qwen3.5-plus
+                    - generic [ref=e248]: screening_only · accepted · 2026/04/02 10:16:45
+                  - paragraph [ref=e249]: 无回退，直接生成最终结果。
+                - article [ref=e250]:
+                  - generic [ref=e251]:
+                    - generic [ref=e252]: screening_heuristic · rules-rag-prototype
+                    - generic [ref=e253]: screening_only · accepted · 2026/04/02 10:16:45
+                  - paragraph [ref=e254]: 无回退，直接生成最终结果。

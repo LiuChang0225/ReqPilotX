@@ -3,7 +3,8 @@
   <head>
     <meta charset="UTF-8" />
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
-    <title>SOR AI Copilot - 下一代需求智能分析</title>
+    <title>ReqPilotX - 企业级需求智能分析平台</title>
+    <link rel="icon" href="/assets/reqpilotx-logo.svg" type="image/svg+xml" />
     
     <!-- Google Fonts for Apple-like Typography -->
     <link rel="preconnect" href="https://fonts.googleapis.com">
@@ -21,11 +22,11 @@
             },
             colors: {
               apple: {
-                dark: '#1d1d1f',
-                gray: '#86868b',
-                light: '#f5f5f7',
-                blue: '#0066cc',
-                blueHover: '#0077ED'
+                dark: '#343434',
+                gray: '#646464',
+                light: '#f6f6f6',
+                blue: '#00893D',
+                blueHover: '#005E46'
               }
             },
             letterSpacing: {
@@ -39,25 +40,26 @@
     </script>
     
     <!-- Custom CSS -->
-    <link rel="stylesheet" href="/assets/home.css" />
+    <link rel="stylesheet" href="/assets/reqpilotx-brand.css?v=20260403-reqx2" />
+    <link rel="stylesheet" href="/assets/home.css?v=20260403-brandfix2" />
   </head>
-  <body class="bg-apple-light text-apple-dark antialiased selection:bg-apple-blue selection:text-white">
+  <body class="reqx-home bg-apple-light text-apple-dark antialiased selection:bg-apple-blue selection:text-white">
 
     <!-- Global Navbar (Glassmorphism) -->
     <header class="fixed top-0 w-full z-50 glass-nav border-b border-gray-200/50 transition-all duration-300">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex justify-between items-center h-14">
-          <a href="#top" class="text-xl font-semibold tracking-tight text-black flex items-center gap-2 hover:opacity-80 transition-opacity">
-            <svg class="w-6 h-6 text-apple-blue" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2"><path stroke-linecap="round" stroke-linejoin="round" d="M13 10V3L4 14h7v7l9-11h-7z" /></svg>
-            SOR Copilot
+          <a href="#top" class="text-xl font-semibold tracking-tight text-black flex items-center gap-3 hover:opacity-80 transition-opacity">
+            <img src="/assets/schaeffler-logo.svg" alt="Schaeffler" class="reqx-home-logo" />
+            ReqPilotX
           </a>
           <nav class="hidden md:flex space-x-8 text-xs font-medium tracking-wide text-apple-gray">
             <a href="#overview" class="hover:text-black transition-colors">概览</a>
-            <a href="#features" class="hover:text-black transition-colors">优势</a>
-            <a href="#technology" class="hover:text-black transition-colors">技术</a>
+            <a href="#features" class="hover:text-black transition-colors">能力</a>
+            <a href="#dev-tools" class="hover:text-black transition-colors">工程化</a>
           </nav>
           <div class="flex items-center space-x-4">
-            <a href="/workspace" target="_blank" class="text-xs font-medium text-white bg-black px-4 py-1.5 rounded-full hover:bg-gray-800 transition-colors">
+            <a href="/workspace" target="_blank" class="text-xs font-medium text-white bg-apple-blue px-4 py-1.5 rounded-full hover:bg-apple-blueHover transition-colors">
               开始体验
             </a>
           </div>
@@ -68,18 +70,18 @@
     <main id="top" class="pt-24 pb-20 overflow-hidden">
       <!-- 1. Hero Section -->
       <section class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 mt-16 md:mt-24 text-center hero-section">
-        <h2 class="hero-kicker text-sm md:text-base font-semibold tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-purple-500 to-blue-500 uppercase mb-4 opacity-0 transform translate-y-4">
-          Automotive Requirement Intelligence
+        <h2 class="hero-kicker text-sm md:text-base font-semibold tracking-[0.2em] text-transparent bg-clip-text bg-gradient-to-r from-[#00893D] to-[#476E75] uppercase mb-4 opacity-0 transform translate-y-4">
+          Enterprise Requirement Intelligence
         </h2>
         <h1 class="hero-title text-5xl md:text-7xl lg:text-[5.5rem] font-bold tracking-tighter leading-[1.05] text-black mb-6 max-w-5xl mx-auto opacity-0 transform translate-y-8">
-          下一代 <span class="text-transparent bg-clip-text bg-gradient-to-br from-indigo-800 via-purple-600 to-blue-500">SOR 解析</span>，<br class="hidden md:block" />现已就绪。
+          下一代 <span class="text-transparent bg-clip-text bg-gradient-to-br from-[#005E46] via-[#00893D] to-[#476E75]">ReqPilotX</span>，<br class="hidden md:block" />现已就绪。
         </h1>
         <p class="hero-subtitle text-lg md:text-2xl text-apple-gray font-medium max-w-3xl mx-auto leading-relaxed mb-10 opacity-0 transform translate-y-4">
-          把繁重的 SOR 拆解留给机器，把高价值的工程决策还给人类。<br />构建从文档到合规矩阵的可追溯智能协同。
+          把繁重的 SOR 拆解留给机器，把高价值的工程决策还给人类。<br />以企业级设计与可追溯流程，完成从文档到合规矩阵的协同闭环。
         </p>
         <div class="hero-actions flex flex-col sm:flex-row justify-center items-center gap-4 opacity-0 transform translate-y-4">
-          <a href="/workspace" target="_blank" class="apple-btn-primary group relative overflow-hidden bg-black text-white rounded-full px-8 py-4 font-semibold text-lg transition-transform hover:scale-105 active:scale-95 shadow-lg shadow-black/20">
-            <span class="relative z-10">进入客户主控台</span>
+          <a href="/workspace" target="_blank" class="apple-btn-primary group relative overflow-hidden bg-apple-blue text-white rounded-full px-8 py-4 font-semibold text-lg transition-transform hover:scale-105 active:scale-95">
+            <span class="relative z-10">进入 ReqPilotX 工作台</span>
             <div class="absolute inset-0 bg-white/20 translate-y-full group-hover:translate-y-0 transition-transform duration-300 ease-out"></div>
           </a>
           <a href="#dev-tools" class="apple-btn-secondary group flex items-center gap-2 text-apple-blue font-semibold text-lg hover:underline underline-offset-4 rounded-full px-6 py-4 transition-colors">
@@ -89,7 +91,7 @@
 
         <!-- Hero Image Mockup -->
         <div class="hero-image-wrapper mt-20 md:mt-32 relative mx-auto max-w-6xl opacity-0 transform translate-y-24 scale-95">
-          <div class="absolute inset-0 bg-gradient-to-b from-blue-500/10 to-purple-500/10 blur-3xl rounded-[3rem]"></div>
+          <div class="absolute inset-0 bg-gradient-to-b from-[#00893D]/12 to-[#476E75]/10 blur-3xl rounded-[3rem]"></div>
           <div class="relative rounded-2xl md:rounded-[2rem] overflow-hidden border border-white/40 shadow-2xl glass-panel aspect-[16/9] bg-white flex items-center justify-center">
              <!-- Placeholder for a beautiful UI rendering -->
              <div class="absolute inset-0 bg-gradient-to-tr from-gray-50 to-gray-100 flex flex-col pt-10 px-10">
@@ -102,17 +104,17 @@
                 <div class="flex-1 bg-white rounded-t-2xl shadow-sm border-t border-l border-r border-gray-100 p-8">
                   <div class="flex flex-col gap-6">
                     <div class="w-full h-16 bg-gray-50 rounded-lg flex items-center px-6 gap-4">
-                      <div class="w-16 h-6 bg-blue-100 rounded"></div>
+                      <div class="w-16 h-6 bg-emerald-100 rounded"></div>
                       <div class="flex-1 h-4 bg-gray-200 rounded"></div>
                       <div class="w-24 h-8 bg-green-100 rounded-full"></div>
                     </div>
                     <div class="w-full h-16 bg-gray-50 rounded-lg flex items-center px-6 gap-4">
-                      <div class="w-16 h-6 bg-blue-100 rounded"></div>
+                      <div class="w-16 h-6 bg-emerald-100 rounded"></div>
                       <div class="w-3/4 h-4 bg-gray-200 rounded"></div>
                       <div class="w-24 h-8 bg-black rounded-full"></div>
                     </div>
                      <div class="w-full h-16 bg-gray-50 rounded-lg flex items-center px-6 gap-4">
-                      <div class="w-16 h-6 bg-blue-100 rounded"></div>
+                      <div class="w-16 h-6 bg-emerald-100 rounded"></div>
                       <div class="w-1/2 h-4 bg-gray-200 rounded"></div>
                       <div class="w-24 h-8 bg-red-100 rounded-full"></div>
                     </div>
@@ -141,7 +143,7 @@
           
           <!-- Live Metric 2 -->
           <div class="bento-card col-span-1 lg:col-span-1 bg-white rounded-3xl p-8 shadow-sm border border-gray-200/60 hover:shadow-xl transition-shadow relative overflow-hidden group">
-             <div class="absolute inset-0 bg-gradient-to-br from-blue-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+             <div class="absolute inset-0 bg-gradient-to-br from-emerald-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <p class="text-sm font-semibold text-apple-gray uppercase tracking-wider mb-2 relative z-10">拆解准确率</p>
             <h3 id="metric-split" class="text-4xl font-bold tracking-tight text-black mb-2 relative z-10">-</h3>
             <p id="metric-split-foot" class="text-sm text-gray-500 relative z-10">latest round</p>
@@ -149,7 +151,7 @@
           
           <!-- Live Metric 3 -->
            <div class="bento-card col-span-1 lg:col-span-1 bg-white rounded-3xl p-8 shadow-sm border border-gray-200/60 hover:shadow-xl transition-shadow relative overflow-hidden group">
-            <div class="absolute inset-0 bg-gradient-to-br from-purple-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
+            <div class="absolute inset-0 bg-gradient-to-br from-teal-50 to-transparent opacity-0 group-hover:opacity-100 transition-opacity"></div>
             <p class="text-sm font-semibold text-apple-gray uppercase tracking-wider mb-2 relative z-10">质量门禁</p>
             <h3 id="metric-gate" class="text-4xl font-bold tracking-tight text-black mb-2 relative z-10">-</h3>
             <p id="metric-gate-foot" class="text-sm text-gray-500 relative z-10">quality gate</p>
@@ -170,7 +172,7 @@
               <p class="text-apple-gray text-lg leading-relaxed mix-blend-multiply">
                  人工拆解到 Excel 效率极低且错误率高；复杂 PDF 中的章节容易发生漏识别。我们提供全自动提取底稿、AI 辅助研判，以及严格打样的复核体系，让需求分析工作**全流程可回溯**。
               </p>
-              <p id="latest-summary" class="mt-6 text-sm font-medium text-apple-blue bg-blue-50 inline-block px-4 py-2 rounded-lg">-</p>
+              <p id="latest-summary" class="mt-6 inline-block rounded-lg bg-emerald-50 px-4 py-2 text-sm font-medium text-[#005E46]">-</p>
             </div>
           </div>
         </div>
@@ -204,10 +206,10 @@
                   <div class="w-24 h-4 bg-gray-200 rounded mb-4"></div>
                   <div class="w-full h-3 bg-gray-100 rounded mb-2"></div>
                   <div class="w-5/6 h-3 bg-gray-100 rounded mb-6"></div>
-                  <div class="flex-1 bg-blue-50/50 rounded-xl border border-blue-100 flex items-center justify-center p-4">
+                  <div class="flex-1 rounded-xl border border-emerald-100 bg-emerald-50/70 flex items-center justify-center p-4">
                      <div class="text-center">
-                        <div class="text-xs text-blue-500 font-bold mb-1">1.1.2 Power Supply</div>
-                        <div class="w-32 h-2 bg-blue-200 rounded mx-auto"></div>
+                        <div class="mb-1 text-xs font-bold text-emerald-600">1.1.2 Power Supply</div>
+                        <div class="mx-auto h-2 w-32 rounded bg-emerald-200"></div>
                      </div>
                   </div>
                </div>
@@ -219,7 +221,7 @@
         <div class="flex flex-col md:flex-row items-center gap-12 md:gap-24 mb-32 z-row">
           <div class="w-full md:w-1/2 order-1 z-img">
              <div class="aspect-square rounded-[2rem] bg-gradient-to-br from-[#1d1d1f] to-[#3a3a3c] border border-gray-800 shadow-2xl flex items-center justify-center relative overflow-hidden">
-                <div class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-purple-500/20 to-transparent"></div>
+                <div class="absolute inset-x-0 bottom-0 h-1/2 bg-gradient-to-t from-[#00893D]/15 to-transparent"></div>
                 <!-- 3D-ish layers stack -->
                 <div class="relative w-2/3 h-2/3">
                   <div class="absolute inset-0 bg-white/10 backdrop-blur-md rounded-2xl border border-white/20 -translate-y-8 translate-x-4"></div>
@@ -251,7 +253,7 @@
       </section>
 
       <!-- 4. Developer Tools / Pipeline (Cards) -->
-      <section id="dev-tools" class="bg-[#f2f2f7] py-32 mt-24">
+      <section id="dev-tools" class="bg-[#f6f6f6] py-32 mt-24">
         <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
           <div class="text-center mb-16 sec-title">
             <h2 class="text-4xl md:text-5xl font-bold tracking-tight mb-4">工程化的迭代链路。</h2>
@@ -292,7 +294,7 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8">
         <div class="flex flex-col md:flex-row justify-between items-center gap-6">
           <div class="text-sm text-gray-500 font-medium tracking-tight">
-            &copy; 2026 SOR Copilot Prototype. AI Engineering Team.
+            &copy; 2026 ReqPilotX. AI Engineering Team.
           </div>
           <div class="flex space-x-6 text-xs text-gray-400 font-medium">
             <a href="#" class="hover:text-gray-900 transition-colors">隐私政策</a>

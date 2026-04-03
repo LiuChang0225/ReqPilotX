@@ -1,0 +1,239 @@
+{
+  "generated_at": "2026-04-03T11:40:38",
+  "project_id": "93bebc97-77f3-4ddd-9d87-d2c0c1790171",
+  "document_id": "0c054f17-d76a-40ad-ab77-f76551700b99",
+  "profile_id": "aliyun",
+  "chat_model": "qwen3.5-plus",
+  "embedding_model": "text-embedding-v4",
+  "timeout_seconds": 75.0,
+  "codes": [
+    "REQ-0014",
+    "REQ-0025"
+  ],
+  "results": [
+    {
+      "req_code": "REQ-0014",
+      "requirement_id": "c2407435-5ebb-41f4-9b54-6101f61a8d21",
+      "screening": {
+        "analysis_label": "REQUIREMENT",
+        "reason": "条目包含明确的义务约束（如法规符合、认证获取、数据递交），属于可验证的合规要求。",
+        "validation_status": "accepted",
+        "fallback_reason": ""
+      },
+      "variants": [
+        {
+          "name": "default",
+          "extra_body": {},
+          "status": "ok",
+          "seconds": 43.818,
+          "validation_status": "accepted",
+          "fallback_reason": "",
+          "ai_decision": "NEED_CLARIFICATION",
+          "risk_level": "HIGH",
+          "ai_confidence": 0.95,
+          "clarification_question": "请提供证明零部件符合中华人民共和国及潜在市场国家最新法规的文件，以及北汽动力指定要求符合性证明、零部件型式认证证书和支持整车型式认证的数据清单。",
+          "evidence_count": 0,
+          "ai_reason_preview": "候选证据列表为空，且检索网关说明缺少法规类知识文档，无法提供直接证据支撑合规性判定。根据决策规则，无有效证据时必须输出 NEED_CLARIFICATION。",
+          "raw_keys": [
+            "clarification_question",
+            "confidence",
+            "evidences",
+            "normalized_requirement",
+            "proposed_decision",
+            "reason",
+            "risk_level"
+          ],
+          "raw_decision": "NEED_CLARIFICATION",
+          "raw_reason_preview": "候选证据列表为空，且检索网关说明缺少法规类知识文档，无法提供直接证据支撑合规性判定。根据决策规则，无有效证据时必须输出 NEED_CLARIFICATION。",
+          "usage": {
+            "prompt_tokens": 615,
+            "completion_tokens": 2093,
+            "total_tokens": 2708
+          }
+        },
+        {
+          "name": "enable_thinking_false",
+          "extra_body": {
+            "enable_thinking": false
+          },
+          "status": "ok",
+          "seconds": 5.327,
+          "validation_status": "accepted",
+          "fallback_reason": "",
+          "ai_decision": "NEED_CLARIFICATION",
+          "risk_level": "HIGH",
+          "ai_confidence": 0.0,
+          "clarification_question": "请提供证明该零部件已符合中国及目标市场最新法规、获得型式认证以及已向北汽动力递交整车型式认证所需数据的官方证书、测试报告或提交记录。",
+          "evidence_count": 0,
+          "ai_reason_preview": "候选证据列表为空，且检索网关明确指出缺少法规类知识文档，无法提供直接证据支撑该法规条目的合规性判定。根据决策规则，在没有有效证据的情况下不得接受，必须请求澄清。",
+          "raw_keys": [
+            "clarification_question",
+            "confidence",
+            "evidences",
+            "normalized_requirement",
+            "proposed_decision",
+            "reason",
+            "risk_level"
+          ],
+          "raw_decision": "NEED_CLARIFICATION",
+          "raw_reason_preview": "候选证据列表为空，且检索网关明确指出缺少法规类知识文档，无法提供直接证据支撑该法规条目的合规性判定。根据决策规则，在没有有效证据的情况下不得接受，必须请求澄清。",
+          "usage": {
+            "prompt_tokens": 617,
+            "completion_tokens": 195,
+            "total_tokens": 812
+          }
+        },
+        {
+          "name": "thinking_budget_50",
+          "extra_body": {
+            "enable_thinking": true,
+            "thinking_budget": 50
+          },
+          "status": "ok",
+          "seconds": 12.49,
+          "validation_status": "accepted",
+          "fallback_reason": "",
+          "ai_decision": "NEED_CLARIFICATION",
+          "risk_level": "HIGH",
+          "ai_confidence": 0.0,
+          "clarification_question": "请提供供应商针对该零部件符合中华人民共和国及潜在市场国家最新法规的证明文档、北汽动力指定要求的符合性声明、零部件型式认证证书以及支持整车型式认证的数据递交记录。",
+          "evidence_count": 0,
+          "ai_reason_preview": "候选证据列表为空，且检索网关明确说明缺少法规类知识文档，无法提供直接证据支撑该法规条目的合规性判定。根据决策规则，在没有有效证据（evidence score < 0.2）且必须不能无证据接受的情况下，无法做出 ACCEPT 或 REJECT 决定。",
+          "raw_keys": [
+            "clarification_question",
+            "confidence",
+            "evidences",
+            "normalized_requirement",
+            "proposed_decision",
+            "reason",
+            "risk_level"
+          ],
+          "raw_decision": "NEED_CLARIFICATION",
+          "raw_reason_preview": "候选证据列表为空，且检索网关明确说明缺少法规类知识文档，无法提供直接证据支撑该法规条目的合规性判定。根据决策规则，在没有有效证据（evidence score < 0.2）且必须不能无证据接受的情况下，无法做出 ACCEPT 或 REJECT 决定。",
+          "usage": {
+            "prompt_tokens": 615,
+            "completion_tokens": 272,
+            "total_tokens": 887
+          }
+        }
+      ],
+      "retrieval": {
+        "backend": "qdrant",
+        "evidence_count": 0,
+        "top_evidence_score": 0.0,
+        "retrieval_gate_reason": "缺少法规类知识文档，当前无法为该法规条目提供直接证据。",
+        "evidence_sources": []
+      }
+    },
+    {
+      "req_code": "REQ-0025",
+      "requirement_id": "a7fa442e-26e5-4791-a326-7dda6181ef91",
+      "screening": {
+        "analysis_label": "REQUIREMENT",
+        "reason": "条目包含“应满足”和“如实填报”等强制性措辞，明确了具体的合规义务和可验证行为。",
+        "validation_status": "accepted",
+        "fallback_reason": ""
+      },
+      "variants": [
+        {
+          "name": "default",
+          "extra_body": {},
+          "status": "error",
+          "seconds": 48.089,
+          "error": "Request timed out."
+        },
+        {
+          "name": "enable_thinking_false",
+          "extra_body": {
+            "enable_thinking": false
+          },
+          "status": "ok",
+          "seconds": 19.287,
+          "validation_status": "accepted",
+          "fallback_reason": "",
+          "ai_decision": "NEED_CLARIFICATION",
+          "risk_level": "HIGH",
+          "ai_confidence": 0.95,
+          "clarification_question": "请提供包含材料禁限用物质检测报告、符合 Q/BAIC C310001 标准的声明文件，或 CAMDS 系统数据填报截图的有效证据。",
+          "evidence_count": 0,
+          "ai_reason_preview": "候选证据均为 EMC 测试规范文档的免责声明和页眉信息，未包含任何关于材料禁限用物质含量、橡塑件标识、Q/BAIC C310001 标准符合性或 CAMDS 数据填报的记录。证据内容与需求完全无关，且最高相关性得分（0.5）虽高于阈值但内容实质不支持判定，属于无效证据。",
+          "raw_keys": [
+            "clarification_question",
+            "confidence",
+            "evidences",
+            "normalized_requirement",
+            "proposed_decision",
+            "reason",
+            "risk_level"
+          ],
+          "raw_decision": "NEED_CLARIFICATION",
+          "raw_reason_preview": "候选证据均为 EMC 测试规范文档的免责声明和页眉信息，未包含任何关于材料禁限用物质含量、橡塑件标识、Q/BAIC C310001 标准符合性或 CAMDS 数据填报的记录。证据内容与需求完全无关，且最高相关性得分（0.5）虽高于阈值但内容实质不支持判定，属于无效证据。",
+          "usage": {
+            "prompt_tokens": 1241,
+            "completion_tokens": 239,
+            "total_tokens": 1480
+          }
+        },
+        {
+          "name": "thinking_budget_50",
+          "extra_body": {
+            "enable_thinking": true,
+            "thinking_budget": 50
+          },
+          "status": "ok",
+          "seconds": 7.746,
+          "validation_status": "accepted",
+          "fallback_reason": "",
+          "ai_decision": "NEED_CLARIFICATION",
+          "risk_level": "HIGH",
+          "ai_confidence": 0.1,
+          "clarification_question": "请提供包含材料禁限用物质检测报告、橡塑件标识照片或 CAMDS 数据填报截图的证据文档，以证明符合 Q/BAIC C310001 标准及数据填报要求。",
+          "evidence_count": 0,
+          "ai_reason_preview": "候选证据均为 EMC 测试规范文档片段，仅包含免责声明、文档标识和作者信息，未包含任何关于材料禁限用物质含量、橡塑件标识、Q/BAIC C310001 标准符合性或 CAMDS 数据填报的记录。证据相关性低于阈值（最高 0.5 但内容无效），无法支撑合规判定。",
+          "raw_keys": [
+            "clarification_question",
+            "confidence",
+            "evidences",
+            "normalized_requirement",
+            "proposed_decision",
+            "reason",
+            "risk_level"
+          ],
+          "raw_decision": "NEED_CLARIFICATION",
+          "raw_reason_preview": "候选证据均为 EMC 测试规范文档片段，仅包含免责声明、文档标识和作者信息，未包含任何关于材料禁限用物质含量、橡塑件标识、Q/BAIC C310001 标准符合性或 CAMDS 数据填报的记录。证据相关性低于阈值（最高 0.5 但内容无效），无法支撑合规判定。",
+          "usage": {
+            "prompt_tokens": 1239,
+            "completion_tokens": 297,
+            "total_tokens": 1536
+          }
+        }
+      ],
+      "retrieval": {
+        "backend": "qdrant",
+        "evidence_count": 3,
+        "top_evidence_score": 0.5,
+        "retrieval_gate_reason": "",
+        "evidence_sources": [
+          {
+            "source_doc_name": "eSigned_EMC_88033918_FIL_000_AA 4.pdf",
+            "source_location": "Chunk 2",
+            "content_kind": "paragraph",
+            "relevance": 0.5
+          },
+          {
+            "source_doc_name": "eSigned_EMC_88033918_FIL_000_AA 4.pdf",
+            "source_location": "Chunk 4",
+            "content_kind": "paragraph",
+            "relevance": 0.4919
+          },
+          {
+            "source_doc_name": "eSigned_EMC_88033918_FIL_000_AA 4.pdf",
+            "source_location": "Chunk 1",
+            "content_kind": "paragraph",
+            "relevance": 0.4841
+          }
+        ]
+      }
+    }
+  ]
+}

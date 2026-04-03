@@ -4,21 +4,25 @@
   width: min(1360px, 95vw);
   margin: 24px auto 48px;
   display: grid;
-  gap: 14px;
+  gap: 16px;
 }
 
 .hero {
-  padding: 24px;
+  position: relative;
+  overflow: hidden;
+  padding: 28px;
   display: flex;
   justify-content: space-between;
-  gap: 18px;
+  gap: 24px;
   align-items: flex-start;
-  background: linear-gradient(180deg, #ffffff, #fafafd);
+  background:
+    radial-gradient(circle at top right, rgba(0, 137, 61, 0.12), transparent 28%),
+    linear-gradient(180deg, #ffffff, #f4f8f5);
 }
 
 .eyebrow {
   margin: 0;
-  color: #4a4a4f;
+  color: var(--apple-accent);
   letter-spacing: 0.09em;
   font-size: 0.78rem;
   font-weight: 700;
@@ -67,9 +71,9 @@ h2 {
 
 .kpi-card {
   border-radius: 14px;
-  border: 1px solid #ececf1;
+  border: 1px solid #dfe6e0;
   padding: 12px;
-  background: #fff;
+  background: linear-gradient(180deg, #ffffff, #fafcfb);
 }
 
 .kpi-label {
@@ -115,7 +119,7 @@ h2 {
 .chart {
   width: 100%;
   height: 280px;
-  border: 1px solid #e5e5ea;
+  border: 1px solid #dfe6e0;
   border-radius: 12px;
   background: #fff;
 }
@@ -163,7 +167,7 @@ table {
 }
 
 .timeline-item {
-  border: 1px solid #ececf1;
+  border: 1px solid #dfe6e0;
   border-radius: 12px;
   padding: 11px;
   background: #fff;
@@ -197,13 +201,13 @@ table {
 }
 
 .tag-DONE {
-  color: #0f7d48;
-  background: #def6e8;
+  color: #0f5b3d;
+  background: #e4f4ea;
 }
 
 .tag-INFO {
-  color: #1a4f94;
-  background: #e8f1ff;
+  color: #2f5e4d;
+  background: #e7f2eb;
 }
 
 .tag-RISK {
@@ -217,7 +221,7 @@ table {
 }
 
 .next-action {
-  border: 1px solid #ececf1;
+  border: 1px solid #dfe6e0;
   border-radius: 12px;
   padding: 10px;
   background: #fff;
@@ -233,7 +237,7 @@ table {
   height: 8px;
   border-radius: 999px;
   overflow: hidden;
-  background: #ececf1;
+  background: #e3ebe5;
 }
 
 .progress-bar > span {

@@ -1,0 +1,6 @@
+<svg width="436" height="88" viewBox="0 0 436 88" fill="none" xmlns="http://www.w3.org/2000/svg" role="img" aria-label="ReqPilotX logo">
+  <rect x="4" y="8" width="64" height="64" rx="18" fill="#00893D"/>
+  <path d="M25 56V24H40.5C46.8513 24 51 27.8998 51 33.0824C51 36.9344 48.6894 39.7195 44.5661 40.9824L52 56H44.5065L38.1135 42.6676H31.8387V56H25ZM31.8387 37.1412H39.629C42.7861 37.1412 44.729 35.4541 44.729 32.7271C44.729 29.9707 42.7861 28.2871 39.629 28.2871H31.8387V37.1412Z" fill="white"/>
+  <text x="88" y="38" fill="#343434" font-family="'Noto Sans', 'Segoe UI', Arial, sans-serif" font-size="34" font-weight="700" letter-spacing="-0.03em">ReqPilotX</text>
+  <text x="88" y="60" fill="#646464" font-family="'Noto Sans', 'Segoe UI', Arial, sans-serif" font-size="12" font-weight="600" letter-spacing="0.14em">REQUIREMENT INTELLIGENCE WORKSPACE</text>
+</svg>

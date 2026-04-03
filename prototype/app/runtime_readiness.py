@@ -5,12 +5,18 @@ import uuid
 from datetime import datetime, timezone
 from pathlib import Path
 from typing import Any
+from urllib import error as urllib_error
+from urllib import request as urllib_request
 
 from app.services.ai_copilot import (
+    ALIYUN_API_KEY_NON_ASCII_REASON,
+    ALIYUN_QDRANT_API_KEY_NON_ASCII_REASON,
     ALIYUN_RETRIEVAL_DISABLED_MESSAGE,
     ALIYUN_RETRIEVAL_DISABLED_REASON,
+    ALIYUN_QDRANT_UNREACHABLE_REASON,
     AICopilotConfig,
     DISABLED_RETRIEVAL_BACKEND,
+    is_ascii_runtime_secret,
 )
 
 
@@ -100,6 +106,10 @@ def build_readiness_report(
         },
         "checks": checks,
     }
+
+
+def build_ai_profile_check(config: AICopilotConfig) -> dict[str, Any]:
+    return _build_ai_profile_check(config)
 
 
 def _build_ai_profile_check(config: AICopilotConfig) -> dict[str, Any]:
@@ -258,6 +268,7 @@ def _build_azure_check(config: AICopilotConfig) -> dict[str, Any]:
     detail = "Azure runtime configuration required by the selected AI mode is present." if not missing else (
         "Azure runtime configuration is incomplete for the selected AI mode."
     )
+    missing = _dedupe_missing(missing)
     return {
         "status": status,
         "detail": detail,
@@ -279,23 +290,58 @@ def _build_aliyun_check(config: AICopilotConfig) -> dict[str, Any]:
     llm_required = config.llm_enabled
     required_for: list[str] = []
     missing: list[str] = []
+    qdrant_probe: dict[str, Any] = {
+        "status": "not_configured",
+        "detail": "Qdrant local POC is not enabled for the Aliyun profile.",
+        "url": str(config.qdrant_url or ""),
+    }
 
     if llm_required:
         required_for.append("llm_assessment")
-        _append_missing(missing, "REQPILOT_ALIYUN_API_KEY", config.dashscope_api_key)
+        if not config.dashscope_api_key:
+            missing.append("REQPILOT_ALIYUN_API_KEY")
+        elif not is_ascii_runtime_secret(config.dashscope_api_key):
+            missing.append(ALIYUN_API_KEY_NON_ASCII_REASON)
         _append_missing(missing, "REQPILOT_DASHSCOPE_BASE_URL", config.dashscope_base_url)
         _append_missing(missing, "REQPILOT_ALIYUN_CHAT_MODEL", config.chat_model)
 
-    required_for.append("retrieval_reimplementation")
     if config.retrieval_backend == DISABLED_RETRIEVAL_BACKEND:
+        required_for.append("local_qdrant_poc_enablement")
         missing.append(ALIYUN_RETRIEVAL_DISABLED_REASON)
+    elif config.retrieval_backend == "qdrant":
+        required_for.append("local_qdrant_retrieval")
+        if not config.dashscope_api_key:
+            missing.append("REQPILOT_ALIYUN_API_KEY")
+        elif not is_ascii_runtime_secret(config.dashscope_api_key):
+            missing.append(ALIYUN_API_KEY_NON_ASCII_REASON)
+        _append_missing(missing, "REQPILOT_DASHSCOPE_BASE_URL", config.dashscope_base_url)
+        _append_missing(missing, "REQPILOT_ALIYUN_EMBEDDING_MODEL", config.embedding_model)
+        _append_missing(missing, "REQPILOT_ALIYUN_QDRANT_URL", config.qdrant_url)
+        _append_missing(missing, "REQPILOT_ALIYUN_QDRANT_COLLECTION", config.qdrant_collection_name)
+        if config.qdrant_api_key and not is_ascii_runtime_secret(config.qdrant_api_key):
+            missing.append(ALIYUN_QDRANT_API_KEY_NON_ASCII_REASON)
+        if not missing:
+            qdrant_probe = _probe_qdrant_endpoint(config)
+            if qdrant_probe.get("status") != "ok":
+                missing.append(ALIYUN_QDRANT_UNREACHABLE_REASON)
+    else:
+        required_for.append("local_qdrant_poc_enablement")
+        missing.append("REQPILOT_ALIYUN_RETRIEVAL_BACKEND=qdrant")
 
     status = "ok" if not missing else "error"
-    detail = (
-        "Aliyun runtime configuration required by the selected AI mode is present."
-        if not missing
-        else ALIYUN_RETRIEVAL_DISABLED_MESSAGE
-    )
+    if not missing:
+        detail = "Aliyun DashScope + local Qdrant POC runtime is ready."
+    elif ALIYUN_RETRIEVAL_DISABLED_REASON in missing:
+        detail = ALIYUN_RETRIEVAL_DISABLED_MESSAGE
+    elif ALIYUN_QDRANT_UNREACHABLE_REASON in missing:
+        detail = str(qdrant_probe.get("detail") or "Aliyun local Qdrant service is unreachable.")
+    elif ALIYUN_API_KEY_NON_ASCII_REASON in missing:
+        detail = "Aliyun DashScope API key contains non-ASCII characters."
+    elif ALIYUN_QDRANT_API_KEY_NON_ASCII_REASON in missing:
+        detail = "Qdrant API key contains non-ASCII characters."
+    else:
+        detail = "Aliyun local Qdrant POC configuration is incomplete."
+    missing = _dedupe_missing(missing)
     return {
         "status": status,
         "detail": detail,
@@ -310,8 +356,9 @@ def _build_aliyun_check(config: AICopilotConfig) -> dict[str, Any]:
         "dashscope_chat_ready": config.dashscope_chat_ready,
         "dashscope_embedding_ready": config.dashscope_embedding_ready,
         "dashvector_ready": False,
-        "qdrant_ready": False,
-        "retrieval_blocked": True,
+        "qdrant_ready": config.qdrant_ready,
+        "qdrant_probe": qdrant_probe,
+        "retrieval_blocked": ALIYUN_RETRIEVAL_DISABLED_REASON in missing,
     }
 
 
@@ -320,3 +367,50 @@ def _append_missing(missing: list[str], env_name: str, value: str) -> None:
         return
     if env_name not in missing:
         missing.append(env_name)
+
+
+def _dedupe_missing(missing: list[str]) -> list[str]:
+    return list(dict.fromkeys(str(item) for item in missing if str(item)))
+
+
+def _probe_qdrant_endpoint(config: AICopilotConfig) -> dict[str, Any]:
+    url = str(config.qdrant_url or "").strip().rstrip("/")
+    if not url:
+        return {
+            "status": "not_configured",
+            "detail": "Qdrant URL is not configured.",
+            "url": "",
+        }
+
+    request = urllib_request.Request(f"{url}/collections")
+    if str(config.qdrant_api_key or "").strip():
+        request.add_header("api-key", str(config.qdrant_api_key or "").strip())
+    try:
+        with urllib_request.urlopen(request, timeout=2.0) as response:
+            status_code = int(getattr(response, "status", 200) or 200)
+        if 200 <= status_code < 300:
+            return {
+                "status": "ok",
+                "detail": "Qdrant local service responded successfully.",
+                "url": url,
+                "http_status": status_code,
+            }
+        return {
+            "status": "error",
+            "detail": f"Qdrant local service returned HTTP {status_code}.",
+            "url": url,
+            "http_status": status_code,
+        }
+    except urllib_error.HTTPError as exc:
+        return {
+            "status": "error",
+            "detail": f"Qdrant local service returned HTTP {exc.code}.",
+            "url": url,
+            "http_status": int(exc.code),
+        }
+    except Exception as exc:
+        return {
+            "status": "error",
+            "detail": f"Qdrant local service is unreachable: {exc}",
+            "url": url,
+        }

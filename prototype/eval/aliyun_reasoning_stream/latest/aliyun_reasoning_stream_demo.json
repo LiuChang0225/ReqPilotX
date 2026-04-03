@@ -1,0 +1,253 @@
+{
+  "generated_at": "2026-04-03T11:51:05",
+  "project_id": "93bebc97-77f3-4ddd-9d87-d2c0c1790171",
+  "document_id": "0c054f17-d76a-40ad-ab77-f76551700b99",
+  "profile_id": "aliyun",
+  "model": "qwen3.5-plus",
+  "timeout_seconds": 75.0,
+  "extra_body": {},
+  "results": [
+    {
+      "req_code": "REQ-0014",
+      "requirement_id": "c2407435-5ebb-41f4-9b54-6101f61a8d21",
+      "seconds_total": 47.039,
+      "retrieval_backend": "qdrant",
+      "evidence_count": 0,
+      "retrieval_gate_reason": "缺少法规类知识文档，当前无法为该法规条目提供直接证据。",
+      "first_reasoning_seconds": 5.301,
+      "first_answer_seconds": 44.676,
+      "reasoning_chars": 8472,
+      "answer_chars": 437,
+      "finish_reason": "stop",
+      "error": "",
+      "usage": {
+        "prompt_tokens": 613,
+        "completion_tokens": 2573,
+        "total_tokens": 3186
+      },
+      "reasoning_events": [
+        {
+          "t": 5.301,
+          "text": "Thinking"
+        },
+        {
+          "t": 5.34,
+          "text": " Process:\n\n1"
+        },
+        {
+          "t": 5.441,
+          "text": ".  **An"
+        },
+        {
+          "t": 5.447,
+          "text": "alyze the Request:**"
+        },
+        {
+          "t": 5.539,
+          "text": "\n    *  "
+        },
+        {
+          "t": 5.54,
+          "text": " Role: Automotive Industry"
+        },
+        {
+          "t": 5.638,
+          "text": " Compliance Review Assistant."
+        },
+        {
+          "t": 5.641,
+          "text": "\n    *  "
+        },
+        {
+          "t": 5.8,
+          "text": " Task: Output a"
+        },
+        {
+          "t": 5.802,
+          "text": " structured judgment based on"
+        },
+        {
+          "t": 5.894,
+          "text": " given requirements and candidate"
+        },
+        {
+          "t": 5.899,
+          "text": " evidence.\n   "
+        }
+      ],
+      "answer_events": [
+        {
+          "t": 44.676,
+          "text": "{\n"
+        },
+        {
+          "t": 44.677,
+          "text": "  \"normalized_require"
+        },
+        {
+          "t": 44.677,
+          "text": "ment\": \"4"
+        },
+        {
+          "t": 44.677,
+          "text": ".1 供应商"
+        },
+        {
+          "t": 44.678,
+          "text": "必须确保开发零部件"
+        },
+        {
+          "t": 44.678,
+          "text": "符合中华人民共和国的最新法规和"
+        },
+        {
+          "t": 44.678,
+          "text": "任何潜在市场所在"
+        },
+        {
+          "t": 44.678,
+          "text": "国家法规的最新要求"
+        },
+        {
+          "t": 44.767,
+          "text": "，同时符合北汽"
+        },
+        {
+          "t": 44.803,
+          "text": "动力的指定要求，"
+        },
+        {
+          "t": 44.863,
+          "text": "获得零部件的型式"
+        },
+        {
+          "t": 44.867,
+          "text": "认证，并递交"
+        }
+      ],
+      "reasoning_preview": "Thinking Process:\n\n1.  **Analyze the Request:**\n    *   Role: Automotive Industry Compliance Review Assistant.\n    *   Task: Output a structured judgment based on given requirements and candidate evidence.\n    *   Constraints:\n        *   Only cite candidate evidence (no fabrication).\n        *   If evidence is insufficient, conflicting, or not direct enough -> Output `NEED_CLARIFICATION`.\n        *   If candidate evidence is empty, only weakly relevant, or only has chapter summaries without paragraph/table text support -> Output `NEED_CLARIFICATION`.\n        *   `risk_level` must be `LOW`, `M",
+      "answer_preview": "{\n  \"normalized_requirement\": \"4.1 供应商必须确保开发零部件符合中华人民共和国的最新法规和任何潜在市场所在国家法规的最新要求，同时符合北汽动力的指定要求，获得零部件的型式认证，并递交支持整车型式认证的所有必要数据和\",\n  \"proposed_decision\": \"NEED_CLARIFICATION\",\n  \"confidence\": 0.1,\n  \"reason\": \"候选证据列表为空，且检索网关说明缺少法规类知识文档，无法为该法规条目提供直接证据。根据规则，候选证据为空或证据不足时必须输出 NEED_CLARIFICATION，且不得在无证据情况下接受。\",\n  \"risk_level\": \"HIGH\",\n  \"clarification_question\": \"请提供证明零部件符合中华人民共和国及潜在市场国家最新法规的文件，以及零部件型式认证证书和支持整车型式认证的数据清单。\",\n  \"evidences\": []\n}"
+    },
+    {
+      "req_code": "REQ-0025",
+      "requirement_id": "a7fa442e-26e5-4791-a326-7dda6181ef91",
+      "seconds_total": 68.407,
+      "retrieval_backend": "qdrant",
+      "evidence_count": 3,
+      "retrieval_gate_reason": "",
+      "first_reasoning_seconds": 4.842,
+      "first_answer_seconds": 56.61,
+      "reasoning_chars": 11634,
+      "answer_chars": 2227,
+      "finish_reason": "stop",
+      "error": "",
+      "usage": {
+        "prompt_tokens": 1237,
+        "completion_tokens": 4016,
+        "total_tokens": 5253
+      },
+      "reasoning_events": [
+        {
+          "t": 4.842,
+          "text": "Thinking"
+        },
+        {
+          "t": 4.882,
+          "text": " Process:\n\n1"
+        },
+        {
+          "t": 4.997,
+          "text": ".  **An"
+        },
+        {
+          "t": 4.997,
+          "text": "alyze the Request:**"
+        },
+        {
+          "t": 5.11,
+          "text": "\n    *  "
+        },
+        {
+          "t": 5.119,
+          "text": " **Role:** Automotive"
+        },
+        {
+          "t": 5.225,
+          "text": " Industry Compliance Review Assistant"
+        },
+        {
+          "t": 5.232,
+          "text": "."
+        },
+        {
+          "t": 5.422,
+          "text": "\n    *  "
+        },
+        {
+          "t": 5.422,
+          "text": " **Task:** Output"
+        },
+        {
+          "t": 5.472,
+          "text": " a structured judgment based"
+        },
+        {
+          "t": 5.472,
+          "text": " on given"
+        }
+      ],
+      "answer_events": [
+        {
+          "t": 56.61,
+          "text": "{\n"
+        },
+        {
+          "t": 56.613,
+          "text": "  \"normalized_require"
+        },
+        {
+          "t": 56.734,
+          "text": "ment\": \"5"
+        },
+        {
+          "t": 56.734,
+          "text": ".4.5"
+        },
+        {
+          "t": 56.818,
+          "text": " 材料的禁、"
+        },
+        {
+          "t": 56.822,
+          "text": "限用物质含量"
+        },
+        {
+          "t": 56.913,
+          "text": "和橡塑件标识"
+        },
+        {
+          "t": 56.959,
+          "text": "应满足 Q/"
+        },
+        {
+          "t": 57.02,
+          "text": "BAIC C3"
+        },
+        {
+          "t": 57.02,
+          "text": "1000"
+        },
+        {
+          "t": 57.12,
+          "text": "1《汽车产品"
+        },
+        {
+          "t": 57.12,
+          "text": "禁限用物质"
+        }
+      ],
+      "reasoning_preview": "Thinking Process:\n\n1.  **Analyze the Request:**\n    *   **Role:** Automotive Industry Compliance Review Assistant.\n    *   **Task:** Output a structured judgment based on given requirements and candidate evidence.\n    *   **Constraints:**\n        *   Only cite candidate evidence (no fabrication).\n        *   If evidence is insufficient, conflicting, or not direct enough -> Output `NEED_CLARIFICATION`.\n        *   If candidate evidence is empty, only weakly relevant, or only has chapter summaries without paragraph/table original text support -> Output `NEED_CLARIFICATION`.\n        *   `risk_lev",
+      "answer_preview": "{\n  \"normalized_requirement\": \"5.4.5 材料的禁、限用物质含量和橡塑件标识应满足 Q/BAIC C310001《汽车产品禁限用物质要求》的要求，同时在规定期限内如实填报 CAMDS 数据。\",\n  \"proposed_decision\": \"NEED_CLARIFICATION\",\n  \"confidence\": 0.9,\n  \"reason\": \"提供的候选证据均来自 EMC 测试规范文档（eSigned_EMC_88033918_FIL_000_AA 4.pdf），内容涉及技术描述免责声明及文档元数据，未包含任何关于材料禁限用物质含量、橡塑件标识、Q/BAIC C310001 标准符合性或 CAMDS 数据填报的记录或证明。证据与要求主题（化学物质合规）不匹配，无法支撑合规判定。\",\n  \"risk_level\": \"HIGH\",\n  \"clarification_question\": \"请提供针对该产品的材料禁限用物质检测报告（符合 Q/BAIC C310001 标准）以及 CAMDS 数据填报完成的截图或系统记录证明。\",\n  \"evidences\": [\n    {\n      \"slot\": 1,\n      \"source_doc_id\": \"6e2a5e7b-be93-4caa-8ecd-30a6293738d8\",\n      \""
+    }
+  ]
+}

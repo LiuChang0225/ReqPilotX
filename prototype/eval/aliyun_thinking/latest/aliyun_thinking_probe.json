@@ -1,0 +1,93 @@
+{
+  "generated_at": "2026-04-03T11:30:14",
+  "profile_id": "aliyun",
+  "model": "qwen3.5-plus",
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "timeout_seconds": 75.0,
+  "results": [
+    {
+      "name": "default",
+      "extra_body": {},
+      "total_seconds": 73.75,
+      "first_reasoning_seconds": 5.996,
+      "first_answer_seconds": 60.479,
+      "reasoning_detected": true,
+      "reasoning_chars": 11214,
+      "answer_chars": 1226,
+      "finish_reason": "stop",
+      "error": "",
+      "usage": {
+        "prompt_tokens": 115,
+        "completion_tokens": 3433,
+        "total_tokens": 3548
+      },
+      "answer_preview": "### 思考过程\n\n1.  **需求分析**：\n    *   核心要求：量产前提交 CAMDS 数据。\n    *   质量要求：禁限用物质申报真实完整。\n    *   性质：这是强制性合规门槛，涉及法律法规（如 ELV、RoHS 等）及客户特定要求。\n\n2.  **证据分析**：\n    *   **Evidence 1 (EMC 文档)**：电磁兼容性测试与材料化学合规（CAMDS）属于完",
+      "reasoning_preview": "Thinking Process:\n\n1.  **Analyze the Request:**\n    *   **Role:** Requirement Compliance Analysis Assistant (需求合规分析助手).\n    *   **Task:** Make a cautious judgment based on the provided `Requirement` a"
+    },
+    {
+      "name": "enable_thinking_false",
+      "extra_body": {
+        "enable_thinking": false
+      },
+      "total_seconds": 23.311,
+      "first_reasoning_seconds": null,
+      "first_answer_seconds": 7.244,
+      "reasoning_detected": false,
+      "reasoning_chars": 0,
+      "answer_chars": 1207,
+      "finish_reason": "stop",
+      "error": "",
+      "usage": {
+        "prompt_tokens": 117,
+        "completion_tokens": 648,
+        "total_tokens": 765
+      },
+      "answer_preview": "### 思考过程\n\n1.  **需求拆解**：\n    *   **核心动作**：供应商必须在“量产前”提交\"CAMDS 数据”。\n    *   **核心标准**：确保“禁限用物质申报”是“真实”且“完整”的。\n    *   **验证目标**：需要证据证明上述动作已发生，且数据质量符合要求。\n\n2.  **证据分析**：\n    *   **Evidence 1 (EMC 文档)**：该文档仅",
+      "reasoning_preview": ""
+    },
+    {
+      "name": "enable_thinking_true_budget_50",
+      "extra_body": {
+        "enable_thinking": true,
+        "thinking_budget": 50
+      },
+      "total_seconds": 14.085,
+      "first_reasoning_seconds": 4.229,
+      "first_answer_seconds": 5.576,
+      "reasoning_detected": true,
+      "reasoning_chars": 204,
+      "answer_chars": 682,
+      "finish_reason": "stop",
+      "error": "",
+      "usage": {
+        "prompt_tokens": 115,
+        "completion_tokens": 413,
+        "total_tokens": 528
+      },
+      "answer_preview": "### 合规性分析报告\n\n**1. 判断**\n**不合规 / 无法验证 (Non-Compliant / Unverifiable)**\n\n**2. 原因**\n*   **证据缺失关键内容**：Requirement 明确要求提交\"CAMDS 数据”及“禁限用物质申报”，但 Evidence 1 明确指出 EMC 文档仅涉及电磁兼容测试范围，完全未包含材料合规或 CAMDS 相关记录，无法作为符合",
+      "reasoning_preview": "Thinking Process:\n\n1.  **Analyze the Request:**\n    *   **Role:** Requirement Compliance Analysis Assistant (需求合规分析助手).\n    *   **Task:** Make a cautious judgment based on the provided `Requirement` a"
+    },
+    {
+      "name": "enable_thinking_true_budget_20",
+      "extra_body": {
+        "enable_thinking": true,
+        "thinking_budget": 20
+      },
+      "total_seconds": 19.279,
+      "first_reasoning_seconds": 3.674,
+      "first_answer_seconds": 4.385,
+      "reasoning_detected": true,
+      "reasoning_chars": 66,
+      "answer_chars": 992,
+      "finish_reason": "stop",
+      "error": "",
+      "usage": {
+        "prompt_tokens": 115,
+        "completion_tokens": 569,
+        "total_tokens": 684
+      },
+      "answer_preview": "### 分析思考\n\n1.  **需求拆解**：\n    *   **核心动作**：供应商必须在“量产前”提交\"CAMDS 数据”。\n    *   **核心标准**：确保“禁限用物质申报真实完整”。\n    *   **验证关键点**：需要看到 CAMDS 提交记录、材料合规声明或相关的测试报告来证明已执行该动作且内容合规。\n\n2.  **证据评估**：\n    *   **Evidence 1*",
+      "reasoning_preview": "Thinking Process:\n\n1.  **Analyze the Request:**\n    *   **Role:**\n"
+    }
+  ]
+}

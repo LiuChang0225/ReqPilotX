@@ -1,0 +1,176 @@
+{
+  "generated_at": "2026-04-03T11:20:43",
+  "profile_id": "aliyun",
+  "provider": "aliyun",
+  "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
+  "screening_model": "qwen3.5-flash",
+  "assessment_model": "qwen3.5-plus",
+  "embedding_model": "text-embedding-v4",
+  "screening_timeout_seconds": 18.0,
+  "assessment_timeout_seconds": 45.0,
+  "embedding_batch_size": 10,
+  "probes": [
+    {
+      "name": "llm_screening_json",
+      "attempts": 3,
+      "success_count": 3,
+      "failure_count": 0,
+      "avg_seconds": 13.734,
+      "median_seconds": 14.835,
+      "min_seconds": 9.763,
+      "max_seconds": 16.603,
+      "runs": [
+        {
+          "attempt": 1,
+          "status": "ok",
+          "duration_seconds": 16.603,
+          "model": "qwen3.5-flash",
+          "response_keys": [
+            "analysis_basis",
+            "analysis_label"
+          ],
+          "analysis_label": "REQUIREMENT"
+        },
+        {
+          "attempt": 2,
+          "status": "ok",
+          "duration_seconds": 14.835,
+          "model": "qwen3.5-flash",
+          "response_keys": [
+            "analysis_basis",
+            "analysis_label"
+          ],
+          "analysis_label": "REQUIREMENT"
+        },
+        {
+          "attempt": 3,
+          "status": "ok",
+          "duration_seconds": 9.763,
+          "model": "qwen3.5-flash",
+          "response_keys": [
+            "analysis_basis",
+            "analysis_label"
+          ],
+          "analysis_label": "REQUIREMENT"
+        }
+      ]
+    },
+    {
+      "name": "llm_assessment_json",
+      "attempts": 3,
+      "success_count": 1,
+      "failure_count": 2,
+      "avg_seconds": 46.964,
+      "median_seconds": 46.964,
+      "min_seconds": 46.964,
+      "max_seconds": 46.964,
+      "runs": [
+        {
+          "attempt": 1,
+          "status": "error",
+          "duration_seconds": 47.146,
+          "error": "Request timed out."
+        },
+        {
+          "attempt": 2,
+          "status": "error",
+          "duration_seconds": 47.17,
+          "error": "Request timed out."
+        },
+        {
+          "attempt": 3,
+          "status": "ok",
+          "duration_seconds": 46.964,
+          "model": "qwen3.5-plus",
+          "response_keys": [
+            "ai_decision",
+            "ai_reason",
+            "clarification_question",
+            "risk_level"
+          ],
+          "ai_decision": "无法验证",
+          "risk_level": "高"
+        }
+      ]
+    },
+    {
+      "name": "embedding_single",
+      "attempts": 3,
+      "success_count": 3,
+      "failure_count": 0,
+      "avg_seconds": 0.814,
+      "median_seconds": 0.692,
+      "min_seconds": 0.689,
+      "max_seconds": 1.062,
+      "runs": [
+        {
+          "attempt": 1,
+          "status": "ok",
+          "duration_seconds": 1.062,
+          "model": "text-embedding-v4",
+          "input_count": 1,
+          "vector_count": 1,
+          "vector_dimension": 1024
+        },
+        {
+          "attempt": 2,
+          "status": "ok",
+          "duration_seconds": 0.692,
+          "model": "text-embedding-v4",
+          "input_count": 1,
+          "vector_count": 1,
+          "vector_dimension": 1024
+        },
+        {
+          "attempt": 3,
+          "status": "ok",
+          "duration_seconds": 0.689,
+          "model": "text-embedding-v4",
+          "input_count": 1,
+          "vector_count": 1,
+          "vector_dimension": 1024
+        }
+      ]
+    },
+    {
+      "name": "embedding_batch_3",
+      "attempts": 3,
+      "success_count": 3,
+      "failure_count": 0,
+      "avg_seconds": 2.479,
+      "median_seconds": 1.675,
+      "min_seconds": 1.613,
+      "max_seconds": 4.15,
+      "runs": [
+        {
+          "attempt": 1,
+          "status": "ok",
+          "duration_seconds": 4.15,
+          "model": "text-embedding-v4",
+          "input_count": 3,
+          "vector_count": 3,
+          "vector_dimension": 1024
+        },
+        {
+          "attempt": 2,
+          "status": "ok",
+          "duration_seconds": 1.613,
+          "model": "text-embedding-v4",
+          "input_count": 3,
+          "vector_count": 3,
+          "vector_dimension": 1024
+        },
+        {
+          "attempt": 3,
+          "status": "ok",
+          "duration_seconds": 1.675,
+          "model": "text-embedding-v4",
+          "input_count": 3,
+          "vector_count": 3,
+          "vector_dimension": 1024
+        }
+      ]
+    }
+  ],
+  "all_passed": false
+}
