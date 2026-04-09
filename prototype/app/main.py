@@ -65,7 +65,14 @@ from app.services.iteration_insights import (
     list_iteration_rounds,
     load_high_risk_queue,
 )
-from app.services.progress_tracker import add_progress_event, load_progress_snapshot, replace_plan_items
+from app.services.progress_tracker import (
+    add_progress_event,
+    load_branch_snapshots,
+    load_gate_statuses,
+    load_progress_snapshot,
+    replace_plan_items,
+    update_progress_checkpoint,
+)
 from app.services.preview_cache import (
     get_preview_cache_state,
     load_cached_preview,
@@ -334,6 +341,9 @@ class ProgressEventCreateRequest(BaseModel):
     category: str = Field(default="manual", max_length=32)
     status: str = Field(default="DONE", max_length=32)
     event_time: str | None = None
+    track_id: str = Field(default="", max_length=80)
+    branch_name: str = Field(default="", max_length=255)
+    event_type: str = Field(default="manual", max_length=32)
 
 
 class ProgressPlanItem(BaseModel):
@@ -344,10 +354,27 @@ class ProgressPlanItem(BaseModel):
     progress_pct: int = Field(default=0, ge=0, le=100)
     target_date: str = Field(default="", max_length=32)
     notes: str = Field(default="", max_length=1000)
+    track_id: str = Field(default="", max_length=80)
+    branch_name: str = Field(default="", max_length=255)
+    worktree_path: str = Field(default="", max_length=1024)
+    scope_summary: str = Field(default="", max_length=1000)
+    acceptance_gate: str = Field(default="", max_length=500)
+    depends_on: str = Field(default="", max_length=500)
+    drift_status: str = Field(default="ON_PLAN", max_length=32)
+    last_update_at: str = Field(default="", max_length=64)
+    latest_event_summary: str = Field(default="", max_length=1000)
 
 
 class ProgressPlanUpdateRequest(BaseModel):
     items: list[ProgressPlanItem]
+
+
+class ProgressCheckpointRequest(BaseModel):
+    track_id: str = Field(min_length=1, max_length=80)
+    progress_pct: int = Field(ge=0, le=100)
+    status: str = Field(default="INFO", max_length=32)
+    summary: str = Field(min_length=1, max_length=3000)
+    branch_name: str = Field(default="", max_length=255)
 
 
 app = FastAPI(title="SOR AI Prototype", version="1.0.0")
@@ -2669,6 +2696,16 @@ def get_progress_snapshot(limit_rounds: int = 60, limit_events: int = 200) -> di
     return load_progress_snapshot(limit_rounds=limit_rounds, limit_events=limit_events)
 
 
+@app.get("/api/progress/branches")
+def get_progress_branches() -> dict:
+    return {"branches": load_branch_snapshots()}
+
+
+@app.get("/api/progress/gates")
+def get_progress_gates() -> dict:
+    return {"gates": load_gate_statuses()}
+
+
 @app.post("/api/progress/events")
 def create_progress_event(payload: ProgressEventCreateRequest) -> dict:
     try:
@@ -2678,6 +2715,9 @@ def create_progress_event(payload: ProgressEventCreateRequest) -> dict:
             category=payload.category,
             status=payload.status,
             event_time=payload.event_time,
+            track_id=payload.track_id,
+            branch_name=payload.branch_name,
+            event_type=payload.event_type,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -2688,6 +2728,21 @@ def create_progress_event(payload: ProgressEventCreateRequest) -> dict:
 def update_progress_plan(payload: ProgressPlanUpdateRequest) -> dict:
     result = replace_plan_items([item.model_dump() for item in payload.items])
     return {"ok": True, **result}
+
+
+@app.post("/api/progress/checkpoint")
+def create_progress_checkpoint(payload: ProgressCheckpointRequest) -> dict:
+    try:
+        result = update_progress_checkpoint(
+            track_id=payload.track_id,
+            progress_pct=payload.progress_pct,
+            status=payload.status,
+            summary=payload.summary,
+            branch_name=payload.branch_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return result
 
 
 def _require_project(project_id: str) -> dict:

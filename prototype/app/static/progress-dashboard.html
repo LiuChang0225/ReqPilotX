@@ -44,6 +44,67 @@
 
       <section class="panel">
         <div class="panel-title-row">
+          <h2>Tracks Overview</h2>
+          <p class="meta">活跃支线、排队支线与当前门禁概览</p>
+        </div>
+        <div id="track-cards" class="track-cards"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row">
+          <h2>Branch Lanes</h2>
+          <p class="meta">来源: track registry + git worktree 状态</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Track</th>
+                <th>分支</th>
+                <th>工作树</th>
+                <th>Git 状态</th>
+                <th>Dirty</th>
+                <th>最后提交</th>
+                <th>Upstream</th>
+                <th>漂移</th>
+              </tr>
+            </thead>
+            <tbody id="branch-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row">
+          <h2>Gate Board</h2>
+          <p class="meta">每条支线当前必须通过的门禁</p>
+        </div>
+        <div class="table-wrap">
+          <table>
+            <thead>
+              <tr>
+                <th>Track</th>
+                <th>Gate</th>
+                <th>状态</th>
+                <th>检查时间</th>
+                <th>详情</th>
+              </tr>
+            </thead>
+            <tbody id="gate-body"></tbody>
+          </table>
+        </div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row">
+          <h2>Drift Alerts</h2>
+          <p class="meta">计划偏离、门禁失败或缺少 checkpoint 的预警</p>
+        </div>
+        <div id="drift-alerts" class="drift-alerts"></div>
+      </section>
+
+      <section class="panel">
+        <div class="panel-title-row">
           <h2>回归门禁快照</h2>
           <p class="meta">来源: regression_suite 自动同步</p>
         </div>
@@ -210,11 +271,15 @@
           <table id="plan-table">
             <thead>
               <tr>
+                <th>Track</th>
                 <th>任务</th>
                 <th>负责人</th>
+                <th>分支</th>
                 <th>状态</th>
+                <th>漂移</th>
                 <th>进度%</th>
                 <th>目标日期</th>
+                <th>门禁</th>
                 <th>备注</th>
                 <th></th>
               </tr>
@@ -232,6 +297,31 @@
               标题
               <input id="event-title" required maxlength="200" placeholder="例如: 完成 r33 迭代并复核" />
             </label>
+            <div class="inline-fields inline-fields-wide">
+              <label>
+                Track
+                <select id="event-track">
+                  <option value="">(全局)</option>
+                </select>
+              </label>
+              <label>
+                分支(可选)
+                <input id="event-branch" maxlength="255" placeholder="例如: codex/release-foundation" />
+              </label>
+              <label>
+                事件类型
+                <select id="event-type">
+                  <option value="manual">manual</option>
+                  <option value="kickoff">kickoff</option>
+                  <option value="checkpoint">checkpoint</option>
+                  <option value="risk">risk</option>
+                  <option value="gate_pass">gate_pass</option>
+                  <option value="gate_fail">gate_fail</option>
+                  <option value="handoff">handoff</option>
+                  <option value="done">done</option>
+                </select>
+              </label>
+            </div>
             <label>
               详情
               <textarea id="event-detail" maxlength="3000" placeholder="填写本次动作、结论、风险或后续计划"></textarea>

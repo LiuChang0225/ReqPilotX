@@ -14,6 +14,10 @@ const el = {
   lastRefresh: document.querySelector("#last-refresh"),
   activityAt: document.querySelector("#activity-at"),
   kpiGrid: document.querySelector("#kpi-grid"),
+  trackCards: document.querySelector("#track-cards"),
+  branchBody: document.querySelector("#branch-body"),
+  gateBody: document.querySelector("#gate-body"),
+  driftAlerts: document.querySelector("#drift-alerts"),
   regressionLatest: document.querySelector("#regression-latest"),
   regressionBody: document.querySelector("#regression-body"),
   splitChart: document.querySelector("#split-chart"),
@@ -25,6 +29,9 @@ const el = {
   savePlanBtn: document.querySelector("#save-plan"),
   eventForm: document.querySelector("#event-form"),
   eventTitle: document.querySelector("#event-title"),
+  eventTrack: document.querySelector("#event-track"),
+  eventBranch: document.querySelector("#event-branch"),
+  eventType: document.querySelector("#event-type"),
   eventDetail: document.querySelector("#event-detail"),
   eventCategory: document.querySelector("#event-category"),
   eventStatus: document.querySelector("#event-status"),
@@ -106,10 +113,15 @@ function renderSnapshot(snapshot) {
   el.lastRefresh.textContent = `最后刷新: ${formatTime(snapshot.generated_at)}`;
   el.activityAt.textContent = `最近活动: ${formatTime(snapshot.latest_activity_at)}`;
   renderKpis(snapshot.kpis || {});
+  renderTrackCards(snapshot.tracks || []);
+  renderBranchTable(snapshot.branches || []);
+  renderGateTable(snapshot.gates || []);
+  renderAlerts(snapshot.alerts || []);
   renderRegression(snapshot.regression || {});
   renderPlanTable(snapshot.plan || []);
   renderNextActions(snapshot.next_actions || []);
   renderTimeline(snapshot.timeline || []);
+  renderTrackOptions(snapshot.tracks || []);
   renderCharts(snapshot);
 }
 
@@ -218,9 +230,27 @@ function renderKpis(kpis) {
       tone: kpis.plan_overall_progress_pct >= 70 ? "good" : "warning",
     },
     {
+      label: "活跃支线",
+      value: String(kpis.active_tracks ?? 0),
+      foot: `排队中: ${kpis.queued_tracks ?? 0}`,
+      tone: "neutral",
+    },
+    {
+      label: "风险支线",
+      value: String(kpis.risk_tracks ?? 0),
+      foot: `OFF_PLAN: ${kpis.off_plan_tracks ?? 0}`,
+      tone: (kpis.off_plan_tracks ?? 0) > 0 ? "risk" : (kpis.risk_tracks ?? 0) > 0 ? "warning" : "good",
+    },
+    {
+      label: "已过门禁支线",
+      value: String(kpis.latest_gate_passed_tracks ?? 0),
+      foot: `alerts: ${kpis.alert_count ?? 0}`,
+      tone: (kpis.alert_count ?? 0) > 0 ? "warning" : "good",
+    },
+    {
       label: "综合进展指数",
       value: fmtPct(kpis.overall_progress_index_pct),
-      foot: "split/parse/plan weighted",
+      foot: "split/parse/plan/track weighted",
       tone: kpis.overall_progress_index_pct >= 75 ? "good" : "warning",
     },
   ];
@@ -236,6 +266,112 @@ function renderKpis(kpis) {
         </article>
       `;
     })
+    .join("");
+}
+
+function renderTrackCards(items) {
+  if (!items.length) {
+    el.trackCards.innerHTML = `<p class="meta">暂无 track 注册信息。</p>`;
+    return;
+  }
+  el.trackCards.innerHTML = items
+    .map((item) => {
+      const drift = String(item.drift_status || "ON_PLAN");
+      const toneClass =
+        drift === "OFF_PLAN" ? "track-risk" : drift === "RISK" ? "track-warning" : item.all_required_gates_passed ? "track-good" : "";
+      const gateText = item.required_gate_count
+        ? `${item.passed_gate_count || 0}/${item.required_gate_count || 0} gates`
+        : "no gates";
+      const nextGate = item.next_gate_name ? `${item.next_gate_name} (${item.next_gate_status || "PENDING"})` : "all green";
+      return `
+        <article class="track-card ${toneClass}">
+          <div class="track-head">
+            <div>
+              <p class="track-kicker">${escapeHtml(item.id || "")}</p>
+              <h3>${escapeHtml(item.title || "")}</h3>
+            </div>
+            <span class="tag tag-${escapeAttr(item.plan_status || "TODO")}">${escapeHtml(item.plan_status || "TODO")}</span>
+          </div>
+          <p class="meta">Track status: ${escapeHtml(item.track_status || "-")} | Drift: ${escapeHtml(drift)}</p>
+          <p class="track-summary">${escapeHtml(item.scope_summary || "")}</p>
+          <div class="track-grid">
+            <p><strong>Branch</strong><br>${escapeHtml(item.branch_name || "-")}</p>
+            <p><strong>Skill</strong><br>${escapeHtml(item.skill_name || "-")}</p>
+            <p><strong>Gates</strong><br>${escapeHtml(gateText)}</p>
+            <p><strong>Next Gate</strong><br>${escapeHtml(nextGate)}</p>
+          </div>
+          <p class="meta">${escapeHtml(item.latest_event_summary || item.latest_event_title || "暂无最近事件")}</p>
+          <div class="progress-bar"><span style="width:${Number(item.progress_pct || 0)}%"></span></div>
+        </article>
+      `;
+    })
+    .join("");
+}
+
+function renderBranchTable(rows) {
+  if (!rows.length) {
+    el.branchBody.innerHTML = `<tr><td colspan="8">暂无分支状态数据</td></tr>`;
+    return;
+  }
+  el.branchBody.innerHTML = rows
+    .map((row) => {
+      const aheadBehind = row.ahead_behind || {};
+      const upstream = aheadBehind.has_upstream
+        ? `ahead ${Number(aheadBehind.ahead || 0)} / behind ${Number(aheadBehind.behind || 0)}`
+        : "no upstream";
+      const dirty = row.dirty ? "YES" : "NO";
+      return `<tr>
+        <td>${escapeHtml(row.track_title || row.track_id || "")}</td>
+        <td>${escapeHtml(row.branch_name || "-")}</td>
+        <td>${escapeHtml(row.worktree_path || "-")}</td>
+        <td>${escapeHtml(row.git_status || "-")}</td>
+        <td>${escapeHtml(dirty)}</td>
+        <td>${escapeHtml(shortCommit(row.last_commit_sha || "", row.last_commit_at || ""))}</td>
+        <td>${escapeHtml(upstream)}</td>
+        <td><span class="tag tag-${escapeAttr(branchDriftTag(row.drift_status || ""))}">${escapeHtml(
+          row.drift_status || "-"
+        )}</span></td>
+      </tr>`;
+    })
+    .join("");
+}
+
+function renderGateTable(rows) {
+  if (!rows.length) {
+    el.gateBody.innerHTML = `<tr><td colspan="5">暂无 gate 状态数据</td></tr>`;
+    return;
+  }
+  el.gateBody.innerHTML = rows
+    .map(
+      (row) => `<tr>
+      <td>${escapeHtml(row.track_title || row.track_id || "")}</td>
+      <td>${escapeHtml(row.gate_name || "")}</td>
+      <td><span class="tag tag-${escapeAttr(gateTag(row.status || ""))}">${escapeHtml(row.status || "PENDING")}</span></td>
+      <td>${escapeHtml(formatTime(row.checked_at || ""))}</td>
+      <td>${escapeHtml(row.detail || "")}</td>
+    </tr>`
+    )
+    .join("");
+}
+
+function renderAlerts(items) {
+  if (!items.length) {
+    el.driftAlerts.innerHTML = `<p class="meta">暂无 drift / gate 预警。</p>`;
+    return;
+  }
+  el.driftAlerts.innerHTML = items
+    .map(
+      (item) => `
+        <article class="alert-card alert-${escapeAttr(alertTone(item.severity || ""))}">
+          <div class="timeline-head">
+            <p class="timeline-title">${escapeHtml(item.title || "-")}</p>
+            <span class="tag tag-${escapeAttr(alertTag(item.severity || ""))}">${escapeHtml(item.severity || "")}</span>
+          </div>
+          <p class="meta">${escapeHtml(item.track_id || "")}</p>
+          <p class="timeline-detail">${escapeHtml(item.detail || "")}</p>
+        </article>
+      `
+    )
     .join("");
 }
 
@@ -283,17 +419,29 @@ function appendPlanRow(item = {}) {
   const row = document.createElement("tr");
   row.dataset.id = item.id || "";
   row.innerHTML = `
+    <td>
+      <select data-field="track_id">
+        ${trackOptions(item.track_id || "")}
+      </select>
+    </td>
     <td><input data-field="title" maxlength="200" value="${escapeAttr(item.title || "")}" placeholder="任务标题" /></td>
     <td><input data-field="owner" maxlength="100" value="${escapeAttr(item.owner || "")}" placeholder="负责人" /></td>
+    <td><input data-field="branch_name" maxlength="255" value="${escapeAttr(item.branch_name || "")}" placeholder="codex/..." /></td>
     <td>
       <select data-field="status">
         ${planStatusOptions(item.status || "TODO")}
+      </select>
+    </td>
+    <td>
+      <select data-field="drift_status">
+        ${driftStatusOptions(item.drift_status || "ON_PLAN")}
       </select>
     </td>
     <td><input data-field="progress_pct" type="number" min="0" max="100" value="${escapeAttr(
       String(item.progress_pct ?? 0)
     )}" /></td>
     <td><input data-field="target_date" type="date" value="${escapeAttr(item.target_date || "")}" /></td>
+    <td><input data-field="acceptance_gate" maxlength="500" value="${escapeAttr(item.acceptance_gate || "")}" placeholder="gates" /></td>
     <td><input data-field="notes" maxlength="1000" value="${escapeAttr(item.notes || "")}" placeholder="备注" /></td>
     <td><button type="button" class="ghost" data-remove-plan>删除</button></td>
   `;
@@ -303,6 +451,13 @@ function appendPlanRow(item = {}) {
 
 function planStatusOptions(current) {
   const statuses = ["TODO", "IN_PROGRESS", "BLOCKED", "DONE"];
+  return statuses
+    .map((status) => `<option value="${status}" ${status === current ? "selected" : ""}>${status}</option>`)
+    .join("");
+}
+
+function driftStatusOptions(current) {
+  const statuses = ["ON_PLAN", "RISK", "OFF_PLAN"];
   return statuses
     .map((status) => `<option value="${status}" ${status === current ? "selected" : ""}>${status}</option>`)
     .join("");
@@ -318,9 +473,13 @@ function renderNextActions(items) {
       (item) => `
         <article class="next-action">
           <h3>${escapeHtml(item.title || "-")}</h3>
-          <p class="meta">状态: ${escapeHtml(item.status || "TODO")} | 负责人: ${escapeHtml(item.owner || "-")}</p>
+          <p class="meta">Track: ${escapeHtml(item.track_id || "-")} | 状态: ${escapeHtml(item.status || "TODO")} | 负责人: ${escapeHtml(
+            item.owner || "-"
+          )}</p>
+          <p class="meta">分支: ${escapeHtml(item.branch_name || "-")} | 漂移: ${escapeHtml(item.drift_status || "ON_PLAN")}</p>
           <p class="meta">目标日期: ${escapeHtml(item.target_date || "-")}</p>
-          <p class="meta">${escapeHtml(item.notes || "")}</p>
+          <p class="meta">门禁: ${escapeHtml(item.next_gate || item.acceptance_gate || "-")}</p>
+          <p class="meta">${escapeHtml(item.latest_event_summary || item.notes || "")}</p>
           <div class="progress-bar"><span style="width:${Number(item.progress_pct || 0)}%"></span></div>
         </article>
       `
@@ -343,7 +502,7 @@ function renderTimeline(items) {
           </div>
           <p class="meta">${formatTime(item.time)} | ${escapeHtml(item.category || "manual")} | ${
             item.source === "auto" ? "auto" : "manual"
-          }</p>
+          } | ${escapeHtml(item.track_id || "global")}</p>
           <p class="timeline-detail">${escapeHtml(item.detail || "")}</p>
         </article>
       `
@@ -596,6 +755,9 @@ async function onCreateEvent(event) {
   event.preventDefault();
   const payload = {
     title: el.eventTitle.value.trim(),
+    track_id: el.eventTrack.value.trim(),
+    branch_name: el.eventBranch.value.trim(),
+    event_type: el.eventType.value,
     detail: el.eventDetail.value.trim(),
     category: el.eventCategory.value,
     status: el.eventStatus.value,
@@ -611,6 +773,9 @@ async function onCreateEvent(event) {
     body: JSON.stringify(payload),
   });
   el.eventTitle.value = "";
+  el.eventTrack.value = "";
+  el.eventBranch.value = "";
+  el.eventType.value = "manual";
   el.eventDetail.value = "";
   el.eventTime.value = "";
   flashAction("事件已写入。");
@@ -635,11 +800,15 @@ function collectPlanItems() {
       const read = (field) => row.querySelector(`[data-field="${field}"]`)?.value?.trim() || "";
       return {
         id: row.dataset.id || null,
+        track_id: read("track_id"),
         title: read("title"),
         owner: read("owner"),
+        branch_name: read("branch_name"),
         status: read("status") || "TODO",
+        drift_status: read("drift_status") || "ON_PLAN",
         progress_pct: Number(read("progress_pct") || 0),
         target_date: read("target_date"),
+        acceptance_gate: read("acceptance_gate"),
         notes: read("notes"),
       };
     })
@@ -726,4 +895,71 @@ function escapeHtml(value) {
 
 function escapeAttr(value) {
   return escapeHtml(value).replaceAll("\n", " ");
+}
+
+function renderTrackOptions(items) {
+  const options = [`<option value="">(全局)</option>`]
+    .concat(
+      items.map(
+        (item) => `<option value="${escapeAttr(item.id || "")}">${escapeHtml(item.id || item.title || "")}</option>`
+      )
+    )
+    .join("");
+  if (el.eventTrack) {
+    const current = el.eventTrack.value;
+    el.eventTrack.innerHTML = options;
+    el.eventTrack.value = current || "";
+  }
+}
+
+function trackOptions(selected) {
+  const items = state.snapshot?.tracks || [];
+  return [`<option value="">(未绑定)</option>`]
+    .concat(
+      items.map(
+        (item) =>
+          `<option value="${escapeAttr(item.id || "")}" ${item.id === selected ? "selected" : ""}>${escapeHtml(
+            item.id || item.title || ""
+          )}</option>`
+      )
+    )
+    .join("");
+}
+
+function gateTag(status) {
+  if (status === "PASS") {
+    return "DONE";
+  }
+  if (status === "FAIL") {
+    return "RISK";
+  }
+  if (status === "RISK") {
+    return "BLOCKED";
+  }
+  return "INFO";
+}
+
+function branchDriftTag(status) {
+  if (status === "OFF_PLAN") {
+    return "RISK";
+  }
+  if (status === "RISK") {
+    return "BLOCKED";
+  }
+  return "DONE";
+}
+
+function alertTag(severity) {
+  return severity === "OFF_PLAN" ? "RISK" : severity === "RISK" ? "BLOCKED" : "INFO";
+}
+
+function alertTone(severity) {
+  return severity === "OFF_PLAN" ? "risk" : severity === "RISK" ? "warning" : "neutral";
+}
+
+function shortCommit(sha, time) {
+  if (!sha) {
+    return "-";
+  }
+  return `${String(sha).slice(0, 8)} | ${formatTime(time || "")}`;
 }

@@ -1,0 +1,5 @@
+interface:
+  display_name: "ReqPilot Control Tower"
+  short_description: "Coordinate active ReqPilotX tracks"
+  default_prompt: "Use $reqpilot-control-tower to inspect the ReqPilotX control tower, update plan/events, manage drift, and prepare bounded task packets for worker windows."
+
