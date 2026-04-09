@@ -2,6 +2,7 @@
 from __future__ import annotations
 
 import argparse
+import json
 import subprocess
 import sys
 from pathlib import Path
@@ -55,7 +56,11 @@ def _parse_args() -> argparse.Namespace:
 
 
 def _context_targets(repo_root_path: Path, worktree_root_path: Path) -> list[str]:
-    targets = [str(repo_root_path / "docs" / "active-context.md")]
+    targets = [str(worktree_root_path / "docs" / "active-context.md")]
+    track_target = _track_context_target(repo_root_path=repo_root_path, worktree_root_path=worktree_root_path)
+    if track_target:
+        targets.append(str(worktree_root_path / track_target))
+        return targets
     branch_context_dir = worktree_root_path / "prototype" / "docs"
     branch_targets = sorted(branch_context_dir.glob("*active-context.md")) if branch_context_dir.exists() else []
     if branch_targets:
@@ -63,6 +68,31 @@ def _context_targets(repo_root_path: Path, worktree_root_path: Path) -> list[str
     else:
         targets.append(str(branch_context_dir / "*active-context.md"))
     return targets
+
+
+def _track_context_target(*, repo_root_path: Path, worktree_root_path: Path) -> str:
+    registry_path = repo_root_path / "prototype" / "eval" / "progress" / "track_registry.json"
+    if not registry_path.exists():
+        return ""
+    try:
+        payload = json.loads(registry_path.read_text(encoding="utf-8"))
+    except json.JSONDecodeError:
+        return ""
+    current_branch = run_git(["branch", "--show-current"], worktree_root_path).strip()
+    current_root = worktree_root_path.resolve()
+    for track in payload.get("tracks", []):
+        if not isinstance(track, dict):
+            continue
+        branch_name = str(track.get("branch_name") or "").strip()
+        worktree_path = Path(str(track.get("worktree_path") or "")).resolve()
+        branch_context_doc = str(track.get("branch_context_doc") or "").strip()
+        if not branch_context_doc:
+            continue
+        if branch_name and branch_name == current_branch:
+            return branch_context_doc
+        if worktree_path == current_root:
+            return branch_context_doc
+    return ""
 
 
 def staged_files(root: Path) -> list[str]:
@@ -98,7 +128,17 @@ def main() -> int:
     if not needs_context_update(paths):
         return 0
 
-    if any(is_context_file(path) for path in paths):
+    required_context_paths = {"docs/active-context.md"}
+    track_target = _track_context_target(repo_root_path=current_repo_root, worktree_root_path=current_worktree_root)
+    if track_target:
+        required_context_paths.add(track_target)
+
+    staged_context_paths = {path for path in paths if is_context_file(path)}
+
+    if track_target:
+        if required_context_paths.issubset(staged_context_paths):
+            return 0
+    elif any(is_context_file(path) for path in paths):
         return 0
 
     target_lines = "\n".join(f"- {target}" for target in _context_targets(current_repo_root, current_worktree_root))

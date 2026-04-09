@@ -1,50 +1,61 @@
 # Active Context
 
-更新时间：2026-04-03 14:59 CST  
+更新时间：2026-04-09 23:23 CST  
 适用仓库：`/Users/liuchang/Documents/New project`
 
 长期背景：[`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/项目.md)
 
 ## 当前目标
 
-- 完成 workspace 前端小迭代：知识库文档支持移除，分析/导出区去掉重复 AI 路径选择
-- 保持 `main + 8000` 的本地 Azure 路径可运行
-- 给 Windows 本地联调补一个可复用的 Qdrant 联动启动入口
+- 把 ReqPilotX 的治理引导层落到仓库里：`track registry`、控制塔看板、repo-managed skills、track-local context routing
+- 让后续多窗口工作按固定支线推进，不再默认依赖长聊天记录或统一读取 extraction 上下文
 
 ## 活跃分支 / 工作树
 
-- 当前分支：`main`
-- 当前状态：存在未提交本地改动，涉及 `knowledge document delete`、workspace UI 精简、`prototype/start.ps1`、README 与上下文文档
+- 当前编辑分支：`main`
+- 控制塔已初始化到：`/Users/liuchang/Documents/New project/.git/reqpilotx-progress/progress_tracker.json`
+- 第一阶段活跃支线已注册：
+  - `codex/release-foundation`
+  - `codex/extraction-quality-loop`
+  - `codex/rag-quality-loop`
+- 第二阶段排队支线已注册：
+  - `codex/product-kb`
+  - `codex/angular-feasibility`
+- 当前仓库还没有实际创建这 3 个活跃 worktree；控制塔现在会把它们显示为 `TODO / ON_PLAN / not_started`
 
 ## 当前样本
 
-- 当前 live 验证页：`/workspace`
-- 当前验证端口：`8000`
-- 当前目标链路：项目选择 -> 知识文档上传/移除 -> 锁定 -> AI 分析 -> 导出
+- 当前没有切换新的业务样本
+- 当前重点样本从“文档内容”转成“治理执行面”：`/project-progress`、`track_registry.json`、`trackctl.py`
 
-## 最近已修 / 已验证
+## 最近已修 / 已落地
 
-- 后端新增 `DELETE /api/projects/{project_id}/knowledge-documents/{document_id}`
-- 删除知识文档时会一并移除同名历史重复记录，级联删除 sync 记录，并 best-effort 清理本地上传文件与 payload JSON
-- 前端知识文档清单已新增“移除文档”按钮
-- 第 4 步“分析与导出”已移除重复的 AI 路径选择器；AI 运行现在直接沿用第 2 步默认路径
-- 新增 `prototype/start.ps1`；可用 `-WithQdrant` 先拉起或复用本地 `reqpilotx-qdrant` 容器，再启动应用
-- 定向回归：5 个 `UnifiedWorkspaceTests` 通过
-- live 校验：`/api/health` 返回 `ready=true`，`/workspace` 返回新 asset 版本，旧 `ai-profile-select` 标记已不再输出
+- 新增 `prototype/eval/progress/track_registry.json`，注册 5 条固定 track
+- 控制塔接口扩展为 tracks / branches / gates / alerts 视图，并支持 `POST /api/progress/checkpoint`
+- `/project-progress` 已新增 `Tracks Overview`、`Branch Lanes`、`Gate Board`、`Drift Alerts`
+- 新增 `prototype/scripts/trackctl.py`，支持 `init/start/checkpoint/gate/handoff/status`
+- 新增 repo-managed skills 源码目录 `/.codex/skills-src/`，并已同步到 `$CODEX_HOME/skills`
+- `prototype/docs/extraction-active-context.md` 已收窄为 extraction 专属上下文，不再是所有窗口默认必读
+- `AGENTS.md`、`docs/next-agent-handoff-prompt.md`、`docs/codex-git-workflow.md`、`docs/项目.md` 已改成 track-based 路由和控制塔工作方式
+- 定向验证已通过：
+  - `tests.test_progress_control_tower`
+  - `py_compile` for `progress_tracker.py` / `main.py` / `trackctl.py`
+  - `python3 scripts/sync_codex_skills.py --validate`
 
 ## 当前 blockers
 
-- 知识文档删除当前不会主动硬删远端 Azure Search / Qdrant 索引，只是通过数据库过滤让已删文档不再参与检索；远端存储仍可能漂移
-- `start.ps1 -WithQdrant` 依赖 Docker Desktop，且只负责拉起 Qdrant 服务；若要让 Aliyun 本地 POC 真正 runnable，仍需配置 DashScope 与 `REQPILOT_ALIYUN_RETRIEVAL_BACKEND=qdrant`
-- 现有 readiness 语义、SQLite 连接泄漏风险、请求内同步上传/知识同步长任务问题仍未处理
+- 3 条活跃支线的实际 worktree 还没创建，所以 branch lane 现在仍停留在 `TODO / ON_PLAN / not_started`
+- 新 skills 已同步到 `$CODEX_HOME/skills`，但要重启 Codex 后新窗口才能直接触发它们
+- 当前只完成治理 bootstrap，还没开始 `release-foundation / extraction / rag` 的功能实现本体
 
 ## 下一步
 
-- 如需 UI 实际操作验收，再补一轮浏览器点击测试，验证“移除文档”按钮的真实交互
-- 评估是否给知识文档删除补远端索引硬删除
-- 若本地 Qdrant 变成常用链路，再把 `start.ps1` 的 Qdrant 联动逻辑同步到其他启动脚本或统一 launcher
+- 重启 Codex，让新 skills 生效
+- 按 `docs/next-agent-handoff-prompt.md` 和 `docs/codex-git-workflow.md` 创建 3 个活跃 worktree
+- 在协调窗口打开 `/project-progress`，再给 3 个 worker 窗口下发各自 track prompt
+- 每条支线开工后先运行 `python prototype/scripts/trackctl.py start --track <id>`
 
 ## 活跃端口
 
-- `8000`：本地 ReqPilotX live 服务，当前通过 `prototype/start.ps1` 启动，PID `67384`
-- `6333`：可选本地 Qdrant HTTP 端口；使用 `prototype/start.ps1 -WithQdrant` 时会检查/拉起
+- 控制塔页面：`/project-progress`
+- 应用主端口仍按现有本地运行约定使用 `8000`；本轮未重新启动服务，只完成了治理层实现与初始化

@@ -1,42 +1,39 @@
 # Extraction Active Context
 
-更新时间：2026-04-03 14:59 CST  
-分支：`main`
+更新时间：2026-04-09 23:23 CST  
+分支：`codex/extraction-quality-loop`
 
 ## 分支目的
 
-- 完成 workspace 小范围 UX/ops 收口，不改动主分析流程语义
-- 把知识库文档生命周期补齐到“可上传、可重试同步、可移除”
-- 给 Windows 本地联调补一个可复用的 Qdrant 启动入口
+- 专注拆解质量与批量回归闭环
+- 扩展样本集、问题分类法与 benchmark-safe 优化
+- 不承担 workspace、auth、RAG 主线治理任务
 
 ## 当前样本
 
-- live 验证页：`/workspace`
+- 当前关注样本：批量投喂目录与既有 benchmark（尤其油泵 PDS）
 - 当前主验证端口：`8000`
-- 当前关注链路：知识文档表、AI 分析启动区、Windows 本地启动脚本
+- 当前关注链路：parser / extractor / extraction preview / batch regression
 
 ## 最近已修
 
-- `app/main.py` 新增知识文档删除接口，删除同名 legacy duplicate 时按整组处理
-- `app/static/app.js` 为知识文档表新增“移除文档”操作，并在删除后刷新 workspace / knowledge docs 状态
-- `app/static/index.html` 已移除第 4 步重复的 `AI 路径` 选择器；AI 分析直接使用第 2 步默认路径
-- `start.ps1` 已加入仓库，支持 `-WithQdrant` 拉起本地 `reqpilotx-qdrant` 容器
-- 定向 `unittest` 通过 5 个相关用例；live `/workspace` 已返回新 JS asset 版本
+- 历史 extraction active-context 现已收窄为拆解专项上下文，不再作为所有窗口的默认必读
+- 控制塔、track registry、track skill、trackctl 已把拆解优化收口为独立 `extraction-quality-loop` 轨道
 
 ## 当前已知问题
 
-- 知识文档删除当前只清理本地文件与 payload，不硬删远端 Azure Search / Qdrant 索引
-- `start.ps1 -WithQdrant` 只负责本地服务启动，不会自动补齐 Aliyun/DashScope 配置
-- readiness / SQLite 连接 / 请求内长任务问题仍是后续主线技术债
+- 对应 worktree 还没创建，控制塔当前会把这条 active track 保持在 `TODO / ON_PLAN / not_started`
+- 批量样本目录、统一问题分类法和自动报告还没有正式收口
+- 需要确保新样本优化不会击穿既有 benchmark
 
 ## 当前验证结论
 
-- `/api/health` 在 `8000` 返回 `ready=true`
-- `/workspace` 已不再输出旧的 `ai-profile-select` 标记，新的前端 asset 已生效
-- 知识文档删除后会递增 `knowledge_base_version`，并让相关 AI 状态进入 stale 流程
+- extraction 支线已经从全局上下文中解耦，后续只由对应 worker 读取和维护
 
 ## 下一步
 
-- 如需产品级验收，再做一次浏览器点击验证，确认“移除文档”按钮体验和提示文案
-- 若知识文档删除要做彻底回收，下一步补远端索引硬删除
-- 如果 `-WithQdrant` 成为常用入口，再考虑把同样逻辑并入其他平台启动脚本
+- 创建 `codex/extraction-quality-loop` worktree
+- 开工即运行 `python prototype/scripts/trackctl.py start --track extraction-quality-loop`
+- 建立批量运行与报告入口
+- 明确 benchmark 门禁与问题分类法
+- 在控制塔内以独立轨道持续推进
