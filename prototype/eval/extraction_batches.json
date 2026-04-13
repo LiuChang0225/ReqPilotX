@@ -1,0 +1,68 @@
+{
+  "candidate_roots": [
+    {
+      "name": "shared_uploads",
+      "root": "shared_repo",
+      "path": "prototype/storage/uploads"
+    },
+    {
+      "name": "shared_knowledge",
+      "root": "shared_repo",
+      "path": "prototype/storage/knowledge",
+      "optional": true
+    },
+    {
+      "name": "worktree_uploads",
+      "root": "worktree",
+      "path": "prototype/storage/uploads",
+      "optional": true
+    }
+  ],
+  "batches": [
+    {
+      "id": "legacy_benchmark_core",
+      "description": "Core extraction regression pack with Q-JLY, BAIC SOR, damper PDS, and oil pump PDS.",
+      "documents": [
+        {
+          "doc_key": "q_jly_core",
+          "profile": "q_jly_core",
+          "match_regex": "Q-JLY\\s*J7111029E-2024",
+          "section_split": true,
+          "gate_tags": [
+            "regression-suite"
+          ]
+        },
+        {
+          "doc_key": "sor_baic_core",
+          "profile": "sor_baic_core",
+          "match_regex": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批",
+          "gate_tags": [
+            "regression-suite"
+          ]
+        },
+        {
+          "doc_key": "pds_de_active_damper_v1_0",
+          "profile": "pds_de_active_damper_v1_0",
+          "match_regex": "全主动减振器总成-V1\\.0-20251127",
+          "gate_tags": [
+            "regression-suite"
+          ]
+        },
+        {
+          "doc_key": "pds_de_oil_pump_v1_1",
+          "profile": "pds_de_oil_pump_v1_1",
+          "match_regex": "前后油泵总成-V1\\.1-20251215",
+          "gate_tags": [
+            "regression-suite",
+            "oil-pump-benchmark"
+          ]
+        }
+      ],
+      "gate_expectations": {
+        "min_quality_score_pct": 95.0,
+        "min_quality_doc_score_pct": 70.0,
+        "max_quality_high_severity_issues": 0
+      }
+    }
+  ]
+}

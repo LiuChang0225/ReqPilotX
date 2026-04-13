@@ -1,0 +1,82 @@
+{
+  "version": "v1",
+  "categories": {
+    "heading_recovery": "Heading Recovery",
+    "scope_and_namespace": "Scope and Namespace",
+    "table_and_clause_binding": "Table and Clause Binding"
+  },
+  "promotion_workflow": [
+    "diagnose_document",
+    "confirm_generic_pattern",
+    "patch_parser_or_preview",
+    "run_focused_tests",
+    "run_legacy_benchmark_core",
+    "human_review_key_samples",
+    "mark_pattern_promoted"
+  ],
+  "patterns": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "name": "Local clause heading not promoted to section anchor",
+      "symptom": "A parent section accumulates many requirement rows whose first token is a local clause code, but the same code is missing as a section anchor.",
+      "source_trigger_features": [
+        "requirement text starts with local clause code",
+        "same clause code absent from section tree",
+        "parent section requirement count drifts upward"
+      ],
+      "current_misread": "Preview keeps local clauses under the stale parent section instead of promoting them to canonical section anchors.",
+      "expected_structure_summary": "Preserve the local clause code as a section anchor and keep requirement rows bound under that promoted section.",
+      "root_cause_layer": "extractor_or_preview",
+      "validated_fix_strategy": "Adjust local clause heading preservation and section promotion without sample-specific branching.",
+      "affected_benchmarks": [
+        "oil-pump-benchmark",
+        "regression-suite"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "raw_scoped_code_namespace_collision",
+      "category": "scope_and_namespace",
+      "name": "Raw scoped code namespace collision",
+      "symptom": "Outline emits the same appendix scope plus section code multiple times before instance-aware disambiguation.",
+      "source_trigger_features": [
+        "duplicate scoped code in outline",
+        "instance-aware keys partially disambiguate downstream",
+        "structural gate still reports duplicate section code"
+      ],
+      "current_misread": "Namespace reuse at outline level is too ambiguous for benchmark gating and review artifacts.",
+      "expected_structure_summary": "Either reduce raw duplicate outline generation or make intentional duplicates explicit and benchmark-safe before gating.",
+      "root_cause_layer": "extractor_or_gate",
+      "validated_fix_strategy": "Tighten appendix scope / section instance generation or update gate semantics only after benchmark review.",
+      "affected_benchmarks": [
+        "oil-pump-benchmark",
+        "regression-suite"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "complex_table_clause_binding_drift",
+      "category": "table_and_clause_binding",
+      "name": "Complex table rewrite drifts clause binding",
+      "symptom": "Table-heavy pages inflate requirement counts or move expected snippets away from the intended section anchor.",
+      "source_trigger_features": [
+        "high requirement count drift",
+        "table row snippet mismatch",
+        "page hotspot on complex-table page"
+      ],
+      "current_misread": "Complex-table rewrite preserves text but loses stable clause binding or dedupe ordering.",
+      "expected_structure_summary": "Rewrite table-heavy content without breaking clause ownership, instance keys, or dedupe order.",
+      "root_cause_layer": "preview",
+      "validated_fix_strategy": "Adjust complex-table rewrite and requirement context binding in generic logic only.",
+      "affected_benchmarks": [
+        "oil-pump-benchmark",
+        "regression-suite"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ]
+}

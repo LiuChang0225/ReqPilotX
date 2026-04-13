@@ -563,6 +563,7 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
     last_section_page_by_scope: dict[str, int] = {}
     last_section_table_count_by_scope: dict[str, int] = {}
     seen_section_codes_by_scope: dict[str, set[str]] = {}
+    seen_section_titles_by_scope_code: dict[tuple[str, str], set[str]] = {}
     discovery_counter = 0
     serial_table_mode_until = -1
     in_test_outline_zone = False
@@ -634,7 +635,13 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             if (not current_scope and current_title == "附件目录") or current_scope:
                 if current and current.get("entries"):
                     blocks.append(current)
-                if not current_scope:
+                rotate_scope = _should_rotate_scope_for_upcoming_duplicate_codes(
+                    current_scope=current_scope,
+                    seen_codes=seen_section_codes_by_scope.get(current_scope, set()),
+                    line_entries=line_entries,
+                    start_index=idx,
+                )
+                if not current_scope or rotate_scope:
                     synthetic_scope_counter += 1
                     current_scope = f"SUB{synthetic_scope_counter}"
                 current = {
@@ -655,6 +662,14 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                 continue
 
         if embedded_attachment_title and current_scope:
+            if _should_rotate_scope_for_upcoming_duplicate_codes(
+                current_scope=current_scope,
+                seen_codes=seen_section_codes_by_scope.get(current_scope, set()),
+                line_entries=line_entries,
+                start_index=idx,
+            ):
+                synthetic_scope_counter += 1
+                current_scope = f"SUB{synthetic_scope_counter}"
             carried_entries: list[dict[str, Any]] = []
             candidate_page = _safe_int(entry.get("source_page"))
             candidate_line_index = _safe_int(entry.get("source_line_index"))
@@ -691,6 +706,14 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             appendix_scope=current_scope,
         )
         if standalone_table_title:
+            if _should_rotate_scope_for_upcoming_duplicate_codes(
+                current_scope=current_scope,
+                seen_codes=seen_section_codes_by_scope.get(current_scope, set()),
+                line_entries=line_entries,
+                start_index=idx,
+            ):
+                synthetic_scope_counter += 1
+                current_scope = f"SUB{synthetic_scope_counter}"
             if current and current.get("entries"):
                 blocks.append(current)
             current = {
@@ -767,6 +790,24 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
         ):
             header = None
 
+        if header and _should_rotate_scope_for_duplicate_header(
+            current_scope=current_scope,
+            header=header,
+            seen_codes=seen_section_codes_by_scope.get(current_scope, set()),
+            seen_titles_by_scope_code=seen_section_titles_by_scope_code,
+            candidate_page=_safe_int(entry.get("source_page")) or None,
+            previous_page=last_section_page_by_scope.get(current_scope),
+        ):
+            if current and current.get("entries"):
+                blocks.append(current)
+                current = None
+            synthetic_scope_counter += 1
+            current_scope = f"SUB{synthetic_scope_counter}"
+            last_section_code = last_section_code_by_scope.get(current_scope, "")
+            last_section_title = last_section_title_by_scope.get(current_scope, "")
+            last_section_page = last_section_page_by_scope.get(current_scope)
+            last_section_table_count = last_section_table_count_by_scope.get(current_scope, 0)
+
         if header and not _is_plausible_section_transition(
             last_section_code,
             str(header.get("code", "")),
@@ -821,6 +862,10 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             last_section_page_by_scope[current_scope] = int(src_page) if isinstance(src_page, int) else 0
             last_section_table_count_by_scope[current_scope] = int(entry.get("table_count", 0) or 0)
             seen_section_codes_by_scope.setdefault(current_scope, set()).add(str(header.get("code") or ""))
+            title_norm = _normalized_section_title(str(header.get("title") or ""))
+            if title_norm:
+                scope_code_key = (str(current_scope or "").strip().upper(), str(header.get("code") or "").strip())
+                seen_section_titles_by_scope_code.setdefault(scope_code_key, set()).add(title_norm)
             if not current_scope:
                 code_tuple = _parse_section_code_tuple(str(header.get("code") or ""))
                 if code_tuple:
@@ -4778,6 +4823,74 @@ def _normalized_section_title(title: str) -> str:
     value = re.sub(r"\s+", " ", value)
     value = re.sub(r"[，,；;。.!?！？:：、（）()\\[\\]【】\\-|_/]+", "", value)
     return value
+
+
+def _is_synthetic_scope(scope: str) -> bool:
+    return bool(re.fullmatch(r"SUB\d+", str(scope or "").strip().upper()))
+
+
+def _scope_title_matches_seen(title_norm: str, seen_title_norms: set[str]) -> bool:
+    if not title_norm:
+        return False
+    for seen in seen_title_norms:
+        if not seen:
+            continue
+        if title_norm == seen or title_norm in seen or seen in title_norm:
+            return True
+    return False
+
+
+def _should_rotate_scope_for_duplicate_header(
+    *,
+    current_scope: str,
+    header: dict[str, Any],
+    seen_codes: set[str],
+    seen_titles_by_scope_code: dict[tuple[str, str], set[str]],
+    candidate_page: int | None,
+    previous_page: int | None,
+) -> bool:
+    scope = str(current_scope or "").strip().upper()
+    code = str(header.get("code") or "").strip()
+    if not _is_synthetic_scope(scope) or not code or code not in seen_codes:
+        return False
+    if candidate_page is not None and previous_page is not None and candidate_page <= previous_page:
+        return False
+    title_norm = _normalized_section_title(str(header.get("title") or ""))
+    seen_title_norms = seen_titles_by_scope_code.get((scope, code), set())
+    if not seen_title_norms or _scope_title_matches_seen(title_norm, seen_title_norms):
+        return False
+    return True
+
+
+def _should_rotate_scope_for_upcoming_duplicate_codes(
+    *,
+    current_scope: str,
+    seen_codes: set[str],
+    line_entries: list[dict[str, Any]],
+    start_index: int,
+) -> bool:
+    scope = str(current_scope or "").strip().upper()
+    if not _is_synthetic_scope(scope) or not seen_codes:
+        return False
+    if start_index < 0 or start_index >= len(line_entries):
+        return False
+
+    start_page = _safe_int(line_entries[start_index].get("source_page"))
+    for idx in range(start_index + 1, min(len(line_entries), start_index + 64)):
+        candidate = line_entries[idx]
+        page = _safe_int(candidate.get("source_page"))
+        if start_page > 0 and page > start_page + 3:
+            break
+        text = str(candidate.get("text") or "")
+        if _extract_appendix_scope(text):
+            break
+        header = _parse_section_header(text)
+        if not header:
+            continue
+        code = str(header.get("code") or "").strip()
+        if code and code in seen_codes:
+            return True
+    return False
 
 
 def _should_start_embedded_scope(

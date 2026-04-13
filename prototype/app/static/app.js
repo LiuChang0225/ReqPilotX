@@ -1778,7 +1778,7 @@ function renderReviewDiagnostics() {
       .join("");
   }
   if (el.reviewSectionOverviewBody) {
-    const rows = buildReviewSectionOverviewRows(preview.sections || []);
+    const rows = buildReviewSectionOverviewRows(preview.section_tree || preview.sections || []);
     if (!rows.length) {
       el.reviewSectionOverviewBody.innerHTML = `<tr><td colspan="5">暂无章节数据</td></tr>`;
     } else {
@@ -1882,7 +1882,18 @@ function filterReviewEntries(rows) {
     if (state.reviewSelectedKind && state.reviewSelectedKind !== entryKind) {
       return false;
     }
-    const sectionKey = [row.parent_section_label, row.section_code, row.section_title].filter(Boolean).join(" ").toLowerCase();
+    const sectionKey = [
+      row.owner_section_label,
+      row.owner_section_code,
+      row.owner_section_title,
+      row.section_label,
+      row.section_code,
+      row.section_title,
+      row.parent_section_label,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
     if (sectionFilter && !sectionKey.includes(sectionFilter)) {
       return false;
     }
@@ -1976,6 +1987,11 @@ function buildReviewedExtractionEntriesPayload(rows) {
     entry_id: row.entry_id || "",
     req_code: row.req_code || "",
     entry_kind: row.entry_kind || "REQUIREMENT",
+    section_code: row.section_code || "",
+    section_title: row.section_title || "",
+    section_label: row.section_label || "",
+    section_key: row.section_key || "",
+    section_instance_key: row.section_instance_key || "",
     source_page: Number(row.source_page || 0) || null,
     source_page_end: Number(row.source_page_end || 0) || null,
     source_anchor: row.source_anchor || "",
@@ -1990,6 +2006,13 @@ function buildReviewedExtractionEntriesPayload(rows) {
     parent_section_code: row.parent_section_code || "",
     parent_section_title: row.parent_section_title || "",
     parent_section_label: row.parent_section_label || "",
+    owner_section_code: row.owner_section_code || "",
+    owner_section_title: row.owner_section_title || "",
+    owner_section_label: row.owner_section_label || "",
+    structural_parent_section_code: row.structural_parent_section_code || "",
+    structural_parent_section_key: row.structural_parent_section_key || "",
+    structural_parent_section_title: row.structural_parent_section_title || "",
+    structural_parent_section_label: row.structural_parent_section_label || "",
     merged_from_req_codes: Array.isArray(row.merged_from_req_codes) ? row.merged_from_req_codes : [],
     merged_from_entry_ids: Array.isArray(row.merged_from_entry_ids) ? row.merged_from_entry_ids : [],
     dedupe_version: row.dedupe_version || state.reviewPreview?.summary?.dedupe_version || "",
@@ -3415,21 +3438,28 @@ function decisionChip(decision) {
 }
 
 function renderParentSectionLabel(item) {
-  const label = getParentSectionLabel(item);
+  const label = getOwnerSectionLabel(item);
   return escapeHtml(label || "-");
 }
 
 function renderParentSectionPlainText(item) {
-  return getParentSectionLabel(item) || "-";
+  return getOwnerSectionLabel(item) || "-";
 }
 
-function getParentSectionLabel(item) {
-  return (
-    buildSectionLabel(item.parent_section_label, item.parent_section_code, item.parent_section_title) ||
-    buildSectionLabel(item.section_label, item.section_code, item.section_title) ||
-    extractSectionLabelFromAnchor(item.source_anchor) ||
-    String(item.heading_text || "").trim()
-  );
+function getOwnerSectionLabel(item) {
+  const ownerLabel = String(item?.owner_section_label || "").trim();
+  if (ownerLabel) {
+    return ownerLabel;
+  }
+  const ownerCode = String(item?.owner_section_code || item?.section_code || item?.parent_section_code || "").trim();
+  if (ownerCode) {
+    return ownerCode;
+  }
+  const ownerTitle = String(item?.owner_section_title || item?.section_title || item?.parent_section_title || "").trim();
+  if (ownerTitle) {
+    return ownerTitle;
+  }
+  return extractSectionLabelFromAnchor(item?.source_anchor) || String(item?.heading_text || "").trim();
 }
 
 function formatAiJobStatus(status) {

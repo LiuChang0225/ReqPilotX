@@ -1,5 +1,5 @@
 {
-  "updated_at": "2026-04-09T18:00:00",
+  "updated_at": "2026-04-11T18:20:00",
   "tracks": [
     {
       "id": "release-foundation",
@@ -54,15 +54,16 @@
       "worktree_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop",
       "skill_name": "reqpilot-track-extraction-quality",
       "branch_context_doc": "prototype/docs/extraction-active-context.md",
-      "scope_summary": "Batch extraction regression loop, error taxonomy, and benchmark stability.",
-      "non_goals": "Do not change auth, feedback, or RAG evidence logic in this track.",
+      "scope_summary": "Single-line extraction loop: batch regression, document-level audit, pattern capture, and benchmark-safe rule promotion.",
+      "non_goals": "Do not change auth, feedback, product-side audit runtime, or RAG evidence logic in this track.",
       "allowed_paths": [
         "prototype/app/services/parser.py",
         "prototype/app/services/extractor.py",
         "prototype/app/services/extraction_preview.py",
         "prototype/scripts/*",
         "prototype/tests/*",
-        "prototype/eval/*"
+        "prototype/eval/*",
+        ".codex/skills-src/reqpilot-track-extraction-quality/*"
       ],
       "blocked_paths": [
         "prototype/app/main.py",
