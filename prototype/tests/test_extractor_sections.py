@@ -678,13 +678,21 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         self.assertEqual(_extract_section_code(anchor), "8.1.2")
         self.assertEqual(_extract_section_title(anchor), "产品各方向解耦率及各向频率应满足下表的要求")
 
-    def test_top_level_ordered_clause_anchor_keeps_parent_section_context(self) -> None:
+    def test_top_level_ordered_clause_anchor_is_promoted_to_local_section_anchor(self) -> None:
         anchor = (
             "Page 10 | Clause 9）技术标书及交流过程中只接受简体中文文件，防止分歧。 "
             "| Section 6 投标说明"
         )
-        self.assertEqual(_extract_section_code(anchor), "6")
-        self.assertEqual(_extract_section_title(anchor), "投标说明")
+        self.assertEqual(_extract_section_code(anchor), "9")
+        self.assertEqual(_extract_section_title(anchor), "技术标书及交流过程中只接受简体中文文件，防止分歧。")
+
+    def test_one_dot_clause_anchor_under_deep_parent_is_promoted(self) -> None:
+        anchor = (
+            "Page 5 | Clause 6.1）简述 "
+            "| Section 3.2.2 产品详细描述"
+        )
+        self.assertEqual(_extract_section_code(anchor), "6.1")
+        self.assertEqual(_extract_section_title(anchor), "简述")
 
     def test_multiline_clause_requirement_uses_first_line_clause_code_in_preview_row(self) -> None:
         anchor = (
@@ -705,6 +713,7 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
             appendix_scope="",
             section_code=_extract_section_code(anchor),
             section_title_hint=_extract_section_title(anchor),
+            explicit_section_code="3.2.2",
             text=(
                 "8.1.2）产品各方向解耦率及各向频率应满足下表的要求（油泵支架隔振衬套如存在小衬套，需要考虑二级隔振），油泵的刚体模态\n"
                 "油泵总成刚体模态分配（整车坐标系）\n"
@@ -713,10 +722,13 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
             req_order_start=44,
         )
         self.assertEqual(rows[0]["section_code"], "8.1.2")
-        self.assertEqual(rows[0]["section_key"], "8.1.2")
+        self.assertEqual(rows[0]["section_key"], "3.2.2::8.1.2")
+        self.assertEqual(rows[0]["structural_parent_section_code"], "8.1")
+        self.assertEqual(rows[0]["structural_parent_section_key"], "3.2.2::8.1")
+        self.assertEqual(rows[0]["section_label"], "8.1.2）")
         self.assertTrue(rows[0]["section_title"].startswith("产品各方向解耦率及各向频率应满足下表的要求"))
 
-    def test_preview_rows_keep_parent_section_for_top_level_ordered_item(self) -> None:
+    def test_preview_rows_promote_top_level_ordered_item_to_local_section_anchor(self) -> None:
         anchor = (
             "Page 10 | Clause 10）商务报价应至少包含设计开发费用、模具夹具检具治具费用。 "
             "| Section 6 投标说明"
@@ -735,12 +747,45 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
             appendix_scope="",
             section_code=_extract_section_code(anchor),
             section_title_hint=_extract_section_title(anchor),
+            explicit_section_code="6",
             text="10）商务报价应至少包含设计开发费用、模具夹具检具治具费用。",
             req_order_start=103,
         )
+        self.assertEqual(rows[0]["section_code"], "10")
+        self.assertEqual(rows[0]["section_key"], "6::10")
+        self.assertEqual(rows[0]["structural_parent_section_code"], "6")
+        self.assertEqual(rows[0]["structural_parent_section_key"], "6")
+        self.assertEqual(rows[0]["section_label"], "10）")
+        self.assertEqual(rows[0]["section_title"], "商务报价应至少包含设计开发费用、模具夹具检具治具费用。")
+
+    def test_preview_rows_promote_same_code_local_clause_inside_parent_section(self) -> None:
+        anchor = "Page 9 | Section 6 投标说明"
+        rows = _split_requirement_preview_rows(
+            item={
+                "req_code": "REQ-0606",
+                "source_anchor": anchor,
+                "requirement_type": "",
+                "priority": "",
+                "source_line_index": 0,
+                "source_line_index_end": 0,
+            },
+            source_page=9,
+            source_page_end=9,
+            appendix_scope="",
+            section_code=_extract_section_code(anchor),
+            section_title_hint=_extract_section_title(anchor),
+            explicit_section_code="6",
+            text="6）技术标书中应包含生产工艺部分的描述，针对技术标书中提出的技术方案，论证工艺可行性",
+            req_order_start=605,
+        )
         self.assertEqual(rows[0]["section_code"], "6")
-        self.assertEqual(rows[0]["section_title"], "投标说明")
-        self.assertEqual(rows[0]["section_key"], "6")
+        self.assertEqual(rows[0]["section_key"], "6::6")
+        self.assertEqual(rows[0]["section_instance_key"], "")
+        self.assertEqual(rows[0]["structural_parent_section_code"], "6")
+        self.assertEqual(rows[0]["structural_parent_section_key"], "6")
+        self.assertEqual(rows[0]["section_label"], "6）")
+        self.assertEqual(rows[0]["owner_section_label"], "6）")
+        self.assertIn("Clause 6 技术标书中应包含生产工艺部分的描述", rows[0]["source_anchor"])
 
     def test_attachment_directory_heading_is_preserved_as_main_body_section(self) -> None:
         header = _parse_section_header("7、附件目录")
@@ -827,6 +872,64 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
                 ("SUB1", "", "软件开发要求", 11, 11),
                 ("SUB1", "", "FMEA与特殊特性", 12, 12),
                 ("SUB1", "1", "FMEA要求", 12, 12),
+            ],
+        )
+
+    def test_repeated_embedded_scope_codes_with_distinct_titles_rotate_to_new_synthetic_scope(self) -> None:
+        entries = [
+            {
+                "text": "7、附件目录",
+                "source_page": 10,
+                "source_anchor": "Page 10",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 0,
+            },
+            {
+                "text": "|Col1|Col2|软件开发要求|",
+                "source_page": 11,
+                "source_anchor": "Page 11",
+                "table_count": 1,
+                "source_line_index": 0,
+                "global_line_index": 1,
+            },
+            {
+                "text": "1 FMEA要求",
+                "source_page": 12,
+                "source_anchor": "Page 12",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 2,
+            },
+            {
+                "text": "1.可靠性设计目标",
+                "source_page": 13,
+                "source_anchor": "Page 13",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 3,
+            },
+            {
+                "text": "2.主要设计和验证要求",
+                "source_page": 13,
+                "source_anchor": "Page 13",
+                "table_count": 0,
+                "source_line_index": 1,
+                "global_line_index": 4,
+            },
+        ]
+
+        blocks = _extract_section_blocks(entries)
+        shaped = [(row["appendix_scope"], row["section_code"], row["section_title"], row["source_page"], row["source_page_end"]) for row in blocks]
+
+        self.assertEqual(
+            shaped,
+            [
+                ("", "7", "附件目录", 10, 10),
+                ("SUB1", "", "软件开发要求", 11, 11),
+                ("SUB1", "1", "FMEA要求", 12, 12),
+                ("SUB2", "1", "可靠性设计目标", 13, 13),
+                ("SUB2", "2", "主要设计和验证要求", 13, 13),
             ],
         )
 
@@ -968,6 +1071,64 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
             ],
         )
 
+    def test_embedded_attachment_title_rotates_scope_when_upcoming_codes_repeat(self) -> None:
+        entries = [
+            {
+                "text": "7、附件目录",
+                "source_page": 10,
+                "source_anchor": "Page 10",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 0,
+            },
+            {
+                "text": "|Col1|Col2|软件开发要求|",
+                "source_page": 11,
+                "source_anchor": "Page 11",
+                "table_count": 1,
+                "source_line_index": 0,
+                "global_line_index": 1,
+            },
+            {
+                "text": "3.样件数量要求",
+                "source_page": 13,
+                "source_anchor": "Page 13",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 2,
+            },
+            {
+                "text": "附件4--诊断、OTA相关标准接入认证设计规范",
+                "source_page": 15,
+                "source_anchor": "Page 15",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 3,
+            },
+            {
+                "text": "3、诊断设计要求",
+                "source_page": 15,
+                "source_anchor": "Page 15",
+                "table_count": 0,
+                "source_line_index": 1,
+                "global_line_index": 4,
+            },
+        ]
+
+        blocks = _extract_section_blocks(entries)
+        shaped = [(row["appendix_scope"], row["section_code"], row["section_title"], row["source_page"], row["source_page_end"]) for row in blocks]
+
+        self.assertEqual(
+            shaped,
+            [
+                ("", "7", "附件目录", 10, 10),
+                ("SUB1", "", "软件开发要求", 11, 11),
+                ("SUB1", "3", "样件数量要求", 13, 13),
+                ("SUB2", "", "附件4--诊断、OTA相关标准接入认证设计规范", 15, 15),
+                ("SUB2", "3", "诊断设计要求", 15, 15),
+            ],
+        )
+
     def test_heading_anchor_title_is_preserved_for_title_only_attachment_block(self) -> None:
         self.assertEqual(
             _extract_section_title("Page 11 | Appendix SUB1 | Heading 软件开发要求"),
@@ -1041,6 +1202,58 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         self.assertEqual(requirements[0]["parent_section_code"], "3.2.2")
         self.assertEqual(requirements[0]["parent_section_title"], "产品详细描述")
         self.assertEqual(requirements[0]["parent_section_label"], "3.2.2 产品详细描述")
+
+    def test_requirement_context_exposes_owner_and_structural_parent_labels(self) -> None:
+        requirements = [
+            {
+                "req_code": "REQ-0606",
+                "appendix_scope": "",
+                "section_code": "6",
+                "section_key": "6::6",
+                "section_instance_key": "6::6",
+                "section_title": "技术标书中应包含生产工艺部分的描述，针对技术标书中提出的技术方案，论证工艺可行性",
+                "section_label": "6）",
+                "source_page": 9,
+                "structural_parent_section_code": "6",
+                "structural_parent_section_key": "6",
+            }
+        ]
+        sections = [
+            {
+                "appendix_scope": "",
+                "section_code": "6",
+                "section_key": "6",
+                "section_instance_key": "6",
+                "section_title": "投标说明",
+                "section_label": "",
+                "parent_section_code": "",
+                "source_page_start": 9,
+            },
+            {
+                "appendix_scope": "",
+                "section_code": "6",
+                "section_key": "6::6",
+                "section_instance_key": "6::6",
+                "section_title": "技术标书中应包含生产工艺部分的描述，针对技术标书中提出的技术方案，论证工艺可行性",
+                "section_label": "6）",
+                "parent_section_code": "6",
+                "parent_section_key": "6",
+                "structural_parent_section_code": "6",
+                "structural_parent_section_key": "6",
+                "structural_parent_section_title": "投标说明",
+                "structural_parent_section_label": "6",
+                "source_page_start": 9,
+            },
+        ]
+
+        _attach_requirement_section_context(requirements, sections)
+
+        self.assertEqual(requirements[0]["owner_section_code"], "6")
+        self.assertEqual(requirements[0]["owner_section_label"], "6）")
+        self.assertEqual(requirements[0]["parent_section_code"], "6")
+        self.assertEqual(requirements[0]["parent_section_label"], "6 技术标书中应包含生产工艺部分的描述，针对技术标书中提出的技术方案，论证工艺可行性")
+        self.assertEqual(requirements[0]["structural_parent_section_code"], "6")
+        self.assertEqual(requirements[0]["structural_parent_section_label"], "6")
 
     def test_sub1_requirement_context_does_not_bind_to_future_duplicate_section_code(self) -> None:
         requirements = [

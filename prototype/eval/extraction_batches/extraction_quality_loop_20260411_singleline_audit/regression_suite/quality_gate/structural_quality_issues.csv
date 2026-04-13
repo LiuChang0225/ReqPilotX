@@ -1,0 +1,10 @@
+pdf_name,issue_type,severity,appendix_scope,section_code,detail
+Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,,4,duplicate_count=2
+Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,high,,5,duplicate_count=3
+Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,,5.2.1.10.3.3,duplicate_count=2
+Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,duplicate_section_code,medium,,6,duplicate_count=2
+Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,suspicious_heading,medium,,5.1.8.2.2,table_like_title
+Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,suspicious_heading,medium,,5.1.8.2.3,table_like_title
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,duplicate_section_code,medium,B,2,duplicate_count=2
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,required_code_missing,high,F,1,profile=sor_baic_core
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,required_code_missing,high,G,1,profile=sor_baic_core

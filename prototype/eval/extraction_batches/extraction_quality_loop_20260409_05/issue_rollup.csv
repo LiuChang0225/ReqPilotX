@@ -1,0 +1,31 @@
+gate,pdf_name,profile,category,category_label,issue_type,severity,appendix_scope,section_code,detail
+quality_gate,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,,benchmark_coverage,Benchmark Coverage,required_code_missing,high,F,1,profile=sor_baic_core
+quality_gate,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,,benchmark_coverage,Benchmark Coverage,required_code_missing,high,G,1,profile=sor_baic_core
+fidelity,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,benchmark_coverage,Benchmark Coverage,required_code_missing,high,F,1,required scoped code missing
+fidelity,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,benchmark_coverage,Benchmark Coverage,required_code_missing,high,G,1,required scoped code missing
+fidelity,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,benchmark_coverage,Benchmark Coverage,required_title_mismatch,high,E,2,title '通讯协议：按照 EMS 系统通讯协议开发' does not contain '系统职责'
+fidelity,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,q_jly_core,content_fidelity,Content Fidelity,forbidden_code_present,high,,4.1.2.2.2,forbidden scoped code present
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,forbidden_cross_section_source_missing,high,,3.2.2,source does not contain snippet: '7.3.1 ）外观磕伤、划伤标准'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '7.3.1 ）外观磕伤、划伤标准'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_table_row_snippet_missing,high,,3.2.2,table row snippet not found: '16 法规'
+quality_gate,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,,outline_structure,Outline Structure,duplicate_section_code,high,,5,duplicate_count=3
+quality_gate,产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,,outline_structure,Outline Structure,duplicate_section_code,high,SUB1,2,duplicate_count=3
+quality_gate,产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,,outline_structure,Outline Structure,duplicate_section_code,high,SUB1,3,duplicate_count=3
+fidelity,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,q_jly_core,content_fidelity,Content Fidelity,requirement_count_drift,medium,,,requirements=532 expected=398 drift=134
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,requirement_count_drift,medium,,,requirements=269 expected=219 drift=50
+fidelity,产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,content_fidelity,Content Fidelity,requirement_count_drift,medium,,,requirements=190 expected=99 drift=91
+quality_gate,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,,4,duplicate_count=2
+quality_gate,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,,5.2.1.10.3.3,duplicate_count=2
+quality_gate,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,,6,duplicate_count=2
+quality_gate,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,B,2,duplicate_count=2
+quality_gate,产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,SUB1,1,duplicate_count=2
+quality_gate,产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,SUB1,1.1,duplicate_count=2
+quality_gate,产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,SUB1,1.2,duplicate_count=2
+quality_gate,产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,SUB1,1.3,duplicate_count=2
+quality_gate,产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,SUB1,1.4,duplicate_count=2
+quality_gate,产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,SUB1,4,duplicate_count=2
+fidelity,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,q_jly_core,outline_structure,Outline Structure,section_consistency_issue_limit,medium,,,consistency_issues=8 max=3
+fidelity,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,outline_structure,Outline Structure,section_consistency_issue_limit,medium,,,consistency_issues=2 max=1
+fidelity,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,q_jly_core,outline_structure,Outline Structure,section_count_drift,medium,,,sections=433 expected=399 drift=34
+quality_gate,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,,outline_structure,Outline Structure,suspicious_heading,medium,,5.1.8.2.2,table_like_title
+quality_gate,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,,outline_structure,Outline Structure,suspicious_heading,medium,,5.1.8.2.3,table_like_title

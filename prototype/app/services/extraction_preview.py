@@ -28,7 +28,7 @@ APPENDIX_MARKER_LINE_RE = re.compile(
     r"^\s*(?:附件|附录|appendix|annex|attachment)\s*([A-Za-zＡ-Ｚａ-ｚ])\b.*$",
     re.I,
 )
-LOCAL_CLAUSE_RE = re.compile(r"^\s*(\d+(?:\.\d+)+)\s*[）)]?\s*(.+)$")
+LOCAL_CLAUSE_RE = re.compile(r"^\s*(\d+(?:\.\d+)*)\s*[）)]\s*(.+)$")
 TEST_OUTLINE_TITLE_RE = re.compile(
     r"(?:试验大纲|匹配评估表|测试分组)",
     re.I,
@@ -82,6 +82,7 @@ def build_extraction_preview(
         source_page = _to_int(item.get("source_page"))
         source_page_end = _to_int(item.get("source_page_end")) or source_page
         appendix_scope = _extract_appendix_scope(item.get("source_anchor", ""))
+        explicit_section_code = _extract_explicit_section_code(item.get("source_anchor", ""))
         section_code = _extract_section_code(item.get("source_anchor", ""))
         section_title_hint = _extract_section_title(item.get("source_anchor", ""))
         text = str(item.get("requirement_text", "")).strip()
@@ -92,6 +93,7 @@ def build_extraction_preview(
             appendix_scope=appendix_scope,
             section_code=section_code,
             section_title_hint=section_title_hint,
+            explicit_section_code=explicit_section_code,
             text=text,
             req_order_start=len(req_rows),
         )
@@ -132,6 +134,10 @@ def build_extraction_preview(
                 "section_code": row.get("section_code", ""),
                 "section_key": section_key,
                 "section_instance_key": section_instance_key,
+                "parent_section_code": row.get("structural_parent_section_code", ""),
+                "parent_section_key": row.get("structural_parent_section_key", ""),
+                "section_label": row.get("section_label", ""),
+                "is_scoped_local_clause": bool(row.get("is_scoped_local_clause", False)),
                 "requirement_count": 0,
                 "source_page_start": row.get("source_page") if _to_int(row.get("source_page")) > 0 else None,
                 "source_page_end": row.get("source_page_end") if _to_int(row.get("source_page_end")) > 0 else None,
@@ -185,7 +191,9 @@ def build_extraction_preview(
                 "section_code": code,
                 "section_key": section_key,
                 "section_instance_key": section_instance_key,
+                "parent_section_key": _join_section_key(appendix_scope, str(node.get("parent_section_code") or "")),
                 "section_title": node.get("section_title", "") or req_state.get("section_title", ""),
+                "section_label": req_state.get("section_label", ""),
                 "section_level": node.get("section_level", 0),
                 "parent_section_code": node.get("parent_section_code", ""),
                 "has_children": bool(node.get("has_children", False)),
@@ -203,6 +211,7 @@ def build_extraction_preview(
                 "text_preview": node.get("text_preview", ""),
                 "first_req_order": req_state.get("first_req_order"),
                 "outline_order": outline_order,
+                "is_scoped_local_clause": bool(req_state.get("is_scoped_local_clause", False)),
             }
         )
 
@@ -211,7 +220,10 @@ def build_extraction_preview(
         if section_instance_key in outline_instance_index:
             continue
         section_key = str(req_state.get("section_key") or "")
-        appendix_scope, code = _split_section_key(section_key)
+        appendix_scope = str(req_state.get("appendix_scope") or "").strip().upper()
+        code = str(req_state.get("section_code") or "").strip()
+        if not code:
+            _, code = _split_section_key(section_key)
         sections.append(
             {
                 "appendix_scope": appendix_scope,
@@ -219,8 +231,10 @@ def build_extraction_preview(
                 "section_key": section_key,
                 "section_instance_key": section_instance_key,
                 "section_title": req_state.get("section_title", ""),
+                "section_label": req_state.get("section_label", ""),
                 "section_level": code.count(".") + 1 if code else 0,
-                "parent_section_code": _parent_section_code(code),
+                "parent_section_code": str(req_state.get("parent_section_code") or _parent_section_code(code)),
+                "parent_section_key": str(req_state.get("parent_section_key") or ""),
                 "has_children": False,
                 "is_leaf": True,
                 "source_page_start": req_state.get("source_page_start"),
@@ -236,6 +250,7 @@ def build_extraction_preview(
                 "text_preview": "",
                 "first_req_order": req_state.get("first_req_order"),
                 "outline_order": None,
+                "is_scoped_local_clause": bool(req_state.get("is_scoped_local_clause", False)),
             }
         )
 
@@ -289,14 +304,21 @@ def build_extraction_preview(
     quality_scores = [
         float(detail.get("quality_score", 0.0)) for detail in page_details if isinstance(detail, dict)
     ]
+    complete_requirement_entries_count = sum(
+        1 for row in complete_entries if str(row.get("entry_kind")) == "REQUIREMENT"
+    )
+    heading_entries_count = sum(1 for row in complete_entries if str(row.get("entry_kind")) == "HEADING")
+    hybrid_entries_count = sum(1 for row in complete_entries if str(row.get("entry_kind")) == "HYBRID")
 
     summary = {
-        "requirements_count": len(req_rows),
+        "requirements_count": complete_requirement_entries_count,
+        "raw_requirement_rows_count": len(req_rows),
         "complete_entries_count": len(complete_entries),
         "complete_entries_raw_count": len(complete_entries_raw),
-        "heading_entries_count": sum(1 for row in complete_entries if str(row.get("entry_kind")) == "HEADING"),
-        "hybrid_entries_count": sum(1 for row in complete_entries if str(row.get("entry_kind")) == "HYBRID"),
-        "sections_count": sum(1 for row in sections if not bool(row.get("is_appendix_marker", False))),
+        "complete_requirement_entries_count": complete_requirement_entries_count,
+        "heading_entries_count": heading_entries_count,
+        "hybrid_entries_count": hybrid_entries_count,
+        "sections_count": sum(1 for row in sections if counts_toward_fidelity_section(row)),
         "section_outline_count": len(raw_section_outline),
         "section_tree_count": len(section_tree),
         "appendix_marker_count": len(appendix_markers),
@@ -363,6 +385,7 @@ def _split_requirement_preview_rows(
     appendix_scope: str,
     section_code: str,
     section_title_hint: str,
+    explicit_section_code: str,
     text: str,
     req_order_start: int,
 ) -> list[dict[str, Any]]:
@@ -375,19 +398,41 @@ def _split_requirement_preview_rows(
         base_req_code = f"REQ-{req_order_start + 1:04d}"
 
     rows: list[dict[str, Any]] = []
+    explicit_parent_code = str(explicit_section_code or "").strip()
+    explicit_parent_key = _join_section_key(appendix_scope, explicit_parent_code)
     for idx, chunk in enumerate(chunks):
         clause_code, clause_title = _extract_local_clause_code_and_title(chunk)
+        has_explicit_local_clause = bool(clause_code)
         promote_clause_section = _should_promote_local_clause_to_section(
             parent_section_code=section_code,
             clause_code=clause_code,
+            allow_same_code=has_explicit_local_clause,
         )
         chunk_section_code = clause_code if promote_clause_section else section_code
         chunk_section_title = (clause_title if promote_clause_section else "") or section_title_hint
-        chunk_section_key = _join_section_key(appendix_scope, chunk_section_code)
-        if not chunk_section_key and chunk_section_title:
-            chunk_section_key = _join_title_section_key(appendix_scope, chunk_section_title)
+        scoped_local_clause = _should_scope_local_clause_to_parent(
+            parent_section_code=explicit_parent_code,
+            clause_code=chunk_section_code,
+            allow_same_code=has_explicit_local_clause,
+        )
+        if scoped_local_clause and explicit_parent_key:
+            chunk_section_key = _join_scoped_local_clause_key(explicit_parent_key, chunk_section_code)
+            chunk_parent_section_code = _scoped_local_clause_parent_code(
+                parent_section_code=explicit_parent_code,
+                clause_code=chunk_section_code,
+            )
+            chunk_parent_section_key = _scoped_local_clause_parent_key(
+                parent_section_key=explicit_parent_key,
+                clause_code=chunk_section_code,
+            )
+        else:
+            chunk_section_key = _join_section_key(appendix_scope, chunk_section_code)
+            if not chunk_section_key and chunk_section_title:
+                chunk_section_key = _join_title_section_key(appendix_scope, chunk_section_title)
+            chunk_parent_section_code = _parent_section_code(chunk_section_code)
+            chunk_parent_section_key = _join_section_key(appendix_scope, chunk_parent_section_code)
         chunk_anchor = str(item.get("source_anchor") or "")
-        if clause_code and clause_code != section_code:
+        if clause_code and promote_clause_section:
             anchor_title = clause_title or chunk_section_title or ""
             clause_anchor = f"Clause {clause_code}"
             if anchor_title:
@@ -409,6 +454,14 @@ def _split_requirement_preview_rows(
                 "source_page_end": source_page_end,
                 "source_anchor": chunk_anchor,
                 "section_title": chunk_section_title,
+                "section_label": _format_clause_section_label(chunk_section_code, clause_code=clause_code),
+                "owner_section_code": chunk_section_code,
+                "owner_section_title": chunk_section_title,
+                "owner_section_label": _format_owner_section_label(
+                    chunk_section_code,
+                    chunk_section_title,
+                    _format_clause_section_label(chunk_section_code, clause_code=clause_code),
+                ),
                 "requirement_type": item.get("requirement_type", ""),
                 "priority": item.get("priority", ""),
                 "text_length": len(cleaned_chunk),
@@ -417,12 +470,22 @@ def _split_requirement_preview_rows(
                 "source_line_index": _to_int(item.get("source_line_index")),
                 "source_line_index_end": _to_int(item.get("source_line_index_end")),
                 "section_instance_key": "",
+                "structural_parent_section_code": chunk_parent_section_code,
+                "structural_parent_section_key": chunk_parent_section_key,
+                "structural_parent_section_title": "",
+                "structural_parent_section_label": "",
+                "is_scoped_local_clause": scoped_local_clause,
             }
         )
     return rows
 
 
-def _should_promote_local_clause_to_section(*, parent_section_code: str, clause_code: str) -> bool:
+def _should_promote_local_clause_to_section(
+    *,
+    parent_section_code: str,
+    clause_code: str,
+    allow_same_code: bool = False,
+) -> bool:
     parent_code = str(parent_section_code or "").strip()
     local_code = str(clause_code or "").strip()
     if not local_code:
@@ -430,14 +493,64 @@ def _should_promote_local_clause_to_section(*, parent_section_code: str, clause_
     if not parent_code:
         return True
     if local_code == parent_code:
+        return allow_same_code
+    # Local clause anchors frequently reset inside a parent block
+    # (for example 3.2.2 -> 6 / 6.1 / 11.12 or 6 -> 1 / 2 / 3),
+    # so explicit clause codes should become their own canonical section anchors.
+    return True
+
+
+def _should_scope_local_clause_to_parent(
+    *,
+    parent_section_code: str,
+    clause_code: str,
+    allow_same_code: bool = False,
+) -> bool:
+    parent_code = str(parent_section_code or "").strip()
+    local_code = str(clause_code or "").strip()
+    if not parent_code or not local_code:
         return False
-    if local_code.startswith(f"{parent_code}."):
+    if local_code == parent_code:
+        return allow_same_code
+    return not local_code.startswith(f"{parent_code}.")
+
+
+def _join_scoped_local_clause_key(parent_section_key: str, clause_code: str) -> str:
+    parent_key = str(parent_section_key or "").strip()
+    code = str(clause_code or "").strip()
+    if not parent_key or not code:
+        return ""
+    return f"{parent_key}::{code}"
+
+
+def _scoped_local_clause_parent_code(*, parent_section_code: str, clause_code: str) -> str:
+    code = str(clause_code or "").strip()
+    if "." in code:
+        return code.rsplit(".", 1)[0]
+    return str(parent_section_code or "").strip()
+
+
+def _scoped_local_clause_parent_key(*, parent_section_key: str, clause_code: str) -> str:
+    base_key = str(parent_section_key or "").strip()
+    code = str(clause_code or "").strip()
+    if not base_key:
+        return ""
+    if "." in code:
+        return _join_scoped_local_clause_key(base_key, code.rsplit(".", 1)[0])
+    return base_key
+
+
+def counts_toward_fidelity_section(row: dict[str, Any]) -> bool:
+    if not isinstance(row, dict) or bool(row.get("is_appendix_marker", False)):
+        return False
+    if not str(row.get("section_code") or "").strip():
+        return False
+    structural_kind = str(row.get("structural_kind") or "").strip().lower()
+    if structural_kind != "synthetic":
         return True
-    # Three-level clause numbering like 8.1.2 is specific enough to treat as a
-    # real local clause anchor even when the parent section token is stale.
-    if local_code.count(".") >= 2:
-        return True
-    return False
+    # Keep appendix/test-outline synthetic scopes in fidelity counts, but do not
+    # let preview-only local clause splits in the main document inflate section totals.
+    return bool(str(row.get("appendix_scope") or "").strip())
 
 
 def _extract_local_clause_code_and_title(text: str) -> tuple[str, str]:
@@ -464,6 +577,18 @@ def _dedupe_table_assets(assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
         seen_table_ids.add(table_id)
         deduped.append(asset)
     return deduped
+
+
+def _format_clause_section_label(section_code: str, *, clause_code: str = "") -> str:
+    code = str(clause_code or section_code or "").strip()
+    if not code:
+        return ""
+    return f"{code}）" if str(clause_code or "").strip() else code
+
+
+def _extract_explicit_section_code(anchor: str) -> str:
+    match = SECTION_ANCHOR_RE.search(anchor or "")
+    return str(match.group(1) or "").strip() if match else ""
 
 
 def _extract_section_code(anchor: str) -> str:
@@ -530,6 +655,13 @@ def _split_section_key(section_key: str) -> tuple[str, str]:
     value = str(section_key or "").strip()
     if not value:
         return ("", "")
+    if "::" in value:
+        parent_key, local_code = value.rsplit("::", 1)
+        if ":" in parent_key:
+            appendix_scope = parent_key.split(":", 1)[0].strip().upper()
+        else:
+            appendix_scope = ""
+        return (appendix_scope, local_code.strip())
     if ":" not in value:
         if value.startswith("@"):
             return ("", "")
@@ -713,6 +845,10 @@ def _build_canonical_section_rows(
         if structural_kind == "outline" and section_key and section_key not in node_key_by_section_key:
             node_key_by_section_key[section_key] = node_key
 
+    node_by_structural_key: dict[str, dict[str, Any]] = {
+        str(node.get("_structural_node_key") or "").strip(): node for node in copied
+    }
+
     for node in copied:
         parent_key = _resolve_structural_parent_node_key(
             node,
@@ -741,6 +877,45 @@ def _build_canonical_section_rows(
         visit(node)
 
     for node in ordered:
+        node_key = str(node.get("_structural_node_key") or "").strip()
+        parent_node = node_by_structural_key.get(str(node.get("structural_parent_key") or "").strip())
+        owner_section_code = str(node.get("section_code") or "").strip()
+        owner_section_title = str(node.get("section_title") or "").strip()
+        owner_section_label = _format_owner_section_label(
+            owner_section_code,
+            owner_section_title,
+            str(node.get("section_label") or "").strip(),
+        )
+        parent_section_code = str(node.get("parent_section_code") or "").strip()
+        parent_section_key = str(node.get("parent_section_key") or "").strip()
+        structural_parent_section_code = (
+            str(parent_node.get("section_code") or "").strip() if parent_node else parent_section_code
+        )
+        structural_parent_section_key = (
+            str(parent_node.get("section_instance_key") or parent_node.get("section_key") or "").strip()
+            if parent_node
+            else parent_section_key
+        )
+        structural_parent_section_title = str(parent_node.get("section_title") or "").strip() if parent_node else ""
+        structural_parent_section_label = (
+            _format_owner_section_label(
+                structural_parent_section_code,
+                structural_parent_section_title,
+                str(parent_node.get("section_label") or "").strip(),
+            )
+            if parent_node
+            else _format_owner_section_label(structural_parent_section_code, structural_parent_section_title)
+        )
+        node["owner_section_code"] = owner_section_code
+        node["owner_section_title"] = owner_section_title
+        node["owner_section_label"] = owner_section_label
+        node["structural_parent_section_code"] = structural_parent_section_code
+        node["structural_parent_section_key"] = structural_parent_section_key
+        node["structural_parent_section_title"] = structural_parent_section_title
+        node["structural_parent_section_label"] = structural_parent_section_label
+        has_children = bool(children_by_parent_key.get(node_key))
+        node["has_children"] = has_children
+        node["is_leaf"] = not has_children
         node.pop("_structural_node_key", None)
 
     stats = {
@@ -764,6 +939,13 @@ def _resolve_structural_parent_node_key(
     outline_node_key_by_section_key: dict[str, str],
     any_node_key_by_section_key: dict[str, str],
 ) -> str:
+    explicit_parent_key = str(node.get("parent_section_key") or "").strip()
+    if explicit_parent_key:
+        parent_key = outline_node_key_by_section_key.get(explicit_parent_key) or any_node_key_by_section_key.get(
+            explicit_parent_key
+        )
+        if parent_key:
+            return parent_key
     appendix_scope = str(node.get("appendix_scope") or "").strip().upper()
     section_code = str(node.get("section_code") or "").strip()
     parent_code = str(node.get("parent_section_code") or "").strip()
@@ -1403,6 +1585,9 @@ def _build_heading_entry(node: dict[str, Any], heading_seq: int, synthetic: bool
     source_line_index_end = _to_int(node.get("source_line_index_end")) or source_line_index
     section_level = _to_int(node.get("section_level")) or _infer_section_level(section_code)
     parent_section_code = str(node.get("parent_section_code") or "").strip()
+    parent_section_key = str(node.get("parent_section_key") or "").strip()
+    section_label = str(node.get("section_label") or "").strip()
+    owner_section_label = _format_owner_section_label(section_code, section_title, section_label)
 
     scope_token = scope or "MAIN"
     code_token = section_code or "ROOT"
@@ -1419,16 +1604,25 @@ def _build_heading_entry(node: dict[str, Any], heading_seq: int, synthetic: bool
         "section_instance_key": section_instance_key,
         "section_level": section_level,
         "parent_section_code": parent_section_code,
+        "parent_section_key": parent_section_key,
         "source_page": source_page,
         "source_page_end": source_page_end,
         "source_line_index": source_line_index,
         "source_line_index_end": source_line_index_end,
         "source_anchor": "",
         "section_title": section_title,
+        "owner_section_code": section_code,
+        "owner_section_title": section_title,
+        "owner_section_label": owner_section_label,
+        "structural_parent_section_code": str(node.get("structural_parent_section_code") or parent_section_code).strip(),
+        "structural_parent_section_key": str(node.get("structural_parent_section_key") or parent_section_key).strip(),
+        "structural_parent_section_title": str(node.get("structural_parent_section_title") or "").strip(),
+        "structural_parent_section_label": str(node.get("structural_parent_section_label") or "").strip(),
         "requirement_type": "",
         "priority": "",
         "text_length": len(section_title),
         "requirement_text": section_title,
+        "section_label": section_label,
         "is_appendix_marker": bool(node.get("is_appendix_marker", False)),
         "is_synthetic_heading": bool(synthetic),
     }
@@ -1475,36 +1669,81 @@ def _attach_requirement_section_context(requirements: list[dict[str, Any]], sect
         section_row = by_instance_key.get(section_instance_key) or by_section_key.get(section_key)
         section_code = str(req.get("section_code") or "").strip()
         section_title = str(req.get("section_title") or "").strip()
+        section_label = str(req.get("section_label") or "").strip()
         if section_row:
             if not section_code:
                 section_code = str(section_row.get("section_code") or "").strip()
             if not section_title:
                 section_title = str(section_row.get("section_title") or "").strip()
-        if section_code:
-            req["parent_section_code"] = section_code
-            req["parent_section_title"] = section_title
-            req["parent_section_label"] = _format_section_label(section_code, section_title)
-            continue
-        if section_title:
-            req["parent_section_code"] = ""
-            req["parent_section_title"] = section_title
-            req["parent_section_label"] = _format_section_label("", section_title)
-            continue
+            if not section_label:
+                section_label = str(section_row.get("section_label") or "").strip()
 
-        parent_code = ""
-        parent_title = ""
+        owner_section_code = section_code
+        owner_section_title = section_title
+        owner_section_label = _format_owner_section_label(owner_section_code, owner_section_title, section_label)
+        req["owner_section_code"] = owner_section_code
+        req["owner_section_title"] = owner_section_title
+        req["owner_section_label"] = owner_section_label
+
+        if owner_section_code or owner_section_title:
+            req["parent_section_code"] = owner_section_code
+            req["parent_section_title"] = owner_section_title
+            req["parent_section_label"] = _format_section_label(owner_section_code, owner_section_title)
+        else:
+            req["parent_section_code"] = ""
+            req["parent_section_title"] = ""
+            req["parent_section_label"] = ""
+
+        structural_parent_code = str(req.get("structural_parent_section_code") or "").strip()
+        structural_parent_key = str(req.get("structural_parent_section_key") or "").strip()
         if section_row:
-            parent_code = str(section_row.get("parent_section_code") or "").strip()
-        if not parent_code:
-            parent_code = _parent_section_code(str(req.get("section_code") or "").strip())
-        if parent_code:
-            parent_key = _join_section_key(appendix_scope, parent_code)
+            if not structural_parent_code:
+                structural_parent_code = str(section_row.get("structural_parent_section_code") or "").strip()
+            if not structural_parent_key:
+                structural_parent_key = str(section_row.get("structural_parent_section_key") or "").strip()
+        if not structural_parent_code:
+            structural_parent_code = _parent_section_code(str(req.get("section_code") or "").strip())
+        parent_row = None
+        if structural_parent_key:
+            parent_row = by_instance_key.get(structural_parent_key) or by_section_key.get(structural_parent_key)
+        if parent_row is None and structural_parent_code:
+            parent_key = _join_section_key(appendix_scope, structural_parent_code)
             parent_row = by_section_key.get(parent_key) or by_instance_key.get(parent_key)
-            if parent_row:
-                parent_title = str(parent_row.get("section_title") or "").strip()
-        req["parent_section_code"] = parent_code
-        req["parent_section_title"] = parent_title
-        req["parent_section_label"] = _format_section_label(parent_code, parent_title)
+            if not structural_parent_key and parent_row is not None:
+                structural_parent_key = str(parent_row.get("section_instance_key") or parent_row.get("section_key") or "").strip()
+        structural_parent_title = str(req.get("structural_parent_section_title") or "").strip()
+        structural_parent_label = str(req.get("structural_parent_section_label") or "").strip()
+        if parent_row:
+            if not structural_parent_code:
+                structural_parent_code = str(parent_row.get("section_code") or "").strip()
+            if not structural_parent_title:
+                structural_parent_title = str(parent_row.get("section_title") or "").strip()
+            if not structural_parent_label:
+                structural_parent_label = _format_owner_section_label(
+                    structural_parent_code,
+                    structural_parent_title,
+                    str(parent_row.get("section_label") or "").strip(),
+                )
+        else:
+            structural_parent_label = structural_parent_label or _format_owner_section_label(
+                structural_parent_code,
+                structural_parent_title,
+            )
+
+        req["structural_parent_section_code"] = structural_parent_code
+        req["structural_parent_section_key"] = structural_parent_key
+        req["structural_parent_section_title"] = structural_parent_title
+        req["structural_parent_section_label"] = structural_parent_label
+
+
+def _format_owner_section_label(section_code: str, section_title: str, section_label: str = "") -> str:
+    explicit = str(section_label or "").strip()
+    if explicit:
+        return explicit
+    code = str(section_code or "").strip()
+    if code:
+        return code
+    return str(section_title or "").strip()
 
 
 def _format_section_label(section_code: str, section_title: str) -> str:

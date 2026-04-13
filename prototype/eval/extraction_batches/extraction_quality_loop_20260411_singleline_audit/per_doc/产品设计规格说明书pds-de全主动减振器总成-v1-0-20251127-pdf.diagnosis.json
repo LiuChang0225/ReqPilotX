@@ -1,0 +1,1256 @@
+{
+  "doc_key": "pds_de_active_damper_v1_0",
+  "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+  "pdf_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/1e4079e33aef4432bb379d5d0ef95d50_产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+  "batch_id": "legacy_benchmark_core",
+  "gate_tags": [
+    "regression-suite"
+  ],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "pds_de_active_damper_v1_0",
+    "fidelity": "pds_de_active_damper_v1_0"
+  },
+  "status": {
+    "quality_profile_matched": true,
+    "fidelity_profile_matched": true,
+    "needs_human_review": false
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "outline_count": 48,
+      "checks_passed": 10,
+      "checks_total": 10,
+      "score_pct": 100.0,
+      "duplicate_code_count": 0,
+      "suspicious_heading_count": 0,
+      "suspicious_heading_ratio": 0.0,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 1,
+      "detail_outline_count_min": "outline_count=48",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=0",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0000",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0",
+      "check_profile_required_codes_present": 1,
+      "detail_profile_required_codes_present": "missing_required=0",
+      "check_profile_guard_sections_clean": 1,
+      "detail_profile_guard_sections_clean": "guard_violations=0"
+    },
+    "checks_total": 10,
+    "checks_passed": 10
+  },
+  "fidelity_gate": {
+    "doc_row": {
+      "pdf_name": "1e4079e33aef4432bb379d5d0ef95d50_产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "sections_count": 245,
+      "requirements_count": 238,
+      "appendix_scope_count": 6,
+      "appendix_marker_count": 6,
+      "section_consistency_issues": 0,
+      "list_style_heading_count": 0,
+      "leading_punct_heading_count": 0,
+      "short_deep_heading_count": 0,
+      "merge_mode": "strict_single_engine",
+      "supplemental_heading_total": 0,
+      "table_block_injected_total": 0,
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "checks_passed": 18,
+      "checks_total": 23,
+      "score_pct": 78.26,
+      "passed": 0,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_min_sections_count": 1,
+      "detail_min_sections_count": "sections=245 min=210",
+      "check_min_requirements_count": 1,
+      "detail_min_requirements_count": "requirements=238 min=200",
+      "check_sections_count_drift": 1,
+      "detail_sections_count_drift": "sections=245 expected=234 drift=11",
+      "check_requirements_count_drift": 1,
+      "detail_requirements_count_drift": "requirements=238 expected=219 drift=19",
+      "check_section_consistency_issue_limit": 1,
+      "detail_section_consistency_issue_limit": "consistency_issues=0 max=6",
+      "check_required_codes_present": 1,
+      "detail_required_codes_present": "missing_required=0",
+      "check_forbidden_codes_absent": 1,
+      "detail_forbidden_codes_absent": "forbidden_present=0",
+      "check_required_appendix_scopes_present": 1,
+      "detail_required_appendix_scopes_present": "missing_appendix_scopes=0",
+      "check_appendix_marker_count_min": 1,
+      "detail_appendix_marker_count_min": "appendix_markers=6 min=6",
+      "check_required_title_contains": 0,
+      "detail_required_title_contains": "title_mismatch=3",
+      "check_required_requirement_text_contains": 0,
+      "detail_required_requirement_text_contains": "requirement_text_mismatch=20",
+      "check_required_requirement_ordered_snippets": 0,
+      "detail_required_requirement_ordered_snippets": "requirement_order_mismatch=1",
+      "check_required_table_row_snippets": 0,
+      "detail_required_table_row_snippets": "table_row_mismatch=1",
+      "check_required_tree_children": 1,
+      "detail_required_tree_children": "tree_child_mismatch=0",
+      "check_required_single_requirement_codes": 1,
+      "detail_required_single_requirement_codes": "single_requirement_mismatch=0",
+      "check_required_duplicate_code_titles": 1,
+      "detail_required_duplicate_code_titles": "duplicate_title_mismatch=0",
+      "check_forbidden_cross_section_snippets": 0,
+      "detail_forbidden_cross_section_snippets": "forbidden_cross_section_hits=1",
+      "check_forbidden_requirement_text_absent": 1,
+      "detail_forbidden_requirement_text_absent": "forbidden_requirement_text_hits=0",
+      "check_list_style_heading_limit": 1,
+      "detail_list_style_heading_limit": "list_style_headings=0 max=0",
+      "check_leading_punct_heading_limit": 1,
+      "detail_leading_punct_heading_limit": "leading_punct_headings=0 max=0",
+      "check_short_deep_heading_limit": 1,
+      "detail_short_deep_heading_limit": "short_deep_headings=0 max=8"
+    },
+    "checks_total": 23,
+    "checks_passed": 18,
+    "passed": false
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 26,
+    "issue_types": [
+      "forbidden_cross_section_source_missing",
+      "required_requirement_order_missing_snippet",
+      "required_requirement_text_mismatch",
+      "required_table_row_snippet_missing",
+      "required_title_mismatch"
+    ]
+  },
+  "issue_rollup": [
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "forbidden_cross_section_source_missing",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "source does not contain snippet: '7.3.1 ）外观磕伤、划伤标准'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_order_missing_snippet",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "ordered snippet not found: '9）产品永久性标识应符合Q/JQ 158、Q/JQ 159'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '3）减振器阻尼力基础要求'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '0.026m/s-1m/s阻尼力需线性变化'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '4）前蓄能器布置及要求'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '5）工作环境及寿命要求'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '6）整车载荷输入'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '7）DVP试验要求'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '7.3.1 ）外观磕伤、划伤标准'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '9）产品永久性标识应符合Q/JQ 158、Q/JQ 159'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '10）三新件及首发技术风险'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '10.1 ）是否三新件'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '[ √ ]新技术'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '[ ]新材料'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '[ ]新工艺'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '11.1 ） 低压电器件防护等级要求'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '11.2 ） 涉水要求'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '11.3 ） 冰冻要求'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '12、零部件需满足GB/T 26988'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '13、试验大纲内涉及强化耐久项目'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '14、电气部件低压连接器需满足Q/JQ4009'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_requirement_text_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "requirement text does not contain '15、供应商应配合完成减振器能耗优化'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "required_table_row_snippet_missing",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "3.2.2",
+      "detail": "table row snippet not found: '16 法规'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "benchmark_coverage",
+      "category_label": "Benchmark Coverage",
+      "issue_type": "required_title_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "4",
+      "detail": "title '前蓄能器布置及要求' does not contain '标准法规要求'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "benchmark_coverage",
+      "category_label": "Benchmark Coverage",
+      "issue_type": "required_title_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "5",
+      "detail": "title '工作环境及寿命要求' does not contain '可靠性设计与验证需求'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "profile": "pds_de_active_damper_v1_0",
+      "category": "benchmark_coverage",
+      "category_label": "Benchmark Coverage",
+      "issue_type": "required_title_mismatch",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "6",
+      "detail": "title '整车载荷输入，待定' does not contain '其他'"
+    }
+  ],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/1e4079e33aef4432bb379d5d0ef95d50_产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+    "heading_skeleton": [
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1",
+        "title": "概述"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "本PDS文件在JAC签字后以书面形式提供给潜在供应商用于进行产品设计、开发、制造及验证报价。"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "供应商需负责下列事项（适用者勾选）"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1.3",
+        "title": "保密约定"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1.4",
+        "title": "联系方式"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1.5",
+        "title": "其他"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1.5.1",
+        "title": "交流过程中及最终交付的所有文件只接受简体中文文件。"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2",
+        "title": "供应商能力要求及设计责任"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2.1",
+        "title": "供应商能力要求"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2.1.1",
+        "title": "软件开发能力要求"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1",
+        "title": "对于带软件的零部件（如ESC、T-box等），供应商软件开发能力需达到CMMI或ASPICE评估等级2级或以上"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2",
+        "title": "对于带软件的零部件，供应商应在JAC提供的软件安全开发框架范围内进行开发。"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2.1.5",
+        "title": "研发能力 / 体系要求"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1",
+        "title": "对于有功能安全开发要求的零部件，供应商应有专业的功能安全团队并获得JAC认可。"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2.2",
+        "title": "设计方案评审要求"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2.2.1",
+        "title": "对于有功能安全开发要求的零部件，供应商应进行功能安全开发接口协议 （D I A） 会签，制定功能安全现场评审计划, 并分阶段接"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2.3",
+        "title": "供应商设计责任"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2.4",
+        "title": "零部件包装、发货"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3",
+        "title": "车型/产品信息"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.1",
+        "title": "车型信息"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.2",
+        "title": "产品技术要求及说明"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.2.1",
+        "title": "产品信息"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1",
+        "title": "2 2915100 X 8D1110 0.0 左后主动减振器总成 ＜7 .4 1件新开发"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2",
+        "title": "3 2911500 X 8D1110 0.0 左后主动减振器本体 / 1件 /"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "7",
+        "title": "3 上支撑防尘盖 / 1件 /"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "8",
+        "title": "3 2911500 X 8D1110 0.0 左后蓄能器 / 1件包含蓄能器 、 支架 、 管路"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "9",
+        "title": "3 Q 1840820 F61 / 六角法兰面螺栓 / 1件标准件"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "10",
+        "title": "2 2915200 X 8D1110 0.0 右后主动减振器总成 ＜7 .4 1件新开发"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "11",
+        "title": "3 2915210 X 8D1110 0.0 右后主动减振器本体 / 1件 /"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "12",
+        "title": "3 缓冲块 / 1件 /"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "13",
+        "title": "3 防尘罩 / 1件 /"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "14",
+        "title": "3 上支座总成 / 1件 /"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "15",
+        "title": "3 自锁螺母 / 1件 /"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "16",
+        "title": "3 上支撑防尘盖 / 1件 /"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "1",
+        "title": "7 3 2911600 X 8D1110 0.0 右后蓄能器 / 1件包含蓄能器 、 支架 、 管路"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "18",
+        "title": "3 Q 1840820 F61 / 六角法兰面螺栓 / 1件标准件"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8",
+        "title": "空间硬点坐标"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "1",
+        "title": "材质：TPE或TPV"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "9",
+        "title": "防尘罩 2、极限拉伸状态下与减振器外筒重叠＞15mm，全行程不允许与减振器外筒接触"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "3",
+        "title": "防尘罩与Top mount拔脱力≥100N"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "10",
+        "title": "限位块 1、材质：Nylon或NRB或PA，满足误用工况下拉伸强度要求；"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "11",
+        "title": "接插件"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "12",
+        "title": "减振器强度要求"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "13",
+        "title": "减振器主动力减振器提供的主动力不小于10kN"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "14",
+        "title": "防锈能力"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "15",
+        "title": "EMC EMC需按照《Q/JQ 3627 零部件电磁兼容技术要求和试验方法》执行"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "16",
+        "title": "法规图纸增加：满足GB 7258：减振器应齐全有效，减振器不应滴漏油现象"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "17",
+        "title": "功耗减振器功耗应满足JAC提出的功耗要求，暂定5W"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "1",
+        "title": "蓄能器总成包含蓄能器本体、蓄能器支架、蓄能器油管，安装螺栓"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "3",
+        "title": "装配工艺"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "2",
+        "title": "蓄能器与减振器总成式发到OEM进行整车装配"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4",
+        "title": "防锈能力"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "5",
+        "title": "工作环境及寿命要求"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "6",
+        "title": "整车载荷输入，待定"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "7",
+        "title": "DVP试验要求"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "7.1",
+        "title": "具体见双方商定的DVP，见附件."
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "7.2",
+        "title": "EMC需按照《Q/JQ 3627 零部件电磁兼容技术要求和试验方法》（系列标准）执行，此零部件是AM类型，功能重要度I类。"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "7.3",
+        "title": "阳极氧化外观要求（不强制要求阳级氧化，满足480h中性盐雾即可）："
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "7.3.1",
+        "title": "外观磕伤、划伤标准： 可视区域：磕伤、划伤不露底数量小于等于10条；"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "7.3.2",
+        "title": "因打磨飞边导致的阳极氧化后色差不作为管控项（阳极氧化前打磨导致）。"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "法规与认证"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "供应商对产品相关标准法规的符合性负有直接责任，应在开发过程中重点关注标准法规的发展趋势，与在研标准法规的兼容性等"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.3",
+        "title": "认证涉及的零部件，供应商应按JAC要求提供相关证书和报告"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.4",
+        "title": "依据标准"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.5",
+        "title": "物流入厂包装要求及注意事项："
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1",
+        "title": "各供应商报价时需包含包装投入、返空等物流费用。"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "2",
+        "title": "供应商如同时供应软模件、硬模件，则在供应软模件时，需采用循环包装送货并返空。"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "3",
+        "title": "包装、物流标准，需满足《QJQ 18006-零部件包装、运输、装卸、储存通用要求》中的要求。"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4",
+        "title": "各供应商在收到产品数据后一周内需提交包装方案至江淮汽车工程院物流规划技术部，得到江汽集团的认可后方可"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "5",
+        "title": "各供应商的正式循环包装，需自行安排物流车辆取回。"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5",
+        "title": "可靠性设计与验证需求"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "可靠性设计目标"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "环境适应性要求"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "28046.4",
+        "title": "《道路车辆电气及电子设备的环境条件和试验第4部分：气候负荷》的要求，包括但不限于：低温存储、低温工作、高温存"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "机械性能要求"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5.4",
+        "title": "化学性能要求"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "28046",
+        "title": "5道路车辆电气及电子设备的环境条件和试验第5部分:化学负荷》对应安装位置的要求。此外满需足盐雾渗漏要求(舱外:8h盐"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5.5",
+        "title": "其他要求"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5.6",
+        "title": "系统可靠性要求"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5.7",
+        "title": "集成验证要求："
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "1",
+        "title": "产品SE或者项目组定义"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "2",
+        "title": "产品SE或者项目组定义"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.8",
+        "title": "禁用物质要求：1）除附录A中规定的在一定期限内豁免的汽车零部件和材料外 ，汽车及其零部件产品中每一均质材"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "2",
+        "title": "零部件详细可靠性及验证需求见附件 。"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6",
+        "title": "其他"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6.1",
+        "title": "供应商完成技术方案后提交技术标书，技术方案得到 JAC认可后方可投商务标书，否则视为无效投标 ；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6.2",
+        "title": "供应商应接到标书后3 日内邮件联系JAC技术人员 ( 联系方式见第1 页 ) 确认已接收到 PDS表 , 否则视为弃权 ；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6.3",
+        "title": "请供应商主动与技术工程师主动联系索取边界 ，并根据具体技术方案提交书面DM U校核报告 ；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6.4",
+        "title": "技术标书中应根据技术要求举证试验能力 ， 委外试验项目需要在标书中声明委托机构 ，并得到 JAC认可 ；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6.5",
+        "title": "标书中应有满足我公司开发周期要求的开发计划并能够按时完成， 虚报计划 JAC保留处罚及更换供应商的权利 ；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6.6",
+        "title": "技术标书中应包含生产工艺部分的描述 ，针对技术标书中提出的技术方案， 论证工艺可行性 ；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6.7",
+        "title": "技术方案的可行性论证需要提供客观论证材料，如弄虚作假 ，JAC保留处罚及更换供应商的权利 ；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6.8",
+        "title": "技术标书及交流过程中只接受简体中文文件， 防止分歧 。"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6.9",
+        "title": "商务报价应至少包含设计开发费用、 模具夹具检具治具费用、 原材料及外购件采购费用、人工工时费用、生"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [],
+      "page_counts": {}
+    },
+    "duplicate_scope_summary": {
+      "duplicates": []
+    },
+    "baseline_delta": {
+      "requirements_count": 238,
+      "sections_count": 245,
+      "requirements_drift": 19,
+      "sections_drift": 11,
+      "table_row_issue_count": 1,
+      "complex_table_signal": true,
+      "hotspot_section_code": ""
+    },
+    "page_hotspots": [
+      {
+        "page": 19,
+        "requirement_count": 28,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.04,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 20,
+        "requirement_count": 26,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.04,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 6,
+        "requirement_count": 24,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pdfplumber",
+        "quality_score": 1.7184,
+        "table_count": 0,
+        "enum_signal": 29
+      },
+      {
+        "page": 12,
+        "requirement_count": 23,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.04,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 22,
+        "requirement_count": 19,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.04,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 17,
+        "requirement_count": 16,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.04,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 11,
+        "requirement_count": 15,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.04,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 18,
+        "requirement_count": 15,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.04,
+        "table_count": 1,
+        "enum_signal": 0
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [],
+      "selected_engine_pages": {
+        "pdfplumber": 4,
+        "pypdf": 3,
+        "pymupdf4llm": 22
+      }
+    },
+    "expected_structure_summary": []
+  },
+  "findings": [
+    {
+      "pattern_id": "complex_table_clause_binding_drift",
+      "category": "table_and_clause_binding",
+      "issue_type": "complex_table_clause_binding_drift",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Complex-table pages should keep stable section ownership while preserving row coverage.",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.",
+      "evidence_refs": [
+        "baseline_delta",
+        "page_hotspots"
+      ],
+      "confidence": 0.76,
+      "needs_human_review": false,
+      "details": {
+        "requirements_drift": 19,
+        "table_row_issue_count": 1,
+        "hotspot_section_code": ""
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "required_title_mismatch",
+      "impacted_scope": "",
+      "impacted_section": "4",
+      "expected_structure_summary": "Missing or drifted section anchors should be restored through generic heading recovery.",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "issue_rollup[required_title_mismatch]"
+      ],
+      "confidence": 0.58,
+      "needs_human_review": false,
+      "details": {
+        "detail": "title '前蓄能器布置及要求' does not contain '标准法规要求'"
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "required_title_mismatch",
+      "impacted_scope": "",
+      "impacted_section": "5",
+      "expected_structure_summary": "Missing or drifted section anchors should be restored through generic heading recovery.",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "issue_rollup[required_title_mismatch]"
+      ],
+      "confidence": 0.58,
+      "needs_human_review": false,
+      "details": {
+        "detail": "title '工作环境及寿命要求' does not contain '可靠性设计与验证需求'"
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "required_title_mismatch",
+      "impacted_scope": "",
+      "impacted_section": "6",
+      "expected_structure_summary": "Missing or drifted section anchors should be restored through generic heading recovery.",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "issue_rollup[required_title_mismatch]"
+      ],
+      "confidence": 0.58,
+      "needs_human_review": false,
+      "details": {
+        "detail": "title '整车载荷输入，待定' does not contain '其他'"
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "complex_table_clause_binding_drift",
+      "pattern_name": "Complex table rewrite drifts clause binding",
+      "category": "table_and_clause_binding",
+      "doc_key": "pds_de_active_damper_v1_0",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "issue_type": "complex_table_clause_binding_drift",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.",
+      "benchmark_impact": [
+        "regression-suite"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "pattern_name": "Local clause heading not promoted to section anchor",
+      "category": "heading_recovery",
+      "doc_key": "pds_de_active_damper_v1_0",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "issue_type": "required_title_mismatch",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "benchmark_impact": [
+        "regression-suite"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n  \"issue_rollup\": [\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n      \"profile\": \"pds_de_active_damper_v1_0\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"forbidden_cross_section_source_missing\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"3.2.2\",\n      \"detail\": \"source does not contain snippet: '7.3.1 ）外观磕伤、划伤标准'\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n      \"profile\": \"pds_de_active_damper_v1_0\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"required_requirement_order_missing_snippet\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"3.2.2\",\n      \"detail\": \"ordered snippet not found: '9）产品永久性标识应符合Q/JQ 158、Q/JQ 159'\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n      \"profile\": \"pds_de_active_damper_v1_0\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"required_requirement_text_mismatch\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"3.2.2\",\n      \"detail\": \"requirement text does not contain '3）减振器阻尼力基础要求'\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n      \"profile\": \"pds_de_active_damper_v1_0\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"required_requirement_text_mismatch\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"3.2.2\",\n      \"detail\": \"requirement text does not contain '0.026m/s-1m/s阻尼力需线性变化'\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n      \"profile\": \"pds_de_active_damper_v1_0\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"required_requirement_text_mismatch\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"3.2.2\",\n      \"detail\": \"requirement text does not contain '4）前蓄能器布置及要求'\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n      \"profile\": \"pds_de_active_damper_v1_0\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"required_requirement_text_mismatch\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"3.2.2\",\n      \"detail\": \"requirement text does not contain '5）工作环境及寿命要求'\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n      \"profile\": \"pds_de_active_damper_v1_0\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"required_requirement_text_mismatch\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"3.2.2\",\n      \"detail\": \"requirement text does not contain '6）整车载荷输入'\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n      \"profile\": \"pds_de_active_damper_v1_0\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"required_requirement_text_mismatch\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"3.2.2\",\n      \"detail\": \"requirement text does not contain '7）DVP试验要求'\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n      \"profile\": \"pds_de_active_damper_v1_0\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"required_requirement_text_mismatch\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"3.2.2\",\n      \"detail\": \"requirement text does not contain '7.3.1 ）外观磕伤、划伤标准'\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n      \"profile\": \"pds_de_active_damper_v1_0\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"required_requirement_text_mismatch\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"3.2.2\",\n      \"detail\": \"requirement text does not contain '9）产品永久性标识应符合Q/JQ 158、Q/JQ 159'\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n      \"profile\": \"pds_de_active_damper_v1_0\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"required_requirement_text_mismatch\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"3.2.2\",\n      \"detail\": \"requirement text does not contain '10）三新件及首发技术风险'\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf\",\n      \"profile\": \"pds_de_active_damper_v1_0\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"required_requirement_text_mismatch\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"3.2.2\",\n      \"detail\": \"requirement text does not contain '10.1 ）是否三新件'\"\n    }\n  ],\n  \"findings\": [\n    {\n      \"pattern_id\": \"complex_table_clause_binding_drift\",\n      \"category\": \"table_and_clause_binding\",\n      \"issue_type\": \"complex_table_clause_binding_drift\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Complex-table pages should keep stable section ownership while preserving row coverage.\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.\",\n      \"evidence_refs\": [\n        \"baseline_delta\",\n        \"page_hotspots\"\n      ],\n      \"confidence\": 0.76,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"requirements_drift\": 19,\n        \"table_row_issue_count\": 1,\n        \"hotspot_section_code\": \"\"\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"required_title_mismatch\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"4\",\n      \"expected_structure_summary\": \"Missing or drifted section anchors should be restored through generic heading recovery.\",\n      \"suspected_layer\": \"extractor\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"issue_rollup[required_title_mismatch]\"\n      ],\n      \"confidence\": 0.58,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"detail\": \"title '前蓄能器布置及要求' does not contain '标准法规要求'\"\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"required_title_mismatch\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"5\",\n      \"expected_structure_summary\": \"Missing or drifted section anchors should be restored through generic heading recovery.\",\n      \"suspected_layer\": \"extractor\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"issue_rollup[required_title_mismatch]\"\n      ],\n      \"confidence\": 0.58,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"detail\": \"title '工作环境及寿命要求' does not contain '可靠性设计与验证需求'\"\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"required_title_mismatch\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"6\",\n      \"expected_structure_summary\": \"Missing or drifted section anchors should be restored through generic heading recovery.\",\n      \"suspected_layer\": \"extractor\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"issue_rollup[required_title_mismatch]\"\n      ],\n      \"confidence\": 0.58,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"detail\": \"title '整车载荷输入，待定' does not contain '其他'\"\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 19,\n      \"requirement_count\": 28,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 2.04,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 20,\n      \"requirement_count\": 26,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 2.04,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 6,\n      \"requirement_count\": 24,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pdfplumber\",\n      \"quality_score\": 1.7184,\n      \"table_count\": 0,\n      \"enum_signal\": 29\n    },\n    {\n      \"page\": 12,\n      \"requirement_count\": 23,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 2.04,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 22,\n      \"requirement_count\": 19,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 2.04,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 17,\n      \"requirement_count\": 16,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 2.04,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [],\n    \"page_counts\": {}\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": []\n  }\n}"
+    }
+  ]
+}

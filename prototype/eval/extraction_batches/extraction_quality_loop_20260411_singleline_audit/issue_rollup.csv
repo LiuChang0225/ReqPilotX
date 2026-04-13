@@ -1,0 +1,44 @@
+gate,pdf_name,profile,category,category_label,issue_type,severity,appendix_scope,section_code,detail
+quality_gate,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,,benchmark_coverage,Benchmark Coverage,required_code_missing,high,F,1,profile=sor_baic_core
+quality_gate,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,,benchmark_coverage,Benchmark Coverage,required_code_missing,high,G,1,profile=sor_baic_core
+fidelity,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,benchmark_coverage,Benchmark Coverage,required_code_missing,high,F,1,required scoped code missing
+fidelity,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,benchmark_coverage,Benchmark Coverage,required_code_missing,high,G,1,required scoped code missing
+fidelity,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,benchmark_coverage,Benchmark Coverage,required_title_mismatch,high,E,2,title '线束长度： TBD （根据实车布置进行调整）' does not contain '系统职责'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,benchmark_coverage,Benchmark Coverage,required_title_mismatch,high,,4,title '前蓄能器布置及要求' does not contain '标准法规要求'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,benchmark_coverage,Benchmark Coverage,required_title_mismatch,high,,5,title '工作环境及寿命要求' does not contain '可靠性设计与验证需求'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,benchmark_coverage,Benchmark Coverage,required_title_mismatch,high,,6,title '整车载荷输入，待定' does not contain '其他'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,forbidden_cross_section_source_missing,high,,3.2.2,source does not contain snippet: '7.3.1 ）外观磕伤、划伤标准'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_order_missing_snippet,high,,3.2.2,ordered snippet not found: '9）产品永久性标识应符合Q/JQ 158、Q/JQ 159'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '3）减振器阻尼力基础要求'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '0.026m/s-1m/s阻尼力需线性变化'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '4）前蓄能器布置及要求'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '5）工作环境及寿命要求'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '6）整车载荷输入'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '7）DVP试验要求'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '7.3.1 ）外观磕伤、划伤标准'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '9）产品永久性标识应符合Q/JQ 158、Q/JQ 159'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '10）三新件及首发技术风险'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '10.1 ）是否三新件'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '[ √ ]新技术'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '[ ]新材料'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '[ ]新工艺'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '11.1 ） 低压电器件防护等级要求'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '11.2 ） 涉水要求'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '11.3 ） 冰冻要求'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '12、零部件需满足GB/T 26988'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '13、试验大纲内涉及强化耐久项目'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '14、电气部件低压连接器需满足Q/JQ4009'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '15、供应商应配合完成减振器能耗优化'
+fidelity,产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,content_fidelity,Content Fidelity,required_table_row_snippet_missing,high,,3.2.2,table row snippet not found: '16 法规'
+fidelity,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,content_fidelity,Content Fidelity,requirement_count_too_low,high,,,requirements=172 min=180
+quality_gate,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,,outline_structure,Outline Structure,duplicate_section_code,high,,5,duplicate_count=3
+fidelity,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,q_jly_core,content_fidelity,Content Fidelity,requirement_count_drift,medium,,,requirements=451 expected=398 drift=53
+fidelity,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,content_fidelity,Content Fidelity,requirement_count_drift,medium,,,requirements=172 expected=219 drift=47
+quality_gate,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,,4,duplicate_count=2
+quality_gate,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,,5.2.1.10.3.3,duplicate_count=2
+quality_gate,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,,6,duplicate_count=2
+quality_gate,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,,outline_structure,Outline Structure,duplicate_section_code,medium,B,2,duplicate_count=2
+fidelity,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,q_jly_core,outline_structure,Outline Structure,section_consistency_issue_limit,medium,,,consistency_issues=8 max=3
+fidelity,SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,outline_structure,Outline Structure,section_consistency_issue_limit,medium,,,consistency_issues=2 max=1
+quality_gate,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,,outline_structure,Outline Structure,suspicious_heading,medium,,5.1.8.2.2,table_like_title
+quality_gate,Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,,outline_structure,Outline Structure,suspicious_heading,medium,,5.1.8.2.3,table_like_title

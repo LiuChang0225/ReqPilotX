@@ -206,6 +206,140 @@ def _fake_preview_with_reused_req_codes() -> dict:
     }
 
 
+def _fake_preview_with_same_code_local_clause_in_section_six() -> dict:
+    section_six_title = "投标说明"
+    clause_titles = {
+        1: "技术标书为简体中文",
+        2: "技术标书须包含完整技术方案",
+        3: "技术方案需包含关键器件选型",
+        4: "技术方案需包含测试验证计划",
+        5: "技术方案需包含质量控制方案",
+        6: "技术标书中应包含生产工艺部分的描述，针对技术标书中提出的技术方案，论证工艺可行性",
+        7: "技术标书需说明量产能力",
+        8: "技术标书需说明项目进度计划",
+        9: "技术标书需说明交流文件要求",
+        10: "商务报价",
+    }
+
+    def _heading_row() -> dict:
+        return {
+            "entry_id": "H-6",
+            "req_code": "",
+            "entry_kind": "HEADING",
+            "section_code": "6",
+            "section_key": "6",
+            "section_instance_key": "6",
+            "section_title": section_six_title,
+            "section_label": "",
+            "owner_section_code": "6",
+            "owner_section_title": section_six_title,
+            "owner_section_label": "6",
+            "parent_section_code": "",
+            "parent_section_title": "",
+            "parent_section_label": "",
+            "structural_parent_section_code": "",
+            "structural_parent_section_key": "",
+            "structural_parent_section_title": "",
+            "structural_parent_section_label": "",
+            "display_text": "6 投标说明",
+            "raw_text": "6 投标说明",
+            "requirement_text": "6 投标说明",
+            "source_page": 9,
+            "source_page_end": 9,
+            "source_anchor": "Page 9 | Section 6 投标说明",
+            "text_relation": "exact_match",
+            "is_deduped": True,
+            "merged_from_req_codes": [],
+            "merged_from_entry_ids": [],
+        }
+
+    def _requirement_row(number: int) -> dict:
+        title = clause_titles[number]
+        text = f"{number}）{title}"
+        return {
+            "entry_id": f"REQ06{number:02d}",
+            "req_code": f"REQ06{number:02d}",
+            "entry_kind": "REQUIREMENT",
+            "section_code": str(number),
+            "section_key": f"6::{number}",
+            "section_instance_key": f"6::{number}",
+            "section_title": title,
+            "section_label": f"{number}）",
+            "owner_section_code": str(number),
+            "owner_section_title": title,
+            "owner_section_label": f"{number}）",
+            "parent_section_code": str(number),
+            "parent_section_title": title,
+            "parent_section_label": f"{number} {title}",
+            "structural_parent_section_code": "6",
+            "structural_parent_section_key": "6",
+            "structural_parent_section_title": section_six_title,
+            "structural_parent_section_label": "6",
+            "display_text": text,
+            "raw_text": text,
+            "requirement_text": text,
+            "source_page": 9,
+            "source_page_end": 9,
+            "source_anchor": f"Page 9 | Section 6 投标说明 | Clause {number} {title}",
+            "requirement_type": "FUNCTIONAL",
+            "priority": "MEDIUM",
+            "text_relation": "distinct",
+            "is_deduped": False,
+            "merged_from_req_codes": [],
+            "merged_from_entry_ids": [],
+        }
+
+    section_tree = [
+        {
+            "appendix_scope": "",
+            "section_code": "6",
+            "section_key": "6",
+            "section_instance_key": "6",
+            "section_title": section_six_title,
+            "owner_section_code": "6",
+            "owner_section_title": section_six_title,
+            "owner_section_label": "6",
+            "parent_section_code": "",
+            "parent_section_key": "",
+            "structural_parent_section_code": "",
+            "structural_parent_section_key": "",
+            "source_page_start": 9,
+            "source_page_end": 9,
+            "requirement_count": 10,
+            "tree_order": 0,
+        }
+    ]
+    section_tree.extend(
+        {
+            "appendix_scope": "",
+            "section_code": str(number),
+            "section_key": f"6::{number}",
+            "section_instance_key": f"6::{number}",
+            "section_title": clause_titles[number],
+            "section_label": f"{number}）",
+            "owner_section_code": str(number),
+            "owner_section_title": clause_titles[number],
+            "owner_section_label": f"{number}）",
+            "parent_section_code": "6",
+            "parent_section_key": "6",
+            "structural_parent_section_code": "6",
+            "structural_parent_section_key": "6",
+            "source_page_start": 9,
+            "source_page_end": 9,
+            "requirement_count": 1,
+            "tree_order": number,
+        }
+        for number in range(1, 11)
+    )
+    return {
+        "summary": {"dedupe_version": "heading_requirement_v1"},
+        "sections": section_tree,
+        "section_tree": section_tree,
+        "complete_requirement_entries": [_heading_row(), *[_requirement_row(number) for number in range(1, 11)]],
+        "complete_requirement_entries_raw": [_heading_row(), *[_requirement_row(number) for number in range(1, 11)]],
+    }
+
+
 def _fake_preview_with_table_markdown() -> dict:
     table_text = (
         "试验条件如下：\n\n"
@@ -1104,6 +1238,78 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(workspace["summary"]["order_source"], "review_overlay")
         self.assertEqual(workspace["summary"]["order_mismatch_count"], 0)
 
+    def test_workspace_keeps_same_code_local_clause_in_preview_order(self) -> None:
+        project, document = self._create_project_with_document("-same-code-local-clause")
+        preview = _fake_preview_with_same_code_local_clause_in_section_six()
+        for number in range(10, 0, -1):
+            preview_row = preview["complete_requirement_entries"][number]
+            db.insert_requirement(
+                project_id=project["id"],
+                sor_document_id=document["id"],
+                req_code=str(preview_row["req_code"]),
+                source_page=9,
+                source_anchor=str(preview_row["source_anchor"]),
+                requirement_text=str(preview_row["display_text"]),
+                raw_text=str(preview_row["raw_text"]),
+                display_text=str(preview_row["display_text"]),
+                requirement_type="FUNCTIONAL",
+                priority="MEDIUM",
+                parent_section_code=str(preview_row["parent_section_code"]),
+                parent_section_title=str(preview_row["parent_section_title"]),
+                parent_section_label=str(preview_row["parent_section_label"]),
+            )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        preview_cache.persist_preview_cache(db.get_sor_document(document["id"]) or {}, preview)
+
+        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=True)
+
+        self.assertEqual(
+            [row["section_key"] for row in workspace["requirements"]],
+            [f"6::{number}" for number in range(1, 11)],
+        )
+        self.assertEqual(
+            [row["owner_section_label"] for row in workspace["requirements"]],
+            [f"{number}）" for number in range(1, 11)],
+        )
+        self.assertEqual(workspace["requirements"][5]["section_key"], "6::6")
+        self.assertEqual(workspace["requirements"][5]["owner_section_label"], "6）")
+        self.assertEqual(workspace["summary"]["order_source"], "review_overlay")
+        self.assertEqual(workspace["summary"]["order_mismatch_count"], 0)
+
+    def test_workspace_review_entries_preserve_section_six_subtree_order_and_owner_labels(self) -> None:
+        project, document = self._create_project_with_document("-review-same-code-local-clause")
+        preview = _fake_preview_with_same_code_local_clause_in_section_six()
+        for number in range(10, 0, -1):
+            preview_row = preview["complete_requirement_entries"][number]
+            db.insert_requirement(
+                project_id=project["id"],
+                sor_document_id=document["id"],
+                req_code=str(preview_row["req_code"]),
+                source_page=9,
+                source_anchor=str(preview_row["source_anchor"]),
+                requirement_text=str(preview_row["display_text"]),
+                raw_text=str(preview_row["raw_text"]),
+                display_text=str(preview_row["display_text"]),
+                requirement_type="FUNCTIONAL",
+                priority="MEDIUM",
+                parent_section_code=str(preview_row["parent_section_code"]),
+                parent_section_title=str(preview_row["parent_section_title"]),
+                parent_section_label=str(preview_row["parent_section_label"]),
+            )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        preview_cache.persist_preview_cache(db.get_sor_document(document["id"]) or {}, preview)
+
+        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=True)
+
+        self.assertEqual(
+            [row["section_key"] for row in workspace["review_entries"]],
+            ["6", *[f"6::{number}" for number in range(1, 11)]],
+        )
+        self.assertEqual(workspace["review_entries"][0]["owner_section_label"], "6")
+        self.assertEqual(workspace["review_entries"][6]["section_key"], "6::6")
+        self.assertEqual(workspace["review_entries"][6]["owner_section_label"], "6）")
+        self.assertEqual(workspace["review_entries"][6]["structural_parent_section_label"], "6")
+
     def test_workspace_matrix_rows_prefer_current_review_text_over_stale_persisted_text(self) -> None:
         project, document = self._create_project_with_document("-matrix-preview")
         db.insert_requirement(
@@ -1907,8 +2113,8 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         self.assertIn("备注", values)
 
-    def test_preview_does_not_promote_unrelated_dotted_local_clause(self) -> None:
-        self.assertFalse(
+    def test_preview_promotes_local_reset_clause_heading(self) -> None:
+        self.assertTrue(
             extraction_preview._should_promote_local_clause_to_section(
                 parent_section_code="3.2.2",
                 clause_code="6.6",
@@ -1920,6 +2126,39 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                 clause_code="3.2.1",
             )
         )
+
+    def test_fidelity_section_count_skips_main_doc_synthetic_local_split(self) -> None:
+        self.assertFalse(
+            extraction_preview.counts_toward_fidelity_section(
+                {
+                    "section_code": "6.1",
+                    "appendix_scope": "",
+                    "structural_kind": "synthetic",
+                }
+            )
+        )
+        self.assertTrue(
+            extraction_preview.counts_toward_fidelity_section(
+                {
+                    "section_code": "6",
+                    "appendix_scope": "",
+                    "structural_kind": "outline",
+                }
+            )
+        )
+        self.assertTrue(
+            extraction_preview.counts_toward_fidelity_section(
+                {
+                    "section_code": "1",
+                    "appendix_scope": "Y",
+                    "structural_kind": "synthetic",
+                }
+            )
+        )
+
+    def test_split_section_key_preserves_local_code_for_scoped_clause_keys(self) -> None:
+        self.assertEqual(extraction_preview._split_section_key("3.2.2::11.12"), ("", "11.12"))
+        self.assertEqual(extraction_preview._split_section_key("SUB1:6::10"), ("SUB1", "10"))
 
     def test_preview_keeps_standard_ids_inside_parent_section(self) -> None:
         rows = extraction_preview._split_requirement_preview_rows(
@@ -1936,6 +2175,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             appendix_scope="",
             section_code="4.4",
             section_title_hint="依据标准",
+            explicit_section_code="4.4",
             text=(
                 "4.4 依据标准\n"
                 "GB/T 30512 汽车禁用物质要求\n"
@@ -2203,6 +2443,139 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         )
 
         self.assertEqual([row["section_code"] for row in sections], ["5.8", "6.9"])
+
+    def test_canonical_section_tree_attaches_scoped_local_clauses_under_formal_parent(self) -> None:
+        sections, _ = extraction_preview._build_canonical_section_rows(
+            [
+                {
+                    "appendix_scope": "",
+                    "section_code": "3.2.2",
+                    "section_key": "3.2.2",
+                    "section_instance_key": "3.2.2",
+                    "section_title": "产品详细描述",
+                    "section_level": 3,
+                    "parent_section_code": "3.2",
+                    "parent_section_key": "3.2",
+                    "source_page_start": 2,
+                    "source_page_end": 8,
+                    "source_line_index_start": 0,
+                    "source_line_index_end": 72,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 14,
+                    "outline_order": 21,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "1",
+                    "section_key": "3.2.2::1",
+                    "section_instance_key": "3.2.2::1",
+                    "section_title": "油泵性能要求",
+                    "section_label": "1）",
+                    "section_level": 1,
+                    "parent_section_code": "3.2.2",
+                    "parent_section_key": "3.2.2",
+                    "source_page_start": 3,
+                    "source_page_end": 3,
+                    "source_line_index_start": 1,
+                    "source_line_index_end": 1,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 15,
+                    "outline_order": None,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "6",
+                    "section_key": "3.2.2::6",
+                    "section_instance_key": "3.2.2::6",
+                    "section_title": "双电机控制器总成要求",
+                    "section_label": "6）",
+                    "section_level": 1,
+                    "parent_section_code": "3.2.2",
+                    "parent_section_key": "3.2.2",
+                    "source_page_start": 5,
+                    "source_page_end": 5,
+                    "source_line_index_start": 20,
+                    "source_line_index_end": 20,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 20,
+                    "outline_order": None,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "6.1",
+                    "section_key": "3.2.2::6.1",
+                    "section_instance_key": "3.2.2::6.1",
+                    "section_title": "简述",
+                    "section_label": "6.1）",
+                    "section_level": 2,
+                    "parent_section_code": "6",
+                    "parent_section_key": "3.2.2::6",
+                    "source_page_start": 5,
+                    "source_page_end": 5,
+                    "source_line_index_start": 21,
+                    "source_line_index_end": 21,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 21,
+                    "outline_order": None,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "6.6",
+                    "section_key": "3.2.2::6.6",
+                    "section_instance_key": "3.2.2::6.6",
+                    "section_title": "模式管理",
+                    "section_label": "6.6）",
+                    "section_level": 2,
+                    "parent_section_code": "6",
+                    "parent_section_key": "3.2.2::6",
+                    "source_page_start": 6,
+                    "source_page_end": 6,
+                    "source_line_index_start": 10,
+                    "source_line_index_end": 10,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 26,
+                    "outline_order": None,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "6.6.4",
+                    "section_key": "3.2.2::6.6.4",
+                    "section_instance_key": "3.2.2::6.6.4",
+                    "section_title": "OTA要求",
+                    "section_label": "6.6.4）",
+                    "section_level": 3,
+                    "parent_section_code": "6.6",
+                    "parent_section_key": "3.2.2::6.6",
+                    "source_page_start": 7,
+                    "source_page_end": 7,
+                    "source_line_index_start": 1,
+                    "source_line_index_end": 1,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 30,
+                    "outline_order": None,
+                },
+            ]
+        )
+
+        by_key = {row["section_key"]: row for row in sections}
+        self.assertEqual(by_key["3.2.2::1"]["structural_parent_key"], "3.2.2")
+        self.assertEqual(by_key["3.2.2::6"]["structural_parent_key"], "3.2.2")
+        self.assertEqual(by_key["3.2.2::6.1"]["structural_parent_key"], "3.2.2::6")
+        self.assertEqual(by_key["3.2.2::6.6.4"]["structural_parent_key"], "3.2.2::6.6")
+        self.assertTrue(by_key["3.2.2"]["has_children"])
+        self.assertFalse(by_key["3.2.2"]["is_leaf"])
 
     def test_preview_section_sort_key_uses_tree_order_when_available(self) -> None:
         earlier = extraction_preview._preview_section_row_sort_key(

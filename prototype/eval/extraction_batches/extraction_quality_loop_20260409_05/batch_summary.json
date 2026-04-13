@@ -1,0 +1,187 @@
+{
+  "run_id": "extraction_quality_loop_20260409_05",
+  "batch_id": "legacy_benchmark_core",
+  "description": "Core extraction regression pack with Q-JLY, BAIC SOR, damper PDS, and oil pump PDS.",
+  "shared_repo_root": "/Users/liuchang/Documents/New project",
+  "python_executable": "/Users/liuchang/Documents/New project/prototype/.venv/bin/python",
+  "staged_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs",
+  "resolved_docs": [
+    {
+      "doc_key": "q_jly_core",
+      "profile": "q_jly_core",
+      "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "source_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/99a6d551d7aa4acb98c9e587c9cfcea6_Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs/Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "source_root": "shared_uploads",
+      "section_split": true,
+      "gate_tags": [
+        "regression-suite"
+      ]
+    },
+    {
+      "doc_key": "sor_baic_core",
+      "profile": "sor_baic_core",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "source_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/022a559ff53b4eed8bf3d59f3fb0b1ee_SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "source_root": "shared_uploads",
+      "section_split": false,
+      "gate_tags": [
+        "regression-suite"
+      ]
+    },
+    {
+      "doc_key": "pds_de_active_damper_v1_0",
+      "profile": "pds_de_active_damper_v1_0",
+      "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "source_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/1e4079e33aef4432bb379d5d0ef95d50_产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs/产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+      "source_root": "shared_uploads",
+      "section_split": false,
+      "gate_tags": [
+        "regression-suite"
+      ]
+    },
+    {
+      "doc_key": "pds_de_oil_pump_v1_1",
+      "profile": "pds_de_oil_pump_v1_1",
+      "pdf_name": "产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+      "source_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/6fd15d3fb7104ea882d544d10f32372d_产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs/产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+      "source_root": "shared_uploads",
+      "section_split": false,
+      "gate_tags": [
+        "regression-suite",
+        "oil-pump-benchmark"
+      ]
+    }
+  ],
+  "required_profiles": [
+    "pds_de_active_damper_v1_0",
+    "pds_de_oil_pump_v1_1",
+    "q_jly_core",
+    "sor_baic_core"
+  ],
+  "matched_profiles": [
+    "pds_de_active_damper_v1_0",
+    "pds_de_oil_pump_v1_1",
+    "q_jly_core",
+    "sor_baic_core"
+  ],
+  "missing_required_profiles": [],
+  "suite_summary": {
+    "run_id": "regression_suite",
+    "timestamp": "2026-04-10T00:16:39",
+    "pdf_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs",
+    "exclude_name_regex": [
+      "PRINT_21033420"
+    ],
+    "paths": {
+      "quality_summary_json": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/regression_suite/quality_gate/structural_quality_summary.json",
+      "fidelity_summary_json": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/regression_suite/fidelity/fidelity_summary.json",
+      "quality_summary_md": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/regression_suite/quality_gate/structural_quality_summary.md",
+      "fidelity_summary_md": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/regression_suite/fidelity/fidelity_summary.md"
+    },
+    "quality_gate": {
+      "docs": 4,
+      "checks_passed": 37,
+      "checks_total": 40,
+      "gate_score_pct": 92.5,
+      "high_severity_issues": 5,
+      "gate_pass": false
+    },
+    "fidelity_gate": {
+      "target_docs": 4,
+      "checks_passed": 76,
+      "checks_total": 88,
+      "score_pct": 86.36,
+      "failed_docs": 4,
+      "overall_pass": false
+    },
+    "exit_codes": {
+      "quality": 1,
+      "fidelity": 1
+    }
+  },
+  "quality_summary": {
+    "pdf_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs",
+    "docs": 4,
+    "checks_passed": 37,
+    "checks_total": 40,
+    "gate_score_pct": 92.5,
+    "high_severity_issues": 5,
+    "gate_pass": false,
+    "gate_failure_reasons": [
+      "gate_score_pct=92.50 < 95.00",
+      "high_severity_issues=5 > 0"
+    ],
+    "split_metric_confidence": null
+  },
+  "fidelity_summary": {
+    "pdf_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs",
+    "target_docs": 4,
+    "skipped_docs_count": 0,
+    "checks_passed": 76,
+    "checks_total": 88,
+    "score_pct": 86.36,
+    "failed_docs": 4,
+    "matched_profiles": [
+      "pds_de_active_damper_v1_0",
+      "pds_de_oil_pump_v1_1",
+      "q_jly_core",
+      "sor_baic_core"
+    ],
+    "missing_profiles": [
+      "esigned_emc_88033918",
+      "esigned_et_88033919",
+      "qc_t_1067_monitor"
+    ],
+    "overall_pass": false
+  },
+  "section_split_summary": {
+    "targets": 1,
+    "targets_passed": 1,
+    "checks_passed": 4,
+    "checks_total": 4,
+    "score_pct": 100.0,
+    "results": [
+      {
+        "doc_key": "q_jly_core",
+        "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+        "passed": true,
+        "score_pct": 100.0
+      }
+    ]
+  },
+  "issue_summary": {
+    "total_issues": 30,
+    "category_counts": {
+      "benchmark_coverage": 5,
+      "content_fidelity": 7,
+      "outline_structure": 18
+    },
+    "severity_counts": {
+      "high": 12,
+      "medium": 18
+    },
+    "gate_counts": {
+      "fidelity": 13,
+      "quality_gate": 17
+    },
+    "unmapped_issue_types": []
+  },
+  "gates": {
+    "batch-report": {
+      "status": "PASS",
+      "detail": "docs=4 issues=30"
+    },
+    "regression-suite": {
+      "status": "FAIL",
+      "detail": "quality_pass=False fidelity_pass=False section_split_pass=True quality_exit_code=1 fidelity_exit_code=1 missing_required_profiles=[]"
+    },
+    "oil-pump-benchmark": {
+      "status": "FAIL",
+      "detail": "quality_pass=False fidelity_pass=False pdf=产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf"
+    }
+  }
+}

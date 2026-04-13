@@ -49,53 +49,16 @@ def main() -> None:
     args = parser.parse_args()
 
     preview = build_extraction_preview(str(args.pdf_path.expanduser().resolve()))
-    outline = preview.get("section_outline", []) or []
-    by_code = {str(row.get("section_code") or ""): row for row in outline}
-
-    missing_required = [code for code in DEFAULT_REQUIRED_CODES if code not in by_code]
-    suspicious_global = _find_suspicious_rows(outline)
-    suspicious_near_guards = _find_suspicious_near_sections(outline, DEFAULT_GUARD_SECTIONS)
-    default_candidate_violations = sum(1 for row in outline if not bool(row.get("requirement_like", False)))
-
-    checks: list[dict[str, Any]] = [
-        {
-            "name": "required_codes_present",
-            "passed": len(missing_required) == 0,
-            "detail": {"missing_required_codes": missing_required},
-        },
-        {
-            "name": "no_suspicious_global_rows",
-            "passed": len(suspicious_global) == 0,
-            "detail": {"suspicious_global_rows": suspicious_global[:80]},
-        },
-        {
-            "name": "no_suspicious_rows_near_guard_sections",
-            "passed": len(suspicious_near_guards) == 0,
-            "detail": {"suspicious_near_guard_sections": suspicious_near_guards[:80]},
-        },
-        {
-            "name": "default_requirement_candidate_is_true",
-            "passed": default_candidate_violations == 0,
-            "detail": {"non_default_candidate_rows": default_candidate_violations},
-        },
-    ]
-
-    passed_count = sum(1 for item in checks if item["passed"])
-    total_count = len(checks)
-    score_pct = round((passed_count / total_count) * 100, 2) if total_count else 0.0
-
-    report = {
-        "pdf_path": str(args.pdf_path),
-        "summary": {
-            "passed_checks": passed_count,
-            "total_checks": total_count,
-            "score_pct": score_pct,
-            "outline_count": len(outline),
-            "requirements_count": int(preview.get("summary", {}).get("requirements_count", 0)),
-            "passed": passed_count == total_count,
-        },
-        "checks": checks,
-    }
+    report = evaluate_preview(preview, pdf_path=str(args.pdf_path))
+    summary = report["summary"]
+    detail = report["detail"]
+    score_pct = float(summary["score_pct"])
+    passed_count = int(summary["passed_checks"])
+    total_count = int(summary["total_checks"])
+    missing_required = list(detail["missing_required"])
+    suspicious_global = list(detail["suspicious_global"])
+    suspicious_near_guards = list(detail["suspicious_near_guards"])
+    default_candidate_violations = int(detail["default_candidate_violations"])
 
     if args.json_out:
         args.json_out.parent.mkdir(parents=True, exist_ok=True)
@@ -163,6 +126,62 @@ def _find_suspicious_rows(outline: list[dict[str, Any]]) -> list[dict[str, Any]]
             if major in {"1", "2"} or code in {"11", "12"}:
                 out.append(row)
     return out
+
+
+def evaluate_preview(preview: dict[str, Any], *, pdf_path: str = "") -> dict[str, Any]:
+    outline = preview.get("section_outline", []) or []
+    by_code = {str(row.get("section_code") or ""): row for row in outline}
+
+    missing_required = [code for code in DEFAULT_REQUIRED_CODES if code not in by_code]
+    suspicious_global = _find_suspicious_rows(outline)
+    suspicious_near_guards = _find_suspicious_near_sections(outline, DEFAULT_GUARD_SECTIONS)
+    default_candidate_violations = sum(1 for row in outline if not bool(row.get("requirement_like", False)))
+
+    checks: list[dict[str, Any]] = [
+        {
+            "name": "required_codes_present",
+            "passed": len(missing_required) == 0,
+            "detail": {"missing_required_codes": missing_required},
+        },
+        {
+            "name": "no_suspicious_global_rows",
+            "passed": len(suspicious_global) == 0,
+            "detail": {"suspicious_global_rows": suspicious_global[:80]},
+        },
+        {
+            "name": "no_suspicious_rows_near_guard_sections",
+            "passed": len(suspicious_near_guards) == 0,
+            "detail": {"suspicious_near_guard_sections": suspicious_near_guards[:80]},
+        },
+        {
+            "name": "default_requirement_candidate_is_true",
+            "passed": default_candidate_violations == 0,
+            "detail": {"non_default_candidate_rows": default_candidate_violations},
+        },
+    ]
+
+    passed_count = sum(1 for item in checks if item["passed"])
+    total_count = len(checks)
+    score_pct = round((passed_count / total_count) * 100, 2) if total_count else 0.0
+
+    return {
+        "pdf_path": pdf_path,
+        "summary": {
+            "passed_checks": passed_count,
+            "total_checks": total_count,
+            "score_pct": score_pct,
+            "outline_count": len(outline),
+            "requirements_count": int(preview.get("summary", {}).get("requirements_count", 0)),
+            "passed": passed_count == total_count,
+        },
+        "checks": checks,
+        "detail": {
+            "missing_required": missing_required,
+            "suspicious_global": suspicious_global,
+            "suspicious_near_guards": suspicious_near_guards,
+            "default_candidate_violations": default_candidate_violations,
+        },
+    }
 
 
 def _find_suspicious_near_sections(

@@ -226,6 +226,11 @@ class ReviewedRequirementEntry(BaseModel):
     entry_id: str | None = None
     req_code: str | None = None
     entry_kind: str | None = None
+    section_code: str | None = None
+    section_title: str | None = None
+    section_label: str | None = None
+    section_key: str | None = None
+    section_instance_key: str | None = None
     source_page: int | None = None
     source_page_end: int | None = None
     source_anchor: str | None = None
@@ -240,6 +245,13 @@ class ReviewedRequirementEntry(BaseModel):
     parent_section_code: str | None = None
     parent_section_title: str | None = None
     parent_section_label: str | None = None
+    owner_section_code: str | None = None
+    owner_section_title: str | None = None
+    owner_section_label: str | None = None
+    structural_parent_section_code: str | None = None
+    structural_parent_section_key: str | None = None
+    structural_parent_section_title: str | None = None
+    structural_parent_section_label: str | None = None
     merged_from_req_codes: list[str] | None = None
     merged_from_entry_ids: list[str] | None = None
     dedupe_version: str | None = None
@@ -2867,6 +2879,11 @@ def _build_analysis_rows_from_preview(preview: dict) -> list[dict]:
         base = {
             **row,
             "entry_kind": entry_kind,
+            "section_code": str(row.get("section_code") or "").strip(),
+            "section_title": str(row.get("section_title") or "").strip(),
+            "section_label": str(row.get("section_label") or "").strip(),
+            "section_key": str(row.get("section_key") or "").strip(),
+            "section_instance_key": str(row.get("section_instance_key") or "").strip(),
             "display_text": text,
             "raw_text": str(row.get("raw_text") or row.get("requirement_text") or text).strip(),
             "text_relation": str(row.get("text_relation") or "distinct").strip() or "distinct",
@@ -2874,6 +2891,13 @@ def _build_analysis_rows_from_preview(preview: dict) -> list[dict]:
             "parent_section_code": str(row.get("parent_section_code") or "").strip(),
             "parent_section_title": str(row.get("parent_section_title") or "").strip(),
             "parent_section_label": str(row.get("parent_section_label") or "").strip(),
+            "owner_section_code": str(row.get("owner_section_code") or "").strip(),
+            "owner_section_title": str(row.get("owner_section_title") or "").strip(),
+            "owner_section_label": str(row.get("owner_section_label") or "").strip(),
+            "structural_parent_section_code": str(row.get("structural_parent_section_code") or "").strip(),
+            "structural_parent_section_key": str(row.get("structural_parent_section_key") or "").strip(),
+            "structural_parent_section_title": str(row.get("structural_parent_section_title") or "").strip(),
+            "structural_parent_section_label": str(row.get("structural_parent_section_label") or "").strip(),
             "merged_from_req_codes": row.get("merged_from_req_codes") or [],
             "merged_from_entry_ids": row.get("merged_from_entry_ids") or [],
             "table_refs": row.get("table_refs") or [],
@@ -2908,6 +2932,11 @@ def _build_analysis_rows_from_review_payload(entries: list[ReviewedRequirementEn
                 "entry_id": str(row.get("entry_id") or row.get("req_code") or ""),
                 "req_code": str(row.get("req_code") or "").strip(),
                 "entry_kind": entry_kind,
+                "section_code": str(row.get("section_code") or "").strip(),
+                "section_title": str(row.get("section_title") or "").strip(),
+                "section_label": str(row.get("section_label") or "").strip(),
+                "section_key": str(row.get("section_key") or "").strip(),
+                "section_instance_key": str(row.get("section_instance_key") or "").strip(),
                 "source_page": row.get("source_page"),
                 "source_page_end": row.get("source_page_end"),
                 "source_anchor": str(row.get("source_anchor") or "Unknown"),
@@ -2921,6 +2950,13 @@ def _build_analysis_rows_from_review_payload(entries: list[ReviewedRequirementEn
                 "parent_section_code": str(row.get("parent_section_code") or "").strip(),
                 "parent_section_title": str(row.get("parent_section_title") or "").strip(),
                 "parent_section_label": str(row.get("parent_section_label") or "").strip(),
+                "owner_section_code": str(row.get("owner_section_code") or "").strip(),
+                "owner_section_title": str(row.get("owner_section_title") or "").strip(),
+                "owner_section_label": str(row.get("owner_section_label") or "").strip(),
+                "structural_parent_section_code": str(row.get("structural_parent_section_code") or "").strip(),
+                "structural_parent_section_key": str(row.get("structural_parent_section_key") or "").strip(),
+                "structural_parent_section_title": str(row.get("structural_parent_section_title") or "").strip(),
+                "structural_parent_section_label": str(row.get("structural_parent_section_label") or "").strip(),
                 "merged_from_req_codes": row.get("merged_from_req_codes") or [],
                 "merged_from_entry_ids": row.get("merged_from_entry_ids") or [],
                 "table_refs": row.get("table_refs") or [],
@@ -3143,7 +3179,16 @@ def _sync_document_table_assets(project_id: str, sor_document_id: str) -> None:
 def _enrich_requirements_with_preview_context(rows: list[dict], file_path: str) -> list[dict]:
     if not rows or not file_path:
         return rows
-    if all(str(row.get("parent_section_label") or "").strip() for row in rows):
+    if all(
+        str(row.get("parent_section_label") or "").strip()
+        and str(row.get("owner_section_label") or "").strip()
+        and (
+            str(row.get("section_instance_key") or "").strip()
+            or str(row.get("section_key") or "").strip()
+            or str(row.get("section_code") or "").strip()
+        )
+        for row in rows
+    ):
         return rows
     document = None
     for row in rows:
@@ -3168,6 +3213,25 @@ def _enrich_requirements_with_preview_context(rows: list[dict], file_path: str) 
         copied = dict(row)
         changed = False
         for key in ("parent_section_code", "parent_section_title", "parent_section_label"):
+            if not str(copied.get(key) or "").strip():
+                value = str(meta.get(key) or "").strip()
+                if value:
+                    copied[key] = value
+                    changed = True
+        for key in (
+            "section_code",
+            "section_title",
+            "section_label",
+            "section_key",
+            "section_instance_key",
+            "owner_section_code",
+            "owner_section_title",
+            "owner_section_label",
+            "structural_parent_section_code",
+            "structural_parent_section_key",
+            "structural_parent_section_title",
+            "structural_parent_section_label",
+        ):
             if not str(copied.get(key) or "").strip():
                 value = str(meta.get(key) or "").strip()
                 if value:
@@ -3453,40 +3517,71 @@ def _sort_requirements_for_display(
     preview: dict | None = None,
 ) -> tuple[list[dict], dict[str, object]]:
     preview_order = _build_preview_requirement_order_index(preview)
-    ranked: list[tuple[tuple, dict]] = []
+    if not preview_order:
+        ranked: list[tuple[tuple, dict]] = []
+        for original_index, row in enumerate(requirements):
+            copied = dict(row)
+            copied["preview_rank"] = None
+            ranked.append((_fallback_requirement_display_sort_key(copied, original_index), copied))
+        ranked.sort(key=lambda item: item[0])
+        ordered = [row for _, row in ranked]
+        for display_order, row in enumerate(ordered, start=1):
+            row["display_order"] = display_order
+            row["source_order"] = display_order
+        return ordered, {
+            "order_source": "fallback_page_anchor",
+            "order_mismatch_count": 0,
+        }
+
+    matched: list[tuple[int, int, dict]] = []
+    unmatched: list[tuple[int, dict]] = []
     mismatch_count = 0
     for original_index, row in enumerate(requirements):
         preview_rank = _lookup_preview_rank(row, preview_order)
-        if preview_order and preview_rank >= 10**9:
-            mismatch_count += 1
-        page = _coerce_positive_int(row.get("source_page"))
-        page_end = _coerce_positive_int(row.get("source_page_end")) or page
-        section_key = _natural_sort_key(
-            str(row.get("parent_section_code") or row.get("section_code") or row.get("parent_section_label") or "")
-        )
-        anchor_key = _natural_sort_key(str(row.get("source_anchor") or ""))
-        req_code_key = _natural_sort_key(str(row.get("req_code") or ""))
-        text_key = _natural_sort_key(str(row.get("raw_text") or row.get("display_text") or row.get("requirement_text") or ""))
         copied = dict(row)
-        copied["source_order"] = preview_rank + 1 if preview_rank < 10**9 else 0
-        ranked.append(
-            (
-                (
-                    preview_rank,
-                    page if page > 0 else 10**9,
-                    page_end if page_end > 0 else 10**9,
-                    section_key,
-                    anchor_key,
-                    req_code_key,
-                    text_key,
-                    original_index,
-                ),
-                copied,
-            )
-        )
-    ranked.sort(key=lambda item: item[0])
-    return [row for _, row in ranked], {
-        "order_source": "review_overlay" if preview_order else "fallback_page_anchor",
+        if preview_rank < 10**9:
+            copied["preview_rank"] = preview_rank
+            copied["source_order"] = preview_rank + 1
+            matched.append((preview_rank, original_index, copied))
+        else:
+            copied["preview_rank"] = None
+            copied["source_order"] = 0
+            unmatched.append((original_index, copied))
+            mismatch_count += 1
+
+    matched.sort(key=lambda item: (item[0], item[1]))
+    matched_rows = [row for _, _, row in matched]
+    last_matched_index_by_owner: dict[str, int] = {}
+    for matched_index, row in enumerate(matched_rows):
+        for token in _row_owner_section_tokens(row):
+            last_matched_index_by_owner[token] = matched_index
+
+    unmatched_after_index: dict[int, list[dict]] = {}
+    unmatched_tail: list[dict] = []
+    for _, row in unmatched:
+        anchor_indices = [
+            last_matched_index_by_owner[token]
+            for token in _row_owner_section_tokens(row)
+            if token in last_matched_index_by_owner
+        ]
+        if anchor_indices:
+            unmatched_after_index.setdefault(max(anchor_indices), []).append(row)
+        else:
+            unmatched_tail.append(row)
+
+    ordered: list[dict] = []
+    for matched_index, row in enumerate(matched_rows):
+        ordered.append(row)
+        ordered.extend(unmatched_after_index.get(matched_index, []))
+    ordered.extend(unmatched_tail)
+
+    for display_order, row in enumerate(ordered, start=1):
+        row["display_order"] = display_order
+        if row.get("preview_rank") is None:
+            row["source_order"] = display_order
+
+    return ordered, {
+        "order_source": "review_overlay",
         "order_mismatch_count": mismatch_count,
     }
 
@@ -3531,6 +3626,33 @@ def _lookup_preview_rank(row: dict, preview_order: dict[str, object]) -> int:
         return int(rank_by_row_id.get(id(matched), 10**9))
     except (TypeError, ValueError):
         return 10**9
+
+
+def _fallback_requirement_display_sort_key(row: dict, original_index: int) -> tuple:
+    page = _coerce_positive_int(row.get("source_page"))
+    page_end = _coerce_positive_int(row.get("source_page_end")) or page
+    section_key = _natural_sort_key(
+        str(
+            row.get("owner_section_code")
+            or row.get("section_code")
+            or row.get("parent_section_code")
+            or row.get("owner_section_label")
+            or row.get("parent_section_label")
+            or ""
+        )
+    )
+    anchor_key = _natural_sort_key(str(row.get("source_anchor") or ""))
+    req_code_key = _natural_sort_key(str(row.get("req_code") or ""))
+    text_key = _natural_sort_key(str(row.get("raw_text") or row.get("display_text") or row.get("requirement_text") or ""))
+    return (
+        page if page > 0 else 10**9,
+        page_end if page_end > 0 else 10**9,
+        section_key,
+        anchor_key,
+        req_code_key,
+        text_key,
+        original_index,
+    )
 
 
 def _requirement_match_tokens(row: dict) -> list[str]:
@@ -3615,6 +3737,64 @@ def _requirement_entry_kind_group(row: dict) -> str:
     return str(row.get("entry_kind") or "").strip().upper()
 
 
+def _normalized_section_identity_value(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip())
+
+
+def _requirement_structural_identity_keys(row: dict) -> list[str]:
+    kind = _requirement_entry_kind_group(row)
+    if not kind:
+        return []
+    section_tokens: list[str] = []
+    for field_name in (
+        "section_instance_key",
+        "section_key",
+        "owner_section_code",
+        "parent_section_code",
+        "section_code",
+    ):
+        value = _normalized_section_identity_value(row.get(field_name))
+        if value and value not in section_tokens:
+            prefix = "code" if field_name.endswith("_code") else "section"
+            section_tokens.append(f"{prefix}:{value}")
+    identifier_tokens: list[str] = []
+    entry_id = str(row.get("entry_id") or "").strip()
+    if entry_id:
+        identifier_tokens.append(f"entry:{entry_id}")
+    req_code = str(row.get("req_code") or "").strip()
+    if req_code:
+        identifier_tokens.append(f"req:{req_code}")
+        base_req_code = _base_req_code(req_code)
+        if base_req_code:
+            identifier_tokens.append(f"base:{base_req_code}")
+    if not section_tokens or not identifier_tokens:
+        return []
+    keys: list[str] = []
+    for section_token in section_tokens:
+        for identifier_token in identifier_tokens:
+            keys.append(f"{kind}|{section_token}|{identifier_token}")
+    return keys
+
+
+def _row_owner_section_tokens(row: dict) -> list[str]:
+    tokens: list[str] = []
+    for field_name in (
+        "section_instance_key",
+        "section_key",
+        "owner_section_code",
+        "owner_section_label",
+        "owner_section_title",
+        "section_code",
+        "parent_section_code",
+        "parent_section_label",
+        "parent_section_title",
+    ):
+        value = _normalized_section_identity_value(row.get(field_name))
+        if value and value not in tokens:
+            tokens.append(value)
+    return tokens
+
+
 def _rows_have_compatible_entry_kind(left: dict, right: dict) -> bool:
     left_kind = _requirement_entry_kind_group(left)
     right_kind = _requirement_entry_kind_group(right)
@@ -3651,6 +3831,8 @@ def _append_requirement_row_to_index(index: dict[str, object], row: dict) -> Non
     _append_bucket("by_page_text", _requirement_page_text_match_key(row))
     _append_bucket("by_anchor_text", _requirement_anchor_text_match_key(row))
     _append_bucket("by_anchor_only", _requirement_anchor_only_key(row))
+    for identity_key in _requirement_structural_identity_keys(row):
+        _append_bucket("by_identity", identity_key)
     entry_id = str(row.get("entry_id") or "").strip()
     if entry_id:
         _append_bucket("by_entry", entry_id)
@@ -3666,6 +3848,7 @@ def _build_requirement_row_index(rows: list[dict]) -> dict[str, object]:
     index: dict[str, object] = {
         "rows": [],
         "rank_by_row_id": {},
+        "by_identity": {},
         "by_exact": {},
         "by_anchor": {},
         "by_page_text": {},
@@ -3732,6 +3915,11 @@ def _find_indexed_requirement_row(
     rows = index.get("rows")
     if not isinstance(rows, list) or not rows:
         return None
+
+    for identity_key in _requirement_structural_identity_keys(row):
+        candidate = _first_unique_index_match(index, "by_identity", identity_key)
+        if candidate is not None and _rows_have_compatible_entry_kind(row, candidate):
+            return candidate
 
     for bucket_name, key in (
         ("by_exact", _requirement_exact_match_key(row)),
@@ -3845,6 +4033,8 @@ def _overlay_review_entries(rows: object, persisted_requirements: list[dict], *,
         if not isinstance(raw_row, dict):
             continue
         row = dict(raw_row)
+        row["preview_rank"] = index
+        row["display_order"] = index + 1
         persisted = _find_indexed_requirement_row(row, persisted_index, allow_weak_identifier=True)
         if persisted and not _persisted_review_matches_preview_row(persisted, row):
             persisted = None
@@ -4036,6 +4226,11 @@ def _normalize_review_entry_payload(item: ReviewedRequirementEntry) -> dict[str,
         "req_code": str(row.get("req_code") or "").strip(),
         "keep": bool(row.get("keep", True)),
         "entry_kind": str(row.get("entry_kind") or "REQUIREMENT").strip().upper() or "REQUIREMENT",
+        "section_code": str(row.get("section_code") or "").strip(),
+        "section_title": str(row.get("section_title") or "").strip(),
+        "section_label": str(row.get("section_label") or "").strip(),
+        "section_key": str(row.get("section_key") or "").strip(),
+        "section_instance_key": str(row.get("section_instance_key") or "").strip(),
         "source_page": row.get("source_page"),
         "source_page_end": row.get("source_page_end"),
         "source_anchor": str(row.get("source_anchor") or "Unknown").strip() or "Unknown",
@@ -4049,6 +4244,13 @@ def _normalize_review_entry_payload(item: ReviewedRequirementEntry) -> dict[str,
         "parent_section_code": str(row.get("parent_section_code") or "").strip(),
         "parent_section_title": str(row.get("parent_section_title") or "").strip(),
         "parent_section_label": str(row.get("parent_section_label") or "").strip(),
+        "owner_section_code": str(row.get("owner_section_code") or "").strip(),
+        "owner_section_title": str(row.get("owner_section_title") or "").strip(),
+        "owner_section_label": str(row.get("owner_section_label") or "").strip(),
+        "structural_parent_section_code": str(row.get("structural_parent_section_code") or "").strip(),
+        "structural_parent_section_key": str(row.get("structural_parent_section_key") or "").strip(),
+        "structural_parent_section_title": str(row.get("structural_parent_section_title") or "").strip(),
+        "structural_parent_section_label": str(row.get("structural_parent_section_label") or "").strip(),
         "merged_from_req_codes": row.get("merged_from_req_codes") or [],
         "merged_from_entry_ids": row.get("merged_from_entry_ids") or [],
         "table_refs": row.get("table_refs") or [],
@@ -4110,6 +4312,13 @@ def _build_saved_review_entry(normalized: dict[str, object], persisted: dict | N
         "keep": bool(keep),
         "entry_kind": str(persisted.get("entry_kind") or normalized.get("entry_kind") or "REQUIREMENT").strip().upper()
         or "REQUIREMENT",
+        "section_code": str(persisted.get("section_code") or normalized.get("section_code") or "").strip(),
+        "section_title": str(persisted.get("section_title") or normalized.get("section_title") or "").strip(),
+        "section_label": str(persisted.get("section_label") or normalized.get("section_label") or "").strip(),
+        "section_key": str(persisted.get("section_key") or normalized.get("section_key") or "").strip(),
+        "section_instance_key": str(
+            persisted.get("section_instance_key") or normalized.get("section_instance_key") or ""
+        ).strip(),
         "source_page": source_page,
         "source_page_end": source_page_end,
         "source_anchor": str(persisted.get("source_anchor") or normalized.get("source_anchor") or "Unknown").strip()
@@ -4138,6 +4347,27 @@ def _build_saved_review_entry(normalized: dict[str, object], persisted: dict | N
         ).strip(),
         "parent_section_label": str(
             persisted.get("parent_section_label") or normalized.get("parent_section_label") or ""
+        ).strip(),
+        "owner_section_code": str(
+            persisted.get("owner_section_code") or normalized.get("owner_section_code") or ""
+        ).strip(),
+        "owner_section_title": str(
+            persisted.get("owner_section_title") or normalized.get("owner_section_title") or ""
+        ).strip(),
+        "owner_section_label": str(
+            persisted.get("owner_section_label") or normalized.get("owner_section_label") or ""
+        ).strip(),
+        "structural_parent_section_code": str(
+            persisted.get("structural_parent_section_code") or normalized.get("structural_parent_section_code") or ""
+        ).strip(),
+        "structural_parent_section_key": str(
+            persisted.get("structural_parent_section_key") or normalized.get("structural_parent_section_key") or ""
+        ).strip(),
+        "structural_parent_section_title": str(
+            persisted.get("structural_parent_section_title") or normalized.get("structural_parent_section_title") or ""
+        ).strip(),
+        "structural_parent_section_label": str(
+            persisted.get("structural_parent_section_label") or normalized.get("structural_parent_section_label") or ""
         ).strip(),
         "merged_from_req_codes": persisted.get("merged_from_req_codes")
         if isinstance(persisted.get("merged_from_req_codes"), list)

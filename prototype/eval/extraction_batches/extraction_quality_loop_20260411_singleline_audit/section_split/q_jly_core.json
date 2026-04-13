@@ -1,0 +1,47 @@
+{
+  "pdf_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260411_singleline_audit/staged_docs/Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+  "summary": {
+    "passed_checks": 4,
+    "total_checks": 4,
+    "score_pct": 100.0,
+    "outline_count": 407,
+    "requirements_count": 451,
+    "passed": true
+  },
+  "checks": [
+    {
+      "name": "required_codes_present",
+      "passed": true,
+      "detail": {
+        "missing_required_codes": []
+      }
+    },
+    {
+      "name": "no_suspicious_global_rows",
+      "passed": true,
+      "detail": {
+        "suspicious_global_rows": []
+      }
+    },
+    {
+      "name": "no_suspicious_rows_near_guard_sections",
+      "passed": true,
+      "detail": {
+        "suspicious_near_guard_sections": []
+      }
+    },
+    {
+      "name": "default_requirement_candidate_is_true",
+      "passed": true,
+      "detail": {
+        "non_default_candidate_rows": 0
+      }
+    }
+  ],
+  "detail": {
+    "missing_required": [],
+    "suspicious_global": [],
+    "suspicious_near_guards": [],
+    "default_candidate_violations": 0
+  }
+}

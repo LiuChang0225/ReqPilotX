@@ -1,0 +1,51 @@
+[
+  {
+    "doc_key": "q_jly_core",
+    "profile": "q_jly_core",
+    "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+    "source_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/99a6d551d7aa4acb98c9e587c9cfcea6_Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+    "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs/Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+    "source_root": "shared_uploads",
+    "section_split": true,
+    "gate_tags": [
+      "regression-suite"
+    ]
+  },
+  {
+    "doc_key": "sor_baic_core",
+    "profile": "sor_baic_core",
+    "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+    "source_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/022a559ff53b4eed8bf3d59f3fb0b1ee_SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+    "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs/SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+    "source_root": "shared_uploads",
+    "section_split": false,
+    "gate_tags": [
+      "regression-suite"
+    ]
+  },
+  {
+    "doc_key": "pds_de_active_damper_v1_0",
+    "profile": "pds_de_active_damper_v1_0",
+    "pdf_name": "产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+    "source_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/1e4079e33aef4432bb379d5d0ef95d50_产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+    "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs/产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf",
+    "source_root": "shared_uploads",
+    "section_split": false,
+    "gate_tags": [
+      "regression-suite"
+    ]
+  },
+  {
+    "doc_key": "pds_de_oil_pump_v1_1",
+    "profile": "pds_de_oil_pump_v1_1",
+    "pdf_name": "产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+    "source_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/6fd15d3fb7104ea882d544d10f32372d_产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+    "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs/产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+    "source_root": "shared_uploads",
+    "section_split": false,
+    "gate_tags": [
+      "regression-suite",
+      "oil-pump-benchmark"
+    ]
+  }
+]

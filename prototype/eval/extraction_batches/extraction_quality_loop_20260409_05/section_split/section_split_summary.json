@@ -1,0 +1,15 @@
+{
+  "targets": 1,
+  "targets_passed": 1,
+  "checks_passed": 4,
+  "checks_total": 4,
+  "score_pct": 100.0,
+  "results": [
+    {
+      "doc_key": "q_jly_core",
+      "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "passed": true,
+      "score_pct": 100.0
+    }
+  ]
+}

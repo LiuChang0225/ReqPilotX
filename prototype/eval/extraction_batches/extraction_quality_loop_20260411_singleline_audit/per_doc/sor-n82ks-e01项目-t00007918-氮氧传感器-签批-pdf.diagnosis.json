@@ -1,0 +1,2400 @@
+{
+  "doc_key": "sor_baic_core",
+  "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+  "pdf_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/022a559ff53b4eed8bf3d59f3fb0b1ee_SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+  "batch_id": "legacy_benchmark_core",
+  "gate_tags": [
+    "regression-suite"
+  ],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "sor_baic_core",
+    "fidelity": "sor_baic_core"
+  },
+  "status": {
+    "quality_profile_matched": true,
+    "fidelity_profile_matched": true,
+    "needs_human_review": true
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "profile": "sor_baic_core",
+      "outline_count": 259,
+      "checks_passed": 9,
+      "checks_total": 10,
+      "score_pct": 90.0,
+      "duplicate_code_count": 1,
+      "suspicious_heading_count": 0,
+      "suspicious_heading_ratio": 0.0,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 2,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 1,
+      "detail_outline_count_min": "outline_count=259",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=1",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0000",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0",
+      "check_profile_required_codes_present": 0,
+      "detail_profile_required_codes_present": "missing_required=2",
+      "check_profile_guard_sections_clean": 1,
+      "detail_profile_guard_sections_clean": "guard_violations=0"
+    },
+    "checks_total": 10,
+    "checks_passed": 9
+  },
+  "fidelity_gate": {
+    "doc_row": {
+      "pdf_name": "022a559ff53b4eed8bf3d59f3fb0b1ee_SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "profile": "sor_baic_core",
+      "sections_count": 294,
+      "requirements_count": 172,
+      "appendix_scope_count": 7,
+      "appendix_marker_count": 7,
+      "section_consistency_issues": 2,
+      "list_style_heading_count": 0,
+      "leading_punct_heading_count": 0,
+      "short_deep_heading_count": 0,
+      "merge_mode": "strict_single_engine",
+      "supplemental_heading_total": 0,
+      "table_block_injected_total": 0,
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "checks_passed": 18,
+      "checks_total": 23,
+      "score_pct": 78.26,
+      "passed": 0,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_min_sections_count": 1,
+      "detail_min_sections_count": "sections=294 min=230",
+      "check_min_requirements_count": 0,
+      "detail_min_requirements_count": "requirements=172 min=180",
+      "check_sections_count_drift": 1,
+      "detail_sections_count_drift": "sections=294 expected=278 drift=16",
+      "check_requirements_count_drift": 0,
+      "detail_requirements_count_drift": "requirements=172 expected=219 drift=47",
+      "check_section_consistency_issue_limit": 0,
+      "detail_section_consistency_issue_limit": "consistency_issues=2 max=1",
+      "check_required_codes_present": 0,
+      "detail_required_codes_present": "missing_required=2",
+      "check_forbidden_codes_absent": 1,
+      "detail_forbidden_codes_absent": "forbidden_present=0",
+      "check_required_appendix_scopes_present": 1,
+      "detail_required_appendix_scopes_present": "missing_appendix_scopes=0",
+      "check_appendix_marker_count_min": 1,
+      "detail_appendix_marker_count_min": "appendix_markers=7 min=7",
+      "check_required_title_contains": 0,
+      "detail_required_title_contains": "title_mismatch=1",
+      "check_required_requirement_text_contains": 1,
+      "detail_required_requirement_text_contains": "requirement_text_mismatch=0",
+      "check_required_requirement_ordered_snippets": 1,
+      "detail_required_requirement_ordered_snippets": "requirement_order_mismatch=0",
+      "check_required_table_row_snippets": 1,
+      "detail_required_table_row_snippets": "table_row_mismatch=0",
+      "check_required_tree_children": 1,
+      "detail_required_tree_children": "tree_child_mismatch=0",
+      "check_required_single_requirement_codes": 1,
+      "detail_required_single_requirement_codes": "single_requirement_mismatch=0",
+      "check_required_duplicate_code_titles": 1,
+      "detail_required_duplicate_code_titles": "duplicate_title_mismatch=0",
+      "check_forbidden_cross_section_snippets": 1,
+      "detail_forbidden_cross_section_snippets": "forbidden_cross_section_hits=0",
+      "check_forbidden_requirement_text_absent": 1,
+      "detail_forbidden_requirement_text_absent": "forbidden_requirement_text_hits=0",
+      "check_list_style_heading_limit": 1,
+      "detail_list_style_heading_limit": "list_style_headings=0 max=0",
+      "check_leading_punct_heading_limit": 1,
+      "detail_leading_punct_heading_limit": "leading_punct_headings=0 max=0",
+      "check_short_deep_heading_limit": 1,
+      "detail_short_deep_heading_limit": "short_deep_headings=0 max=8"
+    },
+    "checks_total": 23,
+    "checks_passed": 18,
+    "passed": false
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 9,
+    "issue_types": [
+      "duplicate_section_code",
+      "required_code_missing",
+      "required_title_mismatch",
+      "requirement_count_drift",
+      "requirement_count_too_low",
+      "section_consistency_issue_limit"
+    ]
+  },
+  "issue_rollup": [
+    {
+      "gate": "quality_gate",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "profile": "sor_baic_core",
+      "category": "benchmark_coverage",
+      "category_label": "Benchmark Coverage",
+      "issue_type": "required_code_missing",
+      "severity": "high",
+      "appendix_scope": "F",
+      "section_code": "1",
+      "detail": "profile=sor_baic_core"
+    },
+    {
+      "gate": "quality_gate",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "profile": "sor_baic_core",
+      "category": "benchmark_coverage",
+      "category_label": "Benchmark Coverage",
+      "issue_type": "required_code_missing",
+      "severity": "high",
+      "appendix_scope": "G",
+      "section_code": "1",
+      "detail": "profile=sor_baic_core"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "profile": "sor_baic_core",
+      "category": "benchmark_coverage",
+      "category_label": "Benchmark Coverage",
+      "issue_type": "required_code_missing",
+      "severity": "high",
+      "appendix_scope": "F",
+      "section_code": "1",
+      "detail": "required scoped code missing"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "profile": "sor_baic_core",
+      "category": "benchmark_coverage",
+      "category_label": "Benchmark Coverage",
+      "issue_type": "required_code_missing",
+      "severity": "high",
+      "appendix_scope": "G",
+      "section_code": "1",
+      "detail": "required scoped code missing"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "profile": "sor_baic_core",
+      "category": "benchmark_coverage",
+      "category_label": "Benchmark Coverage",
+      "issue_type": "required_title_mismatch",
+      "severity": "high",
+      "appendix_scope": "E",
+      "section_code": "2",
+      "detail": "title '线束长度： TBD （根据实车布置进行调整）' does not contain '系统职责'"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "profile": "sor_baic_core",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "requirement_count_too_low",
+      "severity": "high",
+      "appendix_scope": "",
+      "section_code": "",
+      "detail": "requirements=172 min=180"
+    },
+    {
+      "gate": "quality_gate",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "profile": "sor_baic_core",
+      "category": "outline_structure",
+      "category_label": "Outline Structure",
+      "issue_type": "duplicate_section_code",
+      "severity": "medium",
+      "appendix_scope": "B",
+      "section_code": "2",
+      "detail": "duplicate_count=2"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "profile": "sor_baic_core",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "requirement_count_drift",
+      "severity": "medium",
+      "appendix_scope": "",
+      "section_code": "",
+      "detail": "requirements=172 expected=219 drift=47"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "profile": "sor_baic_core",
+      "category": "outline_structure",
+      "category_label": "Outline Structure",
+      "issue_type": "section_consistency_issue_limit",
+      "severity": "medium",
+      "appendix_scope": "",
+      "section_code": "",
+      "detail": "consistency_issues=2 max=1"
+    }
+  ],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/022a559ff53b4eed8bf3d59f3fb0b1ee_SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+    "heading_skeleton": [
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1",
+        "title": "工程概要 ............................................................................. 1"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "概述 ............................................................................ 1"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "设计职责及责任分工 .............................................................. 1"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1.3",
+        "title": "预先申明 ........................................................................ 1"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "2",
+        "title": "工程联系方式 ......................................................................... 2"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3",
+        "title": "项目管理 ............................................................................. 2"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3.1",
+        "title": "项目信息 ........................................................................ 2"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3.2",
+        "title": "项目管理要求 .................................................................... 2"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "4",
+        "title": "法规要求 ............................................................................. 2"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "5",
+        "title": "产品要求 ............................................................................. 3"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "综述（总体方案） ................................................................ 3"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "系统职责 ........................................................................ 3"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "11.4",
+        "title": "风险责任的承担 ................................................................. 8"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "11.5",
+        "title": "下级配套件的限定 ............................................................... 8"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "12",
+        "title": "同步工程 ............................................................................ 8"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "13",
+        "title": "问题通报 ............................................................................ 8"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "14",
+        "title": "供应商质量要求 ...................................................................... 8"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "14.1",
+        "title": "总体要求 ....................................................................... 8"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "14.2",
+        "title": "质量体系认证 ................................................................... 9"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "14.3",
+        "title": "产品先期质量策划（APQP） ....................................................... 9"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "14.4",
+        "title": "工装样件（OTS） ................................................................ 9"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "14.5",
+        "title": "生产和批准认可（PPAP） ......................................................... 9"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "14.6",
+        "title": "质量目标 ....................................................................... 9"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "15",
+        "title": "包装及运输要求 ...................................................................... 9"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1",
+        "title": "工程概要"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "概述"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1.1.1",
+        "title": "北京汽车动力总成有限公司（以下简称 “ 北汽动力 ” ）为完成项目中有关产品设计及开发的工程责"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1.1.2",
+        "title": "潜在供应商报价所涉及的零部件清单详见附件 B 《项目一般描述》；如果需要，北汽动力可能会提"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "设计职责及责任分工"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1.2.1",
+        "title": "总体要求"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1.2.1.1",
+        "title": "北汽动力在零部件开发过程中应："
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1.2.1.2",
+        "title": "供应商在零部件开发过程中应："
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1.2.2",
+        "title": "设计职责与分工"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1.3",
+        "title": "预先申明"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1.3.1",
+        "title": "如果本 SOR 的内容和所附参考零件或规范有矛盾之处，请与北汽动力的产品工程师联系。"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1.3.2",
+        "title": "在最终规范未确定之前， SOR 的内容可能不断更新。当设计变更发起时，以图纸传递的信息和数据"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "1.3.3",
+        "title": "供应商为北汽动力提供的本 SOR 下的技术服务及向北汽动力交付的工作成果不得侵犯任何第三方"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "1.3.4",
+        "title": "对于供应商在履行本 SOR 过程中所产生或者因履行本SOR 所产生的所有发明、创造以及设计创新"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "2",
+        "title": "工程联系方式"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "项目管理"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3.1",
+        "title": "项目信息"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3.2",
+        "title": "项目管理要求"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3.2.1",
+        "title": "双方应各自建立有效的项目开发团队，由各自指定的“项目负责人”负责，并依据附件 A《设计职"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3.2.2",
+        "title": "供应商提供的团队成员清单包括人员角色及职能职责、提供团队成员相应的资质证明，并经北汽"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3.2.3",
+        "title": "双方应按照双方共同确认的实施计划，在规定的时间、按规定方式严格实施，各负其责。每个阶"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3.2.4",
+        "title": "评审节点的组织：北汽动力负责，供应商为辅。"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4",
+        "title": "法规要求"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "供应商必须确保开发零部件符合中华人民共和国的最新法规和任何潜在市场所在国家法规的最新要"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5",
+        "title": "产品要求"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "综述（总体方案）"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "系统职责"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "要求一致性"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.4",
+        "title": "材料"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.4.1",
+        "title": "所有材料必须符合北汽动力的材料工程指导方针，遵循北汽动力材料标准，具体要求详见附件 E"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.4.2",
+        "title": "由供应商设计的黑盒子零部件的材料应根据产品的设计、耐久性要求和性能要求来选择具体材料"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.4.3",
+        "title": "供应商负责提供单个零部件的材料、物质及质量，所报告的材料质量之和必须等于零部件的总质"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.4.4",
+        "title": "供应商还应标明零部件中所使用的可回收的材料及质量，并标出塑料零件、橡胶零件及热塑性弹"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.4.5",
+        "title": "材料的禁、限用物质含量和橡塑件标识应满足 Q/BAIC C310001《汽车产品禁限用物质要求》的要"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.4.6",
+        "title": "供应商必须准确反馈零部件材料信息，且其成分信息须和实际产品一致。为了确保供应商填写的"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.5",
+        "title": "外观、光泽、颜色"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.8",
+        "title": "产品特殊特性"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.8.1",
+        "title": "供应商应按照北汽动力相关技术要求定义并控制产品特殊特性。"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.8.2",
+        "title": "对于含有产品特殊特性的零件，供应商应按照 Q/BMPC 056 《动力总成产品特殊特性标识》的要求"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.8.3",
+        "title": "产品特殊特性过程能力应符合北汽动力的要求。"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.8.4",
+        "title": "产品特殊特性过程能力 PPK ≥ 1.67 。"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.8.5",
+        "title": "供应商应在规定的节点提供本 SOR 所涉及零部件的“产品特殊特性清单”，要求如下："
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.9",
+        "title": "设计目标成本要求"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.9.1",
+        "title": "设计目标成本"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.9.1.1",
+        "title": "供应商提供的设计方案和产品必须满足北汽动力提出的设计目标成本要求，在项目开发的定点"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.9.1.2",
+        "title": "当产品发生技术变更时，供方必须对请求发起输入方和事由进行明确，如未明确变更事由及责"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.9.1.3",
+        "title": "在整个开发阶段，供应商应在满足北汽动力对功能及质量要求的基础上降低成本；且供应商应"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.9.2",
+        "title": "成本优化"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "6.3",
+        "title": "对供应商设计数据的要求"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "6.3.1",
+        "title": "由供应商设计的零件，供应商应交付北汽动力以下设计数据："
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "6.3.2",
+        "title": "供应商提供的设计数据应在设计冻结日期之前提交给北汽动力，以使北汽动力进行虚拟装配和零"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "6.3.3",
+        "title": "北汽动力根据不同的零部件提供相应的技术规范文件，用于规范零部件的需求。"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "6.3.4",
+        "title": "供应商应提供总成及总成下一级关键零部件的清单，以使北汽动力进行认可图样的质量管控。"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "6.3.5",
+        "title": "三维 CAD 数据：供应商必须具备与北汽动力的 CAD 信息进行接口的能力，要求的CAD 数据格式为"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "6.3.6",
+        "title": "技术认可图样：必须包含所有的规范和测试要求，包含但不限于下列内容："
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "6.3.7",
+        "title": "DFMEA 文档："
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "6.4",
+        "title": "环保设计要求"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "7",
+        "title": "非一致性报价"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "7.1",
+        "title": "无能力达到要求"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "7.2",
+        "title": "等效功能替代"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "8",
+        "title": "进度要求"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "8.1",
+        "title": "供应商必须严格遵循由北汽动力提供的项目总进度表。同时，作为报价的内容之一，供应商应根据"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "8.2",
+        "title": "供应商无法按规定的进度要求完成相应阶段的工作，北汽动力有权终止合作，并由供应商承担由此"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "8.3",
+        "title": "北汽动力项目总进度表，详见附件 B《项目一般概述》 。"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "9",
+        "title": "试制项目和功能评估要求"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "9.1",
+        "title": "工装样件试制"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "9.2",
+        "title": "样件的检验"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "9.3",
+        "title": "尺寸评估"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "9.4",
+        "title": "性能评估"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "10",
+        "title": "试验认证"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "10.1",
+        "title": "试验认证的目的是为了验证供应商的零部件 / 子系统产品是否符合设计目标及动力总成使用寿命目"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "10.2",
+        "title": "北汽动力有权利在产品开发各试验验证阶段对样件进行抽样、封样，并且有权利对所抽取封存的样"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "10.3",
+        "title": "供应商应按照北汽动力批准的零部件 DVP&R 计划，完成零部件的技术认证和相关试验。"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "10.4",
+        "title": "供应商委托北汽动力认可第三方开展零部件试验时，应告知第三方检测机构北汽动力有权对整个试"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "10.5",
+        "title": "具体要求详见附件 F 《产品设计验证要求》。"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "11",
+        "title": "供应商管理"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "11.1",
+        "title": "供应商人员安排"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "11.2",
+        "title": "过程更改"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "11.2.1",
+        "title": "供应商对产品技术要求、物料规格型号、工艺方法、关键 / 重要的产品和过程特殊特性、控制方"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "11.2.2",
+        "title": "当产品的国家标准、行业标准等有新增或调整时，供应商需向北汽动力提出变更申请，经北汽动"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "11.2.3",
+        "title": "变更后的产品，供应商应在产品包装上明确产品技术状态及变更信息，便于断点管理。"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "11.3",
+        "title": "节点要求"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "11.4",
+        "title": "风险责任的承担"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "11.4.1",
+        "title": "供应商在产品开发过程中，因出现无法克服的技术困难，导致产品无法满足北汽动力的要求，由"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "11.4.2",
+        "title": "如果在项目进行过程中供应商继续进行将无法取得预期的结果，北汽动力有权停止实施项目进"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "11.4.3",
+        "title": "终止本项目应不损害和影响北汽动力已经采取或将要采取的补救措施的权利。"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "11.5",
+        "title": "下级配套件的限定"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "11.5.1",
+        "title": "供应商应将零部件产品开发要求说明及时传递至下级供应商。"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "11.5.2",
+        "title": "供应商应提供零部件的下级供应商清单。对于北汽动力要求限定的下级供应商，见附件 E。"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "12",
+        "title": "同步工程"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "12.1",
+        "title": "供应商应定期向北汽动力汇报相关的设计输入因素并提供工程支持。如果和指定的规范要求之间存"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "12.2",
+        "title": "供应商应协同北汽动力的同步开发工作，根据项目开发进度计划，在不同的阶段提交相应的交付"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "12.3",
+        "title": "供应商提供的产品重量必须满足目标重量要求以及动力总成重量要求。在每个项目阶段，供应商必"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "14.2",
+        "title": "质量体系认证"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "14.2.1",
+        "title": "供应商的质量体系必须通过权威质量体系认证机构的认证，认证包括但不限于：GB/T 19001 idt"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "14.2.2",
+        "title": "对于承担汽车产品相关软件或带有嵌入式软件的汽车产品供应商，应为各自产品实施并保持一个"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "14.3",
+        "title": "产品先期质量策划（APQP）"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "14.3.1",
+        "title": "供应商在接到《货源确认书》后的两周时间内，必须确定一个 APQP 启动会日期。"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "14.3.2",
+        "title": "供应商必须为每一零件或总成零件都提交一份 APQP 计划和零部件开发方案。"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "14.4",
+        "title": "工装样件（OTS）"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "14.5",
+        "title": "生产和批准认可（PPAP）"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "14.6",
+        "title": "质量目标"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "14.6.1",
+        "title": "供应商必须满足北汽动力所要求的质量标准、质量评鉴标准及评鉴样件数量；要求量产零部件的"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "14.6.2",
+        "title": "供应商提供的量产零部件应满足 0公里 PPM： 10 。量产后第二个顺延年，零部件 0 公里PPM"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "14.6.3",
+        "title": "供应商提供的量产零部件应满足售后 3CS PPM： 20 。量产后第二个顺延年，零部件售后PPM"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "15.2",
+        "title": "包装"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "15.2.1",
+        "title": "供应商使用零部件包装的合理性直接关系到零部件在整个物流过程中的安全、质量、效率及成"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "15.2.2",
+        "title": "供应商包装优先推荐使用可周转包装，包括塑料周转箱、中空板箱、围板箱、金属箱、专用料架"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "15.2.2.1",
+        "title": "精加工状态的缸盖、缸盖必须仿形吸塑托盘包装；毛坯或粗加工状态的缸体、缸盖推荐使用仿"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "15.2.2.2",
+        "title": "零部件净重 ≥ 1.5kg ，或长、宽、高之和 ≥ 50cm 的（管类、垫片类零部件除外），应使用围板箱、"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "15.2.2.3",
+        "title": "塑料周转箱采用聚乙稀（ HDPE ）或聚丙稀（ PP ），满载单箱总重量不得超过 15kg ，优先参照下"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "15.2.2.4",
+        "title": "围板箱、金属箱、专用料架等尺寸应控制在 1200*1000*1150 （长 * 宽 * 高，单位： mm ）以内，底"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "15.2.3",
+        "title": "一次性包装：一次性包装推荐使用瓦楞纸箱"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "15.2.3.1",
+        "title": "瓦楞纸箱必须为双层以上级别瓦楞纸箱，满箱总重控制在 15kg 以内，纸箱满箱状态堆码 2.5m"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "15.2.3.2",
+        "title": "纸箱类型可使用开槽型、套合型和折叠型，推荐优先使用套合型纸箱"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "15.2.3.3",
+        "title": "纸箱尺寸应小于或等于对应的塑料周转箱内尺寸，推荐纸箱外尺寸为 250×150×123mm 、 350×"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "15.2.4",
+        "title": "组托要求：为满载叉车装卸要求及货架存储要求，采用纸箱、塑料箱、中空板箱等包装方式的，"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "15.2.4.1",
+        "title": "组托后整体尺寸应控制在 1200*1000*1150 （长 * 宽 * 高，单位： mm ）以内，组托时纸箱、塑料箱"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "15.2.4.2",
+        "title": "组托后包装应满足码放三层整体无变形与破损，经装卸搬运、运输，存储于仓库半年内不得发"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "15.2.5",
+        "title": "包装数量要求：单箱包装数量原则上不低于 12 件，不超过 200 件，推荐优先选择 12 、 24 、 30 、"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "48",
+        "title": "60 。对于体积较小，包装数量较大的零部件，需在包装箱内部采用捆扎、塑料袋等独立小包装，小包"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "15.2.6",
+        "title": "包装物料内码放要求：零件摆放整齐规范，达到过目知数的目的。"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "15.2.7",
+        "title": "内衬及防护：为提高对内装物的保护，可使用隔挡、衬垫、底座、模切件、塑料袋、气泡袋等附"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "15.2.8",
+        "title": "每种零件具体包装方案须与北汽动力物流管理部门确定，并按要求的时间准备完毕，包装方案详"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "15.2.9",
+        "title": "对于零部件包装更新和变更，供应商必须在北汽动力要求的时间内执行，所有因供应商未按北汽"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "15.2.10",
+        "title": "供应商采用一次性包装的零部件应在外部更换为可回收包装后进入动力总成工厂。"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "15.2.11",
+        "title": "对于海运件 / 空运件 / 进口件 , 包装设计及包装内数量要求要以海关包装标准或以海运 / 空运包装"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "15.3.4",
+        "title": "根据零部件自身的特性和供应距离，零部件供应到北汽动力指定的收货地点有三种供货方式:"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "15.4",
+        "title": "物流成本"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "16",
+        "title": "售后备件"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "16.1",
+        "title": "售后备件明细"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "16.2",
+        "title": "售后备件开发及物流相关要求"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "17",
+        "title": "质量索赔"
+      },
+      {
+        "page": 19,
+        "kind": "appendix",
+        "code": "A",
+        "title": "附件 A 设计职责及责任分工表"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "1",
+        "title": "零件属性"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "2",
+        "title": "双方设计职责要求"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "2.1",
+        "title": "黑盒子件双方设计职责要求如下："
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "2.2",
+        "title": "下列任意情形导致模具修改或重开、增加零部件、试验项目增加或重做、库存零件报废等成本增加"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "2.3",
+        "title": "下列任意情形导致模具修改或重开、增加零部件、试验项目增加或重做、库存零件报废等成本增加"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "3",
+        "title": "零部件开发计划"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "4",
+        "title": "工程联系方式"
+      },
+      {
+        "page": 21,
+        "kind": "appendix",
+        "code": "B",
+        "title": "附件 B 项目一般描述"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "1",
+        "title": "报价零部件清单"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "2",
+        "title": "项目信息"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "3",
+        "title": "项目进度表"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "3.1",
+        "title": "项目主要时间节点见下表。"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "3.2",
+        "title": "随着项目的开展以上节点可能有所变化，任何变动都将与供应商进行沟通，并应以书面形式进行确"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "3.3",
+        "title": "生产纲领："
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "4",
+        "title": "手工样件试制"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "样件的品质要求"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "1",
+        "title": "样件状态：改制件或工装件；"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "2",
+        "title": "性能要求：硬件满足功能要求"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "样件需求"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5",
+        "title": "工装样件试制"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "样件的品质要求"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "3",
+        "title": "样件状态：正式工装零部件；"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "4",
+        "title": "尺寸要求：满足设计要求；"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5",
+        "title": "材料要求：满足设计要求；"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6",
+        "title": "性能要求：满足设计要求。"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "样件需求"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6",
+        "title": "试制样件包装要求"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6.1",
+        "title": "总体原则"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6.1.1",
+        "title": "所有试制样件交样时都必须具有零件包装。"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "7.2",
+        "title": "验收方法及要求"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "7.2.1",
+        "title": "材料检测：检验方法、依据按照图纸和相关标准执行或者双方确认的技术规范；需要确认的原材"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "7.2.2",
+        "title": "尺寸检验：专用检具或手工检验、产品或样件满足图纸或数模要求并出示报告。"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "7.2.3",
+        "title": "性能检测：应附样件的性能检测报告，方法应按图纸和相关标准要求执行。（零部件 DVP&R 应包含"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "8",
+        "title": "入库检验要求"
+      },
+      {
+        "page": 24,
+        "kind": "appendix",
+        "code": "C",
+        "title": "附件 C 法规及规范要求"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "1",
+        "title": "法规要求"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "中国的强制性法规"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "北汽动力的指定要求"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "1.2.1",
+        "title": "该车型拟出口地区的强制性标准或一些特殊要求，供应商必须满足的潜在市场所在国家法规的要"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "1.2.2",
+        "title": "部分市场的相关法律法规要求见下表，供应商必须根据 SOR 中目标市场要求进行分析设计，并设"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范"
+      },
+      {
+        "page": 25,
+        "kind": "appendix",
+        "code": "D",
+        "title": "附件 D 项目递交物"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "1",
+        "title": "北汽动力提供的资料清单"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "北汽动力提供的技术资料清单"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "北汽动力提供的样件清单"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "2",
+        "title": "供应商不同阶段的交付清单"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "2.1",
+        "title": "技术评审阶段的文件交付清单"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "2.2",
+        "title": "OTS 阶段的文件交付清单"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "2.3",
+        "title": "PPAP 阶段的文件交付清单"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "26",
+        "title": "边界样件，如需要"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "27",
+        "title": "PPAP 样件"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "28",
+        "title": "量检具、检测设备清单"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "29",
+        "title": "检具及检查辅具评审文件"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "30",
+        "title": "CCC 证书的复印件，如适用"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "32",
+        "title": "散装材料检查清单，如适用"
+      },
+      {
+        "page": 28,
+        "kind": "appendix",
+        "code": "E",
+        "title": "附件 E 工程设计要求"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "1",
+        "title": "产品要求综述（总体方案）"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "产品技术方案及要求"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "零部件简图及外观轮廓尺寸"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "1",
+        "title": "螺纹直径： M20 × 1.5"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "2",
+        "title": "线束长度： TBD （根据实车布置进行调整）"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "1.3",
+        "title": "产品功能要求"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "1",
+        "title": "支持控制器博世的 NOx 软件模块"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "2",
+        "title": "通讯协议：按照 EMS 系统通讯协议开发"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "3",
+        "title": "工作温度： -40 ℃～ 850 ℃，其中各部分工作温度如下："
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "4",
+        "title": "NOx 起燃时间： TBD"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "5",
+        "title": "NO 响应时间：＜ 1800ms"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "1.4",
+        "title": "尺寸要求"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "1.4.1",
+        "title": "产品外形尺寸及误差要求：按照图纸执行、满足整车装配要求。"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "1.4.2",
+        "title": "特殊要求：若有特殊要求、按照双方确认的要求执行。"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "1.5",
+        "title": "材料要求"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "1.5.1",
+        "title": "产品材料要求：满足产品材料定义、材料标准、按双方确认的产品图样执行。"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "1.5.2",
+        "title": "特殊要求：若有特殊要求、按照双方认可的材料技术要求执行。"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "1.5.3",
+        "title": "材料性能指标见下表。"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "1.5.4",
+        "title": "关键重要件材料见下表。"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "1.5.5",
+        "title": "材料中禁限用物质要求。"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "1.6",
+        "title": "产品重量目标"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "1.7",
+        "title": "失效预防"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "2",
+        "title": "系统职责"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "2.6",
+        "title": "供应商应提供系统标定计划和标定工具给北汽动力，并与北汽动力一起完成实车上的系统标定。"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "2.7",
+        "title": "工程签署前，供应商需对在设计、试验、试装中发现的所有问题进行免费整改，且时间需满足北汽"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "2.8",
+        "title": "供应商需完成所有目标市场的相关认证且无额外费用，并向北汽动力提交相关证书以支持北汽动力"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "3",
+        "title": "外观、光泽、颜色"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "4",
+        "title": "双方数据交换的要求"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "供应商交付北汽动力的产品数据要求"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "北汽动力提供给供应商三维数据的格式要求"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "4.3",
+        "title": "供应商提供技术认可图要求"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "4.3.1",
+        "title": "供应商应提交经组织内部审签并加盖供应商有效印章的纸质技术认可图样一式两份于 2025"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "4.3.2",
+        "title": "如技术认可图存在问题应与供应商沟通，必要时可将问题图样予以驳回，供应商进行完善后重新"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "4.3.3",
+        "title": "当技术认可图样发生设计变更时，供应商应对原图样进行更改后重新提交给北汽动力进行认可。"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "4.3.4",
+        "title": "对于黑、灰盒子件，供应商应提交黑、灰盒子件的总成图样及下级关键零部件图样给北汽动力进"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "1",
+        "title": "结构要素、尺寸、公差配合、形位公差及表面粗糙度；"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "2",
+        "title": "材料牌号、规格等要求；"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "1",
+        "title": "应包含性能和质量要求、试验方法和要求、未注尺寸公差要求等；"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "2",
+        "title": "引用的国际、国家或行业标准应现行有效；"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "3",
+        "title": "可引用供应商的企业标准或相关技术文件，供应商应提供引用的现行有效文件，经确认后随相"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "4.4",
+        "title": "产品数据的有效性"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "4.4.1",
+        "title": "产品数据分为过程数据和正式数据："
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "4.4.2",
+        "title": "产品数据的版本及编号规则："
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "1",
+        "title": "已申请零件号零件的数模及图纸：“零件编号 _ 版本号 ” ；"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "2",
+        "title": "未申请零件号零件的数模及图纸：“项目代号 _ 零件英文名称 _ 版本号 ” 。"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "1",
+        "title": "三维数模：“零件号 / 阶段标记 / 版本号 ” ；"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "2",
+        "title": "二维图纸：“零件号 _DWG/ 阶段标记 / 版本号 ” 。"
+      },
+      {
+        "page": 32,
+        "kind": "appendix",
+        "code": "F",
+        "title": "附件 F 产品设计验证要求"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "1",
+        "title": "产品认证要求"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "产品认证要求"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "1.1.1",
+        "title": "认证要求是模拟车辆 10 年暴露或 25 万公里里程的客户使用工况，从而验证产品可靠性。在整车"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "1.1.2",
+        "title": "零部件 / 子系统的整合和认证由零部件 / 子系统的供应商负责，供应商必须完成指定试验及北汽动"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "1.1.3",
+        "title": "零部件 / 子系统的认证可以由零部件 / 子系统的供应商具体实施，也可在经北汽动力认可后，由供"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "1.1.4",
+        "title": "零部件 / 子系统的供应商必须向北汽动力产品工程师提供一份完整的零部件 / 子系统的试验认证计"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "2",
+        "title": "产品验证要求"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "2.1",
+        "title": "边界及工艺验证（含虚拟验证）"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "2.2",
+        "title": "零部件 DVP"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "2.3",
+        "title": "装车验证"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "2.4",
+        "title": "整机性能试验要求"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "2.5",
+        "title": "整机可靠性试验要求"
+      },
+      {
+        "page": 35,
+        "kind": "appendix",
+        "code": "G",
+        "title": "附件 G 重量要求"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "1",
+        "title": "重量要求"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "供应商提供的产品重量必须满足目标重量要求以及动力总成重量要求，在每个项目阶段，供应商必"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "当产品的重量由于设计或需求发生变更时，重量目标将会做相应的调整。"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "2",
+        "title": "减重"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "2.1",
+        "title": "供应商必须考虑由北汽动力提出的轻量化提议来进一步减轻重量，并以此提供的减重替代品进行成"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "2.2",
+        "title": "在开发过程中，供应商需根据北汽动力产品工程提出的意见和要求，持续优化产品来尽可能降低重"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "3",
+        "title": "零件重量"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [
+        {
+          "appendix_scope": "",
+          "parent_section_code": "15.2.2.4",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "0.5"
+          ],
+          "expected_direct_children": [
+            "0"
+          ]
+        },
+        {
+          "appendix_scope": "",
+          "parent_section_code": "15.2.4.1",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "0.5"
+          ],
+          "expected_direct_children": [
+            "0"
+          ]
+        }
+      ],
+      "page_counts": {
+        "16": 1,
+        "17": 1
+      }
+    },
+    "duplicate_scope_summary": {
+      "duplicates": [
+        {
+          "scoped_code": "B:2",
+          "appendix_scope": "B",
+          "section_code": "2",
+          "raw_duplicate_count": 2,
+          "section_instance_key_count": 3,
+          "requirement_row_count": 2
+        }
+      ]
+    },
+    "baseline_delta": {
+      "requirements_count": 172,
+      "sections_count": 294,
+      "requirements_drift": -47,
+      "sections_drift": 16,
+      "table_row_issue_count": 0,
+      "complex_table_signal": true,
+      "hotspot_section_code": "duplicate_scoped_codes"
+    },
+    "page_hotspots": [
+      {
+        "page": 2,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pypdf",
+        "quality_score": -1.28,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 6,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pypdf",
+        "quality_score": -999.0,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 17,
+        "requirement_count": 17,
+        "missing_local_clause_count": 1,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.3979,
+        "table_count": 1,
+        "enum_signal": 1
+      },
+      {
+        "page": 16,
+        "requirement_count": 10,
+        "missing_local_clause_count": 1,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.2826,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 28,
+        "requirement_count": 20,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.4939,
+        "table_count": 0,
+        "enum_signal": 16
+      },
+      {
+        "page": 22,
+        "requirement_count": 16,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.96,
+        "table_count": 2,
+        "enum_signal": 5
+      },
+      {
+        "page": 30,
+        "requirement_count": 16,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.8058,
+        "table_count": 1,
+        "enum_signal": 4
+      },
+      {
+        "page": 15,
+        "requirement_count": 15,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 2.2324,
+        "table_count": 0,
+        "enum_signal": 0
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [
+        2,
+        6
+      ],
+      "selected_engine_pages": {
+        "pymupdf4llm": 21,
+        "pypdf": 12,
+        "pymupdf_raw": 2
+      }
+    },
+    "expected_structure_summary": [
+      {
+        "appendix_scope": "",
+        "parent_section_code": "15.2.2.4",
+        "expected_children": [
+          "0"
+        ],
+        "summary": "15.2.2.4 should expose local anchors: 0"
+      },
+      {
+        "appendix_scope": "",
+        "parent_section_code": "15.2.4.1",
+        "expected_children": [
+          "0"
+        ],
+        "summary": "15.2.4.1 should expose local anchors: 0"
+      },
+      {
+        "appendix_scope": "B",
+        "parent_section_code": "2",
+        "expected_children": [],
+        "summary": "B:2 should stop colliding at raw outline level or become explicitly instance-safe."
+      }
+    ]
+  },
+  "findings": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "",
+      "impacted_section": "15.2.2.4",
+      "expected_structure_summary": "15.2.2.4 should expose local section anchors such as 0",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[15.2.2.4]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "0.5"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "",
+      "impacted_section": "15.2.4.1",
+      "expected_structure_summary": "15.2.4.1 should expose local section anchors such as 0",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[15.2.4.1]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "0.5"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complex_table_clause_binding_drift",
+      "category": "table_and_clause_binding",
+      "issue_type": "complex_table_clause_binding_drift",
+      "impacted_scope": "",
+      "impacted_section": "duplicate_scoped_codes",
+      "expected_structure_summary": "Complex-table pages should keep stable section ownership while preserving row coverage.",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.",
+      "evidence_refs": [
+        "baseline_delta",
+        "page_hotspots"
+      ],
+      "confidence": 0.76,
+      "needs_human_review": false,
+      "details": {
+        "requirements_drift": -47,
+        "table_row_issue_count": 0,
+        "hotspot_section_code": "duplicate_scoped_codes"
+      }
+    },
+    {
+      "pattern_id": "raw_scoped_code_namespace_collision",
+      "category": "scope_and_namespace",
+      "issue_type": "duplicate_section_code",
+      "impacted_scope": "B",
+      "impacted_section": "2",
+      "expected_structure_summary": "Duplicate scoped codes should map to an intentional namespace or collapse upstream.",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Tighten appendix scope / section instance generation before relying on duplicate scoped codes.",
+      "evidence_refs": [
+        "issue_rollup[duplicate_section_code]"
+      ],
+      "confidence": 0.58,
+      "needs_human_review": false,
+      "details": {
+        "detail": "duplicate_count=2"
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "required_code_missing",
+      "impacted_scope": "F",
+      "impacted_section": "1",
+      "expected_structure_summary": "Missing or drifted section anchors should be restored through generic heading recovery.",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "issue_rollup[required_code_missing]"
+      ],
+      "confidence": 0.58,
+      "needs_human_review": false,
+      "details": {
+        "detail": "profile=sor_baic_core"
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "required_code_missing",
+      "impacted_scope": "G",
+      "impacted_section": "1",
+      "expected_structure_summary": "Missing or drifted section anchors should be restored through generic heading recovery.",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "issue_rollup[required_code_missing]"
+      ],
+      "confidence": 0.58,
+      "needs_human_review": false,
+      "details": {
+        "detail": "profile=sor_baic_core"
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "required_title_mismatch",
+      "impacted_scope": "E",
+      "impacted_section": "2",
+      "expected_structure_summary": "Missing or drifted section anchors should be restored through generic heading recovery.",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "issue_rollup[required_title_mismatch]"
+      ],
+      "confidence": 0.58,
+      "needs_human_review": false,
+      "details": {
+        "detail": "title '线束长度： TBD （根据实车布置进行调整）' does not contain '系统职责'"
+      }
+    },
+    {
+      "pattern_id": "complex_table_clause_binding_drift",
+      "category": "table_and_clause_binding",
+      "issue_type": "requirement_count_drift",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Requirement counts should return to the benchmark band without losing section anchors.",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.",
+      "evidence_refs": [
+        "issue_rollup[requirement_count_drift]"
+      ],
+      "confidence": 0.58,
+      "needs_human_review": false,
+      "details": {
+        "detail": "requirements=172 expected=219 drift=47"
+      }
+    },
+    {
+      "pattern_id": "raw_scoped_code_namespace_collision",
+      "category": "scope_and_namespace",
+      "issue_type": "raw_duplicate_scoped_code",
+      "impacted_scope": "B",
+      "impacted_section": "2",
+      "expected_structure_summary": "Duplicate scoped codes should either collapse upstream or remain explicitly instance-safe before gating.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Tighten appendix scope / section instance generation before relying on duplicate scoped codes.",
+      "evidence_refs": [
+        "duplicate_scope_summary.duplicates[B:2]"
+      ],
+      "confidence": 0.82,
+      "needs_human_review": true,
+      "details": {
+        "raw_duplicate_count": 2,
+        "section_instance_key_count": 3,
+        "requirement_row_count": 2
+      }
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "issue_type": "parser_low_confidence_hotspot",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Low-confidence pages should be stabilized before downstream clause binding is tuned.",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "evidence_refs": [
+        "parser_diagnostics.low_confidence_pages",
+        "page_hotspots"
+      ],
+      "confidence": 0.62,
+      "needs_human_review": true,
+      "details": {
+        "low_confidence_pages": [
+          2,
+          6
+        ]
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "pattern_name": "Local clause heading not promoted to section anchor",
+      "category": "heading_recovery",
+      "doc_key": "sor_baic_core",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "issue_type": "local_clause_section_missing",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "benchmark_impact": [
+        "regression-suite"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "complex_table_clause_binding_drift",
+      "pattern_name": "Complex table rewrite drifts clause binding",
+      "category": "table_and_clause_binding",
+      "doc_key": "sor_baic_core",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "issue_type": "complex_table_clause_binding_drift",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.",
+      "benchmark_impact": [
+        "regression-suite"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "raw_scoped_code_namespace_collision",
+      "pattern_name": "Raw scoped code namespace collision",
+      "category": "scope_and_namespace",
+      "doc_key": "sor_baic_core",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "issue_type": "duplicate_section_code",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Tighten appendix scope / section instance generation before relying on duplicate scoped codes.",
+      "benchmark_impact": [
+        "regression-suite"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "pattern_name": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "doc_key": "sor_baic_core",
+      "pdf_name": "SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf",
+      "issue_type": "parser_low_confidence_hotspot",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "benchmark_impact": [
+        "regression-suite"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf\",\n  \"issue_rollup\": [\n    {\n      \"gate\": \"quality_gate\",\n      \"pdf_name\": \"SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf\",\n      \"profile\": \"sor_baic_core\",\n      \"category\": \"benchmark_coverage\",\n      \"category_label\": \"Benchmark Coverage\",\n      \"issue_type\": \"required_code_missing\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"F\",\n      \"section_code\": \"1\",\n      \"detail\": \"profile=sor_baic_core\"\n    },\n    {\n      \"gate\": \"quality_gate\",\n      \"pdf_name\": \"SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf\",\n      \"profile\": \"sor_baic_core\",\n      \"category\": \"benchmark_coverage\",\n      \"category_label\": \"Benchmark Coverage\",\n      \"issue_type\": \"required_code_missing\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"G\",\n      \"section_code\": \"1\",\n      \"detail\": \"profile=sor_baic_core\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf\",\n      \"profile\": \"sor_baic_core\",\n      \"category\": \"benchmark_coverage\",\n      \"category_label\": \"Benchmark Coverage\",\n      \"issue_type\": \"required_code_missing\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"F\",\n      \"section_code\": \"1\",\n      \"detail\": \"required scoped code missing\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf\",\n      \"profile\": \"sor_baic_core\",\n      \"category\": \"benchmark_coverage\",\n      \"category_label\": \"Benchmark Coverage\",\n      \"issue_type\": \"required_code_missing\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"G\",\n      \"section_code\": \"1\",\n      \"detail\": \"required scoped code missing\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf\",\n      \"profile\": \"sor_baic_core\",\n      \"category\": \"benchmark_coverage\",\n      \"category_label\": \"Benchmark Coverage\",\n      \"issue_type\": \"required_title_mismatch\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"E\",\n      \"section_code\": \"2\",\n      \"detail\": \"title '线束长度： TBD （根据实车布置进行调整）' does not contain '系统职责'\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf\",\n      \"profile\": \"sor_baic_core\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"requirement_count_too_low\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"\",\n      \"detail\": \"requirements=172 min=180\"\n    },\n    {\n      \"gate\": \"quality_gate\",\n      \"pdf_name\": \"SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf\",\n      \"profile\": \"sor_baic_core\",\n      \"category\": \"outline_structure\",\n      \"category_label\": \"Outline Structure\",\n      \"issue_type\": \"duplicate_section_code\",\n      \"severity\": \"medium\",\n      \"appendix_scope\": \"B\",\n      \"section_code\": \"2\",\n      \"detail\": \"duplicate_count=2\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf\",\n      \"profile\": \"sor_baic_core\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"requirement_count_drift\",\n      \"severity\": \"medium\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"\",\n      \"detail\": \"requirements=172 expected=219 drift=47\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf\",\n      \"profile\": \"sor_baic_core\",\n      \"category\": \"outline_structure\",\n      \"category_label\": \"Outline Structure\",\n      \"issue_type\": \"section_consistency_issue_limit\",\n      \"severity\": \"medium\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"\",\n      \"detail\": \"consistency_issues=2 max=1\"\n    }\n  ],\n  \"findings\": [\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"15.2.2.4\",\n      \"expected_structure_summary\": \"15.2.2.4 should expose local section anchors such as 0\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[15.2.2.4]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"0.5\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"15.2.4.1\",\n      \"expected_structure_summary\": \"15.2.4.1 should expose local section anchors such as 0\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[15.2.4.1]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"0.5\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"complex_table_clause_binding_drift\",\n      \"category\": \"table_and_clause_binding\",\n      \"issue_type\": \"complex_table_clause_binding_drift\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"duplicate_scoped_codes\",\n      \"expected_structure_summary\": \"Complex-table pages should keep stable section ownership while preserving row coverage.\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.\",\n      \"evidence_refs\": [\n        \"baseline_delta\",\n        \"page_hotspots\"\n      ],\n      \"confidence\": 0.76,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"requirements_drift\": -47,\n        \"table_row_issue_count\": 0,\n        \"hotspot_section_code\": \"duplicate_scoped_codes\"\n      }\n    },\n    {\n      \"pattern_id\": \"raw_scoped_code_namespace_collision\",\n      \"category\": \"scope_and_namespace\",\n      \"issue_type\": \"duplicate_section_code\",\n      \"impacted_scope\": \"B\",\n      \"impacted_section\": \"2\",\n      \"expected_structure_summary\": \"Duplicate scoped codes should map to an intentional namespace or collapse upstream.\",\n      \"suspected_layer\": \"extractor\",\n      \"recommended_fix_direction\": \"Tighten appendix scope / section instance generation before relying on duplicate scoped codes.\",\n      \"evidence_refs\": [\n        \"issue_rollup[duplicate_section_code]\"\n      ],\n      \"confidence\": 0.58,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"detail\": \"duplicate_count=2\"\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"required_code_missing\",\n      \"impacted_scope\": \"F\",\n      \"impacted_section\": \"1\",\n      \"expected_structure_summary\": \"Missing or drifted section anchors should be restored through generic heading recovery.\",\n      \"suspected_layer\": \"extractor\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"issue_rollup[required_code_missing]\"\n      ],\n      \"confidence\": 0.58,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"detail\": \"profile=sor_baic_core\"\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"required_code_missing\",\n      \"impacted_scope\": \"G\",\n      \"impacted_section\": \"1\",\n      \"expected_structure_summary\": \"Missing or drifted section anchors should be restored through generic heading recovery.\",\n      \"suspected_layer\": \"extractor\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"issue_rollup[required_code_missing]\"\n      ],\n      \"confidence\": 0.58,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"detail\": \"profile=sor_baic_core\"\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"required_title_mismatch\",\n      \"impacted_scope\": \"E\",\n      \"impacted_section\": \"2\",\n      \"expected_structure_summary\": \"Missing or drifted section anchors should be restored through generic heading recovery.\",\n      \"suspected_layer\": \"extractor\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"issue_rollup[required_title_mismatch]\"\n      ],\n      \"confidence\": 0.58,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"detail\": \"title '线束长度： TBD （根据实车布置进行调整）' does not contain '系统职责'\"\n      }\n    },\n    {\n      \"pattern_id\": \"complex_table_clause_binding_drift\",\n      \"category\": \"table_and_clause_binding\",\n      \"issue_type\": \"requirement_count_drift\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Requirement counts should return to the benchmark band without losing section anchors.\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.\",\n      \"evidence_refs\": [\n        \"issue_rollup[requirement_count_drift]\"\n      ],\n      \"confidence\": 0.58,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"detail\": \"requirements=172 expected=219 drift=47\"\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 2,\n      \"requirement_count\": 0,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": -1.28,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 6,\n      \"requirement_count\": 0,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": -999.0,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 17,\n      \"requirement_count\": 17,\n      \"missing_local_clause_count\": 1,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 2.3979,\n      \"table_count\": 1,\n      \"enum_signal\": 1\n    },\n    {\n      \"page\": 16,\n      \"requirement_count\": 10,\n      \"missing_local_clause_count\": 1,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 2.2826,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 28,\n      \"requirement_count\": 20,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.4939,\n      \"table_count\": 0,\n      \"enum_signal\": 16\n    },\n    {\n      \"page\": 22,\n      \"requirement_count\": 16,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.96,\n      \"table_count\": 2,\n      \"enum_signal\": 5\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [\n      {\n        \"appendix_scope\": \"\",\n        \"parent_section_code\": \"15.2.2.4\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"0.5\"\n        ],\n        \"expected_direct_children\": [\n          \"0\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"\",\n        \"parent_section_code\": \"15.2.4.1\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"0.5\"\n        ],\n        \"expected_direct_children\": [\n          \"0\"\n        ]\n      }\n    ],\n    \"page_counts\": {\n      \"16\": 1,\n      \"17\": 1\n    }\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": [\n      {\n        \"scoped_code\": \"B:2\",\n        \"appendix_scope\": \"B\",\n        \"section_code\": \"2\",\n        \"raw_duplicate_count\": 2,\n        \"section_instance_key_count\": 3,\n        \"requirement_row_count\": 2\n      }\n    ]\n  }\n}"
+    }
+  ]
+}
