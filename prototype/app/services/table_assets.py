@@ -11,6 +11,7 @@ from typing import Any
 from PIL import Image as PILImage
 from PIL import ImageChops, ImageDraw, ImageFont
 
+from app.services.appendix_scopes import is_test_outline_scope_value, normalize_scope_id
 from app.services.complex_table_mode import hydrate_complex_row_metadata, is_complex_table_row
 
 try:
@@ -1851,11 +1852,13 @@ def _infer_contextual_single_row_header(
     if len(cells) < 2:
         return []
 
-    appendix_scope = str(row.get("appendix_scope") or "").strip().upper()
+    appendix_scope = normalize_scope_id(str(row.get("appendix_scope") or ""))
+    appendix_title = str(row.get("appendix_title") or "").strip()
     parent_code = str(row.get("parent_section_code") or "").strip().upper()
     context_text = " ".join(
         str(value or "").strip()
         for value in (
+            appendix_title,
             table_title,
             row.get("table_title"),
             row.get("parent_section_title"),
@@ -1866,9 +1869,12 @@ def _infer_contextual_single_row_header(
         if str(value or "").strip()
     )
     if (
-        appendix_scope in {"T", "U", "V", "Y"}
-        or parent_code.startswith(("T.", "U.", "V.", "Y."))
+        is_test_outline_scope_value(appendix_scope)
+        or is_test_outline_scope_value(appendix_title)
+        or is_test_outline_scope_value(parent_code.split(".", 1)[0])
         or "试验大纲" in context_text
+        or "匹配评估表" in context_text
+        or "测试分组" in context_text
     ):
         return _infer_test_outline_single_row_headers(cells)
     return []

@@ -18,18 +18,23 @@ from app.services.extractor import (
     _shape_subblock,
     _split_embedded_local_clause_line,
     _split_block_by_bullets,
+    analyze_section_consistency,
 )
 from app.services.extraction_preview import _build_complete_requirement_entries
+from app.services.extraction_preview import _build_canonical_section_rows
+from app.services.extraction_preview import _build_scope_catalog
 from app.services.extraction_preview import _attach_requirement_section_context
 from app.services.extraction_preview import _assign_section_instance_keys
 from app.services.extraction_preview import _collect_test_outline_markers
 from app.services.extraction_preview import _collect_section_instance_groups
+from app.services.extraction_preview import counts_toward_fidelity_section
 from app.services.extraction_preview import _extract_appendix_scope
 from app.services.extraction_preview import _extract_explicit_section_code
 from app.services.extraction_preview import _extract_section_code
 from app.services.extraction_preview import _extract_section_title
 from app.services.extraction_preview import _join_title_section_key
 from app.services.extraction_preview import _preview_section_row_sort_key
+from app.services.extraction_preview import _resolve_scope_info
 from app.services.extraction_preview import _resolve_outline_section_instance_key
 from app.services.extraction_preview import _split_requirement_preview_rows
 
@@ -207,6 +212,111 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
     def test_preview_extracts_real_appendix_title_scope_from_anchor(self) -> None:
         anchor = "Page 29 | Appendix 测试分组 / Test Groups（推荐） | Section 1 组1"
         self.assertEqual(_extract_appendix_scope(anchor), "测试分组 / Test Groups（推荐）")
+
+    def test_scope_catalog_maps_test_outline_titles_to_canonical_sub_ids(self) -> None:
+        catalog = _build_scope_catalog(
+            section_outline=[
+                {
+                    "appendix_scope": "",
+                    "section_code": "1",
+                    "section_title": "概述",
+                    "source_page_start": 1,
+                },
+                {
+                    "appendix_scope": "SUB1",
+                    "section_code": "",
+                    "section_title": "附件1 软件开发要求",
+                    "source_page_start": 10,
+                },
+            ],
+            appendix_markers=[],
+            test_outline_markers=[
+                {
+                    "appendix_scope": "主动前减振器试验大纲",
+                    "section_title": "主动前减振器试验大纲",
+                    "source_page_start": 20,
+                },
+                {
+                    "appendix_scope": "主动后减振器试验大纲",
+                    "section_title": "主动后减振器试验大纲",
+                    "source_page_start": 30,
+                },
+            ],
+            requirements=[],
+        )
+
+        self.assertEqual(_resolve_scope_info(catalog, "")["scope_id"], "MAIN")
+        self.assertEqual(_resolve_scope_info(catalog, "主动前减振器试验大纲")["scope_id"], "SUB2")
+        self.assertEqual(_resolve_scope_info(catalog, "T")["scope_id"], "SUB2")
+        self.assertEqual(_resolve_scope_info(catalog, "主动后减振器试验大纲")["scope_id"], "SUB3")
+
+    def test_canonical_section_rows_add_scope_roots_and_structural_levels(self) -> None:
+        sections = [
+            {
+                "appendix_scope": "MAIN",
+                "appendix_title": "正文（Main）",
+                "section_code": "1",
+                "section_key": "MAIN:1",
+                "section_instance_key": "MAIN:1",
+                "section_title": "概述",
+                "section_level": 1,
+                "parent_section_code": "",
+                "parent_section_key": "",
+                "outline_order": 0,
+                "source_page_start": 1,
+                "source_page_end": 1,
+                "requirement_count": 1,
+            },
+            {
+                "appendix_scope": "SUB1",
+                "appendix_title": "主动前减振器试验大纲",
+                "section_code": "1",
+                "section_key": "SUB1:1",
+                "section_instance_key": "SUB1:1",
+                "section_title": "外观检查",
+                "section_level": 1,
+                "parent_section_code": "",
+                "parent_section_key": "",
+                "outline_order": 1,
+                "source_page_start": 20,
+                "source_page_end": 20,
+                "requirement_count": 1,
+            },
+        ]
+
+        ordered, _ = _build_canonical_section_rows(sections, include_scope_roots=True)
+
+        main_root = next(row for row in ordered if row.get("is_appendix_scope_root") and row.get("appendix_scope") == "MAIN")
+        sub_root = next(row for row in ordered if row.get("is_appendix_scope_root") and row.get("appendix_scope") == "SUB1")
+        main_child = next(row for row in ordered if row.get("section_key") == "MAIN:1")
+        sub_child = next(row for row in ordered if row.get("section_key") == "SUB1:1")
+
+        self.assertEqual(main_root["structural_level"], 0)
+        self.assertEqual(sub_root["structural_level"], 0)
+        self.assertEqual(main_child["structural_level"], 1)
+        self.assertEqual(sub_child["structural_level"], 1)
+        self.assertEqual(main_child["numbering_level"], 1)
+        self.assertEqual(sub_child["structural_parent_section_key"], "SUB1:ROOT")
+
+    def test_main_synthetic_sections_do_not_count_toward_fidelity(self) -> None:
+        self.assertFalse(
+            counts_toward_fidelity_section(
+                {
+                    "appendix_scope": "MAIN",
+                    "section_code": "12",
+                    "structural_kind": "synthetic",
+                }
+            )
+        )
+        self.assertTrue(
+            counts_toward_fidelity_section(
+                {
+                    "appendix_scope": "SUB1",
+                    "section_code": "12",
+                    "structural_kind": "synthetic",
+                }
+            )
+        )
 
     def test_embedded_numeric_table_values_do_not_split_into_fake_local_clauses(self) -> None:
         line = (
@@ -1775,6 +1885,42 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         )
 
         self.assertEqual(rows, [])
+
+    def test_section_consistency_marks_source_duplicate_and_missing_scope_root(self) -> None:
+        consistency = analyze_section_consistency(
+            [
+                {
+                    "appendix_scope": "SUB1",
+                    "appendix_title": "主动前减振器试验大纲",
+                    "section_code": "63",
+                    "parent_section_code": "",
+                    "section_title": "试验项目A",
+                    "source_page_start": 20,
+                },
+                {
+                    "appendix_scope": "SUB1",
+                    "appendix_title": "主动前减振器试验大纲",
+                    "section_code": "63",
+                    "parent_section_code": "",
+                    "section_title": "试验项目B",
+                    "source_page_start": 21,
+                },
+                {
+                    "appendix_scope": "SUB1",
+                    "appendix_title": "主动前减振器试验大纲",
+                    "section_code": "64",
+                    "parent_section_code": "",
+                    "section_title": "试验项目C",
+                    "source_page_start": 22,
+                },
+            ]
+        )
+
+        issue_types = {item["issue_type"] for item in consistency["issues"]}
+        self.assertIn("source_faithful_duplicate_code", issue_types)
+        self.assertIn("missing_scope_root", issue_types)
+        self.assertEqual(consistency["source_duplicate_code_count"], 1)
+        self.assertEqual(consistency["missing_scope_root_count"], 1)
 
 
 if __name__ == "__main__":

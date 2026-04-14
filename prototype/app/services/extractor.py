@@ -3,6 +3,23 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.services.appendix_scopes import (
+    MAIN_SCOPE_ID,
+    is_test_outline_scope_value,
+    is_reference_only_test_outline_scope,
+    is_synthetic_scope,
+    normalize_scope_id,
+    normalize_test_outline_scope,
+    scope_sort_key,
+    test_outline_scope_identity,
+    TEST_OUTLINE_SCOPE_ACCUMULATOR,
+    TEST_OUTLINE_SCOPE_ELECTRIC,
+    TEST_OUTLINE_SCOPE_FRONT_DAMPER,
+    TEST_OUTLINE_SCOPE_GROUPS,
+    TEST_OUTLINE_SCOPE_REAR_DAMPER,
+    TEST_OUTLINE_SCOPE_VEHICLE_WIRING,
+)
+
 
 DOT_LEADER_RE = re.compile(r"\.{5,}|…{3,}")
 PAGE_MARK_RE = re.compile(r"^(?:page\s*)?\d+\s*(?:of|/)\s*\d+$", re.I)
@@ -90,34 +107,13 @@ DVP_ENUM_LINE_RE = re.compile(r"^\s*((?:[5-9]|1[0-5])(?:\.\d+)*)\s*[）)、)]")
 DVP_ENUM_INLINE_RE = re.compile(r"(?<![（(])((?:[5-9]|1[0-5])(?:\.\d+)*)\s*[）)、)]")
 DVP_RESET_ENUM_LINE_RE = re.compile(r"^\s*((?:[5-9]|1[0-5])(?:\.\d+)*)\s*、\s*(.+)$")
 TEST_OUTLINE_SCOPE_TITLES: list[tuple[re.Pattern[str], str, str]] = [
-    (re.compile(r"主动前减振器试验大纲", re.I), "T", "主动前减振器试验大纲"),
-    (re.compile(r"主动后减振器试验大纲", re.I), "U", "主动后减振器试验大纲"),
-    (re.compile(r"蓄能器试验大纲", re.I), "V", "蓄能器试验大纲"),
-    (re.compile(r"整车用电器与线束匹配评估表", re.I), "整车用电器与线束匹配评估表", "整车用电器与线束匹配评估表"),
-    (re.compile(r"测试分组\s*/\s*test groups", re.I), "测试分组 / Test Groups（推荐）", "测试分组 / Test Groups（推荐）"),
-    (re.compile(r"用电器试验大纲", re.I), "用电器试验大纲", "用电器试验大纲"),
+    (re.compile(r"主动前减振器试验大纲", re.I), TEST_OUTLINE_SCOPE_FRONT_DAMPER, TEST_OUTLINE_SCOPE_FRONT_DAMPER),
+    (re.compile(r"主动后减振器试验大纲", re.I), TEST_OUTLINE_SCOPE_REAR_DAMPER, TEST_OUTLINE_SCOPE_REAR_DAMPER),
+    (re.compile(r"蓄能器试验大纲", re.I), TEST_OUTLINE_SCOPE_ACCUMULATOR, TEST_OUTLINE_SCOPE_ACCUMULATOR),
+    (re.compile(r"整车用电器与线束匹配评估表", re.I), TEST_OUTLINE_SCOPE_VEHICLE_WIRING, TEST_OUTLINE_SCOPE_VEHICLE_WIRING),
+    (re.compile(r"测试分组\s*/\s*test groups", re.I), TEST_OUTLINE_SCOPE_GROUPS, TEST_OUTLINE_SCOPE_GROUPS),
+    (re.compile(r"用电器试验大纲", re.I), TEST_OUTLINE_SCOPE_ELECTRIC, TEST_OUTLINE_SCOPE_ELECTRIC),
 ]
-LEGACY_TEST_OUTLINE_SCOPE_ALIASES = {
-    "W": "整车用电器与线束匹配评估表",
-    "X": "测试分组 / Test Groups（推荐）",
-    "Y": "用电器试验大纲",
-}
-
-
-def _normalize_test_outline_scope(scope: str) -> str:
-    value = str(scope or "").strip()
-    if not value:
-        return ""
-    return LEGACY_TEST_OUTLINE_SCOPE_ALIASES.get(value.upper(), value)
-
-
-def _test_outline_scope_identity(scope: str) -> str:
-    value = _normalize_test_outline_scope(scope)
-    return re.sub(r"\s+", " ", value).strip().upper()
-
-
-def _is_reference_only_test_outline_scope(scope: str) -> bool:
-    return _test_outline_scope_identity(scope) == _test_outline_scope_identity("测试分组 / Test Groups（推荐）")
 
 MODAL_PATTERNS = [
     re.compile(pattern, re.I)
@@ -301,37 +297,100 @@ def extract_section_outline(segments: list[dict[str, Any]]) -> list[dict[str, An
 
 def analyze_section_consistency(section_outline: list[dict[str, Any]]) -> dict[str, Any]:
     issues: list[dict[str, Any]] = []
-    code_counter: dict[str, int] = {}
     parsed_rows: list[dict[str, Any]] = []
+    duplicate_groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    scope_rows: dict[str, list[dict[str, Any]]] = {}
 
     for row in section_outline:
-        code = str(row.get("section_code") or "").strip()
-        if not code:
+        appendix_scope = normalize_scope_id(str(row.get("appendix_scope") or ""))
+        section_code = str(row.get("section_code") or "").strip()
+        parent_section_code = str(row.get("parent_section_code") or "").strip()
+        parsed = {
+            "appendix_scope": appendix_scope,
+            "appendix_title": str(row.get("appendix_title") or ""),
+            "section_code": section_code,
+            "parent_section_code": parent_section_code,
+            "section_tuple": _parse_section_code_tuple(section_code),
+            "source_page_start": _safe_int(row.get("source_page_start")),
+            "section_title": str(row.get("section_title") or ""),
+        }
+        scope_rows.setdefault(appendix_scope, []).append(parsed)
+        if not section_code:
             continue
-        appendix_scope = str(row.get("appendix_scope") or "").strip().upper()
-        scoped_code = f"{appendix_scope}:{code}" if appendix_scope else code
-        code_counter[scoped_code] = code_counter.get(scoped_code, 0) + 1
-        parsed_rows.append(
+        parsed_rows.append(parsed)
+        duplicate_groups.setdefault((appendix_scope, parent_section_code, section_code), []).append(parsed)
+
+    duplicate_code_count = 0
+    source_duplicate_code_count = 0
+    for (appendix_scope, parent_section_code, section_code), rows in sorted(duplicate_groups.items()):
+        count = len(rows)
+        if count <= 1:
+            continue
+        issue_type = _classify_duplicate_code_issue(
+            appendix_scope=appendix_scope,
+            parent_section_code=parent_section_code,
+            rows=rows,
+        )
+        if issue_type == "duplicate_code":
+            duplicate_code_count += 1
+            severity = "HIGH" if count >= 3 else "MEDIUM"
+        else:
+            source_duplicate_code_count += 1
+            severity = "INFO"
+        title_preview = " / ".join(
+            sorted(
+                {
+                    str(item.get("section_title") or "").strip()
+                    for item in rows
+                    if str(item.get("section_title") or "").strip()
+                }
+            )[:3]
+        )
+        detail_parts = [f"duplicate_count={count}"]
+        if parent_section_code:
+            detail_parts.append(f"parent={parent_section_code}")
+        if title_preview:
+            detail_parts.append(f"titles={title_preview}")
+        issues.append(
             {
+                "issue_type": issue_type,
+                "severity": severity,
                 "appendix_scope": appendix_scope,
-                "scoped_code": scoped_code,
-                "section_code": code,
-                "section_tuple": _parse_section_code_tuple(code),
-                "source_page_start": _safe_int(row.get("source_page_start")),
-                "section_title": str(row.get("section_title") or ""),
+                "section_code": section_code,
+                "detail": "; ".join(detail_parts),
             }
         )
 
-    duplicate_codes = {code: count for code, count in code_counter.items() if count > 1}
-    for scoped_code, count in sorted(duplicate_codes.items()):
-        appendix_scope, section_code = _split_scoped_code(scoped_code)
+    missing_scope_root_count = 0
+    for appendix_scope, rows in sorted(scope_rows.items(), key=lambda item: _appendix_scope_sort_key(item[0])):
+        if appendix_scope == MAIN_SCOPE_ID:
+            continue
+        has_explicit_root = any(
+            not str(row.get("section_code") or "").strip() and str(row.get("section_title") or "").strip()
+            for row in rows
+        )
+        top_level_codes = [
+            str(row.get("section_code") or "").strip()
+            for row in rows
+            if len(tuple(row.get("section_tuple") or ())) == 1 and str(row.get("section_code") or "").strip()
+        ]
+        if has_explicit_root or not top_level_codes:
+            continue
+        missing_scope_root_count += 1
+        scope_title = next(
+            (str(row.get("appendix_title") or "").strip() for row in rows if str(row.get("appendix_title") or "").strip()),
+            "",
+        )
+        detail = f"top_level_children={','.join(top_level_codes[:6])}"
+        if scope_title:
+            detail = f"title={scope_title}; {detail}"
         issues.append(
             {
-                "issue_type": "duplicate_code",
-                "severity": "HIGH" if count >= 3 else "MEDIUM",
+                "issue_type": "missing_scope_root",
+                "severity": "MEDIUM",
                 "appendix_scope": appendix_scope,
-                "section_code": section_code,
-                "detail": f"duplicate_count={count}",
+                "section_code": "",
+                "detail": detail,
             }
         )
 
@@ -416,11 +475,40 @@ def analyze_section_consistency(section_outline: list[dict[str, Any]]) -> dict[s
 
     return {
         "total_issues": len(issues),
-        "duplicate_code_count": len(duplicate_codes),
+        "duplicate_code_count": duplicate_code_count,
+        "source_duplicate_code_count": source_duplicate_code_count,
+        "missing_scope_root_count": missing_scope_root_count,
         "missing_sibling_group_count": missing_group_count,
         "issue_type_counts": issue_counter,
         "issues": issues,
     }
+
+
+def _classify_duplicate_code_issue(
+    *,
+    appendix_scope: str,
+    parent_section_code: str,
+    rows: list[dict[str, Any]],
+) -> str:
+    if normalize_scope_id(appendix_scope) != MAIN_SCOPE_ID:
+        return "source_faithful_duplicate_code"
+    if parent_section_code:
+        return "source_faithful_duplicate_code"
+    title_norms = {
+        _normalized_section_title(str(row.get("section_title") or ""))
+        for row in rows
+        if str(row.get("section_title") or "").strip()
+    }
+    if len(title_norms) > 1:
+        return "source_faithful_duplicate_code"
+    scope_titles = {
+        str(row.get("appendix_title") or "").strip()
+        for row in rows
+        if str(row.get("appendix_title") or "").strip()
+    }
+    if any(is_test_outline_scope_value(title) for title in scope_titles):
+        return "source_faithful_duplicate_code"
+    return "duplicate_code"
 
 
 def _safe_int(value: Any) -> int:
@@ -4406,13 +4494,8 @@ def _section_code_order_key(section_code: str) -> tuple[int, ...]:
 
 
 def _appendix_scope_sort_key(scope: str) -> tuple[int, int]:
-    normalized = str(scope or "").strip().upper()
-    if not normalized:
-        return (0, 0)
-    first = normalized[:1]
-    if "A" <= first <= "Z":
-        return (1, ord(first) - ord("A"))
-    return (2, 0)
+    rank, order, _ = scope_sort_key(scope)
+    return (rank, order)
 
 
 def _is_plausible_section_transition(
@@ -4973,10 +5056,6 @@ def _normalized_section_title(title: str) -> str:
     return value
 
 
-def _is_synthetic_scope(scope: str) -> bool:
-    return bool(re.fullmatch(r"SUB\d+", str(scope or "").strip().upper()))
-
-
 def _scope_title_matches_seen(title_norm: str, seen_title_norms: set[str]) -> bool:
     if not title_norm:
         return False
@@ -4999,7 +5078,7 @@ def _should_rotate_scope_for_duplicate_header(
 ) -> bool:
     scope = str(current_scope or "").strip().upper()
     code = str(header.get("code") or "").strip()
-    if not _is_synthetic_scope(scope) or not code or code not in seen_codes:
+    if not is_synthetic_scope(scope) or not code or code not in seen_codes:
         return False
     if candidate_page is not None and previous_page is not None and candidate_page <= previous_page:
         return False
@@ -5018,7 +5097,7 @@ def _should_rotate_scope_for_upcoming_duplicate_codes(
     start_index: int,
 ) -> bool:
     scope = str(current_scope or "").strip().upper()
-    if not _is_synthetic_scope(scope) or not seen_codes:
+    if not is_synthetic_scope(scope) or not seen_codes:
         return False
     if start_index < 0 or start_index >= len(line_entries):
         return False
@@ -5452,8 +5531,8 @@ def _append_test_outline_requirements(
         text = str(row.get("requirement_text") or "").strip()
         if not text:
             continue
-        scope = _normalize_test_outline_scope(str(row.get("appendix_scope") or ""))
-        scope_identity = _test_outline_scope_identity(scope)
+        scope = normalize_test_outline_scope(str(row.get("appendix_scope") or ""))
+        scope_identity = test_outline_scope_identity(scope)
         item_code = str(row.get("item_code") or "").strip()
         if scope_identity and item_code:
             dedupe = f"{scope_identity}:{item_code}:{_build_dedupe_key(text)}"
@@ -5515,11 +5594,11 @@ def _extract_test_outline_rows(segments: list[dict[str, Any]]) -> list[dict[str,
 
             marker_scope, marker_title = _detect_test_outline_scope(line)
             if marker_scope:
-                current_scope = _normalize_test_outline_scope(marker_scope)
+                current_scope = normalize_test_outline_scope(marker_scope)
                 current_outline_title = str(marker_title or current_scope).strip()
                 continue
 
-            if not current_scope or _is_reference_only_test_outline_scope(current_scope):
+            if not current_scope or is_reference_only_test_outline_scope(current_scope):
                 continue
             if "|" not in line:
                 continue
@@ -5572,8 +5651,8 @@ def _merge_test_outline_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]
     order: list[tuple[str, str, str]] = []
 
     for row in rows:
-        scope = _normalize_test_outline_scope(str(row.get("appendix_scope") or ""))
-        scope_identity = _test_outline_scope_identity(scope)
+        scope = normalize_test_outline_scope(str(row.get("appendix_scope") or ""))
+        scope_identity = test_outline_scope_identity(scope)
         item_code = str(row.get("item_code") or "").strip()
         item_title = str(row.get("item_title") or "").strip()
         if not scope or not scope_identity or not item_code or not item_title:

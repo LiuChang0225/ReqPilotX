@@ -1,6 +1,6 @@
 # Active Context
 
-更新时间：2026-04-14 10:15 CST  
+更新时间：2026-04-14 12:32 CST  
 适用仓库：`/Users/liuchang/Documents/New project`
 
 长期背景：[`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/项目.md)
@@ -11,7 +11,7 @@
 - 用统一 batch 明确既有 benchmark 当前状态，重点盯住 `Q-JLY`、`SOR-N82KS`、减振器 PDS、油泵 PDS
 - 当前支线已改为单线闭环：`新文档测试 -> 结构审计 -> 问题定位 -> 通用修规则 -> 回归验证 -> 模式沉淀`
 - `audit` 不再是单独日常分支，而是 `extraction-quality-loop` 内置子流程；当前不做产品侧 audit job / API / UI 接入
-- 当前额外聚焦油泵 review 可视化收口：彻底消掉连接器附件残余 `Y` fallback，并把 `section_tree` 父子链直接呈现在“章节总览”中
+- 当前额外聚焦油泵 / 减振器 appendix scope 收口：用统一 `MAIN / SUBn` 输出替换外露 `T/U/V/W/X/Y`，同时保留 `appendix_title` 并把 `section_tree` 父子链直接呈现在“章节总览”中
 
 ## 活跃分支 / 工作树
 
@@ -98,6 +98,22 @@
   - `5555` 服务实际未挂，已重启到当前 worktree 代码
   - 强制 `refresh-preview` 后，油泵 workspace preview 已确认不再出现 `appendix_scope=Y` 或 `Appendix Y`
   - 定向回归：`tests/test_extractor_sections.py + tests/test_unified_workspace.py = 147 passed`
+- 本轮继续完成 appendix/tree schema 收口：
+  - 新增 `prototype/app/services/appendix_scopes.py` 作为共享 appendix scope helper，统一 `MAIN_SCOPE_ID / MAIN_SCOPE_TITLE`、真实 test-outline 标题、以及 `T/U/V/W/X/Y -> SUB*` 兼容归一化
+  - `extraction_preview` 现已先构建 canonical scope catalog，再对外统一输出 `MAIN / SUB1 / SUB2 ...`，同时保留 `appendix_title`
+  - `section_tree` 现已注入 `MAIN/SUB*` root 节点，并拆分 `structural_level` 与 `numbering_level`
+  - `CX` complex-table helper 行已从最终 `section_tree` / benchmark chapter-tree 剔除，只保留 review/table 资产链路
+  - section consistency 现已把 source-faithful 重号改标注为 `source_faithful_duplicate_code`，并新增 `missing_scope_root` 注记，不再把这类源文档事实误当修复目标
+- 本轮前端 / 在线校验已确认：
+  - `app.js` 与 `extraction-review.js` 已同步展示 canonical scope、`结构层级 / 编号层级`、以及 `ROOT` scope root 行；静态资源版本已 bump 到 `scope-tree2`
+  - `5555` 服务因 `start.ps1` 默认非 `--reload`，本轮已显式重启到当前 worktree 后再强制 `refresh-preview`
+  - live oil-pump preview 当前 scopes=`MAIN,SUB1..SUB7`、root_count=`8`、`CX=0`、`structural_level/numbering_level` 全量存在
+  - live damper preview 当前 scopes=`MAIN,SUB1..SUB6`、root_count=`7`、`CX=0`、`structural_level/numbering_level` 全量存在
+  - live 两份 benchmark preview 均已确认不再向外输出 `T/U/V/W/X/Y/CX`
+- 本轮新增验证结果：
+  - `prototype/tests/test_extractor_sections.py -q`：`53 passed`
+  - `prototype/tests/test_unified_workspace.py -q -k "canonical_section_tree or appendix or structural_parent or section_tree"`：`4 passed`
+  - `prototype/tests/test_unified_workspace.py -q` 在当前 Windows 机器上仍可能被临时 SQLite 清理问题打断；这不是本轮 scope/tree 变更引入的新失败
 - 已确认油泵 PDS 关键根因链：
   - `3.2.2` 下真实存在 `1..12` 与 `6.1/6.4/7.1/8.1.2/8.2.5.4/11.12` 等本地结构
   - 当前已修复“保留 local anchor 但避免 `sections_count` 因 preview-only synthetic split 膨胀”的 benchmark 口径
@@ -121,6 +137,14 @@
   - 减振器 PDS
     - `sections_count` 已回到 band：`245` vs expected `234`
     - `3.2.2` 下 `12/13/14/15` 本地条款拆分已恢复；剩余 blocker 继续收口到 requirement text / ordered snippet / table row / forbidden cross section binding 漂移
+- appendix/tree 这条线上当前还保留一个 source-faithful 注记：
+  - live oil-pump preview 当前 `section_consistency_missing_scope_root_count=1`
+  - 当前按用户确认范围仅做标注，不改源文档内容或强行重写章节事实
+- 本轮人工调查已确认 appendix boundary 仍有一个真实设计缺口：
+  - `Sub7 / 用电器试验大纲` 当前来自 test-outline 表头启发式，不要求页上存在显式标题
+  - oil-pump `Sub1` 把 `软件开发要求` 与 `FMEA与特殊特性` 并进同一 scope，根因是现有 scope catalog 仍是多源启发式拼接，未形成稳定的“附件目录/边界映射 -> scope 分裂”模型
+  - workspace 主页面“章节总览”仍在读扁平 `preview.sections`，而独立 extraction-review 页已优先读 `preview.section_tree`
+  - complex-table 当前是“两层表示”：`rewrite_preview_sections_for_complex_tables()` 会先把匹配 section 折叠成 `CX` review zone，但最终 `section_tree` 又通过 `exclude_complex_table_mode=True` 把这些 synthetic zone 排除；这能避免把 review-only 结构当成真实章节，但如果源文档某个附件/section 基本只剩 complex zone 表示，章节树会出现 source-faithful 缺口
 - 当前已确认 scope 边界：
   - 当前 track 同时负责 `batch regression + document-level audit + pattern capture + benchmark-safe rule promotion`
   - 允许维护 `parser / extractor / extraction_preview / scripts / tests / eval / 当前 track skill / active-context`
@@ -134,6 +158,14 @@
   - `SOR-N82KS`：恢复 `F:1 / G:1` 与 `E:2` 标题
   - 减振器 PDS：在 `12/13/14/15` 拆分已恢复的基线上，继续专修 `3.2.2` complex table clause binding，不再回头放宽全局 regex
 - 油泵这条线上当前只剩浏览器侧人工复核：确认用户端 hard refresh 后，“章节总览”能直接看到父子链，且连接器附件区域不再出现 `Y`
+- appendix/tree 这条线上下一步若继续收口，只需要评估：
+  - oil-pump `SUB2` 目前仍有一个真实标题缺失时的 fallback root label，若要再提升可读性，需要额外补 source-title 恢复规则，但这不是当前 benchmark blocker
+- appendix/tree 下一轮若继续推进，优先采用“evidence-tiered appendix boundary”方案：
+  - 先按 `explicit marker / toc-derived / heading-derived / table-header-derived` 给 scope 来源与置信度分层
+  - 对连续 appendix-like 顶层 heading 默认允许切新 scope，除非存在更强的连续性证据
+  - backend 边界模型稳定后，再统一 workspace 主页面到 `preview.section_tree`，避免与 review 页继续维持两套章节口径
+  - complex-table 不应再简单依赖“CX 排除后就算干净”；若 complex zone 对应真实源章节，应保留 source-faithful chapter row，把 complex review/group 信息作为附属 overlay，而不是让 `CX` 既替代原章节又被最终树排除
+  - test-outline 泛化不建议直接把最终标题降成宽泛 `试验大纲`；更稳妥的方案是把“试验大纲家族”识别抽象成 generic family，再由邻近标题/目录证据补 source title，若补不到则仅以低置信度 inferred label 暂存，避免多个不同 appendix 被同名吞并
 - 新文档默认先跑 `prototype/scripts/extraction_diagnose.py`，确认是真回归、profile 问题还是新文档模式，再决定是否进入核心 batch
 - 修复后按固定顺序：聚焦测试 -> 单文档复验 -> `legacy_benchmark_core` -> pattern promotion 记录 -> control tower gate
 - control tower 最新 checkpoint 已记录：油泵 benchmark 已回绿；新窗口直接从当前 active-context 与 `extraction_quality_loop_20260411_singleline_audit` 产物继续
