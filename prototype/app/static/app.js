@@ -17,7 +17,7 @@ const state = {
   reviewPreview: null,
   requirements: [],
   reviewEntries: [],
-  reviewSelectedKind: "",
+  reviewSelectedKinds: [],
   reviewShowRecommendedSourceOnly: false,
   reviewActiveEntryId: "",
   reviewPdfBaseUrl: "",
@@ -57,14 +57,21 @@ const el = {
   customerName: document.querySelector("#customer-name"),
   projectSelect: document.querySelector("#project-select"),
   sorDocumentSelect: document.querySelector("#sor-document-select"),
+  removeSorBtn: document.querySelector("#remove-sor-btn"),
   refreshProjects: document.querySelector("#refresh-projects"),
   sorForm: document.querySelector("#sor-upload-form"),
   sorFile: document.querySelector("#sor-file"),
   sorUploadBtn: document.querySelector("#sor-upload-btn"),
+  sorUploadProgress: document.querySelector("#sor-upload-progress"),
+  sorUploadProgressFill: document.querySelector("#sor-upload-progress .upload-progress-fill"),
+  sorUploadProgressText: document.querySelector("#sor-upload-progress .upload-progress-text"),
   sorUploadResult: document.querySelector("#sor-upload-result"),
   kbForm: document.querySelector("#kb-upload-form"),
   kbFile: document.querySelector("#kb-file"),
   kbUploadBtn: document.querySelector("#kb-upload-btn"),
+  kbUploadProgress: document.querySelector("#kb-upload-progress"),
+  kbUploadProgressFill: document.querySelector("#kb-upload-progress .upload-progress-fill"),
+  kbUploadProgressText: document.querySelector("#kb-upload-progress .upload-progress-text"),
   kbDocType: document.querySelector("#kb-doc-type"),
   kbDocVersion: document.querySelector("#kb-doc-version"),
   kbDocStatus: document.querySelector("#kb-doc-status"),
@@ -232,6 +239,7 @@ function bindEvents() {
   el.refreshProjects.addEventListener("click", wrap(loadProjects));
   el.projectSelect.addEventListener("change", wrap(onProjectChanged));
   el.sorDocumentSelect.addEventListener("change", wrap(onSorDocumentChanged));
+  el.removeSorBtn?.addEventListener("click", wrap(onRemoveSorDocument));
   el.sorForm.addEventListener("submit", wrap(onUploadSor));
   el.kbForm.addEventListener("submit", wrap(onUploadKnowledge));
   el.providerSetupForm?.addEventListener("submit", wrap(onSaveAiProviderSetup));
@@ -250,7 +258,7 @@ function bindEvents() {
   el.refreshExportsBtn.addEventListener("click", wrap(loadExportJobs));
   el.batchApplyBtn.addEventListener("click", wrap(onApplyBatchDecision));
   el.stageSwitcher?.addEventListener("click", onStageSwitcherClicked);
-  el.reviewKindFilter?.addEventListener("change", onReviewKindFilterChanged);
+  el.reviewKindFilter?.addEventListener("click", onReviewKindFilterChanged);
   el.reviewSectionFilter?.addEventListener("input", scheduleReviewEntriesRender);
   el.reviewKeywordFilter?.addEventListener("input", scheduleReviewEntriesRender);
   el.reviewVisibleKeepToggle?.addEventListener("change", wrap(onReviewVisibleKeepToggleChanged));
@@ -982,6 +990,27 @@ async function onSorDocumentChanged() {
   await loadWorkspace();
 }
 
+async function onRemoveSorDocument() {
+  if (!state.projectId || !state.currentSorDocumentId) {
+    alert("请先选择要移除的 SOR 文档");
+    return;
+  }
+  const doc = state.sorDocuments.find((d) => d.id === state.currentSorDocumentId);
+  const fileName = doc?.file_name || state.currentSorDocumentId;
+  const accepted = window.confirm(`确认移除 SOR 文档「${fileName}」？\n\n该文档及其关联的条目集、AI 分析记录将被一并删除，此操作不可撤销。`);
+  if (!accepted) return;
+  el.removeSorBtn.disabled = true;
+  try {
+    await api(`/api/projects/${state.projectId}/sor-documents/${state.currentSorDocumentId}`, {
+      method: "DELETE",
+    });
+    await loadSorDocuments();
+    await loadWorkspace();
+  } finally {
+    el.removeSorBtn.disabled = false;
+  }
+}
+
 async function onUploadSor(event) {
   event.preventDefault();
   if (!state.projectId) {
@@ -995,14 +1024,31 @@ async function onUploadSor(event) {
   }
   const form = new FormData();
   form.append("file", file);
-  const document = await api(`/api/projects/${state.projectId}/sor-documents`, {
-    method: "POST",
-    body: form,
-  });
-  await loadSorDocuments(document.id);
-  await loadWorkspace();
-  el.sorUploadResult.textContent = `已上传: ${document.file_name}`;
-  el.sorFile.value = "";
+  showUploadProgress("sor");
+  try {
+    const document = await uploadWithProgress(
+      `/api/projects/${state.projectId}/sor-documents`,
+      form,
+      (percent) => {
+        if (percent >= 100) {
+          setUploadProcessing("sor", true);
+        } else {
+          setUploadProgress("sor", percent);
+        }
+      }
+    );
+    setUploadProcessing("sor", false);
+    await loadSorDocuments(document.id);
+    await loadWorkspace();
+    el.sorUploadResult.textContent = `已上传: ${document.file_name}`;
+    el.sorFile.value = "";
+  } catch (err) {
+    setUploadProcessing("sor", false);
+    el.sorUploadResult.textContent = `上传失败: ${err.message}`;
+    el.sorUploadResult.className = "hint is-error";
+  } finally {
+    hideUploadProgress("sor");
+  }
 }
 
 async function onUploadKnowledge(event) {
@@ -1025,19 +1071,36 @@ async function onUploadKnowledge(event) {
   form.append("file", file);
   form.append("doc_type", "REFERENCE");
   form.append("status", "ACTIVE");
-  const document = await api(`/api/projects/${state.projectId}/knowledge-documents`, {
-    method: "POST",
-    body: form,
-  });
-  el.kbUploadResult.textContent = `已上传: ${document.file_name}，知识库版本 ${document.knowledge_base_version}`;
-  el.kbFile.value = "";
-  if (el.kbDocVersion) el.kbDocVersion.value = "";
-  if (el.kbEffectiveFrom) el.kbEffectiveFrom.value = "";
-  if (el.kbEffectiveTo) el.kbEffectiveTo.value = "";
-  if (el.kbDocType) el.kbDocType.value = "REFERENCE";
-  if (el.kbDocStatus) el.kbDocStatus.value = "ACTIVE";
-  await loadKnowledgeDocuments();
-  await loadWorkspace();
+  showUploadProgress("kb");
+  try {
+    const document = await uploadWithProgress(
+      `/api/projects/${state.projectId}/knowledge-documents`,
+      form,
+      (percent) => {
+        if (percent >= 100) {
+          setUploadProcessing("kb", true);
+        } else {
+          setUploadProgress("kb", percent);
+        }
+      }
+    );
+    setUploadProcessing("kb", false);
+    el.kbUploadResult.textContent = `已上传: ${document.file_name}，知识库版本 ${document.knowledge_base_version}`;
+    el.kbFile.value = "";
+    if (el.kbDocVersion) el.kbDocVersion.value = "";
+    if (el.kbEffectiveFrom) el.kbEffectiveFrom.value = "";
+    if (el.kbEffectiveTo) el.kbEffectiveTo.value = "";
+    if (el.kbDocType) el.kbDocType.value = "REFERENCE";
+    if (el.kbDocStatus) el.kbDocStatus.value = "ACTIVE";
+    await loadKnowledgeDocuments();
+    await loadWorkspace();
+  } catch (err) {
+    setUploadProcessing("kb", false);
+    el.kbUploadResult.textContent = `上传失败: ${err.message}`;
+    el.kbUploadResult.className = "hint is-error";
+  } finally {
+    hideUploadProgress("kb");
+  }
 }
 
 async function onAnalyze() {
@@ -1344,6 +1407,9 @@ function renderSorDocumentOptions() {
     el.sorDocumentSelect.appendChild(option);
   });
   el.sorDocumentSelect.value = state.currentSorDocumentId || "";
+  if (el.removeSorBtn) {
+    el.removeSorBtn.disabled = !state.currentSorDocumentId;
+  }
 }
 
 async function loadWorkspace(options = {}) {
@@ -1356,7 +1422,7 @@ async function loadWorkspace(options = {}) {
     state.reviewPreview = null;
     state.requirements = [];
     state.reviewEntries = [];
-    state.reviewSelectedKind = "";
+    state.reviewSelectedKinds = [];
     state.reviewShowRecommendedSourceOnly = false;
     state.reviewActiveEntryId = "";
     state.reviewPdfDrawerOpen = false;
@@ -1376,7 +1442,7 @@ async function loadWorkspace(options = {}) {
   state.workspace = workspace;
   state.requirements = Array.isArray(workspace.requirements) ? workspace.requirements : [];
   state.reviewEntries = [];
-  state.reviewSelectedKind = "";
+  state.reviewSelectedKinds = [];
   state.reviewShowRecommendedSourceOnly = false;
   state.reviewActiveEntryId = "";
   state.reviewPdfDrawerOpen = false;
@@ -1815,19 +1881,23 @@ function renderReviewKindFilter() {
     return;
   }
   const kinds = new Set((state.reviewEntries || []).map((item) => String(item.entry_kind || "REQUIREMENT").toUpperCase()));
-  const orderedKinds = ["HEADING", "HYBRID", "REQUIREMENT"].filter((kind) => kinds.has(kind));
-  const labels = {
-    HEADING: "HEADING 章节",
-    HYBRID: "HYBRID 合并",
-    REQUIREMENT: "REQUIREMENT 需求",
-  };
-  el.reviewKindFilter.innerHTML = [
-    `<option value="">全部</option>`,
-    ...orderedKinds.map((kind) => {
-      const selected = state.reviewSelectedKind === kind ? "selected" : "";
-      return `<option value="${kind}" ${selected}>${escapeHtml(labels[kind] || kind)}</option>`;
-    }),
-  ].join("");
+  const chips = el.reviewKindFilter.querySelectorAll(".kind-chip");
+  chips.forEach((chip) => {
+    const kind = chip.dataset.kind;
+    if (kinds.has(kind)) {
+      chip.style.display = "";
+    } else {
+      chip.style.display = "none";
+    }
+  });
+}
+
+function getSelectedReviewKinds() {
+  if (!el.reviewKindFilter) {
+    return [];
+  }
+  const chips = el.reviewKindFilter.querySelectorAll(".kind-chip.is-active");
+  return Array.from(chips).map((chip) => chip.dataset.kind);
 }
 
 function renderReviewEntries() {
@@ -1877,9 +1947,10 @@ function renderReviewEntries() {
 function filterReviewEntries(rows) {
   const sectionFilter = String(el.reviewSectionFilter?.value || "").trim().toLowerCase();
   const keyword = String(el.reviewKeywordFilter?.value || "").trim().toLowerCase();
+  const selectedKinds = state.reviewSelectedKinds || [];
   return (rows || []).filter((row) => {
     const entryKind = String(row.entry_kind || "REQUIREMENT").toUpperCase();
-    if (state.reviewSelectedKind && state.reviewSelectedKind !== entryKind) {
+    if (selectedKinds.length && !selectedKinds.includes(entryKind)) {
       return false;
     }
     const sectionKey = [row.parent_section_label, row.section_code, row.section_title].filter(Boolean).join(" ").toLowerCase();
@@ -3242,8 +3313,12 @@ function normalizeApiError(error, fallbackMessage) {
   return raw || fallbackMessage;
 }
 
-function onReviewKindFilterChanged() {
-  state.reviewSelectedKind = String(el.reviewKindFilter?.value || "").trim().toUpperCase();
+function onReviewKindFilterChanged(event) {
+  const chip = event.target?.closest?.(".kind-chip");
+  if (chip) {
+    chip.classList.toggle("is-active");
+  }
+  state.reviewSelectedKinds = getSelectedReviewKinds();
   renderReviewEntries();
 }
 
@@ -4217,6 +4292,72 @@ function formatPreviewStatus(value) {
     STALE: "待刷新",
   };
   return labels[token] || token;
+}
+
+function uploadWithProgress(url, formData, onProgress) {
+  return new Promise((resolve, reject) => {
+    const xhr = new XMLHttpRequest();
+    xhr.open("POST", url);
+    xhr.upload.addEventListener("progress", (e) => {
+      if (e.lengthComputable) {
+        onProgress(Math.round((e.loaded / e.total) * 100));
+      }
+    });
+    xhr.addEventListener("load", () => {
+      if (xhr.status >= 200 && xhr.status < 300) {
+        const ct = xhr.getResponseHeader("content-type") || "";
+        try {
+          resolve(ct.includes("application/json") ? JSON.parse(xhr.responseText) : xhr.responseText);
+        } catch (err) {
+          reject(new Error(`解析响应失败: ${err.message}`));
+        }
+      } else {
+        reject(new Error(`上传失败(${xhr.status}): ${xhr.responseText}`));
+      }
+    });
+    xhr.addEventListener("error", () => reject(new Error("网络错误，请检查连接")));
+    xhr.addEventListener("timeout", () => reject(new Error("上传超时")));
+    xhr.timeout = 600000;
+    xhr.send(formData);
+  });
+}
+
+function showUploadProgress(type) {
+  const progress = el[`${type}UploadProgress`];
+  const fill = el[`${type}UploadProgressFill`];
+  const text = el[`${type}UploadProgressText`];
+  if (progress) progress.hidden = false;
+  if (fill) fill.style.width = "0%";
+  if (text) text.textContent = "上传中 0%";
+}
+
+function setUploadProgress(type, percent) {
+  const fill = el[`${type}UploadProgressFill`];
+  const text = el[`${type}UploadProgressText`];
+  if (fill) {
+    fill.style.width = `${percent}%`;
+    fill.classList.remove("upload-progress-indeterminate");
+  }
+  if (text) text.textContent = `上传中 ${percent}%`;
+}
+
+function setUploadProcessing(type, processing) {
+  const fill = el[`${type}UploadProgressFill`];
+  const text = el[`${type}UploadProgressText`];
+  if (fill) {
+    if (processing) {
+      fill.classList.add("upload-progress-indeterminate");
+      fill.style.width = "100%";
+    } else {
+      fill.classList.remove("upload-progress-indeterminate");
+    }
+  }
+  if (text) text.textContent = processing ? "服务端处理中..." : "上传完成";
+}
+
+function hideUploadProgress(type) {
+  const progress = el[`${type}UploadProgress`];
+  if (progress) progress.hidden = true;
 }
 
 async function api(url, options = {}) {
