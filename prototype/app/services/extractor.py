@@ -4,12 +4,19 @@ import re
 from typing import Any
 
 from app.services.appendix_scopes import (
+    APPENDIX_EVIDENCE_EXPLICIT,
+    APPENDIX_EVIDENCE_HEADING,
+    APPENDIX_EVIDENCE_TABLE_HEADER,
+    APPENDIX_EVIDENCE_TOC,
     MAIN_SCOPE_ID,
+    TEST_OUTLINE_INFERRED_GENERIC_TITLE,
     is_test_outline_scope_value,
     is_reference_only_test_outline_scope,
     is_synthetic_scope,
+    infer_generic_test_outline_title,
     normalize_scope_id,
     normalize_test_outline_scope,
+    scope_evidence_rank,
     scope_sort_key,
     test_outline_scope_identity,
     TEST_OUTLINE_SCOPE_ACCUMULATOR,
@@ -238,6 +245,9 @@ def extract_atomic_requirements(segments: list[dict[str, Any]]) -> list[dict[str
                     "source_line_index_end": sub.get("source_line_index_end"),
                     "source_anchor": source_anchor,
                     "appendix_scope": appendix_scope,
+                    "appendix_title": str(block.get("appendix_title") or ""),
+                    "appendix_scope_evidence": str(block.get("appendix_scope_evidence") or ""),
+                    "appendix_title_source": str(block.get("appendix_title_source") or ""),
                     "requirement_text": block_text,
                     "requirement_type": infer_requirement_type(block_text),
                     "priority": infer_priority(block_text),
@@ -275,6 +285,9 @@ def extract_section_outline(segments: list[dict[str, Any]]) -> list[dict[str, An
         outline.append(
             {
                 "appendix_scope": appendix_scope,
+                "appendix_title": str(block.get("appendix_title") or ""),
+                "appendix_scope_evidence": str(block.get("appendix_scope_evidence") or ""),
+                "appendix_title_source": str(block.get("appendix_title_source") or ""),
                 "section_code": code,
                 "section_title": str(block.get("section_title") or ""),
                 "section_level": level,
@@ -743,6 +756,7 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
     in_test_outline_zone = False
     synthetic_scope_counter = 0
     main_max_top_level_seen = 0
+    scope_metadata_by_scope: dict[str, dict[str, Any]] = {}
     while idx < len(line_entries):
         entry = line_entries[idx]
         line = entry["text"]
@@ -785,6 +799,13 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                 blocks.append(current)
                 current = None
             current_scope = appendix_scope
+            _remember_scope_metadata(
+                scope_metadata_by_scope,
+                current_scope,
+                evidence=APPENDIX_EVIDENCE_EXPLICIT,
+                title_source="appendix_marker",
+                start_page=_safe_int(entry.get("source_page")) or None,
+            )
             idx += 1
             continue
 
@@ -815,17 +836,34 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             if (not current_scope and current_title == "附件目录") or current_scope:
                 if current and current.get("entries"):
                     blocks.append(current)
+                current_scope_meta = scope_metadata_by_scope.get(normalize_scope_id(current_scope), {})
                 rotate_scope = _should_rotate_scope_for_upcoming_duplicate_codes(
                     current_scope=current_scope,
                     seen_codes=seen_section_codes_by_scope.get(current_scope, set()),
                     line_entries=line_entries,
                     start_index=idx,
+                ) or _should_split_embedded_scope_on_new_title(
+                    current_scope=current_scope,
+                    current_scope_title=str(current_scope_meta.get("appendix_title") or ""),
+                    candidate_title=title_only_heading,
+                    current_block=current,
+                    candidate_page=_safe_int(entry.get("source_page")) or None,
+                    scope_start_page=_safe_int(current_scope_meta.get("scope_start_page")) or None,
                 )
                 if not current_scope or rotate_scope:
                     synthetic_scope_counter += 1
                     current_scope = f"SUB{synthetic_scope_counter}"
+                _remember_scope_metadata(
+                    scope_metadata_by_scope,
+                    current_scope,
+                    evidence=APPENDIX_EVIDENCE_TOC if current_title == "附件目录" else APPENDIX_EVIDENCE_HEADING,
+                    title_source="title_only_heading",
+                    title=title_only_heading,
+                    start_page=_safe_int(entry.get("source_page")) or None,
+                )
                 current = {
                     "appendix_scope": current_scope,
+                    **_scope_metadata_for(scope_metadata_by_scope, current_scope),
                     "section_code": "",
                     "section_title": title_only_heading,
                     "section_level": 0,
@@ -842,14 +880,30 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                 continue
 
         if embedded_attachment_title and current_scope:
+            current_scope_meta = scope_metadata_by_scope.get(normalize_scope_id(current_scope), {})
             if _should_rotate_scope_for_upcoming_duplicate_codes(
                 current_scope=current_scope,
                 seen_codes=seen_section_codes_by_scope.get(current_scope, set()),
                 line_entries=line_entries,
                 start_index=idx,
+            ) or _should_split_embedded_scope_on_new_title(
+                current_scope=current_scope,
+                current_scope_title=str(current_scope_meta.get("appendix_title") or ""),
+                candidate_title=embedded_attachment_title,
+                current_block=current,
+                candidate_page=_safe_int(entry.get("source_page")) or None,
+                scope_start_page=_safe_int(current_scope_meta.get("scope_start_page")) or None,
             ):
                 synthetic_scope_counter += 1
                 current_scope = f"SUB{synthetic_scope_counter}"
+            _remember_scope_metadata(
+                scope_metadata_by_scope,
+                current_scope,
+                evidence=APPENDIX_EVIDENCE_HEADING,
+                title_source="embedded_attachment_title",
+                title=embedded_attachment_title,
+                start_page=_safe_int(entry.get("source_page")) or None,
+            )
             carried_entries: list[dict[str, Any]] = []
             candidate_page = _safe_int(entry.get("source_page"))
             candidate_line_index = _safe_int(entry.get("source_line_index"))
@@ -864,6 +918,7 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                     blocks.append(current)
             current = {
                 "appendix_scope": current_scope,
+                **_scope_metadata_for(scope_metadata_by_scope, current_scope),
                 "section_code": "",
                 "section_title": embedded_attachment_title,
                 "section_level": 0,
@@ -886,18 +941,35 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             appendix_scope=current_scope,
         )
         if standalone_table_title:
+            current_scope_meta = scope_metadata_by_scope.get(normalize_scope_id(current_scope), {})
             if _should_rotate_scope_for_upcoming_duplicate_codes(
                 current_scope=current_scope,
                 seen_codes=seen_section_codes_by_scope.get(current_scope, set()),
                 line_entries=line_entries,
                 start_index=idx,
+            ) or _should_split_embedded_scope_on_new_title(
+                current_scope=current_scope,
+                current_scope_title=str(current_scope_meta.get("appendix_title") or ""),
+                candidate_title=standalone_table_title,
+                current_block=current,
+                candidate_page=_safe_int(entry.get("source_page")) or None,
+                scope_start_page=_safe_int(current_scope_meta.get("scope_start_page")) or None,
             ):
                 synthetic_scope_counter += 1
                 current_scope = f"SUB{synthetic_scope_counter}"
+            _remember_scope_metadata(
+                scope_metadata_by_scope,
+                current_scope,
+                evidence=APPENDIX_EVIDENCE_TABLE_HEADER,
+                title_source="table_page_title",
+                title=standalone_table_title,
+                start_page=_safe_int(entry.get("source_page")) or None,
+            )
             if current and current.get("entries"):
                 blocks.append(current)
             current = {
                 "appendix_scope": current_scope,
+                **_scope_metadata_for(scope_metadata_by_scope, current_scope),
                 "section_code": "",
                 "section_title": standalone_table_title,
                 "section_level": 0,
@@ -1014,6 +1086,13 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                 current = None
             synthetic_scope_counter += 1
             current_scope = f"SUB{synthetic_scope_counter}"
+            _remember_scope_metadata(
+                scope_metadata_by_scope,
+                current_scope,
+                evidence=APPENDIX_EVIDENCE_HEADING,
+                title_source="section_header",
+                start_page=_safe_int(entry.get("source_page")) or None,
+            )
             last_section_code = last_section_code_by_scope.get(current_scope, "")
             last_section_title = last_section_title_by_scope.get(current_scope, "")
             last_section_page = last_section_page_by_scope.get(current_scope)
@@ -1024,6 +1103,7 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                 blocks.append(current)
             current = {
                 "appendix_scope": current_scope,
+                **_scope_metadata_for(scope_metadata_by_scope, current_scope),
                 "section_code": header["code"],
                 "section_title": header.get("title", ""),
                 "section_level": header.get("level", 0),
@@ -1684,6 +1764,8 @@ def _is_test_outline_header_line(line: str) -> bool:
     value = str(line or "").strip()
     if not value:
         return False
+    if infer_generic_test_outline_title(value):
+        return True
     if TEST_OUTLINE_HEADER_RE.search(value) and len(value) <= 140:
         return True
     if "|" in value:
@@ -5067,6 +5149,65 @@ def _scope_title_matches_seen(title_norm: str, seen_title_norms: set[str]) -> bo
     return False
 
 
+def _remember_scope_metadata(
+    scope_metadata_by_scope: dict[str, dict[str, Any]],
+    scope: str,
+    *,
+    evidence: str = "",
+    title_source: str = "",
+    title: str = "",
+    start_page: int | None = None,
+) -> None:
+    normalized_scope = normalize_scope_id(scope)
+    if not normalized_scope or normalized_scope == MAIN_SCOPE_ID:
+        return
+    meta = scope_metadata_by_scope.setdefault(normalized_scope, {})
+    existing_evidence = str(meta.get("appendix_scope_evidence") or "")
+    if evidence and scope_evidence_rank(evidence) >= scope_evidence_rank(existing_evidence):
+        meta["appendix_scope_evidence"] = evidence
+        if title_source:
+            meta["appendix_title_source"] = title_source
+    elif title_source and not meta.get("appendix_title_source"):
+        meta["appendix_title_source"] = title_source
+    if title and not meta.get("appendix_title"):
+        meta["appendix_title"] = title
+    if isinstance(start_page, int) and start_page > 0 and not meta.get("scope_start_page"):
+        meta["scope_start_page"] = start_page
+
+
+def _scope_metadata_for(scope_metadata_by_scope: dict[str, dict[str, Any]], scope: str) -> dict[str, Any]:
+    meta = scope_metadata_by_scope.get(normalize_scope_id(scope), {})
+    return {
+        key: meta[key]
+        for key in ("appendix_title", "appendix_scope_evidence", "appendix_title_source")
+        if meta.get(key)
+    }
+
+
+def _should_split_embedded_scope_on_new_title(
+    *,
+    current_scope: str,
+    current_scope_title: str,
+    candidate_title: str,
+    current_block: dict[str, Any] | None,
+    candidate_page: int | None,
+    scope_start_page: int | None,
+) -> bool:
+    if not is_synthetic_scope(current_scope):
+        return False
+    candidate_norm = _normalized_section_title(candidate_title)
+    current_norm = _normalized_section_title(current_scope_title or str((current_block or {}).get("section_title") or ""))
+    if not candidate_norm or not current_norm or candidate_norm == current_norm:
+        return False
+    if isinstance(candidate_page, int) and isinstance(scope_start_page, int) and scope_start_page > 0 and candidate_page <= scope_start_page:
+        return False
+    if current_block is not None and not str(current_block.get("section_code") or "").strip():
+        block_title_norm = _normalized_section_title(str(current_block.get("section_title") or ""))
+        if block_title_norm == candidate_norm:
+            return False
+    return True
+
+
 def _should_rotate_scope_for_duplicate_header(
     *,
     current_scope: str,
@@ -5843,6 +5984,10 @@ def _detect_test_outline_scope(line: str) -> tuple[str, str]:
     if not value:
         return ("", "")
 
+    generic_title = infer_generic_test_outline_title(value)
+    if generic_title:
+        return (generic_title, generic_title)
+
     candidates = [value]
     if "|" in value:
         candidates.extend(part.strip() for part in value.split("|") if part.strip())
@@ -5852,7 +5997,7 @@ def _detect_test_outline_scope(line: str) -> tuple[str, str]:
             if pattern.search(candidate):
                 return (scope, normalized_title)
         if ELECTRIC_TEST_OUTLINE_HEADER_RE.search(candidate):
-            return ("用电器试验大纲", "用电器试验大纲")
+            return (TEST_OUTLINE_INFERRED_GENERIC_TITLE, TEST_OUTLINE_INFERRED_GENERIC_TITLE)
     return ("", "")
 
 
