@@ -8,6 +8,7 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.services.extractor import (
     _build_line_entries,
     _extract_section_blocks,
+    _extract_test_outline_rows,
     _is_line_noise,
     _parse_section_header,
     _consolidate_section_blocks,
@@ -21,8 +22,10 @@ from app.services.extractor import (
 from app.services.extraction_preview import _build_complete_requirement_entries
 from app.services.extraction_preview import _attach_requirement_section_context
 from app.services.extraction_preview import _assign_section_instance_keys
+from app.services.extraction_preview import _collect_test_outline_markers
 from app.services.extraction_preview import _collect_section_instance_groups
 from app.services.extraction_preview import _extract_appendix_scope
+from app.services.extraction_preview import _extract_explicit_section_code
 from app.services.extraction_preview import _extract_section_code
 from app.services.extraction_preview import _extract_section_title
 from app.services.extraction_preview import _join_title_section_key
@@ -78,6 +81,75 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         self.assertEqual([item["lines"][0] for item in subblocks[1:]], ["9.7）供应商在虚拟评审前两周提供仿真报告及模型", "10）表面处理要求以DVP为准。", "11）自带标准件应满足相关标准要求："])
         self.assertIn("Clause 10）表面处理要求以DVP为准。", subblocks[2]["source_anchor"])
 
+    def test_contextual_dvp_reset_clauses_split_after_deep_clause(self) -> None:
+        block = _block("3.2.2", "产品详细描述", 6, text="3.2.2 产品详细描述")
+        block["entries"] = [
+            {"text": "3.2.2 产品详细描述", "source_page": 6, "source_line_index": 1, "source_anchor": "Page 6"},
+            {"text": "11.3）冰冻要求：", "source_page": 6, "source_line_index": 46, "source_anchor": "Page 6"},
+            {"text": "零部件在整车安装姿态下，100bar水压冲洗5个循环后，进入-30℃低温舱8小时，冰冻后零部件无功能损失及性能下降；", "source_page": 6, "source_line_index": 47, "source_anchor": "Page 6"},
+            {"text": "12、零部件需满足GB/T 26988 汽车部件可回收利用性标识要求；", "source_page": 6, "source_line_index": 48, "source_anchor": "Page 6"},
+            {"text": "13、试验大纲内涉及强化耐久项目，每轮虚拟评审前两周，供应商需提供仿真报告及模型。", "source_page": 6, "source_line_index": 49, "source_anchor": "Page 6"},
+            {"text": "14、电气部件低压连接器需满足Q/JQ4009 车用电线束连接器技术要求，或USCAR-2、LV214汽车连接器规范，如果采用其他车规", "source_page": 6, "source_line_index": 50, "source_anchor": "Page 6"},
+            {"text": "连接器标准，需提供相关规范标准进行评审。", "source_page": 6, "source_line_index": 51, "source_anchor": "Page 6"},
+            {"text": "15、供应商应配合完成减振器能耗优化的工作。", "source_page": 6, "source_line_index": 52, "source_anchor": "Page 6"},
+        ]
+        block["source_anchor"] = "Page 6 | Section 3.2.2 产品详细描述"
+
+        subblocks = _split_block_by_bullets(block)
+
+        self.assertEqual(
+            [item["lines"][0] for item in subblocks],
+            [
+                "3.2.2 产品详细描述",
+                "11.3）冰冻要求：",
+                "12、零部件需满足GB/T 26988 汽车部件可回收利用性标识要求；",
+                "13、试验大纲内涉及强化耐久项目，每轮虚拟评审前两周，供应商需提供仿真报告及模型。",
+                "14、电气部件低压连接器需满足Q/JQ4009 车用电线束连接器技术要求，或USCAR-2、LV214汽车连接器规范，如果采用其他车规",
+                "15、供应商应配合完成减振器能耗优化的工作。",
+            ],
+        )
+        self.assertIn("Clause 12 零部件需满足GB/T 26988 汽车部件可回收利用性标识要求；", subblocks[2]["source_anchor"])
+
+    def test_comma_style_major_headings_do_not_split_without_local_clause_context(self) -> None:
+        block = _block("4", "标准法规要求", 6, text="4、标准法规要求")
+        block["entries"] = [
+            {"text": "4、标准法规要求", "source_page": 6, "source_line_index": 1, "source_anchor": "Page 6"},
+            {"text": "4.1 法规与认证", "source_page": 7, "source_line_index": 1, "source_anchor": "Page 7"},
+            {"text": "5、可靠性设计与验证需求", "source_page": 8, "source_line_index": 1, "source_anchor": "Page 8"},
+        ]
+        block["source_anchor"] = "Page 6 | Section 4 标准法规要求"
+
+        subblocks = _split_block_by_bullets(block)
+
+        self.assertEqual(len(subblocks), 1)
+        self.assertEqual(subblocks[0]["lines"][0], "4、标准法规要求")
+
+    def test_preview_scopes_clause_from_contextual_anchor_without_global_comma_regex(self) -> None:
+        anchor = "Page 6 | Clause 12 零部件需满足GB/T 26988 汽车部件可回收利用性标识要求； | Section 3.2.2 产品详细描述"
+        rows = _split_requirement_preview_rows(
+            item={
+                "req_code": "REQ-0100",
+                "requirement_type": "TEST",
+                "priority": "LOW",
+                "source_anchor": anchor,
+                "source_line_index": 48,
+                "source_line_index_end": 48,
+            },
+            source_page=6,
+            source_page_end=6,
+            appendix_scope=_extract_appendix_scope(anchor),
+            section_code=_extract_section_code(anchor),
+            section_title_hint=_extract_section_title(anchor),
+            explicit_section_code=_extract_explicit_section_code(anchor),
+            text="12、零部件需满足GB/T 26988 汽车部件可回收利用性标识要求；",
+            req_order_start=99,
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["section_code"], "12")
+        self.assertEqual(rows[0]["section_key"], "3.2.2::12")
+        self.assertEqual(rows[0]["section_title"], "零部件需满足GB/T 26988 汽车部件可回收利用性标识要求；")
+
     def test_embedded_local_clause_headers_are_split_before_section_blocking(self) -> None:
         entries = _build_line_entries(
             [
@@ -92,6 +164,49 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         self.assertGreaterEqual(len(entries), 2)
         self.assertEqual(entries[0]["text"], "1.3 化学性能要求（必备）")
         self.assertTrue(entries[1]["text"].startswith("1.3.1 电子电气部件"))
+
+    def test_contextual_child_section_header_recovers_long_prefixed_body_line(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 13,
+                    "source_anchor": "Page 13",
+                    "text": "1.3 化学性能要求（必备）\n1.3.1 电子电气部件，前油泵部件安装在前副车架的前转和电池包之间位置，后油泵安装在后轮转向和尾消之间，需满足GB/T 2423.18盐雾腐蚀要求（舱外：严酷度4（14天）；舱\n内：严酷度3（7天）），《GBT 28046.5-2013 道路车辆电气及电子设备的环境条件和试验第5部分：化学负荷》对应安装位置的要求。\n1.3.2 结构件",
+                    "table_count": 0,
+                }
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("1.3", "化学性能要求（必备）"),
+                ("1.3.1", "电子电气部件"),
+                ("1.3.2", "结构件"),
+            ],
+        )
+
+    def test_contextual_child_section_header_requires_direct_parent_context(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 13,
+                    "source_anchor": "Page 13",
+                    "text": "1.2 机械性能要求\n1.3.1 电子电气部件，前油泵部件安装在前副车架的前转和电池包之间位置，后油泵安装在后轮转向和尾消之间，需满足GB/T 2423.18盐雾腐蚀要求（舱外：严酷度4（14天）；舱\n内：严酷度3（7天）），《GBT 28046.5-2013 道路车辆电气及电子设备的环境条件和试验第5部分：化学负荷》对应安装位置的要求。",
+                    "table_count": 0,
+                }
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual([(row["section_code"], row["section_title"]) for row in blocks], [("1.2", "机械性能要求")])
+
+    def test_preview_extracts_real_appendix_title_scope_from_anchor(self) -> None:
+        anchor = "Page 29 | Appendix 测试分组 / Test Groups（推荐） | Section 1 组1"
+        self.assertEqual(_extract_appendix_scope(anchor), "测试分组 / Test Groups（推荐）")
 
     def test_embedded_numeric_table_values_do_not_split_into_fake_local_clauses(self) -> None:
         line = (
@@ -1626,6 +1741,40 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         subblocks = _split_block_by_bullets(block)
         first_lines = [item["lines"][0] for item in subblocks]
         self.assertIn("7.5.2）橡塑件表示按照QC/T797执行，并满足GB/T26988要求。", first_lines)
+
+    def test_electric_test_outline_marker_uses_real_title_scope(self) -> None:
+        markers = _collect_test_outline_markers(
+            [
+                {
+                    "source_page": 21,
+                    "source_anchor": "Page 21",
+                    "text": "|序号 / No.|项目 / Item|测试顺序|参考标准|要求 / Requirements|",
+                }
+            ]
+        )
+
+        self.assertEqual(len(markers), 1)
+        self.assertEqual(markers[0]["appendix_scope"], "用电器试验大纲")
+        self.assertEqual(markers[0]["section_title"], "用电器试验大纲")
+
+    def test_test_group_reference_table_does_not_emit_requirement_rows(self) -> None:
+        rows = _extract_test_outline_rows(
+            [
+                {
+                    "source_page": 18,
+                    "source_anchor": "Page 18",
+                    "text": "\n".join(
+                        [
+                            "测试分组 / Test Groups（推荐）",
+                            "|1|动力总成|建议先执行|",
+                            "|2|整车电器|建议随后执行|",
+                        ]
+                    ),
+                }
+            ]
+        )
+
+        self.assertEqual(rows, [])
 
 
 if __name__ == "__main__":
