@@ -3330,17 +3330,18 @@ class TableAssetsParsingTest(unittest.TestCase):
     @unittest.skipUnless(_DAMPER_SAMPLE_PDF and _DAMPER_SAMPLE_PDF.exists(), "damper sample pdf not available")
     def test_source_recovery_keeps_numbered_test_outline_row_when_context_is_heading_only(self) -> None:
         row = {
-            "entry_id": "REQ-T3",
-            "req_code": "REQ-T3",
+            "entry_id": "REQ-SUB1-3",
+            "req_code": "REQ-SUB1-3",
             "entry_kind": "REQUIREMENT",
-            "appendix_scope": "T",
+            "appendix_scope": "SUB1",
+            "appendix_title": "主动前减振器试验大纲",
             "section_code": "3",
-            "section_key": "T:3",
-            "section_instance_key": "T:3",
+            "section_key": "SUB1:3",
+            "section_instance_key": "SUB1:3",
             "section_title": "减振器的阻尼力与气体反弹力",
             "source_page": 10,
             "source_page_end": 10,
-            "source_anchor": "Page 10 | Appendix T | Section 3 减振器的阻尼力与气体反弹力 | 主动前减振器试验大纲",
+            "source_anchor": "Page 10 | Appendix SUB1 | Section 3 减振器的阻尼力与气体反弹力 | 主动前减振器试验大纲",
             "requirement_text": (
                 "|3|减振器的阻尼力与气体反弹力|-|试验行程：±50mm（若行程不足，则可减少行程进行检测，如 ±40mm、±25mm） "
                 "环境温度：在（23±3）℃的恒温箱保持不少于6h； 检测速度：0.05m/s, 0.1m/s, 0.2m/s, 0.3m/s, 0.6m/s, "

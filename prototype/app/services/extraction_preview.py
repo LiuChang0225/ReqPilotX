@@ -6,12 +6,19 @@ from statistics import mean
 from typing import Any
 
 from app.services.appendix_scopes import (
+    APPENDIX_EVIDENCE_EXPLICIT,
+    APPENDIX_EVIDENCE_HEADING,
+    APPENDIX_EVIDENCE_TABLE_HEADER,
+    APPENDIX_EVIDENCE_TOC,
     MAIN_SCOPE_ID,
     MAIN_SCOPE_TITLE,
+    TEST_OUTLINE_INFERRED_GENERIC_TITLE,
+    infer_generic_test_outline_title,
     is_test_outline_scope_value,
     normalize_scope_id,
     normalize_scope_text,
     normalize_test_outline_scope,
+    scope_evidence_rank,
     scope_sort_key,
     test_outline_scope_identity,
     TEST_OUTLINE_SCOPE_ACCUMULATOR,
@@ -114,6 +121,11 @@ def _scope_title_score(title: str, *, raw_scope: str) -> tuple[int, int]:
     return (score, len(candidate))
 
 
+def _scope_title_rank(title: str, *, raw_scope: str, evidence: str) -> tuple[int, int, int]:
+    base_score, length = _scope_title_score(title, raw_scope=raw_scope)
+    return (scope_evidence_rank(evidence), base_score, length)
+
+
 def _build_scope_catalog(
     *,
     section_outline: list[dict[str, Any]],
@@ -127,10 +139,22 @@ def _build_scope_catalog(
             "scope_title": MAIN_SCOPE_TITLE,
             "first_page": 0,
             "discovery_order": -1,
+            "scope_evidence": APPENDIX_EVIDENCE_EXPLICIT,
+            "scope_title_source": "main_body",
         }
     }
 
-    def remember(scope: str, *, title: str = "", section_code: str = "", page: Any = None, is_marker: bool = False, discovery_order: int = 0) -> None:
+    def remember(
+        scope: str,
+        *,
+        title: str = "",
+        section_code: str = "",
+        page: Any = None,
+        is_marker: bool = False,
+        discovery_order: int = 0,
+        evidence: str = "",
+        title_source: str = "",
+    ) -> None:
         identity = _scope_identity(scope)
         bucket = buckets.setdefault(
             identity,
@@ -139,6 +163,8 @@ def _build_scope_catalog(
                 "scope_title": "",
                 "first_page": 10**9,
                 "discovery_order": discovery_order,
+                "scope_evidence": "",
+                "scope_title_source": "",
             },
         )
         if bucket.get("raw_scope") in (None, ""):
@@ -147,6 +173,11 @@ def _build_scope_catalog(
         if page_int > 0 and page_int < int(bucket.get("first_page") or 10**9):
             bucket["first_page"] = page_int
         bucket["discovery_order"] = min(int(bucket.get("discovery_order") or discovery_order), discovery_order)
+        current_evidence = str(bucket.get("scope_evidence") or "")
+        if evidence and scope_evidence_rank(evidence) >= scope_evidence_rank(current_evidence):
+            bucket["scope_evidence"] = evidence
+            if title_source:
+                bucket["scope_title_source"] = title_source
         candidate_title = _scope_title_candidate(
             raw_scope=scope,
             section_code=section_code,
@@ -156,8 +187,16 @@ def _build_scope_catalog(
         if not candidate_title:
             return
         current_title = str(bucket.get("scope_title") or "")
-        if _scope_title_score(candidate_title, raw_scope=scope) > _scope_title_score(current_title, raw_scope=scope):
+        if _scope_title_rank(candidate_title, raw_scope=scope, evidence=evidence) > _scope_title_rank(
+            current_title,
+            raw_scope=scope,
+            evidence=str(bucket.get("scope_evidence") or ""),
+        ):
             bucket["scope_title"] = candidate_title
+            if title_source:
+                bucket["scope_title_source"] = title_source
+            if evidence:
+                bucket["scope_evidence"] = evidence
 
     for index, row in enumerate(section_outline):
         remember(
@@ -167,6 +206,8 @@ def _build_scope_catalog(
             page=row.get("source_page_start"),
             is_marker=bool(row.get("is_appendix_marker", False)),
             discovery_order=index,
+            evidence=str(row.get("appendix_scope_evidence") or APPENDIX_EVIDENCE_HEADING),
+            title_source=str(row.get("appendix_title_source") or "section_outline"),
         )
     base_order = len(section_outline)
     for offset, row in enumerate(appendix_markers):
@@ -176,6 +217,8 @@ def _build_scope_catalog(
             page=row.get("source_page_start"),
             is_marker=True,
             discovery_order=base_order + offset,
+            evidence=str(row.get("appendix_scope_evidence") or APPENDIX_EVIDENCE_EXPLICIT),
+            title_source=str(row.get("appendix_title_source") or "appendix_marker"),
         )
     base_order += len(appendix_markers)
     for offset, row in enumerate(test_outline_markers):
@@ -185,6 +228,8 @@ def _build_scope_catalog(
             page=row.get("source_page_start"),
             is_marker=True,
             discovery_order=base_order + offset,
+            evidence=str(row.get("appendix_scope_evidence") or APPENDIX_EVIDENCE_HEADING),
+            title_source=str(row.get("appendix_title_source") or "test_outline_marker"),
         )
     base_order += len(test_outline_markers)
     for offset, row in enumerate(requirements):
@@ -194,6 +239,8 @@ def _build_scope_catalog(
             section_code=str(row.get("section_code") or ""),
             page=row.get("source_page"),
             discovery_order=base_order + offset,
+            evidence=str(row.get("appendix_scope_evidence") or ""),
+            title_source=str(row.get("appendix_title_source") or "requirement"),
         )
 
     catalog: dict[str, dict[str, Any]] = {
@@ -218,6 +265,8 @@ def _build_scope_catalog(
                 "scope_id": f"SUB{number}",
                 "scope_title": title or f"附录 SUB{number}",
                 "raw_scope": bucket.get("raw_scope") or identity,
+                "scope_evidence": str(bucket.get("scope_evidence") or ""),
+                "scope_title_source": str(bucket.get("scope_title_source") or ""),
             }
             continue
         deferred.append((identity, bucket))
@@ -241,6 +290,8 @@ def _build_scope_catalog(
             "scope_id": f"SUB{next_sub_number}",
             "scope_title": title or f"附录 SUB{next_sub_number}",
             "raw_scope": bucket.get("raw_scope") or identity,
+            "scope_evidence": str(bucket.get("scope_evidence") or ""),
+            "scope_title_source": str(bucket.get("scope_title_source") or ""),
         }
         next_sub_number += 1
     return catalog
@@ -253,12 +304,24 @@ def _resolve_scope_info(scope_catalog: dict[str, dict[str, Any]], raw_scope: str
         return {
             "scope_id": str(info.get("scope_id") or MAIN_SCOPE_ID),
             "scope_title": str(info.get("scope_title") or MAIN_SCOPE_TITLE),
+            "scope_evidence": str(info.get("scope_evidence") or ""),
+            "scope_title_source": str(info.get("scope_title_source") or ""),
         }
     normalized_scope = normalize_scope_id(normalize_test_outline_scope(raw_scope))
     if normalized_scope == MAIN_SCOPE_ID:
-        return {"scope_id": MAIN_SCOPE_ID, "scope_title": MAIN_SCOPE_TITLE}
+        return {
+            "scope_id": MAIN_SCOPE_ID,
+            "scope_title": MAIN_SCOPE_TITLE,
+            "scope_evidence": APPENDIX_EVIDENCE_EXPLICIT,
+            "scope_title_source": "main_body",
+        }
     fallback_title = _scope_title_candidate(raw_scope=raw_scope, title=title) or normalize_scope_text(title) or normalized_scope
-    return {"scope_id": normalized_scope, "scope_title": fallback_title}
+    return {
+        "scope_id": normalized_scope,
+        "scope_title": fallback_title,
+        "scope_evidence": "",
+        "scope_title_source": "",
+    }
 
 
 def _apply_scope_catalog_to_row(
@@ -275,6 +338,8 @@ def _apply_scope_catalog_to_row(
     )
     mapped["appendix_scope"] = scope_info["scope_id"]
     mapped["appendix_title"] = scope_info["scope_title"]
+    mapped["appendix_scope_evidence"] = str(mapped.get("appendix_scope_evidence") or scope_info.get("scope_evidence") or "")
+    mapped["appendix_title_source"] = str(mapped.get("appendix_title_source") or scope_info.get("scope_title_source") or "")
     if is_marker:
         mapped["is_appendix_marker"] = True
     return mapped
@@ -347,6 +412,8 @@ def build_extraction_preview(
             req_pages.update(page for page in range(row["source_page"], row["source_page_end"] + 1) if page > 0)
             if row["source_page_end"] > max_page:
                 max_page = row["source_page_end"]
+            row["appendix_scope_evidence"] = str(item.get("appendix_scope_evidence") or scope_info.get("scope_evidence") or "")
+            row["appendix_title_source"] = str(item.get("appendix_title_source") or scope_info.get("scope_title_source") or "")
             text_lengths.append(int(row.get("text_length") or 0))
             req_rows.append(row)
 
@@ -379,6 +446,8 @@ def build_extraction_preview(
             {
                 "appendix_scope": row.get("appendix_scope", ""),
                 "appendix_title": row.get("appendix_title", ""),
+                "appendix_scope_evidence": row.get("appendix_scope_evidence", ""),
+                "appendix_title_source": row.get("appendix_title_source", ""),
                 "section_code": row.get("section_code", ""),
                 "section_key": section_key,
                 "section_instance_key": section_instance_key,
@@ -398,6 +467,10 @@ def build_extraction_preview(
         state["total_chars"] += _to_int(row.get("text_length"))
         if not state.get("appendix_title") and row.get("appendix_title"):
             state["appendix_title"] = row.get("appendix_title")
+        if not state.get("appendix_scope_evidence") and row.get("appendix_scope_evidence"):
+            state["appendix_scope_evidence"] = row.get("appendix_scope_evidence")
+        if not state.get("appendix_title_source") and row.get("appendix_title_source"):
+            state["appendix_title_source"] = row.get("appendix_title_source")
         if not state.get("section_title") and row.get("section_title"):
             state["section_title"] = row.get("section_title")
         source_page = _to_int(row.get("source_page"))
@@ -439,6 +512,8 @@ def build_extraction_preview(
             {
                 "appendix_scope": appendix_scope,
                 "appendix_title": str(node.get("appendix_title") or req_state.get("appendix_title") or ""),
+                "appendix_scope_evidence": str(node.get("appendix_scope_evidence") or req_state.get("appendix_scope_evidence") or ""),
+                "appendix_title_source": str(node.get("appendix_title_source") or req_state.get("appendix_title_source") or ""),
                 "section_code": code,
                 "section_key": section_key,
                 "section_instance_key": section_instance_key,
@@ -479,6 +554,8 @@ def build_extraction_preview(
             {
                 "appendix_scope": appendix_scope,
                 "appendix_title": str(req_state.get("appendix_title") or ""),
+                "appendix_scope_evidence": str(req_state.get("appendix_scope_evidence") or ""),
+                "appendix_title_source": str(req_state.get("appendix_title_source") or ""),
                 "section_code": code,
                 "section_key": section_key,
                 "section_instance_key": section_instance_key,
@@ -1417,6 +1494,8 @@ def _collect_appendix_markers(segments: list[dict[str, Any]]) -> list[dict[str, 
                 "section_title": line,
                 "source_page_start": source_page if source_page > 0 else None,
                 "source_page_end": source_page if source_page > 0 else None,
+                "appendix_scope_evidence": APPENDIX_EVIDENCE_EXPLICIT,
+                "appendix_title_source": "appendix_marker",
             }
     return sorted(markers.values(), key=lambda row: _scope_sort_key(str(row.get("appendix_scope", ""))))
 
@@ -1437,28 +1516,55 @@ def _collect_test_outline_markers(segments: list[dict[str, Any]]) -> list[dict[s
             line = " ".join(str(raw_line or "").strip().split())
             if not line:
                 continue
-            for scope, candidate in _iter_test_outline_candidates(line):
-                scope = normalize_test_outline_scope(scope)
+            for candidate in _iter_test_outline_candidates(line):
+                scope = normalize_test_outline_scope(str(candidate.get("scope") or ""))
                 scope_identity = test_outline_scope_identity(scope)
                 if not scope or not scope_identity or scope_identity in markers_by_scope:
                     continue
                 markers_by_scope[scope_identity] = {
                     "appendix_scope": scope,
-                    "section_title": candidate,
+                    "section_title": str(candidate.get("title") or scope),
                     "source_page_start": source_page if source_page > 0 else None,
                     "source_page_end": source_page if source_page > 0 else None,
+                    "appendix_scope_evidence": str(candidate.get("evidence") or APPENDIX_EVIDENCE_HEADING),
+                    "appendix_title_source": str(candidate.get("title_source") or "test_outline_marker"),
                 }
     return sorted(markers_by_scope.values(), key=lambda row: _scope_sort_key(str(row.get("appendix_scope", ""))))
 
 
-def _iter_test_outline_candidates(line: str) -> list[tuple[str, str]]:
-    candidates: list[tuple[str, str]] = []
+def _iter_test_outline_candidates(line: str) -> list[dict[str, str]]:
+    candidates: list[dict[str, str]] = []
+    seen: set[tuple[str, str]] = set()
     raw = str(line or "").strip()
     if not raw:
         return candidates
 
+    generic_title = infer_generic_test_outline_title(raw)
+    if generic_title:
+        dedupe_key = (normalize_scope_id(generic_title), normalize_scope_text(generic_title))
+        if dedupe_key not in seen:
+            candidates.append(
+                {
+                    "scope": generic_title,
+                    "title": generic_title,
+                    "evidence": APPENDIX_EVIDENCE_HEADING,
+                    "title_source": "test_outline_heading",
+                }
+            )
+            seen.add(dedupe_key)
+
     if ELECTRIC_TEST_OUTLINE_HEADER_RE.search(raw):
-        candidates.append((TEST_OUTLINE_SCOPE_ELECTRIC, TEST_OUTLINE_SCOPE_ELECTRIC))
+        dedupe_key = (normalize_scope_id(TEST_OUTLINE_INFERRED_GENERIC_TITLE), TEST_OUTLINE_INFERRED_GENERIC_TITLE)
+        if dedupe_key not in seen:
+            candidates.append(
+                {
+                    "scope": TEST_OUTLINE_INFERRED_GENERIC_TITLE,
+                    "title": TEST_OUTLINE_INFERRED_GENERIC_TITLE,
+                    "evidence": APPENDIX_EVIDENCE_TABLE_HEADER,
+                    "title_source": "test_outline_table_header",
+                }
+            )
+            seen.add(dedupe_key)
 
     cells = [raw]
     if "|" in raw:
@@ -1476,7 +1582,17 @@ def _iter_test_outline_candidates(line: str) -> list[tuple[str, str]]:
             continue
         for pattern, scope, canonical in TEST_OUTLINE_MARKER_PATTERNS:
             if pattern.search(value):
-                candidates.append((scope, canonical))
+                dedupe_key = (normalize_scope_id(scope), normalize_scope_text(canonical))
+                if dedupe_key not in seen:
+                    candidates.append(
+                        {
+                            "scope": scope,
+                            "title": canonical,
+                            "evidence": APPENDIX_EVIDENCE_HEADING,
+                            "title_source": "test_outline_named_title",
+                        }
+                    )
+                    seen.add(dedupe_key)
                 break
     return candidates
 

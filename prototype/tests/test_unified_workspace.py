@@ -408,10 +408,10 @@ def _fake_preview_with_single_row_slice_table() -> dict:
                 "requirement_text": table_text,
                 "source_page": 20,
                 "source_page_end": 20,
-                "source_anchor": "Appendix Y > 1",
-                "parent_section_code": "Y.1",
-                "parent_section_title": "用电器试验大纲",
-                "parent_section_label": "Y.1 用电器试验大纲",
+                "source_anchor": "Appendix SUB1 > 1",
+                "parent_section_code": "SUB1.1",
+                "parent_section_title": "试验大纲",
+                "parent_section_label": "SUB1.1 试验大纲",
                 "requirement_type": "FUNCTIONAL",
                 "priority": "MEDIUM",
             }
@@ -2150,7 +2150,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             extraction_preview.counts_toward_fidelity_section(
                 {
                     "section_code": "1",
-                    "appendix_scope": "Y",
+                    "appendix_scope": "SUB1",
                     "structural_kind": "synthetic",
                 }
             )
@@ -2297,16 +2297,17 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             [["12", "活塞杆弯曲强度"]],
         )
 
-    def test_trial_outline_single_row_header_inference_applies_to_appendix_t(self) -> None:
+    def test_trial_outline_single_row_header_inference_applies_to_canonical_appendix_scope(self) -> None:
         headers = table_assets._infer_contextual_single_row_header(
             lines=[
                 "|12|活塞杆弯曲强度|-|台架试验|通过|DV/PV|供应商|6件/OTS|1天|"
             ],
             row={
-                "appendix_scope": "T",
+                "appendix_scope": "SUB1",
+                "appendix_title": "主动前减振器试验大纲",
                 "parent_section_code": "12",
                 "parent_section_title": "主动前减振器试验大纲",
-                "source_anchor": "Appendix T | 主动前减振器试验大纲",
+                "source_anchor": "Appendix SUB1 | 主动前减振器试验大纲",
             },
             table_title="12 活塞杆弯曲强度",
         )

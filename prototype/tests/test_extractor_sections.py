@@ -1095,8 +1095,8 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
             [
                 ("", "7", "附件目录", 10, 10),
                 ("SUB1", "", "软件开发要求", 11, 11),
-                ("SUB1", "", "FMEA与特殊特性", 12, 12),
-                ("SUB1", "1", "FMEA要求", 12, 12),
+                ("SUB2", "", "FMEA与特殊特性", 12, 12),
+                ("SUB2", "1", "FMEA要求", 12, 12),
             ],
         )
 
@@ -1291,8 +1291,8 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
                 ("", "7", "附件目录", 10, 10),
                 ("SUB1", "", "软件开发要求", 11, 11),
                 ("SUB1", "1.4", "其他要求（可选，如电气负荷等）", 13, 13),
-                ("SUB1", "", "附件4--诊断、OTA相关标准接入认证设计规范", 15, 15),
-                ("SUB1", "3", "诊断设计要求", 15, 15),
+                ("SUB2", "", "附件4--诊断、OTA相关标准接入认证设计规范", 15, 15),
+                ("SUB2", "3", "诊断设计要求", 15, 15),
             ],
         )
 
@@ -1864,8 +1864,8 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         )
 
         self.assertEqual(len(markers), 1)
-        self.assertEqual(markers[0]["appendix_scope"], "用电器试验大纲")
-        self.assertEqual(markers[0]["section_title"], "用电器试验大纲")
+        self.assertEqual(markers[0]["appendix_scope"], "试验大纲")
+        self.assertEqual(markers[0]["section_title"], "试验大纲")
 
     def test_test_group_reference_table_does_not_emit_requirement_rows(self) -> None:
         rows = _extract_test_outline_rows(

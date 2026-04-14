@@ -1,6 +1,6 @@
 # Extraction Active Context
 
-更新时间：2026-04-14 12:32 CST  
+更新时间：2026-04-14 15:07 CST  
 分支：`codex/extraction-quality-loop`
 
 ## 分支目的
@@ -115,10 +115,19 @@
   - live oil-pump preview 当前 scopes=`MAIN,SUB1..SUB7`、root_count=`8`、`CX=0`
   - live damper preview 当前 scopes=`MAIN,SUB1..SUB6`、root_count=`7`、`CX=0`
   - live 两份 benchmark preview 均已确认不再向外输出 `T/U/V/W/X/Y/CX`
+- 本轮继续落地 appendix boundary / complex overlay：
+  - `appendix_scopes.py` 新增 evidence-tier helper，`extractor / extraction_preview` 当前统一输出 `appendix_scope_evidence` 与 `appendix_title_source`
+  - synthetic appendix scope 现在会在“新的附件标题证据”出现时主动切新 `SUBn`，不再只依赖 duplicate-code lookahead；油泵 `软件开发要求 -> FMEA与特殊特性` 与 `附件目录 -> 附件4--诊断、OTA相关标准接入认证设计规范` 已通过回归锁定
+  - electric test-outline 缺少更强标题证据时，preview / extractor 当前统一回退 generic family title `试验大纲`
+  - `complex_table_mode.rewrite_preview_sections_for_complex_tables()` 已改为保留 source-faithful section row，并以 `complex_*` 字段追加 overlay 信息
 - 本轮新增验证：
   - `prototype/tests/test_extractor_sections.py -q`：`53 passed`
   - `prototype/tests/test_unified_workspace.py -q -k "canonical_section_tree or appendix or structural_parent or section_tree"`：`4 passed`
   - `prototype/tests/test_unified_workspace.py -q` 在当前 Windows 机器上仍可能被临时 SQLite 清理问题打断；这不是本轮 scope/tree 变更引入的新失败
+- 本轮回归补充验证：
+  - `prototype/tests/test_extractor_sections.py -q`：`53 passed`
+  - `prototype/tests/test_unified_workspace.py -q`：`98 passed`
+  - `prototype/tests/test_table_assets.py -q`：`137 passed`
 - 本轮人工复核补充结论：
   - 真实 PDF 中 `3.2.2 产品详细描述` 的正确语义树应直接挂 `1..12`，并继续包含 `6.1..6.7 / 6.6.1..6.6.5 / 7.1..7.5.2 / 8.1.1..8.2.5.4 / 9.1..9.7 / 11.1..11.12`
   - 当前 worktree 已确认 `section_tree` 中 `3.2.2` 正式拥有 `1..12` 子节点，且 `6 / 6.6 / 7 / 7.5 / 8 / 8.1 / 8.2 / 8.2.5 / 9 / 11` 的子链顺序均与真实树一致
@@ -145,10 +154,12 @@
   - live oil-pump preview 当前 `section_consistency_missing_scope_root_count=1`
   - 当前按用户确认范围仅做标注，不改源文档内容或强行重写章节事实
 - 本轮人工调查额外确认：
-  - `Sub7 / 用电器试验大纲` 当前是由电器试验表头启发式推断，不要求 PDF 上存在显式标题行
-  - oil-pump `Sub1` 误并 `软件开发要求 + FMEA与特殊特性` 不是前端展示问题，而是 appendix boundary 模型仍缺“目录/边界驱动的 scope 分裂”这一层
-  - workspace 主页面“章节总览”仍消费扁平 `preview.sections`；独立 review 页已优先消费 `preview.section_tree`
-  - complex-table 当前在 preview 内先被 collapse 成 `CX` review zone，再在最终 `section_tree` 里被排除；这种做法适合隐藏 review-only synthetic 节点，但若某个真实附件/section 只剩 complex zone 代表，chapter tree 会失去 source-faithful 占位
+  - 电器 test-outline 在缺少更强标题证据时当前统一回退 `Sub7 / 试验大纲`；如果后续要提升可读性，应优先补邻近标题/目录恢复，而不是回退到历史 `Y`
+  - `appendix_scope_evidence / appendix_title_source` 已进入 row / section 数据，但 benchmark / report / UI 尚未系统消费这些置信度字段
+  - complex-table backend 已保留 source-faithful section row 并打 overlay 元数据；后续若要继续优化 review 体验，应消费 overlay 字段，而不是恢复 `CX` rewrite
+- 当前执行层还有一个环境 blocker：
+  - 本地基线已提交：`4c43104 Canonicalize appendix scopes and tree roots baseline`
+  - 这台 Windows 机器 push 到 GitHub 仍被 TLS/EOF 握手问题阻塞，SSH 也未配置；当前新增改动仍停留在本地 worktree
 - 其余样本当前也偏离历史绿色基线：
   - `Q-JLY`: `sections=407 / requirements=451`，当前主问题是 requirement drift 与 consistency drift
   - `SOR-N82KS`: 缺 `F:1 / G:1`，`E:2` 标题漂移，`requirements=172`
@@ -178,11 +189,10 @@
   - 评估 oil-pump `SUB2` root label 的 source-title 恢复空间
   - 决定是否把 `missing_scope_root=1` 继续保留为注记，还是补更精细的 source-root 识别规则
 - appendix/tree 设计下一步建议固定为：
-  - 建立 `explicit marker / toc-derived / heading-derived / table-header-derived` 四层 appendix evidence，并把来源/置信度打进 preview
-  - 对连续 appendix-like 顶层 heading 默认允许切 scope，避免 `软件开发要求` 与 `FMEA与特殊特性` 继续被同桶吞并
-  - backend 边界稳定后，再统一 workspace 主页面章节总览到 `section_tree`，不要先改 UI 口径掩盖 backend 边界问题
-  - complex-table 需要改成“source-faithful chapter row + complex overlay”双轨，而不是简单 `CX collapse -> final tree exclude`
-  - test-outline 需要从当前枚举标题规则升级成“generic trial-outline family + 邻近证据补 title”的模型；不建议直接把最终 scope title 统一降为宽泛 `试验大纲`
+  - 利用现有 `appendix_scope_evidence / appendix_title_source` 给 batch report / review UI 补可见置信度，而不是再改 scope ID 口径
+  - 继续缩小 legacy alias 使用面；当前对外输出与大部分测试夹具已切到 `MAIN/SUB*`，只保留 `appendix_scopes.py` 和 alias-normalization 回归中的内部兼容映射
+  - 对 generic `试验大纲` fallback，优先补 source-title 恢复规则；只有标题证据不足时才保留 generic family title
+  - complex-table backend 已改成“source-faithful chapter row + complex overlay”双轨；后续重点在前端消费 overlay，而不是恢复 `CX collapse -> final tree exclude`
 - 下一轮直接转向剩余三类 blocker：
   - `Q-JLY` requirement 膨胀 / consistency drift
   - `SOR-N82KS` `F:1 / G:1` 缺失与 `E:2` 标题漂移
