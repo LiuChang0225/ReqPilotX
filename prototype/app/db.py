@@ -794,6 +794,31 @@ def delete_knowledge_document(document_id: str) -> dict[str, Any] | None:
         conn.execute("DELETE FROM knowledge_documents WHERE id = ?", (document_id,))
     return _to_dict(row)
 
+
+def delete_sor_document(document_id: str) -> dict[str, Any] | None:
+    """Delete a SOR document and all its cascading records (requirements, table assets, AI jobs)."""
+    with get_conn() as conn:
+        row = conn.execute(
+            "SELECT * FROM sor_documents WHERE id = ?",
+            (document_id,),
+        ).fetchone()
+        if row is None:
+            return None
+        # Remove associated file from storage
+        file_path = row["file_path"]
+        if file_path:
+            try:
+                Path(file_path).unlink(missing_ok=True)
+            except OSError:
+                pass
+        # Cascading deletes (foreign keys may not be enabled, so do manually)
+        conn.execute("DELETE FROM ai_analysis_jobs WHERE sor_document_id = ?", (document_id,))
+        conn.execute("DELETE FROM ai_analysis_events WHERE sor_document_id = ?", (document_id,))
+        conn.execute("DELETE FROM document_table_assets WHERE sor_document_id = ?", (document_id,))
+        conn.execute("DELETE FROM requirements WHERE sor_document_id = ?", (document_id,))
+        conn.execute("DELETE FROM sor_documents WHERE id = ?", (document_id,))
+    return _to_dict(row)
+
 def list_knowledge_document_syncs(knowledge_document_id: str) -> list[dict[str, Any]]:
     with get_conn() as conn:
         rows = conn.execute(

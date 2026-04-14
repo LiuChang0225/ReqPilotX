@@ -5,7 +5,7 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ReqPilotX 智能合规工作台</title>
     <link rel="icon" href="/assets/reqpilotx-logo.svg" type="image/svg+xml" />
-    <link rel="stylesheet" href="/assets/styles.css?v=20260403-live-stream6" />
+    <link rel="stylesheet" href="/assets/styles.css?v=20260414-chip-filter3" />
   </head>
   <body>
     <main class="page">
@@ -58,7 +58,10 @@
               当前 SOR 文档
               <select id="sor-document-select"></select>
             </label>
-            <button id="refresh-projects" type="button">刷新项目列表</button>
+            <div class="project-actions">
+              <button id="refresh-projects" type="button">刷新项目列表</button>
+              <button id="remove-sor-btn" type="button" class="button-danger-subtle" disabled>移除当前 SOR</button>
+            </div>
           </div>
         </div>
       </section>
@@ -145,6 +148,10 @@
             <div class="upload-card-actions">
               <button id="sor-upload-btn" type="button" class="button-compact">上传 SOR</button>
             </div>
+            <div class="upload-progress" id="sor-upload-progress" hidden>
+              <div class="upload-progress-bar"><span class="upload-progress-fill"></span></div>
+              <span class="upload-progress-text">上传中 0%</span>
+            </div>
             <p class="hint" id="sor-upload-result"></p>
           </form>
 
@@ -156,6 +163,10 @@
             <p class="hint">请先完成上方 AI 路径设置。知识文档会按当前默认路径同步，不再要求填写类型、版本、状态和生效日期。</p>
             <div class="upload-card-actions">
               <button id="kb-upload-btn" type="button" class="button-compact">上传知识文档</button>
+            </div>
+            <div class="upload-progress" id="kb-upload-progress" hidden>
+              <div class="upload-progress-bar"><span class="upload-progress-fill"></span></div>
+              <span class="upload-progress-text">上传中 0%</span>
             </div>
             <p class="hint" id="kb-upload-result"></p>
           </form>
@@ -225,7 +236,11 @@
             <div class="review-filters">
               <label>
                 分类
-                <select id="review-kind-filter" class="review-kind-select"></select>
+                <div id="review-kind-filter" class="review-kind-chips">
+                  <button type="button" class="kind-chip is-active" data-kind="REQUIREMENT">需求</button>
+                  <button type="button" class="kind-chip is-active" data-kind="HYBRID">合并</button>
+                  <button type="button" class="kind-chip is-active" data-kind="HEADING">章节</button>
+                </div>
               </label>
               <label>
                 章节
@@ -427,6 +442,6 @@
       </section>
     </main>
 
-    <script src="/assets/app.js?v=20260403-knowledge-remove1" type="module"></script>
+    <script src="/assets/app.js?v=20260413-upload-progress2" type="module"></script>
   </body>
 </html>

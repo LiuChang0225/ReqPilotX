@@ -797,6 +797,18 @@ def list_sor_documents(project_id: str) -> list[dict]:
     return db.list_sor_documents(project_id)
 
 
+@app.delete("/api/projects/{project_id}/sor-documents/{document_id}")
+def delete_sor_document(project_id: str, document_id: str) -> dict:
+    _require_project(project_id)
+    document = db.get_sor_document(document_id)
+    if not document or document["project_id"] != project_id:
+        raise HTTPException(status_code=404, detail="SOR document not found for this project.")
+    deleted = db.delete_sor_document(document_id)
+    if not deleted:
+        raise HTTPException(status_code=404, detail="SOR document not found.")
+    return {"ok": True, "file_name": deleted["file_name"]}
+
+
 @app.get("/api/projects/{project_id}/sor-documents/{document_id}/extraction-preview")
 def get_sor_extraction_preview(project_id: str, document_id: str, response: Response) -> dict:
     _require_project(project_id)
