@@ -1780,17 +1780,18 @@ function renderReviewDiagnostics() {
   if (el.reviewSectionOverviewBody) {
     const rows = buildReviewSectionOverviewRows(preview.section_tree || preview.sections || []);
     if (!rows.length) {
-      el.reviewSectionOverviewBody.innerHTML = `<tr><td colspan="7">暂无章节数据</td></tr>`;
+      el.reviewSectionOverviewBody.innerHTML = `<tr><td colspan="8">暂无章节数据</td></tr>`;
     } else {
       el.reviewSectionOverviewBody.innerHTML = rows
         .map(
           (row) => {
             const span = row.source_page_start ? `${row.source_page_start}-${row.source_page_end || row.source_page_start}` : "-";
             return `<tr>
-            <td>${escapeHtml(formatScope(row.appendix_scope))}</td>
+            <td>${escapeHtml(formatScope(row.appendix_scope, row.appendix_title))}</td>
             <td><div style="padding-left:${Math.max(0, Number(row.tree_depth || 0)) * 14}px">${escapeHtml(row.node_label || "")}</div></td>
             <td>${escapeHtml(row.section_title || "")}</td>
-            <td>${escapeHtml(String(row.section_level || 0))}</td>
+            <td>${escapeHtml(String(row.structural_level ?? 0))}</td>
+            <td>${escapeHtml(String(row.numbering_level ?? 0))}</td>
             <td>${escapeHtml(row.parent_label || "-")}</td>
             <td>${escapeHtml(span)}</td>
             <td>${escapeHtml(String(row.requirement_count || 0))}</td>
@@ -1809,6 +1810,9 @@ function buildSectionOverviewLookupKey(scope, code) {
 }
 
 function buildSectionOverviewNodeLabel(row) {
+  if (!String(row.section_code || row.owner_section_code || "").trim() && row.is_appendix_scope_root) {
+    return "ROOT";
+  }
   const explicitLabel = String(row.owner_section_label || row.section_label || row.section_code || "").trim();
   const sectionCode = String(row.section_code || row.owner_section_code || "").trim();
   const sectionTitle = String(row.section_title || row.owner_section_title || "").trim();
@@ -1882,12 +1886,15 @@ function buildReviewSectionOverviewRows(rows) {
 
   return sourceRows.map((row) => ({
     appendix_scope: row.appendix_scope || "",
+    appendix_title: row.appendix_title || "",
     section_code: row.section_code || "",
     section_title: row.section_title || "",
-    section_level: Number(row.section_level || 0) || 0,
+    numbering_level: Number(row.numbering_level ?? row.section_level ?? 0) || 0,
+    structural_level: Number(row.structural_level ?? resolveDepth(row)) || 0,
     tree_depth: resolveDepth(row),
     node_label: buildSectionOverviewNodeLabel(row),
     parent_label: buildSectionOverviewParentLabel(row),
+    is_appendix_scope_root: Boolean(row.is_appendix_scope_root),
     source_page_start: row.source_page_start || "",
     source_page_end: row.source_page_end || "",
     requirement_count: row.requirement_count || 0,
@@ -3731,8 +3738,8 @@ function buildSectionLabel(label, code, title) {
 }
 
 function formatScope(scope) {
-  const normalized = String(scope || "").trim().toUpperCase();
-  return normalized || "Main";
+  const normalized = String(scope || "MAIN").trim().toUpperCase();
+  return normalized || "MAIN";
 }
 
 function extractSectionLabelFromAnchor(anchor) {

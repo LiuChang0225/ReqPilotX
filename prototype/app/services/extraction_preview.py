@@ -5,6 +5,23 @@ from pathlib import Path
 from statistics import mean
 from typing import Any
 
+from app.services.appendix_scopes import (
+    MAIN_SCOPE_ID,
+    MAIN_SCOPE_TITLE,
+    is_test_outline_scope_value,
+    normalize_scope_id,
+    normalize_scope_text,
+    normalize_test_outline_scope,
+    scope_sort_key,
+    test_outline_scope_identity,
+    TEST_OUTLINE_SCOPE_ACCUMULATOR,
+    TEST_OUTLINE_SCOPE_ELECTRIC,
+    TEST_OUTLINE_SCOPE_FRONT_DAMPER,
+    TEST_OUTLINE_SCOPE_GROUPS,
+    TEST_OUTLINE_SCOPE_REAR_DAMPER,
+    TEST_OUTLINE_SCOPE_VEHICLE_WIRING,
+)
+
 from app.services.complex_table_mode import (
     detect_complex_table_zones,
     rewrite_preview_rows_for_complex_tables,
@@ -37,38 +54,230 @@ TEST_OUTLINE_EXCLUDE_RE = re.compile(
     r"(?:测试项目\s*/\s*test item|col\d+)$",
     re.I,
 )
-TEST_OUTLINE_SCOPE_VEHICLE_WIRING = "整车用电器与线束匹配评估表"
-TEST_OUTLINE_SCOPE_GROUPS = "测试分组 / Test Groups（推荐）"
-TEST_OUTLINE_SCOPE_ELECTRIC = "用电器试验大纲"
-LEGACY_TEST_OUTLINE_SCOPE_ALIASES = {
-    "W": TEST_OUTLINE_SCOPE_VEHICLE_WIRING,
-    "X": TEST_OUTLINE_SCOPE_GROUPS,
-    "Y": TEST_OUTLINE_SCOPE_ELECTRIC,
-}
 ELECTRIC_TEST_OUTLINE_HEADER_RE = re.compile(
     r"(?:序号\s*/?.*项目\s*/\s*item.*测试顺序.*参考标准.*要求\s*/\s*requirements)",
     re.I,
 )
 TEST_OUTLINE_MARKER_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
-    (re.compile(r"主动前减振器试验大纲", re.I), "T", "主动前减振器试验大纲"),
-    (re.compile(r"主动后减振器试验大纲", re.I), "U", "主动后减振器试验大纲"),
-    (re.compile(r"蓄能器试验大纲", re.I), "V", "蓄能器试验大纲"),
+    (re.compile(r"主动前减振器试验大纲", re.I), TEST_OUTLINE_SCOPE_FRONT_DAMPER, TEST_OUTLINE_SCOPE_FRONT_DAMPER),
+    (re.compile(r"主动后减振器试验大纲", re.I), TEST_OUTLINE_SCOPE_REAR_DAMPER, TEST_OUTLINE_SCOPE_REAR_DAMPER),
+    (re.compile(r"蓄能器试验大纲", re.I), TEST_OUTLINE_SCOPE_ACCUMULATOR, TEST_OUTLINE_SCOPE_ACCUMULATOR),
     (re.compile(r"整车用电器与线束匹配评估表", re.I), TEST_OUTLINE_SCOPE_VEHICLE_WIRING, TEST_OUTLINE_SCOPE_VEHICLE_WIRING),
     (re.compile(r"测试分组\s*/\s*test groups", re.I), TEST_OUTLINE_SCOPE_GROUPS, TEST_OUTLINE_SCOPE_GROUPS),
     (re.compile(r"用电器试验大纲", re.I), TEST_OUTLINE_SCOPE_ELECTRIC, TEST_OUTLINE_SCOPE_ELECTRIC),
 ]
 
 
-def _normalize_test_outline_scope(scope: str) -> str:
-    value = str(scope or "").strip()
+def _scope_identity(scope: str) -> str:
+    value = normalize_scope_text(normalize_test_outline_scope(scope))
     if not value:
-        return ""
-    return LEGACY_TEST_OUTLINE_SCOPE_ALIASES.get(value.upper(), value)
+        return MAIN_SCOPE_ID
+    if re.fullmatch(r"SUB\d+", value, re.I):
+        return value.upper()
+    if re.fullmatch(r"[A-Z]", value, re.I):
+        return value.upper()
+    return value.upper()
 
 
-def _test_outline_scope_identity(scope: str) -> str:
-    value = _normalize_test_outline_scope(scope)
-    return re.sub(r"\s+", " ", value).strip().upper()
+def _scope_title_candidate(
+    *,
+    raw_scope: str,
+    section_code: str = "",
+    title: str = "",
+    is_marker: bool = False,
+) -> str:
+    normalized_scope = normalize_scope_text(normalize_test_outline_scope(raw_scope))
+    normalized_title = normalize_scope_text(title)
+    if is_marker and normalized_title:
+        return normalized_title
+    if not section_code and normalized_title:
+        return normalized_title
+    if normalized_scope and not re.fullmatch(r"(?:SUB\d+|[A-Z])", normalized_scope, re.I):
+        return normalized_scope
+    return ""
+
+
+def _scope_title_score(title: str, *, raw_scope: str) -> tuple[int, int]:
+    candidate = normalize_scope_text(title)
+    normalized_scope = normalize_scope_text(raw_scope)
+    score = 0
+    if candidate:
+        score += 1
+    if candidate and candidate != normalized_scope:
+        score += 2
+    if re.search(r"[A-Za-z\u4e00-\u9fff]{2,}", candidate):
+        score += 2
+    if candidate.startswith(("附件", "附录")):
+        score += 1
+    if re.fullmatch(r"(?:SUB\d+|[A-Z])", candidate, re.I):
+        score -= 2
+    return (score, len(candidate))
+
+
+def _build_scope_catalog(
+    *,
+    section_outline: list[dict[str, Any]],
+    appendix_markers: list[dict[str, Any]],
+    test_outline_markers: list[dict[str, Any]],
+    requirements: list[dict[str, Any]],
+) -> dict[str, dict[str, Any]]:
+    buckets: dict[str, dict[str, Any]] = {
+        MAIN_SCOPE_ID: {
+            "raw_scope": "",
+            "scope_title": MAIN_SCOPE_TITLE,
+            "first_page": 0,
+            "discovery_order": -1,
+        }
+    }
+
+    def remember(scope: str, *, title: str = "", section_code: str = "", page: Any = None, is_marker: bool = False, discovery_order: int = 0) -> None:
+        identity = _scope_identity(scope)
+        bucket = buckets.setdefault(
+            identity,
+            {
+                "raw_scope": normalize_scope_text(normalize_test_outline_scope(scope)),
+                "scope_title": "",
+                "first_page": 10**9,
+                "discovery_order": discovery_order,
+            },
+        )
+        if bucket.get("raw_scope") in (None, ""):
+            bucket["raw_scope"] = normalize_scope_text(normalize_test_outline_scope(scope))
+        page_int = _to_int(page)
+        if page_int > 0 and page_int < int(bucket.get("first_page") or 10**9):
+            bucket["first_page"] = page_int
+        bucket["discovery_order"] = min(int(bucket.get("discovery_order") or discovery_order), discovery_order)
+        candidate_title = _scope_title_candidate(
+            raw_scope=scope,
+            section_code=section_code,
+            title=title,
+            is_marker=is_marker,
+        )
+        if not candidate_title:
+            return
+        current_title = str(bucket.get("scope_title") or "")
+        if _scope_title_score(candidate_title, raw_scope=scope) > _scope_title_score(current_title, raw_scope=scope):
+            bucket["scope_title"] = candidate_title
+
+    for index, row in enumerate(section_outline):
+        remember(
+            str(row.get("appendix_scope") or ""),
+            title=str(row.get("section_title") or ""),
+            section_code=str(row.get("section_code") or ""),
+            page=row.get("source_page_start"),
+            is_marker=bool(row.get("is_appendix_marker", False)),
+            discovery_order=index,
+        )
+    base_order = len(section_outline)
+    for offset, row in enumerate(appendix_markers):
+        remember(
+            str(row.get("appendix_scope") or ""),
+            title=str(row.get("section_title") or ""),
+            page=row.get("source_page_start"),
+            is_marker=True,
+            discovery_order=base_order + offset,
+        )
+    base_order += len(appendix_markers)
+    for offset, row in enumerate(test_outline_markers):
+        remember(
+            str(row.get("appendix_scope") or ""),
+            title=str(row.get("section_title") or ""),
+            page=row.get("source_page_start"),
+            is_marker=True,
+            discovery_order=base_order + offset,
+        )
+    base_order += len(test_outline_markers)
+    for offset, row in enumerate(requirements):
+        remember(
+            str(row.get("appendix_scope") or _extract_appendix_scope(str(row.get("source_anchor") or "")) or ""),
+            title=str(row.get("section_title") or ""),
+            section_code=str(row.get("section_code") or ""),
+            page=row.get("source_page"),
+            discovery_order=base_order + offset,
+        )
+
+    catalog: dict[str, dict[str, Any]] = {
+        MAIN_SCOPE_ID: {
+            "scope_id": MAIN_SCOPE_ID,
+            "scope_title": MAIN_SCOPE_TITLE,
+            "raw_scope": "",
+        }
+    }
+    reserved_sub_numbers: set[int] = set()
+    deferred: list[tuple[str, dict[str, Any]]] = []
+
+    for identity, bucket in buckets.items():
+        if identity == MAIN_SCOPE_ID:
+            continue
+        title = normalize_scope_text(bucket.get("scope_title") or bucket.get("raw_scope") or "")
+        sub_match = re.fullmatch(r"SUB(\d+)", identity)
+        if sub_match:
+            number = int(sub_match.group(1))
+            reserved_sub_numbers.add(number)
+            catalog[identity] = {
+                "scope_id": f"SUB{number}",
+                "scope_title": title or f"附录 SUB{number}",
+                "raw_scope": bucket.get("raw_scope") or identity,
+            }
+            continue
+        deferred.append((identity, bucket))
+
+    deferred.sort(
+        key=lambda item: (
+            0 if re.fullmatch(r"[A-Z]", item[0]) else 1,
+            ord(item[0]) - ord("A") if re.fullmatch(r"[A-Z]", item[0]) else 10**9,
+            int(item[1].get("first_page") or 10**9),
+            int(item[1].get("discovery_order") or 10**9),
+            item[0],
+        )
+    )
+    next_sub_number = 1
+    for identity, bucket in deferred:
+        while next_sub_number in reserved_sub_numbers:
+            next_sub_number += 1
+        reserved_sub_numbers.add(next_sub_number)
+        title = normalize_scope_text(bucket.get("scope_title") or bucket.get("raw_scope") or "")
+        catalog[identity] = {
+            "scope_id": f"SUB{next_sub_number}",
+            "scope_title": title or f"附录 SUB{next_sub_number}",
+            "raw_scope": bucket.get("raw_scope") or identity,
+        }
+        next_sub_number += 1
+    return catalog
+
+
+def _resolve_scope_info(scope_catalog: dict[str, dict[str, Any]], raw_scope: str, *, title: str = "") -> dict[str, str]:
+    identity = _scope_identity(raw_scope)
+    if identity in scope_catalog:
+        info = scope_catalog[identity]
+        return {
+            "scope_id": str(info.get("scope_id") or MAIN_SCOPE_ID),
+            "scope_title": str(info.get("scope_title") or MAIN_SCOPE_TITLE),
+        }
+    normalized_scope = normalize_scope_id(normalize_test_outline_scope(raw_scope))
+    if normalized_scope == MAIN_SCOPE_ID:
+        return {"scope_id": MAIN_SCOPE_ID, "scope_title": MAIN_SCOPE_TITLE}
+    fallback_title = _scope_title_candidate(raw_scope=raw_scope, title=title) or normalize_scope_text(title) or normalized_scope
+    return {"scope_id": normalized_scope, "scope_title": fallback_title}
+
+
+def _apply_scope_catalog_to_row(
+    row: dict[str, Any],
+    *,
+    scope_catalog: dict[str, dict[str, Any]],
+    is_marker: bool = False,
+) -> dict[str, Any]:
+    mapped = dict(row)
+    scope_info = _resolve_scope_info(
+        scope_catalog,
+        str(row.get("appendix_scope") or ""),
+        title=str(row.get("section_title") or ""),
+    )
+    mapped["appendix_scope"] = scope_info["scope_id"]
+    mapped["appendix_title"] = scope_info["scope_title"]
+    if is_marker:
+        mapped["is_appendix_marker"] = True
+    return mapped
 
 
 def build_extraction_preview(
@@ -81,9 +290,23 @@ def build_extraction_preview(
     segments = parsed.get("segments", [])
     requirements = extract_atomic_requirements(segments)
     raw_section_outline = extract_section_outline(segments)
-    section_consistency = analyze_section_consistency(raw_section_outline)
     appendix_markers = _collect_appendix_markers(segments)
     test_outline_markers = _collect_test_outline_markers(segments)
+    scope_catalog = _build_scope_catalog(
+        section_outline=raw_section_outline,
+        appendix_markers=appendix_markers,
+        test_outline_markers=test_outline_markers,
+        requirements=requirements,
+    )
+    raw_section_outline = [
+        _apply_scope_catalog_to_row(row, scope_catalog=scope_catalog, is_marker=bool(row.get("is_appendix_marker", False)))
+        for row in raw_section_outline
+    ]
+    appendix_markers = [_apply_scope_catalog_to_row(row, scope_catalog=scope_catalog, is_marker=True) for row in appendix_markers]
+    test_outline_markers = [
+        _apply_scope_catalog_to_row(row, scope_catalog=scope_catalog, is_marker=True) for row in test_outline_markers
+    ]
+    section_consistency = analyze_section_consistency(raw_section_outline)
     # Strict original-order mode: do not inject synthetic marker rows into section flow.
     section_outline = [
         {
@@ -93,7 +316,7 @@ def build_extraction_preview(
         for row in raw_section_outline
     ]
 
-    req_rows = []
+    req_rows: list[dict[str, Any]] = []
     text_lengths: list[int] = []
     req_pages: set[int] = set()
     max_page = 0
@@ -101,7 +324,9 @@ def build_extraction_preview(
     for item in requirements:
         source_page = _to_int(item.get("source_page"))
         source_page_end = _to_int(item.get("source_page_end")) or source_page
-        appendix_scope = _normalize_test_outline_scope(_extract_appendix_scope(item.get("source_anchor", "")))
+        raw_scope = str(item.get("appendix_scope") or _extract_appendix_scope(item.get("source_anchor", "")) or "")
+        scope_info = _resolve_scope_info(scope_catalog, raw_scope, title=str(item.get("section_title") or ""))
+        appendix_scope = scope_info["scope_id"]
         explicit_section_code = _extract_explicit_section_code(item.get("source_anchor", ""))
         section_code = _extract_section_code(item.get("source_anchor", ""))
         section_title_hint = _extract_section_title(item.get("source_anchor", ""))
@@ -118,6 +343,7 @@ def build_extraction_preview(
             req_order_start=len(req_rows),
         )
         for row in split_rows:
+            row["appendix_title"] = scope_info["scope_title"]
             req_pages.update(page for page in range(row["source_page"], row["source_page_end"] + 1) if page > 0)
             if row["source_page_end"] > max_page:
                 max_page = row["source_page_end"]
@@ -133,6 +359,7 @@ def build_extraction_preview(
             markers=test_outline_markers,
             existing_requirements=req_rows,
             start_req_order=len(req_rows),
+            scope_catalog=scope_catalog,
         )
     )
 
@@ -151,6 +378,7 @@ def build_extraction_preview(
             section_instance_key,
             {
                 "appendix_scope": row.get("appendix_scope", ""),
+                "appendix_title": row.get("appendix_title", ""),
                 "section_code": row.get("section_code", ""),
                 "section_key": section_key,
                 "section_instance_key": section_instance_key,
@@ -168,6 +396,8 @@ def build_extraction_preview(
         )
         state["requirement_count"] += 1
         state["total_chars"] += _to_int(row.get("text_length"))
+        if not state.get("appendix_title") and row.get("appendix_title"):
+            state["appendix_title"] = row.get("appendix_title")
         if not state.get("section_title") and row.get("section_title"):
             state["section_title"] = row.get("section_title")
         source_page = _to_int(row.get("source_page"))
@@ -208,6 +438,7 @@ def build_extraction_preview(
         sections.append(
             {
                 "appendix_scope": appendix_scope,
+                "appendix_title": str(node.get("appendix_title") or req_state.get("appendix_title") or ""),
                 "section_code": code,
                 "section_key": section_key,
                 "section_instance_key": section_instance_key,
@@ -247,6 +478,7 @@ def build_extraction_preview(
         sections.append(
             {
                 "appendix_scope": appendix_scope,
+                "appendix_title": str(req_state.get("appendix_title") or ""),
                 "section_code": code,
                 "section_key": section_key,
                 "section_instance_key": section_instance_key,
@@ -274,7 +506,7 @@ def build_extraction_preview(
             }
         )
 
-    sections, section_tree_stats = _build_canonical_section_rows(sections)
+    sections, _ = _build_canonical_section_rows(sections)
     _attach_requirement_section_context(req_rows, sections)
     complex_table_zones = detect_complex_table_zones(
         segments=segments,
@@ -302,7 +534,11 @@ def build_extraction_preview(
         sections,
         zones=complex_table_zones,
     )
-    section_tree = [dict(row) for row in sections]
+    section_tree, section_tree_stats = _build_canonical_section_rows(
+        sections,
+        include_scope_roots=True,
+        exclude_complex_table_mode=True,
+    )
     table_snapshot_root = snapshot_root or (Path(file_path).resolve().parent / "table_snapshots")
     table_document_id = document_id or Path(file_path).stem
     complete_entries_raw, raw_table_assets = enrich_entries_with_table_assets(
@@ -345,6 +581,8 @@ def build_extraction_preview(
         "test_outline_marker_count": len(test_outline_markers),
         "section_consistency_issues_total": section_consistency.get("total_issues", 0),
         "section_consistency_duplicate_code_count": section_consistency.get("duplicate_code_count", 0),
+        "section_consistency_source_duplicate_code_count": section_consistency.get("source_duplicate_code_count", 0),
+        "section_consistency_missing_scope_root_count": section_consistency.get("missing_scope_root_count", 0),
         "section_consistency_missing_sibling_group_count": section_consistency.get("missing_sibling_group_count", 0),
         "leaf_sections_count": sum(1 for row in sections if row.get("is_leaf")),
         "requirement_like_sections_count": sum(1 for row in sections if row.get("requirement_like")),
@@ -563,6 +801,8 @@ def _scoped_local_clause_parent_key(*, parent_section_key: str, clause_code: str
 def counts_toward_fidelity_section(row: dict[str, Any]) -> bool:
     if not isinstance(row, dict) or bool(row.get("is_appendix_marker", False)):
         return False
+    if bool(row.get("complex_table_mode", False)):
+        return False
     if not str(row.get("section_code") or "").strip():
         return False
     structural_kind = str(row.get("structural_kind") or "").strip().lower()
@@ -570,7 +810,7 @@ def counts_toward_fidelity_section(row: dict[str, Any]) -> bool:
         return True
     # Keep appendix/test-outline synthetic scopes in fidelity counts, but do not
     # let preview-only local clause splits in the main document inflate section totals.
-    return bool(str(row.get("appendix_scope") or "").strip())
+    return normalize_scope_id(str(row.get("appendix_scope") or "")) != MAIN_SCOPE_ID
 
 
 def _extract_local_clause_code_and_title(text: str) -> tuple[str, str]:
@@ -707,12 +947,13 @@ def _build_missing_test_outline_scope_requirements(
     markers: list[dict[str, Any]],
     existing_requirements: list[dict[str, Any]],
     start_req_order: int,
+    scope_catalog: dict[str, dict[str, Any]],
 ) -> list[dict[str, Any]]:
     if not segments or not markers:
         return []
 
     scope_has_requirements = {
-        _test_outline_scope_identity(str(row.get("appendix_scope") or ""))
+        normalize_scope_id(str(row.get("appendix_scope") or ""))
         for row in existing_requirements
         if str(row.get("appendix_scope") or "").strip()
     }
@@ -727,8 +968,13 @@ def _build_missing_test_outline_scope_requirements(
     out: list[dict[str, Any]] = []
     req_order = max(-1, int(start_req_order) - 1)
     for marker in markers:
-        scope = _normalize_test_outline_scope(str(marker.get("appendix_scope") or ""))
-        scope_identity = _test_outline_scope_identity(scope)
+        scope_info = _resolve_scope_info(
+            scope_catalog,
+            str(marker.get("appendix_scope") or ""),
+            title=str(marker.get("section_title") or ""),
+        )
+        scope = scope_info["scope_id"]
+        scope_identity = normalize_scope_id(scope)
         if not scope or not scope_identity:
             continue
         if scope_identity in scope_has_requirements:
@@ -750,9 +996,9 @@ def _build_missing_test_outline_scope_requirements(
         if len(requirement_text) < 12:
             continue
 
-        section_code = scope
-        section_key = _join_section_key(scope, section_code)
-        section_title = str(marker.get("section_title") or f"附录{scope}").strip()[:160]
+        section_code = ""
+        section_title = str(scope_info["scope_title"] or marker.get("section_title") or f"附录 {scope}").strip()[:160]
+        section_key = _join_title_section_key(scope, section_title)
         req_order += 1
         out.append(
             {
@@ -760,9 +1006,10 @@ def _build_missing_test_outline_scope_requirements(
                 "entry_id": f"REQ-{scope}{req_order:04d}",
                 "entry_kind": "REQUIREMENT",
                 "appendix_scope": scope,
+                "appendix_title": section_title,
                 "section_code": section_code,
                 "section_key": section_key,
-                "section_level": 1,
+                "section_level": 0,
                 "source_page": start_page,
                 "source_page_end": end_page,
                 "source_anchor": f"Appendix {scope} | Synthetic Marker Requirement",
@@ -839,6 +1086,9 @@ def _preview_section_row_sort_key(row: dict[str, Any]) -> tuple[int, int, int, i
 
 def _build_canonical_section_rows(
     sections: list[dict[str, Any]],
+    *,
+    include_scope_roots: bool = False,
+    exclude_complex_table_mode: bool = False,
 ) -> tuple[list[dict[str, Any]], dict[str, int]]:
     if not sections:
         return [], {
@@ -847,18 +1097,96 @@ def _build_canonical_section_rows(
             "orphan_section_count": 0,
         }
 
-    copied = [dict(row) for row in sections]
+    copied = [
+        {
+            **dict(row),
+            "appendix_scope": normalize_scope_id(str(row.get("appendix_scope") or "")),
+            "appendix_title": str(
+                row.get("appendix_title")
+                or (MAIN_SCOPE_TITLE if normalize_scope_id(str(row.get("appendix_scope") or "")) == MAIN_SCOPE_ID else "")
+            ).strip(),
+            "numbering_level": _to_int(row.get("numbering_level") or row.get("section_level"))
+            or _infer_section_level(str(row.get("section_code") or "")),
+        }
+        for row in sections
+        if not (exclude_complex_table_mode and bool(row.get("complex_table_mode", False)))
+    ]
+    if include_scope_roots:
+        scope_meta: dict[str, dict[str, Any]] = {}
+        for node in copied:
+            scope = normalize_scope_id(str(node.get("appendix_scope") or ""))
+            title = str(node.get("appendix_title") or "").strip() or (MAIN_SCOPE_TITLE if scope == MAIN_SCOPE_ID else "")
+            state = scope_meta.setdefault(
+                scope,
+                {
+                    "appendix_title": title,
+                    "source_page_start": _to_int(node.get("source_page_start")),
+                    "source_page_end": _to_int(node.get("source_page_end")),
+                },
+            )
+            if title and not state.get("appendix_title"):
+                state["appendix_title"] = title
+            start_page = _to_int(node.get("source_page_start"))
+            end_page = _to_int(node.get("source_page_end")) or start_page
+            if start_page > 0 and (
+                _to_int(state.get("source_page_start")) <= 0 or start_page < _to_int(state.get("source_page_start"))
+            ):
+                state["source_page_start"] = start_page
+            if end_page > 0 and end_page > _to_int(state.get("source_page_end")):
+                state["source_page_end"] = end_page
+
+        for scope, meta in sorted(scope_meta.items(), key=lambda item: scope_sort_key(item[0])):
+            title = str(meta.get("appendix_title") or (MAIN_SCOPE_TITLE if scope == MAIN_SCOPE_ID else f"附录 {scope}")).strip()
+            root_key = f"{scope}:ROOT"
+            copied.append(
+                {
+                    "appendix_scope": scope,
+                    "appendix_title": title,
+                    "section_code": "",
+                    "section_key": root_key,
+                    "section_instance_key": root_key,
+                    "section_title": title,
+                    "section_label": title,
+                    "section_level": 0,
+                    "numbering_level": 0,
+                    "parent_section_code": "",
+                    "parent_section_key": "",
+                    "has_children": True,
+                    "is_leaf": False,
+                    "source_page_start": _to_int(meta.get("source_page_start")) or None,
+                    "source_page_end": _to_int(meta.get("source_page_end")) or _to_int(meta.get("source_page_start")) or None,
+                    "source_line_index_start": 0,
+                    "source_line_index_end": 0,
+                    "line_count": 0,
+                    "section_char_count": len(title),
+                    "requirement_like": False,
+                    "is_appendix_marker": False,
+                    "requirement_count": 0,
+                    "total_chars": 0,
+                    "text_preview": title[:280],
+                    "first_req_order": None,
+                    "outline_order": None,
+                    "is_scoped_local_clause": False,
+                    "is_appendix_scope_root": True,
+                }
+            )
+
     node_key_by_section_key: dict[str, str] = {}
     any_node_key_by_section_key: dict[str, str] = {}
     children_by_parent_key: dict[str, list[dict[str, Any]]] = {}
     root_nodes: list[dict[str, Any]] = []
+    scope_root_key_by_scope: dict[str, str] = {}
 
     for index, node in enumerate(copied):
         node_key = str(node.get("section_instance_key") or node.get("section_key") or "").strip()
         if not node_key:
             node_key = f"section-node-{index}"
         node["_structural_node_key"] = node_key
-        structural_kind = "outline" if node.get("outline_order") is not None else "synthetic"
+        if bool(node.get("is_appendix_scope_root", False)):
+            structural_kind = "scope_root"
+            scope_root_key_by_scope[normalize_scope_id(str(node.get("appendix_scope") or ""))] = node_key
+        else:
+            structural_kind = "outline" if node.get("outline_order") is not None else "synthetic"
         node["structural_kind"] = structural_kind
         section_key = str(node.get("section_key") or "").strip()
         if section_key and section_key not in any_node_key_by_section_key:
@@ -875,6 +1203,7 @@ def _build_canonical_section_rows(
             node,
             outline_node_key_by_section_key=node_key_by_section_key,
             any_node_key_by_section_key=any_node_key_by_section_key,
+            scope_root_node_key_by_scope=scope_root_key_by_scope,
         )
         if parent_key == node.get("_structural_node_key"):
             parent_key = ""
@@ -886,16 +1215,18 @@ def _build_canonical_section_rows(
 
     ordered: list[dict[str, Any]] = []
 
-    def visit(node: dict[str, Any]) -> None:
+    def visit(node: dict[str, Any], depth: int) -> None:
         node["tree_order"] = len(ordered)
+        node["structural_depth"] = depth
+        node["structural_level"] = depth
         ordered.append(node)
         node_key = str(node.get("_structural_node_key") or "").strip()
         children = children_by_parent_key.get(node_key, [])
         for child in sorted(children, key=_section_tree_child_sort_key):
-            visit(child)
+            visit(child, depth + 1)
 
     for node in sorted(root_nodes, key=_section_tree_child_sort_key):
-        visit(node)
+        visit(node, 0)
 
     for node in ordered:
         node_key = str(node.get("_structural_node_key") or "").strip()
@@ -934,6 +1265,8 @@ def _build_canonical_section_rows(
         node["structural_parent_section_key"] = structural_parent_section_key
         node["structural_parent_section_title"] = structural_parent_section_title
         node["structural_parent_section_label"] = structural_parent_section_label
+        node["numbering_level"] = _to_int(node.get("numbering_level") or node.get("section_level"))
+        node["section_level"] = node["numbering_level"]
         has_children = bool(children_by_parent_key.get(node_key))
         node["has_children"] = has_children
         node["is_leaf"] = not has_children
@@ -941,7 +1274,11 @@ def _build_canonical_section_rows(
 
     stats = {
         "zero_direct_requirement_parent_count": sum(
-            1 for row in ordered if bool(row.get("has_children")) and _to_int(row.get("requirement_count")) <= 0
+            1
+            for row in ordered
+            if bool(row.get("has_children"))
+            and not bool(row.get("is_appendix_scope_root", False))
+            and _to_int(row.get("requirement_count")) <= 0
         ),
         "synthetic_section_count": sum(1 for row in ordered if str(row.get("structural_kind") or "") == "synthetic"),
         "orphan_section_count": sum(
@@ -959,12 +1296,20 @@ def _resolve_structural_parent_node_key(
     *,
     outline_node_key_by_section_key: dict[str, str],
     any_node_key_by_section_key: dict[str, str],
+    scope_root_node_key_by_scope: dict[str, str],
 ) -> str:
+    if bool(node.get("is_appendix_scope_root", False)):
+        return ""
     explicit_parent_key = str(node.get("parent_section_key") or "").strip()
     if explicit_parent_key:
         parent_key = outline_node_key_by_section_key.get(explicit_parent_key) or any_node_key_by_section_key.get(
             explicit_parent_key
         )
+        if not parent_key and normalize_scope_id(str(node.get("appendix_scope") or "")) == MAIN_SCOPE_ID:
+            plain_parent_key = explicit_parent_key.split(":", 1)[-1].strip()
+            parent_key = outline_node_key_by_section_key.get(plain_parent_key) or any_node_key_by_section_key.get(
+                plain_parent_key
+            )
         if parent_key:
             return parent_key
     appendix_scope = str(node.get("appendix_scope") or "").strip().upper()
@@ -978,14 +1323,23 @@ def _resolve_structural_parent_node_key(
         parent_key = outline_node_key_by_section_key.get(parent_section_key) or any_node_key_by_section_key.get(
             parent_section_key
         )
+        if not parent_key and appendix_scope == MAIN_SCOPE_ID:
+            parent_key = outline_node_key_by_section_key.get(parent_code) or any_node_key_by_section_key.get(parent_code)
         if parent_key:
             return parent_key
         parent_code = _parent_section_code(parent_code)
+    scope = normalize_scope_id(str(node.get("appendix_scope") or ""))
+    root_key = scope_root_node_key_by_scope.get(scope)
+    if root_key and root_key != str(node.get("_structural_node_key") or ""):
+        return root_key
     return ""
 
 
 def _section_tree_child_sort_key(row: dict[str, Any]) -> tuple[int, int, int, int, int, int, str]:
     structural_kind = str(row.get("structural_kind") or "").strip().lower()
+    if structural_kind == "scope_root":
+        scope_rank, scope_order, _ = scope_sort_key(str(row.get("appendix_scope") or ""))
+        return (-1, scope_rank, scope_order, 0, 0, 0, str(row.get("section_instance_key") or row.get("section_key") or ""))
     outline_order = _outline_order_sort_key(row.get("outline_order"))
     source_page = _optional_nonnegative_int_sort_key(row.get("source_page_start"), allow_zero=False)
     source_line = _optional_nonnegative_int_sort_key(row.get("source_line_index_start"))
@@ -1024,13 +1378,8 @@ def _section_sort_key(section_code: str) -> tuple[int, ...]:
 
 
 def _scope_sort_key(scope: str) -> tuple[int, int]:
-    normalized = str(scope or "").strip().upper()
-    if not normalized:
-        return (0, 0)
-    first = normalized[:1]
-    if "A" <= first <= "Z":
-        return (1, ord(first) - ord("A"))
-    return (2, 0)
+    rank, order, _ = scope_sort_key(scope)
+    return (rank, order)
 
 
 def _parent_section_code(section_code: str) -> str:
@@ -1089,8 +1438,8 @@ def _collect_test_outline_markers(segments: list[dict[str, Any]]) -> list[dict[s
             if not line:
                 continue
             for scope, candidate in _iter_test_outline_candidates(line):
-                scope = _normalize_test_outline_scope(scope)
-                scope_identity = _test_outline_scope_identity(scope)
+                scope = normalize_test_outline_scope(scope)
+                scope_identity = test_outline_scope_identity(scope)
                 if not scope or not scope_identity or scope_identity in markers_by_scope:
                     continue
                 markers_by_scope[scope_identity] = {
@@ -1145,7 +1494,7 @@ def _inject_appendix_marker_rows(
     if not section_outline and not appendix_markers:
         return []
     marker_by_scope = {
-        _test_outline_scope_identity(str(row.get("appendix_scope") or "")): row
+        test_outline_scope_identity(str(row.get("appendix_scope") or "")): row
         for row in appendix_markers
         if str(row.get("appendix_scope") or "").strip()
     }
@@ -1153,8 +1502,8 @@ def _inject_appendix_marker_rows(
     out: list[dict[str, Any]] = []
 
     for row in section_outline:
-        scope = _normalize_test_outline_scope(str(row.get("appendix_scope") or ""))
-        scope_identity = _test_outline_scope_identity(scope)
+        scope = normalize_test_outline_scope(str(row.get("appendix_scope") or ""))
+        scope_identity = test_outline_scope_identity(scope)
         marker = marker_by_scope.get(scope_identity)
         if scope_identity and marker and scope_identity not in injected:
             out.append(_build_appendix_outline_row(marker))
@@ -1174,7 +1523,8 @@ def _inject_appendix_marker_rows(
 def _build_appendix_outline_row(marker: dict[str, Any]) -> dict[str, Any]:
     title = str(marker.get("section_title") or "")
     return {
-        "appendix_scope": _normalize_test_outline_scope(str(marker.get("appendix_scope") or "")),
+        "appendix_scope": normalize_test_outline_scope(str(marker.get("appendix_scope") or "")),
+        "appendix_title": str(marker.get("appendix_title") or title),
         "section_code": "",
         "section_title": title,
         "section_level": 0,
@@ -1589,7 +1939,8 @@ def _find_section_row_for_key(sections: list[dict[str, Any]], section_key: str) 
 
 
 def _build_heading_entry(node: dict[str, Any], heading_seq: int, synthetic: bool) -> dict[str, Any]:
-    scope = str(node.get("appendix_scope") or "").strip().upper()
+    scope = normalize_scope_id(str(node.get("appendix_scope") or ""))
+    appendix_title = str(node.get("appendix_title") or (MAIN_SCOPE_TITLE if scope == MAIN_SCOPE_ID else "")).strip()
     section_code = str(node.get("section_code") or "").strip()
     section_title = str(node.get("section_title") or "").strip()
     section_key = str(node.get("section_key") or "").strip() or _join_section_key(scope, section_code)
@@ -1599,16 +1950,19 @@ def _build_heading_entry(node: dict[str, Any], heading_seq: int, synthetic: bool
     if not section_title:
         if section_code:
             section_title = section_code
+        elif appendix_title:
+            section_title = appendix_title
         elif scope:
-            section_title = f"附录{scope}"
+            section_title = f"附录 {scope}"
         else:
-            section_title = "正文（Main）"
+            section_title = MAIN_SCOPE_TITLE
 
     source_page = _to_int(node.get("source_page_start"))
     source_page_end = _to_int(node.get("source_page_end")) or source_page
     source_line_index = _to_int(node.get("source_line_index_start"))
     source_line_index_end = _to_int(node.get("source_line_index_end")) or source_line_index
-    section_level = _to_int(node.get("section_level")) or _infer_section_level(section_code)
+    numbering_level = _to_int(node.get("numbering_level") or node.get("section_level")) or _infer_section_level(section_code)
+    structural_level = _to_int(node.get("structural_level"))
     parent_section_code = str(node.get("parent_section_code") or "").strip()
     parent_section_key = str(node.get("parent_section_key") or "").strip()
     section_label = str(node.get("section_label") or "").strip()
@@ -1624,10 +1978,13 @@ def _build_heading_entry(node: dict[str, Any], heading_seq: int, synthetic: bool
         "entry_kind": "HEADING",
         "req_code": "",
         "appendix_scope": scope,
+        "appendix_title": appendix_title,
         "section_code": section_code,
         "section_key": section_key,
         "section_instance_key": section_instance_key,
-        "section_level": section_level,
+        "section_level": numbering_level,
+        "numbering_level": numbering_level,
+        "structural_level": structural_level,
         "parent_section_code": parent_section_code,
         "parent_section_key": parent_section_key,
         "source_page": source_page,
@@ -1690,18 +2047,27 @@ def _attach_requirement_section_context(requirements: list[dict[str, Any]], sect
     for req in requirements:
         section_instance_key = str(req.get("section_instance_key") or "").strip()
         section_key = str(req.get("section_key") or "").strip()
-        appendix_scope = str(req.get("appendix_scope") or "").strip().upper()
+        appendix_scope = normalize_scope_id(str(req.get("appendix_scope") or ""))
         section_row = by_instance_key.get(section_instance_key) or by_section_key.get(section_key)
         section_code = str(req.get("section_code") or "").strip()
         section_title = str(req.get("section_title") or "").strip()
         section_label = str(req.get("section_label") or "").strip()
+        appendix_title = str(req.get("appendix_title") or "").strip()
         if section_row:
+            if not appendix_title:
+                appendix_title = str(section_row.get("appendix_title") or "").strip()
             if not section_code:
                 section_code = str(section_row.get("section_code") or "").strip()
             if not section_title:
                 section_title = str(section_row.get("section_title") or "").strip()
             if not section_label:
                 section_label = str(section_row.get("section_label") or "").strip()
+
+        req["appendix_scope"] = appendix_scope
+        req["appendix_title"] = appendix_title or (MAIN_SCOPE_TITLE if appendix_scope == MAIN_SCOPE_ID else "")
+        if section_row:
+            req["numbering_level"] = _to_int(section_row.get("numbering_level") or section_row.get("section_level"))
+            req["structural_level"] = _to_int(section_row.get("structural_level"))
 
         owner_section_code = section_code
         owner_section_title = section_title

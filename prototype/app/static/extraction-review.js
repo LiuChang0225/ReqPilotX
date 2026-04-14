@@ -564,6 +564,9 @@ function buildSectionOverviewLookupKey(scope, code) {
 }
 
 function buildSectionOverviewNodeLabel(row) {
+  if (!String(row.section_code || row.owner_section_code || "").trim() && row.is_appendix_scope_root) {
+    return "ROOT";
+  }
   const explicitLabel = String(row.owner_section_label || row.section_label || row.section_code || "").trim();
   const sectionCode = String(row.section_code || row.owner_section_code || "").trim();
   const sectionTitle = String(row.section_title || row.owner_section_title || "").trim();
@@ -637,12 +640,15 @@ function buildSectionOverviewRows(rows) {
 
   return sourceRows.map((row, index) => ({
     appendix_scope: row.appendix_scope || "",
+    appendix_title: row.appendix_title || "",
     section_code: row.section_code || "",
     section_title: row.section_title || "",
-    section_level: Number(row.section_level || 0),
+    numbering_level: Number(row.numbering_level ?? row.section_level ?? 0),
+    structural_level: Number(row.structural_level ?? resolveDepth(row)),
     tree_depth: resolveDepth(row),
     node_label: buildSectionOverviewNodeLabel(row),
     parent_label: buildSectionOverviewParentLabel(row),
+    is_appendix_scope_root: Boolean(row.is_appendix_scope_root),
     parent_section_code: row.parent_section_code || "",
     source_page_start: row.source_page_start ?? null,
     source_page_end: row.source_page_end ?? null,
@@ -660,19 +666,21 @@ function buildSectionOverviewRows(rows) {
 
 function renderSectionOverviewTable(rows) {
   if (!rows.length) {
-    el.sectionOverviewBody.innerHTML = `<tr><td colspan="9">未识别到章节</td></tr>`;
+    el.sectionOverviewBody.innerHTML = `<tr><td colspan="10">未识别到章节</td></tr>`;
     return;
   }
 
   el.sectionOverviewBody.innerHTML = rows
     .map((row) => {
       const span = row.source_page_start ? `${row.source_page_start}-${row.source_page_end ?? row.source_page_start}` : "-";
-      const level = Number(row.section_level || 0);
+      const structuralLevel = Number(row.structural_level ?? 0);
+      const numberingLevel = Number(row.numbering_level ?? 0);
       return `<tr>
-        <td>${escapeHtml(formatScope(row.appendix_scope))}</td>
+        <td>${escapeHtml(formatScope(row.appendix_scope, row.appendix_title))}</td>
         <td><div style="padding-left:${Math.max(0, Number(row.tree_depth || 0)) * 14}px">${escapeHtml(row.node_label || row.section_code || "")}</div></td>
         <td>${escapeHtml(row.section_title || "")}</td>
-        <td>${level || ""}</td>
+        <td>${structuralLevel || 0}</td>
+        <td>${numberingLevel || 0}</td>
         <td>${escapeHtml(row.parent_label || row.parent_section_code || "-")}</td>
         <td>${escapeHtml(span)}</td>
         <td>${row.requirement_count ?? 0}</td>
@@ -701,8 +709,8 @@ function compareSectionOverviewRows(a, b) {
 }
 
 function compareScopeCode(a, b) {
-  const left = String(a || "").trim().toUpperCase();
-  const right = String(b || "").trim().toUpperCase();
+  const left = String(a || "MAIN").trim().toUpperCase();
+  const right = String(b || "MAIN").trim().toUpperCase();
   if (left === right) {
     return 0;
   }
@@ -710,6 +718,17 @@ function compareScopeCode(a, b) {
     return -1;
   }
   if (right === "MAIN") {
+    return 1;
+  }
+  const leftMatch = left.match(/^SUB(\d+)$/);
+  const rightMatch = right.match(/^SUB(\d+)$/);
+  if (leftMatch && rightMatch) {
+    return Number(leftMatch[1]) - Number(rightMatch[1]);
+  }
+  if (leftMatch) {
+    return -1;
+  }
+  if (rightMatch) {
     return 1;
   }
   return left.localeCompare(right);
@@ -729,6 +748,32 @@ function normalizeSectionTitle(value) {
     .toLowerCase();
 }
 
+function formatConsistencyIssueType(issueType) {
+  const normalized = String(issueType || "").trim();
+  if (!normalized) {
+    return "";
+  }
+  if (normalized === "missing_scope_root") {
+    return "附件根节点缺失";
+  }
+  if (normalized === "source_faithful_duplicate_code") {
+    return "源文档重复编号";
+  }
+  if (normalized === "duplicate_code") {
+    return "重复编号";
+  }
+  if (normalized === "missing_sibling_code") {
+    return "缺失同级编号";
+  }
+  if (normalized === "level_jump") {
+    return "层级跳变";
+  }
+  if (normalized === "late_major_reset") {
+    return "晚期主编号重置";
+  }
+  return normalized;
+}
+
 function renderConsistencyTable(consistency) {
   const rows = consistency?.issues || [];
   if (!rows.length) {
@@ -738,9 +783,9 @@ function renderConsistencyTable(consistency) {
   el.consistencyBody.innerHTML = rows
     .map((row) => {
       return `<tr>
-        <td>${escapeHtml(row.issue_type || "")}</td>
+        <td>${escapeHtml(formatConsistencyIssueType(row.issue_type))}</td>
         <td>${escapeHtml(row.severity || "")}</td>
-        <td>${escapeHtml(formatScope(row.appendix_scope))}</td>
+        <td>${escapeHtml(formatScope(row.appendix_scope, row.appendix_title))}</td>
         <td>${escapeHtml(row.section_code || "")}</td>
         <td>${escapeHtml(row.detail || "")}</td>
       </tr>`;
@@ -2302,8 +2347,8 @@ function escapeHtml(value) {
 }
 
 function formatScope(scope) {
-  const normalized = String(scope || "").trim().toUpperCase();
-  return normalized || "Main";
+  const normalized = String(scope || "MAIN").trim().toUpperCase();
+  return normalized || "MAIN";
 }
 
 function formatTime(value) {

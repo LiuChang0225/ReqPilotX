@@ -1,6 +1,6 @@
 # Extraction Active Context
 
-更新时间：2026-04-14 10:15 CST  
+更新时间：2026-04-14 12:32 CST  
 分支：`codex/extraction-quality-loop`
 
 ## 分支目的
@@ -102,6 +102,23 @@
   - `5555` 服务已重启到当前 worktree
   - 强制 `refresh-preview` 后，油泵 preview 已确认不再出现 `appendix_scope=Y` / `Appendix Y`
   - 定向回归：`tests/test_extractor_sections.py tests/test_unified_workspace.py -q` 全绿，`147 passed`
+- 本轮继续落地 appendix/tree canonicalization：
+  - 新增 `prototype/app/services/appendix_scopes.py` 作为共享 appendix scope helper，统一 `MAIN`、`SUB*`、真实 appendix title 与历史 `T/U/V/W/X/Y` alias 归一化
+  - `extraction_preview` 现已先构建 canonical scope catalog，再对外统一输出 `MAIN / SUB1 / SUB2 ...`，并额外保留 `appendix_title`
+  - `section_tree` 现已注入 `MAIN/SUB*` root 节点，并显式拆分 `structural_level` 与 `numbering_level`
+  - `CX` complex-table helper 行已从最终 `section_tree` 剔除，不再污染 benchmark chapter-tree
+  - section consistency 现已把 source-faithful 重号标注为 `source_faithful_duplicate_code`，并新增 `missing_scope_root` 注记，遵守“P2 只标注、不改内容”
+- 本轮前端 / live payload 对齐：
+  - `app.js` 与 `extraction-review.js` 已同步展示 canonical scope、`结构层级 / 编号层级` 与 `ROOT` root 行
+  - 静态资源版本已 bump：`app.js?v=20260414-scope-tree2`、`extraction-review.js?v=20260414-scope-tree2`
+  - `5555` 服务由 `start.ps1` 启动且默认非 `--reload`；本轮已显式重启后再强制 `refresh-preview`
+  - live oil-pump preview 当前 scopes=`MAIN,SUB1..SUB7`、root_count=`8`、`CX=0`
+  - live damper preview 当前 scopes=`MAIN,SUB1..SUB6`、root_count=`7`、`CX=0`
+  - live 两份 benchmark preview 均已确认不再向外输出 `T/U/V/W/X/Y/CX`
+- 本轮新增验证：
+  - `prototype/tests/test_extractor_sections.py -q`：`53 passed`
+  - `prototype/tests/test_unified_workspace.py -q -k "canonical_section_tree or appendix or structural_parent or section_tree"`：`4 passed`
+  - `prototype/tests/test_unified_workspace.py -q` 在当前 Windows 机器上仍可能被临时 SQLite 清理问题打断；这不是本轮 scope/tree 变更引入的新失败
 - 本轮人工复核补充结论：
   - 真实 PDF 中 `3.2.2 产品详细描述` 的正确语义树应直接挂 `1..12`，并继续包含 `6.1..6.7 / 6.6.1..6.6.5 / 7.1..7.5.2 / 8.1.1..8.2.5.4 / 9.1..9.7 / 11.1..11.12`
   - 当前 worktree 已确认 `section_tree` 中 `3.2.2` 正式拥有 `1..12` 子节点，且 `6 / 6.6 / 7 / 7.5 / 8 / 8.1 / 8.2 / 8.2.5 / 9 / 11` 的子链顺序均与真实树一致
@@ -124,6 +141,14 @@
 - oil-pump 当前已不再被树结构卡住，但仍有非 gate 残差：
   - `per_doc diagnosis` 仍保留 `local_clause_heading_not_promoted` 与 `complex_table_clause_binding_drift` 两个 pattern candidate
   - `3.2.2::2 / 3.2.2::3 / 3.2.2::6.4` 的表格内容仍存在行级漂移风险，尚未升级成更严格的 row-level benchmark
+- appendix/tree 当前仍保留一个 source-faithful 注记：
+  - live oil-pump preview 当前 `section_consistency_missing_scope_root_count=1`
+  - 当前按用户确认范围仅做标注，不改源文档内容或强行重写章节事实
+- 本轮人工调查额外确认：
+  - `Sub7 / 用电器试验大纲` 当前是由电器试验表头启发式推断，不要求 PDF 上存在显式标题行
+  - oil-pump `Sub1` 误并 `软件开发要求 + FMEA与特殊特性` 不是前端展示问题，而是 appendix boundary 模型仍缺“目录/边界驱动的 scope 分裂”这一层
+  - workspace 主页面“章节总览”仍消费扁平 `preview.sections`；独立 review 页已优先消费 `preview.section_tree`
+  - complex-table 当前在 preview 内先被 collapse 成 `CX` review zone，再在最终 `section_tree` 里被排除；这种做法适合隐藏 review-only synthetic 节点，但若某个真实附件/section 只剩 complex zone 代表，chapter tree 会失去 source-faithful 占位
 - 其余样本当前也偏离历史绿色基线：
   - `Q-JLY`: `sections=407 / requirements=451`，当前主问题是 requirement drift 与 consistency drift
   - `SOR-N82KS`: 缺 `F:1 / G:1`，`E:2` 标题漂移，`requirements=172`
@@ -141,6 +166,7 @@
 - 油泵当前已经从“结构 red + fidelity red”收敛到“真实 subtree 对齐 + benchmark green”；后续不再回头重搭油泵树结构，而是补 row-level 内容闸门并把模式推广到剩余样本
 - 当前 UI 与 API 的在线复核口径也已回到一致：页面若再看到油泵旧顺序，优先检查服务是否仍是旧进程或 preview 是否仍在 `BUILDING`
 - 当前 `5555` 已重启到包含以上修复的新进程，可直接在线复核油泵 page 13 与连接器附件命名
+- 当前 UI 与 API 的 appendix/tree 口径也已回到一致：页面若再看到 `T/U/V/CX` 或缺失 `ROOT / 结构层级 / 编号层级`，优先检查是否又连到了旧的非 reload 进程，或 preview cache 仍未重建
 - 如果用户仍在浏览器里看到 `Y`，优先怀疑旧前端资源或旧 preview cache，而不是后端服务挂掉；当前这两条已通过 `refresh-preview + asset version bump` 收口
 
 ## 下一步
@@ -148,6 +174,15 @@
 - 保持 `3.2.2` subtree benchmark 绿色，先补 oil-pump `2 / 3 / 6.4` 的 row-level 内容 benchmark 与通用修复
 - 如果继续收紧 online review 体验，下一步优先评估是否把 `6.投标说明` 父节说明 requirement 从 review 列表单独降噪；但这不是当前 gate blocker
 - 当前油泵线的直接后续动作只剩人工页面复核：确认 hard refresh 后章节总览里的父子链可读性满足需求
+- appendix/tree 这条线上若继续做 P1/P2 收尾，优先级只剩：
+  - 评估 oil-pump `SUB2` root label 的 source-title 恢复空间
+  - 决定是否把 `missing_scope_root=1` 继续保留为注记，还是补更精细的 source-root 识别规则
+- appendix/tree 设计下一步建议固定为：
+  - 建立 `explicit marker / toc-derived / heading-derived / table-header-derived` 四层 appendix evidence，并把来源/置信度打进 preview
+  - 对连续 appendix-like 顶层 heading 默认允许切 scope，避免 `软件开发要求` 与 `FMEA与特殊特性` 继续被同桶吞并
+  - backend 边界稳定后，再统一 workspace 主页面章节总览到 `section_tree`，不要先改 UI 口径掩盖 backend 边界问题
+  - complex-table 需要改成“source-faithful chapter row + complex overlay”双轨，而不是简单 `CX collapse -> final tree exclude`
+  - test-outline 需要从当前枚举标题规则升级成“generic trial-outline family + 邻近证据补 title”的模型；不建议直接把最终 scope title 统一降为宽泛 `试验大纲`
 - 下一轮直接转向剩余三类 blocker：
   - `Q-JLY` requirement 膨胀 / consistency drift
   - `SOR-N82KS` `F:1 / G:1` 缺失与 `E:2` 标题漂移
