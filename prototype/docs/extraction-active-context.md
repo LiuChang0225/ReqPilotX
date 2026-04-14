@@ -1,6 +1,6 @@
 # Extraction Active Context
 
-更新时间：2026-04-13 16:58 CST  
+更新时间：2026-04-14 10:15 CST  
 分支：`codex/extraction-quality-loop`
 
 ## 分支目的
@@ -19,7 +19,7 @@
   - `SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf`
   - `产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf`
   - `产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf`
-- 当前主验证端口：`8001`
+- 当前主验证端口：`5555`
 - 当前关注链路：parser / extractor / extraction preview / batch regression
 
 ## 最近已修 / 已确认
@@ -72,6 +72,36 @@
   - fidelity：`23/23`
   - `sections_count=81`
   - `requirements_count=100`
+- 本轮新增减振器 PDS 局部修复：
+  - `extractor._split_entries_by_local_clause_headers()` 新增受上下文约束的 DVP tail reset clause 识别，仅在已建立 deep local clause 且同页的场景下切出 `12、/13、/14、/15、`
+  - `extractor._shape_local_clause_subblock()` 为上述 clause 生成 `Clause 12 ...` 样式 anchor，继续复用现有 preview anchor 解析链路
+  - 本轮明确不修改 `extraction_preview` 全局 `LOCAL_CLAUSE_RE / CLAUSE_ANCHOR_RE`，避免再把 formal heading 拉成 `4::4 / 5::5 / 6::6`
+  - 新增回归：
+    - contextual DVP reset clause 正向切分
+    - 无 local-clause context 时 `4、/5、` formal heading 不应被切成 local clause
+    - preview 继续可从 contextual clause anchor 产出 `3.2.2::12`
+  - `prototype/tests/test_extractor_sections.py` 当前全量 `44/44` 通过
+  - 当前真实 PDF 预览已确认存在 `3.2.2::12 / ::13 / ::14 / ::15`，且未复现 `4::4 / 5::5 / 6::6`
+- 本轮新增油泵 page 13 修复：
+  - `extractor` 在 `header is None` 但存在明确父子节上下文时，新增 `x.y.z` child-header 恢复逻辑，用于修复 `1.3` 下 `1.3.1` 已拆行但被 long-title heuristic 吞回父节的问题
+  - 恢复逻辑只在 `current section code == candidate parent code` 时生效，不放宽全局 long-title heading 规则
+  - 对长句型 child header 只抽取句首短 heading phrase 作为 `section_title`，当前真实油泵 PDF page 13 已恢复 `SUB2:1.3.1 电子电气部件`
+- 本轮同步收口连接器附件命名：
+  - 连接器相关 test-outline scope 不再输出 synthetic `W / X / Y`
+  - 当前改为真实附件标题：`整车用电器与线束匹配评估表`、`测试分组 / Test Groups（推荐）`、`用电器试验大纲`
+  - `extraction_preview` 的 `APPENDIX_SCOPE_RE` 已放宽为从 `Appendix <真实标题>` anchor 提取 scope，用户侧不再看到 `Appendix W / X / Y`
+- 本轮补齐了残余 `Y` fallback：
+  - `extraction_preview._iter_test_outline_candidates()` 不再回退 `("Y", "用电器试验大纲")`
+  - extractor / preview 只把历史 `W/X/Y` 当兼容 alias 归一化，不再对外输出单字母 scope
+  - `extractor._extract_test_outline_rows()` 继续把 `测试分组 / Test Groups（推荐）` 当 reference-only 引导表处理，避免把分组表 `1~6` 的截图内容插入主树 `6` 和 `7` 之间
+- 本轮已把 tree 关系显式打到前端：
+  - `workspace` 页 review devtools 与 `extraction-review` 页都直接消费 `preview.section_tree`
+  - 前端现已显示树节点缩进、层级和 `structural_parent_section_*` 父节点标签，确认 backend 本来就有完整 top -> middle -> leaf 关系，只是此前没有呈现
+  - 静态资源版本已 bump：`app.js?v=20260414-section-tree1`、`extraction-review.js?v=20260414-section-tree1`
+- 本轮在线验证：
+  - `5555` 服务已重启到当前 worktree
+  - 强制 `refresh-preview` 后，油泵 preview 已确认不再出现 `appendix_scope=Y` / `Appendix Y`
+  - 定向回归：`tests/test_extractor_sections.py tests/test_unified_workspace.py -q` 全绿，`147 passed`
 - 本轮人工复核补充结论：
   - 真实 PDF 中 `3.2.2 产品详细描述` 的正确语义树应直接挂 `1..12`，并继续包含 `6.1..6.7 / 6.6.1..6.6.5 / 7.1..7.5.2 / 8.1.1..8.2.5.4 / 9.1..9.7 / 11.1..11.12`
   - 当前 worktree 已确认 `section_tree` 中 `3.2.2` 正式拥有 `1..12` 子节点，且 `6 / 6.6 / 7 / 7.5 / 8 / 8.1 / 8.2 / 8.2.5 / 9 / 11` 的子链顺序均与真实树一致
@@ -97,7 +127,7 @@
 - 其余样本当前也偏离历史绿色基线：
   - `Q-JLY`: `sections=407 / requirements=451`，当前主问题是 requirement drift 与 consistency drift
   - `SOR-N82KS`: 缺 `F:1 / G:1`，`E:2` 标题漂移，`requirements=172`
-  - 减振器 PDS：`sections=245 / requirements=238`，`3.2.2` 文本 / ordered snippet / table row / cross-section binding 仍漂移
+  - 减振器 PDS：`sections=245 / requirements=238`，`3.2.2` 中 `12/13/14/15` 拆分已恢复，剩余问题继续收口到文本 / ordered snippet / table row / cross-section binding 漂移
 - 当前 track 仍不直接承接：
   - 产品内 audit job / API / UI
   - 主运行时 / auth / RAG 逻辑
@@ -110,17 +140,20 @@
 - 单文档 diagnose 已成为默认入口；batch-report 同轮会补 diagnosis / pattern artifacts，而不是只给 gate 红绿
 - 油泵当前已经从“结构 red + fidelity red”收敛到“真实 subtree 对齐 + benchmark green”；后续不再回头重搭油泵树结构，而是补 row-level 内容闸门并把模式推广到剩余样本
 - 当前 UI 与 API 的在线复核口径也已回到一致：页面若再看到油泵旧顺序，优先检查服务是否仍是旧进程或 preview 是否仍在 `BUILDING`
+- 当前 `5555` 已重启到包含以上修复的新进程，可直接在线复核油泵 page 13 与连接器附件命名
+- 如果用户仍在浏览器里看到 `Y`，优先怀疑旧前端资源或旧 preview cache，而不是后端服务挂掉；当前这两条已通过 `refresh-preview + asset version bump` 收口
 
 ## 下一步
 
 - 保持 `3.2.2` subtree benchmark 绿色，先补 oil-pump `2 / 3 / 6.4` 的 row-level 内容 benchmark 与通用修复
 - 如果继续收紧 online review 体验，下一步优先评估是否把 `6.投标说明` 父节说明 requirement 从 review 列表单独降噪；但这不是当前 gate blocker
+- 当前油泵线的直接后续动作只剩人工页面复核：确认 hard refresh 后章节总览里的父子链可读性满足需求
 - 下一轮直接转向剩余三类 blocker：
   - `Q-JLY` requirement 膨胀 / consistency drift
   - `SOR-N82KS` `F:1 / G:1` 缺失与 `E:2` 标题漂移
-  - 减振器 PDS `3.2.2` complex-table clause binding
+  - 减振器 PDS 在当前 extractor-only split fix 基线上继续专修 `3.2.2` complex-table clause binding
 - 新文档默认先跑 `prototype/scripts/extraction_diagnose.py`
 - 规则修复后固定顺序：聚焦测试 -> 单文档复验 -> `legacy_benchmark_core` -> pattern promotion 记录 -> 更新 context / checkpoint / handoff
 - control tower 最新 checkpoint 已写入；下一个窗口直接基于 `extraction_quality_loop_20260411_singleline_audit` 的 `diagnosis_summary / pattern_candidates / per_doc` 继续
-- UI 复核入口统一改用 `http://127.0.0.1:8001/workspace`
+- UI 复核入口统一改用 `http://127.0.0.1:5555/workspace`
 - 注意：`prototype/scripts/extraction_batch_report.py` 本轮在工件落盘后未自动退出；若下轮复跑遇到同样现象，先读 artifacts，再决定是否手动结束挂起进程

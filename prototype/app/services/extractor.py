@@ -88,14 +88,36 @@ ELECTRIC_TEST_OUTLINE_HEADER_RE = re.compile(
 TEST_OUTLINE_ROW_RE = re.compile(r"^\|\s*(\d{1,3})(?:\s*[（(][^|）)]{0,10}[）)])?\s*\|")
 DVP_ENUM_LINE_RE = re.compile(r"^\s*((?:[5-9]|1[0-5])(?:\.\d+)*)\s*[）)、)]")
 DVP_ENUM_INLINE_RE = re.compile(r"(?<![（(])((?:[5-9]|1[0-5])(?:\.\d+)*)\s*[）)、)]")
+DVP_RESET_ENUM_LINE_RE = re.compile(r"^\s*((?:[5-9]|1[0-5])(?:\.\d+)*)\s*、\s*(.+)$")
 TEST_OUTLINE_SCOPE_TITLES: list[tuple[re.Pattern[str], str, str]] = [
     (re.compile(r"主动前减振器试验大纲", re.I), "T", "主动前减振器试验大纲"),
     (re.compile(r"主动后减振器试验大纲", re.I), "U", "主动后减振器试验大纲"),
     (re.compile(r"蓄能器试验大纲", re.I), "V", "蓄能器试验大纲"),
-    (re.compile(r"整车用电器与线束匹配评估表", re.I), "W", "整车用电器与线束匹配评估表"),
-    (re.compile(r"测试分组\s*/\s*test groups", re.I), "X", "测试分组 / Test Groups（推荐）"),
-    (re.compile(r"用电器试验大纲", re.I), "Y", "用电器试验大纲"),
+    (re.compile(r"整车用电器与线束匹配评估表", re.I), "整车用电器与线束匹配评估表", "整车用电器与线束匹配评估表"),
+    (re.compile(r"测试分组\s*/\s*test groups", re.I), "测试分组 / Test Groups（推荐）", "测试分组 / Test Groups（推荐）"),
+    (re.compile(r"用电器试验大纲", re.I), "用电器试验大纲", "用电器试验大纲"),
 ]
+LEGACY_TEST_OUTLINE_SCOPE_ALIASES = {
+    "W": "整车用电器与线束匹配评估表",
+    "X": "测试分组 / Test Groups（推荐）",
+    "Y": "用电器试验大纲",
+}
+
+
+def _normalize_test_outline_scope(scope: str) -> str:
+    value = str(scope or "").strip()
+    if not value:
+        return ""
+    return LEGACY_TEST_OUTLINE_SCOPE_ALIASES.get(value.upper(), value)
+
+
+def _test_outline_scope_identity(scope: str) -> str:
+    value = _normalize_test_outline_scope(scope)
+    return re.sub(r"\s+", " ", value).strip().upper()
+
+
+def _is_reference_only_test_outline_scope(scope: str) -> bool:
+    return _test_outline_scope_identity(scope) == _test_outline_scope_identity("测试分组 / Test Groups（推荐）")
 
 MODAL_PATTERNS = [
     re.compile(pattern, re.I)
@@ -519,6 +541,70 @@ def _split_embedded_local_clause_line(line: str) -> list[str]:
     return chunks or [value]
 
 
+def _extract_contextual_child_section_title_candidate(title: str) -> str:
+    value = _normalize_line(str(title or ""))
+    if not value or len(value) > 220:
+        return ""
+    if _looks_like_table_row_text(value) or _is_line_noise(value):
+        return ""
+    if len(value) <= 32 and _looks_like_heading_phrase(value):
+        return value
+
+    head = re.split(r"[，,；;：:。]", value, maxsplit=1)[0].strip()
+    if not head or head == value:
+        return ""
+    if len(head) > 24 or _is_line_noise(head):
+        return ""
+    if _looks_like_heading_phrase(head):
+        return head
+
+    token_count = len(re.findall(r"[A-Za-z\u4e00-\u9fff0-9]+", head))
+    if token_count == 0 or token_count > 8:
+        return ""
+    if not re.search(r"[A-Za-z\u4e00-\u9fff]", head):
+        return ""
+    return head
+
+
+def _recover_contextual_child_section_header(
+    line: str,
+    *,
+    current_section_code: str,
+    last_section_code: str,
+) -> dict[str, Any] | None:
+    value = _normalize_line(str(line or ""))
+    if not value or _looks_like_table_row_text(value):
+        return None
+
+    match = re.match(r"^\s*(\d+(?:\.\d+){2,5})\s+(.+)$", value)
+    if not match:
+        return None
+
+    code = str(match.group(1) or "").strip()
+    title = _sanitize_section_header_title(str(match.group(2) or "").strip(), level_hint=code.count(".") + 1)
+    code_tuple = _parse_section_code_tuple(code)
+    if not code or not title or not code_tuple or len(code_tuple) < 3:
+        return None
+    if _looks_like_date_section_code(code):
+        return None
+
+    parent_code = _section_parent_code(code)
+    context_code = str(current_section_code or last_section_code or "").strip()
+    if not parent_code or parent_code != context_code:
+        return None
+
+    title_candidate = _extract_contextual_child_section_title_candidate(title)
+    if not title_candidate:
+        return None
+
+    return {
+        "code": code,
+        "title": title_candidate,
+        "level": len(code_tuple),
+        "punct": "",
+    }
+
+
 def _looks_like_valid_embedded_local_clause_chunk(chunk: str) -> bool:
     value = _normalize_line(str(chunk or ""))
     if not value:
@@ -619,6 +705,12 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
         last_section_page = last_section_page_by_scope.get(current_scope)
         last_section_table_count = last_section_table_count_by_scope.get(current_scope, 0)
         header = _parse_section_header(line)
+        if header is None and current is not None:
+            header = _recover_contextual_child_section_header(
+                line,
+                current_section_code=str(current.get("section_code") or ""),
+                last_section_code=last_section_code,
+            )
         title_only_heading = _extract_title_only_heading_candidate(line)
         embedded_attachment_title = _extract_embedded_attachment_title_candidate(line)
         consumed_following = 0
@@ -946,17 +1038,39 @@ def _shape_subblock(entries: list[dict[str, Any]], default_anchor: str) -> dict[
 def _split_entries_by_local_clause_headers(entries: list[dict[str, Any]], default_anchor: str) -> list[dict[str, Any]]:
     clause_indexes: list[int] = []
     previous_heading = ""
+    contextual_seed_tuple: tuple[int, ...] = ()
+    contextual_seed_page: int | None = None
     for idx, entry in enumerate(entries):
         text = _normalize_line(str(entry.get("text") or ""))
         heading_text = _extract_local_clause_heading_text(text)
         if not heading_text:
             continue
-        if not _looks_like_local_clause_header_line(text) and not _looks_like_local_clause_series_header(entries, idx):
+        clause_match = _match_local_clause_heading(text)
+        contextual_match = _match_contextual_dvp_reset_clause_heading(
+            text,
+            previous_deep_clause_tuple=contextual_seed_tuple,
+            previous_deep_clause_page=contextual_seed_page,
+            candidate_page=entry.get("source_page"),
+        )
+        if clause_match:
+            current_tuple = _parse_section_code_tuple(clause_match[0])
+            if len(current_tuple) > 1:
+                contextual_seed_tuple = current_tuple
+                contextual_seed_page = entry.get("source_page") if isinstance(entry.get("source_page"), int) else None
+        if (
+            not clause_match
+            and not contextual_match
+            and not _looks_like_local_clause_header_line(text)
+            and not _looks_like_local_clause_series_header(entries, idx)
+        ):
             continue
-        if previous_heading and _normalize_line(previous_heading) == _normalize_line(heading_text):
+        heading_identity = heading_text
+        if contextual_match:
+            heading_identity = f"{contextual_match[0]}、{contextual_match[1]}"
+        if previous_heading and _normalize_line(previous_heading) == _normalize_line(heading_identity):
             continue
         clause_indexes.append(idx)
-        previous_heading = heading_text
+        previous_heading = heading_identity
 
     if len(clause_indexes) < 2:
         return []
@@ -1048,6 +1162,33 @@ def _match_local_clause_heading(line: str) -> tuple[str, str] | None:
     return (code, title)
 
 
+def _match_contextual_dvp_reset_clause_heading(
+    line: str,
+    *,
+    previous_deep_clause_tuple: tuple[int, ...],
+    previous_deep_clause_page: int | None,
+    candidate_page: Any,
+) -> tuple[str, str] | None:
+    value = _normalize_line(str(line or ""))
+    if not value or len(previous_deep_clause_tuple) <= 1:
+        return None
+    if previous_deep_clause_page is None or candidate_page != previous_deep_clause_page:
+        return None
+    match = DVP_RESET_ENUM_LINE_RE.match(value)
+    if not match:
+        return None
+    code = str(match.group(1) or "").strip()
+    title = str(match.group(2) or "").strip()
+    code_tuple = _parse_section_code_tuple(code)
+    if len(code_tuple) != 1 or code_tuple[0] <= previous_deep_clause_tuple[0]:
+        return None
+    if not title or len(title) > 220 or "|" in title:
+        return None
+    if _looks_like_table_row_text(title):
+        return None
+    return (code, title)
+
+
 def _local_clause_code_tuple(entry: dict[str, Any] | None) -> tuple[int, ...]:
     if not entry:
         return ()
@@ -1122,6 +1263,13 @@ def _shape_local_clause_subblock(entries: list[dict[str, Any]], default_anchor: 
     first = _extract_local_clause_heading_text(str(entries[0].get("text") or ""))
     if first and _looks_like_local_clause_header_line(first):
         shaped["source_anchor"] = f"{shaped['source_anchor']} | Clause {first}"
+    else:
+        contextual_match = DVP_RESET_ENUM_LINE_RE.match(first)
+        if contextual_match:
+            code = str(contextual_match.group(1) or "").strip()
+            title = str(contextual_match.group(2) or "").strip()
+            if code and title:
+                shaped["source_anchor"] = f"{shaped['source_anchor']} | Clause {code} {title}"
     return shaped
 
 
@@ -5304,10 +5452,11 @@ def _append_test_outline_requirements(
         text = str(row.get("requirement_text") or "").strip()
         if not text:
             continue
-        scope = str(row.get("appendix_scope") or "").strip().upper()
+        scope = _normalize_test_outline_scope(str(row.get("appendix_scope") or ""))
+        scope_identity = _test_outline_scope_identity(scope)
         item_code = str(row.get("item_code") or "").strip()
-        if scope and item_code:
-            dedupe = f"{scope}:{item_code}:{_build_dedupe_key(text)}"
+        if scope_identity and item_code:
+            dedupe = f"{scope_identity}:{item_code}:{_build_dedupe_key(text)}"
         else:
             dedupe = _build_dedupe_key(text)
         if dedupe in seen_keys:
@@ -5366,11 +5515,11 @@ def _extract_test_outline_rows(segments: list[dict[str, Any]]) -> list[dict[str,
 
             marker_scope, marker_title = _detect_test_outline_scope(line)
             if marker_scope:
-                current_scope = marker_scope
-                current_outline_title = marker_title
+                current_scope = _normalize_test_outline_scope(marker_scope)
+                current_outline_title = str(marker_title or current_scope).strip()
                 continue
 
-            if not current_scope or current_scope == "X":
+            if not current_scope or _is_reference_only_test_outline_scope(current_scope):
                 continue
             if "|" not in line:
                 continue
@@ -5423,17 +5572,18 @@ def _merge_test_outline_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]
     order: list[tuple[str, str, str]] = []
 
     for row in rows:
-        scope = str(row.get("appendix_scope") or "").strip().upper()
+        scope = _normalize_test_outline_scope(str(row.get("appendix_scope") or ""))
+        scope_identity = _test_outline_scope_identity(scope)
         item_code = str(row.get("item_code") or "").strip()
         item_title = str(row.get("item_title") or "").strip()
-        if not scope or not item_code or not item_title:
+        if not scope or not scope_identity or not item_code or not item_title:
             continue
         text_line = str(row.get("requirement_text") or "").strip()
         title_key = _test_item_title_key(item_title)
         # Merge by item identity across all test-outline appendices.
         # This keeps one requirement item per "序号 + 标题", while concatenating
         # multi-line/sub-step rows into the same requirement text.
-        key = (scope, item_code, title_key)
+        key = (scope_identity, item_code, title_key)
 
         page = row.get("source_page")
         page_int = int(page) if isinstance(page, int) else 0
@@ -5623,7 +5773,7 @@ def _detect_test_outline_scope(line: str) -> tuple[str, str]:
             if pattern.search(candidate):
                 return (scope, normalized_title)
         if ELECTRIC_TEST_OUTLINE_HEADER_RE.search(candidate):
-            return ("Y", "用电器试验大纲")
+            return ("用电器试验大纲", "用电器试验大纲")
     return ("", "")
 
 

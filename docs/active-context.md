@@ -1,6 +1,6 @@
 # Active Context
 
-更新时间：2026-04-12 13:00 CST  
+更新时间：2026-04-14 10:15 CST  
 适用仓库：`/Users/liuchang/Documents/New project`
 
 长期背景：[`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/项目.md)
@@ -11,11 +11,12 @@
 - 用统一 batch 明确既有 benchmark 当前状态，重点盯住 `Q-JLY`、`SOR-N82KS`、减振器 PDS、油泵 PDS
 - 当前支线已改为单线闭环：`新文档测试 -> 结构审计 -> 问题定位 -> 通用修规则 -> 回归验证 -> 模式沉淀`
 - `audit` 不再是单独日常分支，而是 `extraction-quality-loop` 内置子流程；当前不做产品侧 audit job / API / UI 接入
+- 当前额外聚焦油泵 review 可视化收口：彻底消掉连接器附件残余 `Y` fallback，并把 `section_tree` 父子链直接呈现在“章节总览”中
 
 ## 活跃分支 / 工作树
 
 - 当前执行支线：`codex/extraction-quality-loop`
-- 当前 worktree：`/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop`
+- 当前 worktree：`C:\rp-eq`
 - 控制塔运行时：`/Users/liuchang/Documents/New project/.git/reqpilotx-progress/progress_tracker.json`
 - 已记录 gate：
   - `batch-report`: `PASS`
@@ -72,6 +73,31 @@
   - quality：`10/10`
   - fidelity：`22/22`
   - 当前关键指标：`sections_count=81`、`requirements_count=100`
+- 减振器 PDS 本轮已落地局部修复：
+  - 仅在 `extractor._split_entries_by_local_clause_headers()` 中为已建立 deep local clause 上下文的 DVP tail reset 行启用 `12、/13、/14、/15、` 切分
+  - 不再放宽 `extraction_preview` 的全局 local clause regex，避免重现 `4::4 / 5::5 / 6::6` 类 formal heading 误提升
+  - 当前真实 PDF 预览已确认恢复 `3.2.2::12 / ::13 / ::14 / ::15`
+  - 定向新增回归已通过，`prototype/tests/test_extractor_sections.py` 当前全量 `44/44` 通过
+- 油泵 PDS 本轮新增保守修复：
+  - `1.3.1` 这类已经在 line-entry 阶段分开的深层子节，不再因 section-header 长标题 heuristic 被吞回父节
+  - 修复方式不是放宽全局长标题规则，而是仅在 `current section == candidate parent` 的父子节上下文下恢复 `x.y.z` header，并从长句首段抽取短标题
+  - 当前真实 PDF 预览已确认 page 13 恢复 `SUB2:1.3.1 电子电气部件`
+- 附件命名本轮已收口：
+  - 油泵连接器相关 test-outline 附件不再暴露 synthetic `W / X / Y`
+  - 当前改为使用源文档真实附件标题：`整车用电器与线束匹配评估表`、`测试分组 / Test Groups（推荐）`、`用电器试验大纲`
+  - `extraction_preview` 已同步支持从 `Appendix <真实标题>` anchor 解析 scope
+- 本轮继续补齐残余 fallback 收口：
+  - `extraction_preview._iter_test_outline_candidates()` 已移除 `("Y", "用电器试验大纲")` 旧回退，preview / extractor 只保留 `W/X/Y -> 真实标题` 的兼容归一化，不再向外输出单字母 scope
+  - `extractor._extract_test_outline_rows()` 继续把 `测试分组 / Test Groups（推荐）` 视为 reference-only 引导表，不再把分组表的 `1~6` 截图误插入 `6` 和 `7` 之间
+  - 针对以上路径新增回归并通过：真实标题 electric-outline marker、reference-only test-group skip
+- 本轮 review 可视化已落地：
+  - `app.js` 与 `extraction-review.js` 的“章节总览”改为直接消费 `preview.section_tree`
+  - 前端现在显式展示树节点缩进、层级、`structural_parent_section_*` 父节点标签，而不是只给扁平表格
+  - 已同步 bump 静态资源版本：`app.js?v=20260414-section-tree1`、`extraction-review.js?v=20260414-section-tree1`
+- 本轮在线验证已完成：
+  - `5555` 服务实际未挂，已重启到当前 worktree 代码
+  - 强制 `refresh-preview` 后，油泵 workspace preview 已确认不再出现 `appendix_scope=Y` 或 `Appendix Y`
+  - 定向回归：`tests/test_extractor_sections.py + tests/test_unified_workspace.py = 147 passed`
 - 已确认油泵 PDS 关键根因链：
   - `3.2.2` 下真实存在 `1..12` 与 `6.1/6.4/7.1/8.1.2/8.2.5.4/11.12` 等本地结构
   - 当前已修复“保留 local anchor 但避免 `sections_count` 因 preview-only synthetic split 膨胀”的 benchmark 口径
@@ -94,7 +120,7 @@
     - `E:2` 标题仍漂移
   - 减振器 PDS
     - `sections_count` 已回到 band：`245` vs expected `234`
-    - 仍卡在 `3.2.2` requirement text / ordered snippet / table row / forbidden cross section binding 漂移
+    - `3.2.2` 下 `12/13/14/15` 本地条款拆分已恢复；剩余 blocker 继续收口到 requirement text / ordered snippet / table row / forbidden cross section binding 漂移
 - 当前已确认 scope 边界：
   - 当前 track 同时负责 `batch regression + document-level audit + pattern capture + benchmark-safe rule promotion`
   - 允许维护 `parser / extractor / extraction_preview / scripts / tests / eval / 当前 track skill / active-context`
@@ -106,7 +132,8 @@
 - 下一轮优先级：
   - `Q-JLY`：继续压 requirement 膨胀与 consistency drift，重点看 local clause split + complex table rewrite 联动
   - `SOR-N82KS`：恢复 `F:1 / G:1` 与 `E:2` 标题
-  - 减振器 PDS：专修 `3.2.2` complex table clause binding，不再回头搭框架
+  - 减振器 PDS：在 `12/13/14/15` 拆分已恢复的基线上，继续专修 `3.2.2` complex table clause binding，不再回头放宽全局 regex
+- 油泵这条线上当前只剩浏览器侧人工复核：确认用户端 hard refresh 后，“章节总览”能直接看到父子链，且连接器附件区域不再出现 `Y`
 - 新文档默认先跑 `prototype/scripts/extraction_diagnose.py`，确认是真回归、profile 问题还是新文档模式，再决定是否进入核心 batch
 - 修复后按固定顺序：聚焦测试 -> 单文档复验 -> `legacy_benchmark_core` -> pattern promotion 记录 -> control tower gate
 - control tower 最新 checkpoint 已记录：油泵 benchmark 已回绿；新窗口直接从当前 active-context 与 `extraction_quality_loop_20260411_singleline_audit` 产物继续
@@ -115,3 +142,4 @@
 
 - 控制塔页面：`/project-progress`
 - 应用主端口：`8000`
+- 当前分支人工复核端口：`5555`

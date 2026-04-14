@@ -1780,34 +1780,118 @@ function renderReviewDiagnostics() {
   if (el.reviewSectionOverviewBody) {
     const rows = buildReviewSectionOverviewRows(preview.section_tree || preview.sections || []);
     if (!rows.length) {
-      el.reviewSectionOverviewBody.innerHTML = `<tr><td colspan="5">暂无章节数据</td></tr>`;
+      el.reviewSectionOverviewBody.innerHTML = `<tr><td colspan="7">暂无章节数据</td></tr>`;
     } else {
       el.reviewSectionOverviewBody.innerHTML = rows
         .map(
-          (row) => `<tr>
+          (row) => {
+            const span = row.source_page_start ? `${row.source_page_start}-${row.source_page_end || row.source_page_start}` : "-";
+            return `<tr>
             <td>${escapeHtml(formatScope(row.appendix_scope))}</td>
-            <td>${escapeHtml(row.section_code || "")}</td>
+            <td><div style="padding-left:${Math.max(0, Number(row.tree_depth || 0)) * 14}px">${escapeHtml(row.node_label || "")}</div></td>
             <td>${escapeHtml(row.section_title || "")}</td>
-            <td>${escapeHtml(`${row.source_page_start || ""}-${row.source_page_end || ""}`)}</td>
+            <td>${escapeHtml(String(row.section_level || 0))}</td>
+            <td>${escapeHtml(row.parent_label || "-")}</td>
+            <td>${escapeHtml(span)}</td>
             <td>${escapeHtml(String(row.requirement_count || 0))}</td>
-          </tr>`
+          </tr>`;
+          }
         )
         .join("");
     }
   }
 }
 
+function buildSectionOverviewLookupKey(scope, code) {
+  const normalizedScope = String(scope || "").trim().toUpperCase();
+  const normalizedCode = String(code || "").trim();
+  return normalizedCode ? `${normalizedScope}:${normalizedCode}` : "";
+}
+
+function buildSectionOverviewNodeLabel(row) {
+  const explicitLabel = String(row.owner_section_label || row.section_label || row.section_code || "").trim();
+  const sectionCode = String(row.section_code || row.owner_section_code || "").trim();
+  const sectionTitle = String(row.section_title || row.owner_section_title || "").trim();
+  if (explicitLabel && sectionTitle) {
+    const compactLabel = explicitLabel.replace(/\s+/g, "");
+    const compactTitle = sectionTitle.replace(/\s+/g, "");
+    if (compactLabel.includes(compactTitle)) {
+      return explicitLabel;
+    }
+    return `${explicitLabel} ${sectionTitle}`.trim();
+  }
+  return explicitLabel || [sectionCode, sectionTitle].filter(Boolean).join(" ").trim() || sectionTitle;
+}
+
+function buildSectionOverviewParentLabel(row) {
+  const parentLabel = String(row.structural_parent_section_label || row.parent_section_label || "").trim();
+  const parentCode = String(row.structural_parent_section_code || row.parent_section_code || "").trim();
+  const parentTitle = String(row.structural_parent_section_title || row.parent_section_title || "").trim();
+  if (parentLabel && parentTitle) {
+    const compactLabel = parentLabel.replace(/\s+/g, "");
+    const compactTitle = parentTitle.replace(/\s+/g, "");
+    if (compactLabel.includes(compactTitle)) {
+      return parentLabel;
+    }
+    return `${parentLabel} ${parentTitle}`.trim();
+  }
+  return parentLabel || [parentCode, parentTitle].filter(Boolean).join(" ").trim();
+}
+
 function buildReviewSectionOverviewRows(rows) {
-  return (rows || [])
-    .map((row) => ({
-      appendix_scope: row.appendix_scope || "",
-      section_code: row.section_code || "",
-      section_title: row.section_title || "",
-      source_page_start: row.source_page_start || "",
-      source_page_end: row.source_page_end || "",
-      requirement_count: row.requirement_count || 0,
-    }))
-    .filter((row) => row.section_code || row.section_title);
+  const sourceRows = (rows || []).filter((row) => row?.section_code || row?.section_title);
+  const rowByKey = new Map();
+  const rowByScopeCode = new Map();
+
+  sourceRows.forEach((row) => {
+    const sectionKey = String(row.section_instance_key || row.section_key || "").trim();
+    const scopeCodeKey = buildSectionOverviewLookupKey(row.appendix_scope, row.section_code);
+    if (sectionKey) {
+      rowByKey.set(sectionKey, row);
+    }
+    if (scopeCodeKey && !rowByScopeCode.has(scopeCodeKey)) {
+      rowByScopeCode.set(scopeCodeKey, row);
+    }
+  });
+
+  const depthCache = new Map();
+  const visiting = new Set();
+
+  function resolveDepth(row) {
+    const sectionKey = String(row.section_instance_key || row.section_key || "").trim();
+    if (sectionKey && depthCache.has(sectionKey)) {
+      return depthCache.get(sectionKey);
+    }
+    if (sectionKey && visiting.has(sectionKey)) {
+      return Math.max(0, Number(row.section_level || 1) - 1);
+    }
+    if (sectionKey) {
+      visiting.add(sectionKey);
+    }
+    const parentKey = String(row.structural_parent_section_key || row.parent_section_key || "").trim();
+    const parentCode = String(row.structural_parent_section_code || row.parent_section_code || "").trim();
+    const lookupKey = buildSectionOverviewLookupKey(row.appendix_scope, parentCode);
+    const parentRow = (parentKey ? rowByKey.get(parentKey) : null) || (lookupKey ? rowByScopeCode.get(lookupKey) : null);
+    const depth = parentRow ? resolveDepth(parentRow) + 1 : 0;
+    if (sectionKey) {
+      depthCache.set(sectionKey, depth);
+      visiting.delete(sectionKey);
+    }
+    return depth;
+  }
+
+  return sourceRows.map((row) => ({
+    appendix_scope: row.appendix_scope || "",
+    section_code: row.section_code || "",
+    section_title: row.section_title || "",
+    section_level: Number(row.section_level || 0) || 0,
+    tree_depth: resolveDepth(row),
+    node_label: buildSectionOverviewNodeLabel(row),
+    parent_label: buildSectionOverviewParentLabel(row),
+    source_page_start: row.source_page_start || "",
+    source_page_end: row.source_page_end || "",
+    requirement_count: row.requirement_count || 0,
+  }));
 }
 
 function renderReviewKindFilter() {

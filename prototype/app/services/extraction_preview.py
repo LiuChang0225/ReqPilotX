@@ -23,7 +23,7 @@ from app.services.table_assets import enrich_entries_with_table_assets
 SECTION_ANCHOR_RE = re.compile(r"Section\s+([0-9]+(?:\.[0-9]+){0,8})(?:\s+([^|]+))?", re.I)
 CLAUSE_ANCHOR_RE = re.compile(r"Clause\s+([0-9]+(?:\.[0-9]+){0,8})\s*[）)]?\s*([^|]+)?", re.I)
 TITLE_ANCHOR_RE = re.compile(r"(?:Heading|Title)\s+([^|]+)", re.I)
-APPENDIX_SCOPE_RE = re.compile(r"Appendix\s+([A-Z][A-Z0-9_-]*)\b", re.I)
+APPENDIX_SCOPE_RE = re.compile(r"Appendix\s+([^|]+?)(?=\s*\|\s*(?:Section|Heading|Title|Clause)\b|\s*$)", re.I)
 APPENDIX_MARKER_LINE_RE = re.compile(
     r"^\s*(?:附件|附录|appendix|annex|attachment)\s*([A-Za-zＡ-Ｚａ-ｚ])\b.*$",
     re.I,
@@ -37,6 +37,14 @@ TEST_OUTLINE_EXCLUDE_RE = re.compile(
     r"(?:测试项目\s*/\s*test item|col\d+)$",
     re.I,
 )
+TEST_OUTLINE_SCOPE_VEHICLE_WIRING = "整车用电器与线束匹配评估表"
+TEST_OUTLINE_SCOPE_GROUPS = "测试分组 / Test Groups（推荐）"
+TEST_OUTLINE_SCOPE_ELECTRIC = "用电器试验大纲"
+LEGACY_TEST_OUTLINE_SCOPE_ALIASES = {
+    "W": TEST_OUTLINE_SCOPE_VEHICLE_WIRING,
+    "X": TEST_OUTLINE_SCOPE_GROUPS,
+    "Y": TEST_OUTLINE_SCOPE_ELECTRIC,
+}
 ELECTRIC_TEST_OUTLINE_HEADER_RE = re.compile(
     r"(?:序号\s*/?.*项目\s*/\s*item.*测试顺序.*参考标准.*要求\s*/\s*requirements)",
     re.I,
@@ -45,10 +53,22 @@ TEST_OUTLINE_MARKER_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
     (re.compile(r"主动前减振器试验大纲", re.I), "T", "主动前减振器试验大纲"),
     (re.compile(r"主动后减振器试验大纲", re.I), "U", "主动后减振器试验大纲"),
     (re.compile(r"蓄能器试验大纲", re.I), "V", "蓄能器试验大纲"),
-    (re.compile(r"整车用电器与线束匹配评估表", re.I), "W", "整车用电器与线束匹配评估表"),
-    (re.compile(r"测试分组\s*/\s*test groups", re.I), "X", "测试分组 / Test Groups"),
-    (re.compile(r"用电器试验大纲", re.I), "Y", "用电器试验大纲"),
+    (re.compile(r"整车用电器与线束匹配评估表", re.I), TEST_OUTLINE_SCOPE_VEHICLE_WIRING, TEST_OUTLINE_SCOPE_VEHICLE_WIRING),
+    (re.compile(r"测试分组\s*/\s*test groups", re.I), TEST_OUTLINE_SCOPE_GROUPS, TEST_OUTLINE_SCOPE_GROUPS),
+    (re.compile(r"用电器试验大纲", re.I), TEST_OUTLINE_SCOPE_ELECTRIC, TEST_OUTLINE_SCOPE_ELECTRIC),
 ]
+
+
+def _normalize_test_outline_scope(scope: str) -> str:
+    value = str(scope or "").strip()
+    if not value:
+        return ""
+    return LEGACY_TEST_OUTLINE_SCOPE_ALIASES.get(value.upper(), value)
+
+
+def _test_outline_scope_identity(scope: str) -> str:
+    value = _normalize_test_outline_scope(scope)
+    return re.sub(r"\s+", " ", value).strip().upper()
 
 
 def build_extraction_preview(
@@ -81,7 +101,7 @@ def build_extraction_preview(
     for item in requirements:
         source_page = _to_int(item.get("source_page"))
         source_page_end = _to_int(item.get("source_page_end")) or source_page
-        appendix_scope = _extract_appendix_scope(item.get("source_anchor", ""))
+        appendix_scope = _normalize_test_outline_scope(_extract_appendix_scope(item.get("source_anchor", "")))
         explicit_section_code = _extract_explicit_section_code(item.get("source_anchor", ""))
         section_code = _extract_section_code(item.get("source_anchor", ""))
         section_title_hint = _extract_section_title(item.get("source_anchor", ""))
@@ -630,7 +650,7 @@ def _extract_section_title(anchor: str) -> str:
 
 def _extract_appendix_scope(anchor: str) -> str:
     match = APPENDIX_SCOPE_RE.search(anchor or "")
-    return match.group(1).upper() if match else ""
+    return str(match.group(1) or "").strip() if match else ""
 
 
 def _join_section_key(appendix_scope: str, section_code: str) -> str:
@@ -692,7 +712,7 @@ def _build_missing_test_outline_scope_requirements(
         return []
 
     scope_has_requirements = {
-        str(row.get("appendix_scope") or "").strip().upper()
+        _test_outline_scope_identity(str(row.get("appendix_scope") or ""))
         for row in existing_requirements
         if str(row.get("appendix_scope") or "").strip()
     }
@@ -707,10 +727,11 @@ def _build_missing_test_outline_scope_requirements(
     out: list[dict[str, Any]] = []
     req_order = max(-1, int(start_req_order) - 1)
     for marker in markers:
-        scope = str(marker.get("appendix_scope") or "").strip().upper()
-        if not scope:
+        scope = _normalize_test_outline_scope(str(marker.get("appendix_scope") or ""))
+        scope_identity = _test_outline_scope_identity(scope)
+        if not scope or not scope_identity:
             continue
-        if scope in scope_has_requirements:
+        if scope_identity in scope_has_requirements:
             continue
         start_page = _to_int(marker.get("source_page_start"))
         end_page = _to_int(marker.get("source_page_end")) or start_page
@@ -756,7 +777,7 @@ def _build_missing_test_outline_scope_requirements(
                 "section_instance_key": "",
             }
         )
-        scope_has_requirements.add(scope)
+        scope_has_requirements.add(scope_identity)
     return out
 
 
@@ -1068,9 +1089,11 @@ def _collect_test_outline_markers(segments: list[dict[str, Any]]) -> list[dict[s
             if not line:
                 continue
             for scope, candidate in _iter_test_outline_candidates(line):
-                if not scope or scope in markers_by_scope:
+                scope = _normalize_test_outline_scope(scope)
+                scope_identity = _test_outline_scope_identity(scope)
+                if not scope or not scope_identity or scope_identity in markers_by_scope:
                     continue
-                markers_by_scope[scope] = {
+                markers_by_scope[scope_identity] = {
                     "appendix_scope": scope,
                     "section_title": candidate,
                     "source_page_start": source_page if source_page > 0 else None,
@@ -1086,7 +1109,7 @@ def _iter_test_outline_candidates(line: str) -> list[tuple[str, str]]:
         return candidates
 
     if ELECTRIC_TEST_OUTLINE_HEADER_RE.search(raw):
-        candidates.append(("Y", "用电器试验大纲"))
+        candidates.append((TEST_OUTLINE_SCOPE_ELECTRIC, TEST_OUTLINE_SCOPE_ELECTRIC))
 
     cells = [raw]
     if "|" in raw:
@@ -1122,7 +1145,7 @@ def _inject_appendix_marker_rows(
     if not section_outline and not appendix_markers:
         return []
     marker_by_scope = {
-        str(row.get("appendix_scope") or "").strip().upper(): row
+        _test_outline_scope_identity(str(row.get("appendix_scope") or "")): row
         for row in appendix_markers
         if str(row.get("appendix_scope") or "").strip()
     }
@@ -1130,17 +1153,19 @@ def _inject_appendix_marker_rows(
     out: list[dict[str, Any]] = []
 
     for row in section_outline:
-        scope = str(row.get("appendix_scope") or "").strip().upper()
-        marker = marker_by_scope.get(scope)
-        if scope and marker and scope not in injected:
+        scope = _normalize_test_outline_scope(str(row.get("appendix_scope") or ""))
+        scope_identity = _test_outline_scope_identity(scope)
+        marker = marker_by_scope.get(scope_identity)
+        if scope_identity and marker and scope_identity not in injected:
             out.append(_build_appendix_outline_row(marker))
-            injected.add(scope)
+            injected.add(scope_identity)
         merged = dict(row)
+        merged["appendix_scope"] = scope
         merged["is_appendix_marker"] = False
         out.append(merged)
 
-    for scope, marker in marker_by_scope.items():
-        if scope in injected:
+    for scope_identity, marker in marker_by_scope.items():
+        if scope_identity in injected:
             continue
         out.append(_build_appendix_outline_row(marker))
     return out
@@ -1149,7 +1174,7 @@ def _inject_appendix_marker_rows(
 def _build_appendix_outline_row(marker: dict[str, Any]) -> dict[str, Any]:
     title = str(marker.get("section_title") or "")
     return {
-        "appendix_scope": str(marker.get("appendix_scope") or "").strip().upper(),
+        "appendix_scope": _normalize_test_outline_scope(str(marker.get("appendix_scope") or "")),
         "section_code": "",
         "section_title": title,
         "section_level": 0,
