@@ -1,6 +1,6 @@
 # Active Context
 
-更新时间：2026-04-15 11:14 CST  
+更新时间：2026-04-15 11:20 CST  
 适用仓库：`/Users/liuchang/Documents/New project`
 
 长期背景：[`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/项目.md)
@@ -197,7 +197,7 @@
   - complex-table backend 已保留 source-faithful section row 并打 overlay 元数据；后续若要在 UI 上高亮 complex family/group，应消费 overlay 字段，而不是恢复 `CX` section rewrite
 - 当前执行层仍需注意一个环境风险：
   - 本地基线已提交：`4c43104 Canonicalize appendix scopes and tree roots baseline`
-  - 这台 Windows 机器的 GitHub push 历史上受 TLS/EOF 握手波动影响；如需再次 push，优先沿用 `schannel + HTTP/1.1 + tls1.2` 组合
+  - 这台 Windows 机器的 GitHub push 历史上受 TLS/EOF 握手波动影响；本轮已用 `schannel + schannelCheckRevoke=false + HTTP/1.1 + tls1.2` 成功 push，后续如再出现握手失败优先沿用同一组合
 - 当前已确认 scope 边界：
   - 当前 track 同时负责 `batch regression + document-level audit + pattern capture + benchmark-safe rule promotion`
   - 允许维护 `parser / extractor / extraction_preview / scripts / tests / eval / 当前 track skill / active-context`
@@ -227,3 +227,8 @@
 - 控制塔页面：`/project-progress`
 - 应用主端口：`8000`
 - 当前分支人工复核端口：`5555`
+
+## 当前状态补充
+
+- `main@cfb9e18` 已合入 `codex/extraction-quality-loop`
+- merge 后定向回归已通过，当前支线最新提交 `42973c8` 已推送到 `origin/codex/extraction-quality-loop`
