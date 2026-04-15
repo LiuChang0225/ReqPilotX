@@ -1,6 +1,6 @@
 # Extraction Active Context
 
-更新时间：2026-04-14 15:07 CST  
+更新时间：2026-04-14 18:23 CST  
 分支：`codex/extraction-quality-loop`
 
 ## 分支目的
@@ -132,6 +132,32 @@
   - 真实 PDF 中 `3.2.2 产品详细描述` 的正确语义树应直接挂 `1..12`，并继续包含 `6.1..6.7 / 6.6.1..6.6.5 / 7.1..7.5.2 / 8.1.1..8.2.5.4 / 9.1..9.7 / 11.1..11.12`
   - 当前 worktree 已确认 `section_tree` 中 `3.2.2` 正式拥有 `1..12` 子节点，且 `6 / 6.6 / 7 / 7.5 / 8 / 8.1 / 8.2 / 8.2.5 / 9 / 11` 的子链顺序均与真实树一致
   - `oil-pump-benchmark` 在新增 subtree rule 后仍保持 `PASS`
+- 本轮 live 核对补充结论：
+  - 用户此前在页面里看到的油泵 `软件开发要求 / FMEA与特殊特性` 同挂 `SUB1`，根因是 `5555` 仍跑着旧 preview 逻辑；重启当前 worktree 进程并 `refresh-preview` 后，live 已恢复成 `SUB1 / SUB2` 分离
+  - `网络安全 / 数据安全技术要求矩阵` 与 `产品网络安全生命周期矩阵` 是 complex-table review overlay title；当前 live preview 里它们只保留在 `complete_requirement_entries` 的 overlay 语义中，不再污染 `sections` / `section_tree`
+  - `workspace` 与 `extraction-review` 的章节总览 UI 已同步收口为树形可读模式，移除 `编号层级 / 需求条数`，静态资源版本已 bump 到 `section-overview3`
+- 本轮 UI 继续收口：
+  - 章节总览现已进一步改成动态 `L0..Ln` 横向路径列，按真实树深自动生成层级列，不再依赖“结构父节点 / 结构层级”辅助理解父子关系
+  - `workspace` 与 `extraction-review` 两页都已同步 `section-overview4` 版本；live HTML 已确认旧表头不再输出
+- 本轮 UI 细节继续收口：
+  - `workspace` 的“开发诊断”现已把更多横向空间让给章节总览，并把该区域拉成近一屏高的滚动阅览面板
+  - 路径卡片当前默认不再展示普通章节的副标题；只有 `ROOT` 保留附加说明，从而去掉 `1 概述 / 概述`、`1.1 长句 / 去编号长句` 这类重复展示
+  - 静态资源版本已 bump 到 `section-overview5`，live `5555` 已确认返回新版布局引用
+- 本轮 UI 最终收口到 `section-overview6`：
+  - `workspace` 的“解析诊断摘要 : 章节总览”比例当前固定为 `2 : 5`
+  - 旧的 overview `240px` 限高已移除，章节总览当前按近整屏高度滚动展示
+  - `附录域 / L0 / L1` 已做 sticky 列，横向滚动时主干结构可持续可见；`extraction-review` 也同步同样逻辑
+- 本轮 UI 继续收口到 `section-overview7`：
+  - 章节路径当前已剔除 appendix scope root；在保留 `附录域` 第一列的前提下，`L0` 从第一个真实章节开始，不再重复展示 `ROOT` / scope root
+  - `workspace` 与 `extraction-review` 当前都把章节总览改成固定高度滚动区，以 1920x1080 口径优先；浏览器实测 `workspace` overview 当前 `overflow-y=auto`，`clientHeight≈709px`、`scrollHeight≈22094px`
+  - live 资源版本已切到 `section-overview7`；浏览器抽样的 `section-overview-path-label` 当前已确认不再包含 `ROOT`
+- 本轮 workspace 项目选择器补齐了失效回退：
+  - live `/api/projects` 当前仍正常返回项目，问题不在 backend 数据层
+  - 根因是前端恢复了本地记忆的旧 `projectId`，但当该值已不在最新项目列表中时，没有自动回退到有效项目
+  - `renderProjectOptions()` 当前已在 `projectId` 失效时清空旧值并自动选中首个有效项目；`loadProjects()` 也会对仍然有效的 remembered selection 继续做 workspace hydration
+  - 后续浏览器侧彻查又确认真正拦截下拉加载的第二个根因：`app.js` 的 `renderStructuredTable()` 中混入了一行错误的章节总览 `<td class="section-overview-scope-cell ...">` 模板，导致脚本解析时报 `Unexpected token 'class'`，`init()`/`loadProjects()` 不会执行
+  - 当前已移除脏模板并补回 `renderStructuredTable()` 缺失的 `.join("")`；`index.html` 已把 workspace 脚本版本 bump 到 `app.js?v=20260414-project-select-fix3`
+  - 已用本机 Edge + Playwright 直连 live `/workspace` 验证：`#project-select` 当前有 2 个 option，默认选中 `Damper Branch Debug / local`，且无 `pageerror`
 - 已确认 `SUB1` 口径需要区分：
   - synthetic appendix scope 跨页复用本身不一定错
   - 当前真正暴露的是 raw outline 层 `SUB1 + code` 重复过多，`section_instance_key` 只能部分兜底
@@ -179,12 +205,16 @@
 - 当前 `5555` 已重启到包含以上修复的新进程，可直接在线复核油泵 page 13 与连接器附件命名
 - 当前 UI 与 API 的 appendix/tree 口径也已回到一致：页面若再看到 `T/U/V/CX` 或缺失 `ROOT / 结构层级 / 编号层级`，优先检查是否又连到了旧的非 reload 进程，或 preview cache 仍未重建
 - 如果用户仍在浏览器里看到 `Y`，优先怀疑旧前端资源或旧 preview cache，而不是后端服务挂掉；当前这两条已通过 `refresh-preview + asset version bump` 收口
+- 如果用户再说“当前项目下拉不显示项目”，先分两步看：
+- 第一，浏览器是否仍保留了失效 `projectId`；第二，live `/workspace` 是否真的拿到了 `project-select-fix3`
+- 如果 `/api/projects` 正常但下拉依然空，优先用 `node --check prototype/app/static/app.js` 或浏览器 `pageerror` 排查是否又出现脚本解析错误，而不是先怀疑数据库/接口
 
 ## 下一步
 
 - 保持 `3.2.2` subtree benchmark 绿色，先补 oil-pump `2 / 3 / 6.4` 的 row-level 内容 benchmark 与通用修复
 - 如果继续收紧 online review 体验，下一步优先评估是否把 `6.投标说明` 父节说明 requirement 从 review 列表单独降噪；但这不是当前 gate blocker
 - 当前油泵线的直接后续动作只剩人工页面复核：确认 hard refresh 后章节总览里的父子链可读性满足需求
+- 当前油泵线的直接后续动作只剩人工页面复核：确认 hard refresh 后，章节总览新的 `L0..Ln` 路径树视图、`2:5` 摘要/总览比例、整屏高度总览区、sticky `附录域/L0/L1`、去重后的节点文案、`SUB1/SUB2` 边界与 complex overlay 展示均符合预期
 - appendix/tree 这条线上若继续做 P1/P2 收尾，优先级只剩：
   - 评估 oil-pump `SUB2` root label 的 source-title 恢复空间
   - 决定是否把 `missing_scope_root=1` 继续保留为注记，还是补更精细的 source-root 识别规则

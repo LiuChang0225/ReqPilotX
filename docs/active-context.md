@@ -1,6 +1,6 @@
 # Active Context
 
-更新时间：2026-04-14 15:07 CST  
+更新时间：2026-04-14 18:23 CST  
 适用仓库：`/Users/liuchang/Documents/New project`
 
 长期背景：[`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/项目.md)
@@ -123,6 +123,37 @@
   - `prototype/tests/test_extractor_sections.py -q`：`53 passed`
   - `prototype/tests/test_unified_workspace.py -q`：`98 passed`
   - `prototype/tests/test_table_assets.py -q`：`137 passed`
+- 本轮 live 排查与 UI 收口已完成：
+  - 已确认用户先前看到的油泵 `SUB1` 旧树来自 `5555` 上的旧非 `--reload` 进程，而不是当前 worktree backend
+  - 重启 `5555` 并对油泵文档强制 `refresh-preview` 后，live preview 已确认：`软件开发要求 -> SUB1`、`FMEA与特殊特性 -> SUB2`
+  - `网络安全 / 数据安全技术要求矩阵` 与 `产品网络安全生命周期矩阵` 已确认只来自 `complex_table_mode.py` 的 review overlay title，不再作为普通 `sections` 章节行对外展示
+  - `workspace` 与 `extraction-review` 的“章节总览”已同步改成更轻量的树视图：去掉 `编号层级 / 需求条数` 列，合并 node+title 展示，保留 scope / 父节点 / 页范围 / 结构层级
+  - 静态资源版本已 bump 到 `section-overview3`，live `5555` 已确认返回新 HTML/JS 资源引用
+- 本轮章节总览 UI 再次收口：
+  - `workspace` 与 `extraction-review` 当前都已改成动态 `L0..Ln` 列式树路径展示，按真实 `section_tree` 深度生成层级列
+  - 已移除“父节点 / 结构层级”列，章节父子关系改由横向路径直接表达，页范围与额外指标保留在尾部
+  - 静态资源版本已 bump 到 `section-overview4`，live `5555` HTML 已确认不再输出旧表头
+- 本轮章节总览 UI 继续优化：
+  - `workspace` 的“开发诊断”栅格已改成偏右布局，压缩“解析诊断摘要”横向占比，把更多宽度留给“章节总览”
+  - 章节总览区域已提升到近一屏高的滚动面板，适配 `1920x1080` 级别人工复核时的整屏阅览
+  - 节点卡片当前只对 `ROOT` 保留附加标题；普通章节不再显示重复副标题，避免 `1 概述 / 概述`、`1.1 长句 / 去编号长句` 这类重复占位
+  - 静态资源版本已 bump 到 `section-overview5`，live `5555` 已确认返回新版 HTML/JS/CSS 引用
+- 本轮章节总览 UI 最终收口到 `section-overview6`：
+  - `workspace` 的“解析诊断摘要 : 章节总览”横向分配已固定为 `2 : 5`
+  - 旧的 `review-mini-table max-height: 240px` 限高已移除，章节总览当前按近整屏高度滚动展示，不再只露两行
+  - `附录域 / L0 / L1` 当前已做 sticky 列，深层横向滚动时主干结构不会丢
+  - `extraction-review` 也已同步 sticky scope/L0/L1 逻辑，便于两页对齐复核
+- 本轮章节总览继续收口到 `section-overview7`：
+  - `附录域` 继续保留在第一列，但章节路径现在已显式剔除 appendix scope root；`L0` 从第一个真实章节开始，不再浪费一列重复显示 `ROOT` / scope root
+  - `workspace` 与 `extraction-review` 当前都已把 overview 容器改成 1080 口径下的固定高度滚动区；浏览器实测 `workspace` 章节总览当前 `clientHeight≈709px`、`scrollHeight≈22094px`、`overflow-y=auto`
+  - 浏览器实测当前 `sampleLabels` 已不再包含 `ROOT`，live 页面资产版本已切到 `section-overview7`
+- 本轮 workspace 项目下拉补齐了失效选择回退：
+  - live `/api/projects` 已确认仍正常返回项目，当前问题不是后端缺数据
+  - 根因是前端会恢复本地记忆的 `projectId`，但旧值失效时没有回退到当前有效项目，导致“当前项目”选择器停在无效状态
+  - `app.js` 当前已改为：若恢复出的 `projectId` 不在最新项目列表中，则自动清空并回退到首个可用项目；若恢复出的 `projectId` 仍有效，也会在 `loadProjects()` 后继续触发 workspace hydration，不再只停留在“选择器看起来有值”
+  - 后续彻查又确认还有第二个真实根因：`app.js` 的 `renderStructuredTable()` 被混入了一行错误的章节总览 `<td class="section-overview-scope-cell ...">` 模板，浏览器在解析到该处时会直接抛 `Unexpected token 'class'`，导致 `init()` / `loadProjects()` 根本不执行
+  - 当前已移除这行脏模板并补回缺失的 `.join("")`；`workspace` 静态资源版本已继续 bump 到 `app.js?v=20260414-project-select-fix3`
+  - 已用本机 Edge + Playwright 直接打开 live `/workspace` 验证：`#project-select` 当前 `optionCount=2`，默认已选中 `Damper Branch Debug / local`，且 `PAGE_ERRORS=[]`
 - 已确认油泵 PDS 关键根因链：
   - `3.2.2` 下真实存在 `1..12` 与 `6.1/6.4/7.1/8.1.2/8.2.5.4/11.12` 等本地结构
   - 当前已修复“保留 local anchor 但避免 `sections_count` 因 preview-only synthetic split 膨胀”的 benchmark 口径
@@ -169,6 +200,8 @@
   - `SOR-N82KS`：恢复 `F:1 / G:1` 与 `E:2` 标题
   - 减振器 PDS：在 `12/13/14/15` 拆分已恢复的基线上，继续专修 `3.2.2` complex table clause binding，不再回头放宽全局 regex
 - 油泵这条线上当前只剩浏览器侧人工复核：确认用户端 hard refresh 后，“章节总览”能直接看到父子链，且连接器附件区域不再出现 `Y`
+- 章节总览这条线上当前只剩浏览器侧人工复核：确认 hard refresh 后，新的 `L0..Ln` 树路径列、`2:5` 摘要/总览比例、整屏高度总览区、sticky `附录域/L0/L1`，以及 `SUB1/SUB2` 边界和 complex overlay 表现都与 live preview 一致
+- workspace 下拉这条线上当前只剩浏览器侧人工复核：确认浏览器刷新 `/workspace` 后，已拿到 `project-select-fix3` 并能直接看到 `Damper Branch Debug / local`
 - appendix/tree 这条线上下一步若继续收口，优先做三件事：
   - 利用现有 `appendix_scope_evidence / appendix_title_source` 给 batch report / review UI 补可见置信度，而不是再改 scope ID 口径
   - 继续缩小 legacy alias 使用面；当前对外输出与大部分测试夹具已切到 `MAIN/SUB*`，只保留 `appendix_scopes.py` 和 alias-normalization 回归中的内部兼容映射
