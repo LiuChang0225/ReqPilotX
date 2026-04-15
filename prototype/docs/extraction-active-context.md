@@ -1,6 +1,6 @@
 # Extraction Active Context
 
-更新时间：2026-04-15 11:14 CST  
+更新时间：2026-04-15 11:20 CST  
 分支：`codex/extraction-quality-loop`
 
 ## 分支目的
@@ -196,7 +196,7 @@
   - complex-table backend 已保留 source-faithful section row 并打 overlay 元数据；后续若要继续优化 review 体验，应消费 overlay 字段，而不是恢复 `CX` rewrite
 - 当前执行层仍需注意一个环境风险：
   - 本地基线已提交：`4c43104 Canonicalize appendix scopes and tree roots baseline`
-  - 这台 Windows 机器的 GitHub push 历史上受 TLS/EOF 握手波动影响；如需再次 push，优先沿用 `schannel + HTTP/1.1 + tls1.2` 组合
+  - 这台 Windows 机器的 GitHub push 历史上受 TLS/EOF 握手波动影响；本轮已用 `schannel + schannelCheckRevoke=false + HTTP/1.1 + tls1.2` 成功 push，后续如再出现握手失败优先沿用同一组合
 - 其余样本当前也偏离历史绿色基线：
   - `Q-JLY`: `sections=407 / requirements=451`，当前主问题是 requirement drift 与 consistency drift
   - `SOR-N82KS`: 缺 `F:1 / G:1`，`E:2` 标题漂移，`requirements=172`
@@ -210,6 +210,7 @@
 
 - 批量回归闭环已建立，控制塔 gate 与 batch 工件已经对齐
 - 当前分支已完成 `main@cfb9e18` 同步；mainline 的 review/workspace UX 改动与本线 extraction/review 修复已在同一分支上共存，并通过定向回归
+- 当前支线最新提交 `42973c8` 已推送到 `origin/codex/extraction-quality-loop`
 - 当前红灯主要是 parser / extractor / preview 的通用结构回归，不是 wrapper / 样本发现 / taxonomy 工具链问题
 - 单文档 diagnose 已成为默认入口；batch-report 同轮会补 diagnosis / pattern artifacts，而不是只给 gate 红绿
 - 油泵当前已经从“结构 red + fidelity red”收敛到“真实 subtree 对齐 + benchmark green”；后续不再回头重搭油泵树结构，而是补 row-level 内容闸门并把模式推广到剩余样本
