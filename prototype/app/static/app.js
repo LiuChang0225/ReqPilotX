@@ -1278,11 +1278,15 @@ async function onApplyBatchDecision() {
 
 async function loadProjects() {
   const projects = await api("/api/projects");
-  await renderProjectOptions(projects);
+  const hydratedSelection = await renderProjectOptions(projects);
+  if (!hydratedSelection && state.projectId) {
+    await onProjectChanged();
+  }
 }
 
 async function renderProjectOptions(projects) {
   const current = state.projectId;
+  const hasCurrent = Boolean(current) && projects.some((project) => project.id === current);
   el.projectSelect.innerHTML = "";
   const placeholder = document.createElement("option");
   placeholder.value = "";
@@ -1293,18 +1297,26 @@ async function renderProjectOptions(projects) {
     const option = document.createElement("option");
     option.value = project.id;
     option.textContent = `${project.name} / ${project.customer_name}`;
-    if (project.id === current) {
+    if (hasCurrent && project.id === current) {
       option.selected = true;
     }
     el.projectSelect.appendChild(option);
   });
 
-  if (!current && projects.length) {
+  if (!hasCurrent && current) {
+    state.projectId = null;
+  }
+
+  if (!state.projectId && projects.length) {
     state.projectId = projects[0].id;
     el.projectSelect.value = state.projectId;
     persistWorkspaceSelection();
     await onProjectChanged();
+    return true;
   }
+
+  el.projectSelect.value = state.projectId || "";
+  return false;
 }
 
 async function loadSorDocuments(preferredDocumentId = null) {
@@ -1779,22 +1791,23 @@ function renderReviewDiagnostics() {
   }
   if (el.reviewSectionOverviewBody) {
     const rows = buildReviewSectionOverviewRows(preview.section_tree || preview.sections || []);
+    const levelCount = Math.max(
+      1,
+      ...rows.map((row) => (Array.isArray(row.level_path) ? row.level_path.length : 0))
+    );
+    renderSectionOverviewHead(el.reviewSectionOverviewBody, levelCount, ["页范围"]);
     if (!rows.length) {
-      el.reviewSectionOverviewBody.innerHTML = `<tr><td colspan="8">暂无章节数据</td></tr>`;
+      el.reviewSectionOverviewBody.innerHTML = `<tr><td colspan="${levelCount + 2}">暂无章节数据</td></tr>`;
     } else {
       el.reviewSectionOverviewBody.innerHTML = rows
         .map(
           (row) => {
             const span = row.source_page_start ? `${row.source_page_start}-${row.source_page_end || row.source_page_start}` : "-";
+            const scopeTitle = row.appendix_title ? ` title="${escapeHtml(row.appendix_title)}"` : "";
             return `<tr>
-            <td>${escapeHtml(formatScope(row.appendix_scope, row.appendix_title))}</td>
-            <td><div style="padding-left:${Math.max(0, Number(row.tree_depth || 0)) * 14}px">${escapeHtml(row.node_label || "")}</div></td>
-            <td>${escapeHtml(row.section_title || "")}</td>
-            <td>${escapeHtml(String(row.structural_level ?? 0))}</td>
-            <td>${escapeHtml(String(row.numbering_level ?? 0))}</td>
-            <td>${escapeHtml(row.parent_label || "-")}</td>
-            <td>${escapeHtml(span)}</td>
-            <td>${escapeHtml(String(row.requirement_count || 0))}</td>
+            <td><span class="section-overview-scope-pill"${scopeTitle}>${escapeHtml(formatScope(row.appendix_scope, row.appendix_title))}</span></td>
+            ${renderSectionOverviewPathCells(row, levelCount)}
+            <td class="section-overview-metric-cell"><span class="section-overview-page-pill">${escapeHtml(span)}</span></td>
           </tr>`;
           }
         )
@@ -1842,8 +1855,82 @@ function buildSectionOverviewParentLabel(row) {
   return parentLabel || [parentCode, parentTitle].filter(Boolean).join(" ").trim();
 }
 
+function buildSectionOverviewTitleMeta(row) {
+  if (!row?.is_appendix_scope_root) {
+    return "";
+  }
+  const nodeLabel = String(row.node_label || buildSectionOverviewNodeLabel(row) || "").trim();
+  const sectionTitle = String(row.section_title || "").trim();
+  if (!sectionTitle) {
+    return "";
+  }
+  const compactNode = nodeLabel.replace(/\s+/g, "");
+  const compactTitle = sectionTitle.replace(/\s+/g, "");
+  if (!compactTitle) {
+    return "";
+  }
+  if (compactNode === compactTitle || compactNode.includes(compactTitle)) {
+    return "";
+  }
+  return sectionTitle;
+}
+
+function renderSectionOverviewHead(bodyEl, levelCount, trailingHeaders) {
+  const head = bodyEl?.closest("table")?.querySelector("thead");
+  if (!head) {
+    return;
+  }
+  const levelHeaders = Array.from({ length: levelCount }, (_, index) => {
+    const classes = ["section-overview-path-header"];
+    if (index === 0) {
+      classes.push("is-sticky-l0");
+    }
+    if (index === 1) {
+      classes.push("is-sticky-l1");
+    }
+    return `<th class="${classes.join(" ")}">L${index}</th>`;
+  }).join("");
+  const trailing = (trailingHeaders || []).map((label) => `<th>${escapeHtml(label)}</th>`).join("");
+  head.innerHTML = `<tr><th class="section-overview-scope-header is-sticky-scope">附录域</th>${levelHeaders}${trailing}</tr>`;
+}
+
+function renderSectionOverviewPathCard(node, titleMeta, isCurrent) {
+  const toneClasses = [node.is_root ? "is-root" : "", isCurrent ? "is-current" : "is-ancestor"].filter(Boolean).join(" ");
+  return `<div class="section-overview-path-card ${toneClasses}">
+    <div class="section-overview-path-label">${escapeHtml(node.label || "-")}</div>
+    ${titleMeta ? `<div class="section-overview-path-meta">${escapeHtml(titleMeta)}</div>` : ""}
+  </div>`;
+}
+
+function renderSectionOverviewPathCells(row, levelCount) {
+  const path = Array.isArray(row.level_path) ? row.level_path : [];
+  return Array.from({ length: levelCount }, (_, levelIndex) => {
+    const node = path[levelIndex];
+    const classes = ["section-overview-path-cell"];
+    if (levelIndex === 0) {
+      classes.push("is-sticky-l0");
+    }
+    if (levelIndex === 1) {
+      classes.push("is-sticky-l1");
+    }
+    if (!node) {
+      classes.push("is-empty");
+      return `<td class="${classes.join(" ")}"><span class="section-overview-empty-slot"></span></td>`;
+    }
+    const isCurrent = levelIndex === path.length - 1;
+    classes.push(isCurrent ? "is-current" : "is-ancestor");
+    return `<td class="${classes.join(" ")}">${renderSectionOverviewPathCard(
+      node,
+      isCurrent ? row.title_meta : "",
+      isCurrent
+    )}</td>`;
+  }).join("");
+}
+
 function buildReviewSectionOverviewRows(rows) {
-  const sourceRows = (rows || []).filter((row) => row?.section_code || row?.section_title);
+  const sourceRows = (rows || []).filter(
+    (row) => (row?.section_code || row?.section_title) && !row?.is_appendix_scope_root
+  );
   const rowByKey = new Map();
   const rowByScopeCode = new Map();
 
@@ -1860,6 +1947,15 @@ function buildReviewSectionOverviewRows(rows) {
 
   const depthCache = new Map();
   const visiting = new Set();
+  const pathCache = new Map();
+  const pathVisiting = new Set();
+
+  function findParentRow(row) {
+    const parentKey = String(row.structural_parent_section_key || row.parent_section_key || "").trim();
+    const parentCode = String(row.structural_parent_section_code || row.parent_section_code || "").trim();
+    const lookupKey = buildSectionOverviewLookupKey(row.appendix_scope, parentCode);
+    return (parentKey ? rowByKey.get(parentKey) : null) || (lookupKey ? rowByScopeCode.get(lookupKey) : null) || null;
+  }
 
   function resolveDepth(row) {
     const sectionKey = String(row.section_instance_key || row.section_key || "").trim();
@@ -1872,10 +1968,7 @@ function buildReviewSectionOverviewRows(rows) {
     if (sectionKey) {
       visiting.add(sectionKey);
     }
-    const parentKey = String(row.structural_parent_section_key || row.parent_section_key || "").trim();
-    const parentCode = String(row.structural_parent_section_code || row.parent_section_code || "").trim();
-    const lookupKey = buildSectionOverviewLookupKey(row.appendix_scope, parentCode);
-    const parentRow = (parentKey ? rowByKey.get(parentKey) : null) || (lookupKey ? rowByScopeCode.get(lookupKey) : null);
+    const parentRow = findParentRow(row);
     const depth = parentRow ? resolveDepth(parentRow) + 1 : 0;
     if (sectionKey) {
       depthCache.set(sectionKey, depth);
@@ -1884,21 +1977,49 @@ function buildReviewSectionOverviewRows(rows) {
     return depth;
   }
 
-  return sourceRows.map((row) => ({
-    appendix_scope: row.appendix_scope || "",
-    appendix_title: row.appendix_title || "",
-    section_code: row.section_code || "",
-    section_title: row.section_title || "",
-    numbering_level: Number(row.numbering_level ?? row.section_level ?? 0) || 0,
-    structural_level: Number(row.structural_level ?? resolveDepth(row)) || 0,
-    tree_depth: resolveDepth(row),
-    node_label: buildSectionOverviewNodeLabel(row),
-    parent_label: buildSectionOverviewParentLabel(row),
-    is_appendix_scope_root: Boolean(row.is_appendix_scope_root),
-    source_page_start: row.source_page_start || "",
-    source_page_end: row.source_page_end || "",
-    requirement_count: row.requirement_count || 0,
-  }));
+  function resolvePath(row) {
+    const sectionKey = String(row.section_instance_key || row.section_key || "").trim();
+    if (sectionKey && pathCache.has(sectionKey)) {
+      return pathCache.get(sectionKey);
+    }
+    if (sectionKey && pathVisiting.has(sectionKey)) {
+      return [row];
+    }
+    if (sectionKey) {
+      pathVisiting.add(sectionKey);
+    }
+    const parentRow = findParentRow(row);
+    const path = parentRow ? [...resolvePath(parentRow), row] : [row];
+    if (sectionKey) {
+      pathCache.set(sectionKey, path);
+      pathVisiting.delete(sectionKey);
+    }
+    return path;
+  }
+
+  return sourceRows.map((row) => {
+    const path = resolvePath(row).filter((pathRow) => !pathRow?.is_appendix_scope_root);
+    return {
+      appendix_scope: row.appendix_scope || "",
+      appendix_title: row.appendix_title || "",
+      section_code: row.section_code || "",
+      section_title: row.section_title || "",
+      numbering_level: Number(row.numbering_level ?? row.section_level ?? 0) || 0,
+      structural_level: Number(row.structural_level ?? resolveDepth(row)) || 0,
+      tree_depth: resolveDepth(row),
+      node_label: buildSectionOverviewNodeLabel(row),
+      parent_label: buildSectionOverviewParentLabel(row),
+      is_appendix_scope_root: Boolean(row.is_appendix_scope_root),
+      source_page_start: row.source_page_start || "",
+      source_page_end: row.source_page_end || "",
+      requirement_count: row.requirement_count || 0,
+      title_meta: buildSectionOverviewTitleMeta({ ...row, node_label: buildSectionOverviewNodeLabel(row) }),
+      level_path: path.map((pathRow) => ({
+        label: buildSectionOverviewNodeLabel(pathRow),
+        is_root: Boolean(pathRow.is_appendix_scope_root),
+      })),
+    };
+  });
 }
 
 function renderReviewKindFilter() {

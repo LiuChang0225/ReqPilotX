@@ -596,8 +596,82 @@ function buildSectionOverviewParentLabel(row) {
   return parentLabel || [parentCode, parentTitle].filter(Boolean).join(" ").trim();
 }
 
+function buildSectionOverviewTitleMeta(row) {
+  if (!row?.is_appendix_scope_root) {
+    return "";
+  }
+  const nodeLabel = String(row.node_label || buildSectionOverviewNodeLabel(row) || "").trim();
+  const sectionTitle = String(row.section_title || "").trim();
+  if (!sectionTitle) {
+    return "";
+  }
+  const compactNode = nodeLabel.replace(/\s+/g, "");
+  const compactTitle = sectionTitle.replace(/\s+/g, "");
+  if (!compactTitle) {
+    return "";
+  }
+  if (compactNode === compactTitle || compactNode.includes(compactTitle)) {
+    return "";
+  }
+  return sectionTitle;
+}
+
+function renderSectionOverviewHead(bodyEl, levelCount, trailingHeaders) {
+  const head = bodyEl?.closest("table")?.querySelector("thead");
+  if (!head) {
+    return;
+  }
+  const levelHeaders = Array.from({ length: levelCount }, (_, index) => {
+    const classes = ["section-overview-path-header"];
+    if (index === 0) {
+      classes.push("is-sticky-l0");
+    }
+    if (index === 1) {
+      classes.push("is-sticky-l1");
+    }
+    return `<th class="${classes.join(" ")}">L${index}</th>`;
+  }).join("");
+  const trailing = (trailingHeaders || []).map((label) => `<th>${escapeHtml(label)}</th>`).join("");
+  head.innerHTML = `<tr><th class="section-overview-scope-header is-sticky-scope">附录域</th>${levelHeaders}${trailing}</tr>`;
+}
+
+function renderSectionOverviewPathCard(node, titleMeta, isCurrent) {
+  const toneClasses = [node.is_root ? "is-root" : "", isCurrent ? "is-current" : "is-ancestor"].filter(Boolean).join(" ");
+  return `<div class="section-overview-path-card ${toneClasses}">
+    <div class="section-overview-path-label">${escapeHtml(node.label || "-")}</div>
+    ${titleMeta ? `<div class="section-overview-path-meta">${escapeHtml(titleMeta)}</div>` : ""}
+  </div>`;
+}
+
+function renderSectionOverviewPathCells(row, levelCount) {
+  const path = Array.isArray(row.level_path) ? row.level_path : [];
+  return Array.from({ length: levelCount }, (_, levelIndex) => {
+    const node = path[levelIndex];
+    const classes = ["section-overview-path-cell"];
+    if (levelIndex === 0) {
+      classes.push("is-sticky-l0");
+    }
+    if (levelIndex === 1) {
+      classes.push("is-sticky-l1");
+    }
+    if (!node) {
+      classes.push("is-empty");
+      return `<td class="${classes.join(" ")}"><span class="section-overview-empty-slot"></span></td>`;
+    }
+    const isCurrent = levelIndex === path.length - 1;
+    classes.push(isCurrent ? "is-current" : "is-ancestor");
+    return `<td class="${classes.join(" ")}">${renderSectionOverviewPathCard(
+      node,
+      isCurrent ? row.title_meta : "",
+      isCurrent
+    )}</td>`;
+  }).join("");
+}
+
 function buildSectionOverviewRows(rows) {
-  const sourceRows = (rows || []).filter((row) => row?.section_code || row?.section_title);
+  const sourceRows = (rows || []).filter(
+    (row) => (row?.section_code || row?.section_title) && !row?.is_appendix_scope_root
+  );
   const rowByKey = new Map();
   const rowByScopeCode = new Map();
 
@@ -614,6 +688,15 @@ function buildSectionOverviewRows(rows) {
 
   const depthCache = new Map();
   const visiting = new Set();
+  const pathCache = new Map();
+  const pathVisiting = new Set();
+
+  function findParentRow(row) {
+    const parentKey = String(row.structural_parent_section_key || row.parent_section_key || "").trim();
+    const parentCode = String(row.structural_parent_section_code || row.parent_section_code || "").trim();
+    const lookupKey = buildSectionOverviewLookupKey(row.appendix_scope, parentCode);
+    return (parentKey ? rowByKey.get(parentKey) : null) || (lookupKey ? rowByScopeCode.get(lookupKey) : null) || null;
+  }
 
   function resolveDepth(row) {
     const sectionKey = String(row.section_instance_key || row.section_key || "").trim();
@@ -626,16 +709,33 @@ function buildSectionOverviewRows(rows) {
     if (sectionKey) {
       visiting.add(sectionKey);
     }
-    const parentKey = String(row.structural_parent_section_key || row.parent_section_key || "").trim();
-    const parentCode = String(row.structural_parent_section_code || row.parent_section_code || "").trim();
-    const lookupKey = buildSectionOverviewLookupKey(row.appendix_scope, parentCode);
-    const parentRow = (parentKey ? rowByKey.get(parentKey) : null) || (lookupKey ? rowByScopeCode.get(lookupKey) : null);
+    const parentRow = findParentRow(row);
     const depth = parentRow ? resolveDepth(parentRow) + 1 : 0;
     if (sectionKey) {
       depthCache.set(sectionKey, depth);
       visiting.delete(sectionKey);
     }
     return depth;
+  }
+
+  function resolvePath(row) {
+    const sectionKey = String(row.section_instance_key || row.section_key || "").trim();
+    if (sectionKey && pathCache.has(sectionKey)) {
+      return pathCache.get(sectionKey);
+    }
+    if (sectionKey && pathVisiting.has(sectionKey)) {
+      return [row];
+    }
+    if (sectionKey) {
+      pathVisiting.add(sectionKey);
+    }
+    const parentRow = findParentRow(row);
+    const path = parentRow ? [...resolvePath(parentRow), row] : [row];
+    if (sectionKey) {
+      pathCache.set(sectionKey, path);
+      pathVisiting.delete(sectionKey);
+    }
+    return path;
   }
 
   return sourceRows.map((row, index) => ({
@@ -655,6 +755,13 @@ function buildSectionOverviewRows(rows) {
     requirement_count: row.requirement_count ?? 0,
     total_chars: row.total_chars ?? row.section_char_count ?? row.char_count ?? 0,
     requirement_like: row.requirement_like,
+    title_meta: buildSectionOverviewTitleMeta({ ...row, node_label: buildSectionOverviewNodeLabel(row) }),
+    level_path: resolvePath(row)
+      .filter((pathRow) => !pathRow?.is_appendix_scope_root)
+      .map((pathRow) => ({
+      label: buildSectionOverviewNodeLabel(pathRow),
+      is_root: Boolean(pathRow.is_appendix_scope_root),
+      })),
     outline_order: Number.isFinite(Number(row.tree_order))
       ? Number(row.tree_order)
       : Number.isFinite(Number(row.outline_order))
@@ -665,27 +772,26 @@ function buildSectionOverviewRows(rows) {
 }
 
 function renderSectionOverviewTable(rows) {
+  const levelCount = Math.max(
+    1,
+    ...rows.map((row) => (Array.isArray(row.level_path) ? row.level_path.length : 0))
+  );
+  renderSectionOverviewHead(el.sectionOverviewBody, levelCount, ["页范围", "字符数", "需求候选"]);
   if (!rows.length) {
-    el.sectionOverviewBody.innerHTML = `<tr><td colspan="10">未识别到章节</td></tr>`;
+    el.sectionOverviewBody.innerHTML = `<tr><td colspan="${levelCount + 4}">未识别到章节</td></tr>`;
     return;
   }
 
   el.sectionOverviewBody.innerHTML = rows
     .map((row) => {
       const span = row.source_page_start ? `${row.source_page_start}-${row.source_page_end ?? row.source_page_start}` : "-";
-      const structuralLevel = Number(row.structural_level ?? 0);
-      const numberingLevel = Number(row.numbering_level ?? 0);
+      const scopeTitle = row.appendix_title ? ` title="${escapeHtml(row.appendix_title)}"` : "";
       return `<tr>
-        <td>${escapeHtml(formatScope(row.appendix_scope, row.appendix_title))}</td>
-        <td><div style="padding-left:${Math.max(0, Number(row.tree_depth || 0)) * 14}px">${escapeHtml(row.node_label || row.section_code || "")}</div></td>
-        <td>${escapeHtml(row.section_title || "")}</td>
-        <td>${structuralLevel || 0}</td>
-        <td>${numberingLevel || 0}</td>
-        <td>${escapeHtml(row.parent_label || row.parent_section_code || "-")}</td>
-        <td>${escapeHtml(span)}</td>
-        <td>${row.requirement_count ?? 0}</td>
-        <td>${row.total_chars ?? 0}</td>
-        <td>${row.requirement_like ? "是" : "否"}</td>
+        <td class="section-overview-scope-cell is-sticky-scope"><span class="section-overview-scope-pill"${scopeTitle}>${escapeHtml(formatScope(row.appendix_scope, row.appendix_title))}</span></td>
+        ${renderSectionOverviewPathCells(row, levelCount)}
+        <td class="section-overview-metric-cell"><span class="section-overview-page-pill">${escapeHtml(span)}</span></td>
+        <td class="section-overview-metric-cell"><span class="section-overview-page-pill">${escapeHtml(String(row.total_chars ?? 0))}</span></td>
+        <td class="section-overview-metric-cell"><span class="section-overview-flag ${row.requirement_like ? "is-yes" : "is-no"}">${row.requirement_like ? "是" : "否"}</span></td>
       </tr>`;
     })
     .join("");
