@@ -1,6 +1,6 @@
 # Active Context
 
-更新时间：2026-04-14 18:23 CST  
+更新时间：2026-04-15 11:14 CST  
 适用仓库：`/Users/liuchang/Documents/New project`
 
 长期背景：[`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/项目.md)
@@ -34,6 +34,11 @@
   - `产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf`
 
 ## 最近已修 / 已落地
+
+- 已将 `main@cfb9e18 Improve review UI: upload progress bar, chip filter, column sizing, PDF layout, SOR removal` 合入当前支线：
+  - 当前支线已同步 mainline 的上传进度条、kind chip filter、PDF 面板高度收口与当前 SOR 移除能力
+  - `prototype/app/db.py`、`prototype/app/main.py`、`prototype/app/static/app.js`、`prototype/app/static/index.html`、`prototype/app/static/styles.css` 已完成 merge
+  - `workspace` 主页面资源版本已统一 bump 到 `20260415-review-merge1`，避免浏览器继续命中 merge 前缓存
 
 - 新增 `prototype/scripts/extraction_batch_report.py`：
   - 解析 batch manifest
@@ -123,6 +128,12 @@
   - `prototype/tests/test_extractor_sections.py -q`：`53 passed`
   - `prototype/tests/test_unified_workspace.py -q`：`98 passed`
   - `prototype/tests/test_table_assets.py -q`：`137 passed`
+- 本轮 mainline merge 后回归补充验证：
+  - `node --check prototype/app/static/app.js`：通过
+  - `node --check prototype/app/static/extraction-review.js`：通过
+  - `prototype/tests/test_unified_workspace.py -q`：`98 passed`
+  - `prototype/tests/test_extractor_sections.py -q`：`53 passed`
+  - `prototype/tests/test_table_assets.py -q`：`137 passed`
 - 本轮 live 排查与 UI 收口已完成：
   - 已确认用户先前看到的油泵 `SUB1` 旧树来自 `5555` 上的旧非 `--reload` 进程，而不是当前 worktree backend
   - 重启 `5555` 并对油泵文档强制 `refresh-preview` 后，live preview 已确认：`软件开发要求 -> SUB1`、`FMEA与特殊特性 -> SUB2`
@@ -184,9 +195,9 @@
   - 电器 test-outline 在缺少更强标题证据时当前统一回退 `Sub7 / 试验大纲`；若后续继续提可读性，应优先补邻近标题/目录恢复，而不是回退到历史 `Y`
   - `appendix_scope_evidence / appendix_title_source` 已写入 extractor / preview 的 row 与 section 数据；benchmark/report/UI 目前还未系统消费这些置信度字段
   - complex-table backend 已保留 source-faithful section row 并打 overlay 元数据；后续若要在 UI 上高亮 complex family/group，应消费 overlay 字段，而不是恢复 `CX` section rewrite
-- 当前执行层还有一个环境 blocker：
+- 当前执行层仍需注意一个环境风险：
   - 本地基线已提交：`4c43104 Canonicalize appendix scopes and tree roots baseline`
-  - 这台 Windows 机器 push 到 GitHub 仍被 TLS/EOF 握手问题阻塞，SSH 也未配置；当前新增改动仍停留在本地 worktree
+  - 这台 Windows 机器的 GitHub push 历史上受 TLS/EOF 握手波动影响；如需再次 push，优先沿用 `schannel + HTTP/1.1 + tls1.2` 组合
 - 当前已确认 scope 边界：
   - 当前 track 同时负责 `batch regression + document-level audit + pattern capture + benchmark-safe rule promotion`
   - 允许维护 `parser / extractor / extraction_preview / scripts / tests / eval / 当前 track skill / active-context`
