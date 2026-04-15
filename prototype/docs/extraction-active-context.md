@@ -1,6 +1,6 @@
 # Extraction Active Context
 
-更新时间：2026-04-14 18:23 CST  
+更新时间：2026-04-15 11:14 CST  
 分支：`codex/extraction-quality-loop`
 
 ## 分支目的
@@ -23,6 +23,11 @@
 - 当前关注链路：parser / extractor / extraction preview / batch regression
 
 ## 最近已修 / 已确认
+
+- 已将 `main@cfb9e18 Improve review UI: upload progress bar, chip filter, column sizing, PDF layout, SOR removal` 合入当前分支：
+  - 当前 `workspace / review` 已同时包含 mainline 的上传进度条、kind chip filter、SOR 移除与 PDF 高度收口
+  - 也继续保留当前线的 `section-overview7` 与 `project-select-fix3` 修复语义
+  - `workspace` 主页面资源版本已统一 bump 到 `20260415-review-merge1`
 
 - 新增 `prototype/scripts/extraction_batch_report.py`，把 structural gate / fidelity / section split 统一收口到同一 batch 报告
 - 新增 `prototype/scripts/extraction_diagnose.py`，对单文档产出 heading skeleton、locality 检查、duplicate scope 检查、page hotspots、diagnosis summary、pattern candidates
@@ -128,6 +133,12 @@
   - `prototype/tests/test_extractor_sections.py -q`：`53 passed`
   - `prototype/tests/test_unified_workspace.py -q`：`98 passed`
   - `prototype/tests/test_table_assets.py -q`：`137 passed`
+- 本轮 mainline merge 后回归补充验证：
+  - `node --check prototype/app/static/app.js`：通过
+  - `node --check prototype/app/static/extraction-review.js`：通过
+  - `prototype/tests/test_unified_workspace.py -q`：`98 passed`
+  - `prototype/tests/test_extractor_sections.py -q`：`53 passed`
+  - `prototype/tests/test_table_assets.py -q`：`137 passed`
 - 本轮人工复核补充结论：
   - 真实 PDF 中 `3.2.2 产品详细描述` 的正确语义树应直接挂 `1..12`，并继续包含 `6.1..6.7 / 6.6.1..6.6.5 / 7.1..7.5.2 / 8.1.1..8.2.5.4 / 9.1..9.7 / 11.1..11.12`
   - 当前 worktree 已确认 `section_tree` 中 `3.2.2` 正式拥有 `1..12` 子节点，且 `6 / 6.6 / 7 / 7.5 / 8 / 8.1 / 8.2 / 8.2.5 / 9 / 11` 的子链顺序均与真实树一致
@@ -183,9 +194,9 @@
   - 电器 test-outline 在缺少更强标题证据时当前统一回退 `Sub7 / 试验大纲`；如果后续要提升可读性，应优先补邻近标题/目录恢复，而不是回退到历史 `Y`
   - `appendix_scope_evidence / appendix_title_source` 已进入 row / section 数据，但 benchmark / report / UI 尚未系统消费这些置信度字段
   - complex-table backend 已保留 source-faithful section row 并打 overlay 元数据；后续若要继续优化 review 体验，应消费 overlay 字段，而不是恢复 `CX` rewrite
-- 当前执行层还有一个环境 blocker：
+- 当前执行层仍需注意一个环境风险：
   - 本地基线已提交：`4c43104 Canonicalize appendix scopes and tree roots baseline`
-  - 这台 Windows 机器 push 到 GitHub 仍被 TLS/EOF 握手问题阻塞，SSH 也未配置；当前新增改动仍停留在本地 worktree
+  - 这台 Windows 机器的 GitHub push 历史上受 TLS/EOF 握手波动影响；如需再次 push，优先沿用 `schannel + HTTP/1.1 + tls1.2` 组合
 - 其余样本当前也偏离历史绿色基线：
   - `Q-JLY`: `sections=407 / requirements=451`，当前主问题是 requirement drift 与 consistency drift
   - `SOR-N82KS`: 缺 `F:1 / G:1`，`E:2` 标题漂移，`requirements=172`
@@ -198,6 +209,7 @@
 ## 当前验证结论
 
 - 批量回归闭环已建立，控制塔 gate 与 batch 工件已经对齐
+- 当前分支已完成 `main@cfb9e18` 同步；mainline 的 review/workspace UX 改动与本线 extraction/review 修复已在同一分支上共存，并通过定向回归
 - 当前红灯主要是 parser / extractor / preview 的通用结构回归，不是 wrapper / 样本发现 / taxonomy 工具链问题
 - 单文档 diagnose 已成为默认入口；batch-report 同轮会补 diagnosis / pattern artifacts，而不是只给 gate 红绿
 - 油泵当前已经从“结构 red + fidelity red”收敛到“真实 subtree 对齐 + benchmark green”；后续不再回头重搭油泵树结构，而是补 row-level 内容闸门并把模式推广到剩余样本
