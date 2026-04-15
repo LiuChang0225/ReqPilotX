@@ -176,6 +176,49 @@
   justify-content: flex-start;
 }
 
+.project-actions {
+  display: flex;
+  flex-wrap: wrap;
+  gap: 8px;
+}
+
+.upload-progress {
+  margin-top: 8px;
+}
+
+.upload-progress-bar {
+  width: 100%;
+  height: 8px;
+  border-radius: 999px;
+  background: #deece2;
+  overflow: hidden;
+}
+
+.upload-progress-fill {
+  display: block;
+  height: 100%;
+  width: 0%;
+  background: linear-gradient(90deg, #00893d, #476e75);
+  transition: width 0.2s ease;
+}
+
+.upload-progress-fill.upload-progress-indeterminate {
+  width: 40% !important;
+  animation: uploadProgressIndeterminate 1.4s ease-in-out infinite;
+}
+
+@keyframes uploadProgressIndeterminate {
+  0% { transform: translateX(-100%); }
+  100% { transform: translateX(350%); }
+}
+
+.upload-progress-text {
+  display: block;
+  margin-top: 4px;
+  font-size: 0.78rem;
+  color: #475467;
+}
+
 .checkbox-row {
   display: flex;
   align-items: center;
@@ -426,7 +469,7 @@
   display: grid;
   grid-template-columns: minmax(220px, 0.8fr) minmax(180px, 0.8fr) minmax(220px, 1fr) auto;
   gap: 6px;
-  align-items: end;
+  align-items: baseline;
 }
 
 .review-filters label {
@@ -439,6 +482,40 @@
 .review-kind-select {
   width: 100%;
   min-width: 0;
+}
+
+.review-kind-chips {
+  display: grid;
+  grid-template-columns: repeat(3, 1fr);
+  gap: 4px;
+}
+
+.kind-chip {
+  display: flex;
+  align-items: center;
+  justify-content: center;
+  padding: 8px 4px;
+  min-height: 34px;
+  border: 1.5px solid #cfe2d5;
+  border-radius: 8px;
+  background: #fff;
+  color: #475467;
+  font-size: 0.84rem;
+  font-weight: 600;
+  cursor: pointer;
+  transition: all 0.15s ease;
+  line-height: 1;
+}
+
+.kind-chip:hover {
+  border-color: #a0c4b0;
+  background: #f4faf6;
+}
+
+.kind-chip.is-active {
+  background: linear-gradient(135deg, #00893d, #005e46);
+  border-color: transparent;
+  color: #fff;
 }
 
 .review-filter-actions {
@@ -466,11 +543,11 @@
 }
 
 .review-table .col-kind {
-  width: 11rem;
+  width: 7rem;
 }
 
 .review-table .col-parent-section {
-  width: 14rem;
+  width: 10rem;
 }
 
 .review-table .col-req-text {
@@ -479,6 +556,24 @@
 
 .review-table .col-page {
   width: 7rem;
+}
+
+/* 仅缩小表格分类列中 select 下拉框字体 */
+.review-table [data-review-kind-select] {
+  font-size: 0.72rem;
+  padding: 2px 4px;
+}
+
+.review-layout.has-review-pdf-open .review-table [data-review-kind-select] {
+  font-size: 0.68rem;
+}
+
+.review-layout.has-review-pdf-open .review-table .col-kind {
+  width: 6.5rem;
+}
+
+.review-layout.has-review-pdf-open .review-table .col-parent-section {
+  width: 8.5rem;
 }
 
 .review-table td,
@@ -534,7 +629,7 @@
 
 .review-pdf {
   position: fixed;
-  top: 116px;
+  top: 16px;
   right: 20px;
   bottom: 20px;
   width: min(44vw, 740px);
