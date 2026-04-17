@@ -1,0 +1,1906 @@
+{
+  "doc_key": "seres_q_sk_j02_321",
+  "pdf_name": "Q-SK J02.321-2025_CAN、CANFD、Ethernet、LIN BootLoader刷写规范.pdf",
+  "pdf_path": "/Users/liuchang/Downloads/SERES MDA/Q-SK J02.321-2025_CAN、CANFD、Ethernet、LIN BootLoader刷写规范.pdf",
+  "batch_id": "seres_mda_customer_docs",
+  "gate_tags": [],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "",
+    "fidelity": ""
+  },
+  "status": {
+    "quality_profile_matched": false,
+    "fidelity_profile_matched": false,
+    "needs_human_review": true
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "Q-SK J02.321-2025_CAN、CANFD、Ethernet、LIN BootLoader刷写规范.pdf",
+      "profile": "",
+      "outline_count": 175,
+      "checks_passed": 8,
+      "checks_total": 8,
+      "score_pct": 100.0,
+      "duplicate_code_count": 0,
+      "source_duplicate_code_count": 3,
+      "suspicious_heading_count": 0,
+      "suspicious_heading_ratio": 0.0,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 1,
+      "detail_outline_count_min": "outline_count=175",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=0",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0000",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0"
+    },
+    "checks_total": 8,
+    "checks_passed": 8
+  },
+  "fidelity_gate": {
+    "doc_row": {},
+    "checks_total": 0,
+    "checks_passed": 0,
+    "passed": false
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 0,
+    "issue_types": []
+  },
+  "issue_rollup": [],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Downloads/SERES MDA/Q-SK J02.321-2025_CAN、CANFD、Ethernet、LIN BootLoader刷写规范.pdf",
+    "heading_skeleton": [
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2025",
+        "title": "04-16 发布 2025-04-21 实施"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围 ............................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件 ..................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3",
+        "title": "术语和定义 ......................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.1",
+        "title": "1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.2",
+        "title": "1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.3",
+        "title": "1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.4",
+        "title": "1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.5",
+        "title": "2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.6",
+        "title": "2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.7",
+        "title": "2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.8",
+        "title": "2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.9",
+        "title": "2"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "4.14",
+        "title": "故障容错 ...................................................................... 5"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "4.15",
+        "title": "数据存储和传输 ................................................................ 6"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "4.15.1",
+        "title": "用户数据存储 .............................................................. 6"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "4.15.2",
+        "title": "私有电控单元引导加载程序额外需求 .......................................... 6"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "4.16",
+        "title": "存储器分配 .................................................................... 6"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "4.17",
+        "title": "具有网关功能ECU 的特殊要求 .................................................... 7"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "4.18",
+        "title": "诊断服务要求 .................................................................. 7"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "4.19",
+        "title": "双分区控控制器要求 ............................................................ 7"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "4.20",
+        "title": "其他要求 ...................................................................... 7"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "4.21",
+        "title": "OTA 要求 ....................................................................... 7"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5",
+        "title": "ECU 启动要求 ........................................................................ 8"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "I 类ECU 启动要求 ................................................................ 8"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6.4",
+        "title": "ECU 后编程步骤 ................................................................. 25"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6.4.1",
+        "title": "概述 ...................................................................... 25"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6.4.2",
+        "title": "流程步骤描述 .............................................................. 26"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6.4.3",
+        "title": "涉及的诊断服务 ............................................................ 27"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6.4.3.1",
+        "title": "开启通讯请求 .......................................................... 27"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6.4.3.2",
+        "title": "复位服务 — 目标ECU 重启 ................................................ 27"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6.4.3.3",
+        "title": "获取安装后校验结果 .................................................... 28"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6.4.3.4",
+        "title": "清除故障码 ............................................................ 28"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6.4.3.5",
+        "title": "控制DTC 设置-开启DTC 记录 ............................................. 29"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6.4.3.6",
+        "title": "诊断会话控制服务 ...................................................... 29"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6.5",
+        "title": "文件传输和压缩包传输步骤 ...................................................... 29"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6.5.1",
+        "title": "文件传输 .................................................................. 29"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "7.3.3.3",
+        "title": "获取安装后校验结果 .................................................... 44"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "7.3.3.4",
+        "title": "清除故障码 ............................................................ 44"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "7.3.3.5",
+        "title": "控制DTC 设置-开启DTC 记录 ............................................. 44"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "7.3.3.6",
+        "title": "诊断会话控制服务 ...................................................... 45"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "7.4",
+        "title": "切区参考方案 .................................................................. 45"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "7.4.1",
+        "title": "概述 ...................................................................... 45"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "7.4.2",
+        "title": "参考方案前提 .............................................................. 45"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "7.4.3",
+        "title": "参考方案实现场景 .......................................................... 45"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "3",
+        "title": "术语和定义"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "3",
+        "title": "1"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "3",
+        "title": "2"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "3",
+        "title": "3"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "3",
+        "title": "4"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "5"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "6"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "7"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "8"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "9"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "10"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4",
+        "title": "技术要求"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "通用要求"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "硬件需求"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.3",
+        "title": "软件需求"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.4",
+        "title": "供电电压要求"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.5",
+        "title": "通讯要求"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.6",
+        "title": "BootLoader 固化"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.7",
+        "title": "安全需求"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "4.8",
+        "title": "安全访问"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "4.9",
+        "title": "预编程条件"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "4.10",
+        "title": "Flash Driver"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "4.11",
+        "title": "安全签名检查"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "4.12",
+        "title": "兼容性验证"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "4.13",
+        "title": "刷写文件要求"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "4.14",
+        "title": "故障容错"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "1",
+        "title": "供电电源丢失；"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "2",
+        "title": "接地连接断开；"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "3",
+        "title": "通信中断；"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4",
+        "title": "超出允许的软件下载电压范围。"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4.15",
+        "title": "数据存储和传输"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4.15.1",
+        "title": "用户数据存储"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4.15.2",
+        "title": "私有电控单元引导加载程序额外需求"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4.16",
+        "title": "存储器分配"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4.17",
+        "title": "具有网关功能ECU 的特殊要求"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4.18",
+        "title": "诊断服务要求"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4.19",
+        "title": "双分区控控制器要求"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4.20",
+        "title": "其他要求"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4.21",
+        "title": "OTA 要求"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "5",
+        "title": "ECU 启动要求"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "I 类ECU 启动要求"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "5.1.1",
+        "title": "不支持AB 区双分区的ECU"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "5.1.2",
+        "title": "支持AB 区双分区的ECU"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "II 类ECU 启动要求"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "应用程序跳转BootLoader 要求"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "5.4",
+        "title": "AB 双分区ECU 的刷写要求"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "5.4.1",
+        "title": "概述"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "5.4.2",
+        "title": "运行分区切换过程"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "1",
+        "title": "运行区 A 刷写运行区 B，过程没有下发阻止自动切区命令（$31 01 DD 0F）；"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "2",
+        "title": "刷写完成并完成编程依赖性检查（对智能部件需要完成版本安装）；"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "3",
+        "title": "重启进入 bootloader；"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "4",
+        "title": "Bootloader 引导系统启动进入运行分区 B；"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "5",
+        "title": "步骤 4） 失败时需要回退至 bootloader；"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "6",
+        "title": "Bootloader 引导系统回滚至之前的运行分区 A。"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "1",
+        "title": "运行区 A 刷写运行区 B，数据传输完成后下发阻止自动切区命令（$31 01 DD 0F）；"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "2",
+        "title": "刷写完成并完成编程依赖性检查（对智能部件需要完成版本安装）；"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "3",
+        "title": "重启进入 bootloader；"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "4",
+        "title": "Bootloader 引导系统启动进入运行分区 A；"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "5",
+        "title": "切区流程（$31 01 DD 04 命令，详细流程参考第 8 章）；"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "6",
+        "title": "Bootloader 引导系统启动进入运行分区 B；"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "7",
+        "title": "步骤 6）失败时需要回退至 bootloader；"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "8",
+        "title": "Bootloader 引导系统回至之前的运行分区 A。"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "3",
+        "title": "重启"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "4",
+        "title": "引导启动进入运行区A"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "5",
+        "title": "$31 01 DD 04重启"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "6",
+        "title": "引导启动进入运行区B"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "8",
+        "title": "设置重启回滚至A区运行区A"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "1",
+        "title": "刷写备份运行区B"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "2",
+        "title": "刷写完成"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "7",
+        "title": "引导启动进入运行区B失败"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "5.4.3",
+        "title": "其他要求"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "5.5",
+        "title": "建立DoIP连接"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "6",
+        "title": "ECU重编程流程"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "6.1",
+        "title": "概述"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "2",
+        "title": "P"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "4",
+        "title": "P"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "5",
+        "title": "F"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "6",
+        "title": "F"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "6.2.2",
+        "title": "流程步骤描述"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6.2.3",
+        "title": "涉及的诊断服务"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6.2.3.1",
+        "title": "诊断会话控制服务"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6.2.3.1.1",
+        "title": "目标ECU 诊断会话控制服务请求见表1。"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6.2.3.1.2",
+        "title": "目标ECU 诊断会话控制服务肯定响应见表2。"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.2.3.1.3",
+        "title": "整车ECU 诊断会话控制服务请求见表3。"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.2.3.2",
+        "title": "例程服务—预编程检测"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.2.3.2.1",
+        "title": "预编程检测请求见表4。"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.2.3.2.2",
+        "title": "预编程检测请求肯定响应见表5。"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.2.3.3",
+        "title": "控制DTC 设置-禁止DTC 记录"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.2.3.4",
+        "title": "通讯控制-关闭通讯"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "6.3",
+        "title": "ECU 主编程步骤"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "6.3.1",
+        "title": "概述"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "6.3.2",
+        "title": "流程步骤描述"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "6.3.3",
+        "title": "涉及的诊断服务"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "6.3.3.1",
+        "title": "诊断会话控制服务"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "6.3.3.1.1",
+        "title": "诊断会话控制服务请求见表8。"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "6.3.3.1.2",
+        "title": "诊断会话控制服务肯定响应见表9。"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "6.3.3.2",
+        "title": "安全访问认证服务—LEVEL_FBL"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "6.3.3.2",
+        "title": "1LEVEL_FBL 种子请求见表10。"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "6.3.3.2",
+        "title": "2LEVEL_FBL 种子请求肯定响应见表11。"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "6.3.3.2",
+        "title": "3LEVEL_FBL 秘钥发送见表12。"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "6.3.3.2",
+        "title": "4LEVEL_FBL 秘钥发送肯定响应见表13。"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "6.3.3.3",
+        "title": "写指纹信息"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "6.3.3.3.1",
+        "title": "写指纹信息请求见表14。"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "6.3.3.3.2",
+        "title": "写指纹信息肯定响应见表15。"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "6.3.3.4",
+        "title": "例程服务—阻止自动切区"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "6.3.3.4.1",
+        "title": "阻止自动切区请求见表16。"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "6.3.3.4.2",
+        "title": "阻止自动切区肯定响应见表 17。"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "6.3.3.5",
+        "title": "例程服务—应用程序兼容性检测"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "6.3.3.5.1",
+        "title": "应用程序兼容性检测请求见表18。"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "6.3.3.5.2",
+        "title": "应用程序兼容性检测肯定响应见表19。"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "6.3.3.6",
+        "title": "例程服务—开始安装"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "6.3.3.6.1",
+        "title": "开始安装请求见表20。"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "6.3.3.6.2",
+        "title": "开始安装肯定响应见表21。"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "6.3.3.7",
+        "title": "读取安装进度"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "6.3.3.7.1",
+        "title": "读取安装进度请求见表22。"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "6.3.3.7.2",
+        "title": "读取安装进度响应见表23。"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "6.4",
+        "title": "ECU 后编程步骤"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "6.4.1",
+        "title": "概述"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "1",
+        "title": "F"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "2",
+        "title": "P"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "4",
+        "title": "P"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "5",
+        "title": "P"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "6",
+        "title": "F"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "7",
+        "title": "F"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "8",
+        "title": "P"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "6.4.2",
+        "title": "流程步骤描述"
+      },
+      {
+        "page": 33,
+        "kind": "heading",
+        "code": "6.4.3",
+        "title": "涉及的诊断服务"
+      },
+      {
+        "page": 33,
+        "kind": "heading",
+        "code": "6.4.3.1",
+        "title": "开启通讯请求"
+      },
+      {
+        "page": 33,
+        "kind": "heading",
+        "code": "6.4.3.2",
+        "title": "复位服务—目标ECU 重启"
+      },
+      {
+        "page": 33,
+        "kind": "heading",
+        "code": "6.4.3.2.1",
+        "title": "复位服务请求见表25。"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "6.4.3.2.2",
+        "title": "复位服务肯定响应见表26。"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "6.4.3.3",
+        "title": "获取安装后校验结果"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "6.4.3.3.1",
+        "title": "读取安装进度请求见表27。"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "6.4.3.3.2",
+        "title": "读取安装进度响应见表28。"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "6.4.3.4",
+        "title": "清除故障码"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "6.4.3.4.1",
+        "title": "清除故障码请求见表29。"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "6.4.3.4.2",
+        "title": "清除故障码肯定响应见表30。"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "6.4.3.5",
+        "title": "控制DTC 设置-开启DTC 记录"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "6.4.3.6",
+        "title": "诊断会话控制服务"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "6.5",
+        "title": "文件传输和压缩包传输步骤"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "6.5.1",
+        "title": "文件传输"
+      },
+      {
+        "page": 36,
+        "kind": "heading",
+        "code": "6.5.1.1",
+        "title": "流程步骤描述"
+      },
+      {
+        "page": 37,
+        "kind": "heading",
+        "code": "6.5.1.2",
+        "title": "请求下载"
+      },
+      {
+        "page": 37,
+        "kind": "heading",
+        "code": "6.5.1.2.1",
+        "title": "请求下载请求见表33。"
+      },
+      {
+        "page": 37,
+        "kind": "heading",
+        "code": "6.5.1.2.2",
+        "title": "请求下载应支持的肯定响应见表34。"
+      },
+      {
+        "page": 38,
+        "kind": "heading",
+        "code": "6.5.1.2.3",
+        "title": "请求下载可选的肯定响应见表35。"
+      },
+      {
+        "page": 38,
+        "kind": "heading",
+        "code": "6.5.1.3",
+        "title": "数据传输"
+      },
+      {
+        "page": 38,
+        "kind": "heading",
+        "code": "6.5.1.3.1",
+        "title": "数据传输请求见表36"
+      },
+      {
+        "page": 38,
+        "kind": "heading",
+        "code": "6.5.1.3.2",
+        "title": "数据传输肯定响应见表 37。"
+      },
+      {
+        "page": 38,
+        "kind": "heading",
+        "code": "6.5.1.4",
+        "title": "传输退出"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "6.5.1.4.1",
+        "title": "传输退出请求见表38。"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "6.5.1.4.2",
+        "title": "传输退出肯定响应见表39。"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "6.5.1.5",
+        "title": "例程服务—安全签名校验"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "6.5.1.5.1",
+        "title": "安全签名校验请求见表40。"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "6.5.1.5.2",
+        "title": "安全签名校验肯定响应见表41。"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "6.5.1.6",
+        "title": "例程服务—擦除FLASH"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "6.5.1.6.1",
+        "title": "擦除FLASH 请求见表42。"
+      },
+      {
+        "page": 40,
+        "kind": "heading",
+        "code": "6.5.1.6.2",
+        "title": "擦除FLASH 肯定响应见表43。"
+      },
+      {
+        "page": 40,
+        "kind": "heading",
+        "code": "6.5.2",
+        "title": "压缩包传输"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "6.5.2.1",
+        "title": "流程步骤描述"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "6.5.2.2",
+        "title": "请求传输"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "6.5.2.2.1",
+        "title": "请求传输请求见表44。"
+      },
+      {
+        "page": 42,
+        "kind": "heading",
+        "code": "6.5.2.2.2",
+        "title": "请求传输肯定响应见表45。"
+      },
+      {
+        "page": 42,
+        "kind": "heading",
+        "code": "6.5.2.3",
+        "title": "数据传输"
+      },
+      {
+        "page": 42,
+        "kind": "heading",
+        "code": "6.5.2.4",
+        "title": "传输退出"
+      },
+      {
+        "page": 42,
+        "kind": "heading",
+        "code": "6.5.2.5",
+        "title": "例程服务—安全签名校验"
+      },
+      {
+        "page": 42,
+        "kind": "heading",
+        "code": "7",
+        "title": "双分区控制器分区切换流程"
+      },
+      {
+        "page": 42,
+        "kind": "heading",
+        "code": "7.1",
+        "title": "概述"
+      },
+      {
+        "page": 42,
+        "kind": "heading",
+        "code": "7.2",
+        "title": "切区执行步骤"
+      },
+      {
+        "page": 42,
+        "kind": "heading",
+        "code": "7.2.1",
+        "title": "概述"
+      },
+      {
+        "page": 43,
+        "kind": "heading",
+        "code": "1",
+        "title": "F"
+      },
+      {
+        "page": 43,
+        "kind": "heading",
+        "code": "2",
+        "title": "F"
+      },
+      {
+        "page": 43,
+        "kind": "heading",
+        "code": "3",
+        "title": "F"
+      },
+      {
+        "page": 43,
+        "kind": "heading",
+        "code": "5",
+        "title": "P"
+      },
+      {
+        "page": 43,
+        "kind": "heading",
+        "code": "7.2.2",
+        "title": "流程步骤描述"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "7.2.3",
+        "title": "涉及的诊断服务"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "7.2.3.1",
+        "title": "诊断会话控制服务"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "7.2.3.1.1",
+        "title": "目标ECU 诊断会话控制服务请求见表46。"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "7.2.3.1.2",
+        "title": "目标ECU 诊断会话控制服务肯定响应见表47。"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "7.2.3.1.3",
+        "title": "整车ECU 诊断会话控制服务请求见表48。"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "7.2.3.2",
+        "title": "安全访问认证服务—LEVEL_1"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "7.2.3.2",
+        "title": "1LEVEL_1 种子请求见表49。"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "7.2.3.2",
+        "title": "2LEVEL_1 种子请求肯定响应见表50。"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "7.2.3.2",
+        "title": "3LEVEL_1 密钥发送见表51。"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "7.2.3.2",
+        "title": "4LEVEL_1 密钥发送肯定响应见表52。"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "7.2.3.3",
+        "title": "控制DTC 设置-禁止DTC 记录"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "7.2.3.4",
+        "title": "通讯控制-关闭通讯"
+      },
+      {
+        "page": 46,
+        "kind": "heading",
+        "code": "7.2.3.5",
+        "title": "例程服务—切区启动"
+      },
+      {
+        "page": 46,
+        "kind": "heading",
+        "code": "7.2.3.5.1",
+        "title": "切区启动请求见表55。"
+      },
+      {
+        "page": 46,
+        "kind": "heading",
+        "code": "7.2.3.5.2",
+        "title": "切区启动请求肯定响应见表56。"
+      },
+      {
+        "page": 46,
+        "kind": "heading",
+        "code": "7.2.3.6",
+        "title": "例程服务—切区结果请求"
+      },
+      {
+        "page": 46,
+        "kind": "heading",
+        "code": "7.2.3.6.1",
+        "title": "切区结果请求见表57。"
+      },
+      {
+        "page": 46,
+        "kind": "heading",
+        "code": "7.2.3.6.2",
+        "title": "切区结果请求肯定响应见表58。"
+      },
+      {
+        "page": 47,
+        "kind": "heading",
+        "code": "7.3",
+        "title": "切区退出步骤"
+      },
+      {
+        "page": 47,
+        "kind": "heading",
+        "code": "7.3.1",
+        "title": "概述"
+      },
+      {
+        "page": 48,
+        "kind": "heading",
+        "code": "1",
+        "title": "F"
+      },
+      {
+        "page": 48,
+        "kind": "heading",
+        "code": "2",
+        "title": "P"
+      },
+      {
+        "page": 48,
+        "kind": "heading",
+        "code": "4",
+        "title": "P"
+      },
+      {
+        "page": 48,
+        "kind": "heading",
+        "code": "5",
+        "title": "P"
+      },
+      {
+        "page": 48,
+        "kind": "heading",
+        "code": "6",
+        "title": "F"
+      },
+      {
+        "page": 48,
+        "kind": "heading",
+        "code": "7",
+        "title": "F"
+      },
+      {
+        "page": 48,
+        "kind": "heading",
+        "code": "8",
+        "title": "P"
+      },
+      {
+        "page": 48,
+        "kind": "heading",
+        "code": "7.3.2",
+        "title": "流程步骤描述"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "7.3.3",
+        "title": "涉及的诊断服务"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "7.3.3.1",
+        "title": "开启通讯请求"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "7.3.3.2",
+        "title": "ECU 复位"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "7.3.3.2.1",
+        "title": "复位服务请求见60。"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "7.3.3.2.2",
+        "title": "复位服务肯定响应见表61。"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "7.3.3.3",
+        "title": "获取安装后校验结果"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "7.3.3.3.1",
+        "title": "读取安装进度请求见表62。"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "7.3.3.3.2",
+        "title": "读取安装进度响应见表63。"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "7.3.3.4",
+        "title": "清除故障码"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "7.3.3.4.1",
+        "title": "清除故障码请求见表64。"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "7.3.3.4.2",
+        "title": "清除故障码肯定响应见表65。"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "7.3.3.5",
+        "title": "控制DTC 设置-开启DTC 记录"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "1",
+        "title": "控制DTC设置请求标识 85"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "2",
+        "title": "开启DTC记录请求标识 81"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "7.3.3.6",
+        "title": "诊断会话控制服务"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "1",
+        "title": "诊断会话控制请求标识 10"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "2",
+        "title": "会话类型 81"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "7.4",
+        "title": "切区参考方案"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "7.4.1",
+        "title": "概述"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "7.4.2",
+        "title": "参考方案前提"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "7.4.3",
+        "title": "参考方案实现场景"
+      },
+      {
+        "page": 53,
+        "kind": "appendix",
+        "code": "A",
+        "title": "附录 A"
+      },
+      {
+        "page": 54,
+        "kind": "appendix",
+        "code": "B",
+        "title": "附录 B"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [],
+      "page_counts": {}
+    },
+    "duplicate_scope_summary": {
+      "duplicates": []
+    },
+    "baseline_delta": {
+      "requirements_count": 133,
+      "sections_count": 175,
+      "requirements_drift": null,
+      "sections_drift": null,
+      "table_row_issue_count": 0,
+      "complex_table_signal": true,
+      "hotspot_section_code": ""
+    },
+    "page_hotspots": [
+      {
+        "page": 5,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.9644,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 57,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pypdf",
+        "quality_score": 0.6,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 18,
+        "requirement_count": 8,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.6115,
+        "table_count": 0,
+        "enum_signal": 6
+      },
+      {
+        "page": 8,
+        "requirement_count": 7,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 0.5286,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 12,
+        "requirement_count": 7,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.6521,
+        "table_count": 1,
+        "enum_signal": 4
+      },
+      {
+        "page": 9,
+        "requirement_count": 6,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.6146,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 19,
+        "requirement_count": 6,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.036,
+        "table_count": 0,
+        "enum_signal": 8
+      },
+      {
+        "page": 29,
+        "requirement_count": 6,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.0571,
+        "table_count": 4,
+        "enum_signal": 0
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [
+        5,
+        57
+      ],
+      "selected_engine_pages": {
+        "pymupdf4llm": 37,
+        "pymupdf_raw": 16,
+        "pdfplumber": 3,
+        "pypdf": 1
+      }
+    },
+    "expected_structure_summary": []
+  },
+  "findings": [
+    {
+      "pattern_id": "profile_unmatched",
+      "category": "heading_recovery",
+      "issue_type": "profile_unmatched",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "evidence_refs": [
+        "issue_summary",
+        "profiles"
+      ],
+      "confidence": 0.66,
+      "needs_human_review": true,
+      "details": {
+        "quality_profile": "",
+        "fidelity_profile": ""
+      }
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "issue_type": "parser_low_confidence_hotspot",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Low-confidence pages should be stabilized before downstream clause binding is tuned.",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "evidence_refs": [
+        "parser_diagnostics.low_confidence_pages",
+        "page_hotspots"
+      ],
+      "confidence": 0.62,
+      "needs_human_review": true,
+      "details": {
+        "low_confidence_pages": [
+          5,
+          57
+        ]
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "profile_unmatched",
+      "pattern_name": "profile_unmatched",
+      "category": "heading_recovery",
+      "doc_key": "seres_q_sk_j02_321",
+      "pdf_name": "Q-SK J02.321-2025_CAN、CANFD、Ethernet、LIN BootLoader刷写规范.pdf",
+      "issue_type": "profile_unmatched",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "pattern_name": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "doc_key": "seres_q_sk_j02_321",
+      "pdf_name": "Q-SK J02.321-2025_CAN、CANFD、Ethernet、LIN BootLoader刷写规范.pdf",
+      "issue_type": "parser_low_confidence_hotspot",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"Q-SK J02.321-2025_CAN、CANFD、Ethernet、LIN BootLoader刷写规范.pdf\",\n  \"issue_rollup\": [],\n  \"findings\": [\n    {\n      \"pattern_id\": \"profile_unmatched\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"profile_unmatched\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.\",\n      \"suspected_layer\": \"gate\",\n      \"recommended_fix_direction\": \"Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.\",\n      \"evidence_refs\": [\n        \"issue_summary\",\n        \"profiles\"\n      ],\n      \"confidence\": 0.66,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"quality_profile\": \"\",\n        \"fidelity_profile\": \"\"\n      }\n    },\n    {\n      \"pattern_id\": \"parser_low_confidence_hotspot\",\n      \"category\": \"table_and_clause_binding\",\n      \"issue_type\": \"parser_low_confidence_hotspot\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Low-confidence pages should be stabilized before downstream clause binding is tuned.\",\n      \"suspected_layer\": \"parser\",\n      \"recommended_fix_direction\": \"Inspect page merge selection and parser confidence signals before changing downstream section logic.\",\n      \"evidence_refs\": [\n        \"parser_diagnostics.low_confidence_pages\",\n        \"page_hotspots\"\n      ],\n      \"confidence\": 0.62,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"low_confidence_pages\": [\n          5,\n          57\n        ]\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 5,\n      \"requirement_count\": 0,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.9644,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 57,\n      \"requirement_count\": 0,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 0.6,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 18,\n      \"requirement_count\": 8,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.6115,\n      \"table_count\": 0,\n      \"enum_signal\": 6\n    },\n    {\n      \"page\": 8,\n      \"requirement_count\": 7,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 0.5286,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 12,\n      \"requirement_count\": 7,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.6521,\n      \"table_count\": 1,\n      \"enum_signal\": 4\n    },\n    {\n      \"page\": 9,\n      \"requirement_count\": 6,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.6146,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [],\n    \"page_counts\": {}\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": []\n  }\n}"
+    }
+  ]
+}

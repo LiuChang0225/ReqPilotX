@@ -1,0 +1,1052 @@
+{
+  "doc_key": "seres_q_sk_j02_385",
+  "pdf_name": "Q-SK J02.385-2024_总线网络E2E通信保护设计要求 (1).pdf",
+  "pdf_path": "/Users/liuchang/Downloads/SERES MDA/Q-SK J02.385-2024_总线网络E2E通信保护设计要求 (1).pdf",
+  "batch_id": "seres_mda_customer_docs",
+  "gate_tags": [],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "",
+    "fidelity": ""
+  },
+  "status": {
+    "quality_profile_matched": false,
+    "fidelity_profile_matched": false,
+    "needs_human_review": true
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "Q-SK J02.385-2024_总线网络E2E通信保护设计要求 (1).pdf",
+      "profile": "",
+      "outline_count": 35,
+      "checks_passed": 8,
+      "checks_total": 8,
+      "score_pct": 100.0,
+      "duplicate_code_count": 0,
+      "suspicious_heading_count": 0,
+      "suspicious_heading_ratio": 0.0,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 1,
+      "detail_outline_count_min": "outline_count=35",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=0",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0000",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0"
+    },
+    "checks_total": 8,
+    "checks_passed": 8
+  },
+  "fidelity_gate": {
+    "doc_row": {},
+    "checks_total": 0,
+    "checks_passed": 0,
+    "passed": false
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 0,
+    "issue_types": []
+  },
+  "issue_rollup": [],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Downloads/SERES MDA/Q-SK J02.385-2024_总线网络E2E通信保护设计要求 (1).pdf",
+    "heading_skeleton": [
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2024",
+        "title": "09-06发布 2024-09-06实施"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围 ............................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2",
+        "title": "文件性引用文件 ..................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3",
+        "title": "术语和定义 ......................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4",
+        "title": "概述 ............................................................................... 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "技术要求 ....................................................................... 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "E2E保护机制 .................................................................... 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.3",
+        "title": "通信失效 ....................................................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.3.1",
+        "title": "通信失效类型 ............................................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.3.2",
+        "title": "通信失效原因 ............................................................... 4"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5",
+        "title": "E2E算法 ............................................................................ 4"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "E2E算法类型 .................................................................... 4"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "Profile 1A ..................................................................... 4"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "2",
+        "title": "文件性引用文件"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3",
+        "title": "术语和定义"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3",
+        "title": "1"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3",
+        "title": "2"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3",
+        "title": "3"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3",
+        "title": "4"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "3",
+        "title": "5"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "3",
+        "title": "6"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "4",
+        "title": "概述"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "技术要求"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "E2E 保护机制"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "1",
+        "title": "需要采用一定的机制预防通信错误的发生；"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "2",
+        "title": "如果错误的发生无法完全被阻止，那么错误需要能够被实时检出。"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.3",
+        "title": "通信失效"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.3.1",
+        "title": "通信失效类型"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "1",
+        "title": "信号重复：接收端接收到信息超过一次；"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "2",
+        "title": "信号丢失：在发送端发送的信息流中全部或部分信息丢失；"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "3",
+        "title": "信号延迟：在预期时间内没有收到信号；"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4",
+        "title": "额外信号插入：额外的信息被插入到了发送端发送的信息流中；"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "5",
+        "title": "伪造信号：未认证的信息被接收端当作已认证的信息接收；"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "6",
+        "title": "信号地址错误：一种通道故障，表征信息被错误的发送端发送或被错误的接收端接收；"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "7",
+        "title": "信号顺序错误：在一串发送信息流中，信息的顺序被修改；"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8",
+        "title": "信号损坏：信息被改变；"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "9",
+        "title": "信号接收不对称：不同接收端从同一发送端接收到不同的信息；"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "10",
+        "title": "部分接收端未收到期望信号：数个接收端中，只有部分接收到信息；"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "11",
+        "title": "信号通道阻塞：访问通信通道受阻。"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.3.2",
+        "title": "通信失效原因"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1",
+        "title": "系统软件错误；"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "2",
+        "title": "硬件错误；"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "3",
+        "title": "由于外部原因引起的瞬态错误，例如由于辐射和电磁干扰导致的短暂系统故障。"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "5",
+        "title": "E2E 算法"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5.2.1.1",
+        "title": "Counter"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "1",
+        "title": "自从上次调用E2E监测功能后，没有新数据到达；"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "2",
+        "title": "自从接收器启动后，没有新数据到达；"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "数据重复；"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4",
+        "title": "计数器增加1（即无数据丢失） ；"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5",
+        "title": "计数器增加大于1，但仍在允许范围内（即部分数据丢失） ；"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "6",
+        "title": "计数器增加超过允许值（即大量数据丢失） 。"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5.2.1.2",
+        "title": "Data ID"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5.2.1.3",
+        "title": "CRC Checksum"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.2.1.4",
+        "title": "Timeout monitoring"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.2.1.5",
+        "title": "数据排列"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.2.2",
+        "title": "I-PDU 用例"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "1",
+        "title": "CRC Checksum必须放在信号组所占报文位置的首字节，且不允许跨字节排布；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "2",
+        "title": "Counter必须放在信号组所占报文位置的第二个字节的低四位；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3",
+        "title": "在排布信号组的报文数据场连续字节中，不允许排布其它（不属于本信号组的）信号或信号"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "1",
+        "title": "Low Byte of Data ID"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "2",
+        "title": "High Byte of Data ID"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "3",
+        "title": "E2E ByteIndex1"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "4",
+        "title": "E2E ByteIndex2"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5",
+        "title": "E2E ByteIndex n"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.2.3",
+        "title": "配置参数"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.2.4",
+        "title": "算法示例"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "1",
+        "title": "计数器取值为0xC；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "2",
+        "title": "信号Sig1取值为0x1A4B；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "3",
+        "title": "信号Sig2取值为0x3A；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "4",
+        "title": "信号Sig3取值为0x29；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "5",
+        "title": "信号Sig4取值为0x6；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "6",
+        "title": "信号Sig5取值为0x00；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "7",
+        "title": "Data ID取值为0x3322。"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "0",
+        "title": "E2E ByteIndex0(Checksum)"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "1",
+        "title": "E2E ByteIndex1(0x0C)"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "2",
+        "title": "E2E ByteIndex2(0x1A)"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "3",
+        "title": "E2E ByteIndex3(0x4B)"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "4",
+        "title": "E2E ByteIndex4(0x3A)"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "5.3.1.1",
+        "title": "Counter"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "5",
+        "title": "中，Counter 的长度固定为8bits。"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "5.3.1.2",
+        "title": "Data ID"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "5.3.1.3",
+        "title": "CRC Checksum"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "5.3.1.4",
+        "title": "数据排列"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1",
+        "title": "信号组包含的信号ASIL等级最高为A，信号组长度最大为64Byte；"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "2",
+        "title": "信号组包含的信号ASIL等级最高为B/C/D，信号组长度最大为32Byte；"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "5.3.2",
+        "title": "I-PDU 用例"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1",
+        "title": "CRC Checksum必须放在信号组所占报文位置的首字节和第二个字节；"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "2",
+        "title": "Counter必须放在信号组所占报文位置的第三个字节；"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "3",
+        "title": "在排布信号组的报文数据场连续字节中，不允许排布其它（不属于本信号组的）信号或信号"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "1",
+        "title": "E2E ByteIndex2"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "2",
+        "title": "E2E ByteIndex3"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "3",
+        "title": "E2E ByteIndex n"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "4",
+        "title": "Low Byte of Data ID"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "5",
+        "title": "High Byte of Data ID"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "5.3.3",
+        "title": "配置参数"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "5.3.4",
+        "title": "算法示例"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "1",
+        "title": "计数器取值为0x1C；"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "2",
+        "title": "信号Sig1取值为0x1A4B；"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "3",
+        "title": "信号Sig2取值为0x3A；"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "4",
+        "title": "信号Sig3取值为0x29；"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "5",
+        "title": "信号Sig4取值为0x6；"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "6",
+        "title": "Data ID取值为0x3322；"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "0",
+        "title": "E2E ByteIndex0(Checksum)"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "1",
+        "title": "E2E ByteIndex1(Checksum)"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "2",
+        "title": "E2E ByteIndex2(0x1C)"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "3",
+        "title": "E2E ByteIndex3(0x1A)"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "4",
+        "title": "E2E ByteIndex4(0x4B)"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "6",
+        "title": "信号组设计"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "1",
+        "title": "安全相关信号只能通过采用特定E2E profile保护的信号组传输。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "2",
+        "title": "被保护的信号组应包含安全相关信号和与其一致性相关的信号。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "3",
+        "title": "建议受保护信号组中的安全相关信号应当有无效值。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4",
+        "title": "每个受保护的信号组应有一个特定的Data ID，该Data ID由网络专业统一管理并分配。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "7",
+        "title": "E2E通信发送端"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "1",
+        "title": "E2E发送端应发送正确的受保护的信号组，否则不应发送信号组。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "2",
+        "title": "如果无法确保所需的信号完整性，则E2E发送端应发送信号值为无效值的E2E保护信号。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "3",
+        "title": "E2E发送端应检测并对可能导致其E2E保护失效的故障作出响应。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4",
+        "title": "当总线出现Busoff故障并恢复后，Counter值应根据应用程序当前值进行更新。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "5",
+        "title": "E2E信号组传输的周期应能满足功能安全中的诊断时间间隔需求。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "6",
+        "title": "E2E发送端应按照特定周期发送受保护的信号组，否则不应发送信号组。"
+      },
+      {
+        "page": 17,
+        "kind": "appendix",
+        "code": "A",
+        "title": "附录 A"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "5.2"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        }
+      ],
+      "page_counts": {
+        "7": 1
+      }
+    },
+    "duplicate_scope_summary": {
+      "duplicates": []
+    },
+    "baseline_delta": {
+      "requirements_count": 41,
+      "sections_count": 35,
+      "requirements_drift": null,
+      "sections_drift": null,
+      "table_row_issue_count": 0,
+      "complex_table_signal": true,
+      "hotspot_section_code": ""
+    },
+    "page_hotspots": [
+      {
+        "page": 1,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pypdf",
+        "quality_score": 0.8,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 3,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pypdf",
+        "quality_score": 0.5067,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 7,
+        "requirement_count": 14,
+        "missing_local_clause_count": 1,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.6988,
+        "table_count": 1,
+        "enum_signal": 10
+      },
+      {
+        "page": 16,
+        "requirement_count": 15,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.5587,
+        "table_count": 0,
+        "enum_signal": 6
+      },
+      {
+        "page": 8,
+        "requirement_count": 9,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.7557,
+        "table_count": 2,
+        "enum_signal": 6
+      },
+      {
+        "page": 11,
+        "requirement_count": 8,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.9882,
+        "table_count": 4,
+        "enum_signal": 7
+      },
+      {
+        "page": 10,
+        "requirement_count": 7,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.7393,
+        "table_count": 4,
+        "enum_signal": 5
+      },
+      {
+        "page": 13,
+        "requirement_count": 7,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.6899,
+        "table_count": 2,
+        "enum_signal": 3
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [
+        1,
+        3
+      ],
+      "selected_engine_pages": {
+        "pypdf": 11,
+        "pymupdf4llm": 7
+      }
+    },
+    "expected_structure_summary": [
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "5.1",
+        "expected_children": [
+          "5"
+        ],
+        "summary": "5.1 should expose local anchors: 5"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1",
+      "expected_structure_summary": "5.1 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "5.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "profile_unmatched",
+      "category": "heading_recovery",
+      "issue_type": "profile_unmatched",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "evidence_refs": [
+        "issue_summary",
+        "profiles"
+      ],
+      "confidence": 0.66,
+      "needs_human_review": true,
+      "details": {
+        "quality_profile": "",
+        "fidelity_profile": ""
+      }
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "issue_type": "parser_low_confidence_hotspot",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Low-confidence pages should be stabilized before downstream clause binding is tuned.",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "evidence_refs": [
+        "parser_diagnostics.low_confidence_pages",
+        "page_hotspots"
+      ],
+      "confidence": 0.62,
+      "needs_human_review": true,
+      "details": {
+        "low_confidence_pages": [
+          1,
+          3
+        ]
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "pattern_name": "Local clause heading not promoted to section anchor",
+      "category": "heading_recovery",
+      "doc_key": "seres_q_sk_j02_385",
+      "pdf_name": "Q-SK J02.385-2024_总线网络E2E通信保护设计要求 (1).pdf",
+      "issue_type": "local_clause_section_missing",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "profile_unmatched",
+      "pattern_name": "profile_unmatched",
+      "category": "heading_recovery",
+      "doc_key": "seres_q_sk_j02_385",
+      "pdf_name": "Q-SK J02.385-2024_总线网络E2E通信保护设计要求 (1).pdf",
+      "issue_type": "profile_unmatched",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "pattern_name": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "doc_key": "seres_q_sk_j02_385",
+      "pdf_name": "Q-SK J02.385-2024_总线网络E2E通信保护设计要求 (1).pdf",
+      "issue_type": "parser_low_confidence_hotspot",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"Q-SK J02.385-2024_总线网络E2E通信保护设计要求 (1).pdf\",\n  \"issue_rollup\": [],\n  \"findings\": [\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"5.1\",\n      \"expected_structure_summary\": \"5.1 should expose local section anchors such as 5\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[5.1]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"5.2\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"profile_unmatched\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"profile_unmatched\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.\",\n      \"suspected_layer\": \"gate\",\n      \"recommended_fix_direction\": \"Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.\",\n      \"evidence_refs\": [\n        \"issue_summary\",\n        \"profiles\"\n      ],\n      \"confidence\": 0.66,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"quality_profile\": \"\",\n        \"fidelity_profile\": \"\"\n      }\n    },\n    {\n      \"pattern_id\": \"parser_low_confidence_hotspot\",\n      \"category\": \"table_and_clause_binding\",\n      \"issue_type\": \"parser_low_confidence_hotspot\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Low-confidence pages should be stabilized before downstream clause binding is tuned.\",\n      \"suspected_layer\": \"parser\",\n      \"recommended_fix_direction\": \"Inspect page merge selection and parser confidence signals before changing downstream section logic.\",\n      \"evidence_refs\": [\n        \"parser_diagnostics.low_confidence_pages\",\n        \"page_hotspots\"\n      ],\n      \"confidence\": 0.62,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"low_confidence_pages\": [\n          1,\n          3\n        ]\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 1,\n      \"requirement_count\": 0,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 0.8,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 3,\n      \"requirement_count\": 0,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 0.5067,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 7,\n      \"requirement_count\": 14,\n      \"missing_local_clause_count\": 1,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.6988,\n      \"table_count\": 1,\n      \"enum_signal\": 10\n    },\n    {\n      \"page\": 16,\n      \"requirement_count\": 15,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.5587,\n      \"table_count\": 0,\n      \"enum_signal\": 6\n    },\n    {\n      \"page\": 8,\n      \"requirement_count\": 9,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.7557,\n      \"table_count\": 2,\n      \"enum_signal\": 6\n    },\n    {\n      \"page\": 11,\n      \"requirement_count\": 8,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.9882,\n      \"table_count\": 4,\n      \"enum_signal\": 7\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"5.2\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      }\n    ],\n    \"page_counts\": {\n      \"7\": 1\n    }\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": []\n  }\n}"
+    }
+  ]
+}

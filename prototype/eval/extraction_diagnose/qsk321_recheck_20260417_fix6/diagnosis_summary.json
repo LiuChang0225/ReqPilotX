@@ -1,0 +1,27 @@
+{
+  "docs": 1,
+  "total_findings": 2,
+  "pattern_candidate_count": 2,
+  "docs_requiring_human_review": 1,
+  "finding_type_counts": {
+    "parser_low_confidence_hotspot": 1,
+    "profile_unmatched": 1
+  },
+  "suspected_layer_counts": {
+    "gate": 1,
+    "parser": 1
+  },
+  "documents": [
+    {
+      "doc_key": "seres_q_sk_j02_321",
+      "pdf_name": "Q-SK J02.321-2025_CAN、CANFD、Ethernet、LIN BootLoader刷写规范.pdf",
+      "profiles": {
+        "quality": "",
+        "fidelity": ""
+      },
+      "finding_count": 2,
+      "pattern_candidate_count": 2,
+      "needs_human_review": true
+    }
+  ]
+}

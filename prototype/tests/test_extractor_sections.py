@@ -9,7 +9,9 @@ from app.services.extractor import (
     _build_line_entries,
     _extract_section_blocks,
     _extract_test_outline_rows,
+    _is_bom_bridge_artifact,
     _is_line_noise,
+    _is_plausible_section_transition,
     _parse_section_header,
     _consolidate_section_blocks,
     _is_serial_table_row_candidate,
@@ -65,11 +67,98 @@ def _block(code: str, title: str, page_start: int, page_end: int | None = None, 
 
 
 class ExtractorSectionConsolidationTest(unittest.TestCase):
+    def test_major_requirement_heading_survives_after_deep_subsection(self) -> None:
+        self.assertTrue(
+            _is_plausible_section_transition(
+                "5.6.3",
+                "6",
+                "法规需求",
+                appendix_scope="",
+                previous_title="下线配置",
+                previous_page=26,
+                candidate_page=27,
+                previous_table_count=0,
+                candidate_table_count=1,
+            )
+        )
+        self.assertTrue(
+            _is_plausible_section_transition(
+                "6",
+                "7",
+                "功能安全需求",
+                appendix_scope="",
+                previous_title="法规需求",
+                previous_page=27,
+                candidate_page=27,
+                previous_table_count=1,
+                candidate_table_count=1,
+            )
+        )
+        self.assertTrue(
+            _is_plausible_section_transition(
+                "1.6.3",
+                "2",
+                "功能分配",
+                appendix_scope="",
+                previous_title="文件命名",
+                previous_page=7,
+                candidate_page=7,
+                previous_table_count=2,
+                candidate_table_count=2,
+                has_immediate_child=True,
+            )
+        )
+
     def test_short_series_clause_with_sentence_punctuation_is_not_dropped(self) -> None:
         self.assertEqual(
             _normalize_block_text(["10）表面处理要求以DVP为准。"]),
             "10）表面处理要求以DVP为准。",
         )
+
+    def test_short_heading_plus_single_line_body_is_preserved(self) -> None:
+        self.assertEqual(
+            _normalize_block_text(["5.4 环境要求", "环境温度≤110℃。"]),
+            "5.4 环境要求\n环境温度≤110℃。",
+        )
+
+    def test_table_title_rows_recover_missing_child_sections(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 4,
+                    "source_anchor": "Page 4",
+                    "text": (
+                        "1 文档范围及控制方法\n"
+                        "|版本历史|Col2|Col3|Col4|Col5|\n"
+                        "|版本|更改内容|更改人|审核|日期|\n"
+                        "|V1.0.0|初版|李方龙||20250415|\n"
+                        "|缩写|Col2|Col3|\n"
+                        "|缩写|英文描述|中文描述|\n"
+                        "|CTS|Component Technology Specification|零部件技术规范|\n"
+                        "1.3 图例\n"
+                        "|图例|说明|图例|说明|"
+                    ),
+                    "table_count": 3,
+                }
+            ]
+        )
+
+        blocks = _consolidate_section_blocks(_extract_section_blocks(entries))
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("1", "文档范围及控制方法"),
+                ("1.1", "版本历史"),
+                ("1.2", "缩写"),
+                ("1.3", "图例"),
+            ],
+        )
+
+    def test_bom_bridge_artifact_does_not_swallow_real_section_headers(self) -> None:
+        self.assertFalse(_is_bom_bridge_artifact("1.3 图例"))
+        self.assertFalse(_is_bom_bridge_artifact("2 功能分配"))
+        self.assertTrue(_is_bom_bridge_artifact("0.0 左后蓄能器"))
 
     def test_terminal_sentence_top_level_clause_still_splits_large_block(self) -> None:
         block = _block("3.2.2", "产品详细描述", 8, text="3.2.2 产品详细描述")
@@ -209,6 +298,116 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
 
         self.assertEqual([(row["section_code"], row["section_title"]) for row in blocks], [("1.2", "机械性能要求")])
 
+    def test_parse_section_header_strips_parenthesized_prefix_for_deep_children(self) -> None:
+        header = _parse_section_header("3.1.2 （b）版本文件已签名")
+
+        self.assertIsNotNone(header)
+        self.assertEqual(header["code"], "3.1.2")
+        self.assertEqual(header["title"], "版本文件已签名")
+
+    def test_parenthesized_child_sequence_recovers_all_sibling_headers(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 6,
+                    "source_anchor": "Page 6",
+                    "text": (
+                        "3.1 软件包签名方案简介\n"
+                        "3.1.1 （a）版本文件未签名\n"
+                        "未签名的版本文件，由各个ECU通过编译源代码生成原始的安装包和软件包版本。\n"
+                        "3.1.2 （b）版本文件已签名\n"
+                        "各ECU供应商自己生成非对称密钥或者对称密钥后，使用密钥对软件进行安全签名得到SigVal。\n"
+                        "3.1.3 （c）已签名版本数据下载\n"
+                        "已签名的版本文件的下载流程，参考《刷写规范》把已签名的文件数据下载到ECU内部。\n"
+                        "3.1.4 （d）安全签名验证\n"
+                        "版本文件的安全签名验证在《刷写规范》刷写流程中进行。"
+                    ),
+                    "table_count": 0,
+                }
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("3.1", "软件包签名方案简介"),
+                ("3.1.1", "版本文件未签名"),
+                ("3.1.2", "版本文件已签名"),
+                ("3.1.3", "已签名版本数据下载"),
+                ("3.1.4", "安全签名验证"),
+            ],
+        )
+
+    def test_modal_top_level_dot_sentence_is_not_promoted_to_section(self) -> None:
+        header = _parse_section_header("5. ASC_F 需实时反馈当前油压及其有效位（ASCFL_UpPSnsr、ASCFR_UpPSnsr）")
+        self.assertIsNone(header)
+
+    def test_glossary_like_acronym_rows_stay_inside_parent_section(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 11,
+                    "source_anchor": "Page 11",
+                    "text": (
+                        "4 缩略语\n"
+                        "以下缩略语适用于本文件。\n"
+                        "4.1 UDS\n"
+                        "Unified Diagnostic Service（统一诊断服务）。\n"
+                        "4.2 ECU\n"
+                        "Electronic Control Unit（电子控制单元）。\n"
+                        "5 总体要求"
+                    ),
+                    "table_count": 0,
+                }
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("4", "缩略语"),
+                ("5", "总体要求"),
+            ],
+        )
+
+    def test_title_only_major_headings_recover_sequential_main_sections(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 10,
+                    "source_anchor": "Page 10",
+                    "text": (
+                        "2 规范性引用文件\n"
+                        "引用文件说明。\n"
+                        "术语和定义\n"
+                        "本文件没有需要界定的术语和定义。\n"
+                        "缩略语\n"
+                        "以下缩略语适用于本文件。\n"
+                        "4.9 STmin\n"
+                        "Minimum Separation Time（最小连续帧时间间隔）。\n"
+                        "5 总体要求"
+                    ),
+                    "table_count": 0,
+                }
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("2", "规范性引用文件"),
+                ("3", "术语和定义"),
+                ("4", "缩略语"),
+                ("5", "总体要求"),
+            ],
+        )
+
     def test_preview_extracts_real_appendix_title_scope_from_anchor(self) -> None:
         anchor = "Page 29 | Appendix 测试分组 / Test Groups（推荐） | Section 1 组1"
         self.assertEqual(_extract_appendix_scope(anchor), "测试分组 / Test Groups（推荐）")
@@ -324,6 +523,28 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
             "2.5 RX -0.5 0.5 RY -2.5 2.5 RZ -0.5 0.5"
         )
         self.assertEqual(_split_embedded_local_clause_line(line), [line])
+
+    def test_embedded_version_example_values_do_not_split_into_fake_local_clauses(self) -> None:
+        line = (
+            "5.1 标识内容 ECU硬件外部应对版本号进行标识。"
+            " 示例：空调控制器的一个版本号标识为： SW:AC. "
+            "1.16.23 ECU软件版本号 HW:C. "
+            "1.3 ECU硬件版本号 1.08.A_220120_2223_00 ECU序号代码"
+        )
+
+        self.assertEqual(_split_embedded_local_clause_line(line), [line])
+
+    def test_embedded_section_reference_values_do_not_split_into_fake_local_clauses(self) -> None:
+        line = "7.6.3.2 OBD 布局 OBD 的PIN脚分布见 7.2 章节。"
+
+        self.assertEqual(_split_embedded_local_clause_line(line), [line])
+
+    def test_profile_heading_is_not_filtered_as_measurement_title(self) -> None:
+        header = _parse_section_header("5.2 Profile 1A")
+
+        self.assertIsNotNone(header)
+        self.assertEqual(header["code"], "5.2")
+        self.assertEqual(header["title"], "Profile 1A")
 
     def test_distant_duplicate_codes_are_kept_as_independent_instances(self) -> None:
         blocks = [
@@ -1823,6 +2044,26 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
 
         self.assertNotIn("1. 参考软件质量协议确定并签订指标 2. 软件交付与验收需要满足软件度量指标要求", texts)
         self.assertNotIn("4）解锁力 / Unlock force： ~ 51N", texts)
+
+    def test_build_line_entries_skips_table_of_contents_segments(self) -> None:
+        segments = [
+            {
+                "source_page": 5,
+                "source_anchor": "Page 5",
+                "table_count": 0,
+                "text": "\n".join(
+                    [
+                        "目录",
+                        "8.10 读取DTC 信息ReadDTCInformation（19h） ........................................ 70",
+                        "8.10.1.1 读取DTC 信息 – 通过状态掩码报告DTC 数目 .............................. 70",
+                        "8.10.1.2 读取DTC 信息 – 报告DTCSnapshot 记录标识 .............................. 71",
+                        "8.11 读取数据ReadDataByIdentifier（22h） ...................................... 78",
+                    ]
+                ),
+            }
+        ]
+
+        self.assertEqual(_build_line_entries(segments), [])
 
     def test_shape_subblock_uses_first_page_line_index_for_ordering(self) -> None:
         shaped = _shape_subblock(

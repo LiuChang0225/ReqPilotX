@@ -560,6 +560,9 @@ def _merge_pdf_engine_pages(
                 continue
             if not alt["lines"] or not chosen["lines"]:
                 continue
+            if _should_prefer_trailing_body_candidate(chosen, alt):
+                chosen = alt
+                break
             if _should_prefer_attachment_band_candidate(chosen, alt):
                 chosen = alt
                 break
@@ -1665,6 +1668,73 @@ def _looks_like_spaced_watermark(value: str) -> bool:
         return True
     if value.upper() == value and len(value) <= 48:
         return True
+    return False
+
+
+def _trailing_heading_codes_without_body(lines: list[str]) -> list[str]:
+    trailing_codes: list[str] = []
+    saw_heading = False
+    for raw_line in reversed(lines):
+        line = _normalize_line(str(raw_line or ""))
+        if not line or _looks_like_non_content_fragment(line):
+            continue
+        if _is_structural_section_heading_line(line):
+            code = _section_code_from_line(line)
+            if code:
+                trailing_codes.append(code)
+                saw_heading = True
+            continue
+        if saw_heading and _looks_like_markdown_row(line):
+            continue
+        break
+    trailing_codes.reverse()
+    return trailing_codes
+
+
+def _count_body_lines_after_heading(lines: list[str], code: str) -> int:
+    target = str(code or "").strip()
+    if not target:
+        return 0
+    seen_heading = False
+    body_count = 0
+    for raw_line in lines:
+        line = _normalize_line(str(raw_line or ""))
+        if not line:
+            continue
+        if _section_code_from_line(line) == target:
+            seen_heading = True
+            continue
+        if not seen_heading:
+            continue
+        if _is_structural_section_heading_line(line):
+            break
+        if _looks_like_non_content_fragment(line):
+            continue
+        body_count += 1
+    return body_count
+
+
+def _should_prefer_trailing_body_candidate(chosen: dict[str, Any], alt: dict[str, Any]) -> bool:
+    if str(chosen.get("engine") or "") == str(alt.get("engine") or ""):
+        return False
+    chosen_lines = [str(line or "") for line in chosen.get("lines") or [] if str(line or "").strip()]
+    alt_lines = [str(line or "") for line in alt.get("lines") or [] if str(line or "").strip()]
+    if not chosen_lines or not alt_lines:
+        return False
+    if int(chosen.get("table_count", 0) or 0) > 1:
+        return False
+    if float(alt.get("score", -999.0)) + 0.72 < float(chosen.get("score", -999.0)):
+        return False
+
+    trailing_codes = _trailing_heading_codes_without_body(chosen_lines)
+    if not trailing_codes:
+        return False
+
+    for code in trailing_codes:
+        if _count_body_lines_after_heading(chosen_lines, code) > 0:
+            continue
+        if _count_body_lines_after_heading(alt_lines, code) >= 2:
+            return True
     return False
 
 

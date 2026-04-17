@@ -1,0 +1,10 @@
+pdf_name,issue_type,severity,appendix_scope,section_code,detail
+Q-SK J00.14-2025_汽车电子控制单元版本管理编码规则【机密】.pdf,duplicate_section_code,medium,,4.3,duplicate_count=2
+Q-SK J00.14-2025_汽车电子控制单元版本管理编码规则【机密】.pdf,duplicate_section_code,medium,,4.5,duplicate_count=2
+Q-SK J02.233-2023_CANFD 通信需求规范(2MbpS)  20231024.pdf,duplicate_section_code,medium,,5.4,duplicate_count=2
+Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf,duplicate_section_code,medium,,8.10.1.1,duplicate_count=2
+Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf,duplicate_section_code,medium,,8.10.1.2,duplicate_count=2
+Q-SK J02.321-2025_CAN、CANFD、Ethernet、LIN BootLoader刷写规范.pdf,duplicate_section_code,medium,,4,duplicate_count=2
+Q-SK J02.321-2025_CAN、CANFD、Ethernet、LIN BootLoader刷写规范.pdf,duplicate_section_code,medium,,5,duplicate_count=2
+Q-SK J02.321-2025_CAN、CANFD、Ethernet、LIN BootLoader刷写规范.pdf,duplicate_section_code,medium,,6,duplicate_count=2
+Q-SK J02.71-2023_CAN(FD)-CAN(FD)网关需求规范.pdf,duplicate_section_code,medium,,7.3,duplicate_count=2

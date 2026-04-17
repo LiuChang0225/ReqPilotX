@@ -1,0 +1,420 @@
+{
+  "doc_key": "seres_aes_cmac_ref",
+  "pdf_name": "AES-CMAC128算法伪代码20250410【AAA】.pdf",
+  "pdf_path": "/Users/liuchang/Downloads/SERES MDA/AES-CMAC128算法伪代码20250410【AAA】.pdf",
+  "batch_id": "seres_mda_customer_docs",
+  "gate_tags": [],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "",
+    "fidelity": ""
+  },
+  "status": {
+    "quality_profile_matched": false,
+    "fidelity_profile_matched": false,
+    "needs_human_review": true
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "AES-CMAC128算法伪代码20250410【AAA】.pdf",
+      "profile": "",
+      "outline_count": 13,
+      "checks_passed": 7,
+      "checks_total": 8,
+      "score_pct": 87.5,
+      "duplicate_code_count": 0,
+      "suspicious_heading_count": 0,
+      "suspicious_heading_ratio": 0.0,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 0,
+      "detail_outline_count_min": "outline_count=13",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=0",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0000",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0"
+    },
+    "checks_total": 8,
+    "checks_passed": 7
+  },
+  "fidelity_gate": {
+    "doc_row": {},
+    "checks_total": 0,
+    "checks_passed": 0,
+    "passed": false
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 0,
+    "issue_types": []
+  },
+  "issue_rollup": [],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Downloads/SERES MDA/AES-CMAC128算法伪代码20250410【AAA】.pdf",
+    "heading_skeleton": [
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1",
+        "title": "Introduction .................................................... 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2",
+        "title": "Specification of AES-CMAC ....................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2.1",
+        "title": "Basic Definitions .......................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2.2",
+        "title": "Overview ................................................... 4"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2.3",
+        "title": "Subkey Generation Algorithm ................................ 5"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2.4",
+        "title": "MAC Generation Algorithm ................................... 7"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2.5",
+        "title": "MAC Verification Algorithm ................................. 9"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3",
+        "title": "Security Considerations ........................................ 10"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4",
+        "title": "Test Vectors ................................................... 11"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5",
+        "title": "Acknowledgement ................................................ 12"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "6",
+        "title": "References ..................................................... 12"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "6.1",
+        "title": "Normative References ...................................... 12"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "2",
+        "title": "Specification of AES-CMAC"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "2.1",
+        "title": "Basic Definitions"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "10010001",
+        "title": "<< 1 is 00100010."
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "128",
+        "title": "bits. It is possible to truncate the MAC."
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "2.2",
+        "title": "Overview"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "2.3",
+        "title": "Subkey Generation Algorithm"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "2.4",
+        "title": "MAC Generation Algorithm"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "2.5",
+        "title": "MAC Verification Algorithm"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "2.4",
+        "title": "."
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "3",
+        "title": "Security Considerations"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "4",
+        "title": "Test Vectors"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "5",
+        "title": "Acknowledgement"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "01",
+        "title": "2-0011; Presidential Award from Army Research Office, W911NF-05-"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "1",
+        "title": "0491; NSF CAREER ANI-0093187. Results do not reflect any position"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "6",
+        "title": "References"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "6.1",
+        "title": "Normative References"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "197",
+        "title": "pdf"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4086",
+        "title": ", June 2005."
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "6.2",
+        "title": "Informative References"
+      },
+      {
+        "page": 14,
+        "kind": "appendix",
+        "code": "A",
+        "title": "Appendix A . Test Code"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [],
+      "page_counts": {}
+    },
+    "duplicate_scope_summary": {
+      "duplicates": []
+    },
+    "baseline_delta": {
+      "requirements_count": 11,
+      "sections_count": 13,
+      "requirements_drift": null,
+      "sections_drift": null,
+      "table_row_issue_count": 0,
+      "complex_table_signal": false,
+      "hotspot_section_code": ""
+    },
+    "page_hotspots": [
+      {
+        "page": 12,
+        "requirement_count": 3,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.82,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 3,
+        "requirement_count": 2,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.6427,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 2,
+        "requirement_count": 1,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 2.2763,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 4,
+        "requirement_count": 1,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.815,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 5,
+        "requirement_count": 1,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.994,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 7,
+        "requirement_count": 1,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.8682,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 9,
+        "requirement_count": 1,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.9267,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 10,
+        "requirement_count": 1,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.8329,
+        "table_count": 1,
+        "enum_signal": 0
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [],
+      "selected_engine_pages": {
+        "pypdf": 10,
+        "pymupdf_raw": 9,
+        "pymupdf4llm": 1
+      }
+    },
+    "expected_structure_summary": []
+  },
+  "findings": [
+    {
+      "pattern_id": "profile_unmatched",
+      "category": "heading_recovery",
+      "issue_type": "profile_unmatched",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "evidence_refs": [
+        "issue_summary",
+        "profiles"
+      ],
+      "confidence": 0.66,
+      "needs_human_review": true,
+      "details": {
+        "quality_profile": "",
+        "fidelity_profile": ""
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "profile_unmatched",
+      "pattern_name": "profile_unmatched",
+      "category": "heading_recovery",
+      "doc_key": "seres_aes_cmac_ref",
+      "pdf_name": "AES-CMAC128算法伪代码20250410【AAA】.pdf",
+      "issue_type": "profile_unmatched",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"AES-CMAC128算法伪代码20250410【AAA】.pdf\",\n  \"issue_rollup\": [],\n  \"findings\": [\n    {\n      \"pattern_id\": \"profile_unmatched\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"profile_unmatched\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.\",\n      \"suspected_layer\": \"gate\",\n      \"recommended_fix_direction\": \"Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.\",\n      \"evidence_refs\": [\n        \"issue_summary\",\n        \"profiles\"\n      ],\n      \"confidence\": 0.66,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"quality_profile\": \"\",\n        \"fidelity_profile\": \"\"\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 12,\n      \"requirement_count\": 3,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.82,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 3,\n      \"requirement_count\": 2,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.6427,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 2,\n      \"requirement_count\": 1,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 2.2763,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 4,\n      \"requirement_count\": 1,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.815,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 5,\n      \"requirement_count\": 1,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.994,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 7,\n      \"requirement_count\": 1,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.8682,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [],\n    \"page_counts\": {}\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": []\n  }\n}"
+    }
+  ]
+}

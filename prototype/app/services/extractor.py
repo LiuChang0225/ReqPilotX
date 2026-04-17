@@ -40,6 +40,7 @@ EMBEDDED_LOCAL_CLAUSE_HEAD_RE = re.compile(r"^\s*(\d+(?:\.\d+)+)(?:\s*[）)]\s*|
 HEADER_TITLE_LEADING_PUNCT_RE = re.compile(r"^[,，;；:：、)）\]】\-\.\|]+")
 HEADER_TITLE_VALID_START_RE = re.compile(r"[A-Za-z\u4e00-\u9fff]")
 HEADER_ENUM_LIKE_RE = re.compile(r"^\d+\s*[)）:：、\.]")
+HEADER_PAREN_ENUM_PREFIX_RE = re.compile(r"^\s*[（(]\s*[A-Za-z0-9一二三四五六七八九十]{1,8}\s*[）)]\s*")
 HEADER_SENTENCE_PREFIX_RE = re.compile(
     r"^(?:and|or|to|for|with|without|in|on|at|by|from|than|while|where|then|if|when|which|that|operate|operating|mode)\b",
     re.I,
@@ -60,9 +61,11 @@ HEADING_KEYWORD_RE = re.compile(
     re.I,
 )
 STRONG_MAJOR_HEADING_KEYWORD_RE = re.compile(
-    r"(?:chapter|section|scope|requirement|standard|appendix|annex|lifecycle|phase|development|production|maintenance|support|概述|范围|要求|标准|规范|术语|定义|总则|附录|附件|阶段|生命周期|开发|生产|维护|支持)",
+    r"(?:chapter|section|scope|requirement|standard|appendix|annex|lifecycle|phase|development|production|maintenance|support|概述|范围|要求|需求|标准|规范|术语|定义|总则|附录|附件|阶段|生命周期|开发|生产|维护|支持)",
     re.I,
 )
+GLOSSARY_PARENT_TITLE_RE = re.compile(r"(?:缩略语|缩写|术语和定义|术语|定义|图例)", re.I)
+PROFILE_HEADING_RE = re.compile(r"^profile\s+\d+[a-z0-9\-]*$", re.I)
 ATTACHMENT_TITLE_HINT_RE = re.compile(
     r"(?:附件目录|软件开发|FMEA|特殊特性|技术要求|网络安全|数据安全|密码算法|保密|RASIC|OTA|诊断|协议|规范|要求|安全)",
     re.I,
@@ -563,11 +566,14 @@ def _build_line_entries(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     global_line_index = 0
     for seg in segments:
+        raw_text = str(seg.get("text", ""))
+        if _is_likely_index_or_metadata(raw_text):
+            continue
         source_page = seg.get("source_page")
         source_anchor = seg.get("source_anchor") or "Unknown"
         table_count = int(seg.get("table_count", 0) or 0)
         prepared_lines: list[tuple[int, str]] = []
-        for source_line_index, raw_line in enumerate(str(seg.get("text", "")).splitlines()):
+        for source_line_index, raw_line in enumerate(raw_text.splitlines()):
             line = _normalize_line(raw_line)
             if not line or _is_line_noise(line):
                 continue
@@ -724,6 +730,10 @@ def _looks_like_valid_embedded_local_clause_chunk(chunk: str) -> bool:
     title = _normalize_line(str(match.group(2) or ""))
     if not title or len(title) > 220 or "|" in title:
         return False
+    if _looks_like_reference_only_clause_title(title):
+        return False
+    if _looks_like_identifier_example_clause_title(title):
+        return False
     if re.search(r"[\u4e00-\u9fff]", title):
         return True
     letters = re.findall(r"[A-Za-z]", title)
@@ -821,6 +831,7 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                 last_section_code=last_section_code,
             )
         title_only_heading = _extract_title_only_heading_candidate(line)
+        main_title_only_heading = _extract_main_title_only_heading_candidate(line)
         embedded_attachment_title = _extract_embedded_attachment_title_candidate(line)
         consumed_following = 0
 
@@ -878,6 +889,48 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                 discovery_counter += 1
                 idx += 1
                 continue
+
+        title_only_main_header = _recover_main_body_title_only_section_header(
+            title=main_title_only_heading,
+            current=current,
+            current_scope=current_scope,
+            last_section_code=last_section_code,
+            table_count=int(entry.get("table_count", 0) or 0),
+        )
+        if title_only_main_header:
+            if current and current.get("entries"):
+                blocks.append(current)
+            current = {
+                "appendix_scope": current_scope,
+                **_scope_metadata_for(scope_metadata_by_scope, current_scope),
+                "section_code": title_only_main_header["code"],
+                "section_title": title_only_main_header["title"],
+                "section_level": title_only_main_header["level"],
+                "_discovery_order": discovery_counter,
+                "source_page": entry["source_page"],
+                "source_page_end": entry["source_page"],
+                "source_line_index": entry.get("source_line_index"),
+                "source_line_index_end": entry.get("source_line_index"),
+                "source_anchor": entry["source_anchor"],
+                "entries": [entry],
+            }
+            discovery_counter += 1
+            last_section_code_by_scope[current_scope] = str(title_only_main_header["code"])
+            last_section_title_by_scope[current_scope] = str(title_only_main_header["title"])
+            src_page = entry.get("source_page")
+            last_section_page_by_scope[current_scope] = int(src_page) if isinstance(src_page, int) else 0
+            last_section_table_count_by_scope[current_scope] = int(entry.get("table_count", 0) or 0)
+            seen_section_codes_by_scope.setdefault(current_scope, set()).add(str(title_only_main_header["code"]))
+            title_norm = _normalized_section_title(str(title_only_main_header["title"]))
+            if title_norm:
+                scope_code_key = (str(current_scope or "").strip().upper(), str(title_only_main_header["code"]).strip())
+                seen_section_titles_by_scope_code.setdefault(scope_code_key, set()).add(title_norm)
+            if not current_scope:
+                code_tuple = _parse_section_code_tuple(str(title_only_main_header["code"]))
+                if code_tuple:
+                    main_max_top_level_seen = max(main_max_top_level_seen, code_tuple[0])
+            idx += 1
+            continue
 
         if embedded_attachment_title and current_scope:
             current_scope_meta = scope_metadata_by_scope.get(normalize_scope_id(current_scope), {})
@@ -1034,6 +1087,13 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
         ):
             header = None
 
+        if header and _should_suppress_glossary_child_header(
+            header=header,
+            current=current,
+            last_section_title=last_section_title,
+        ):
+            header = None
+
         if header and _looks_like_attachment_reference_list_item(
             header=header,
             line_entries=line_entries,
@@ -1060,6 +1120,16 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             last_section_page = last_section_page_by_scope.get(current_scope)
             last_section_table_count = last_section_table_count_by_scope.get(current_scope, 0)
 
+        has_immediate_child = bool(
+            header
+            and int(header.get("level") or 0) == 1
+            and _has_immediate_child_section_header(
+                line_entries=line_entries,
+                start_index=idx + 1,
+                parent_code=str(header.get("code") or ""),
+            )
+        )
+
         if header and not _is_plausible_section_transition(
             last_section_code,
             str(header.get("code", "")),
@@ -1071,6 +1141,7 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             candidate_page=entry.get("source_page"),
             previous_table_count=last_section_table_count,
             candidate_table_count=int(entry.get("table_count", 0) or 0),
+            has_immediate_child=has_immediate_child,
         ):
             header = None
 
@@ -1529,6 +1600,8 @@ def _parse_section_header(line: str) -> dict[str, Any] | None:
         token_count = len(re.findall(r"[A-Za-z\u4e00-\u9fff0-9]+", title))
         if token_count > 20:
             return None
+        if _looks_like_requirement_sentence_title(title):
+            return None
     if HEADER_ENUM_LIKE_RE.match(title):
         return None
 
@@ -1661,6 +1734,8 @@ def _allow_code_hint_recovery(code_hint: str, next_title: str, last_section_code
         return False
     if not _looks_like_heading_phrase(next_title):
         return False
+    if _looks_like_requirement_sentence_title(next_title):
+        return False
 
     hint_tuple = _parse_section_code_tuple(code_hint)
     prev_tuple = _parse_section_code_tuple(last_section_code)
@@ -1687,6 +1762,54 @@ def _allow_code_hint_recovery(code_hint: str, next_title: str, last_section_code
         if abs(hint_major - prev_major) > 1 and not HEADING_KEYWORD_RE.search(next_title):
             return False
     return True
+
+
+def _looks_like_reference_only_clause_title(title: str) -> bool:
+    value = re.sub(r"[。！？!?；;：:]+$", "", _normalize_line(str(title or ""))).strip()
+    if not value:
+        return False
+    compact = re.sub(r"\s+", "", value).lower()
+    return compact in {"章节", "章", "节", "条款", "条", "section", "clause"}
+
+
+def _looks_like_identifier_example_clause_title(title: str) -> bool:
+    value = _normalize_line(str(title or ""))
+    if not value:
+        return False
+    if not re.search(r"(?:版本号|标识|序号代码)", value):
+        return False
+    if ":" in value or "：" in value or "_" in value:
+        return True
+    if re.search(r"\b\d+(?:\.\d+){1,}[A-Za-z0-9._-]*\b", value):
+        return True
+    if re.search(r"\b[A-Z]{1,6}\s*:\s*[A-Za-z0-9._-]*", value):
+        return True
+    return False
+
+
+def _has_immediate_child_section_header(
+    *,
+    line_entries: list[dict[str, Any]],
+    start_index: int,
+    parent_code: str,
+) -> bool:
+    parent = str(parent_code or "").strip()
+    if not parent or "." in parent:
+        return False
+    for idx in range(start_index, min(len(line_entries), start_index + 6)):
+        line = str((line_entries[idx] or {}).get("text") or "").strip()
+        if not line:
+            continue
+        header = _parse_section_header(line)
+        code = str((header or {}).get("code") or "").strip()
+        if code.startswith(f"{parent}."):
+            return True
+        if header and "." not in code and code != parent:
+            break
+        code_hint = _extract_section_code_hint(line)
+        if code_hint.startswith(f"{parent}."):
+            return True
+    return False
 
 
 def _looks_like_heading_phrase(text: str) -> bool:
@@ -1731,6 +1854,142 @@ def _looks_like_table_row_text(text: str) -> bool:
     if re.search(r"\b(?:数量|版本|层级|代号|重量|开发状态)\b", value) and len(value.split()) >= 4:
         return True
     return False
+
+
+def _looks_like_requirement_sentence_title(title: str) -> bool:
+    value = str(title or "").strip()
+    if len(value) < 18:
+        return False
+    if STRONG_MAJOR_HEADING_KEYWORD_RE.search(value):
+        return False
+    if any(pattern.search(value) for pattern in MODAL_PATTERNS):
+        return True
+    if re.search(r"(?:应|需|须|必须|不得|优先|实时|反馈|执行|校验|验证)", value) and re.search(r"[，,；;、]", value):
+        return True
+    if len(value) >= 36 and re.search(r"[，,；;、]", value):
+        return True
+    return False
+
+
+def _looks_like_glossary_parent_title(title: str) -> bool:
+    return GLOSSARY_PARENT_TITLE_RE.search(str(title or "").strip()) is not None
+
+
+def _looks_like_glossary_entry_title(title: str) -> bool:
+    value = str(title or "").strip()
+    if not value or len(value) > 24:
+        return False
+    if re.fullmatch(r"[A-Z][A-Z0-9_/\-]{1,20}", value):
+        return True
+    if re.fullmatch(r"[A-Za-z]{2,12}", value) and value.upper() == value:
+        return True
+    compact = re.sub(r"[^A-Za-z0-9_/\-]", "", value)
+    if compact and " " not in value and sum(1 for ch in compact if ch.isupper()) >= 2 and len(compact) <= 20:
+        return True
+    return False
+
+
+def _should_suppress_glossary_child_header(
+    *,
+    header: dict[str, Any],
+    current: dict[str, Any] | None,
+    last_section_title: str,
+) -> bool:
+    code = str(header.get("code") or "").strip()
+    title = str(header.get("title") or "").strip()
+    if not code or not title or "." not in code:
+        return False
+    parent_title = ""
+    current_code = str((current or {}).get("section_code") or "").strip()
+    if current_code and code.startswith(f"{current_code}."):
+        parent_title = str((current or {}).get("section_title") or "").strip()
+    if not parent_title:
+        parent_title = str(last_section_title or "").strip()
+    if not _looks_like_glossary_parent_title(parent_title):
+        return False
+    return _looks_like_glossary_entry_title(title)
+
+
+def _recover_main_body_table_child_title_only_section_header(
+    *,
+    title: str,
+    current: dict[str, Any],
+    last_section_code: str,
+) -> dict[str, Any] | None:
+    value = str(title or "").strip()
+    current_code = str(current.get("section_code") or "").strip()
+    current_title = str(current.get("section_title") or "").strip()
+    if not value or not current_code or value == current_title:
+        return None
+    if _looks_like_attachment_title_phrase(value) or _looks_like_measurement_title(value):
+        return None
+    if _looks_like_requirement_sentence_title(value):
+        return None
+    if len(value) > 18:
+        return None
+
+    current_tuple = _parse_section_code_tuple(current_code)
+    last_tuple = _parse_section_code_tuple(last_section_code)
+    if len(current_tuple) == 1:
+        parent_tuple = current_tuple
+        next_minor = 1
+    elif len(current_tuple) == 2:
+        parent_tuple = current_tuple[:-1]
+        next_minor = current_tuple[-1] + 1
+    else:
+        return None
+
+    if len(last_tuple) == 2 and last_tuple[:-1] == parent_tuple:
+        next_minor = max(next_minor, last_tuple[-1] + 1)
+
+    return {
+        "code": _tuple_to_code((*parent_tuple, next_minor)),
+        "title": value,
+        "level": len(parent_tuple) + 1,
+        "punct": "",
+    }
+
+
+def _recover_main_body_title_only_section_header(
+    *,
+    title: str,
+    current: dict[str, Any] | None,
+    current_scope: str,
+    last_section_code: str,
+    table_count: int = 0,
+) -> dict[str, Any] | None:
+    value = str(title or "").strip()
+    if current_scope or not value or current is None:
+        return None
+    if table_count > 0:
+        recovered_child = _recover_main_body_table_child_title_only_section_header(
+            title=value,
+            current=current,
+            last_section_code=last_section_code,
+        )
+        if recovered_child:
+            return recovered_child
+    current_code = str(current.get("section_code") or "").strip()
+    current_tuple = _parse_section_code_tuple(current_code)
+    last_tuple = _parse_section_code_tuple(last_section_code)
+    seed_tuple = current_tuple or last_tuple
+    if not seed_tuple or len(seed_tuple) != 1:
+        return None
+    if str(current.get("section_title") or "").strip() == "附件目录":
+        return None
+    if _looks_like_attachment_title_phrase(value):
+        return None
+    if len(value) > 20 and not STRONG_MAJOR_HEADING_KEYWORD_RE.search(value):
+        return None
+    if not (_looks_like_glossary_parent_title(value) or STRONG_MAJOR_HEADING_KEYWORD_RE.search(value)):
+        return None
+    next_major = seed_tuple[0] + 1
+    return {
+        "code": str(next_major),
+        "title": value,
+        "level": 1,
+        "punct": "",
+    }
 
 
 def _looks_like_component_bom_title(title: str) -> bool:
@@ -1918,6 +2177,44 @@ def _extract_title_only_heading_candidate(line: str) -> str:
     return candidate
 
 
+def _extract_main_title_only_heading_candidate(line: str) -> str:
+    candidate = _normalize_line(str(line or ""))
+    from_single_markdown_cell = False
+    if _looks_like_markdown_table_row(candidate):
+        cells = _parse_markdown_cells(candidate)
+        meaningful: list[str] = []
+        for cell in cells:
+            cell_value = _normalize_line(cell)
+            if not cell_value or re.fullmatch(r"col\d+", cell_value, re.I):
+                continue
+            if _parse_section_header(cell_value) or _extract_appendix_scope(cell_value):
+                continue
+            meaningful.append(cell_value)
+        if len(meaningful) != 1:
+            return ""
+        candidate = meaningful[0]
+        from_single_markdown_cell = True
+    if not candidate or _parse_section_header(candidate) or _extract_appendix_scope(candidate):
+        return ""
+    if _extract_section_code_hint(candidate):
+        return ""
+    if _looks_like_table_row_text(candidate):
+        return ""
+    if _is_line_noise(candidate):
+        return ""
+    if len(candidate) > 24 or re.search(r"[。！？!?；;：:]", candidate):
+        return ""
+    if not re.search(r"[\u4e00-\u9fff]", candidate):
+        return ""
+    if not (
+        _looks_like_glossary_parent_title(candidate)
+        or STRONG_MAJOR_HEADING_KEYWORD_RE.search(candidate)
+        or (from_single_markdown_cell and len(candidate) <= 10)
+    ):
+        return ""
+    return candidate
+
+
 def _looks_like_attachment_title_phrase(text: str) -> bool:
     value = _normalize_line(str(text or ""))
     if not value:
@@ -1954,6 +2251,7 @@ def _sanitize_section_header_title(title: str, level_hint: int = 0) -> str:
     value = str(title or "").strip()
     if not value:
         return ""
+    value = HEADER_PAREN_ENUM_PREFIX_RE.sub("", value).strip()
     value = re.sub(r"[：:]\s*$", "", value).strip()
     if level_hint == 1:
         value = re.sub(r"\s*[（(]\s*(?:注|note)\s*[:：][^）)]*[）)]\s*$", "", value, flags=re.I).strip()
@@ -1970,6 +2268,8 @@ def _looks_like_measurement_title(title: str) -> bool:
         .replace("＋", "+")
         .replace("－", "-")
     )
+    if PROFILE_HEADING_RE.match(normalized):
+        return False
     if MEASUREMENT_TITLE_START_RE.match(normalized):
         return True
 
@@ -2008,6 +2308,9 @@ def _normalize_block_text(lines: list[str]) -> str:
     # Keep line boundaries to preserve original subsection completeness.
     text = "\n".join(normalized_lines).strip()
     if len(text) < 20:
+        if len(normalized_lines) >= 2 and SECTION_CODE_HINT_RE.match(normalized_lines[0]):
+            if any(len(_build_dedupe_key(line)) >= 4 for line in normalized_lines[1:]):
+                return text
         if len(normalized_lines) == 1 and (
             _looks_like_local_clause_header_line(normalized_lines[0])
             or _match_local_clause_heading(normalized_lines[0])
@@ -4346,6 +4649,8 @@ def _should_preserve_table_bridge_line(line: str, prev_line: str, next_line: str
     value = _normalize_line(str(line or ""))
     if not value:
         return False
+    if _parse_section_header(value):
+        return True
     if re.match(r"^\d+[）)]\s*", value):
         return True
     if re.match(r"^\d+(?:\.\d+)?\s*(?:A|V|kN|N|mm|cm|bar|℃|°C|m/s|h)\b", value, re.I):
@@ -4372,6 +4677,8 @@ def _should_preserve_table_bridge_line(line: str, prev_line: str, next_line: str
 def _is_bom_bridge_artifact(line: str) -> bool:
     value = _normalize_line(str(line or ""))
     if not value:
+        return False
+    if _parse_section_header(value):
         return False
     if len(value) > 40:
         return False
@@ -4591,6 +4898,7 @@ def _is_plausible_section_transition(
     candidate_page: int | None = None,
     previous_table_count: int = 0,
     candidate_table_count: int = 0,
+    has_immediate_child: bool = False,
 ) -> bool:
     candidate_tuple = _parse_section_code_tuple(candidate_code)
     if not candidate_tuple:
@@ -4630,6 +4938,7 @@ def _is_plausible_section_transition(
         and len(prev_tuple) >= 2
         and len(candidate_title.strip()) <= 90
         and not STRONG_MAJOR_HEADING_KEYWORD_RE.search(candidate_title)
+        and not has_immediate_child
     ):
         return False
     if (
@@ -4661,6 +4970,13 @@ def _is_plausible_section_transition(
             and not STRONG_MAJOR_HEADING_KEYWORD_RE.search(f"{previous_title} {candidate_title}")
         ):
             return False
+    if (
+        len(candidate_tuple) == 1
+        and len(prev_tuple) >= 2
+        and candidate_punct in {".", "．"}
+        and _looks_like_requirement_sentence_title(candidate_title)
+    ):
+        return False
     if len(prev_tuple) >= 4 and len(candidate_tuple) >= 4 and cand_major < prev_major:
         # References like "...see 4.1.2.2.2 执行" can be OCR-split into fake headings.
         short_title = candidate_title.strip()

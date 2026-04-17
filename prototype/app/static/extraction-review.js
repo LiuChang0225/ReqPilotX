@@ -2452,7 +2452,11 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-function formatScope(scope) {
+function formatScope(scope, title) {
+  const normalizedTitle = String(title || "").trim();
+  if (normalizedTitle) {
+    return normalizedTitle;
+  }
   const normalized = String(scope || "MAIN").trim().toUpperCase();
   return normalized || "MAIN";
 }

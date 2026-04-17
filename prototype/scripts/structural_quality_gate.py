@@ -119,6 +119,7 @@ def main() -> None:
             outline=outline,
             requirements=requirements,
             parser_diagnostics=parser_diagnostics,
+            section_consistency=preview.get("section_consistency", {}) or {},
             defaults=defaults,
             profile=profile,
         )
@@ -204,6 +205,7 @@ def _evaluate_document(
     outline: list[dict[str, Any]],
     requirements: list[dict[str, Any]],
     parser_diagnostics: dict[str, Any],
+    section_consistency: dict[str, Any] | None,
     defaults: dict[str, Any],
     profile: Profile | None,
 ) -> dict[str, Any]:
@@ -300,12 +302,25 @@ def _evaluate_document(
     outline_count = len(outline)
     checks.append(("outline_count_min", outline_count >= min_outline_count, f"outline_count={outline_count}"))
 
-    scoped_code_counts = Counter(
-        _join_scope_code(_row_scope(row), str(row.get("section_code") or ""))
-        for row in outline
-        if row.get("section_code")
-    )
-    duplicate_codes = {code: count for code, count in scoped_code_counts.items() if count > 1}
+    duplicate_codes: dict[str, int] = {}
+    duplicate_issue_by_scoped_code: dict[str, dict[str, Any]] = {}
+    consistency_payload = section_consistency or {}
+    if consistency_payload:
+        for row in consistency_payload.get("issues", []) or []:
+            if str(row.get("issue_type") or "").strip() != "duplicate_code":
+                continue
+            scoped_code = _join_scope_code(str(row.get("appendix_scope") or ""), str(row.get("section_code") or ""))
+            if not scoped_code:
+                continue
+            duplicate_issue_by_scoped_code[scoped_code] = dict(row)
+            duplicate_codes[scoped_code] = _extract_duplicate_count(str(row.get("detail") or ""))
+    else:
+        scoped_code_counts = Counter(
+            _join_scope_code(_row_scope(row), str(row.get("section_code") or ""))
+            for row in outline
+            if row.get("section_code")
+        )
+        duplicate_codes = {code: count for code, count in scoped_code_counts.items() if count > 1}
     checks.append(
         (
             "duplicate_code_limit",
@@ -315,14 +330,15 @@ def _evaluate_document(
     )
     for scoped_code, count in sorted(duplicate_codes.items()):
         appendix_scope, code = _split_scope_code(scoped_code)
+        issue_row = duplicate_issue_by_scoped_code.get(scoped_code, {})
         issues.append(
             {
                 "pdf_name": pdf_name,
                 "issue_type": "duplicate_section_code",
-                "severity": "high" if count >= 3 else "medium",
+                "severity": str(issue_row.get("severity") or ("high" if count >= 3 else "medium")).lower(),
                 "appendix_scope": appendix_scope,
                 "section_code": code,
-                "detail": f"duplicate_count={count}",
+                "detail": str(issue_row.get("detail") or f"duplicate_count={count}"),
             }
         )
 
@@ -427,6 +443,7 @@ def _evaluate_document(
         "checks_total": checks_total,
         "score_pct": score_pct,
         "duplicate_code_count": len(duplicate_codes),
+        "source_duplicate_code_count": int(consistency_payload.get("source_duplicate_code_count") or 0),
         "suspicious_heading_count": len(suspicious_rows),
         "suspicious_heading_ratio": round(suspicious_ratio, 6),
         "sibling_gap_alert_count": len(gap_alerts),
@@ -738,7 +755,10 @@ def _match_profile(profiles: list[Profile], file_name: str) -> Profile | None:
 
 
 def _normalize_scope(scope: str) -> str:
-    return str(scope or "").strip().upper()
+    token = str(scope or "").strip().upper()
+    if token in {"MAIN", "ROOT", "NONE", "-"}:
+        return ""
+    return token
 
 
 def _row_scope(row: dict[str, Any]) -> str:
@@ -761,6 +781,13 @@ def _split_scope_code(value: str) -> tuple[str, str]:
         return ("", text)
     left, right = text.split(":", 1)
     return (_normalize_scope(left), right.strip())
+
+
+def _extract_duplicate_count(detail: str) -> int:
+    match = re.search(r"duplicate_count=(\d+)", str(detail or ""))
+    if not match:
+        return 2
+    return max(int(match.group(1)), 2)
 
 
 def _code_parts(code: str) -> list[int]:

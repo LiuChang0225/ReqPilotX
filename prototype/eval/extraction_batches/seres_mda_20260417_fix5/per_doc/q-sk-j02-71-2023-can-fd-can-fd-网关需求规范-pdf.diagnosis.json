@@ -1,0 +1,833 @@
+{
+  "doc_key": "seres_q_sk_j02_71",
+  "pdf_name": "Q-SK J02.71-2023_CAN(FD)-CAN(FD)网关需求规范.pdf",
+  "pdf_path": "/Users/liuchang/Downloads/SERES MDA/Q-SK J02.71-2023_CAN(FD)-CAN(FD)网关需求规范.pdf",
+  "batch_id": "seres_mda_customer_docs",
+  "gate_tags": [],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "",
+    "fidelity": ""
+  },
+  "status": {
+    "quality_profile_matched": false,
+    "fidelity_profile_matched": false,
+    "needs_human_review": true
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "Q-SK J02.71-2023_CAN(FD)-CAN(FD)网关需求规范.pdf",
+      "profile": "",
+      "outline_count": 30,
+      "checks_passed": 8,
+      "checks_total": 8,
+      "score_pct": 100.0,
+      "duplicate_code_count": 1,
+      "suspicious_heading_count": 0,
+      "suspicious_heading_ratio": 0.0,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 1,
+      "detail_outline_count_min": "outline_count=30",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=1",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0000",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0"
+    },
+    "checks_total": 8,
+    "checks_passed": 8
+  },
+  "fidelity_gate": {
+    "doc_row": {},
+    "checks_total": 0,
+    "checks_passed": 0,
+    "passed": false
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 1,
+    "issue_types": [
+      "duplicate_section_code"
+    ]
+  },
+  "issue_rollup": [
+    {
+      "gate": "quality_gate",
+      "pdf_name": "Q-SK J02.71-2023_CAN(FD)-CAN(FD)网关需求规范.pdf",
+      "profile": "",
+      "category": "outline_structure",
+      "category_label": "Outline Structure",
+      "issue_type": "duplicate_section_code",
+      "severity": "medium",
+      "appendix_scope": "",
+      "section_code": "7.3",
+      "detail": "duplicate_count=2"
+    }
+  ],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Downloads/SERES MDA/Q-SK J02.71-2023_CAN(FD)-CAN(FD)网关需求规范.pdf",
+    "heading_skeleton": [
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2023",
+        "title": "10-20发布 2023-10-20实施"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围 ............................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件 ..................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3",
+        "title": "缩略语 ............................................................................. 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4",
+        "title": "CAN(FD)－CAN(FD)网关路由概述 ....................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5",
+        "title": "报文路由 ........................................................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "报文路由发送方式 ............................................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.1.1",
+        "title": "直接报文路由 ............................................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.1.2",
+        "title": "周期报文路由 ............................................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.1.2.1",
+        "title": "概述 ................................................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.1.2.2",
+        "title": "网关路由功能激活后发送值 ............................................... 4"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.1.2.3",
+        "title": "超时监测 ............................................................... 4"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.1.2.4",
+        "title": "周期报文路由示例 ....................................................... 4"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3",
+        "title": "缩略语"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "4",
+        "title": "CAN(FD)－CAN(FD)网关路由概述"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "1",
+        "title": "报文路由：将完整报文从源网段传输到目标网段；"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "2",
+        "title": "信号路由：将源网段报文中的信号重新组合之后传输到目标网段。"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "1",
+        "title": "当点火钥匙打到ON 状态（KL15 ON）时，路由功能激活;"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "2",
+        "title": "当点火钥匙处于OFF（KL15 OFF）时，两个网段都处于激活状态，路由功能激活。"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "1",
+        "title": "在网关路由表中定义了网关需要路由的报文、信号、源网段、目标网段、源网段发送方式、目标"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "2",
+        "title": "不论采用何种路由方式，网关只对需要路由的源网段的报文ID、DLC和RTR位进行校验，只要源"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "5",
+        "title": "报文路由"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "报文路由发送方式"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "5.1.1",
+        "title": "直接报文路由"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "5.1.2",
+        "title": "周期报文路由"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "5.1.2.1",
+        "title": "概述"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "5.1.2.2",
+        "title": "网关路由功能激活后发送值"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "5.1.2.3",
+        "title": "超时监测"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "5.1.2.4",
+        "title": "周期报文路由示例"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "6",
+        "title": "信号路由"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "6.1",
+        "title": "概述"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "1",
+        "title": "改变报文ID、数据域长度及报文周期；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "2",
+        "title": "改变报文类型（如CAN FD 报文路由为CAN 报文）；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3",
+        "title": "改变信号位置；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4",
+        "title": "改变信号长度，例如，源网段的开关信号Sig2 为1 位：0-关，1-开；经过网关处理之后变为"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "2",
+        "title": "位：0-关，1-开，2-初始值，3-无效值。"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6.2",
+        "title": "信号路由发送方式"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6.2.1",
+        "title": "概述"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "1",
+        "title": "将多条报文的信号重新打包到一条报文，减少了目标网段的报文个数；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "2",
+        "title": "将小周期报文的信号重新打包成大周期报文，减少了目标网段的该报文贡献的负载率。"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "6.2.2",
+        "title": "直接信号路由"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "1",
+        "title": "32 4 65 7 98"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "13",
+        "title": "46 79"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "13",
+        "title": "46 79"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "6.2.3",
+        "title": "周期信号路由"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "6.2.3.1",
+        "title": "概述"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "1",
+        "title": "CANFD 报文（DL=12）路由为"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "1",
+        "title": "CANFD 报文 byte0-7 组为 CAN1报文；"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "2",
+        "title": "CANFD 报文 byte8-11 组为CAN2 报文，CAN2 报文DL 长度为8，未使用"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "3",
+        "title": "网关转发 CAN1 和 CAN2 报文至需求的CAN 网段"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "2",
+        "title": "CANFD DL=16 路由为 CAN报文 1) CANFD 报文 byte0-7 组为 CAN1报文；"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "2",
+        "title": "CANFD 报文 byte8-15 组为CAN2 报文；"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "3",
+        "title": "网关转发 CAN1 和 CAN2 报文至需求的CAN 网段"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "4",
+        "title": "CANFD DL=24 路由为 CAN报文 1) CANFD 报文 byte0-7 组为 CAN1报文；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "2",
+        "title": "CANFD 报文 byte8-15 组为CAN2 报文；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "3",
+        "title": "CANFD 报文 byte16-23 组为 CAN3 报文；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "4",
+        "title": "网关转发 CAN1、CAN2 和 CAN3报文至需求的 CAN 网段"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "5",
+        "title": "CANFD DL=32 路由为 CAN报文 1) CANFD 报文 byte0-7 组为 CAN1报文；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "2",
+        "title": "CANFD 报文 byte8-15 组为CAN2 报文；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "3",
+        "title": "CANFD 报文 byte16-23 组为 CAN3 报文；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "4",
+        "title": "CANFD 报文 byte23-31 组为 CAN4 报文；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "5",
+        "title": "网关转发 CAN1、CAN2、CAN3 和 CAN4 报文至需求的CAN 网段"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "6",
+        "title": "CANFD DL=48 路由为 CAN报文 1) CANFD 报文 byte0-7 组为 CAN1报文；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "2",
+        "title": "CANFD 报文 byte8-15 组为CAN2 报文；"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "3",
+        "title": "CANFD 报文 byte16-23 组为 CAN3 报文；"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "6.2.3.3",
+        "title": "超时监测"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "6.2.3.4",
+        "title": "周期信号路由示例"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "0",
+        "title": "0 1 1 2"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "7",
+        "title": "睡眠唤醒要求"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "7.1",
+        "title": "概述"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "7.2",
+        "title": "网关睡眠条件"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "7.3",
+        "title": "网关唤醒条件"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1",
+        "title": "本地唤醒：点火开关打到ACC、ON 或START 时，网关唤醒。部分车型诊断网段需支持诊断报文"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "2",
+        "title": "远程唤醒：参与网络管理网段上的任意报文可唤醒网关（限于OSEK网络管理） 。"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "8",
+        "title": "诊断要求"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "1",
+        "title": "源网段和目标网段网络类型相同（同为CAN或同为 CANFD） ，诊断路由采用直接报文路由方式；"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "2",
+        "title": "源网段和目标网段网络类型不同（CAN-CANFD），诊断路由采用传输层路由的方式，由源网段接"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "9",
+        "title": "容错性能要求"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "10",
+        "title": "报文镜像功能要求"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [],
+      "page_counts": {}
+    },
+    "duplicate_scope_summary": {
+      "duplicates": [
+        {
+          "scoped_code": "MAIN:7.3",
+          "appendix_scope": "MAIN",
+          "section_code": "7.3",
+          "raw_duplicate_count": 2,
+          "section_instance_key_count": 2,
+          "requirement_row_count": 2
+        }
+      ]
+    },
+    "baseline_delta": {
+      "requirements_count": 41,
+      "sections_count": 30,
+      "requirements_drift": null,
+      "sections_drift": null,
+      "table_row_issue_count": 0,
+      "complex_table_signal": false,
+      "hotspot_section_code": "duplicate_scoped_codes"
+    },
+    "page_hotspots": [
+      {
+        "page": 1,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pypdf",
+        "quality_score": 0.7533,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 11,
+        "requirement_count": 11,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.9695,
+        "table_count": 1,
+        "enum_signal": 8
+      },
+      {
+        "page": 9,
+        "requirement_count": 8,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.493,
+        "table_count": 3,
+        "enum_signal": 4
+      },
+      {
+        "page": 10,
+        "requirement_count": 8,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.4904,
+        "table_count": 3,
+        "enum_signal": 4
+      },
+      {
+        "page": 6,
+        "requirement_count": 6,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.904,
+        "table_count": 1,
+        "enum_signal": 2
+      },
+      {
+        "page": 4,
+        "requirement_count": 4,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pdfplumber",
+        "quality_score": 1.4057,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 13,
+        "requirement_count": 4,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.502,
+        "table_count": 0,
+        "enum_signal": 1
+      },
+      {
+        "page": 14,
+        "requirement_count": 4,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.929,
+        "table_count": 1,
+        "enum_signal": 2
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [
+        1
+      ],
+      "selected_engine_pages": {
+        "pypdf": 8,
+        "pdfplumber": 4,
+        "pymupdf4llm": 4,
+        "pymupdf_raw": 1
+      }
+    },
+    "expected_structure_summary": [
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "7.3",
+        "expected_children": [],
+        "summary": "MAIN:7.3 should stop colliding at raw outline level or become explicitly instance-safe."
+      }
+    ]
+  },
+  "findings": [
+    {
+      "pattern_id": "raw_scoped_code_namespace_collision",
+      "category": "scope_and_namespace",
+      "issue_type": "duplicate_section_code",
+      "impacted_scope": "",
+      "impacted_section": "7.3",
+      "expected_structure_summary": "Duplicate scoped codes should map to an intentional namespace or collapse upstream.",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Tighten appendix scope / section instance generation before relying on duplicate scoped codes.",
+      "evidence_refs": [
+        "issue_rollup[duplicate_section_code]"
+      ],
+      "confidence": 0.58,
+      "needs_human_review": false,
+      "details": {
+        "detail": "duplicate_count=2"
+      }
+    },
+    {
+      "pattern_id": "raw_scoped_code_namespace_collision",
+      "category": "scope_and_namespace",
+      "issue_type": "raw_duplicate_scoped_code",
+      "impacted_scope": "MAIN",
+      "impacted_section": "7.3",
+      "expected_structure_summary": "Duplicate scoped codes should either collapse upstream or remain explicitly instance-safe before gating.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Tighten appendix scope / section instance generation before relying on duplicate scoped codes.",
+      "evidence_refs": [
+        "duplicate_scope_summary.duplicates[MAIN:7.3]"
+      ],
+      "confidence": 0.82,
+      "needs_human_review": true,
+      "details": {
+        "raw_duplicate_count": 2,
+        "section_instance_key_count": 2,
+        "requirement_row_count": 2
+      }
+    },
+    {
+      "pattern_id": "profile_unmatched",
+      "category": "heading_recovery",
+      "issue_type": "profile_unmatched",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "evidence_refs": [
+        "issue_summary",
+        "profiles"
+      ],
+      "confidence": 0.66,
+      "needs_human_review": true,
+      "details": {
+        "quality_profile": "",
+        "fidelity_profile": ""
+      }
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "issue_type": "parser_low_confidence_hotspot",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Low-confidence pages should be stabilized before downstream clause binding is tuned.",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "evidence_refs": [
+        "parser_diagnostics.low_confidence_pages",
+        "page_hotspots"
+      ],
+      "confidence": 0.62,
+      "needs_human_review": true,
+      "details": {
+        "low_confidence_pages": [
+          1
+        ]
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "raw_scoped_code_namespace_collision",
+      "pattern_name": "Raw scoped code namespace collision",
+      "category": "scope_and_namespace",
+      "doc_key": "seres_q_sk_j02_71",
+      "pdf_name": "Q-SK J02.71-2023_CAN(FD)-CAN(FD)网关需求规范.pdf",
+      "issue_type": "duplicate_section_code",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Tighten appendix scope / section instance generation before relying on duplicate scoped codes.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "profile_unmatched",
+      "pattern_name": "profile_unmatched",
+      "category": "heading_recovery",
+      "doc_key": "seres_q_sk_j02_71",
+      "pdf_name": "Q-SK J02.71-2023_CAN(FD)-CAN(FD)网关需求规范.pdf",
+      "issue_type": "profile_unmatched",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "pattern_name": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "doc_key": "seres_q_sk_j02_71",
+      "pdf_name": "Q-SK J02.71-2023_CAN(FD)-CAN(FD)网关需求规范.pdf",
+      "issue_type": "parser_low_confidence_hotspot",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"Q-SK J02.71-2023_CAN(FD)-CAN(FD)网关需求规范.pdf\",\n  \"issue_rollup\": [\n    {\n      \"gate\": \"quality_gate\",\n      \"pdf_name\": \"Q-SK J02.71-2023_CAN(FD)-CAN(FD)网关需求规范.pdf\",\n      \"profile\": \"\",\n      \"category\": \"outline_structure\",\n      \"category_label\": \"Outline Structure\",\n      \"issue_type\": \"duplicate_section_code\",\n      \"severity\": \"medium\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"7.3\",\n      \"detail\": \"duplicate_count=2\"\n    }\n  ],\n  \"findings\": [\n    {\n      \"pattern_id\": \"raw_scoped_code_namespace_collision\",\n      \"category\": \"scope_and_namespace\",\n      \"issue_type\": \"duplicate_section_code\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"7.3\",\n      \"expected_structure_summary\": \"Duplicate scoped codes should map to an intentional namespace or collapse upstream.\",\n      \"suspected_layer\": \"extractor\",\n      \"recommended_fix_direction\": \"Tighten appendix scope / section instance generation before relying on duplicate scoped codes.\",\n      \"evidence_refs\": [\n        \"issue_rollup[duplicate_section_code]\"\n      ],\n      \"confidence\": 0.58,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"detail\": \"duplicate_count=2\"\n      }\n    },\n    {\n      \"pattern_id\": \"raw_scoped_code_namespace_collision\",\n      \"category\": \"scope_and_namespace\",\n      \"issue_type\": \"raw_duplicate_scoped_code\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"7.3\",\n      \"expected_structure_summary\": \"Duplicate scoped codes should either collapse upstream or remain explicitly instance-safe before gating.\",\n      \"suspected_layer\": \"gate\",\n      \"recommended_fix_direction\": \"Tighten appendix scope / section instance generation before relying on duplicate scoped codes.\",\n      \"evidence_refs\": [\n        \"duplicate_scope_summary.duplicates[MAIN:7.3]\"\n      ],\n      \"confidence\": 0.82,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"raw_duplicate_count\": 2,\n        \"section_instance_key_count\": 2,\n        \"requirement_row_count\": 2\n      }\n    },\n    {\n      \"pattern_id\": \"profile_unmatched\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"profile_unmatched\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.\",\n      \"suspected_layer\": \"gate\",\n      \"recommended_fix_direction\": \"Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.\",\n      \"evidence_refs\": [\n        \"issue_summary\",\n        \"profiles\"\n      ],\n      \"confidence\": 0.66,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"quality_profile\": \"\",\n        \"fidelity_profile\": \"\"\n      }\n    },\n    {\n      \"pattern_id\": \"parser_low_confidence_hotspot\",\n      \"category\": \"table_and_clause_binding\",\n      \"issue_type\": \"parser_low_confidence_hotspot\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Low-confidence pages should be stabilized before downstream clause binding is tuned.\",\n      \"suspected_layer\": \"parser\",\n      \"recommended_fix_direction\": \"Inspect page merge selection and parser confidence signals before changing downstream section logic.\",\n      \"evidence_refs\": [\n        \"parser_diagnostics.low_confidence_pages\",\n        \"page_hotspots\"\n      ],\n      \"confidence\": 0.62,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"low_confidence_pages\": [\n          1\n        ]\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 1,\n      \"requirement_count\": 0,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 0.7533,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 11,\n      \"requirement_count\": 11,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.9695,\n      \"table_count\": 1,\n      \"enum_signal\": 8\n    },\n    {\n      \"page\": 9,\n      \"requirement_count\": 8,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.493,\n      \"table_count\": 3,\n      \"enum_signal\": 4\n    },\n    {\n      \"page\": 10,\n      \"requirement_count\": 8,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.4904,\n      \"table_count\": 3,\n      \"enum_signal\": 4\n    },\n    {\n      \"page\": 6,\n      \"requirement_count\": 6,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.904,\n      \"table_count\": 1,\n      \"enum_signal\": 2\n    },\n    {\n      \"page\": 4,\n      \"requirement_count\": 4,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pdfplumber\",\n      \"quality_score\": 1.4057,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [],\n    \"page_counts\": {}\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": [\n      {\n        \"scoped_code\": \"MAIN:7.3\",\n        \"appendix_scope\": \"MAIN\",\n        \"section_code\": \"7.3\",\n        \"raw_duplicate_count\": 2,\n        \"section_instance_key_count\": 2,\n        \"requirement_row_count\": 2\n      }\n    ]\n  }\n}"
+    }
+  ]
+}

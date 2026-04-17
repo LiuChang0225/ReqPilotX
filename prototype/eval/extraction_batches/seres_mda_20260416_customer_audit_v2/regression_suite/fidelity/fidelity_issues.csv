@@ -1,0 +1,4 @@
+pdf_name,profile,issue_type,severity,appendix_scope,section_code,detail
+【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf,seres_v32_k89_cts_asc,required_code_missing,high,,6,required scoped code missing
+【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf,seres_v32_k89_cts_asc,required_title_missing_code,high,,6,title check missing code; need contains '法规需求'
+【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf,seres_v32_k89_cts_asc,required_requirement_text_mismatch,high,,4.1.2,requirement text does not contain 'ASC_F 需实时反馈当前油压'

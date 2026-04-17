@@ -26,6 +26,19 @@ class FidelityBenchmarkTests(unittest.TestCase):
         self.assertEqual(tree["3.2.2::6"], ["6.1", "6.6"])
         self.assertEqual(tree["3.2.2::6.6"], ["6.6.4"])
 
+    def test_collect_tree_child_codes_normalizes_main_scope_prefix(self) -> None:
+        sections = [
+            {"section_code": "1", "structural_parent_key": "MAIN:3.2.2"},
+            {"section_code": "2", "structural_parent_key": "MAIN:3.2.2"},
+            {"section_code": "6.1", "structural_parent_key": "MAIN:3.2.2::6"},
+            {"section_code": "6.2", "structural_parent_key": "MAIN:3.2.2::6"},
+        ]
+
+        tree = fidelity_benchmark._collect_tree_child_codes(sections)
+
+        self.assertEqual(tree["3.2.2"], ["1", "2"])
+        self.assertEqual(tree["3.2.2::6"], ["6.1", "6.2"])
+
     def test_load_profiles_reads_required_tree_children(self) -> None:
         profiles = fidelity_benchmark._load_profiles(
             [
@@ -48,6 +61,24 @@ class FidelityBenchmarkTests(unittest.TestCase):
                 "3.2.2::6": ["6.1", "6.2"],
             },
         )
+
+    def test_lookup_requirement_text_falls_back_to_descendants(self) -> None:
+        requirement_text_by_scoped_code = {
+            "4.1.2.1": "ASC_F 需实时反馈当前油压及其有效位",
+            "4.1.2.3": "显示策略内容",
+        }
+        tree_child_codes_by_parent = {
+            "4.1.2": ["4.1.2.1", "4.1.2.3"],
+        }
+
+        text = fidelity_benchmark._lookup_requirement_text_for_scoped_code(
+            "4.1.2",
+            requirement_text_by_scoped_code,
+            tree_child_codes_by_parent,
+        )
+
+        self.assertIn("ASC_F 需实时反馈当前油压", text)
+        self.assertIn("显示策略内容", text)
 
 
 if __name__ == "__main__":

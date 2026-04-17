@@ -610,6 +610,28 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             if sheet.cell(row=row, column=1).value is not None
         }
 
+    def _content_images(self, sheet) -> list:
+        images = []
+        for image in getattr(sheet, "_images", []):
+            anchor = getattr(image, "anchor", None)
+            marker = getattr(anchor, "_from", None)
+            if marker is None:
+                continue
+            if marker.col == 2 and marker.row >= 3:
+                images.append(image)
+        return images
+
+    def _logo_images(self, sheet) -> list:
+        images = []
+        for image in getattr(sheet, "_images", []):
+            anchor = getattr(image, "anchor", None)
+            marker = getattr(anchor, "_from", None)
+            if marker is None:
+                continue
+            if marker.row <= 1 and marker.col >= 3:
+                images.append(image)
+        return images
+
     def test_extraction_review_redirects_to_workspace_review(self) -> None:
         response = main.extraction_review_page()
         self.assertEqual(response.status_code, 307)
@@ -1107,6 +1129,45 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         self.assertFalse(stale_file.exists())
         self.assertTrue(cache_path.exists())
+
+    def test_cancelled_preview_refresh_exits_before_build(self) -> None:
+        project, document = self._create_project_with_document("-refresh-cancelled")
+        preview_cache.cancel_preview_refresh(document["id"])
+
+        with patch.object(preview_cache, "build_extraction_preview") as build_preview:
+            preview_cache._run_preview_refresh(document["id"], document["file_path"])
+
+        build_preview.assert_not_called()
+
+    def test_delete_document_purges_preview_and_snapshot_artifacts(self) -> None:
+        project, document = self._create_project_with_document("-delete-artifacts")
+        cache_path = preview_cache.preview_cache_path(document["id"])
+        cache_path.write_text("{}", encoding="utf-8")
+        preview_root = preview_cache.document_snapshot_root(document["id"])
+        (preview_root / "preview.png").write_text("preview", encoding="utf-8")
+        persisted_root = main._table_snapshot_root(document["id"])
+        (persisted_root / "persisted.png").write_text("persisted", encoding="utf-8")
+
+        result = main.delete_sor_document(project["id"], document["id"])
+
+        self.assertTrue(result["ok"])
+        self.assertFalse(cache_path.exists())
+        self.assertFalse(preview_cache.document_snapshot_root(document["id"], create=False).exists())
+        self.assertFalse(main._table_snapshot_root(document["id"], create=False).exists())
+        self.assertIsNone(db.get_sor_document(document["id"]))
+
+    def test_deleted_document_preview_refresh_missing_file_does_not_mark_failed(self) -> None:
+        project, document = self._create_project_with_document("-deleted-refresh-race")
+        document_id = document["id"]
+        file_path = document["file_path"]
+        db.delete_sor_document(document_id)
+
+        with patch.object(preview_cache, "build_extraction_preview", side_effect=FileNotFoundError("missing")), patch.object(
+            preview_cache.db, "update_sor_document_preview_state"
+        ) as update_preview_state:
+            preview_cache._run_preview_refresh(document_id, file_path)
+
+        update_preview_state.assert_not_called()
 
     def test_sync_document_table_assets_keeps_preview_snapshot_root_intact(self) -> None:
         project, document = self._create_project_with_document("-isolated-snapshots")
@@ -2644,12 +2705,14 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         workbook = load_workbook(file_path)
         sheet = workbook["ComplianceMatrix"]
         meta = self._version_meta_values(workbook)
+        content_images = self._content_images(sheet)
 
         self.assertEqual(sheet["C4"].value, "试验条件如下：")
         self.assertIsNone(sheet["C5"].value)
-        self.assertEqual(len(sheet._images), 1)
+        self.assertEqual(len(content_images), 1)
+        self.assertEqual(len(self._logo_images(sheet)), 1)
         self.assertEqual(meta["TableImageCount"], 1)
-        self.assertGreater(sheet.column_dimensions["C"].width or 0, 170)
+        self.assertAlmostEqual(sheet.column_dimensions["C"].width or 0, 130.0, delta=1.0)
 
     def test_table_ref_snapshot_prefers_source_variant(self) -> None:
         slice_path = self.tmp_path / "slice.png"
@@ -2714,6 +2777,143 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         self.assertEqual(meta["TableExportWarningCount"], 1)
         self.assertIn("source snapshot missing", str(meta["TableExportWarnings"]))
+
+    def test_exporter_applies_schaeffler_branding_and_logo(self) -> None:
+        _, file_path = export_compliance_matrix(
+            project_name="Workspace Test",
+            customer_name="Customer",
+            requirements=[
+                {
+                    "display_req_code": "REQ0201",
+                    "req_code": "REQ0201",
+                    "parent_section_label": "9.3 Branding",
+                    "raw_text": "导出模板应带 Schaeffler 品牌化样式。",
+                    "final_decision": "ACCEPT",
+                    "engineer_reason": "Branding",
+                }
+            ],
+            export_dir=self.tmp_path / "exports",
+        )
+
+        workbook = load_workbook(file_path)
+        sheet = workbook["ComplianceMatrix"]
+        logo_images = self._logo_images(sheet)
+
+        self.assertEqual((sheet["A3"].fill.fgColor.rgb or "")[-6:], "00893D")
+        self.assertEqual(len(logo_images), 1)
+        self.assertEqual(logo_images[0].anchor._from.row, 0)
+        self.assertGreaterEqual(logo_images[0].anchor._from.col, 3)
+
+    def test_exporter_expands_row_height_for_long_comments(self) -> None:
+        _, file_path = export_compliance_matrix(
+            project_name="Workspace Test",
+            customer_name="Customer",
+            requirements=[
+                {
+                    "display_req_code": "REQ0202",
+                    "req_code": "REQ0202",
+                    "parent_section_label": "9.4 Long Comments",
+                    "raw_text": "短句。",
+                    "final_decision": "NEED_CLARIFICATION",
+                    "engineer_reason": "需要补充说明。" * 80,
+                }
+            ],
+            export_dir=self.tmp_path / "exports",
+        )
+
+        workbook = load_workbook(file_path)
+        sheet = workbook["ComplianceMatrix"]
+
+        self.assertGreater(sheet.row_dimensions[4].height or 0, 120)
+
+    def test_exporter_prefers_single_image_fit_before_split(self) -> None:
+        source_path = self.tmp_path / "medium-snapshot.png"
+        PILImage.new("RGB", (1000, 800), "white").save(source_path)
+
+        _, file_path = export_compliance_matrix(
+            project_name="Workspace Test",
+            customer_name="Customer",
+            requirements=[
+                {
+                    "display_req_code": "REQ0202A",
+                    "req_code": "REQ0202A",
+                    "parent_section_label": "9.4 Medium Snapshot",
+                    "raw_text": "中等高度截图。",
+                    "content_blocks": [
+                        {"kind": "paragraph", "text": "中等高度截图。"},
+                        {"kind": "table", "table_id": "tbl_medium_snapshot"},
+                    ],
+                    "table_refs": [
+                        {
+                            "table_id": "tbl_medium_snapshot",
+                            "slice_render_mode": "snapshot_only",
+                            "slice_snapshot_path": str(source_path),
+                            "source_snapshot_path": str(source_path),
+                            "export_variant": "source",
+                        }
+                    ],
+                    "final_decision": "ACCEPT",
+                    "engineer_reason": "Single image fit",
+                }
+            ],
+            export_dir=self.tmp_path / "exports",
+        )
+
+        workbook = load_workbook(file_path)
+        sheet = workbook["ComplianceMatrix"]
+        content_images = self._content_images(sheet)
+
+        self.assertEqual(len(content_images), 1)
+        self.assertEqual(content_images[0].anchor._from.row, 4)
+        self.assertLessEqual(sheet.row_dimensions[5].height or 0, 409.5)
+
+    def test_exporter_splits_tall_snapshot_into_multiple_rows(self) -> None:
+        source_path = self.tmp_path / "tall-snapshot.png"
+        PILImage.new("RGB", (420, 2400), "white").save(source_path)
+
+        _, file_path = export_compliance_matrix(
+            project_name="Workspace Test",
+            customer_name="Customer",
+            requirements=[
+                {
+                    "display_req_code": "REQ0203",
+                    "req_code": "REQ0203",
+                    "parent_section_label": "9.5 Tall Snapshot",
+                    "raw_text": "流程图见下图。",
+                    "content_blocks": [
+                        {"kind": "paragraph", "text": "流程图见下图。"},
+                        {"kind": "table", "table_id": "tbl_tall_snapshot"},
+                    ],
+                    "table_refs": [
+                        {
+                            "table_id": "tbl_tall_snapshot",
+                            "slice_render_mode": "snapshot_only",
+                            "slice_snapshot_path": str(source_path),
+                            "source_snapshot_path": str(source_path),
+                            "export_variant": "source",
+                        }
+                    ],
+                    "final_decision": "ACCEPT",
+                    "engineer_reason": "Tall screenshot",
+                }
+            ],
+            export_dir=self.tmp_path / "exports",
+        )
+
+        workbook = load_workbook(file_path)
+        sheet = workbook["ComplianceMatrix"]
+        meta = self._version_meta_values(workbook)
+        content_images = self._content_images(sheet)
+        anchored_rows = [image.anchor._from.row for image in content_images]
+
+        self.assertEqual(meta["TableImageCount"], 1)
+        self.assertGreater(len(content_images), 1)
+        self.assertEqual(anchored_rows, list(range(4, 4 + len(content_images))))
+        self.assertLessEqual(
+            max(sheet.row_dimensions[row_index + 1].height or 0 for row_index in anchored_rows),
+            409.5,
+        )
+        self.assertGreaterEqual(sheet.row_dimensions[5].height or 0, 350)
 
     def test_single_row_pipe_table_slice_is_materialized_as_table_asset(self) -> None:
         project, document = self._create_project_with_document("-single-row-slice")
@@ -4464,15 +4664,17 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         workbook = load_workbook(file_path)
         sheet = workbook["ComplianceMatrix"]
         meta = self._version_meta_values(workbook)
+        content_images = self._content_images(sheet)
 
+        self.assertEqual(sheet["B3"].value, "Section")
         self.assertEqual(sheet["A4"].value, "REQ0001")
         self.assertEqual(sheet["C4"].value, "试验条件如下：")
         self.assertIsNone(sheet["C5"].value)
         self.assertEqual(sheet["D4"].value, "ACCEPT")
         self.assertEqual(sheet["E4"].value, "Reviewed")
-        self.assertEqual(len(sheet._images), 1)
-        self.assertEqual(sheet._images[0].anchor._from.col, 2)
-        self.assertEqual(sheet._images[0].anchor._from.row, 4)
+        self.assertEqual(len(content_images), 1)
+        self.assertEqual(content_images[0].anchor._from.col, 2)
+        self.assertEqual(content_images[0].anchor._from.row, 4)
         merged_ranges = {str(item) for item in sheet.merged_cells.ranges}
         self.assertNotIn("C3:D3", merged_ranges)
         self.assertEqual(meta["TableImageCount"], 1)
@@ -4504,14 +4706,15 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         workbook = load_workbook(file_path)
         sheet = workbook["ComplianceMatrix"]
+        content_images = self._content_images(sheet)
 
         self.assertEqual(sheet["A4"].value, "REQ0002")
         self.assertEqual(sheet["C4"].value, "第一段说明。")
         self.assertIsNone(sheet["C5"].value)
         self.assertEqual(sheet["C6"].value, "第二段说明。")
-        self.assertEqual(len(sheet._images), 1)
-        self.assertEqual(sheet._images[0].anchor._from.col, 2)
-        self.assertEqual(sheet._images[0].anchor._from.row, 4)
+        self.assertEqual(len(content_images), 1)
+        self.assertEqual(content_images[0].anchor._from.col, 2)
+        self.assertEqual(content_images[0].anchor._from.row, 4)
         merged_ranges = {str(item) for item in sheet.merged_cells.ranges}
         self.assertIn("A4:A6", merged_ranges)
         self.assertIn("B4:B6", merged_ranges)
@@ -4539,7 +4742,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         sheet = workbook["ComplianceMatrix"]
         meta = self._version_meta_values(workbook)
 
-        self.assertEqual(len(sheet._images), 0)
+        self.assertEqual(len(self._content_images(sheet)), 0)
         self.assertEqual(
             sheet["C4"].value,
             "| Item | Condition |\n| --- | --- |\n| Too | Many | Cells |",
@@ -4573,13 +4776,14 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         workbook = load_workbook(file_path)
         sheet = workbook["ComplianceMatrix"]
         meta = self._version_meta_values(workbook)
+        content_images = self._content_images(sheet)
 
         self.assertEqual(sheet["C4"].value, "1）前减振器布置要求")
         self.assertIsNone(sheet["C5"].value)
         self.assertEqual(sheet["C6"].value, "表格后说明。")
-        self.assertEqual(len(sheet._images), 1)
-        self.assertEqual(sheet._images[0].anchor._from.col, 2)
-        self.assertEqual(sheet._images[0].anchor._from.row, 4)
+        self.assertEqual(len(content_images), 1)
+        self.assertEqual(content_images[0].anchor._from.col, 2)
+        self.assertEqual(content_images[0].anchor._from.row, 4)
         self.assertEqual(meta["TableImageCount"], 1)
         self.assertEqual(meta["TableFallbackTextCount"], 0)
 
@@ -4612,16 +4816,17 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         workbook = load_workbook(file_path)
         sheet = workbook["ComplianceMatrix"]
+        content_images = self._content_images(sheet)
 
         self.assertEqual(sheet.max_column, 5)
         self.assertEqual(sheet["C4"].value, "第一段说明。")
         self.assertEqual(sheet["C6"].value, "中间说明。")
         self.assertEqual(sheet["C8"].value, "最后说明。")
-        self.assertEqual(len(sheet._images), 2)
-        self.assertEqual(sheet._images[0].anchor._from.col, 2)
-        self.assertEqual(sheet._images[0].anchor._from.row, 4)
-        self.assertEqual(sheet._images[1].anchor._from.col, 2)
-        self.assertEqual(sheet._images[1].anchor._from.row, 6)
+        self.assertEqual(len(content_images), 2)
+        self.assertEqual(content_images[0].anchor._from.col, 2)
+        self.assertEqual(content_images[0].anchor._from.row, 4)
+        self.assertEqual(content_images[1].anchor._from.col, 2)
+        self.assertEqual(content_images[1].anchor._from.row, 6)
 
 
 if __name__ == "__main__":

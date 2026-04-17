@@ -1,0 +1,714 @@
+{
+  "doc_key": "seres_q_sk_j00_14",
+  "pdf_name": "Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf",
+  "pdf_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/1ce706c6cf10420f9ad3e5962e8b57a1_Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf",
+  "batch_id": "seres_mda_customer_docs",
+  "gate_tags": [],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "",
+    "fidelity": ""
+  },
+  "status": {
+    "quality_profile_matched": false,
+    "fidelity_profile_matched": false,
+    "needs_human_review": true
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf",
+      "profile": "",
+      "outline_count": 58,
+      "checks_passed": 8,
+      "checks_total": 8,
+      "score_pct": 100.0,
+      "duplicate_code_count": 0,
+      "source_duplicate_code_count": 2,
+      "suspicious_heading_count": 0,
+      "suspicious_heading_ratio": 0.0,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 1,
+      "detail_outline_count_min": "outline_count=58",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=0",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0000",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0"
+    },
+    "checks_total": 8,
+    "checks_passed": 8
+  },
+  "fidelity_gate": {
+    "doc_row": {},
+    "checks_total": 0,
+    "checks_passed": 0,
+    "passed": false
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 0,
+    "issue_types": []
+  },
+  "issue_rollup": [],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/1ce706c6cf10420f9ad3e5962e8b57a1_Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf",
+    "heading_skeleton": [
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2025",
+        "title": "04 -18发布 2025 - 04 - 21实施"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "3",
+        "title": "术语和定义"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "3",
+        "title": "1"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "3",
+        "title": "2"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "4",
+        "title": "编码规则与定义"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "ECU 软件版本号"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "4.1.1",
+        "title": "软件版本号标识"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "4.1.2",
+        "title": "ECU名称"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "4.1.3",
+        "title": "主版本号a"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "4.1.4",
+        "title": "诊断标识"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "4.1.5",
+        "title": "次版本号a"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "ECU硬件版本号"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "4.2.1",
+        "title": "硬件版本号标识"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "4.2.2",
+        "title": "阶段版本号b"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "4.2.3",
+        "title": "主版本号b"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "4.2.4",
+        "title": "次版本号b"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "4.3",
+        "title": "序号代码"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "4.3.1",
+        "title": "可升级节点"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "4.3.1.1",
+        "title": "序号代码标识"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "4.3.1.2",
+        "title": "主序号a"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.3.1.3",
+        "title": "次序号a"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.3.1.4",
+        "title": "阶段序号a"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.3.1.5",
+        "title": "日期"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.3.1.6",
+        "title": "供应商代码"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.3.1.7",
+        "title": "修订序号"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.3.2",
+        "title": "不可升级节点"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.3.2.1",
+        "title": "序号代码标识"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.3.2.2",
+        "title": "主序号b"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.3.2.3",
+        "title": "次序号b"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.3.2.4",
+        "title": "供应商代码"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.4",
+        "title": "BootLoader版本号"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4.4.1",
+        "title": "BootLoader版本号标识"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4.4.2",
+        "title": "阶段版本号 c"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4.4.3",
+        "title": "次版本号c"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4.5",
+        "title": "整车软件版本号"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4.5.1",
+        "title": "品牌代号"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4.5.2",
+        "title": "产品代号"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4.5.3",
+        "title": "平台版本号"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.5.4",
+        "title": "主版本号"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.5.5",
+        "title": "次版本号"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.5.6",
+        "title": "内部标识"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.5.7",
+        "title": "补丁版本号"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.5.8",
+        "title": "系统版本号"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.5.9",
+        "title": "卖点特性版本号"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.5.10",
+        "title": "具体版本号"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.5.11",
+        "title": "补丁号"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5",
+        "title": "ECU版本号标识"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "标识内容"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "1.08",
+        "title": "A_220120_2223_00"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "标识位置"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "其他要求"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "6.3.1",
+        "title": "标识应完整、正确、清晰、牢固、永久保持。在零部件的寿命期内标识均应完好、清楚可辨。"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "6.3.2",
+        "title": "标识方式可采用印刷、激光打印的粘性标签，在零部件进行维修时应保证标识不应损坏。"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "6.3.3",
+        "title": "所有的字体均为黑体，字高应不小于5mm。在现有的技术、几何形状等原因影响识别时，则可对"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "6.3.4",
+        "title": "ECU状态发生变化后，应在ECU上重新做对应标识，满足一致性法规要求，车辆出厂后ECU标识不"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "1.16.23",
+            "1.3"
+          ],
+          "expected_direct_children": [
+            "1"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "4.1.5",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "1.16.23"
+          ],
+          "expected_direct_children": [
+            "1"
+          ]
+        }
+      ],
+      "page_counts": {
+        "4": 1,
+        "10": 2
+      }
+    },
+    "duplicate_scope_summary": {
+      "duplicates": []
+    },
+    "baseline_delta": {
+      "requirements_count": 54,
+      "sections_count": 58,
+      "requirements_drift": null,
+      "sections_drift": null,
+      "table_row_issue_count": 0,
+      "complex_table_signal": false,
+      "hotspot_section_code": ""
+    },
+    "page_hotspots": [
+      {
+        "page": 1,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pypdf",
+        "quality_score": 0.7533,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 10,
+        "requirement_count": 8,
+        "missing_local_clause_count": 2,
+        "low_confidence": false,
+        "selected_engine": "pdfplumber",
+        "quality_score": 1.55,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 4,
+        "requirement_count": 10,
+        "missing_local_clause_count": 1,
+        "low_confidence": false,
+        "selected_engine": "pdfplumber",
+        "quality_score": 1.7471,
+        "table_count": 3,
+        "enum_signal": 0
+      },
+      {
+        "page": 9,
+        "requirement_count": 8,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.9059,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 8,
+        "requirement_count": 7,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.4467,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 3,
+        "requirement_count": 6,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 0.8086,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 6,
+        "requirement_count": 6,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pdfplumber",
+        "quality_score": 1.9632,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 7,
+        "requirement_count": 6,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pdfplumber",
+        "quality_score": 1.5416,
+        "table_count": 4,
+        "enum_signal": 0
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [
+        1
+      ],
+      "selected_engine_pages": {
+        "pypdf": 6,
+        "pdfplumber": 4
+      }
+    },
+    "expected_structure_summary": [
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "5.1",
+        "expected_children": [
+          "1"
+        ],
+        "summary": "5.1 should expose local anchors: 1"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "4.1.5",
+        "expected_children": [
+          "1"
+        ],
+        "summary": "4.1.5 should expose local anchors: 1"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1",
+      "expected_structure_summary": "5.1 should expose local section anchors such as 1",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "1.16.23",
+          "1.3"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "4.1.5",
+      "expected_structure_summary": "4.1.5 should expose local section anchors such as 1",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[4.1.5]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "1.16.23"
+        ]
+      }
+    },
+    {
+      "pattern_id": "profile_unmatched",
+      "category": "heading_recovery",
+      "issue_type": "profile_unmatched",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "evidence_refs": [
+        "issue_summary",
+        "profiles"
+      ],
+      "confidence": 0.66,
+      "needs_human_review": true,
+      "details": {
+        "quality_profile": "",
+        "fidelity_profile": ""
+      }
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "issue_type": "parser_low_confidence_hotspot",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Low-confidence pages should be stabilized before downstream clause binding is tuned.",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "evidence_refs": [
+        "parser_diagnostics.low_confidence_pages",
+        "page_hotspots"
+      ],
+      "confidence": 0.62,
+      "needs_human_review": true,
+      "details": {
+        "low_confidence_pages": [
+          1
+        ]
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "pattern_name": "Local clause heading not promoted to section anchor",
+      "category": "heading_recovery",
+      "doc_key": "seres_q_sk_j00_14",
+      "pdf_name": "Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf",
+      "issue_type": "local_clause_section_missing",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "profile_unmatched",
+      "pattern_name": "profile_unmatched",
+      "category": "heading_recovery",
+      "doc_key": "seres_q_sk_j00_14",
+      "pdf_name": "Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf",
+      "issue_type": "profile_unmatched",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "pattern_name": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "doc_key": "seres_q_sk_j00_14",
+      "pdf_name": "Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf",
+      "issue_type": "parser_low_confidence_hotspot",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf\",\n  \"issue_rollup\": [],\n  \"findings\": [\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"5.1\",\n      \"expected_structure_summary\": \"5.1 should expose local section anchors such as 1\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[5.1]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"1.16.23\",\n          \"1.3\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"4.1.5\",\n      \"expected_structure_summary\": \"4.1.5 should expose local section anchors such as 1\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[4.1.5]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"1.16.23\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"profile_unmatched\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"profile_unmatched\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.\",\n      \"suspected_layer\": \"gate\",\n      \"recommended_fix_direction\": \"Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.\",\n      \"evidence_refs\": [\n        \"issue_summary\",\n        \"profiles\"\n      ],\n      \"confidence\": 0.66,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"quality_profile\": \"\",\n        \"fidelity_profile\": \"\"\n      }\n    },\n    {\n      \"pattern_id\": \"parser_low_confidence_hotspot\",\n      \"category\": \"table_and_clause_binding\",\n      \"issue_type\": \"parser_low_confidence_hotspot\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Low-confidence pages should be stabilized before downstream clause binding is tuned.\",\n      \"suspected_layer\": \"parser\",\n      \"recommended_fix_direction\": \"Inspect page merge selection and parser confidence signals before changing downstream section logic.\",\n      \"evidence_refs\": [\n        \"parser_diagnostics.low_confidence_pages\",\n        \"page_hotspots\"\n      ],\n      \"confidence\": 0.62,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"low_confidence_pages\": [\n          1\n        ]\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 1,\n      \"requirement_count\": 0,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 0.7533,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 10,\n      \"requirement_count\": 8,\n      \"missing_local_clause_count\": 2,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pdfplumber\",\n      \"quality_score\": 1.55,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 4,\n      \"requirement_count\": 10,\n      \"missing_local_clause_count\": 1,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pdfplumber\",\n      \"quality_score\": 1.7471,\n      \"table_count\": 3,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 9,\n      \"requirement_count\": 8,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.9059,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 8,\n      \"requirement_count\": 7,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.4467,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 3,\n      \"requirement_count\": 6,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 0.8086,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"1.16.23\",\n          \"1.3\"\n        ],\n        \"expected_direct_children\": [\n          \"1\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"4.1.5\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"1.16.23\"\n        ],\n        \"expected_direct_children\": [\n          \"1\"\n        ]\n      }\n    ],\n    \"page_counts\": {\n      \"4\": 1,\n      \"10\": 2\n    }\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": []\n  }\n}"
+    }
+  ]
+}

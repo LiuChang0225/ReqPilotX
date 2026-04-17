@@ -1,0 +1,18 @@
+[
+  {
+    "pattern_id": "parser_low_confidence_hotspot",
+    "pattern_name": "parser_low_confidence_hotspot",
+    "category": "table_and_clause_binding",
+    "doc_key": "seres_uds_signing_v1_1",
+    "pdf_name": "赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】.pdf",
+    "issue_type": "parser_low_confidence_hotspot",
+    "suspected_layer": "parser",
+    "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+    "benchmark_impact": [
+      "seres-mda-audit",
+      "seres-mda-gate"
+    ],
+    "promoted": false,
+    "validation_status": "candidate"
+  }
+]

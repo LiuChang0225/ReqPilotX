@@ -1,0 +1,910 @@
+{
+  "doc_key": "seres_v32_k89_cts_asc",
+  "pdf_name": "【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
+  "pdf_path": "/Users/liuchang/Downloads/SERES MDA/【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
+  "batch_id": "seres_mda_customer_docs",
+  "gate_tags": [
+    "seres-mda-audit",
+    "seres-mda-gate"
+  ],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "seres_v32_k89_cts_asc",
+    "fidelity": "seres_v32_k89_cts_asc"
+  },
+  "status": {
+    "quality_profile_matched": true,
+    "fidelity_profile_matched": true,
+    "needs_human_review": true
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
+      "profile": "seres_v32_k89_cts_asc",
+      "outline_count": 54,
+      "checks_passed": 10,
+      "checks_total": 10,
+      "score_pct": 100.0,
+      "duplicate_code_count": 0,
+      "suspicious_heading_count": 0,
+      "suspicious_heading_ratio": 0.0,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 1,
+      "detail_outline_count_min": "outline_count=54",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=0",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0000",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0",
+      "check_profile_required_codes_present": 1,
+      "detail_profile_required_codes_present": "missing_required=0",
+      "check_profile_guard_sections_clean": 1,
+      "detail_profile_guard_sections_clean": "guard_violations=0"
+    },
+    "checks_total": 10,
+    "checks_passed": 10
+  },
+  "fidelity_gate": {
+    "doc_row": {
+      "pdf_name": "【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
+      "profile": "seres_v32_k89_cts_asc",
+      "sections_count": 54,
+      "requirements_count": 37,
+      "appendix_scope_count": 0,
+      "appendix_marker_count": 0,
+      "section_consistency_issues": 1,
+      "list_style_heading_count": 0,
+      "leading_punct_heading_count": 0,
+      "short_deep_heading_count": 6,
+      "merge_mode": "strict_single_engine",
+      "supplemental_heading_total": 0,
+      "table_block_injected_total": 0,
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "checks_passed": 23,
+      "checks_total": 23,
+      "score_pct": 100.0,
+      "passed": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_min_sections_count": 1,
+      "detail_min_sections_count": "sections=54 min=45",
+      "check_min_requirements_count": 1,
+      "detail_min_requirements_count": "requirements=37 min=30",
+      "check_sections_count_drift": 1,
+      "detail_sections_count_drift": "sections=54 expected=51 drift=3",
+      "check_requirements_count_drift": 1,
+      "detail_requirements_count_drift": "requirements=37 expected=34 drift=3",
+      "check_section_consistency_issue_limit": 1,
+      "detail_section_consistency_issue_limit": "consistency_issues=1 max=4",
+      "check_required_codes_present": 1,
+      "detail_required_codes_present": "missing_required=0",
+      "check_forbidden_codes_absent": 1,
+      "detail_forbidden_codes_absent": "forbidden_present=0",
+      "check_required_appendix_scopes_present": 1,
+      "detail_required_appendix_scopes_present": "missing_appendix_scopes=0",
+      "check_appendix_marker_count_min": 1,
+      "detail_appendix_marker_count_min": "appendix_markers=0 min=0",
+      "check_required_title_contains": 1,
+      "detail_required_title_contains": "title_mismatch=0",
+      "check_required_requirement_text_contains": 1,
+      "detail_required_requirement_text_contains": "requirement_text_mismatch=0",
+      "check_required_requirement_ordered_snippets": 1,
+      "detail_required_requirement_ordered_snippets": "requirement_order_mismatch=0",
+      "check_required_table_row_snippets": 1,
+      "detail_required_table_row_snippets": "table_row_mismatch=0",
+      "check_required_tree_children": 1,
+      "detail_required_tree_children": "tree_child_mismatch=0",
+      "check_required_single_requirement_codes": 1,
+      "detail_required_single_requirement_codes": "single_requirement_mismatch=0",
+      "check_required_duplicate_code_titles": 1,
+      "detail_required_duplicate_code_titles": "duplicate_title_mismatch=0",
+      "check_forbidden_cross_section_snippets": 1,
+      "detail_forbidden_cross_section_snippets": "forbidden_cross_section_hits=0",
+      "check_forbidden_requirement_text_absent": 1,
+      "detail_forbidden_requirement_text_absent": "forbidden_requirement_text_hits=0",
+      "check_list_style_heading_limit": 1,
+      "detail_list_style_heading_limit": "list_style_headings=0 max=0",
+      "check_leading_punct_heading_limit": 1,
+      "detail_leading_punct_heading_limit": "leading_punct_headings=0 max=0",
+      "check_short_deep_heading_limit": 1,
+      "detail_short_deep_heading_limit": "short_deep_headings=6 max=8"
+    },
+    "checks_total": 23,
+    "checks_passed": 23,
+    "passed": true
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 0,
+    "issue_types": []
+  },
+  "issue_rollup": [],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Downloads/SERES MDA/【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
+    "heading_skeleton": [
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1",
+        "title": "文档范围及控制方法 ................................................................................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "版本历史 ............................................................................................................................................ 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "缩写 .................................................................................................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1.3",
+        "title": "图例 .................................................................................................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1.4",
+        "title": "目的 .................................................................................................................................................... 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1.5",
+        "title": "规范性引用文件 ................................................................................................................................ 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1.6",
+        "title": "命名办法 ............................................................................................................................................ 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1.6.1",
+        "title": "日期表示 ................................................................................................................................. 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1.6.2",
+        "title": "文件版本编号 ......................................................................................................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1.6.3",
+        "title": "文件命名 ................................................................................................................................. 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2",
+        "title": "功能分配 ....................................................................................................................................................... 4"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2.1",
+        "title": "承接功能清单 .................................................................................................................................... 4"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5",
+        "title": "性能要求 ..................................................................................................................................................... 22"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "工作电压 .......................................................................................................................................... 22"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "工作电流 .......................................................................................................................................... 22"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "接地要求 .......................................................................................................................................... 22"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5.4",
+        "title": "环境要求 .......................................................................................................................................... 23"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5.5",
+        "title": "总线通信 .......................................................................................................................................... 23"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5.5.1",
+        "title": "接口类型 ............................................................................................................................... 23"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5.5.2",
+        "title": "总线通信参数要求 ............................................................................................................... 23"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5.5.3",
+        "title": "网络管理 ............................................................................................................................... 23"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5.5.4",
+        "title": "休眠唤醒条件 ....................................................................................................................... 23"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5.6",
+        "title": "诊断通信 .......................................................................................................................................... 23"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "5.6.1",
+        "title": "诊断协议 ............................................................................................................................... 23"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1",
+        "title": "文档范围及控制方法"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1.3",
+        "title": "图例"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "1.4",
+        "title": "目的"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "1.5",
+        "title": "规范性引用文件"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "1.6",
+        "title": "命名办法 1.6.1 日期表示"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "20101027",
+        "title": "表示（2010 10 27"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "1.6.2",
+        "title": "文件版本编号"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "1.6.3",
+        "title": "文件命名"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "2",
+        "title": "功能分配"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "2.1",
+        "title": "承接功能清单"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "3",
+        "title": "产品概述"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "3.1",
+        "title": "零部件信息"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "3.2",
+        "title": "零部件原理图"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3.3",
+        "title": "连接器规格 3.3.1 接插件信息"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3.3.2",
+        "title": "引脚定义"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4",
+        "title": "功能策略"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "转速/转矩控制 4.1.1 总线信号"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "4.1.2",
+        "title": "功能描述"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "4.1.2.1",
+        "title": "前置条件"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "1",
+        "title": "ASC_F 支持左右两轮单独控制；"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "2",
+        "title": "ASC_F 被唤醒后根据高低压状态实时反馈系统状态，处于低压状态时反馈 ASCFL_State ="
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "3",
+        "title": "ASC_F 需实时反馈自身降级状态（ASCFL_Deg_Req、 ASCFR_Deg_Req）；"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4",
+        "title": "ASC_F 需实时反馈未滤波后的转速值（ASCFL_ActUnfilteredRotSpd、"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "5",
+        "title": "ASC_F 需实时反馈当前油压及其有效位（ASCFL_UpPSnsr、 ASCFL_DwnPSnsr 、"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "6",
+        "title": "ASC_F 需实时反馈当前油温（ASCFL_oilPmpT、 ASCFR_oilPmpT） 及 ECU 温度【机密】"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "7",
+        "title": "ASC_F 需实时反馈当前工作电流（ASCFL_DCI、 ASCRR_DCI） 、电压（ASCFL_DCVolt、"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "8",
+        "title": "ASC_F 需实时反馈前悬架故障安全模式（ASCFL_FsmResp、 ASCFR_FsmResp） 、前悬架高"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "1",
+        "title": "ASC_R 支持左右两轮单独控制；"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "2",
+        "title": "ASC_R 被唤醒后根据高低压状态实时反馈系统状态，处于低压状态时反馈 ASCRL_State ="
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "3",
+        "title": "ASC_R 需实时反馈自身降级状态（ASCRL_Deg_Req 、 ASCRR_Deg_Req）；"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "4",
+        "title": "ASC_R 需实时反馈未滤波后的转速值（ASCRL_ActUnfilteredRotSpd、"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "5",
+        "title": "ASC_R 需实时反馈当前油压及其有效位（ASCRL_UpPSnsr、 ASCRL_DwnPSnsr 、"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "6",
+        "title": "ASC_R 需实时反馈当前油温及 ECU 温度（ASCRL_oilPmpT、 ASCRR_oilPmpT、"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "7",
+        "title": "ASC_R 需实时反馈当前工作电流（ASCRL_DCI、 ASCRR_DCI）、电压（ASCRL_DCVolt、"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "8",
+        "title": "ASC_R 需实时反馈后悬架故障安全模式（ASCRL_FsmResp、 ASCRR_FsmResp）、 后悬架高"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "4.1.2.3",
+        "title": "显示策略"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "D5-F9-3-UC01 互锁检测 4.2.1 输入输出信号"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "4.2.1.1",
+        "title": "总线信号"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "4.2.2",
+        "title": "功能描述"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "4.2.2.1",
+        "title": "使能条件"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "4.2.2.2",
+        "title": "退出条件"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "4.2.2.3",
+        "title": "功能框图"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "4.2.2.4",
+        "title": "高压互锁检测流程"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "4.3",
+        "title": "高压上下电 4.3.1 总线信号"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "4.3.2",
+        "title": "功能描述"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "1",
+        "title": "ASC 需增加紧急高压下电流程："
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "4.4",
+        "title": "D4-F12-8-UC01 主动悬架能量回收 4.4.1 总线信号"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "4.4.2",
+        "title": "功能描述"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "5",
+        "title": "性能要求"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "工作电压"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "1",
+        "title": "工作电压范围："
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "工作电流"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "接地要求"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.4",
+        "title": "环境要求"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.5",
+        "title": "总线通信"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.5.1",
+        "title": "接口类型"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.5.2",
+        "title": "总线通信参数要求"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.5.3",
+        "title": "网络管理"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.5.4",
+        "title": "休眠唤醒条件"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.6",
+        "title": "诊断通信"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.6.1",
+        "title": "诊断协议"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.6.2",
+        "title": "在线刷写"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.6.3",
+        "title": "下线配置"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "6",
+        "title": "法规需求"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "7",
+        "title": "功能安全需求"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "8",
+        "title": "信息安全需求"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "9",
+        "title": "安装要求"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "9.1",
+        "title": "产品效果图"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "9.2",
+        "title": "产品尺寸及重量"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "9.3",
+        "title": "安装位置"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [],
+      "page_counts": {}
+    },
+    "duplicate_scope_summary": {
+      "duplicates": []
+    },
+    "baseline_delta": {
+      "requirements_count": 37,
+      "sections_count": 54,
+      "requirements_drift": 3,
+      "sections_drift": 3,
+      "table_row_issue_count": 0,
+      "complex_table_signal": true,
+      "hotspot_section_code": ""
+    },
+    "page_hotspots": [
+      {
+        "page": 29,
+        "requirement_count": 2,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.1967,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 26,
+        "requirement_count": 7,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.4117,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 19,
+        "requirement_count": 4,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.6533,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 5,
+        "requirement_count": 3,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.9633,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 7,
+        "requirement_count": 3,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.74,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 24,
+        "requirement_count": 3,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.0467,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 25,
+        "requirement_count": 3,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.6153,
+        "table_count": 3,
+        "enum_signal": 1
+      },
+      {
+        "page": 6,
+        "requirement_count": 2,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.1711,
+        "table_count": 0,
+        "enum_signal": 0
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [
+        29
+      ],
+      "selected_engine_pages": {
+        "pymupdf4llm": 20,
+        "pypdf": 4,
+        "pymupdf_raw": 4,
+        "pdfplumber": 1
+      }
+    },
+    "expected_structure_summary": []
+  },
+  "findings": [
+    {
+      "pattern_id": "complex_table_clause_binding_drift",
+      "category": "table_and_clause_binding",
+      "issue_type": "complex_table_clause_binding_drift",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Complex-table pages should keep stable section ownership while preserving row coverage.",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.",
+      "evidence_refs": [
+        "baseline_delta",
+        "page_hotspots"
+      ],
+      "confidence": 0.76,
+      "needs_human_review": false,
+      "details": {
+        "requirements_drift": 3,
+        "table_row_issue_count": 0,
+        "hotspot_section_code": ""
+      }
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "issue_type": "parser_low_confidence_hotspot",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Low-confidence pages should be stabilized before downstream clause binding is tuned.",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "evidence_refs": [
+        "parser_diagnostics.low_confidence_pages",
+        "page_hotspots"
+      ],
+      "confidence": 0.62,
+      "needs_human_review": true,
+      "details": {
+        "low_confidence_pages": [
+          29
+        ]
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "complex_table_clause_binding_drift",
+      "pattern_name": "Complex table rewrite drifts clause binding",
+      "category": "table_and_clause_binding",
+      "doc_key": "seres_v32_k89_cts_asc",
+      "pdf_name": "【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
+      "issue_type": "complex_table_clause_binding_drift",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.",
+      "benchmark_impact": [
+        "seres-mda-audit",
+        "seres-mda-gate"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "pattern_name": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "doc_key": "seres_v32_k89_cts_asc",
+      "pdf_name": "【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
+      "issue_type": "parser_low_confidence_hotspot",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "benchmark_impact": [
+        "seres-mda-audit",
+        "seres-mda-gate"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf\",\n  \"issue_rollup\": [],\n  \"findings\": [\n    {\n      \"pattern_id\": \"complex_table_clause_binding_drift\",\n      \"category\": \"table_and_clause_binding\",\n      \"issue_type\": \"complex_table_clause_binding_drift\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Complex-table pages should keep stable section ownership while preserving row coverage.\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.\",\n      \"evidence_refs\": [\n        \"baseline_delta\",\n        \"page_hotspots\"\n      ],\n      \"confidence\": 0.76,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"requirements_drift\": 3,\n        \"table_row_issue_count\": 0,\n        \"hotspot_section_code\": \"\"\n      }\n    },\n    {\n      \"pattern_id\": \"parser_low_confidence_hotspot\",\n      \"category\": \"table_and_clause_binding\",\n      \"issue_type\": \"parser_low_confidence_hotspot\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Low-confidence pages should be stabilized before downstream clause binding is tuned.\",\n      \"suspected_layer\": \"parser\",\n      \"recommended_fix_direction\": \"Inspect page merge selection and parser confidence signals before changing downstream section logic.\",\n      \"evidence_refs\": [\n        \"parser_diagnostics.low_confidence_pages\",\n        \"page_hotspots\"\n      ],\n      \"confidence\": 0.62,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"low_confidence_pages\": [\n          29\n        ]\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 29,\n      \"requirement_count\": 2,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.1967,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 26,\n      \"requirement_count\": 7,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.4117,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 19,\n      \"requirement_count\": 4,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.6533,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 5,\n      \"requirement_count\": 3,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.9633,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 7,\n      \"requirement_count\": 3,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.74,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 24,\n      \"requirement_count\": 3,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 2.0467,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [],\n    \"page_counts\": {}\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": []\n  }\n}"
+    }
+  ]
+}

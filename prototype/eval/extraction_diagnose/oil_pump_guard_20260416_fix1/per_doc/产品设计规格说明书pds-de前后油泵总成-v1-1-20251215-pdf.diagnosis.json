@@ -1,0 +1,1368 @@
+{
+  "doc_key": "pds_de_oil_pump_v1_1",
+  "pdf_name": "产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+  "pdf_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/1c2c77601d034f7f95801313a62d20ed_产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+  "batch_id": "legacy_benchmark_core",
+  "gate_tags": [
+    "regression-suite",
+    "oil-pump-benchmark"
+  ],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "pds_de_oil_pump_v1_1",
+    "fidelity": "pds_de_oil_pump_v1_1"
+  },
+  "status": {
+    "quality_profile_matched": true,
+    "fidelity_profile_matched": true,
+    "needs_human_review": false
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+      "profile": "pds_de_oil_pump_v1_1",
+      "outline_count": 106,
+      "checks_passed": 10,
+      "checks_total": 10,
+      "score_pct": 100.0,
+      "duplicate_code_count": 0,
+      "suspicious_heading_count": 0,
+      "suspicious_heading_ratio": 0.0,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 1,
+      "detail_outline_count_min": "outline_count=106",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=0",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0000",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0",
+      "check_profile_required_codes_present": 1,
+      "detail_profile_required_codes_present": "missing_required=0",
+      "check_profile_guard_sections_clean": 1,
+      "detail_profile_guard_sections_clean": "guard_violations=0"
+    },
+    "checks_total": 10,
+    "checks_passed": 10
+  },
+  "fidelity_gate": {
+    "doc_row": {
+      "pdf_name": "1c2c77601d034f7f95801313a62d20ed_产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+      "profile": "pds_de_oil_pump_v1_1",
+      "sections_count": 80,
+      "requirements_count": 99,
+      "appendix_scope_count": 10,
+      "appendix_marker_count": 3,
+      "section_consistency_issues": 6,
+      "list_style_heading_count": 0,
+      "leading_punct_heading_count": 0,
+      "short_deep_heading_count": 0,
+      "merge_mode": "strict_single_engine",
+      "supplemental_heading_total": 0,
+      "table_block_injected_total": 0,
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "checks_passed": 23,
+      "checks_total": 23,
+      "score_pct": 100.0,
+      "passed": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_min_sections_count": 1,
+      "detail_min_sections_count": "sections=80 min=80",
+      "check_min_requirements_count": 1,
+      "detail_min_requirements_count": "requirements=99 min=80",
+      "check_sections_count_drift": 1,
+      "detail_sections_count_drift": "sections=80 expected=91 drift=11",
+      "check_requirements_count_drift": 1,
+      "detail_requirements_count_drift": "requirements=99 expected=99 drift=0",
+      "check_section_consistency_issue_limit": 1,
+      "detail_section_consistency_issue_limit": "consistency_issues=6 max=14",
+      "check_required_codes_present": 1,
+      "detail_required_codes_present": "missing_required=0",
+      "check_forbidden_codes_absent": 1,
+      "detail_forbidden_codes_absent": "forbidden_present=0",
+      "check_required_appendix_scopes_present": 1,
+      "detail_required_appendix_scopes_present": "missing_appendix_scopes=0",
+      "check_appendix_marker_count_min": 1,
+      "detail_appendix_marker_count_min": "appendix_markers=3 min=0",
+      "check_required_title_contains": 1,
+      "detail_required_title_contains": "title_mismatch=0",
+      "check_required_requirement_text_contains": 1,
+      "detail_required_requirement_text_contains": "requirement_text_mismatch=0",
+      "check_required_requirement_ordered_snippets": 1,
+      "detail_required_requirement_ordered_snippets": "requirement_order_mismatch=0",
+      "check_required_table_row_snippets": 1,
+      "detail_required_table_row_snippets": "table_row_mismatch=0",
+      "check_required_tree_children": 1,
+      "detail_required_tree_children": "tree_child_mismatch=0",
+      "check_required_single_requirement_codes": 1,
+      "detail_required_single_requirement_codes": "single_requirement_mismatch=0",
+      "check_required_duplicate_code_titles": 1,
+      "detail_required_duplicate_code_titles": "duplicate_title_mismatch=0",
+      "check_forbidden_cross_section_snippets": 1,
+      "detail_forbidden_cross_section_snippets": "forbidden_cross_section_hits=0",
+      "check_forbidden_requirement_text_absent": 1,
+      "detail_forbidden_requirement_text_absent": "forbidden_requirement_text_hits=0",
+      "check_list_style_heading_limit": 1,
+      "detail_list_style_heading_limit": "list_style_headings=0 max=0",
+      "check_leading_punct_heading_limit": 1,
+      "detail_leading_punct_heading_limit": "leading_punct_headings=0 max=0",
+      "check_short_deep_heading_limit": 1,
+      "detail_short_deep_heading_limit": "short_deep_headings=0 max=8"
+    },
+    "checks_total": 23,
+    "checks_passed": 23,
+    "passed": true
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 0,
+    "issue_types": []
+  },
+  "issue_rollup": [],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/1c2c77601d034f7f95801313a62d20ed_产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+    "heading_skeleton": [
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1",
+        "title": "概述"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "本PDS文件在JAC签字后以书面形式提供给潜在供应商用于进行产品设计、开发、制造及验证报价。"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "供应商需负责下列事项（适用者勾选）"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1.3",
+        "title": "保密约定"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1.4",
+        "title": "联系方式"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1.5",
+        "title": "其他"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1.5.1",
+        "title": "交流过程中及最终交付的所有文件只接受简体中文文件。"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2",
+        "title": "供应商能力要求及设计责任"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2.1",
+        "title": "供应商能力要求"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2.1.1",
+        "title": "软件开发能力要求"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "1",
+        "title": "对于带软件的零部件（如ESC、T-box等），供应商软件开发能力需达到CMMI或ASPICE评估等级2级或以上"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2",
+        "title": "对于带软件的零部件，供应商应在JAC提供的软件安全开发框架范围内进行开发。"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2.3",
+        "title": "供应商设计责任（适用者勾选）"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3",
+        "title": "车型/产品信息"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.1",
+        "title": "车型信息"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.2",
+        "title": "产品技术要求及说明"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3.2.1",
+        "title": "产品信息"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1",
+        "title": "2 2901700X8D1110 前油泵总成 ＜16.1 下级件包含：油泵+油管+支架+油液+"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2",
+        "title": "3 / 前油泵本体 ＜13 NR、SiC AlSi10MnMg等 1件新开发"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3",
+        "title": "3 / 左前油管总成 ＜1.2 10#钢+HNBR等 1件新开发"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5",
+        "title": "3 / 右前油管总成 ＜1.2 10#钢+HNBR等 1件新开发"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "7",
+        "title": "3 / 油液、支架及标准件 ＜0.7 / / 新开发"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "8",
+        "title": "2 2911700X8D1110 后油泵总成 ＜16.9 下级件包含：油泵+油管+支架+油液+"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "9",
+        "title": "3 / 后油泵本体 ＜13 NR、SiC AlSi10MnMg等 1件新开发"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "2",
+        "title": "控制响应性能要求"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1",
+        "title": "转速控制精度 ±1%（＞1000rpm）"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "2",
+        "title": "超调量 ＜5% （第一个峰值转速-目标转速）/目标转速"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3",
+        "title": "延时时间 ＜1ms"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "4",
+        "title": "响应（上升）时间"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "5",
+        "title": "动态调节时间 ＜30ms"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "6",
+        "title": "频率响应"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3",
+        "title": "油泵总成接口要求（油泵总成接口需满足整车布置要求）"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1",
+        "title": "轮廓尺寸要求长度L＜405mm，宽度b＜122mm，高度h＜158.2mm"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "2",
+        "title": "油口接头接口根据需求进行定义"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3",
+        "title": "前油泵总成与副车架接口 Z向布置，"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "4",
+        "title": "后油泵总成与副车架接口 Z向布置，"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "6.6.4",
+        "title": "OTA要求"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "6.6.5",
+        "title": "故障诊断要求"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "6.7",
+        "title": "功能安全要求"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "7",
+        "title": "可靠性要求"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "7.1",
+        "title": "寿命耐久要求"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "7.2",
+        "title": "环境适应性要求"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "7.3",
+        "title": "机械性能要求"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "7.4",
+        "title": "热老化：需满足120℃ 200h，或110℃ 500h"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "7.5",
+        "title": "禁用物质：符合国标30512限制要求 26988可回收利用标识；"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "7.5.1",
+        "title": "除附录A中规定的在一定期限内豁免的汽车零部件和材料外，汽车及其零部件产品中每一均匀材质中的铅、贡、六价铬、多溴联苯（PBBS）、多留联"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "7.5.2",
+        "title": "橡塑件表示按照QC/T797执行，并满足GB/T26988要求。"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8",
+        "title": "油泵衬套要求"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "8.1.3",
+        "title": "在下列分析工况下，油泵总成质心位移满足下表中的要求；"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "8.2",
+        "title": "衬套要求："
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "8.2.1",
+        "title": "持续工作温度通常需要满足-40℃到+115℃，极限温度需要满足120℃单次30min，累计时长90h，动静刚度比值≤2.5"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "8.2.2",
+        "title": "需满足在低温条件下，悬置隔振性能不能有15%的损失。"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "8.2.3",
+        "title": "油泵支架隔振衬套零部件装车后不得有非正常噪音，包括新状态和可靠性试验后。"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "8.2.4",
+        "title": "油泵支架隔振衬套刚度曲线设计和仿真，需要得到悬置工程师和NVH仿真工程师的认可。"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "8.2.5",
+        "title": "橡胶衬套设计要求（需要甲乙讨论后确认）："
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "8.2.5.1",
+        "title": "设计衬套并输出三向刚度曲线"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "8.2.5.2",
+        "title": "衬套Z向15Hz时动静比（振幅±0.05mm），要求静载时动静比小于2.2，以最终NVH验收为准；"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "8.2.5.3",
+        "title": "衬套径向动刚度曲线平滑，动静比≦2.5;"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "8.2.5.4",
+        "title": "衬套与泵盖吊耳之间的压出力要求"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "8.3",
+        "title": "悬置橡胶动、静刚度制造偏差控制在±15%以内；"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3.3",
+        "title": "三新件及首发技术风险 （必备）"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3.3.1",
+        "title": "是否三新件（新技术、新材料、新工艺）（适用者勾选）："
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3.3.2",
+        "title": "首发技术风险（涉及新技术的零部件勾选下列适用者，否则无需勾选）："
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4",
+        "title": "标准法规要求"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "法规与认证"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "供应商对产品相关标准法规的符合性负有直接责任，应在开发过程中重点关注标准法规的发展趋势，与在研标准法规的兼容性等方面"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.3",
+        "title": "认证涉及的零部件，供应商应按JAC要求提供相关证书和报告"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.4",
+        "title": "依据标准"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5",
+        "title": "开发过程要求"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "供应商提供的报价应包含如下部分："
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "交付物要求"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "1",
+        "title": "设计方案说明书 / TR阶段"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "2",
+        "title": "初版3D数模 / TR阶段"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "3",
+        "title": "初版2D总成图纸 / 软模阶段交样前"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "4",
+        "title": "BOM / 软模阶段交样前"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5",
+        "title": "DFMEA /"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "6",
+        "title": "尺寸检测报告 /"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "7",
+        "title": "性能检测报告 /"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "8",
+        "title": "DVP测试报告 /"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "9",
+        "title": "产品描述书 /"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "数据开发阶段"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "5.4",
+        "title": "模具开发阶段"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "1",
+        "title": "FMEA要求"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "FMEA编制与更新"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "FMEA评审"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "1.3",
+        "title": "FMEA存档要求"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "1.4",
+        "title": "失效后果严重度"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "2",
+        "title": "特殊特性"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "2.1",
+        "title": "特殊特性清单"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "2.2",
+        "title": "特殊特性分类与标识"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "2.3",
+        "title": "特殊特性控制要求"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1",
+        "title": "可靠性设计目标"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "环境适应性要求（必备）"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "机械性能要求（必备）"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1.2.1",
+        "title": "电子电气部件机械负荷"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "3",
+        "title": "2模式）。"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1.2.2",
+        "title": "金属结构件耐久"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1.2.3",
+        "title": "非金属结构件/饰件、漆膜、镀层、皮纹等"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1.3",
+        "title": "化学性能要求（必备）"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1.3.1",
+        "title": "电子电气部件，前油泵部件安装在前副车架的前转和电池包之间位置，后油泵安装在后轮转向和尾消之间，需满足GB/T 2423.18盐雾腐蚀要求（舱外：严酷度4（14天）；舱"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1.3.2",
+        "title": "结构件"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "1.4",
+        "title": "其他要求（可选，如电气负荷等）"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "2",
+        "title": "主要设计和验证要求（注：测试工况和评价验收方案需在DVP中详细定义。）"
+      },
+      {
+        "page": 15,
+        "kind": "appendix",
+        "code": "4--",
+        "title": "附件4--诊断、OTA相关标准"
+      },
+      {
+        "page": 15,
+        "kind": "appendix",
+        "code": "4",
+        "title": "附件4 --诊断要求"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "3",
+        "title": "诊断设计要求"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "3.1",
+        "title": "诊断设计要求"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "3.2",
+        "title": "智能诊断设计要求"
+      },
+      {
+        "page": 16,
+        "kind": "appendix",
+        "code": "4",
+        "title": "附件4 --OTA内容"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4",
+        "title": "OTA设计要求"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "传统ECU（基于MCU嵌入式芯片开发，没有智能操作系统和文件系统，不支持自安装）要求："
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "智能部件（带有操作系统和文件系统的部件）通用要求："
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "7.3.3",
+        "title": "1"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "7.3.3.2",
+        "title": "1）对接入端实施安全保护措施，如接入认证；（注：UDS27认证属于接入认证）"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "2",
+        "title": "对刷入的升级包需要有真实性完整性保护机制，包括数字签名或MAC等，如果校验失败终止升级流程。"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "7.3.1.2",
+        "title": "应用商店的所有授权第三方应用都需要进行漏洞扫描等常规检测，对扫描结果中存在6个月前公布且未经处置的高危"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "7.1.1.2",
+        "title": "车辆应关闭非业务必要的网络端口。 明，动态侦听端口必须限定确定的合理的范围。通过端口扫描工具验证，未在车辆通信矩阵中列出的端口必须关闭。"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "7.1.2.1",
+        "title": "应对远程控制指令信息进行真实性和完整性验证。 车云、ADS云通过TLS向车端发送控车指令，车端拒绝非TLS发来的控车指令；"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "7.1.2",
+        "title": "2"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "7.1.3.1",
+        "title": "注：第三方应用是指车辆制造商及其供应商之外的其他实体提供的"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "7.1.3.2",
+        "title": "第三方应用进行访问控制，限制此类应用直接访问系统资源、个人如果有通过车机官方应用市场之外安装的应用，如通过ADB、浏览器方式安全的应用，需要对其进行访问限制，不允"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "7.1.4.1",
+        "title": "注：外部接口包括USB接口、诊断接口和其他可直接接触的物理接制、身份认证机制、诊断27认证等。"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "7.1.4.2",
+        "title": "具有USB、SD接入设备访问权限的服务只允许从插入的外部存储介质读写指定格式的文件。产品需要列出支持的具体"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "7.1.4.3",
+        "title": "车辆应对 USB 接口接入设备中的病毒风险进行处置。 移动存储介质（如USB、SD卡）接入到车辆时，必须以noexec、nodev方式挂载。"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "7.2",
+        "title": "11"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "7.1.2.3",
+        "title": "至少包括远程控制指令的时间、发送主体、远程控制对象、操作结车端负责解析远程指令的系统需要在接收到车辆远程控制指令并处理后进行日志记录，记录的内容需要包括远程控制"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "7.2.12",
+        "title": "日志需要留存6个月以上，可以本地存储也可以上传至云端存储。"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "7.3.2.3",
+        "title": "车端需要记录在升级过程中发生的信息安全事件（如升级包校验失败败等由厂商自行定义的信息安全相关事件）"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "7.4.1",
+        "title": "车辆应采取安全访问技术或安全存储技术保护存储的对称密钥和非对称密钥中的私钥，防止其被非授权访问和获取。"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "7.4.2",
+        "title": "车辆应采取安全访问技术、加密技术或其他安全技术保护存储在车内的敏感个人信息，防止其被非授权访问和获取。"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "7.4",
+        "title": "3"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "7.4.5",
+        "title": "车辆不提供非授权的删除安全日志接口，不提供修改安全日志接口。"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "7.4",
+        "title": "6"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "7.4.7",
+        "title": "注：用户使用浏览器访问境外网站、使用通信软件向境外传递消息、自主安装可能导致数据出境的第三方应用等用户"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "5.1.1",
+        "title": "。除非驾驶人自主设定，车辆应默认设定为不收集个人信息的状态；除非取得个人信息主体同意，不应向车外提供个"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "5",
+        "title": "1个人信息处理"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "个人同意"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.2.3.1",
+        "title": "汽车数据处理者仍有必要继续进行除删除外的个人信息处理活动。"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.2.3.2",
+        "title": "当个人信息的处理目的、处理方式和处理的个人信息种类发生变更时，汽车数据处理者应重新取得个人同意。"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.2.4",
+        "title": "应提供撤回个人同意的途径。"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "1"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "个人信息收集因同一数据收集设备支持多个功能服务且所需数据精度要求不同"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.3.2",
+        "title": "时，至少应有一个功能服务符合上述的要求，针对其他不符合要求如果摄像头、雷达等被多个业务功能复用，那么其最大覆盖范围和最大分辨率不能超出所有功能的要求。"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.6.1.1",
+        "title": "车辆应对向车外发送的敏感个人信息实施保密性保护措施。"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.6.1.2",
+        "title": "画面，或者对画面中的人脸信息或汽车号牌信息等进行局部轮廓化够识别自然人的画面，或者对画面中的人脸信息或汽车号牌信息等进行局部轮廓化处理等，匿名化处理应符合“《汽"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.6.2.1.1",
+        "title": "嘴清晰可见。"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.6",
+        "title": "个人信息传输 。"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "5.6.2.1.2",
+        "title": "汽车数据处理者至少应对图像或视频中满足以下要求的汽车号牌目标进行匿名化处理："
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "2",
+        "title": "产品网络安全生命周期-概念设计阶段 Product Cybersecurity Lifecycle -Concept Phase"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "4",
+        "title": "产品网络安全生命周期-生产阶段 Product Cybersecurity Lifecycle -Production"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [
+        {
+          "appendix_scope": "SUB9",
+          "parent_section_code": "5.6.2.1.2",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "5.6.2.2.1",
+            "5.6.2.2.2"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "SUB9",
+          "parent_section_code": "5.2.4",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "5.3.1"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "SUB9",
+          "parent_section_code": "5.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "5.3.2"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "SUB8",
+          "parent_section_code": "7.4.2",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "7.4.4"
+          ],
+          "expected_direct_children": [
+            "7"
+          ]
+        }
+      ],
+      "page_counts": {
+        "20": 1,
+        "22": 4
+      }
+    },
+    "duplicate_scope_summary": {
+      "duplicates": []
+    },
+    "baseline_delta": {
+      "requirements_count": 99,
+      "sections_count": 80,
+      "requirements_drift": 0,
+      "sections_drift": -11,
+      "table_row_issue_count": 0,
+      "complex_table_signal": true,
+      "hotspot_section_code": ""
+    },
+    "page_hotspots": [
+      {
+        "page": 22,
+        "requirement_count": 12,
+        "missing_local_clause_count": 4,
+        "low_confidence": false,
+        "selected_engine": "pdfplumber",
+        "quality_score": 2.1792,
+        "table_count": 0,
+        "enum_signal": 2
+      },
+      {
+        "page": 20,
+        "requirement_count": 10,
+        "missing_local_clause_count": 1,
+        "low_confidence": false,
+        "selected_engine": "pdfplumber",
+        "quality_score": 1.9415,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 8,
+        "requirement_count": 38,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.4406,
+        "table_count": 0,
+        "enum_signal": 38
+      },
+      {
+        "page": 7,
+        "requirement_count": 15,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pdfplumber",
+        "quality_score": 1.2611,
+        "table_count": 0,
+        "enum_signal": 15
+      },
+      {
+        "page": 10,
+        "requirement_count": 15,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.2518,
+        "table_count": 0,
+        "enum_signal": 10
+      },
+      {
+        "page": 1,
+        "requirement_count": 11,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pdfplumber",
+        "quality_score": 1.8849,
+        "table_count": 0,
+        "enum_signal": 4
+      },
+      {
+        "page": 13,
+        "requirement_count": 11,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pdfplumber",
+        "quality_score": 1.7253,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 12,
+        "requirement_count": 8,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.5441,
+        "table_count": 4,
+        "enum_signal": 0
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [],
+      "selected_engine_pages": {
+        "pdfplumber": 6,
+        "pypdf": 7,
+        "pymupdf4llm": 21
+      }
+    },
+    "expected_structure_summary": [
+      {
+        "appendix_scope": "SUB9",
+        "parent_section_code": "5.6.2.1.2",
+        "expected_children": [
+          "5"
+        ],
+        "summary": "5.6.2.1.2 should expose local anchors: 5"
+      },
+      {
+        "appendix_scope": "SUB9",
+        "parent_section_code": "5.2.4",
+        "expected_children": [
+          "5"
+        ],
+        "summary": "5.2.4 should expose local anchors: 5"
+      },
+      {
+        "appendix_scope": "SUB9",
+        "parent_section_code": "5.3",
+        "expected_children": [
+          "5"
+        ],
+        "summary": "5.3 should expose local anchors: 5"
+      },
+      {
+        "appendix_scope": "SUB8",
+        "parent_section_code": "7.4.2",
+        "expected_children": [
+          "7"
+        ],
+        "summary": "7.4.2 should expose local anchors: 7"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "SUB9",
+      "impacted_section": "5.6.2.1.2",
+      "expected_structure_summary": "5.6.2.1.2 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.6.2.1.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "5.6.2.2.1",
+          "5.6.2.2.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "SUB9",
+      "impacted_section": "5.2.4",
+      "expected_structure_summary": "5.2.4 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.2.4]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "5.3.1"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "SUB9",
+      "impacted_section": "5.3",
+      "expected_structure_summary": "5.3 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "5.3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "SUB8",
+      "impacted_section": "7.4.2",
+      "expected_structure_summary": "7.4.2 should expose local section anchors such as 7",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[7.4.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "7.4.4"
+        ]
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "pattern_name": "Local clause heading not promoted to section anchor",
+      "category": "heading_recovery",
+      "doc_key": "pds_de_oil_pump_v1_1",
+      "pdf_name": "产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+      "issue_type": "local_clause_section_missing",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "benchmark_impact": [
+        "regression-suite",
+        "oil-pump-benchmark"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf\",\n  \"issue_rollup\": [],\n  \"findings\": [\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"SUB9\",\n      \"impacted_section\": \"5.6.2.1.2\",\n      \"expected_structure_summary\": \"5.6.2.1.2 should expose local section anchors such as 5\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[5.6.2.1.2]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"5.6.2.2.1\",\n          \"5.6.2.2.2\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"SUB9\",\n      \"impacted_section\": \"5.2.4\",\n      \"expected_structure_summary\": \"5.2.4 should expose local section anchors such as 5\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[5.2.4]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"5.3.1\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"SUB9\",\n      \"impacted_section\": \"5.3\",\n      \"expected_structure_summary\": \"5.3 should expose local section anchors such as 5\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[5.3]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"5.3.2\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"SUB8\",\n      \"impacted_section\": \"7.4.2\",\n      \"expected_structure_summary\": \"7.4.2 should expose local section anchors such as 7\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[7.4.2]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"7.4.4\"\n        ]\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 22,\n      \"requirement_count\": 12,\n      \"missing_local_clause_count\": 4,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pdfplumber\",\n      \"quality_score\": 2.1792,\n      \"table_count\": 0,\n      \"enum_signal\": 2\n    },\n    {\n      \"page\": 20,\n      \"requirement_count\": 10,\n      \"missing_local_clause_count\": 1,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pdfplumber\",\n      \"quality_score\": 1.9415,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 8,\n      \"requirement_count\": 38,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.4406,\n      \"table_count\": 0,\n      \"enum_signal\": 38\n    },\n    {\n      \"page\": 7,\n      \"requirement_count\": 15,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pdfplumber\",\n      \"quality_score\": 1.2611,\n      \"table_count\": 0,\n      \"enum_signal\": 15\n    },\n    {\n      \"page\": 10,\n      \"requirement_count\": 15,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.2518,\n      \"table_count\": 0,\n      \"enum_signal\": 10\n    },\n    {\n      \"page\": 1,\n      \"requirement_count\": 11,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pdfplumber\",\n      \"quality_score\": 1.8849,\n      \"table_count\": 0,\n      \"enum_signal\": 4\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [\n      {\n        \"appendix_scope\": \"SUB9\",\n        \"parent_section_code\": \"5.6.2.1.2\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"5.6.2.2.1\",\n          \"5.6.2.2.2\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"SUB9\",\n        \"parent_section_code\": \"5.2.4\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"5.3.1\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"SUB9\",\n        \"parent_section_code\": \"5.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"5.3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"SUB8\",\n        \"parent_section_code\": \"7.4.2\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"7.4.4\"\n        ],\n        \"expected_direct_children\": [\n          \"7\"\n        ]\n      }\n    ],\n    \"page_counts\": {\n      \"20\": 1,\n      \"22\": 4\n    }\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": []\n  }\n}"
+    }
+  ]
+}

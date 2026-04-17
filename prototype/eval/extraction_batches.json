@@ -16,6 +16,12 @@
       "root": "worktree",
       "path": "prototype/storage/uploads",
       "optional": true
+    },
+    {
+      "name": "seres_mda_downloads",
+      "root": "home",
+      "path": "Downloads/SERES MDA",
+      "optional": true
     }
   ],
   "batches": [
@@ -61,6 +67,80 @@
       "gate_expectations": {
         "min_quality_score_pct": 95.0,
         "min_quality_doc_score_pct": 70.0,
+        "max_quality_high_severity_issues": 0
+      }
+    },
+    {
+      "id": "seres_mda_customer_docs",
+      "description": "SERES MDA customer document audit pack covering Q/SK standards, CTS specs, security algorithm addenda, and RFC-style references.",
+      "documents": [
+        {
+          "doc_key": "seres_aes_cmac_ref",
+          "match_regex": "AES-CMAC128算法伪代码20250410"
+        },
+        {
+          "doc_key": "seres_q_sk_j00_14",
+          "match_regex": "Q-SK\\s*J00\\.14-2025"
+        },
+        {
+          "doc_key": "seres_q_sk_j02_226",
+          "match_regex": "Q-SK\\s*J02\\.226-2023"
+        },
+        {
+          "doc_key": "seres_q_sk_j02_233",
+          "match_regex": "Q-SK\\s*J02\\.233-2023"
+        },
+        {
+          "doc_key": "seres_q_sk_j02_311",
+          "profile": "seres_q_sk_j02_311",
+          "match_regex": "Q-SK\\s*J02\\.311-2025",
+          "gate_tags": [
+            "seres-mda-audit",
+            "seres-mda-gate"
+          ]
+        },
+        {
+          "doc_key": "seres_q_sk_j02_321",
+          "match_regex": "Q-SK\\s*J02\\.321-2025"
+        },
+        {
+          "doc_key": "seres_q_sk_j02_385",
+          "match_regex": "Q-SK\\s*J02\\.385-2024"
+        },
+        {
+          "doc_key": "seres_q_sk_j02_71",
+          "match_regex": "Q-SK\\s*J02\\.71-2023"
+        },
+        {
+          "doc_key": "seres_q_sk_j02_86",
+          "match_regex": "Q-SK\\s*J02\\.86-2024"
+        },
+        {
+          "doc_key": "seres_v32_k89_cts_asc",
+          "profile": "seres_v32_k89_cts_asc",
+          "match_regex": "V32&K89_CTS_ASC_V1\\.1\\.0_20250630",
+          "gate_tags": [
+            "seres-mda-audit",
+            "seres-mda-gate"
+          ]
+        },
+        {
+          "doc_key": "seres_uds_signing_v1_1",
+          "profile": "seres_uds_signing_v1_1",
+          "match_regex": "UDS刷写规范\\s*安全签名算法要求V1\\.1_20250410",
+          "gate_tags": [
+            "seres-mda-audit",
+            "seres-mda-gate"
+          ]
+        },
+        {
+          "doc_key": "seres_uds_27_security_v2_9",
+          "match_regex": "UDS诊断规范\\s*27服务安全算法要求V2\\.9_20250410"
+        }
+      ],
+      "gate_expectations": {
+        "min_quality_score_pct": 60.0,
+        "min_quality_doc_score_pct": 30.0,
         "max_quality_high_severity_issues": 0
       }
     }

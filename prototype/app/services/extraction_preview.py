@@ -1,10 +1,19 @@
 from __future__ import annotations
 
+from collections import defaultdict
+from contextlib import nullcontext
+import hashlib
 import re
 from pathlib import Path
 from statistics import mean
 from typing import Any
 
+try:
+    import fitz  # type: ignore
+except Exception:  # pragma: no cover - optional dependency
+    fitz = None
+
+from app.runtime_paths import resolve_storage_dir
 from app.services.appendix_scopes import (
     APPENDIX_EVIDENCE_EXPLICIT,
     APPENDIX_EVIDENCE_HEADING,
@@ -41,7 +50,26 @@ from app.services.extractor import (
     extract_section_outline,
 )
 from app.services.parser import parse_document_with_diagnostics
-from app.services.table_assets import enrich_entries_with_table_assets
+from app.services.table_assets import (
+    _build_context_anchor_fragments,
+    _build_ai_projection,
+    _build_table_id,
+    _best_context_anchor_in_page,
+    _collect_anchor_window_content_bboxes,
+    _compose_vertical_images,
+    _load_pdf_page_line_records,
+    _looks_like_markdown_table_row,
+    _normalize_table_ref,
+    _parse_markdown_cells,
+    _render_pdf_crop_plan,
+    _split_text_blocks,
+    _snapshot_file_is_usable,
+    _summarize_pdf_crop_plan_features,
+    _write_full_page_span_source_snapshot,
+    _write_png_atomically,
+    enrich_entries_with_table_assets,
+    render_table_png,
+)
 
 
 SECTION_ANCHOR_RE = re.compile(r"Section\s+([0-9]+(?:\.[0-9]+){0,8})(?:\s+([^|]+))?", re.I)
@@ -73,6 +101,1644 @@ TEST_OUTLINE_MARKER_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
     (re.compile(r"测试分组\s*/\s*test groups", re.I), TEST_OUTLINE_SCOPE_GROUPS, TEST_OUTLINE_SCOPE_GROUPS),
     (re.compile(r"用电器试验大纲", re.I), TEST_OUTLINE_SCOPE_ELECTRIC, TEST_OUTLINE_SCOPE_ELECTRIC),
 ]
+VISUAL_SNAPSHOT_CUE_RE = re.compile(r"(?:如下图|图例|原理图|框图|流程图|示意图|效果图|产品效果图)", re.I)
+_SECTION_WINDOW_SNAPSHOT_SIGNATURE_VERSION = "section-window-v2"
+_SIGNIFICANT_VISUAL_MIN_AREA = 3000.0
+_SIGNIFICANT_VISUAL_MIN_WIDTH = 100.0
+_SIGNIFICANT_VISUAL_MIN_HEIGHT = 28.0
+_LAYOUT_TABLE_MIN_LABEL_BLOCKS = 3
+_LAYOUT_TABLE_MIN_BODY_BLOCKS = 6
+_LAYOUT_TABLE_MIN_PAGE_SPAN = 2
+_LAYOUT_TABLE_MAX_TEXT_CHARS = 1800
+_LAYOUT_TABLE_MAX_TEXT_LINES = 28
+_VISUAL_BAND_MAX_GAP = 28.0
+_PROTOTYPE_DIR = Path(__file__).resolve().parents[2]
+
+
+def _ensure_snapshot_root_writable(path: Path) -> bool:
+    try:
+        path.mkdir(parents=True, exist_ok=True)
+    except OSError:
+        return False
+
+    probe = path / f".write_probe_{hashlib.sha1(str(path).encode('utf-8')).hexdigest()[:8]}"
+    try:
+        probe.write_bytes(b"")
+    except OSError:
+        return False
+    try:
+        probe.unlink()
+    except OSError:
+        pass
+    return True
+
+
+def _default_table_snapshot_root(file_path: str) -> Path:
+    source_path = Path(str(file_path or "")).expanduser()
+    if str(file_path or "").strip():
+        preferred = source_path.parent / "table_snapshots"
+        if _ensure_snapshot_root_writable(preferred):
+            return preferred
+
+    storage_root = resolve_storage_dir(_PROTOTYPE_DIR)
+    doc_token = hashlib.sha1(str(source_path).encode("utf-8")).hexdigest()[:12]
+    fallback = storage_root / "table_snapshots" / "adhoc" / doc_token
+    fallback.mkdir(parents=True, exist_ok=True)
+    return fallback
+
+
+def _raw_markdown_table_body_row_count(raw_text: str) -> int:
+    lines = [str(line or "").strip() for line in str(raw_text or "").splitlines() if str(line or "").strip()]
+    markdown_rows = [line for line in lines if line.startswith("|") and line.count("|") >= 2]
+    if len(markdown_rows) <= 1:
+        return 0
+    return max(0, len(markdown_rows) - 1)
+
+
+def _content_blocks_with_single_table(content_blocks: list[dict[str, Any]], table_id: str) -> list[dict[str, Any]]:
+    paragraphs = [
+        {"kind": "paragraph", "text": str(block.get("text") or "").strip()}
+        for block in content_blocks or []
+        if str(block.get("kind") or "").strip().lower() == "paragraph" and str(block.get("text") or "").strip()
+    ]
+    if not paragraphs:
+        return [{"kind": "table", "table_id": table_id}]
+    return [paragraphs[0], {"kind": "table", "table_id": table_id}, *paragraphs[1:]]
+
+
+def _snapshot_fallback_text_lines(row: dict[str, Any]) -> list[str]:
+    lines: list[str] = []
+    for block in row.get("content_blocks") or []:
+        if str(block.get("kind") or "").strip().lower() != "paragraph":
+            continue
+        for part in str(block.get("text") or "").splitlines():
+            cleaned = str(part or "").strip()
+            if cleaned:
+                lines.append(cleaned)
+    if not lines:
+        text = str(row.get("display_text") or row.get("raw_text") or row.get("section_title") or "").strip()
+        lines = [str(part or "").strip() for part in text.splitlines() if str(part or "").strip()]
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for line in lines:
+        token = re.sub(r"\s+", " ", line).strip()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        deduped.append(line)
+    return deduped
+
+
+def _compact_snapshot_fallback_lines(row: dict[str, Any], *, suffix: str) -> list[str]:
+    lines = _snapshot_fallback_text_lines(row)
+    if not lines:
+        return []
+    raw_text = str(row.get("raw_text") or "")
+    if suffix in {"table_fallback", "layout_table_fallback"}:
+        return lines[:1]
+    if suffix == "visual_override" and _raw_markdown_table_body_row_count(raw_text) > 0:
+        return lines[:1]
+    if suffix == "visual_fallback":
+        if len(lines) <= 3:
+            return lines
+        cue_lines = [line for line in lines[1:] if VISUAL_SNAPSHOT_CUE_RE.search(line)]
+        if cue_lines:
+            return [lines[0], *cue_lines[:3]]
+        return lines[:2]
+    return lines
+
+
+def _snapshot_fallback_title(row: dict[str, Any], *, suffix: str) -> str:
+    compact_lines = _compact_snapshot_fallback_lines(row, suffix=suffix)
+    if compact_lines:
+        return "\n".join(compact_lines)
+    title = str(row.get("section_label") or row.get("section_code") or row.get("section_title") or "").strip()
+    return title or str(row.get("entry_id") or "视觉快照").strip()
+
+
+def _content_blocks_for_snapshot_fallback(
+    row: dict[str, Any],
+    table_id: str,
+    *,
+    suffix: str,
+) -> list[dict[str, Any]]:
+    compact_lines = _compact_snapshot_fallback_lines(row, suffix=suffix)
+    if not compact_lines:
+        return [{"kind": "table", "table_id": table_id}]
+    return [
+        *({"kind": "paragraph", "text": line} for line in compact_lines),
+        {"kind": "table", "table_id": table_id},
+    ]
+
+
+def _normalize_table_header_token(value: str) -> str:
+    token = re.sub(r"\s+", " ", str(value or "").strip()).strip("：:;/ ")
+    return token.lower()
+
+
+def _normalize_preview_title_token(value: str) -> str:
+    return re.sub(r"\s+", "", str(value or "").strip()).strip("：:").lower()
+
+
+def _is_suspicious_structured_table_ref(ref: dict[str, Any]) -> bool:
+    if str(ref.get("slice_render_mode") or "").strip().lower() != "structured":
+        return False
+    headers = [str(cell or "").strip() for cell in (ref.get("inherited_headers") or []) if str(cell or "").strip()]
+    if len(headers) < 3:
+        return False
+    placeholder_count = sum(
+        1
+        for cell in headers
+        if cell in {"/", "-", "--"} or re.fullmatch(r"col\d+", cell, re.I)
+    )
+    colon_like_count = sum(1 for cell in headers if cell.endswith(("：", ":")))
+    normalized = [_normalize_table_header_token(cell) for cell in headers if _normalize_table_header_token(cell)]
+    duplicate_count = len(normalized) - len(set(normalized))
+    if len(headers) >= 4 and placeholder_count + colon_like_count >= len(headers) - 1:
+        return True
+    if placeholder_count >= 1 and colon_like_count >= 2:
+        return True
+    if placeholder_count >= 1 and duplicate_count >= 1:
+        return True
+    return False
+
+
+def _filter_content_blocks_by_table_ids(
+    content_blocks: list[dict[str, Any]],
+    allowed_table_ids: set[str],
+) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+    for block in content_blocks or []:
+        if str(block.get("kind") or "").strip().lower() != "table":
+            filtered.append(block)
+            continue
+        table_id = str(block.get("table_id") or "").strip()
+        if table_id and table_id in allowed_table_ids:
+            filtered.append(block)
+    return filtered
+
+
+def _count_nonempty_text_lines(text: str) -> int:
+    return sum(1 for line in str(text or "").splitlines() if str(line or "").strip())
+
+
+def _looks_like_local_clause_label(text: str) -> bool:
+    value = str(text or "").strip()
+    if not value or len(value) > 24:
+        return False
+    if not value.endswith(("：", ":")):
+        return False
+    if value[0].isdigit():
+        return False
+    return True
+
+
+def _infer_pipe_table_subject_token(rows: list[list[str]]) -> str:
+    counts: dict[str, int] = defaultdict(int)
+    for row in rows:
+        if len(row) < 2:
+            continue
+        for cell in row[1:]:
+            for token in re.findall(r"\b[A-Z]{2,}(?:_[A-Z0-9]+)+\b", str(cell or "")):
+                if token.startswith("VIU_") or len(token) > 16:
+                    continue
+                counts[token] += 1
+    if not counts:
+        return ""
+    token, hits = max(counts.items(), key=lambda item: (item[1], -len(item[0]), item[0]))
+    return token if hits >= 2 else ""
+
+
+def _render_preview_structured_table_snapshot(
+    *,
+    table_id: str,
+    snapshot_root: Path,
+    headers: list[str],
+    rows: list[list[str]],
+) -> Path | None:
+    target = snapshot_root / f"{table_id}.png"
+    if _snapshot_file_is_usable(target):
+        return target
+    try:
+        image_bytes = render_table_png(headers, rows)
+        _write_png_atomically(target, image_bytes)
+    except Exception:
+        return None
+    return target if _snapshot_file_is_usable(target) else None
+
+
+def _build_preview_structured_table_ref_and_asset(
+    row: dict[str, Any],
+    *,
+    document_id: str,
+    snapshot_root: Path,
+    block_index: int,
+    table_title: str,
+    headers: list[str],
+    rows: list[list[str]],
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    table_id = _build_table_id(row, f"preview-local-clause::{block_index}:{table_title}", block_index)
+    snapshot_path = _render_preview_structured_table_snapshot(
+        table_id=table_id,
+        snapshot_root=snapshot_root,
+        headers=headers,
+        rows=rows,
+    )
+    if snapshot_path is None:
+        return None, None
+    source_page = _to_int(row.get("source_page"))
+    source_page_end = _to_int(row.get("source_page_end")) or source_page
+    ai_projection = _build_ai_projection(
+        table_id=table_id,
+        title=table_title,
+        headers=headers,
+        rows=rows,
+        notes=[table_title] if table_title else [],
+        render_mode="structured",
+    )
+    ref = _normalize_table_ref(
+        {
+            "table_id": table_id,
+            "table_title": table_title,
+            "row_range": [1, len(rows)] if rows else [],
+            "row_ids": [f"r{idx + 1}" for idx in range(len(rows))],
+            "inherited_headers": headers,
+            "slice_rows": rows,
+            "inherited_group_title": "",
+            "inherited_notes": [table_title] if table_title else [],
+            "slice_ai_projection": ai_projection,
+            "slice_snapshot_path": str(snapshot_path),
+            "source_snapshot_path": "",
+            "slice_render_key": table_id,
+            "slice_render_mode": "structured",
+            "source_page": source_page,
+            "source_page_end": source_page_end,
+            "structure_confidence": 0.86,
+            "source_image_block_count": 0,
+            "export_variant_locked": True,
+            "recommended_export_variant": "slice",
+            "export_variant": "slice",
+        }
+    )
+    asset = {
+        "table_id": table_id,
+        "document_id": document_id,
+        "section_instance_key": str(row.get("section_instance_key") or row.get("section_key") or ""),
+        "page_span": {"start": source_page, "end": source_page_end},
+        "table_title": table_title,
+        "headers": headers,
+        "rows": rows,
+        "group_labels": [],
+        "notes": [table_title] if table_title else [],
+        "render_mode": "structured",
+        "snapshot_path": str(snapshot_path),
+        "source_snapshot_path": "",
+        "ai_projection": ai_projection,
+        "confidence": 0.86,
+        "source_entry_id": str(row.get("entry_id") or row.get("req_code") or ""),
+        "source_image_block_count": 0,
+    }
+    return ref, asset
+
+
+def _repair_local_clause_pipe_table_preview(
+    row: dict[str, Any],
+    *,
+    document_id: str,
+    snapshot_root: Path,
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    raw_text = str(row.get("raw_text") or "")
+    if not raw_text:
+        return None, []
+    blocks = _split_text_blocks(raw_text)
+    table_indexes = [
+        idx
+        for idx, block in enumerate(blocks)
+        if str(block.get("kind") or "").strip().lower() == "table"
+    ]
+    if len(table_indexes) < 2:
+        return None, []
+    if not any(
+        _looks_like_local_clause_label(str(blocks[idx].get("text") or "").strip())
+        for idx in range(1, len(blocks) - 1)
+        if str(blocks[idx].get("kind") or "").strip().lower() == "paragraph"
+    ):
+        return None, []
+    existing_refs = list(row.get("table_refs") or [])
+    if existing_refs and len(existing_refs) >= len(table_indexes) and not any(
+        _is_suspicious_structured_table_ref(ref) for ref in existing_refs
+    ):
+        return None, []
+
+    rebuilt_refs: list[dict[str, Any]] = []
+    rebuilt_assets: list[dict[str, Any]] = []
+    rebuilt_blocks: list[dict[str, Any]] = []
+    table_counter = 0
+
+    for idx, block in enumerate(blocks):
+        kind = str(block.get("kind") or "").strip().lower()
+        if kind != "table":
+            text = str(block.get("text") or "").strip()
+            if text:
+                rebuilt_blocks.append({"kind": "paragraph", "text": text})
+            continue
+        parsed_rows = [
+            _parse_markdown_cells(line)
+            for line in (block.get("lines") or [])
+            if _looks_like_markdown_table_row(line)
+        ]
+        if not parsed_rows or any(len(parsed) != 2 for parsed in parsed_rows):
+            return None, []
+        previous_text = ""
+        if idx > 0 and str(blocks[idx - 1].get("kind") or "").strip().lower() == "paragraph":
+            previous_text = str(blocks[idx - 1].get("text") or "").strip()
+        if previous_text and _looks_like_local_clause_label(previous_text):
+            table_title = previous_text
+        else:
+            subject = _infer_pipe_table_subject_token(parsed_rows)
+            if subject:
+                table_title = f"{subject}:"
+            else:
+                table_title = str(row.get("section_label") or row.get("section_code") or row.get("section_title") or "").strip()
+        headers = [table_title or "项目", "说明"]
+        ref, asset = _build_preview_structured_table_ref_and_asset(
+            row,
+            document_id=document_id,
+            snapshot_root=snapshot_root,
+            block_index=table_counter,
+            table_title=table_title,
+            headers=headers,
+            rows=parsed_rows,
+        )
+        if ref is None or asset is None:
+            return None, []
+        rebuilt_refs.append(ref)
+        rebuilt_assets.append(asset)
+        rebuilt_blocks.append({"kind": "table", "table_id": str(ref.get("table_id") or "")})
+        table_counter += 1
+
+    if len(rebuilt_refs) < 2:
+        return None, []
+    updated = dict(row)
+    updated["table_refs"] = rebuilt_refs
+    updated["content_blocks"] = rebuilt_blocks
+    updated["has_table_asset"] = True
+    updated["table_render_mode"] = "structured"
+    return updated, rebuilt_assets
+
+
+def _sanitize_row_table_refs(row: dict[str, Any]) -> dict[str, Any]:
+    refs = list(row.get("table_refs") or [])
+    if len(refs) < 2:
+        return row
+    suspicious_ids = {
+        str(ref.get("table_id") or "").strip()
+        for ref in refs
+        if _is_suspicious_structured_table_ref(ref)
+    }
+    if not suspicious_ids or len(suspicious_ids) >= len(refs):
+        return row
+    kept_refs = [
+        ref
+        for ref in refs
+        if str(ref.get("table_id") or "").strip() not in suspicious_ids
+    ]
+    if not kept_refs:
+        return row
+    updated = dict(row)
+    updated["table_refs"] = kept_refs
+    allowed_ids = {
+        str(ref.get("table_id") or "").strip()
+        for ref in kept_refs
+        if str(ref.get("table_id") or "").strip()
+    }
+    if allowed_ids:
+        updated["content_blocks"] = _filter_content_blocks_by_table_ids(
+            updated.get("content_blocks") or [],
+            allowed_ids,
+        )
+    return updated
+
+
+def _section_window_lookup_key(row: dict[str, Any]) -> str:
+    return str(row.get("section_instance_key") or row.get("section_key") or row.get("section_code") or "").strip()
+
+
+def _build_section_window_index(sections: list[dict[str, Any]]) -> dict[str, dict[str, Any]]:
+    ordered = [
+        section
+        for section in sections or []
+        if str(section.get("section_instance_key") or section.get("section_key") or section.get("section_code") or "").strip()
+    ]
+    index: dict[str, dict[str, Any]] = {}
+    for position, section in enumerate(ordered):
+        key = _section_window_lookup_key(section)
+        if not key:
+            continue
+        index[key] = {
+            "section": section,
+            "next_section": ordered[position + 1] if position + 1 < len(ordered) else None,
+        }
+    return index
+
+
+def _section_anchor_text(section: dict[str, Any]) -> str:
+    code = str(section.get("section_label") or section.get("section_code") or "").strip()
+    title = str(section.get("section_title") or "").strip()
+    preview_first_line = next(
+        (line.strip() for line in str(section.get("text_preview") or "").splitlines() if line.strip()),
+        "",
+    )
+    candidates: list[str] = []
+    if code and title:
+        candidates.append(f"{code} {title}")
+    if title:
+        candidates.append(title)
+    if code:
+        candidates.append(code)
+    if preview_first_line:
+        candidates.append(preview_first_line)
+    deduped: list[str] = []
+    seen: set[str] = set()
+    for candidate in candidates:
+        token = re.sub(r"\s+", " ", candidate).strip()
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        deduped.append(token)
+    return "\n".join(deduped)
+
+
+def _expand_section_window_crop_bbox(
+    page,
+    content_bboxes: list[tuple[float, float, float, float]],
+) -> tuple[float, float, float, float] | None:
+    if not content_bboxes:
+        return None
+    page_width = float(page.rect.width)
+    page_height = float(page.rect.height)
+    left = max(0.0, min(float(bbox[0]) for bbox in content_bboxes) - 12.0)
+    top = max(0.0, min(float(bbox[1]) for bbox in content_bboxes) - 10.0)
+    right = min(page_width, max(float(bbox[2]) for bbox in content_bboxes) + 12.0)
+    bottom = min(page_height, max(float(bbox[3]) for bbox in content_bboxes) + 10.0)
+    if right <= left + 20.0:
+        right = min(page_width, left + 20.0)
+    if bottom <= top + 20.0:
+        bottom = min(page_height, top + 20.0)
+    return (left, top, right, bottom)
+
+
+def _is_significant_visual_rect(rect) -> bool:
+    width = float(rect.width)
+    height = float(rect.height)
+    area = float(rect.get_area())
+    return area >= _SIGNIFICANT_VISUAL_MIN_AREA or (
+        width >= _SIGNIFICANT_VISUAL_MIN_WIDTH and height >= _SIGNIFICANT_VISUAL_MIN_HEIGHT
+    )
+
+
+def _drawing_item_ops(drawing: dict[str, Any]) -> list[str]:
+    ops: list[str] = []
+    for item in drawing.get("items") or []:
+        if isinstance(item, tuple) and item:
+            ops.append(str(item[0]))
+        else:
+            ops.append(type(item).__name__)
+    return ops
+
+
+def _drawing_counts_as_semantic_visual(drawing: dict[str, Any], rect) -> bool:
+    if not _is_significant_visual_rect(rect):
+        return False
+    ops = _drawing_item_ops(drawing)
+    if not ops:
+        return False
+    drawing_type = str(drawing.get("type") or "").strip().lower()
+    fill = drawing.get("fill")
+    color = drawing.get("color")
+    width = drawing.get("width")
+    is_plain_fill_rect = (
+        drawing_type == "f"
+        and color is None
+        and all(op == "re" for op in ops)
+    )
+    if is_plain_fill_rect:
+        return False
+    has_curve = any(op == "c" for op in ops)
+    has_line = any(op == "l" for op in ops)
+    if has_curve:
+        return True
+    if drawing_type == "s" and has_line and color is not None and float(width or 0.0) >= 0.2:
+        return True
+    if drawing_type in {"fs", "sf"} and has_line:
+        return True
+    if fill is not None and color is not None and has_line:
+        return True
+    return False
+
+
+def _text_block_counts_as_layout_table_label(text: str, block_rect, clip) -> bool:
+    compact = re.sub(r"\s+", "", str(text or ""))
+    if not compact or len(compact) > 24:
+        return False
+    if float(getattr(block_rect, "width", 0.0) or 0.0) > min(float(getattr(clip, "width", 0.0) or 0.0) * 0.32, 132.0):
+        return False
+    if float(getattr(block_rect, "x0", 0.0) or 0.0) > float(getattr(clip, "x0", 0.0) or 0.0) + max(
+        120.0,
+        float(getattr(clip, "width", 0.0) or 0.0) * 0.18,
+    ):
+        return False
+    if float(getattr(block_rect, "height", 0.0) or 0.0) > 52.0:
+        return False
+    return len(compact) <= 14 or compact.endswith(("：", ":"))
+
+
+def _text_block_counts_as_layout_table_body(text: str, block_rect, clip) -> bool:
+    compact = re.sub(r"\s+", "", str(text or ""))
+    if len(compact) < 18:
+        return False
+    if float(getattr(block_rect, "width", 0.0) or 0.0) < min(float(getattr(clip, "width", 0.0) or 0.0) * 0.42, 220.0):
+        return False
+    if float(getattr(block_rect, "x0", 0.0) or 0.0) < float(getattr(clip, "x0", 0.0) or 0.0) + max(
+        90.0,
+        float(getattr(clip, "width", 0.0) or 0.0) * 0.18,
+    ):
+        return False
+    return True
+
+
+def _find_section_anchor(
+    document,
+    *,
+    source_key: str,
+    section: dict[str, Any] | None,
+    page_index: int,
+    line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]],
+    prefer_last: bool = False,
+) -> dict[str, Any] | None:
+    if section is None:
+        return None
+    candidates = _build_context_anchor_fragments(_section_anchor_text(section), from_end=False)
+    if not candidates:
+        return None
+    line_records = _load_pdf_page_line_records(
+        document,
+        source_key=source_key,
+        page_index=page_index,
+        detection_cache=line_detection_cache,
+    )
+    best = _best_context_anchor_in_page(
+        line_records,
+        candidates,
+        prefer_last=prefer_last,
+    )
+    code_text = str(section.get("section_label") or section.get("section_code") or "").strip()
+    title_text = str(section.get("section_title") or "").strip()
+    code_anchor = (
+        _best_context_anchor_in_page(
+            line_records,
+            _build_context_anchor_fragments(code_text, from_end=False),
+            prefer_last=prefer_last,
+        )
+        if code_text
+        else None
+    )
+    title_anchor = (
+        _best_context_anchor_in_page(
+            line_records,
+            _build_context_anchor_fragments(title_text, from_end=False),
+            prefer_last=prefer_last,
+        )
+        if title_text
+        else None
+    )
+    if code_anchor is not None and title_anchor is not None:
+        code_bbox = tuple(code_anchor.get("bbox") or ())
+        title_bbox = tuple(title_anchor.get("bbox") or ())
+        if len(code_bbox) >= 4 and len(title_bbox) >= 4:
+            vertical_gap = float(title_bbox[1]) - float(code_bbox[1])
+            if 0.0 <= vertical_gap <= 48.0:
+                best = code_anchor
+    elif code_anchor is not None and best is None:
+        best = code_anchor
+    if best is None:
+        return None
+    return {
+        "page_index": page_index,
+        "text": str(best.get("text") or ""),
+        "bbox": tuple(best.get("bbox") or ()),
+    }
+
+
+def _build_section_window_crop_plan(
+    document,
+    *,
+    source_key: str,
+    section_window: dict[str, Any],
+    line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]],
+) -> list[tuple[int, tuple[float, float, float, float] | None]]:
+    section = section_window.get("section") or {}
+    next_section = section_window.get("next_section") or {}
+    start_page = _to_int(section.get("source_page_start"))
+    end_page = _to_int(section.get("source_page_end")) or start_page
+    if start_page <= 0 or end_page <= 0:
+        return []
+    start_index = start_page - 1
+    end_index = max(start_index, end_page - 1)
+    if start_index >= document.page_count:
+        return []
+    end_index = min(document.page_count - 1, end_index)
+
+    start_anchor = _find_section_anchor(
+        document,
+        source_key=source_key,
+        section=section,
+        page_index=start_index,
+        line_detection_cache=line_detection_cache,
+    )
+
+    next_anchor: dict[str, Any] | None = None
+    next_start_page = _to_int(next_section.get("source_page_start"))
+    if next_start_page > 0:
+        next_page_index = next_start_page - 1
+        if start_index <= next_page_index <= end_index:
+            next_anchor = _find_section_anchor(
+                document,
+                source_key=source_key,
+                section=next_section,
+                page_index=next_page_index,
+                line_detection_cache=line_detection_cache,
+            )
+
+    plan: list[tuple[int, tuple[float, float, float, float] | None]] = []
+    for page_index in range(start_index, end_index + 1):
+        page = document.load_page(page_index)
+        window_top = 0.0
+        if page_index == start_index and start_anchor is not None:
+            bbox = tuple(start_anchor.get("bbox") or ())
+            if len(bbox) >= 4:
+                window_top = max(0.0, float(bbox[1]) - 14.0)
+        window_bottom = float(page.rect.height)
+        if next_anchor is not None and page_index == int(next_anchor.get("page_index", -1)):
+            bbox = tuple(next_anchor.get("bbox") or ())
+            if len(bbox) >= 4:
+                window_bottom = min(window_bottom, max(window_top + 4.0, float(bbox[1]) - 8.0))
+        if window_bottom <= window_top + 4.0:
+            continue
+        content_bboxes = _collect_anchor_window_content_bboxes(
+            page,
+            window_top=window_top,
+            window_bottom=window_bottom,
+            include_drawings=True,
+        )
+        crop_bbox = _expand_section_window_crop_bbox(page, content_bboxes)
+        if crop_bbox is None:
+            continue
+        if page_index == start_index and start_anchor is not None:
+            start_bbox = tuple(start_anchor.get("bbox") or ())
+            if len(start_bbox) >= 4:
+                crop_bbox = (
+                    crop_bbox[0],
+                    max(crop_bbox[1], float(start_bbox[1]) - 4.0),
+                    crop_bbox[2],
+                    crop_bbox[3],
+                )
+        if next_anchor is not None and page_index == int(next_anchor.get("page_index", -1)):
+            next_bbox = tuple(next_anchor.get("bbox") or ())
+            if len(next_bbox) >= 4:
+                crop_bbox = (
+                    crop_bbox[0],
+                    crop_bbox[1],
+                    crop_bbox[2],
+                    min(crop_bbox[3], float(next_bbox[1]) - 6.0),
+                )
+        if crop_bbox[3] <= crop_bbox[1] + 16.0:
+            continue
+        plan.append((page_index, crop_bbox))
+    return plan
+
+
+def _summarize_section_window_visual_features(
+    document,
+    plan: list[tuple[int, tuple[float, float, float, float] | None]],
+) -> dict[str, Any]:
+    image_block_count = 0
+    drawing_count = 0
+    left_label_block_count = 0
+    wide_body_block_count = 0
+    for page_index, bbox in plan:
+        page = document.load_page(page_index)
+        clip = fitz.Rect(*bbox) if bbox is not None else page.rect
+        for block in page.get_text("blocks", clip=clip, sort=True) or []:
+            if len(block) < 5:
+                continue
+            x0, y0, x1, y1, text = block[:5]
+            cleaned = str(text or "").strip()
+            if not cleaned:
+                continue
+            try:
+                block_rect = fitz.Rect(float(x0), float(y0), float(x1), float(y1))
+            except (TypeError, ValueError):
+                continue
+            if _text_block_counts_as_layout_table_label(cleaned, block_rect, clip):
+                left_label_block_count += 1
+            if _text_block_counts_as_layout_table_body(cleaned, block_rect, clip):
+                wide_body_block_count += 1
+        try:
+            raw = page.get_text("dict")
+        except Exception:
+            raw = {"blocks": []}
+        for block in raw.get("blocks", []):
+            if int(block.get("type", 0)) != 1:
+                continue
+            block_bbox = block.get("bbox")
+            if not isinstance(block_bbox, (list, tuple)) or len(block_bbox) < 4:
+                continue
+            try:
+                block_rect = fitz.Rect(*[float(value) for value in block_bbox[:4]])
+            except (TypeError, ValueError):
+                continue
+            if not clip.intersects(block_rect):
+                continue
+            intersection = clip & block_rect
+            if _is_significant_visual_rect(intersection):
+                image_block_count += 1
+        for drawing in page.get_drawings() or []:
+            rect = drawing.get("rect") or drawing.get("bbox")
+            if rect is None:
+                continue
+            try:
+                drawing_rect = fitz.Rect(rect)
+            except (TypeError, ValueError):
+                continue
+            if not clip.intersects(drawing_rect):
+                continue
+            intersection = clip & drawing_rect
+            if _drawing_counts_as_semantic_visual(drawing, intersection):
+                drawing_count += 1
+    return {
+        "image_block_count": image_block_count,
+        "drawing_count": drawing_count,
+        "left_label_block_count": left_label_block_count,
+        "wide_body_block_count": wide_body_block_count,
+        "significant_visual_count": image_block_count + drawing_count,
+        "page_span_count": len(plan),
+    }
+
+
+def _get_section_window_snapshot_meta(
+    row: dict[str, Any],
+    *,
+    pdf_document,
+    source_key: str,
+    section_window_index: dict[str, dict[str, Any]],
+    line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]],
+    section_window_meta_cache: dict[str, dict[str, Any]],
+) -> dict[str, Any] | None:
+    key = _section_window_lookup_key(row)
+    if not key:
+        return None
+    if key in section_window_meta_cache:
+        return section_window_meta_cache[key]
+    section_window = section_window_index.get(key)
+    if pdf_document is None or not section_window:
+        section_window_meta_cache[key] = {}
+        return section_window_meta_cache[key]
+    plan = _build_section_window_crop_plan(
+        pdf_document,
+        source_key=source_key,
+        section_window=section_window,
+        line_detection_cache=line_detection_cache,
+    )
+    if not plan:
+        section_window_meta_cache[key] = {}
+        return section_window_meta_cache[key]
+    summary = _summarize_section_window_visual_features(pdf_document, plan)
+    meta = {
+        "plan": plan,
+        **summary,
+        "visual_block_count": int(summary.get("significant_visual_count") or 0),
+    }
+    section_window_meta_cache[key] = meta
+    return meta
+
+
+def _write_section_window_source_snapshot(
+    *,
+    snapshot_root: Path,
+    source_file_path: str,
+    source_page: int,
+    source_page_end: int,
+    cache_token: str,
+    cache_key_hint: str,
+    source_snapshot_cache: dict[tuple[str, int, int, str], Path | None],
+    pdf_document,
+    section_window_meta: dict[str, Any],
+    max_height_px: int | None = None,
+    max_width_px: int = 1600,
+) -> tuple[Path | None, dict[str, Any]]:
+    plan = list(section_window_meta.get("plan") or [])
+    source_path = Path(str(source_file_path or "").strip())
+    if pdf_document is None or not plan or not source_path.exists():
+        return None, {}
+    page_end = source_page_end if source_page_end >= source_page else source_page
+    signature = hashlib.sha1(
+        "|".join(
+            [
+                _SECTION_WINDOW_SNAPSHOT_SIGNATURE_VERSION,
+                cache_token,
+                cache_key_hint,
+            ]
+        ).encode("utf-8")
+    ).hexdigest()[:10]
+    cache_key = (str(source_path.resolve()), source_page, page_end, signature)
+    if cache_key in source_snapshot_cache:
+        return source_snapshot_cache[cache_key], {
+            key: value for key, value in section_window_meta.items() if key != "plan"
+        }
+
+    snapshot_root.mkdir(parents=True, exist_ok=True)
+    seed = "|".join([cache_key[0], str(cache_key[1]), str(cache_key[2]), cache_key[3]])
+    target = snapshot_root / f"src_{hashlib.sha1(seed.encode('utf-8')).hexdigest()[:16]}.png"
+    if _snapshot_file_is_usable(target):
+        source_snapshot_cache[cache_key] = target
+        return target, {
+            key: value for key, value in section_window_meta.items() if key != "plan"
+        }
+    if target.exists():
+        try:
+            target.unlink()
+        except OSError:
+            pass
+
+    try:
+        render_width = max(1, int(max_width_px or 1600))
+        images = _render_pdf_crop_plan(
+            pdf_document,
+            plan,
+            max_width_px=render_width,
+            max_scale=5.0,
+        )
+        rendered = _compose_vertical_images(
+            images,
+            max_width_px=render_width,
+            max_height_px=max_height_px,
+        )
+        _write_png_atomically(target, rendered)
+    except Exception:
+        source_snapshot_cache[cache_key] = None
+        return None, {}
+
+    source_snapshot_cache[cache_key] = target
+    return target, {
+        key: value for key, value in section_window_meta.items() if key != "plan"
+    }
+
+
+def _page_visual_count(
+    parser_diagnostics: dict[str, Any],
+    *,
+    source_page: int,
+    source_page_end: int,
+) -> int:
+    start = int(source_page or 0)
+    end = int(source_page_end or source_page or 0)
+    if start <= 0 or end <= 0:
+        return 0
+    total = 0
+    for row in parser_diagnostics.get("page_details", []) or []:
+        page_no = int(row.get("page_no") or 0)
+        if start <= page_no <= end:
+            total += int(row.get("image_count", 0) or 0) + int(row.get("graphics_count", 0) or 0)
+    return total
+
+
+def _visual_row_rank(row: dict[str, Any]) -> tuple[int, int, int]:
+    return (
+        1 if str(row.get("source_anchor") or "").strip() else 0,
+        len(str(row.get("raw_text") or "").strip()),
+        len(str(row.get("display_text") or "").strip()),
+    )
+
+
+def _row_needs_visual_snapshot_fallback(
+    row: dict[str, Any],
+    parser_diagnostics: dict[str, Any],
+    *,
+    section_window_meta: dict[str, Any] | None = None,
+) -> bool:
+    if row.get("table_refs"):
+        return False
+    source_page = _to_int(row.get("source_page"))
+    source_page_end = _to_int(row.get("source_page_end")) or source_page
+    if source_page <= 0:
+        return False
+    text = "\n".join(
+        part
+        for part in (
+            str(row.get("section_title") or "").strip(),
+            str(row.get("display_text") or "").strip(),
+            str(row.get("raw_text") or "").strip(),
+        )
+        if part
+    )
+    if VISUAL_SNAPSHOT_CUE_RE.search(text):
+        return True
+    return int((section_window_meta or {}).get("visual_block_count") or 0) > 0
+
+
+def _row_prefers_visual_snapshot_over_structured_refs(
+    row: dict[str, Any],
+    *,
+    section_window_meta: dict[str, Any] | None = None,
+) -> bool:
+    refs = list(row.get("table_refs") or [])
+    if len(refs) <= 1:
+        return False
+    if any(str(ref.get("slice_render_mode") or "").strip().lower() != "structured" for ref in refs):
+        return False
+    text = "\n".join(
+        part
+        for part in (
+            str(row.get("section_title") or "").strip(),
+            str(row.get("display_text") or "").strip(),
+            str(row.get("raw_text") or "").strip(),
+        )
+        if part
+    )
+    if not VISUAL_SNAPSHOT_CUE_RE.search(text):
+        return False
+    if section_window_meta is None:
+        return True
+    return int(section_window_meta.get("visual_block_count") or 0) > 0
+
+
+def _row_needs_full_page_table_fallback(row: dict[str, Any]) -> bool:
+    refs = list(row.get("table_refs") or [])
+    if len(refs) != 1:
+        return False
+    ref = refs[0]
+    if str(ref.get("slice_render_mode") or "").strip().lower() != "structured":
+        return False
+    ref_title = _normalize_preview_title_token(ref.get("table_title") or "")
+    context_tokens = {
+        _normalize_preview_title_token(row.get("section_code") or ""),
+        _normalize_preview_title_token(row.get("section_title") or ""),
+        _normalize_preview_title_token(row.get("section_label") or ""),
+    }
+    first_line = str(row.get("display_text") or row.get("raw_text") or "").splitlines()[0].strip() if str(
+        row.get("display_text") or row.get("raw_text") or ""
+    ).strip() else ""
+    context_tokens.add(_normalize_preview_title_token(first_line))
+    context_tokens = {token for token in context_tokens if token}
+    if ref_title and context_tokens and not any(ref_title in token or token in ref_title for token in context_tokens):
+        return False
+    raw_body_rows = _raw_markdown_table_body_row_count(str(row.get("raw_text") or ""))
+    if raw_body_rows <= 0:
+        return False
+    slice_rows = len(ref.get("row_ids") or ref.get("slice_rows") or [])
+    return raw_body_rows >= slice_rows + 1
+
+
+def _row_needs_layout_table_snapshot_fallback(
+    row: dict[str, Any],
+    *,
+    section_window_meta: dict[str, Any] | None = None,
+) -> bool:
+    if row.get("table_refs"):
+        return False
+    meta = section_window_meta or {}
+    if int(meta.get("visual_block_count") or 0) > 0:
+        return False
+    if int(meta.get("page_span_count") or 0) < _LAYOUT_TABLE_MIN_PAGE_SPAN:
+        return False
+    if int(meta.get("left_label_block_count") or 0) < _LAYOUT_TABLE_MIN_LABEL_BLOCKS:
+        return False
+    if int(meta.get("wide_body_block_count") or 0) < _LAYOUT_TABLE_MIN_BODY_BLOCKS:
+        return False
+    text = str(row.get("raw_text") or row.get("display_text") or "")
+    if len(text.strip()) > _LAYOUT_TABLE_MAX_TEXT_CHARS:
+        return False
+    if _count_nonempty_text_lines(text) > _LAYOUT_TABLE_MAX_TEXT_LINES:
+        return False
+    return True
+
+
+def _write_source_snapshot_from_crop_plan(
+    *,
+    snapshot_root: Path,
+    source_file_path: str,
+    cache_token: str,
+    cache_key_hint: str,
+    source_snapshot_cache: dict[tuple[str, int, int, str], Path | None],
+    pdf_document,
+    crop_plan: list[tuple[int, tuple[float, float, float, float] | None]],
+    max_height_px: int | None = None,
+    max_width_px: int = 1600,
+) -> tuple[Path | None, dict[str, Any]]:
+    plan = [(page_index, bbox) for page_index, bbox in crop_plan if bbox is not None]
+    source_path = Path(str(source_file_path or "").strip())
+    if pdf_document is None or not plan or not source_path.exists():
+        return None, {}
+    page_numbers = [page_index + 1 for page_index, _ in plan]
+    signature_payload = [
+        _SECTION_WINDOW_SNAPSHOT_SIGNATURE_VERSION,
+        cache_token,
+        cache_key_hint,
+        *(
+            f"{page_index}:{bbox[0]:.1f},{bbox[1]:.1f},{bbox[2]:.1f},{bbox[3]:.1f}"
+            for page_index, bbox in plan
+        ),
+    ]
+    signature = hashlib.sha1("|".join(signature_payload).encode("utf-8")).hexdigest()[:10]
+    cache_key = (str(source_path.resolve()), page_numbers[0], page_numbers[-1], signature)
+    if cache_key in source_snapshot_cache:
+        return source_snapshot_cache[cache_key], _summarize_pdf_crop_plan_features(pdf_document, plan)
+
+    snapshot_root.mkdir(parents=True, exist_ok=True)
+    seed = "|".join([cache_key[0], str(cache_key[1]), str(cache_key[2]), cache_key[3]])
+    target = snapshot_root / f"src_{hashlib.sha1(seed.encode('utf-8')).hexdigest()[:16]}.png"
+    meta = _summarize_pdf_crop_plan_features(pdf_document, plan)
+    if _snapshot_file_is_usable(target):
+        source_snapshot_cache[cache_key] = target
+        return target, meta
+    if target.exists():
+        try:
+            target.unlink()
+        except OSError:
+            pass
+
+    try:
+        images = _render_pdf_crop_plan(
+            pdf_document,
+            plan,
+            max_width_px=max(1, int(max_width_px or 1600)),
+            max_scale=5.0,
+        )
+        rendered = _compose_vertical_images(
+            images,
+            max_width_px=max(1, int(max_width_px or 1600)),
+            max_height_px=max_height_px,
+        )
+        _write_png_atomically(target, rendered)
+    except Exception:
+        source_snapshot_cache[cache_key] = None
+        return None, {}
+
+    source_snapshot_cache[cache_key] = target
+    return target, meta
+
+
+def _collect_section_visual_band_plans(
+    document,
+    *,
+    section_window_meta: dict[str, Any],
+) -> list[list[tuple[int, tuple[float, float, float, float] | None]]]:
+    plan = list(section_window_meta.get("plan") or [])
+    band_plans: list[list[tuple[int, tuple[float, float, float, float] | None]]] = []
+    for page_index, bbox in plan:
+        if bbox is None:
+            continue
+        page = document.load_page(page_index)
+        clip = fitz.Rect(*bbox)
+        rects: list[Any] = []
+        try:
+            raw = page.get_text("dict")
+        except Exception:
+            raw = {"blocks": []}
+        for block in raw.get("blocks", []):
+            if int(block.get("type", 0)) != 1:
+                continue
+            block_bbox = block.get("bbox")
+            if not isinstance(block_bbox, (list, tuple)) or len(block_bbox) < 4:
+                continue
+            try:
+                block_rect = fitz.Rect(*[float(value) for value in block_bbox[:4]])
+            except (TypeError, ValueError):
+                continue
+            if not clip.intersects(block_rect):
+                continue
+            intersection = clip & block_rect
+            if _is_significant_visual_rect(intersection):
+                rects.append(intersection)
+        for drawing in page.get_drawings() or []:
+            rect = drawing.get("rect") or drawing.get("bbox")
+            if rect is None:
+                continue
+            try:
+                drawing_rect = fitz.Rect(rect)
+            except (TypeError, ValueError):
+                continue
+            if not clip.intersects(drawing_rect):
+                continue
+            intersection = clip & drawing_rect
+            if _drawing_counts_as_semantic_visual(drawing, intersection):
+                rects.append(intersection)
+        rects.sort(key=lambda item: (float(item.y0), float(item.x0)))
+        merged: list[Any] = []
+        for rect in rects:
+            if not merged:
+                merged.append(rect)
+                continue
+            previous = merged[-1]
+            if float(rect.y0) <= float(previous.y1) + _VISUAL_BAND_MAX_GAP:
+                merged[-1] = fitz.Rect(
+                    min(float(previous.x0), float(rect.x0)),
+                    min(float(previous.y0), float(rect.y0)),
+                    max(float(previous.x1), float(rect.x1)),
+                    max(float(previous.y1), float(rect.y1)),
+                )
+                continue
+            merged.append(rect)
+        for rect in merged:
+            window_top = max(float(clip.y0), float(rect.y0) - 6.0)
+            window_bottom = min(float(clip.y1), float(rect.y1) + 6.0)
+            content_bboxes = _collect_anchor_window_content_bboxes(
+                page,
+                window_top=window_top,
+                window_bottom=window_bottom,
+                include_drawings=True,
+            )
+            crop_bbox = _expand_section_window_crop_bbox(page, content_bboxes)
+            if crop_bbox is None:
+                crop_bbox = (
+                    max(0.0, float(rect.x0) - 10.0),
+                    max(0.0, float(rect.y0) - 8.0),
+                    min(float(page.rect.width), float(rect.x1) + 10.0),
+                    min(float(page.rect.height), float(rect.y1) + 8.0),
+                )
+            if crop_bbox[3] <= crop_bbox[1] + 24.0:
+                continue
+            band_plans.append([(page_index, crop_bbox)])
+    return band_plans
+
+
+def _build_multi_visual_snapshot_refs(
+    row: dict[str, Any],
+    *,
+    document_id: str,
+    snapshot_root: Path,
+    source_file_path: str,
+    source_snapshot_cache: dict[tuple[str, int, int, str], Path | None],
+    pdf_document,
+    section_window_meta: dict[str, Any] | None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if pdf_document is None or not section_window_meta:
+        return [], []
+    cue_lines = [line for line in _compact_snapshot_fallback_lines(row, suffix="visual_fallback")[1:] if VISUAL_SNAPSHOT_CUE_RE.search(line)]
+    drawing_count = int(section_window_meta.get("drawing_count") or 0)
+    if len(cue_lines) < 2 and drawing_count < 6:
+        return [], []
+    band_plans = _collect_section_visual_band_plans(pdf_document, section_window_meta=section_window_meta)
+    if len(band_plans) < 2:
+        return [], []
+    refs: list[dict[str, Any]] = []
+    assets: list[dict[str, Any]] = []
+    base_title = _snapshot_fallback_title(row, suffix="visual_fallback")
+    for index, crop_plan in enumerate(band_plans[:3]):
+        title = cue_lines[index] if index < len(cue_lines) else f"{base_title} 图{index + 1}"
+        source_snapshot_path, source_snapshot_meta = _write_source_snapshot_from_crop_plan(
+            snapshot_root=snapshot_root,
+            source_file_path=source_file_path,
+            cache_token="preview-fallback-band",
+            cache_key_hint=f"{row.get('section_instance_key') or row.get('section_key') or row.get('entry_id') or base_title}:{index}",
+            source_snapshot_cache=source_snapshot_cache,
+            pdf_document=pdf_document,
+            crop_plan=crop_plan,
+        )
+        if not source_snapshot_path:
+            return [], []
+        table_id = _build_table_id(row, f"preview-fallback::visual-band::{index}", index)
+        ai_projection = _build_ai_projection(
+            table_id=table_id,
+            title=title,
+            headers=[],
+            rows=[],
+            notes=["visual_fallback"],
+            render_mode="snapshot_only",
+        )
+        source_page = min(page_index + 1 for page_index, _ in crop_plan)
+        source_page_end = max(page_index + 1 for page_index, _ in crop_plan)
+        ref = _normalize_table_ref(
+            {
+                "table_id": table_id,
+                "row_range": [],
+                "row_ids": [],
+                "table_title": title,
+                "inherited_headers": [],
+                "slice_rows": [],
+                "inherited_group_title": "",
+                "inherited_notes": ["visual_fallback"],
+                "slice_ai_projection": ai_projection,
+                "slice_snapshot_path": str(source_snapshot_path),
+                "source_snapshot_path": str(source_snapshot_path),
+                "slice_render_key": table_id,
+                "slice_render_mode": "snapshot_only",
+                "source_page": source_page,
+                "source_page_end": source_page_end,
+                "structure_confidence": 0.45,
+                "source_image_block_count": int(source_snapshot_meta.get("image_block_count") or 0),
+                "export_variant_locked": True,
+                "export_variant": "source",
+            }
+        )
+        asset = {
+            "table_id": table_id,
+            "document_id": document_id,
+            "section_instance_key": str(row.get("section_instance_key") or row.get("section_key") or ""),
+            "page_span": {"start": source_page, "end": source_page_end},
+            "table_title": title,
+            "headers": [],
+            "rows": [],
+            "group_labels": [],
+            "notes": ["visual_fallback"],
+            "render_mode": "snapshot_only",
+            "snapshot_path": str(source_snapshot_path),
+            "source_snapshot_path": str(source_snapshot_path),
+            "ai_projection": ai_projection,
+            "confidence": 0.45,
+            "source_entry_id": str(row.get("entry_id") or row.get("req_code") or ""),
+            "source_image_block_count": int(source_snapshot_meta.get("image_block_count") or 0),
+        }
+        refs.append(ref)
+        assets.append(asset)
+    return refs, assets
+
+
+def _content_blocks_for_multi_visual_fallback(
+    row: dict[str, Any],
+    refs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    compact_lines = _compact_snapshot_fallback_lines(row, suffix="visual_fallback")
+    if not compact_lines:
+        return [{"kind": "table", "table_id": str(ref.get("table_id") or "")} for ref in refs]
+    cue_lines = [line for line in compact_lines[1:] if VISUAL_SNAPSHOT_CUE_RE.search(line)]
+    blocks: list[dict[str, Any]] = [{"kind": "paragraph", "text": compact_lines[0]}]
+    if cue_lines and len(cue_lines) >= len(refs):
+        for index, ref in enumerate(refs):
+            blocks.append({"kind": "paragraph", "text": cue_lines[index]})
+            blocks.append({"kind": "table", "table_id": str(ref.get("table_id") or "")})
+        return blocks
+    for line in compact_lines[1:2]:
+        blocks.append({"kind": "paragraph", "text": line})
+    for ref in refs:
+        blocks.append({"kind": "table", "table_id": str(ref.get("table_id") or "")})
+    return blocks
+
+
+def _build_full_page_snapshot_ref(
+    row: dict[str, Any],
+    *,
+    document_id: str,
+    snapshot_root: Path,
+    source_file_path: str,
+    source_snapshot_cache: dict[tuple[str, int, int, str], Path | None],
+    suffix: str,
+    pdf_document=None,
+    source_key: str = "",
+    section_window_index: dict[str, dict[str, Any]] | None = None,
+    line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]] | None = None,
+    section_window_meta_cache: dict[str, dict[str, Any]] | None = None,
+) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
+    source_page = _to_int(row.get("source_page"))
+    source_page_end = _to_int(row.get("source_page_end")) or source_page
+    if source_page <= 0 or not source_file_path:
+        return None, None
+    title = _snapshot_fallback_title(row, suffix=suffix)
+    table_id = _build_table_id(row, f"preview-fallback::{suffix}", 0)
+    source_snapshot_meta: dict[str, Any] = {}
+    section_window_meta = None
+    if (
+        pdf_document is not None
+        and section_window_index is not None
+        and line_detection_cache is not None
+        and section_window_meta_cache is not None
+    ):
+        section_window_meta = _get_section_window_snapshot_meta(
+            row,
+            pdf_document=pdf_document,
+            source_key=source_key,
+            section_window_index=section_window_index,
+            line_detection_cache=line_detection_cache,
+            section_window_meta_cache=section_window_meta_cache,
+        )
+    source_snapshot_path = None
+    if section_window_meta and section_window_meta.get("plan"):
+        source_snapshot_path, source_snapshot_meta = _write_section_window_source_snapshot(
+            snapshot_root=snapshot_root,
+            source_file_path=source_file_path,
+            source_page=source_page,
+            source_page_end=source_page_end,
+            cache_token="preview-fallback",
+            cache_key_hint=f"{suffix}:{row.get('section_instance_key') or row.get('section_key') or row.get('entry_id') or title}",
+            source_snapshot_cache=source_snapshot_cache,
+            pdf_document=pdf_document,
+            section_window_meta=section_window_meta,
+        )
+    if not source_snapshot_path:
+        source_snapshot_path, source_snapshot_meta = _write_full_page_span_source_snapshot(
+            snapshot_root=snapshot_root,
+            source_file_path=source_file_path,
+            source_page=source_page,
+            source_page_end=source_page_end,
+            cache_token="preview-fallback",
+            cache_key_hint=f"{suffix}:{row.get('section_instance_key') or row.get('section_key') or row.get('entry_id') or title}",
+            source_snapshot_cache=source_snapshot_cache,
+            crop_to_content=True,
+        )
+    if not source_snapshot_path:
+        return None, None
+    slice_snapshot_path = source_snapshot_path
+    ai_projection = _build_ai_projection(
+        table_id=table_id,
+        title=title,
+        headers=[],
+        rows=[],
+        notes=[suffix],
+        render_mode="snapshot_only",
+    )
+    ref = _normalize_table_ref(
+        {
+            "table_id": table_id,
+            "row_range": [],
+            "row_ids": [],
+            "table_title": title,
+            "inherited_headers": [],
+            "slice_rows": [],
+            "inherited_group_title": "",
+            "inherited_notes": [suffix],
+            "slice_ai_projection": ai_projection,
+            "slice_snapshot_path": str(slice_snapshot_path),
+            "source_snapshot_path": str(source_snapshot_path),
+            "slice_render_key": table_id,
+            "slice_render_mode": "snapshot_only",
+            "source_page": source_page,
+            "source_page_end": source_page_end,
+            "structure_confidence": 0.45,
+            "source_image_block_count": int(source_snapshot_meta.get("image_block_count") or 0),
+            "export_variant_locked": True,
+            "export_variant": "source",
+        }
+    )
+    asset = {
+        "table_id": table_id,
+        "document_id": document_id,
+        "section_instance_key": str(row.get("section_instance_key") or row.get("section_key") or ""),
+        "page_span": {"start": source_page, "end": source_page_end},
+        "table_title": title,
+        "headers": [],
+        "rows": [],
+        "group_labels": [],
+        "notes": [suffix],
+        "render_mode": "snapshot_only",
+        "snapshot_path": str(source_snapshot_path),
+        "source_snapshot_path": str(source_snapshot_path),
+        "ai_projection": ai_projection,
+        "confidence": 0.45,
+        "source_entry_id": str(row.get("entry_id") or row.get("req_code") or ""),
+        "source_image_block_count": int(source_snapshot_meta.get("image_block_count") or 0),
+    }
+    return ref, asset
+
+
+def _apply_preview_fallback_assets(
+    entries: list[dict[str, Any]],
+    *,
+    document_id: str,
+    snapshot_root: Path,
+    source_file_path: str,
+    parser_diagnostics: dict[str, Any],
+    source_snapshot_cache: dict[tuple[str, int, int, str], Path | None],
+    sections: list[dict[str, Any]] | None = None,
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    if not entries:
+        return entries, []
+
+    updated = [dict(row) for row in entries]
+    extra_assets: list[dict[str, Any]] = []
+    sections_with_non_heading_rows = {
+        str(row.get("section_instance_key") or row.get("section_key") or row.get("section_code") or idx)
+        for idx, row in enumerate(updated)
+        if str(row.get("entry_kind") or "").strip().upper() != "HEADING"
+    }
+    section_window_index = _build_section_window_index(sections or [])
+    source_path = Path(str(source_file_path or "").strip())
+    can_inspect_pdf = fitz is not None and source_path.exists() and source_path.suffix.lower() == ".pdf"
+    source_key = str(source_path.resolve()) if can_inspect_pdf else ""
+    line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    section_window_meta_cache: dict[str, dict[str, Any]] = {}
+    document_cm = fitz.open(str(source_path)) if can_inspect_pdf else nullcontext(None)
+
+    with document_cm as pdf_document:
+        for idx, row in enumerate(updated):
+            repaired_row, repaired_assets = _repair_local_clause_pipe_table_preview(
+                row,
+                document_id=document_id,
+                snapshot_root=snapshot_root,
+            )
+            if repaired_row is not None:
+                updated[idx] = repaired_row
+                extra_assets.extend(repaired_assets)
+                continue
+            row = _sanitize_row_table_refs(row)
+            row_key = str(row.get("section_instance_key") or row.get("section_key") or row.get("section_code") or idx)
+            row_kind = str(row.get("entry_kind") or "").strip().upper()
+            section_window_meta = (
+                _get_section_window_snapshot_meta(
+                    row,
+                    pdf_document=pdf_document,
+                    source_key=source_key,
+                    section_window_index=section_window_index,
+                    line_detection_cache=line_detection_cache,
+                    section_window_meta_cache=section_window_meta_cache,
+                )
+                if pdf_document is not None
+                else None
+            )
+            skip_heading_fallback = row_kind == "HEADING" and row_key in sections_with_non_heading_rows
+            if _row_prefers_visual_snapshot_over_structured_refs(
+                row,
+                section_window_meta=section_window_meta,
+            ):
+                ref, asset = _build_full_page_snapshot_ref(
+                    row,
+                    document_id=document_id,
+                    snapshot_root=snapshot_root,
+                    source_file_path=source_file_path,
+                    source_snapshot_cache=source_snapshot_cache,
+                    suffix="visual_override",
+                    pdf_document=pdf_document,
+                    source_key=source_key,
+                    section_window_index=section_window_index,
+                    line_detection_cache=line_detection_cache,
+                    section_window_meta_cache=section_window_meta_cache,
+                )
+                if ref and asset:
+                    row["table_refs"] = [ref]
+                    row["content_blocks"] = _content_blocks_for_snapshot_fallback(
+                        row,
+                        str(ref.get("table_id") or ""),
+                        suffix="visual_override",
+                    )
+                    row["has_table_asset"] = True
+                    row["table_render_mode"] = "snapshot_only"
+                    updated[idx] = row
+                    extra_assets.append(asset)
+                    continue
+            if not skip_heading_fallback and _row_needs_full_page_table_fallback(row):
+                ref, asset = _build_full_page_snapshot_ref(
+                    row,
+                    document_id=document_id,
+                    snapshot_root=snapshot_root,
+                    source_file_path=source_file_path,
+                    source_snapshot_cache=source_snapshot_cache,
+                    suffix="table_fallback",
+                    pdf_document=pdf_document,
+                    source_key=source_key,
+                    section_window_index=section_window_index,
+                    line_detection_cache=line_detection_cache,
+                    section_window_meta_cache=section_window_meta_cache,
+                )
+                if ref and asset:
+                    row["table_refs"] = [ref]
+                    row["content_blocks"] = _content_blocks_for_snapshot_fallback(
+                        row,
+                        str(ref.get("table_id") or ""),
+                        suffix="table_fallback",
+                    )
+                    row["has_table_asset"] = True
+                    row["table_render_mode"] = "snapshot_only"
+                    updated[idx] = _sanitize_row_table_refs(row)
+                    extra_assets.append(asset)
+                    continue
+            if not skip_heading_fallback and _row_needs_layout_table_snapshot_fallback(
+                row,
+                section_window_meta=section_window_meta,
+            ):
+                ref, asset = _build_full_page_snapshot_ref(
+                    row,
+                    document_id=document_id,
+                    snapshot_root=snapshot_root,
+                    source_file_path=source_file_path,
+                    source_snapshot_cache=source_snapshot_cache,
+                    suffix="layout_table_fallback",
+                    pdf_document=pdf_document,
+                    source_key=source_key,
+                    section_window_index=section_window_index,
+                    line_detection_cache=line_detection_cache,
+                    section_window_meta_cache=section_window_meta_cache,
+                )
+                if ref and asset:
+                    row["table_refs"] = [ref]
+                    row["content_blocks"] = _content_blocks_for_snapshot_fallback(
+                        row,
+                        str(ref.get("table_id") or ""),
+                        suffix="layout_table_fallback",
+                    )
+                    row["has_table_asset"] = True
+                    row["table_render_mode"] = "snapshot_only"
+                    updated[idx] = row
+                    extra_assets.append(asset)
+                    continue
+            updated[idx] = row
+
+        section_has_non_heading_assets: set[str] = set()
+        for idx, row in enumerate(updated):
+            if str(row.get("entry_kind") or "").strip().upper() == "HEADING":
+                continue
+            if row.get("table_refs") or row.get("visual_refs"):
+                section_has_non_heading_assets.add(
+                    str(row.get("section_instance_key") or row.get("section_key") or row.get("section_code") or idx)
+                )
+
+        visual_targets: dict[str, int] = {}
+        for idx, row in enumerate(updated):
+            section_window_meta = (
+                _get_section_window_snapshot_meta(
+                    row,
+                    pdf_document=pdf_document,
+                    source_key=source_key,
+                    section_window_index=section_window_index,
+                    line_detection_cache=line_detection_cache,
+                    section_window_meta_cache=section_window_meta_cache,
+                )
+                if pdf_document is not None
+                else None
+            )
+            if not _row_needs_visual_snapshot_fallback(
+                row,
+                parser_diagnostics,
+                section_window_meta=section_window_meta,
+            ):
+                continue
+            key = str(row.get("section_instance_key") or row.get("section_key") or row.get("section_code") or idx)
+            if (
+                str(row.get("entry_kind") or "").strip().upper() == "HEADING"
+                and key in section_has_non_heading_assets
+            ):
+                continue
+            if key not in visual_targets or _visual_row_rank(row) > _visual_row_rank(updated[visual_targets[key]]):
+                visual_targets[key] = idx
+
+        for idx in sorted(set(visual_targets.values())):
+            row = updated[idx]
+            if row.get("table_refs"):
+                continue
+            section_window_meta = (
+                _get_section_window_snapshot_meta(
+                    row,
+                    pdf_document=pdf_document,
+                    source_key=source_key,
+                    section_window_index=section_window_index,
+                    line_detection_cache=line_detection_cache,
+                    section_window_meta_cache=section_window_meta_cache,
+                )
+                if pdf_document is not None
+                else None
+            )
+            multi_refs, multi_assets = _build_multi_visual_snapshot_refs(
+                row,
+                document_id=document_id,
+                snapshot_root=snapshot_root,
+                source_file_path=source_file_path,
+                source_snapshot_cache=source_snapshot_cache,
+                pdf_document=pdf_document,
+                section_window_meta=section_window_meta,
+            )
+            if multi_refs and multi_assets:
+                row["table_refs"] = multi_refs
+                row["content_blocks"] = _content_blocks_for_multi_visual_fallback(row, multi_refs)
+                row["has_table_asset"] = True
+                row["table_render_mode"] = "snapshot_only"
+                updated[idx] = row
+                extra_assets.extend(multi_assets)
+                continue
+            ref, asset = _build_full_page_snapshot_ref(
+                row,
+                document_id=document_id,
+                snapshot_root=snapshot_root,
+                source_file_path=source_file_path,
+                source_snapshot_cache=source_snapshot_cache,
+                suffix="visual_fallback",
+                pdf_document=pdf_document,
+                source_key=source_key,
+                section_window_index=section_window_index,
+                line_detection_cache=line_detection_cache,
+                section_window_meta_cache=section_window_meta_cache,
+            )
+            if ref and asset:
+                row["table_refs"] = [ref]
+                row["content_blocks"] = _content_blocks_for_snapshot_fallback(
+                    row,
+                    str(ref.get("table_id") or ""),
+                    suffix="visual_fallback",
+                )
+                row["has_table_asset"] = True
+                row["table_render_mode"] = "snapshot_only"
+                updated[idx] = row
+                extra_assets.append(asset)
+
+    return updated, extra_assets
 
 
 def _scope_identity(scope: str) -> str:
@@ -545,6 +2211,8 @@ def build_extraction_preview(
     for section_instance_key, req_state in section_counter.items():
         if section_instance_key in outline_instance_index:
             continue
+        if not _should_surface_scoped_local_clause_as_section(req_state):
+            continue
         section_key = str(req_state.get("section_key") or "")
         appendix_scope = str(req_state.get("appendix_scope") or "").strip().upper()
         code = str(req_state.get("section_code") or "").strip()
@@ -616,7 +2284,7 @@ def build_extraction_preview(
         include_scope_roots=True,
         exclude_complex_table_mode=True,
     )
-    table_snapshot_root = snapshot_root or (Path(file_path).resolve().parent / "table_snapshots")
+    table_snapshot_root = snapshot_root or _default_table_snapshot_root(file_path)
     table_document_id = document_id or Path(file_path).stem
     complete_entries_raw, raw_table_assets = enrich_entries_with_table_assets(
         complete_entries_raw,
@@ -630,7 +2298,30 @@ def build_extraction_preview(
         snapshot_root=table_snapshot_root,
         source_file_path=file_path,
     )
-    table_assets = _dedupe_table_assets(deduped_table_assets or raw_table_assets)
+    source_snapshot_cache: dict[tuple[str, int, int, str], Path | None] = {}
+    complete_entries_raw, extra_raw_table_assets = _apply_preview_fallback_assets(
+        complete_entries_raw,
+        document_id=table_document_id,
+        snapshot_root=table_snapshot_root,
+        source_file_path=file_path,
+        parser_diagnostics=parsed.get("diagnostics", {}) or {},
+        source_snapshot_cache=source_snapshot_cache,
+        sections=sections,
+    )
+    complete_entries, extra_deduped_table_assets = _apply_preview_fallback_assets(
+        complete_entries,
+        document_id=table_document_id,
+        snapshot_root=table_snapshot_root,
+        source_file_path=file_path,
+        parser_diagnostics=parsed.get("diagnostics", {}) or {},
+        source_snapshot_cache=source_snapshot_cache,
+        sections=sections,
+    )
+    table_assets = _dedupe_table_assets(
+        (deduped_table_assets or raw_table_assets)
+        + extra_raw_table_assets
+        + extra_deduped_table_assets
+    )
 
     diagnostics = parsed.get("diagnostics", {}) or {}
     page_details = diagnostics.get("page_details", []) if isinstance(diagnostics, dict) else []
@@ -813,6 +2504,21 @@ def _split_requirement_preview_rows(
             }
         )
     return rows
+
+
+def _should_surface_scoped_local_clause_as_section(row: dict[str, Any]) -> bool:
+    if not isinstance(row, dict):
+        return True
+    if not bool(row.get("is_scoped_local_clause", False)):
+        return True
+    if normalize_scope_id(str(row.get("appendix_scope") or "")) != MAIN_SCOPE_ID:
+        return True
+    code = str(row.get("section_code") or "").strip()
+    if not code:
+        return True
+    # Keep multi-level local clause anchors visible, but avoid turning plain
+    # ordered items like 1）/2）/3） into standalone synthetic sections.
+    return not re.fullmatch(r"\d+", code)
 
 
 def _should_promote_local_clause_to_section(
@@ -1947,7 +3653,6 @@ def _build_complete_requirement_entries(
         if not grouped:
             continue
         seed = grouped[0]
-        heading_seq += 1
         section_key = str(seed.get("section_key") or "")
         synthetic_node = _find_section_row_for_key(sections, section_key) or {
             "appendix_scope": seed.get("appendix_scope", ""),
@@ -1959,12 +3664,16 @@ def _build_complete_requirement_entries(
             "source_page_end": seed.get("source_page_end"),
             "is_appendix_marker": False,
             "section_instance_key": section_instance_key,
+            "is_scoped_local_clause": bool(seed.get("is_scoped_local_clause", False)),
         }
         synthetic_node["section_instance_key"] = section_instance_key
-        heading = _build_heading_entry(node=synthetic_node, heading_seq=heading_seq, synthetic=True)
-        entries.append(heading)
         section_code = str(synthetic_node.get("section_code") or "")
-        heading_title = str(heading.get("section_title") or "")
+        heading_title = str(synthetic_node.get("section_title") or "")
+        if _should_surface_scoped_local_clause_as_section(synthetic_node):
+            heading_seq += 1
+            heading = _build_heading_entry(node=synthetic_node, heading_seq=heading_seq, synthetic=True)
+            entries.append(heading)
+            heading_title = str(heading.get("section_title") or "")
         for req in grouped:
             normalized_text = _strip_heading_prefix_from_requirement(
                 text=str(req.get("requirement_text") or ""),
