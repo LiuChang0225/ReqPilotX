@@ -1,6 +1,6 @@
 # Extraction Active Context
 
-更新时间：2026-04-17 16:03 CST  
+更新时间：2026-04-17 16:40 CST  
 分支：`codex/extraction-quality-loop`
 
 ## 分支目的
@@ -33,6 +33,11 @@
   - `J02.311`：`8.10.4` 下 `section_tree / heading entries` 不再生成 `1）/2）/3）` 伪节，但 requirement 标签仍保留
   - `J02.385`：`5.2 Profile 1A` 恢复
   - `CTS_ASC`：`4.2.2.4 / 4.4.2 / 5.4 / 9.1 / 9.3` 在新规则下保持稳定
+- export / runtime：
+  - 已提交并推送：`ae8235f Stabilize SERES extraction loop and Excel exports`
+  - `5555` 已用最新代码重启
+  - `SERES MDA Batch Export 20260417_163356` 已完成 `12` 份 PDF 的 upload -> analyze -> lock -> export
+  - 批量导出报告：`prototype/storage/exports/seres_mda_batch_export_report_20260417_163356.json`
 
 ## 当前结果
 
@@ -49,6 +54,8 @@
 - targeted rebuild：
   - `J02.311`：`sections_count = 345`
   - `CTS_ASC`：`requirements_count = 41`，`raw_requirement_rows_count = 43`
+- batch export：
+  - `AES-CMAC / J00.14 / J02.226 / J02.233 / J02.311 / J02.321 / J02.385 / J02.71 / J02.86 / CTS_ASC / UDS signing / UDS 27` 共 `12` 份 Excel 已全部生成
 
 ## 当前已知问题
 
@@ -57,7 +64,7 @@
   - `4.4.2` complex-table binding 仍未完全收口
   - `9.3` 仍是 section 级图片输出，未做逐图 caption pairing
 - `SERES`
-  - `fix10` 是本轮前一版完整批跑；simple scoped ordered item 显示规则落地后，还未补一轮 full batch
+  - `fix10` 是当前 extraction baseline；导出链路已完成 `12/12` 实跑，但 simple scoped ordered item 显示规则落地后，还未补一轮新的 full batch
   - 未建 profile 文档仍会有 `profile_unmatched`
 
 ## 下一步
@@ -65,6 +72,7 @@
 - 继续收 `CTS_ASC` residual：page `29` parser 选型、`4.4.2` binding、判断 `9.3` 是否继续做通用 caption-image pairing
 - 若准备升基线，先用当前规则集重跑一轮新的 SERES full batch
 - 再决定哪些 SERES 文档值得补 profile，而不是继续追噪音 finding
+- 若用户继续看导出效果，直接检查 `prototype/storage/exports/seres_mda_batch_export_report_20260417_163356.json` 与对应 `12` 份 xlsx
 
 ## 运行状态
 
