@@ -13,7 +13,7 @@ import xlsxwriter
 from PIL import Image as PILImage
 from PIL import ImageDraw, ImageFont
 
-from app.services.table_assets import export_blocks_from_requirement, load_snapshot_bytes, render_table_png
+from app.services.table_assets import load_snapshot_bytes
 
 _TABLE_FONT_CANDIDATES = (
     "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
@@ -27,14 +27,36 @@ _TABLE_CELL_PADDING_Y = 8
 _TABLE_LINE_SPACING = 4
 _TABLE_UNIT_PX = 7
 _TABLE_MIN_COLUMN_UNITS = 10
-_FULL_HD_VIEWPORT_WIDTH_PX = 1920
+_WORKBOOK_FONT_SIZE = 11
+_WORKBOOK_TEXT_PADDING_X = 10
+_WORKBOOK_TEXT_PADDING_Y = 6
+_DEFAULT_ROW_HEIGHT_POINTS = 22.0
+_MAX_ROW_HEIGHT_POINTS = 409.5
+_MAX_ROW_HEIGHT_PX = int(_MAX_ROW_HEIGHT_POINTS / 0.75)
+_MAX_IMAGE_ROW_RENDER_HEIGHT_PX = max(120, _MAX_ROW_HEIGHT_PX - 12)
+_MIN_SINGLE_IMAGE_SCALE = 0.55
+_WORKBOOK_TEXT_LINE_HEIGHT_POINTS = 18.0
+_WORKBOOK_TEXT_ROW_EXTRA_POINTS = 8.0
+_CUSTOMER_REQUIREMENT_COLUMN_WIDTH = 130.0
 _REQUIREMENT_FIXED_COLUMN_WIDTHS = {
     "A": 14.0,
     "B": 24.0,
     "D": 18.0,
     "E": 40.0,
 }
-_MIN_REQUIREMENT_AREA_TOTAL_WIDTH = 88.0
+_BRAND_PRIMARY = "#00893D"
+_BRAND_SECONDARY = "#005E46"
+_BRAND_TEXT = "#343434"
+_BRAND_TEXT_SECONDARY = "#646464"
+_BRAND_BORDER = "#D0D0D0"
+_BRAND_BACKGROUND = "#F6F6F6"
+_BRAND_HEADER_BACKGROUND = "#EBEBEB"
+_BRAND_ROW_ALT = "#FCFBFB"
+_BRAND_HEADER_TEXT = "#FFFFFF"
+_BRAND_LOGO_PATH_CANDIDATES = (
+    Path(__file__).resolve().parent.parent / "static" / "schaeffler-logo.png",
+    Path.home() / ".codex" / "skills" / "schaeffler-frontend-generator" / "assets" / "logos" / "schaeffler-logo.png",
+)
 
 
 @dataclass
@@ -44,9 +66,20 @@ class _RequirementBlockSplit:
 
 
 @dataclass
+class _PreparedRequirementRow:
+    kind: str
+    text: str = ""
+    row_height: float = _DEFAULT_ROW_HEIGHT_POINTS
+    image_buffer: BytesIO | None = None
+    x_scale: float = 1.0
+    y_scale: float = 1.0
+
+
+@dataclass
 class _WorkbookFormats:
     header: Any
     meta_fill: Any
+    brand_bar: Any
     row_even: Any
     row_odd: Any
     paragraph_even: Any
@@ -84,23 +117,32 @@ def export_compliance_matrix(
     ws.hide_gridlines(2)
     ws.freeze_panes(3, 0)
     ws.autofilter(2, 0, 2, 4)
-    requirement_area_total_width = _full_hd_requirement_area_width()
+    requirement_area_total_width = _default_requirement_area_width()
     ws.set_column("A:A", _REQUIREMENT_FIXED_COLUMN_WIDTHS["A"])
     ws.set_column("B:B", _REQUIREMENT_FIXED_COLUMN_WIDTHS["B"])
     ws.set_column("C:C", requirement_area_total_width)
     ws.set_column("D:D", _REQUIREMENT_FIXED_COLUMN_WIDTHS["D"])
     ws.set_column("E:E", _REQUIREMENT_FIXED_COLUMN_WIDTHS["E"])
     requirement_area_width_px = _excel_column_width_to_pixels(requirement_area_total_width)
+    column_widths_px = {
+        0: _excel_column_width_to_pixels(_REQUIREMENT_FIXED_COLUMN_WIDTHS["A"]),
+        1: _excel_column_width_to_pixels(_REQUIREMENT_FIXED_COLUMN_WIDTHS["B"]),
+        2: requirement_area_width_px,
+        3: _excel_column_width_to_pixels(_REQUIREMENT_FIXED_COLUMN_WIDTHS["D"]),
+        4: _excel_column_width_to_pixels(_REQUIREMENT_FIXED_COLUMN_WIDTHS["E"]),
+    }
 
-    ws.write(0, 0, f"Project: {project_name}", formats.meta_fill)
-    ws.write(0, 1, f"Customer: {customer_name}", formats.meta_fill)
-    if source_file_name:
-        ws.write(0, 2, f"File: {source_file_name}", formats.meta_fill)
-    ws.set_row(0, 22)
+    _write_brand_header(
+        ws,
+        formats=formats,
+        project_name=project_name,
+        customer_name=customer_name,
+        source_file_name=source_file_name,
+    )
 
     headers = [
         "Req-ID",
-        "Parent Section",
+        "Section",
         "Customer Requirement",
         "Final Decision",
         "Schaeffler Comments",
@@ -121,6 +163,7 @@ def export_compliance_matrix(
             final_decision_col=3,
             comments_col=4,
             requirement_area_width_px=requirement_area_width_px,
+            column_widths_px=column_widths_px,
             row_formats=_block_row_formats(formats, block_index),
             decision_format=_decision_format(formats, item.get("final_decision")),
         )
@@ -176,24 +219,24 @@ def export_compliance_matrix(
 def _build_formats(workbook: xlsxwriter.Workbook) -> _WorkbookFormats:
     base = {
         "border": 1,
-        "border_color": "#D9E2F0",
+        "border_color": _BRAND_BORDER,
         "text_wrap": True,
         "valign": "top",
         "font_name": "Arial Unicode MS",
-        "font_size": 11,
-        "font_color": "#1F2937",
+        "font_size": _WORKBOOK_FONT_SIZE,
+        "font_color": _BRAND_TEXT,
     }
 
-    row_even = workbook.add_format({**base, "bg_color": "#F8FAFD"})
+    row_even = workbook.add_format({**base, "bg_color": _BRAND_ROW_ALT})
     row_odd = workbook.add_format({**base, "bg_color": "#FFFFFF"})
-    paragraph_even = workbook.add_format({**base, "bg_color": "#F8FAFD", "align": "left"})
+    paragraph_even = workbook.add_format({**base, "bg_color": _BRAND_ROW_ALT, "align": "left"})
     paragraph_odd = workbook.add_format({**base, "bg_color": "#FFFFFF", "align": "left"})
     header = workbook.add_format(
         {
             **base,
-            "bg_color": "#DCE9F8",
+            "bg_color": _BRAND_PRIMARY,
             "bold": True,
-            "font_color": "#1F2F45",
+            "font_color": _BRAND_HEADER_TEXT,
             "align": "center",
             "valign": "vcenter",
         }
@@ -201,31 +244,33 @@ def _build_formats(workbook: xlsxwriter.Workbook) -> _WorkbookFormats:
     meta_fill = workbook.add_format(
         {
             **base,
-            "bg_color": "#F3F8FF",
+            "bg_color": _BRAND_BACKGROUND,
             "bold": True,
-            "font_color": "#111827",
+            "font_color": _BRAND_TEXT,
             "valign": "vcenter",
         }
     )
+    brand_bar = workbook.add_format({"bg_color": _BRAND_SECONDARY, "border": 0})
     meta_label = workbook.add_format(
         {
             **base,
-            "bg_color": "#DCE9F8",
+            "bg_color": _BRAND_HEADER_BACKGROUND,
             "bold": True,
-            "font_color": "#1F2F45",
+            "font_color": _BRAND_TEXT,
         }
     )
     meta_value = workbook.add_format(base)
     diff_header = workbook.add_format(
         {
             **base,
-            "bg_color": "#DCE9F8",
+            "bg_color": _BRAND_PRIMARY,
             "bold": True,
+            "font_color": _BRAND_HEADER_TEXT,
             "align": "center",
             "valign": "vcenter",
         }
     )
-    diff_even = workbook.add_format({**base, "bg_color": "#F8FAFD"})
+    diff_even = workbook.add_format({**base, "bg_color": _BRAND_ROW_ALT})
     diff_odd = workbook.add_format({**base, "bg_color": "#FFFFFF"})
     decision_formats = {
         token: workbook.add_format(
@@ -235,16 +280,17 @@ def _build_formats(workbook: xlsxwriter.Workbook) -> _WorkbookFormats:
             }
         )
         for token, color in {
-            "ACCEPT": "#DEF7E8",
-            "REJECT": "#FDE5E8",
-            "DEVIATION_ACCEPT": "#FFF1D6",
-            "NEED_CLARIFICATION": "#E8F1FF",
+            "ACCEPT": "#E8F5E9",
+            "REJECT": "#FFEBEE",
+            "DEVIATION_ACCEPT": "#FFF3E0",
+            "NEED_CLARIFICATION": "#E2EBF8",
             "DEFAULT": "#FFFFFF",
         }.items()
     }
     return _WorkbookFormats(
         header=header,
         meta_fill=meta_fill,
+        brand_bar=brand_bar,
         row_even=row_even,
         row_odd=row_odd,
         paragraph_even=paragraph_even,
@@ -280,15 +326,36 @@ def _append_requirement_block(
     final_decision_col: int,
     comments_col: int,
     requirement_area_width_px: int,
+    column_widths_px: dict[int, int],
     row_formats: dict[str, Any],
     decision_format: Any,
 ) -> tuple[int, int, int, list[str]]:
     split = _split_requirement_blocks(_display_requirement_text(item))
-    blocks = export_blocks_from_requirement(item) or split.blocks or [("paragraph", "")]
+    blocks = _build_export_blocks(item, split) or [("paragraph", "")]
+    prepared_rows, table_image_count, table_fallback_text_count, warnings = _prepare_requirement_rows(
+        blocks=blocks,
+        item=item,
+        requirement_area_width_px=requirement_area_width_px,
+        fallback_text_count=split.table_fallback_text_count,
+    )
 
-    block_rows = len(blocks)
+    block_rows = len(prepared_rows)
     start_row = row_index
     end_row = row_index + block_rows - 1
+
+    _ensure_required_block_height(
+        prepared_rows,
+        required_total_height=max(
+            _total_prepared_row_height(prepared_rows),
+            _estimate_total_text_height(
+                item.get("display_req_code") or item.get("req_code") or "",
+                column_widths_px[0],
+            ),
+            _estimate_total_text_height(_display_parent_section_label(item), column_widths_px[1]),
+            _estimate_total_text_height(item.get("final_decision") or "", column_widths_px[final_decision_col]),
+            _estimate_total_text_height(item.get("engineer_reason") or "", column_widths_px[comments_col]),
+        ),
+    )
 
     _write_vertical_block(
         ws,
@@ -324,19 +391,209 @@ def _append_requirement_block(
     )
 
     cursor = start_row
+    for prepared in prepared_rows:
+        ws.set_row(cursor, prepared.row_height)
+        if prepared.kind == "paragraph":
+            ws.write(cursor, requirement_col, prepared.text, row_formats["paragraph"])
+        elif prepared.kind == "image" and prepared.image_buffer is not None:
+            ws.write_blank(cursor, requirement_col, None, row_formats["paragraph"])
+            ws.insert_image(
+                cursor,
+                requirement_col,
+                "table.png",
+                {
+                    "image_data": prepared.image_buffer,
+                    "object_position": 2,
+                    "x_scale": prepared.x_scale,
+                    "y_scale": prepared.y_scale,
+                    "x_offset": 2,
+                    "y_offset": 2,
+                },
+            )
+        else:
+            ws.write_blank(cursor, requirement_col, None, row_formats["paragraph"])
+        cursor += 1
+
+    return end_row + 1, table_image_count, table_fallback_text_count, warnings
+
+
+def _write_brand_header(
+    ws,
+    *,
+    formats: _WorkbookFormats,
+    project_name: str,
+    customer_name: str,
+    source_file_name: str,
+) -> None:
+    for col in range(3):
+        ws.write_blank(0, col, None, formats.meta_fill)
+    ws.merge_range(0, 3, 0, 4, "", formats.meta_fill)
+    ws.write(0, 0, f"Project: {project_name}", formats.meta_fill)
+    ws.write(0, 1, f"Customer: {customer_name}", formats.meta_fill)
+    if source_file_name:
+        ws.write(0, 2, f"File: {source_file_name}", formats.meta_fill)
+    ws.merge_range(1, 0, 1, 4, "", formats.brand_bar)
+    ws.set_row(0, 34)
+    ws.set_row(1, 7)
+    _insert_brand_logo(ws)
+
+
+@lru_cache(maxsize=1)
+def _load_brand_logo_bytes() -> tuple[bytes, int, int] | None:
+    for path in _BRAND_LOGO_PATH_CANDIDATES:
+        try:
+            if not path.exists():
+                continue
+            raw = path.read_bytes()
+            with PILImage.open(BytesIO(raw)) as image:
+                return raw, int(image.width), int(image.height)
+        except Exception:
+            continue
+    return None
+
+
+def _insert_brand_logo(ws) -> None:
+    logo_payload = _load_brand_logo_bytes()
+    if logo_payload is None:
+        return
+    raw, width, _ = logo_payload
+    target_width_px = 158
+    scale = min(1.0, target_width_px / max(width, 1))
+    ws.insert_image(
+        0,
+        3,
+        "schaeffler-logo.png",
+        {
+            "image_data": BytesIO(raw),
+            "object_position": 2,
+            "x_scale": scale,
+            "y_scale": scale,
+            "x_offset": 10,
+            "y_offset": 6,
+        },
+    )
+
+
+def _build_export_blocks(item: dict[str, Any], split: _RequirementBlockSplit) -> list[tuple[str, Any]]:
+    table_refs = [
+        dict(ref)
+        for ref in item.get("table_refs") or []
+        if isinstance(ref, dict) and str(ref.get("table_id") or "").strip()
+    ]
+    table_ref_map = {
+        str(ref.get("table_id") or "").strip(): ref
+        for ref in table_refs
+    }
+
+    content_blocks = item.get("content_blocks")
+    if isinstance(content_blocks, list):
+        blocks: list[tuple[str, Any]] = []
+        used_table_ids: set[str] = set()
+        for block_index, block in enumerate(content_blocks):
+            if not isinstance(block, dict):
+                continue
+            kind = str(block.get("kind") or "").strip().lower()
+            if kind == "paragraph":
+                text = str(block.get("text") or "")
+                if text.strip():
+                    blocks.append(("paragraph", text))
+                continue
+            if kind == "table":
+                table_id = str(block.get("table_id") or "").strip()
+                ref = table_ref_map.get(table_id)
+                if ref:
+                    used_table_ids.add(table_id)
+                    blocks.append(("table_ref", ref))
+                continue
+            if kind in {"image", "snapshot", "visual"}:
+                ref = _snapshot_block_to_table_ref(block, block_index=block_index)
+                if ref:
+                    used_table_ids.add(str(ref.get("table_id") or ""))
+                    blocks.append(("table_ref", ref))
+        if blocks:
+            for ref in table_refs:
+                table_id = str(ref.get("table_id") or "").strip()
+                if table_id and table_id not in used_table_ids:
+                    blocks.append(("table_ref", ref))
+            return blocks
+
+    if table_refs:
+        if split.blocks:
+            return _merge_split_blocks_with_table_refs(split.blocks, table_refs)
+        text = _display_requirement_text(item)
+        blocks = [("paragraph", text)] if text else []
+        blocks.extend(("table_ref", ref) for ref in table_refs)
+        return blocks
+
+    return split.blocks
+
+
+def _snapshot_block_to_table_ref(block: dict[str, Any], *, block_index: int) -> dict[str, Any] | None:
+    slice_snapshot_path = str(
+        block.get("slice_snapshot_path")
+        or block.get("snapshot_path")
+        or block.get("image_path")
+        or ""
+    ).strip()
+    source_snapshot_path = str(block.get("source_snapshot_path") or slice_snapshot_path).strip()
+    if not slice_snapshot_path and not source_snapshot_path:
+        return None
+    table_id = str(block.get("table_id") or block.get("snapshot_id") or f"snapshot_block_{block_index + 1}").strip()
+    title = str(block.get("title") or block.get("text") or block.get("caption") or table_id).strip()
+    export_variant = str(block.get("export_variant") or "").strip().lower()
+    return {
+        "table_id": table_id,
+        "table_title": title,
+        "row_range": [],
+        "row_ids": [],
+        "inherited_headers": [],
+        "slice_rows": [],
+        "slice_ai_projection": title,
+        "slice_render_mode": "snapshot_only",
+        "slice_snapshot_path": slice_snapshot_path or source_snapshot_path,
+        "source_snapshot_path": source_snapshot_path or slice_snapshot_path,
+        "export_variant": export_variant or ("source" if source_snapshot_path else "slice"),
+    }
+
+
+def _merge_split_blocks_with_table_refs(
+    split_blocks: list[tuple[str, Any]],
+    table_refs: list[dict[str, Any]],
+) -> list[tuple[str, Any]]:
+    merged: list[tuple[str, Any]] = []
+    ref_iter = iter(table_refs)
+    for kind, payload in split_blocks:
+        if kind == "paragraph":
+            merged.append((kind, payload))
+            continue
+        if kind == "table":
+            ref = next(ref_iter, None)
+            if ref is not None:
+                merged.append(("table_ref", ref))
+            else:
+                merged.append((kind, payload))
+    merged.extend(("table_ref", ref) for ref in ref_iter)
+    return merged
+
+
+def _prepare_requirement_rows(
+    *,
+    blocks: list[tuple[str, Any]],
+    item: dict[str, Any],
+    requirement_area_width_px: int,
+    fallback_text_count: int,
+) -> tuple[list[_PreparedRequirementRow], int, int, list[str]]:
+    prepared_rows: list[_PreparedRequirementRow] = []
     table_image_count = 0
-    table_fallback_text_count = split.table_fallback_text_count
+    table_fallback_text_count = fallback_text_count
     warnings: list[str] = []
+
     for kind, payload in blocks:
         if kind == "paragraph":
-            text = str(payload or "")
-            ws.write(cursor, requirement_col, text, row_formats["paragraph"])
-            ws.set_row(cursor, _estimate_paragraph_row_height(text))
-            cursor += 1
+            prepared_rows.extend(_prepare_paragraph_rows(str(payload or ""), requirement_area_width_px))
             continue
 
         if kind == "table_ref":
-            ws.write_blank(cursor, requirement_col, None, row_formats["paragraph"])
             image_buffer, image_width_px, image_height_px, warning_text = _table_ref_snapshot(
                 payload,
                 requirement_area_width_px,
@@ -347,58 +604,40 @@ def _append_requirement_block(
                 )
             if image_buffer is None:
                 fallback_text = _table_ref_to_text(payload)
-                ws.write(cursor, requirement_col, fallback_text, row_formats["paragraph"])
-                ws.set_row(cursor, _estimate_paragraph_row_height(fallback_text))
+                prepared_rows.extend(_prepare_paragraph_rows(fallback_text, requirement_area_width_px))
                 table_fallback_text_count += 1
             else:
-                x_scale = min(1.0, requirement_area_width_px / max(image_width_px, 1))
-                y_scale = x_scale
-                ws.insert_image(
-                    cursor,
-                    requirement_col,
-                    "table.png",
-                    {
-                        "image_data": image_buffer,
-                        "object_position": 1,
-                        "x_scale": x_scale,
-                        "y_scale": y_scale,
-                        "x_offset": 2,
-                        "y_offset": 2,
-                    },
+                prepared_rows.extend(
+                    _prepare_image_rows(
+                        image_buffer=image_buffer,
+                        image_width_px=image_width_px,
+                        image_height_px=image_height_px,
+                        max_width_px=requirement_area_width_px,
+                    )
                 )
-                ws.set_row(cursor, _pixels_to_row_height_points(int(image_height_px * y_scale) + 8))
                 table_image_count += 1
-            cursor += 1
             continue
 
-        ws.write_blank(cursor, requirement_col, None, row_formats["paragraph"])
         try:
             image_buffer, image_width_px, image_height_px = _render_table_image(payload, max_width_px=requirement_area_width_px)
         except Exception:
-            ws.write(cursor, requirement_col, _table_rows_to_text(payload), row_formats["paragraph"])
-            ws.set_row(cursor, _estimate_paragraph_row_height(_table_rows_to_text(payload)))
+            fallback_text = _table_rows_to_text(payload)
+            prepared_rows.extend(_prepare_paragraph_rows(fallback_text, requirement_area_width_px))
             table_fallback_text_count += 1
         else:
-            x_scale = min(1.0, requirement_area_width_px / max(image_width_px, 1))
-            y_scale = x_scale
-            ws.insert_image(
-                cursor,
-                requirement_col,
-                "table.png",
-                {
-                    "image_data": image_buffer,
-                    "object_position": 1,
-                    "x_scale": x_scale,
-                    "y_scale": y_scale,
-                    "x_offset": 2,
-                    "y_offset": 2,
-                },
+            prepared_rows.extend(
+                _prepare_image_rows(
+                    image_buffer=image_buffer,
+                    image_width_px=image_width_px,
+                    image_height_px=image_height_px,
+                    max_width_px=requirement_area_width_px,
+                )
             )
-            ws.set_row(cursor, _pixels_to_row_height_points(int(image_height_px * y_scale) + 8))
             table_image_count += 1
-        cursor += 1
 
-    return end_row + 1, table_image_count, table_fallback_text_count, warnings
+    if not prepared_rows:
+        prepared_rows.append(_PreparedRequirementRow(kind="blank"))
+    return prepared_rows, table_image_count, table_fallback_text_count, warnings
 
 
 def _table_ref_snapshot(payload: dict[str, Any], max_width_px: int) -> tuple[BytesIO | None, int, int, str]:
@@ -438,10 +677,8 @@ def _table_ref_snapshot(payload: dict[str, Any], max_width_px: int) -> tuple[Byt
     ]
     if headers:
         try:
-            raw = render_table_png(headers, rows, max_width_px=max_width_px)
-            buffer = BytesIO(raw)
-            image = PILImage.open(BytesIO(raw))
-            return buffer, int(image.width), int(image.height), warning_text
+            buffer, image_width, image_height = _render_table_image([headers, *rows], max_width_px=max_width_px)
+            return buffer, image_width, image_height, warning_text
         except Exception:
             return None, 0, 0, warning_text
     return None, 0, 0, warning_text
@@ -466,15 +703,168 @@ def _write_vertical_block(ws, *, start_row: int, end_row: int, col: int, value: 
         ws.write(start_row, col, value, cell_format)
 
 
-def _estimate_paragraph_row_height(text: str) -> float:
+def _prepare_paragraph_rows(text: str, max_width_px: int) -> list[_PreparedRequirementRow]:
+    wrapped_lines = _wrap_text_to_export_lines(text, max_width_px)
+    chunk_size = _max_wrapped_lines_per_row()
+    rows: list[_PreparedRequirementRow] = []
+    for start in range(0, max(1, len(wrapped_lines)), chunk_size):
+        chunk = wrapped_lines[start : start + chunk_size] or [""]
+        chunk_text = "\n".join(chunk)
+        rows.append(
+            _PreparedRequirementRow(
+                kind="paragraph",
+                text=chunk_text,
+                row_height=_estimate_total_text_height(chunk_text, max_width_px, cap_to_excel_row=True),
+            )
+        )
+    return rows or [_PreparedRequirementRow(kind="paragraph", text="", row_height=_DEFAULT_ROW_HEIGHT_POINTS)]
+
+
+def _prepare_image_rows(
+    *,
+    image_buffer: BytesIO,
+    image_width_px: int,
+    image_height_px: int,
+    max_width_px: int,
+) -> list[_PreparedRequirementRow]:
+    width_scale = min(1.0, max_width_px / max(image_width_px, 1))
+    fit_scale = min(width_scale, _MAX_IMAGE_ROW_RENDER_HEIGHT_PX / max(image_height_px, 1))
+    if fit_scale >= _MIN_SINGLE_IMAGE_SCALE:
+        rendered_height_px = max(1, int(round(image_height_px * fit_scale)))
+        return [
+            _PreparedRequirementRow(
+                kind="image",
+                row_height=_pixels_to_row_height_points(rendered_height_px + 8),
+                image_buffer=image_buffer,
+                x_scale=fit_scale,
+                y_scale=fit_scale,
+            )
+        ]
+
+    x_scale = width_scale
+    y_scale = width_scale
+    rendered_height_px = max(1, int(round(image_height_px * width_scale)))
+    if rendered_height_px <= _MAX_IMAGE_ROW_RENDER_HEIGHT_PX:
+        return [
+            _PreparedRequirementRow(
+                kind="image",
+                row_height=_pixels_to_row_height_points(rendered_height_px + 8),
+                image_buffer=image_buffer,
+                x_scale=x_scale,
+                y_scale=y_scale,
+            )
+        ]
+
+    raw = image_buffer.getvalue()
+    with PILImage.open(BytesIO(raw)) as image:
+        segment_source_height = max(1, int(_MAX_IMAGE_ROW_RENDER_HEIGHT_PX / max(y_scale, 0.01)))
+        rows: list[_PreparedRequirementRow] = []
+        for top in range(0, image.height, segment_source_height):
+            bottom = min(image.height, top + segment_source_height)
+            segment = image.crop((0, top, image.width, bottom))
+            segment_buffer = BytesIO()
+            segment.save(segment_buffer, format="PNG")
+            segment_buffer.seek(0)
+            segment_render_height_px = max(1, int(round(segment.height * y_scale)))
+            rows.append(
+                _PreparedRequirementRow(
+                    kind="image",
+                    row_height=_pixels_to_row_height_points(segment_render_height_px + 8),
+                    image_buffer=segment_buffer,
+                    x_scale=x_scale,
+                    y_scale=y_scale,
+                )
+            )
+    return rows or [
+        _PreparedRequirementRow(
+            kind="image",
+            row_height=_DEFAULT_ROW_HEIGHT_POINTS,
+            image_buffer=image_buffer,
+            x_scale=x_scale,
+            y_scale=y_scale,
+        )
+    ]
+
+
+def _ensure_required_block_height(
+    rows: list[_PreparedRequirementRow],
+    *,
+    required_total_height: float,
+) -> None:
+    total_height = _total_prepared_row_height(rows)
+    if total_height >= required_total_height:
+        return
+
+    while total_height + 0.1 < required_total_height:
+        adjustable = [
+            row
+            for row in rows
+            if row.kind in {"paragraph", "blank"} and row.row_height < _MAX_ROW_HEIGHT_POINTS - 0.1
+        ]
+        if not adjustable:
+            adjustable = [row for row in rows if row.row_height < _MAX_ROW_HEIGHT_POINTS - 0.1]
+        if not adjustable:
+            extra_row_height = min(
+                _MAX_ROW_HEIGHT_POINTS,
+                max(_DEFAULT_ROW_HEIGHT_POINTS, required_total_height - total_height),
+            )
+            rows.append(_PreparedRequirementRow(kind="blank", row_height=extra_row_height))
+            total_height += extra_row_height
+            continue
+
+        remaining = required_total_height - total_height
+        per_row = remaining / len(adjustable)
+        added = 0.0
+        for row in adjustable:
+            capacity = _MAX_ROW_HEIGHT_POINTS - row.row_height
+            delta = min(capacity, per_row)
+            if delta <= 0:
+                continue
+            row.row_height += delta
+            added += delta
+        total_height += added
+        if added <= 0.1:
+            rows.append(_PreparedRequirementRow(kind="blank", row_height=min(_MAX_ROW_HEIGHT_POINTS, remaining)))
+            total_height += min(_MAX_ROW_HEIGHT_POINTS, remaining)
+
+
+def _total_prepared_row_height(rows: list[_PreparedRequirementRow]) -> float:
+    return sum(row.row_height for row in rows)
+
+
+def _wrap_text_to_export_lines(text: str, max_width_px: int) -> list[str]:
+    content = str(text or "")
+    if not content:
+        return [""]
+    max_units = max(8, (max_width_px - (_WORKBOOK_TEXT_PADDING_X * 2)) // _TABLE_UNIT_PX)
+    wrapped = _wrap_text_to_units(content, max_units)
+    return wrapped.split("\n") or [wrapped]
+
+
+@lru_cache(maxsize=1)
+def _max_wrapped_lines_per_row() -> int:
+    usable_height = max(36.0, _MAX_ROW_HEIGHT_POINTS - _WORKBOOK_TEXT_ROW_EXTRA_POINTS)
+    return max(1, int(usable_height // _WORKBOOK_TEXT_LINE_HEIGHT_POINTS))
+
+
+def _estimate_total_text_height(
+    text: Any,
+    max_width_px: int,
+    *,
+    cap_to_excel_row: bool = False,
+) -> float:
     content = str(text or "")
     if not content.strip():
-        return 22.0
-    logical_lines = 0
-    for line in content.splitlines() or [""]:
-        units = _display_width_units(line)
-        logical_lines += max(1, (units // 78) + (1 if units % 78 else 0))
-    return max(22.0, min(180.0, 18.0 * logical_lines + 6.0))
+        return _DEFAULT_ROW_HEIGHT_POINTS
+    wrapped_lines = _wrap_text_to_export_lines(content, max_width_px)
+    line_count = max(1, len(wrapped_lines))
+    height_points = round(
+        _WORKBOOK_TEXT_ROW_EXTRA_POINTS + (line_count * _WORKBOOK_TEXT_LINE_HEIGHT_POINTS),
+        2,
+    )
+    if cap_to_excel_row:
+        return max(_DEFAULT_ROW_HEIGHT_POINTS, min(_MAX_ROW_HEIGHT_POINTS, height_points))
+    return max(_DEFAULT_ROW_HEIGHT_POINTS, height_points)
 
 
 def _split_requirement_blocks(text: str) -> _RequirementBlockSplit:
@@ -601,18 +991,12 @@ def _pixels_to_excel_column_width(pixels: int) -> float:
     return round(max(1, pixels - 5) / 7.0, 2)
 
 
-def _full_hd_requirement_area_width() -> float:
-    fixed_width_px = sum(
-        _excel_column_width_to_pixels(width)
-        for width in _REQUIREMENT_FIXED_COLUMN_WIDTHS.values()
-    )
-    minimum_width_px = _excel_column_width_to_pixels(_MIN_REQUIREMENT_AREA_TOTAL_WIDTH)
-    requirement_width_px = max(minimum_width_px, _FULL_HD_VIEWPORT_WIDTH_PX - fixed_width_px)
-    return _pixels_to_excel_column_width(requirement_width_px)
+def _default_requirement_area_width() -> float:
+    return _CUSTOMER_REQUIREMENT_COLUMN_WIDTH
 
 
 def _pixels_to_row_height_points(pixels: int) -> float:
-    return round(max(20, pixels) * 0.75, 2)
+    return round(min(_MAX_ROW_HEIGHT_PX, max(20, pixels)) * 0.75, 2)
 
 
 def _table_rows_to_text(rows: list[list[str]]) -> str:
@@ -663,20 +1047,20 @@ def _render_table_image(rows: list[list[str]], *, max_width_px: int) -> tuple[By
     y = 0
     for row_index, row in enumerate(wrapped_rows):
         x = 0
-        fill_color = "#DCE9F8" if row_index == 0 else "#FFFFFF"
+        fill_color = _BRAND_HEADER_BACKGROUND if row_index == 0 else "#FFFFFF"
         for col_index, content in enumerate(row):
             width = column_widths[col_index]
             height = row_heights[row_index]
             draw.rectangle(
                 [x, y, x + width, y + height],
                 fill=fill_color,
-                outline="#D9E2F0",
+                outline=_BRAND_BORDER,
                 width=1,
             )
             draw.multiline_text(
                 (x + _TABLE_CELL_PADDING_X, y + _TABLE_CELL_PADDING_Y),
                 content,
-                fill="#1F2937",
+                fill=_BRAND_TEXT,
                 font=font,
                 spacing=_TABLE_LINE_SPACING,
             )
@@ -806,8 +1190,8 @@ def _append_diff_sheet(
     headers = [
         "Req-ID",
         "Diff Type",
-        "Current Parent Section",
-        f"Baseline Parent Section ({baseline_label})",
+        "Current Section",
+        f"Baseline Section ({baseline_label})",
         "Current Final Decision",
         f"Baseline Final Decision ({baseline_label})",
         "Current Text",

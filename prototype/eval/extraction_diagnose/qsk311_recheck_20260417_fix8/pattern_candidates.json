@@ -1,0 +1,34 @@
+[
+  {
+    "pattern_id": "local_clause_heading_not_promoted",
+    "pattern_name": "Local clause heading not promoted to section anchor",
+    "category": "heading_recovery",
+    "doc_key": "seres_q_sk_j02_311",
+    "pdf_name": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+    "issue_type": "local_clause_section_missing",
+    "suspected_layer": "preview",
+    "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+    "benchmark_impact": [
+      "seres-mda-audit",
+      "seres-mda-gate"
+    ],
+    "promoted": false,
+    "validation_status": "candidate"
+  },
+  {
+    "pattern_id": "parser_low_confidence_hotspot",
+    "pattern_name": "parser_low_confidence_hotspot",
+    "category": "table_and_clause_binding",
+    "doc_key": "seres_q_sk_j02_311",
+    "pdf_name": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+    "issue_type": "parser_low_confidence_hotspot",
+    "suspected_layer": "parser",
+    "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+    "benchmark_impact": [
+      "seres-mda-audit",
+      "seres-mda-gate"
+    ],
+    "promoted": false,
+    "validation_status": "candidate"
+  }
+]

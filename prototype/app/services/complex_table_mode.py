@@ -154,24 +154,21 @@ def rewrite_preview_sections_for_complex_tables(
 
     output: list[dict[str, Any]] = []
     matched_index_to_zone_id = _rewrite_match_index_map(rewrite_plans)
+    emitted_zone_ids: set[str] = set()
     for index, row in enumerate(copied_sections):
         zone_id = matched_index_to_zone_id.get(index)
         if not zone_id:
             output.append(row)
+            continue
+        if zone_id in emitted_zone_ids:
             continue
         plan = rewrite_plans.get(zone_id) or {}
         zone = plan.get("zone")
         if not isinstance(zone, dict):
             output.append(row)
             continue
-        annotated = dict(row)
-        annotated["complex_zone_id"] = str(zone.get("zone_id") or annotated.get("complex_zone_id") or "")
-        annotated["complex_family"] = str(zone.get("family") or annotated.get("complex_family") or "")
-        annotated["complex_group_label"] = str(zone.get("review_title") or annotated.get("complex_group_label") or "")
-        annotated["complex_warnings"] = _normalize_string_list(zone.get("warnings"))
-        annotated["complex_shadow_signatures"] = _normalize_string_list(plan.get("signatures"))
-        annotated["complex_section_overlay"] = True
-        output.append(annotated)
+        output.extend(_build_zone_section_rows(zone))
+        emitted_zone_ids.add(zone_id)
     return output
 
 

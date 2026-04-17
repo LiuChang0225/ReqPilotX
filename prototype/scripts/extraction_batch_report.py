@@ -308,6 +308,8 @@ def resolve_candidate_roots(config: dict[str, Any], shared_repo_root: Path) -> l
             resolved = (shared_repo_root / relative_path).resolve()
         elif root_kind == "worktree":
             resolved = (WORKTREE_ROOT / relative_path).resolve()
+        elif root_kind == "home":
+            resolved = (Path.home() / relative_path).resolve()
         else:
             raise SystemExit(f"Unsupported candidate root kind: {root_kind}")
         if not resolved.exists():

@@ -5,6 +5,7 @@ import sys
 import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -157,6 +158,28 @@ class ExtractionBatchReportTests(unittest.TestCase):
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
         self.assertIn("candidate_roots", payload)
         self.assertIn("batches", payload)
+
+    def test_resolve_candidate_roots_supports_home_root(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            home = Path(tmpdir)
+            (home / "Downloads/SERES MDA").mkdir(parents=True)
+            with mock.patch("pathlib.Path.home", return_value=home):
+                roots = batch_report.resolve_candidate_roots(
+                    {
+                        "candidate_roots": [
+                            {
+                                "name": "seres_downloads",
+                                "root": "home",
+                                "path": "Downloads/SERES MDA",
+                            }
+                        ]
+                    },
+                    shared_repo_root=Path("/tmp/shared"),
+                )
+
+        self.assertEqual(len(roots), 1)
+        self.assertEqual(roots[0]["name"], "seres_downloads")
+        self.assertEqual(roots[0]["path"], (home / "Downloads/SERES MDA").resolve())
 
     def test_attach_diagnosis_rollup_enriches_document_rows(self) -> None:
         rows = [

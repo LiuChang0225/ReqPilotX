@@ -1,0 +1,461 @@
+{
+  "doc_key": "赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】",
+  "pdf_name": "赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】.pdf",
+  "pdf_path": "/Users/liuchang/Downloads/SERES MDA/赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】.pdf",
+  "batch_id": "",
+  "gate_tags": [],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "",
+    "fidelity": ""
+  },
+  "status": {
+    "quality_profile_matched": false,
+    "fidelity_profile_matched": false,
+    "needs_human_review": true
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】.pdf",
+      "profile": "",
+      "outline_count": 17,
+      "checks_passed": 6,
+      "checks_total": 8,
+      "score_pct": 75.0,
+      "duplicate_code_count": 0,
+      "suspicious_heading_count": 1,
+      "suspicious_heading_ratio": 0.058824,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 0,
+      "detail_outline_count_min": "outline_count=17",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=0",
+      "check_suspicious_heading_ratio_limit": 0,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0588",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0"
+    },
+    "checks_total": 8,
+    "checks_passed": 6
+  },
+  "fidelity_gate": {
+    "doc_row": {},
+    "checks_total": 0,
+    "checks_passed": 0,
+    "passed": false
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 1,
+    "issue_types": [
+      "suspicious_heading"
+    ]
+  },
+  "issue_rollup": [
+    {
+      "gate": "quality_gate",
+      "pdf_name": "赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】.pdf",
+      "profile": "",
+      "category": "outline_structure",
+      "category_label": "Outline Structure",
+      "issue_type": "suspicious_heading",
+      "severity": "high",
+      "appendix_scope": "MAIN",
+      "section_code": "3.1.1",
+      "detail": "enum_promoted_heading"
+    }
+  ],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Downloads/SERES MDA/赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】.pdf",
+    "heading_skeleton": [
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "1",
+        "title": "简介 .................................................................................... 1"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "目的 ................................................................................ 1"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "范围 ................................................................................ 1"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "1.3",
+        "title": "引用文件 ............................................................................ 1"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "1.4",
+        "title": "术语和定义 .......................................................................... 1"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "2",
+        "title": "软件包签名算法要求 ...................................................................... 2"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "3",
+        "title": "软件包签名方案 .......................................................................... 2"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "3.1",
+        "title": "软件包签名方案简介 .................................................................. 2"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "3.1.1",
+        "title": "（a）版本文件未签名 ............................................................... 3"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "3.1.2",
+        "title": "（b）版本文件已签名 ............................................................... 3"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "3.1.3",
+        "title": "（c）已签名版本数据下载 ........................................................... 3"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "3.1.4",
+        "title": "（d）安全签名验证 ................................................................. 3"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1",
+        "title": "简介"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1.1",
+        "title": "目的"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "范围"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1.3",
+        "title": "引用文件"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1.4",
+        "title": "术语和定义"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "2",
+        "title": "软件包签名算法要求"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "3",
+        "title": "软件包签名方案"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "3.1",
+        "title": "软件包签名方案简介"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "3.1.1",
+        "title": "（a）版本文件未签名"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "3.1.2",
+        "title": "（b）版本文件已签名"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "3.1.3",
+        "title": "（c）已签名版本数据下载"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "3.1.4",
+        "title": "（d）安全签名验证"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4",
+        "title": "软件包签名方案"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "安全要求"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "非对称算法签名方案"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.2.1",
+        "title": "文件签名过程"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4.2.2",
+        "title": "文件验签过程"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.3",
+        "title": "对称算法签名方案"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.3.1",
+        "title": "文件签名过程"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "4.3.2",
+        "title": "文件验签过程"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [],
+      "page_counts": {}
+    },
+    "duplicate_scope_summary": {
+      "duplicates": []
+    },
+    "baseline_delta": {
+      "requirements_count": 14,
+      "sections_count": 17,
+      "requirements_drift": null,
+      "sections_drift": null,
+      "table_row_issue_count": 0,
+      "complex_table_signal": false,
+      "hotspot_section_code": ""
+    },
+    "page_hotspots": [
+      {
+        "page": 9,
+        "requirement_count": 2,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pdfplumber",
+        "quality_score": 1.4,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 4,
+        "requirement_count": 4,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.5123,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 5,
+        "requirement_count": 2,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.698,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 6,
+        "requirement_count": 2,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.485,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 7,
+        "requirement_count": 2,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.4089,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 8,
+        "requirement_count": 1,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.68,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 10,
+        "requirement_count": 1,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.84,
+        "table_count": 2,
+        "enum_signal": 0
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [
+        9
+      ],
+      "selected_engine_pages": {
+        "pymupdf4llm": 5,
+        "pdfplumber": 2,
+        "pymupdf_raw": 3
+      }
+    },
+    "expected_structure_summary": []
+  },
+  "findings": [
+    {
+      "pattern_id": "profile_unmatched",
+      "category": "heading_recovery",
+      "issue_type": "profile_unmatched",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "evidence_refs": [
+        "issue_summary",
+        "profiles"
+      ],
+      "confidence": 0.66,
+      "needs_human_review": true,
+      "details": {
+        "quality_profile": "",
+        "fidelity_profile": ""
+      }
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "issue_type": "parser_low_confidence_hotspot",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Low-confidence pages should be stabilized before downstream clause binding is tuned.",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "evidence_refs": [
+        "parser_diagnostics.low_confidence_pages",
+        "page_hotspots"
+      ],
+      "confidence": 0.62,
+      "needs_human_review": true,
+      "details": {
+        "low_confidence_pages": [
+          9
+        ]
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "profile_unmatched",
+      "pattern_name": "profile_unmatched",
+      "category": "heading_recovery",
+      "doc_key": "赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】",
+      "pdf_name": "赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】.pdf",
+      "issue_type": "profile_unmatched",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "pattern_name": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "doc_key": "赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】",
+      "pdf_name": "赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】.pdf",
+      "issue_type": "parser_low_confidence_hotspot",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】.pdf\",\n  \"issue_rollup\": [\n    {\n      \"gate\": \"quality_gate\",\n      \"pdf_name\": \"赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】.pdf\",\n      \"profile\": \"\",\n      \"category\": \"outline_structure\",\n      \"category_label\": \"Outline Structure\",\n      \"issue_type\": \"suspicious_heading\",\n      \"severity\": \"high\",\n      \"appendix_scope\": \"MAIN\",\n      \"section_code\": \"3.1.1\",\n      \"detail\": \"enum_promoted_heading\"\n    }\n  ],\n  \"findings\": [\n    {\n      \"pattern_id\": \"profile_unmatched\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"profile_unmatched\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.\",\n      \"suspected_layer\": \"gate\",\n      \"recommended_fix_direction\": \"Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.\",\n      \"evidence_refs\": [\n        \"issue_summary\",\n        \"profiles\"\n      ],\n      \"confidence\": 0.66,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"quality_profile\": \"\",\n        \"fidelity_profile\": \"\"\n      }\n    },\n    {\n      \"pattern_id\": \"parser_low_confidence_hotspot\",\n      \"category\": \"table_and_clause_binding\",\n      \"issue_type\": \"parser_low_confidence_hotspot\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Low-confidence pages should be stabilized before downstream clause binding is tuned.\",\n      \"suspected_layer\": \"parser\",\n      \"recommended_fix_direction\": \"Inspect page merge selection and parser confidence signals before changing downstream section logic.\",\n      \"evidence_refs\": [\n        \"parser_diagnostics.low_confidence_pages\",\n        \"page_hotspots\"\n      ],\n      \"confidence\": 0.62,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"low_confidence_pages\": [\n          9\n        ]\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 9,\n      \"requirement_count\": 2,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pdfplumber\",\n      \"quality_score\": 1.4,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 4,\n      \"requirement_count\": 4,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.5123,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 5,\n      \"requirement_count\": 2,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.698,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 6,\n      \"requirement_count\": 2,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.485,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 7,\n      \"requirement_count\": 2,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.4089,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 8,\n      \"requirement_count\": 1,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.68,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [],\n    \"page_counts\": {}\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": []\n  }\n}"
+    }
+  ]
+}

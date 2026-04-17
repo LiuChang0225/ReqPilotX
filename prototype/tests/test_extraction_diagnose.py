@@ -1,8 +1,10 @@
 from __future__ import annotations
 
 import sys
+import tempfile
 import unittest
 from pathlib import Path
+from unittest import mock
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
@@ -10,6 +12,15 @@ from scripts import extraction_diagnose
 
 
 class ExtractionDiagnoseTests(unittest.TestCase):
+    def test_resolve_path_prefers_existing_cwd_relative_paths(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            repo_root = Path(tmpdir)
+            (repo_root / "prototype").mkdir()
+            with mock.patch("pathlib.Path.cwd", return_value=repo_root):
+                resolved = extraction_diagnose._resolve_path(Path("prototype/eval/extraction_diagnose/run"))
+
+            self.assertEqual(resolved, (repo_root / "prototype/eval/extraction_diagnose/run").resolve())
+
     def test_local_clause_summary_detects_missing_section_anchor(self) -> None:
         requirements = [
             {
@@ -81,6 +92,33 @@ class ExtractionDiagnoseTests(unittest.TestCase):
         self.assertEqual(duplicate["raw_duplicate_count"], 2)
         self.assertEqual(duplicate["section_instance_key_count"], 2)
         self.assertEqual(duplicate["requirement_row_count"], 3)
+
+    def test_duplicate_scope_summary_ignores_source_faithful_duplicates(self) -> None:
+        summary = extraction_diagnose._build_duplicate_scope_summary(
+            outline=[
+                {"appendix_scope": "MAIN", "section_code": "5.4"},
+                {"appendix_scope": "MAIN", "section_code": "5.4"},
+            ],
+            sections=[
+                {"appendix_scope": "MAIN", "section_code": "5.4", "section_instance_key": "MAIN:5.4#帧结束"},
+                {"appendix_scope": "MAIN", "section_code": "5.4", "section_instance_key": "MAIN:5.4#初始值和无效值"},
+            ],
+            requirements=[
+                {"appendix_scope": "MAIN", "section_code": "5.4"},
+                {"appendix_scope": "MAIN", "section_code": "5.4"},
+            ],
+            section_consistency={
+                "issues": [
+                    {
+                        "issue_type": "source_faithful_duplicate_code",
+                        "appendix_scope": "MAIN",
+                        "section_code": "5.4",
+                    }
+                ]
+            },
+        )
+
+        self.assertEqual(summary["duplicates"], [])
 
     def test_build_findings_emits_pattern_backed_findings(self) -> None:
         pattern_library = {

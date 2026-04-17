@@ -1,0 +1,5229 @@
+{
+  "doc_key": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范",
+  "pdf_name": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+  "pdf_path": "/Users/liuchang/Downloads/SERES MDA/Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+  "batch_id": "",
+  "gate_tags": [],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "",
+    "fidelity": ""
+  },
+  "status": {
+    "quality_profile_matched": false,
+    "fidelity_profile_matched": false,
+    "needs_human_review": true
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+      "profile": "",
+      "outline_count": 365,
+      "checks_passed": 8,
+      "checks_total": 8,
+      "score_pct": 100.0,
+      "duplicate_code_count": 2,
+      "suspicious_heading_count": 0,
+      "suspicious_heading_ratio": 0.0,
+      "sibling_gap_alert_count": 1,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 1,
+      "detail_outline_count_min": "outline_count=365",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=2",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0000",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=1"
+    },
+    "checks_total": 8,
+    "checks_passed": 8
+  },
+  "fidelity_gate": {
+    "doc_row": {},
+    "checks_total": 0,
+    "checks_passed": 0,
+    "passed": false
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 3,
+    "issue_types": [
+      "duplicate_section_code",
+      "sibling_gap_alert"
+    ]
+  },
+  "issue_rollup": [
+    {
+      "gate": "quality_gate",
+      "pdf_name": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+      "profile": "",
+      "category": "outline_structure",
+      "category_label": "Outline Structure",
+      "issue_type": "duplicate_section_code",
+      "severity": "medium",
+      "appendix_scope": "MAIN",
+      "section_code": "8.10.1.1",
+      "detail": "duplicate_count=2"
+    },
+    {
+      "gate": "quality_gate",
+      "pdf_name": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+      "profile": "",
+      "category": "outline_structure",
+      "category_label": "Outline Structure",
+      "issue_type": "duplicate_section_code",
+      "severity": "medium",
+      "appendix_scope": "MAIN",
+      "section_code": "8.10.1.2",
+      "detail": "duplicate_count=2"
+    },
+    {
+      "gate": "quality_gate",
+      "pdf_name": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+      "profile": "",
+      "category": "outline_structure",
+      "category_label": "Outline Structure",
+      "issue_type": "sibling_gap_alert",
+      "severity": "medium",
+      "appendix_scope": "MAIN",
+      "section_code": "4",
+      "detail": "missing=['4.17', '4.21', '4.24', '4.25', '4.26', '4.29']"
+    }
+  ],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Downloads/SERES MDA/Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+    "heading_skeleton": [
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2025",
+        "title": "04-16 发布 2025-04-21 实施"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围 ............................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件 ..................................................................... 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3",
+        "title": "术语和定义 ......................................................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4",
+        "title": "缩略语 ............................................................................. 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5",
+        "title": "总体要求 ........................................................................... 6"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "诊断电压范围 ................................................................... 6"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "诊断通信条件 ................................................................... 6"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "功能配置 ....................................................................... 7"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.4",
+        "title": "诊断功能 ....................................................................... 7"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.5",
+        "title": "诊断应用 ....................................................................... 7"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.6",
+        "title": "故障自检 ....................................................................... 7"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.7",
+        "title": "诊断功能的实现方式 ............................................................. 7"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.3.2.2",
+        "title": "5 位标准故障码 ........................................................ 11"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.3.3",
+        "title": "DTC 状态信息 ............................................................... 12"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.3.4",
+        "title": "故障快照信息 .............................................................. 13"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.4",
+        "title": "故障信息存储要求 .............................................................. 13"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.5",
+        "title": "故障清除 ...................................................................... 13"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.5.1",
+        "title": "清除诊断指令 .............................................................. 14"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.5.2",
+        "title": "故障自恢复条件 ............................................................ 14"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.6",
+        "title": "故障码记录暂停策略 ............................................................ 14"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.6.1",
+        "title": "暂停策略总诉 .............................................................. 14"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.6.2",
+        "title": "电池电压超过阀值 .......................................................... 15"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.6.3",
+        "title": "BUS OFF ................................................................... 15"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.6.4",
+        "title": "通信丢失 .................................................................. 15"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "7.6.3",
+        "title": "物理层 .................................................................... 29"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "7.6.3.1",
+        "title": "激活线 ................................................................ 29"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "7.6.3.2",
+        "title": "OBD 布局 ............................................................... 30"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "7.6.3.3",
+        "title": "线缆定义 .............................................................. 30"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "7.6.4",
+        "title": "数据链路层 ................................................................ 30"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "7.6.5",
+        "title": "网络层 .................................................................... 31"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "7.6.5.1",
+        "title": "通用要求 .............................................................. 31"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "7.6.5.2",
+        "title": "诊断端口需求 .......................................................... 31"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "7.6.5.3",
+        "title": "TCP_IP 配置 ............................................................ 32"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "7.6.5.4",
+        "title": "以太网诊断报文格式 .................................................... 33"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "7.6.5.5",
+        "title": "DoIP 报头否定响应格式 .................................................. 34"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "7.6.5.6",
+        "title": "车辆识别请求格式 ...................................................... 36"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8.7.4",
+        "title": "执行规定 .................................................................. 65"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8.8",
+        "title": "电控单元复位 EcuReset（11h） .................................................. 66"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8.8.1",
+        "title": "报文格式 .................................................................. 66"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8.8.2",
+        "title": "支持的否定响应码 .......................................................... 67"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8.8.3",
+        "title": "参数定义 .................................................................. 67"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8.8.4",
+        "title": "执行规定 .................................................................. 67"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8.9",
+        "title": "清除诊断信息ClearDiagnosticInformation（14h） ................................. 67"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8.9.1",
+        "title": "报文格式 .................................................................. 68"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8.9.2",
+        "title": "支持的否定响应码 .......................................................... 68"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8.9.3",
+        "title": "参数定义 .................................................................. 68"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8.9.4",
+        "title": "执行规定 .................................................................. 70"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "8.10",
+        "title": "读取DTC 信息ReadDTCInformation（19h） ........................................ 70"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "8.14",
+        "title": "通信控制CommunicationControl（28h） .......................................... 88"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "8.14.1",
+        "title": "报文格式 ................................................................. 88"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "8.14.2",
+        "title": "支持的否定响应码 ......................................................... 89"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "8.14.3",
+        "title": "参数定义 ................................................................. 89"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "8.14.4",
+        "title": "执行规定 ................................................................. 90"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "8.15",
+        "title": "读取数据（周期标识符）ReadDataByPeriodicIdentifier（2Ah） .................... 90"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "8.15.1",
+        "title": "报文格式 ................................................................. 90"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "8.15.2",
+        "title": "支持的否定响应码 ......................................................... 91"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "8.15.3",
+        "title": "参数定义 ................................................................. 92"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "8.15.4",
+        "title": "执行规定 ................................................................. 92"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "8.16",
+        "title": "动态定义数据标识符DynamicallyDefineDataIdentifier（2Ch） ..................... 92"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "8.16.1",
+        "title": "报文格式 ................................................................. 92"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8.21.3",
+        "title": "否定响应流程 ............................................................ 110"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8.21.4",
+        "title": "参数定义 ................................................................ 111"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8.21.5",
+        "title": "执行规定 ................................................................ 111"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8.22",
+        "title": "请求退出传输RequestTransferExit（37h） ...................................... 111"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8.22.1",
+        "title": "报文格式 ................................................................ 111"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8.22.2",
+        "title": "支持的否定响应码 ........................................................ 111"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8.22.3",
+        "title": "否定响应流程 ............................................................ 112"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8.22.4",
+        "title": "参数定义 ................................................................ 112"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8.22.5",
+        "title": "执行规定 ................................................................ 112"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8.23",
+        "title": "请求文件传输 RequestFileTransfer (38h) ...................................... 112"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8.23.1",
+        "title": "报文格式 ................................................................ 113"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "8.23.2",
+        "title": "支持的否定响应码 ........................................................ 114"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "1",
+        "title": "如果本文件与其他文档发生冲突时，优先考虑本文件，本文件强制要求所有支持诊断的ECU"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "2",
+        "title": "如果本文件与法规要求发生冲突时，法规要求优先于本规范。"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4",
+        "title": "9"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4",
+        "title": "10"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4",
+        "title": "11"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4",
+        "title": "12"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4",
+        "title": "13"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4",
+        "title": "14"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4",
+        "title": "15"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4",
+        "title": "16"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4",
+        "title": "17"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4",
+        "title": "18"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4",
+        "title": "19"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4",
+        "title": "20"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4",
+        "title": "21"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4",
+        "title": "22"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4",
+        "title": "23"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4",
+        "title": "24"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4",
+        "title": "25"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4",
+        "title": "26"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4",
+        "title": "27"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4",
+        "title": "28"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4",
+        "title": "29"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4",
+        "title": "30"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4",
+        "title": "31"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "4",
+        "title": "32"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "4",
+        "title": "33"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "4",
+        "title": "34"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "4",
+        "title": "35"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "4",
+        "title": "36"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "4",
+        "title": "37"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "4",
+        "title": "38"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "5",
+        "title": "总体要求"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "诊断电压范围"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "诊断通信条件"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "功能配置"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "5.4",
+        "title": "诊断功能"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "5.5",
+        "title": "诊断应用"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "5.6",
+        "title": "故障自检"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "5.7",
+        "title": "诊断功能的实现方式"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "5.8",
+        "title": "诊断协议"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "5.9",
+        "title": "诊断刷写要求"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "5.10",
+        "title": "OBD 要求"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "5.11",
+        "title": "诊断数据实现要求"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "5.11.1",
+        "title": "数据记录"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "5.11.2",
+        "title": "电控单元基本信息"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "5.11.3",
+        "title": "内部参数"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "5.11.4",
+        "title": "电气配置参数数据"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "5.11.5",
+        "title": "输入/输出参数数据"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "5.11.6",
+        "title": "诊断故障码快照数据"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "5.11.7",
+        "title": "OBD 数据"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "5.11.8",
+        "title": "特定数据"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "5.12",
+        "title": "诊断安全要求"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "5.13",
+        "title": "安全算法"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "5.14",
+        "title": "诊断报文优先级"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "6",
+        "title": "故障管理"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "6.1",
+        "title": "诊断故障代码"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "6.2",
+        "title": "自诊断需求"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "6.2.1",
+        "title": "自诊断概述"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "6.2.2",
+        "title": "故障自诊断范围"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "1",
+        "title": "开关输入的粘滞和其他故障情况（例如：不合理开关情况）；"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "2",
+        "title": "模拟输入的开路、短路和其他故障情况（例如：信号变动率过慢或过快，不合理信号情况等）；"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "3",
+        "title": "调制输入（频率调制、脉冲编码调制、脉宽调制等）的开路、短路和其他故障情况（例如："
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "4",
+        "title": "低端驱动输出的短路、开路和其他故障情况（例如：位置反馈信号不匹配、低端驱动温度过"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "5",
+        "title": "高端驱动输出的短路、开路和其他故障情况（例如：位置反馈信号不匹配、高端驱动温度过"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "6",
+        "title": "电控单元电源电压高或低。"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "6.2.3",
+        "title": "电控单元初始化/关闭时的故障自检测"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "6.3",
+        "title": "故障记录"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "6.3.1",
+        "title": "故障记录信息"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "6.3.2",
+        "title": "诊断故障代码格式"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "6.3.2.1",
+        "title": "三字节DTC"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "6.3.2.2",
+        "title": "5 位标准故障码"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "5",
+        "title": "位标准故障码，第1 位是字母，后面4 位是数字，如P0120。"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "6.3.3",
+        "title": "DTC 状态信息"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "14229",
+        "title": "1：2020。"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "6.3.4",
+        "title": "故障快照信息"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "6.4",
+        "title": "故障信息存储要求"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "6.5",
+        "title": "故障清除"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6.5.1",
+        "title": "清除诊断指令"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6.5.2",
+        "title": "故障自恢复条件"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6.6",
+        "title": "故障码记录暂停策略"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6.6.1",
+        "title": "暂停策略总诉"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "1",
+        "title": "电池电压超过阀值，不记录通信类相关DTC（比如：节点丢失、信号错误相关DTC）；"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "2",
+        "title": "BUS OFF。"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "1",
+        "title": "控制诊断故障码服务；"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "2",
+        "title": "总线系统初始化；"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "3",
+        "title": "总线系统关闭；"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "4",
+        "title": "发动机启动；"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "5",
+        "title": "车辆唤醒；"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6",
+        "title": "充电和补电。"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.6.2",
+        "title": "电池电压超过阀值"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.6.3",
+        "title": "BUS OFF"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.6.4",
+        "title": "通信丢失"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.6.5",
+        "title": "控制诊断故障码服务"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.6.6",
+        "title": "总线系统初始化"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.6.7",
+        "title": "总线系统关闭"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "6.6.8",
+        "title": "车辆唤醒"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "6.6.9",
+        "title": "充电和补电"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "6.7",
+        "title": "故障指示"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "6.8",
+        "title": "故障码的服务等级"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "7",
+        "title": "诊断方式"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "7.1",
+        "title": "概述"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "7.2",
+        "title": "诊断接口"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "1",
+        "title": "2 3 4 5 6 7 8"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "9",
+        "title": "10 11 12 13 14 15 16"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "1",
+        "title": "-"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "2",
+        "title": "Bus positive line -"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "3",
+        "title": "Ethernet Rx (+) ISO 13400-3:2016"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "4",
+        "title": "Chassis Ground ISO 15031-3:2023"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "5",
+        "title": "Signal Ground ISO 15031-3:2023"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "6",
+        "title": "DiagCAN_H ISO 15765-4:2021"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "7",
+        "title": "K_Line ISO 14230-4:2021"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "8",
+        "title": "Ethernet Activation ISO 13400-3:2016"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "7.3",
+        "title": "零部件诊断规范"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "7.4",
+        "title": "ECU 与诊断工具通信条件"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "7.5",
+        "title": "CAN（FD）诊断"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "7.5.1",
+        "title": "诊断通讯速率"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "7.5.2",
+        "title": "诊断帧填充内容"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "7.5.3",
+        "title": "寻址方式"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "7.5.4",
+        "title": "多网段电控单元的诊断方式"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "7.5.5",
+        "title": "诊断报文格式"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "7.5.6",
+        "title": "时间参数定义"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "7.5.6.1",
+        "title": "网络层"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "7.5.6.2",
+        "title": "应用层"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "2022",
+        "title": "规定的需求。"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "7.6",
+        "title": "以太网诊断"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "7.6.1",
+        "title": "架构需求"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "7.6.1.1",
+        "title": "整车网络模式"
+      },
+      {
+        "page": 33,
+        "kind": "heading",
+        "code": "7.6.1.2",
+        "title": "OBD 口诊断/刷写连接建立流程"
+      },
+      {
+        "page": 33,
+        "kind": "heading",
+        "code": "7.6.1.3",
+        "title": "OTA/远程诊断连接建立流程"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "7.6.2",
+        "title": "协议架构"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "7.6.2.1",
+        "title": "诊断仪协议架构"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "2022",
+        "title": "规定的 UDS 统一诊断服务在 CAN(FD) 和以太网总线上的应用。"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "7.6.2.2",
+        "title": "诊断边缘节点协议架构"
+      },
+      {
+        "page": 36,
+        "kind": "heading",
+        "code": "7.6.2.3",
+        "title": "车内以太网节点协议架构"
+      },
+      {
+        "page": 37,
+        "kind": "heading",
+        "code": "7.6.3",
+        "title": "物理层"
+      },
+      {
+        "page": 37,
+        "kind": "heading",
+        "code": "7.6.3.1",
+        "title": "激活线"
+      },
+      {
+        "page": 38,
+        "kind": "heading",
+        "code": "5",
+        "title": "。在信号 act 到达 active max 之间的 200 毫秒内，以太网硬件应被激活。当 act active max"
+      },
+      {
+        "page": 38,
+        "kind": "heading",
+        "code": "7.6.3.2",
+        "title": "OBD 布局"
+      },
+      {
+        "page": 38,
+        "kind": "heading",
+        "code": "7.6.3.3",
+        "title": "线缆定义"
+      },
+      {
+        "page": 38,
+        "kind": "heading",
+        "code": "7.6.4",
+        "title": "数据链路层"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "7.6.5",
+        "title": "网络层"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "7.6.5.1",
+        "title": "通用要求"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "7.6.5.2",
+        "title": "诊断端口需求"
+      },
+      {
+        "page": 40,
+        "kind": "heading",
+        "code": "13400",
+        "title": "for unsecured DoIP routing messages from the external test"
+      },
+      {
+        "page": 40,
+        "kind": "heading",
+        "code": "7.6.5.3",
+        "title": "TCP_IP配置"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "7.6.5.4",
+        "title": "以太网诊断报文格式"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "7.6.5.4.1",
+        "title": "以太网诊断报文格式见图12。"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "46",
+        "title": "~ 1500 byte"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "1",
+        "title": "byte 1 byte 2 byte 4 byte"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "8",
+        "title": "byte"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "7.6.5.4.2",
+        "title": "DoIP报文和特殊的参数见表18。"
+      },
+      {
+        "page": 42,
+        "kind": "heading",
+        "code": "7.6.5.4.3",
+        "title": "负载类型见表19。"
+      },
+      {
+        "page": 42,
+        "kind": "heading",
+        "code": "7.6.5.5",
+        "title": "DoIP 报头否定响应格式"
+      },
+      {
+        "page": 42,
+        "kind": "heading",
+        "code": "7.6.5.5.1",
+        "title": "DoIP 报头否定响应格式见表20。"
+      },
+      {
+        "page": 43,
+        "kind": "heading",
+        "code": "7.6.5.5.2",
+        "title": "否定响应代码见表21。"
+      },
+      {
+        "page": 43,
+        "kind": "heading",
+        "code": "7.6.5.5.3",
+        "title": "ECU 处理DoIP 报头和响应DoIP 请求见图13。"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "7.6.5.6",
+        "title": "车辆识别请求格式"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "7.6.5.6.1",
+        "title": "不带参数的车辆识别请求格式见表22。"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "7.6.5.6.2",
+        "title": "带EID 的车辆识别请求见表23。"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "7.6.5.6.3",
+        "title": "带VIN 码的车辆识别请求见表24。"
+      },
+      {
+        "page": 46,
+        "kind": "heading",
+        "code": "7.6.5.7",
+        "title": "车辆识别响应格式"
+      },
+      {
+        "page": 46,
+        "kind": "heading",
+        "code": "7.6.5.7.1",
+        "title": "车辆识别响应格式定义见表25。"
+      },
+      {
+        "page": 46,
+        "kind": "heading",
+        "code": "7.6.5.7.2",
+        "title": "车辆宣告报文/车辆识别响应报文负载见表26。"
+      },
+      {
+        "page": 47,
+        "kind": "heading",
+        "code": "7.6.5.7.3",
+        "title": "Further action required 定义见表27。"
+      },
+      {
+        "page": 48,
+        "kind": "heading",
+        "code": "7.6.5.8",
+        "title": "路由激活请求格式"
+      },
+      {
+        "page": 48,
+        "kind": "heading",
+        "code": "7.6.5.8.1",
+        "title": "路由激活请求定义见表28。"
+      },
+      {
+        "page": 48,
+        "kind": "heading",
+        "code": "7.6.5.8.2",
+        "title": "路由激活请求报文负载见表29。"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "7.5.8.3",
+        "title": "Activation type 见表30。"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "7.6.5.9",
+        "title": "路由激活响应格式"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "7.6.5.9.1",
+        "title": "路由激活响应格式定义见表31。"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "7.6.5.9.2",
+        "title": "路由激活响应报文负载定义见表32。"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "7.6.5.9.3",
+        "title": "路由激活响应代码见表33。"
+      },
+      {
+        "page": 52,
+        "kind": "heading",
+        "code": "7.6.5.9.4",
+        "title": "路由激活判断流程见图14。"
+      },
+      {
+        "page": 52,
+        "kind": "heading",
+        "code": "1",
+        "title": "是否所有的socket资源均已被激活占用，如是则回复路由激活响应代码0x01；"
+      },
+      {
+        "page": 52,
+        "kind": "heading",
+        "code": "2",
+        "title": "路由激活的源地址是否与connection table entry中的不同，如是则回复路由激活响应代码0x02；"
+      },
+      {
+        "page": 52,
+        "kind": "heading",
+        "code": "3",
+        "title": "当前激活的源地址是否已在其他TCP sockets上注册，如是则回复路由激活响应代码0x03；"
+      },
+      {
+        "page": 52,
+        "kind": "heading",
+        "code": "7.6.5.10",
+        "title": "在线检查请求"
+      },
+      {
+        "page": 52,
+        "kind": "heading",
+        "code": "1",
+        "title": "0xFD"
+      },
+      {
+        "page": 53,
+        "kind": "heading",
+        "code": "7.6.5.11",
+        "title": "在线检查响应"
+      },
+      {
+        "page": 53,
+        "kind": "heading",
+        "code": "7.6.5.11.1",
+        "title": "在线检查响应定义见表35。"
+      },
+      {
+        "page": 53,
+        "kind": "heading",
+        "code": "1",
+        "title": "0xFD"
+      },
+      {
+        "page": 53,
+        "kind": "heading",
+        "code": "0",
+        "title": "2 active on this TCP_DATA socket. M"
+      },
+      {
+        "page": 53,
+        "kind": "heading",
+        "code": "7.6.5.12",
+        "title": "在线检查流程"
+      },
+      {
+        "page": 53,
+        "kind": "heading",
+        "code": "7.6.5.13",
+        "title": "实体状态请求"
+      },
+      {
+        "page": 54,
+        "kind": "heading",
+        "code": "7.6.5.14",
+        "title": "实体状态响应"
+      },
+      {
+        "page": 54,
+        "kind": "heading",
+        "code": "7.6.5.14.1",
+        "title": "DoIP 实体状态响应定义见表38。"
+      },
+      {
+        "page": 54,
+        "kind": "heading",
+        "code": "7.6.5.14.2",
+        "title": "DoIP 实体状态响应报文负载定义见表39。"
+      },
+      {
+        "page": 55,
+        "kind": "heading",
+        "code": "7.6.5.14.3",
+        "title": "节点类型代码定义见表40。"
+      },
+      {
+        "page": 55,
+        "kind": "heading",
+        "code": "7.6.5.15",
+        "title": "电源模式请求"
+      },
+      {
+        "page": 56,
+        "kind": "heading",
+        "code": "7.6.5.16",
+        "title": "电源模式响应"
+      },
+      {
+        "page": 56,
+        "kind": "heading",
+        "code": "7.6.5.16.1",
+        "title": "电源模式响应定义见表42。"
+      },
+      {
+        "page": 56,
+        "kind": "heading",
+        "code": "7.6.5.16.2",
+        "title": "电源模式响应报文负载定义见表43。"
+      },
+      {
+        "page": 56,
+        "kind": "heading",
+        "code": "7.6.5.16.3",
+        "title": "诊断电源模式代码定义见表44。"
+      },
+      {
+        "page": 57,
+        "kind": "heading",
+        "code": "7.6.5.17",
+        "title": "诊断报文格式"
+      },
+      {
+        "page": 57,
+        "kind": "heading",
+        "code": "7.6.5.17.1",
+        "title": "下图15定义了诊断报文格式。"
+      },
+      {
+        "page": 57,
+        "kind": "heading",
+        "code": "46",
+        "title": "~ 1500 byte"
+      },
+      {
+        "page": 57,
+        "kind": "heading",
+        "code": "1",
+        "title": "byte 1 byte 2 byte 4 byte"
+      },
+      {
+        "page": 57,
+        "kind": "heading",
+        "code": "8",
+        "title": "byte"
+      },
+      {
+        "page": 57,
+        "kind": "heading",
+        "code": "2",
+        "title": "byte 2 byte"
+      },
+      {
+        "page": 57,
+        "kind": "heading",
+        "code": "7.6.5.17.2",
+        "title": "诊断请求/响应报文定义见表45。"
+      },
+      {
+        "page": 58,
+        "kind": "heading",
+        "code": "7.5.17.3",
+        "title": "诊断请求/响应报文负载定义见表46。"
+      },
+      {
+        "page": 59,
+        "kind": "heading",
+        "code": "7.6.5.17.4",
+        "title": "诊断肯定响应报文定义见表47。"
+      },
+      {
+        "page": 59,
+        "kind": "heading",
+        "code": "7.6.5.17.5",
+        "title": "诊断肯定响应报文负载定义见表48。"
+      },
+      {
+        "page": 60,
+        "kind": "heading",
+        "code": "7.6.5.17.6",
+        "title": "诊断否定应答报文定义见表49。"
+      },
+      {
+        "page": 60,
+        "kind": "heading",
+        "code": "7.6.5.17.7",
+        "title": "诊断否定响应报文负载定义见表50。"
+      },
+      {
+        "page": 61,
+        "kind": "heading",
+        "code": "7.6.5.17.8",
+        "title": "否定响应代码定义见表51。"
+      },
+      {
+        "page": 62,
+        "kind": "heading",
+        "code": "7.6.5.18",
+        "title": "逻辑地址"
+      },
+      {
+        "page": 62,
+        "kind": "heading",
+        "code": "7.6.5.19",
+        "title": "网络层时间参数"
+      },
+      {
+        "page": 62,
+        "kind": "heading",
+        "code": "7.6.5.18.1",
+        "title": "网络层时间参数 1 定义见图 16。"
+      },
+      {
+        "page": 63,
+        "kind": "heading",
+        "code": "7.6.5.18.2",
+        "title": "网络层时间参数2定义见图17。"
+      },
+      {
+        "page": 63,
+        "kind": "heading",
+        "code": "7.6.5.18",
+        "title": "3网络层时间参数对照表见表52。"
+      },
+      {
+        "page": 64,
+        "kind": "heading",
+        "code": "7.6.5.20",
+        "title": "诊断时间参数"
+      },
+      {
+        "page": 65,
+        "kind": "heading",
+        "code": "8",
+        "title": "诊断方式诊断服务"
+      },
+      {
+        "page": 65,
+        "kind": "heading",
+        "code": "8.1",
+        "title": "总览"
+      },
+      {
+        "page": 65,
+        "kind": "heading",
+        "code": "8.2",
+        "title": "诊断服务"
+      },
+      {
+        "page": 66,
+        "kind": "heading",
+        "code": "8.3",
+        "title": "增强型诊断服务响应要求"
+      },
+      {
+        "page": 66,
+        "kind": "heading",
+        "code": "8.3.1",
+        "title": "具有子功能的增强型诊断服务的响应要求"
+      },
+      {
+        "page": 67,
+        "kind": "heading",
+        "code": "8.3.2",
+        "title": "不具有子功能的增强型诊断服务的响应要求"
+      },
+      {
+        "page": 68,
+        "kind": "heading",
+        "code": "8.4",
+        "title": "带“禁止肯定响应位”的诊断服务"
+      },
+      {
+        "page": 68,
+        "kind": "heading",
+        "code": "8.4.1",
+        "title": "“禁止肯定响应位”涉及的诊断服务要求"
+      },
+      {
+        "page": 69,
+        "kind": "heading",
+        "code": "8.4.2",
+        "title": "“禁止肯定响应位”涉及诊断服务的子功能要求"
+      },
+      {
+        "page": 69,
+        "kind": "heading",
+        "code": "8.5",
+        "title": "一般 UDS 服务否定应答判断流程"
+      },
+      {
+        "page": 71,
+        "kind": "heading",
+        "code": "8.6",
+        "title": "诊断会话说明"
+      },
+      {
+        "page": 71,
+        "kind": "heading",
+        "code": "8.6.1",
+        "title": "默认会话"
+      },
+      {
+        "page": 71,
+        "kind": "heading",
+        "code": "8.6.2",
+        "title": "编程会话"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "8.6.3",
+        "title": "扩展会话"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "8.7",
+        "title": "诊断会话控制DiagnosticSessionControl（10h）"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "8.7.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "8.7.1.1",
+        "title": "诊断会话控制服务请求报文见表59。"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 10"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "2",
+        "title": "session Type ] M 00--FF"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "8.7.1.2",
+        "title": "诊断会话电控单元服务肯定响应见表60。"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "1",
+        "title": "PositiveResponseServiceID M 50"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "2",
+        "title": "sessionType M 00--FF"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "3",
+        "title": "P2_server_max（High byte） M 00--FF"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "4",
+        "title": "P2_server_max（Low byte） M 00—FF"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "5",
+        "title": "P2*_server_max（High byte） M 00—FF"
+      },
+      {
+        "page": 73,
+        "kind": "heading",
+        "code": "8.7.3",
+        "title": "参数定义"
+      },
+      {
+        "page": 73,
+        "kind": "heading",
+        "code": "8.7.4",
+        "title": "执行规定"
+      },
+      {
+        "page": 74,
+        "kind": "heading",
+        "code": "8.8",
+        "title": "电控单元复位 EcuReset（11h）"
+      },
+      {
+        "page": 74,
+        "kind": "heading",
+        "code": "8.8.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 74,
+        "kind": "heading",
+        "code": "8.8.1.1",
+        "title": "复位服务的请求报文格式见表64。"
+      },
+      {
+        "page": 74,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 11"
+      },
+      {
+        "page": 74,
+        "kind": "heading",
+        "code": "2",
+        "title": "reset Type ] M 00--FF"
+      },
+      {
+        "page": 74,
+        "kind": "heading",
+        "code": "8.8.1.2",
+        "title": "复位服务的肯定响应见表65。"
+      },
+      {
+        "page": 75,
+        "kind": "heading",
+        "code": "8.8.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 75,
+        "kind": "heading",
+        "code": "8.8.3",
+        "title": "参数定义"
+      },
+      {
+        "page": 75,
+        "kind": "heading",
+        "code": "8.8.4",
+        "title": "执行规定"
+      },
+      {
+        "page": 75,
+        "kind": "heading",
+        "code": "2012",
+        "title": "中所述），然后才能继续对已应用ECU 复位的ECU 和所有其他涉及的ECU 进行诊断通信。"
+      },
+      {
+        "page": 75,
+        "kind": "heading",
+        "code": "8.9",
+        "title": "清除诊断信息ClearDiagnosticInformation（14h）"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "8.9.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "8.9.1.1",
+        "title": "清除诊断信息服务的请求报文见表68。"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 14"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "2",
+        "title": "HighByte, M 00--FF"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "3",
+        "title": "MidByte, M 00--FF"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "4",
+        "title": "LowByte ] M 00—FF"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "5",
+        "title": "Memory Selection U 00--FF"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "8.9.1.2",
+        "title": "清除诊断信息服务的肯定响应见表69。"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "1",
+        "title": "PositiveResponseServiceID M 54"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "8.9.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "13",
+        "title": "M"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "31",
+        "title": "M"
+      },
+      {
+        "page": 77,
+        "kind": "heading",
+        "code": "8.9.4",
+        "title": "参数定义"
+      },
+      {
+        "page": 78,
+        "kind": "heading",
+        "code": "8.9.5",
+        "title": "执行规定"
+      },
+      {
+        "page": 78,
+        "kind": "heading",
+        "code": "8.10",
+        "title": "读取DTC 信息ReadDTCInformation（19h）"
+      },
+      {
+        "page": 78,
+        "kind": "heading",
+        "code": "8.10.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 78,
+        "kind": "heading",
+        "code": "8.10.1.1",
+        "title": "读取DTC 信息 – 通过状态掩码报告DTC 数目、通过状态掩码报告DTC（19h 01h、19h 02h）"
+      },
+      {
+        "page": 78,
+        "kind": "heading",
+        "code": "8.10.1.1.1",
+        "title": "通过状态掩码报告DTC数目，通过状态掩码报告DTC报文见表72。"
+      },
+      {
+        "page": 78,
+        "kind": "heading",
+        "code": "8.10.1.1.2",
+        "title": "通过状态掩码报告DTC 数目的肯定响应见表73。"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "2",
+        "title": "ReportNumberOfDTCByStatusMask] M 01"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "3",
+        "title": "DTCStatusAvailabilityMask M 00-FF"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "4",
+        "title": "SAE_J2012-DA_DTCFormat_00 M 00"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "5",
+        "title": "DTCCountHighByte M 00-FF"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "6",
+        "title": "DTCCountLowByte M 00-FF"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "8.10.1.1.3",
+        "title": "通过状态掩码报告DTC的肯定响应见表74。"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "1",
+        "title": "PositiveResponseServiceID M 59"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "2",
+        "title": "ReportNumberOfDTCByStatusMask] M 02"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "3",
+        "title": "DTCStatusAvailabilityMask M 00-FF"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "4",
+        "title": "DTCHighByte#1 C1 00-FF"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "5",
+        "title": "DTCMiddleByte#1 C1 00-FF"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "6",
+        "title": "DTCLowByte#1 C1 00-FF"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 19"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "2",
+        "title": "reportDTCSnapshotIdentification M 03"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "3",
+        "title": "DTCHighByte C 00-FF"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "4",
+        "title": "DTCMiddleByte C 00-FF"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "5",
+        "title": "DTCLowByte ] C 00-FF"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "6",
+        "title": "DTCSnapshotRecordNumber C 00-FF"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "8.10.1.2.2",
+        "title": "报告DTCSnapshot记录标识的肯定响应见表76。"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "1",
+        "title": "PositiveResponseServiceID M 59"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "2",
+        "title": "reportDTCSnapshotIdentification ] M 03"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "3",
+        "title": "DTCHighByte#1 C1 00-FF"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "4",
+        "title": "DTCMiddleByte#1 C1 00-FF"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "5",
+        "title": "DTCLowByte#1] C1 00-FF"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "3",
+        "title": "DTCHighByte M 00-FF"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "4",
+        "title": "DTCMiddleByte M 00-FF"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "5",
+        "title": "DTCLowByte M 00-FF"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "6",
+        "title": "stausOfDTC] M 00-FF"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "7",
+        "title": "DTCSnapshotRecordNumber#1 C1 00-FF"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "8",
+        "title": "DTCSnapshotRecordNumbeOfIdentifiers#1 C1 00-FF"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "9",
+        "title": "dataIdentifier#1 byte#1 (MSB) C1 00-FF"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "10",
+        "title": "dataIdentifier#1 byte#2 (LSB) C1 00-FF"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "11",
+        "title": "snapshotData#1 byte#1 C1 00-FF"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "8.10.1.3",
+        "title": "读取DTC信息 – 通过DTC码报告DTC扩展数据记录（19h 06h）"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "8.10.1.3.1",
+        "title": "通过DTC码报告DTC扩展数据记录请求报文见表78。"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 19"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "2",
+        "title": "reportDTCExtendedDataRecordByDTCNumber ] M 06"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "3",
+        "title": "DTCHighByte M 00-FF"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "4",
+        "title": "DTCMiddleByte M 00-FF"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "5",
+        "title": "DTCLowByte ] M 00-FF"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "6",
+        "title": "DTCExtendedDataRecordNumber M 00-FF"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "8.10.1.3.2",
+        "title": "通过DTC码报告DTC扩展数据记录的肯定响应见表79。"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "1",
+        "title": "PositiveResponseServiceID M 59"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "2",
+        "title": "reportDTCExtendedDataRecordByDTCNumber ] M 06"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "3",
+        "title": "DTCHighByte M 00-FF"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "8.10.1.4",
+        "title": "读取DTC信息 – 报告支持的DTC（19h 0Ah）"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "8.10.1.4.1",
+        "title": "报告支持的DTC请求报文见表80。"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 19"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "2",
+        "title": "reportSupportedDTC ] M 0A"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "8.10.1.4.2",
+        "title": "报告支持的DTC的肯定响应见表81。"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "1",
+        "title": "PositiveResponseServiceID M 59"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "2",
+        "title": "reportSupportDTCs ] M 0A"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "3",
+        "title": "DTCStatusAvailabilityMask M 00-FF"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "4",
+        "title": "DTCHighByte#1 C1 00-FF"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "5",
+        "title": "DTCMiddleByte#1 C1 00-FF"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "6",
+        "title": "DTCLowByte#1 C1 00-FF"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "7",
+        "title": "statusOfDTC#1 C1 00-FF"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "8.10.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "12",
+        "title": "M"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "13",
+        "title": "M"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "31",
+        "title": "C1"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "1",
+        "title": "此ECU不识别诊断工具指定的DTCMaskRecord；"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "2",
+        "title": "诊断工具指定了无效DTCExtendedDataRecordNumber。"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "8.10.3",
+        "title": "参数定义"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "01",
+        "title": "M"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "02",
+        "title": "该参数表示电控单元应把符合状态掩码的诊断故障代码和相应的状态发送给 M"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "03",
+        "title": "该参数规定电控单元应将所有DTCSnapshot数据记录标识[DTC编号和 U"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "04",
+        "title": "该参数规定电控单元应将诊断故障代码快照记录发送给测试工具。该快照记录 M"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "8.10.4",
+        "title": "执行规定"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "1",
+        "title": "使用“通过状态掩码报告DTC 数目”子功能服务，诊断工具可以获取与诊断工具发送的状"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "2",
+        "title": "当诊断工具发送清除诊断信息（14h）服务时，DTC 数目将被清除。"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "1",
+        "title": "使用“通过状态掩码报告DTC”子功能服务，诊断工具可以获取与诊断工具发送的状态掩"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "2",
+        "title": "该服务的处理应按照以下进行：ECU 应将诊断工具请求的DTC 状态掩码与它支持的各个DTC"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "3",
+        "title": "当诊断工具发送清除诊断信息（14h）服务时，DTC 状态信息应被清除。"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "1",
+        "title": "使用“检索DTCSnapshot 记录标识”子功能服务，诊断工具可以检索所有捕获的DTCSnapshot"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "2",
+        "title": "ECU 可以支持存储单个DTC 的多个DTCSnapshot 记录，以跟踪每次出现DTC 时的状态。在"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "3",
+        "title": "当诊断工具发送清除诊断信息（14h）服务时，DTCSnapshot 信息应被清除。"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "1",
+        "title": "使用“通过DTC 报告DTCSnapshot 记录”子功能服务，诊断工具可以依据DTC 码和"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "2",
+        "title": "DTCSnapshot记录包含多个数据参数。这些参数可以用来重建故障发生时整车运行条件"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "3",
+        "title": "在DTCSnapshotRecord报告数据中首先是一个数据标识符，然后是对应的数据，通过该数"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "4",
+        "title": "通常，ECU应在一个响应报文中报告一个DTCSnapshotRecord。然而，如果诊断工具设置"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "5",
+        "title": "如果诊断工具通过DTC要求报告所有的DTCSnapshot，DTCAndStatusRecord只在响应报文"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "6",
+        "title": "如果参数DTCMaskRecord或DTCSnapshotRecordNumber无效或不被ECU支持，ECU应发送"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "7",
+        "title": "如果参数DTCMaskRecord和/或DTCSnapshotRecordNumber在请求中有效并被ECU支持，但"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "8",
+        "title": "当诊断工具发送清除诊断信息（14h）服务时，DTCSnapshot信息应被清除。"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "1",
+        "title": "使用“通过DTC码报告DTC扩展数据记录”子功能服务，诊断工具可以依据DTC码和DTC"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "2",
+        "title": "DTC扩展数据记录中报告的数据的结构由DTC扩展数据记录号码定义，方法类似于在数据"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "3",
+        "title": "如果诊断工具已经设置DTC扩展数据记录为FFh，ECU应在一个响应报文中包含该DTC码对"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "4",
+        "title": "如果参数DTC码或DTC扩展数据记录号码无效或不被支持，ECU应发送否定响应；"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "5",
+        "title": "当诊断工具发送清除诊断信息（14h）服务时，扩展数据信息应被清除。"
+      },
+      {
+        "page": 87,
+        "kind": "heading",
+        "code": "8.11.1.2",
+        "title": "读取数据服务的肯定响应见表 85。"
+      },
+      {
+        "page": 87,
+        "kind": "heading",
+        "code": "8.11.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 88,
+        "kind": "heading",
+        "code": "8.11.3",
+        "title": "否定响应流程"
+      },
+      {
+        "page": 89,
+        "kind": "heading",
+        "code": "8.11.4",
+        "title": "参数定义"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "8.11.5",
+        "title": "执行规定"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "8.12",
+        "title": "读取内存 ReadMemoryByAddress（23h）"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "8.12.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "8.12.1.1",
+        "title": "该服务允许诊断工具根据起始地址及定义的数据大小从ECU 中读取数据，其请求报文见表87。"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "8.12.1.2",
+        "title": "读取内存服务的肯定响应见表 88。"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "8.12.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 91,
+        "kind": "heading",
+        "code": "1",
+        "title": "[$MA, ($MA + $MS -$1)] 内的任意内存地址无效；"
+      },
+      {
+        "page": 91,
+        "kind": "heading",
+        "code": "31",
+        "title": "M"
+      },
+      {
+        "page": 91,
+        "kind": "heading",
+        "code": "2",
+        "title": "[$MA, ($MA + $MS -$1)] 内的任意内存地址受限；"
+      },
+      {
+        "page": 91,
+        "kind": "heading",
+        "code": "3",
+        "title": "请求报文中的参数memorySize 值大于ECU支持的最大值；"
+      },
+      {
+        "page": 91,
+        "kind": "heading",
+        "code": "4",
+        "title": "指定的 addressAndLengthFormatIdentifier无效。"
+      },
+      {
+        "page": 91,
+        "kind": "heading",
+        "code": "33",
+        "title": "M 如果 [$MA, ($MA + $MS -$1)] 内的任意内存地址是受保护的且ECU没有处于"
+      },
+      {
+        "page": 91,
+        "kind": "heading",
+        "code": "8.12.3",
+        "title": "参数定义"
+      },
+      {
+        "page": 91,
+        "kind": "heading",
+        "code": "8.12.4",
+        "title": "执行规定"
+      },
+      {
+        "page": 91,
+        "kind": "heading",
+        "code": "8.13",
+        "title": "安全访问SecurityAccess（27h）"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "8.13.1",
+        "title": "请求种子"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "8.13.1.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "8.13.1.1.1",
+        "title": "此服务请求来自ECU的种子（seed）。基于这个种子，客户端能够计算并发送给ECU解锁所"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 27"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "2",
+        "title": "SecurityAccessType = requestSeed] M 01,09"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "8.13.1.1.2",
+        "title": "请求种子服务的肯定响应见表91。"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "1",
+        "title": "PositiveResponseServiceID M 67"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "2",
+        "title": "SecurityAccessType = requestSeed] M 01,09"
+      },
+      {
+        "page": 93,
+        "kind": "heading",
+        "code": "3",
+        "title": "seed#1 (high byte) M 00-FF"
+      },
+      {
+        "page": 93,
+        "kind": "heading",
+        "code": "18",
+        "title": "seed#16 (low byte) ] M 00-FF"
+      },
+      {
+        "page": 93,
+        "kind": "heading",
+        "code": "8.13.1.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 93,
+        "kind": "heading",
+        "code": "12",
+        "title": "M"
+      },
+      {
+        "page": 93,
+        "kind": "heading",
+        "code": "13",
+        "title": "M"
+      },
+      {
+        "page": 93,
+        "kind": "heading",
+        "code": "22",
+        "title": "U"
+      },
+      {
+        "page": 93,
+        "kind": "heading",
+        "code": "37",
+        "title": "M"
+      },
+      {
+        "page": 93,
+        "kind": "heading",
+        "code": "8.13.2",
+        "title": "发送密钥"
+      },
+      {
+        "page": 93,
+        "kind": "heading",
+        "code": "8.13.2.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 93,
+        "kind": "heading",
+        "code": "8.13.2.1.1",
+        "title": "此服务将客户端计算的密钥发送到ECU。 ECU将此密钥与内部存储/计算的密钥进行比较。"
+      },
+      {
+        "page": 93,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 27"
+      },
+      {
+        "page": 93,
+        "kind": "heading",
+        "code": "2",
+        "title": "SecurityAccessType = sendKey] M 02,0A"
+      },
+      {
+        "page": 94,
+        "kind": "heading",
+        "code": "8.13.2.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 94,
+        "kind": "heading",
+        "code": "8.13.3",
+        "title": "参数定义"
+      },
+      {
+        "page": 95,
+        "kind": "heading",
+        "code": "8.13.4",
+        "title": "执行规定"
+      },
+      {
+        "page": 95,
+        "kind": "heading",
+        "code": "1",
+        "title": "16 个字节（128 位）全为00h 的种子：如果ECU 已在解锁状态，此时接收到外部诊断诊断设"
+      },
+      {
+        "page": 95,
+        "kind": "heading",
+        "code": "2",
+        "title": "16 个字节（128 位）全为FFh 的种子：由于存储器被擦除时，其默认值为16 字节的FFh，所"
+      },
+      {
+        "page": 95,
+        "kind": "heading",
+        "code": "1",
+        "title": "ECU 成功切换到相同或者不同的诊断会话模式后，ECU 将进入闭锁状态；"
+      },
+      {
+        "page": 95,
+        "kind": "heading",
+        "code": "2",
+        "title": "ECU 发送了“RequestSeed”的否定应答；"
+      },
+      {
+        "page": 95,
+        "kind": "heading",
+        "code": "3",
+        "title": "ECU 发送了“SeedKey”的否定应答。"
+      },
+      {
+        "page": 95,
+        "kind": "heading",
+        "code": "8.13.5",
+        "title": "延时机制"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "8.14",
+        "title": "通信控制CommunicationControl（28h）"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "8.14.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "8.14.1.1",
+        "title": "通信控制请求报文见表97。"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 28"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "2",
+        "title": "ControlType] M 00-FF"
+      },
+      {
+        "page": 97,
+        "kind": "heading",
+        "code": "8.14.1.2",
+        "title": "通信控制服务的肯定响应见表 98。"
+      },
+      {
+        "page": 97,
+        "kind": "heading",
+        "code": "8.14.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 97,
+        "kind": "heading",
+        "code": "8.14.3",
+        "title": "参数定义"
+      },
+      {
+        "page": 97,
+        "kind": "heading",
+        "code": "8.14.3.1",
+        "title": "子功能参数定义见表99。"
+      },
+      {
+        "page": 98,
+        "kind": "heading",
+        "code": "8.14.3.2",
+        "title": "通讯类型定义的参数见表 100。"
+      },
+      {
+        "page": 98,
+        "kind": "heading",
+        "code": "8.14.4",
+        "title": "执行规定"
+      },
+      {
+        "page": 98,
+        "kind": "heading",
+        "code": "1",
+        "title": "车辆静止（如车速≤3km/h，挡位置于P 挡或者N 挡等）；"
+      },
+      {
+        "page": 98,
+        "kind": "heading",
+        "code": "2",
+        "title": "系统不执行任何紧急操作（供应商定义）；"
+      },
+      {
+        "page": 98,
+        "kind": "heading",
+        "code": "1",
+        "title": "接收到了“enableRxAndTx”参数的通讯控制服务；"
+      },
+      {
+        "page": 98,
+        "kind": "heading",
+        "code": "2",
+        "title": "ECU 上电/重启；"
+      },
+      {
+        "page": 98,
+        "kind": "heading",
+        "code": "3",
+        "title": "任何原因导致的诊断会话模式转换到默认会话。"
+      },
+      {
+        "page": 98,
+        "kind": "heading",
+        "code": "8.15",
+        "title": "读取数据（周期标识符）ReadDataByPeriodicIdentifier（2Ah）"
+      },
+      {
+        "page": 98,
+        "kind": "heading",
+        "code": "8.15.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 98,
+        "kind": "heading",
+        "code": "8.15.1.1",
+        "title": "读取数据（周期标识符）ReadDataByPeriodicIdentifier请求报文见表101。"
+      },
+      {
+        "page": 99,
+        "kind": "heading",
+        "code": "8.15.1.2",
+        "title": "读取数据服务的肯定响应-初始响应见表 102。"
+      },
+      {
+        "page": 99,
+        "kind": "heading",
+        "code": "8.15.1.3",
+        "title": "读取数据服务的肯定响应-后续响应见表 103。"
+      },
+      {
+        "page": 99,
+        "kind": "heading",
+        "code": "8.15.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 100,
+        "kind": "heading",
+        "code": "8.15.3",
+        "title": "参数定义"
+      },
+      {
+        "page": 100,
+        "kind": "heading",
+        "code": "8.15.4",
+        "title": "执行规定"
+      },
+      {
+        "page": 100,
+        "kind": "heading",
+        "code": "8.16",
+        "title": "动态定义数据标识符DynamicallyDefineDataIdentifier（2Ch）"
+      },
+      {
+        "page": 100,
+        "kind": "heading",
+        "code": "8.16.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 100,
+        "kind": "heading",
+        "code": "8.16.1.1",
+        "title": "动态定义数据标识符请求报文见表106。"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 2C"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "2",
+        "title": "M 01"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "3",
+        "title": "byte#1 (MSB) M F2,F3"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "4",
+        "title": "byte#2 (LSB) ] M 00-FF"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "5",
+        "title": "byte#1 (MSB) M 00-FF"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "6",
+        "title": "byte#2 (LSB) ] M 00-FF"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "7",
+        "title": "positionInSourceDataRecord #1 M 01-FF"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "8",
+        "title": "memorySize #1 M 01-FF"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "8.16.1.2",
+        "title": "清除标识符服务的请求报文见表107。"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 2C"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "2",
+        "title": "M 03"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "3",
+        "title": "byte#1 (MSB) C F2,F3"
+      },
+      {
+        "page": 102,
+        "kind": "heading",
+        "code": "8.16.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 102,
+        "kind": "heading",
+        "code": "8.16.3",
+        "title": "参数定义"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "8.16.4",
+        "title": "执行规定"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "8.17",
+        "title": "写入数据 WriteDataByIdentifier（2Eh）"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "8.17.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "8.17.1.1",
+        "title": "写入数据服务的请求报文见表111。"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 2E"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "2",
+        "title": "byte#1 (MSB) M 00-FF"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "3",
+        "title": "byte#2 (LSB)] M 00-FF"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "4",
+        "title": "data#1 M 00-FF"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "8.17.1.2",
+        "title": "写入数据服务的肯定响应见表112。"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "1",
+        "title": "PositiveResponseServiceID M 6E"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "2",
+        "title": "byte#1 (MSB) M 00-FF"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "3",
+        "title": "byte#2 (LSB)] M 00-FF"
+      },
+      {
+        "page": 104,
+        "kind": "heading",
+        "code": "8.17.3",
+        "title": "否定响应流程"
+      },
+      {
+        "page": 105,
+        "kind": "heading",
+        "code": "8.17.4",
+        "title": "参数定义"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "8.17.5",
+        "title": "执行规定"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "8.18",
+        "title": "输入输出控制InputOutputControlByIdentifier（2Fh）"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "8.18.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "8.18.1.1",
+        "title": "输入输出控制服务的请求报文见表114。"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 2F"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "2",
+        "title": "byte#1 (MSB) M 00-FF"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "3",
+        "title": "byte#2 (LSB) ] M 00-FF"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "4",
+        "title": "inputOutputControlParameter M 00-FF"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "5",
+        "title": "controlState#1 C1 00-FF"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "8.18.1.2",
+        "title": "输入输出控制服务的肯定响应见表115。"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "1",
+        "title": "PositiveResponseServiceID M 6F"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "2",
+        "title": "byte#1 (MSB) M 00-FF"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "4",
+        "title": "inputOutputControlParameter M 00-FF"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "5",
+        "title": "controlState#1 C1 00-FF"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "8.18.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "13",
+        "title": "M"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "22",
+        "title": "C"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "1",
+        "title": "ECU不支持请求的数据标识符值；"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "31",
+        "title": "M"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "2",
+        "title": "输入输出控制参数包含的值无效；"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "3",
+        "title": "controlOptionRecord中的一个或多个可用的controlStates记录无效；"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "4",
+        "title": "设备不支持在 ControlEnableMaskRecord 中启用控制的位组合；"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "33",
+        "title": "M 如果诊断工具请求一个受保护的数据标识符且ECU的安全特性为激活，发送此"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "8.18.3",
+        "title": "否定响应流程"
+      },
+      {
+        "page": 108,
+        "kind": "heading",
+        "code": "8.18.4",
+        "title": "参数定义"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "8.18.5",
+        "title": "执行规定"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "1",
+        "title": "车辆≤3km/h，挡位为P 挡或者N 挡，如由其他条件需零部件诊断规范中说明；"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "2",
+        "title": "激活的输入输出并不存在严重的故障条件（根据特定的ECU/系统来定义）；"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "3",
+        "title": "系统不存在任何与操作者、驾驶员及乘客安全相关的隐患（根据特定的ECU/系统来定义）。"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "1",
+        "title": "执行了ECU 的硬件或软件复位；"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "2",
+        "title": "无论任何原因，ECU由非默认会话模式切换到默认会话模式；"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "3",
+        "title": "控制时间超过最大安全时间时（S3_server超时），ECU应重新对这些参数进行控制；"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "4",
+        "title": "ECU收到“returnControlToECU”的命令。"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "8.19",
+        "title": "例程控制 RoutineControl（31h）"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "8.19.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "8.19.1.1",
+        "title": "例程控制服务的请求报文见表118。"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 31"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "2",
+        "title": "RoutineControlType ] M 00-7F"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "3",
+        "title": "byte#1 (MSB) M 00-FF"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "4",
+        "title": "byte#2 ] M 00-FF"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "5",
+        "title": "routineControlOption#1 C/U 00-FF"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "8.19.1.2",
+        "title": "例程控制服务的肯定响应见表119。"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "12",
+        "title": "M"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "13",
+        "title": "M"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "22",
+        "title": "C/U"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "1",
+        "title": "例程当前处于活动状态，当接收到“开始例程”子功能时无法重新启动（给"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "24",
+        "title": "U"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "2",
+        "title": "当收到“停止例程”子功能时，该例程当前未处于活动状态；"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "3",
+        "title": "当收到“请求例程结果”子功能时，例程结果不可用（例如，所请求的路"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "31",
+        "title": "M"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "1",
+        "title": "ECU不支持被请求的例程标识；"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "2",
+        "title": "对于被请求例程标识符，用户选择的例程控制选项记录包含无效数据。"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "33",
+        "title": "M 如果诊断工具发送一个带有安全例程标识符的请求且ECU的安全特性为激活，"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "72",
+        "title": "M"
+      },
+      {
+        "page": 112,
+        "kind": "heading",
+        "code": "8.19.4",
+        "title": "参数定义"
+      },
+      {
+        "page": 113,
+        "kind": "heading",
+        "code": "8.19.5",
+        "title": "执行规定"
+      },
+      {
+        "page": 113,
+        "kind": "heading",
+        "code": "8.20",
+        "title": "请求下载 RequestDownload（34h）"
+      },
+      {
+        "page": 113,
+        "kind": "heading",
+        "code": "8.20.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 113,
+        "kind": "heading",
+        "code": "8.20.1.1",
+        "title": "请求下载服务的请求报文见表 122。"
+      },
+      {
+        "page": 113,
+        "kind": "heading",
+        "code": "8.20.1.2",
+        "title": "请求下载服务的肯定响应见表 123"
+      },
+      {
+        "page": 114,
+        "kind": "heading",
+        "code": "8.20.2",
+        "title": "支持的否定响应"
+      },
+      {
+        "page": 114,
+        "kind": "heading",
+        "code": "8.20.3",
+        "title": "否定响应流程"
+      },
+      {
+        "page": 115,
+        "kind": "heading",
+        "code": "8.20.4",
+        "title": "参数定义"
+      },
+      {
+        "page": 115,
+        "kind": "heading",
+        "code": "1",
+        "title": "bit 7-4 表示压缩方法；"
+      },
+      {
+        "page": 115,
+        "kind": "heading",
+        "code": "2",
+        "title": "bit 3-1 表示加密算法，见图29。如果没有应用压缩或加密，相应位置为0。"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "1",
+        "title": "bit 7-4：MemorySize参数的长度（字节数）；"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "2",
+        "title": "bit 3-0：MemoryAddress参数的长度（字节数）。"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "1",
+        "title": "bit 7-4：表示后续MaxNumberOfBlockLength参数的字节长度，"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "2",
+        "title": "bit 3-0：预留，置为0。"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "8.20.5",
+        "title": "执行规定"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "8.21",
+        "title": "数据传输 TransferData（36h）"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "8.21.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "8.21.1.1",
+        "title": "传输数据服务的请求报文见表125。"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 36"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "2",
+        "title": "BlockSequenceCounter M 00-FF"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "3",
+        "title": "transferRequestParameter#1 C 00-FF"
+      },
+      {
+        "page": 117,
+        "kind": "heading",
+        "code": "8.21.1.2",
+        "title": "传输数据服务的肯定响应见表126。"
+      },
+      {
+        "page": 117,
+        "kind": "heading",
+        "code": "1",
+        "title": "PositiveResponseServiceIdentifier M 76"
+      },
+      {
+        "page": 117,
+        "kind": "heading",
+        "code": "2",
+        "title": "BlockSequenceCounter M 00-FF"
+      },
+      {
+        "page": 117,
+        "kind": "heading",
+        "code": "3",
+        "title": "transferResponseParameter#1 C 00-FF"
+      },
+      {
+        "page": 117,
+        "kind": "heading",
+        "code": "8.21.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 117,
+        "kind": "heading",
+        "code": "13",
+        "title": "M 如果报文长度错误，发送此否定响应码（例如，报文长度不满足请求下载服务"
+      },
+      {
+        "page": 117,
+        "kind": "heading",
+        "code": "1",
+        "title": "当收到服务请求时请求下载或请求上传服务无效；"
+      },
+      {
+        "page": 117,
+        "kind": "heading",
+        "code": "24",
+        "title": "U 2. 如果请求下载或请求上传服务有效，但ECU已经在请求下载或请求上传服"
+      },
+      {
+        "page": 117,
+        "kind": "heading",
+        "code": "1",
+        "title": "transferRequestParameterRecord包含附加控制参数（例如，附加地址信"
+      },
+      {
+        "page": 117,
+        "kind": "heading",
+        "code": "31",
+        "title": "M"
+      },
+      {
+        "page": 117,
+        "kind": "heading",
+        "code": "2",
+        "title": "transferRequestParameterRecord与requestDownload, requestUpload"
+      },
+      {
+        "page": 117,
+        "kind": "heading",
+        "code": "3",
+        "title": "transferRequestParameterRecord与服务器约束要求不一致。"
+      },
+      {
+        "page": 118,
+        "kind": "heading",
+        "code": "73",
+        "title": "M"
+      },
+      {
+        "page": 118,
+        "kind": "heading",
+        "code": "8.21.3",
+        "title": "否定响应流程"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "8.21.4",
+        "title": "参数定义"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "8.21.5",
+        "title": "执行规定"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "8.22",
+        "title": "请求退出传输RequestTransferExit（37h）"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "8.22.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "8.22.1.1",
+        "title": "请求退出传输服务的请求报文见表128。"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestTransferExit Request SID M 37"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "2",
+        "title": "transferRequestParamete#1 U 00-FF"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "8.22.1.2",
+        "title": "请求退出传输数据服务的肯定响应见表129。"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestTransferExit Response SID M 77"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "2",
+        "title": "transferRequestParamete#1 U 00-FF"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "8.22.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "13",
+        "title": "M"
+      },
+      {
+        "page": 120,
+        "kind": "heading",
+        "code": "8.22.3",
+        "title": "否定响应流程"
+      },
+      {
+        "page": 120,
+        "kind": "heading",
+        "code": "8.22.4",
+        "title": "参数定义"
+      },
+      {
+        "page": 120,
+        "kind": "heading",
+        "code": "8.22.5",
+        "title": "执行规定"
+      },
+      {
+        "page": 120,
+        "kind": "heading",
+        "code": "8.23",
+        "title": "请求文件传输 RequestFileTransfer (38h)"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "8.23.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "8.23.1.1",
+        "title": "请求文件传输的请求报文见表131。"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "1",
+        "title": "RequestServiceIdentifier M 38"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "2",
+        "title": "modeOfOperation M 01-05"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "3",
+        "title": "byte#1 (MSB) M 00-FF"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "4",
+        "title": "byte#2] (LSB) M 00-FF"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "5",
+        "title": "byte#1 (MSB) M 00-FF"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "8.23.1.2",
+        "title": "请求文件传输的肯定响应见表132。"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "1",
+        "title": "PositiveResponseServiceIdentifier M 78"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "2",
+        "title": "modeOfOperation M 01-05"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "3",
+        "title": "lengthFormatIdentifier C1 00-FF"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "4",
+        "title": "byte#1 (MSB) C1,2 00-FF"
+      },
+      {
+        "page": 122,
+        "kind": "heading",
+        "code": "8.23.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 122,
+        "kind": "heading",
+        "code": "13",
+        "title": "报文长度错误"
+      },
+      {
+        "page": 122,
+        "kind": "heading",
+        "code": "22",
+        "title": "如果服务器在下载或上传数据的过程中收到此服务的请求，或能够执行此服务的其他条件不"
+      },
+      {
+        "page": 122,
+        "kind": "heading",
+        "code": "1",
+        "title": "指定的dataFormatIdentifier无效"
+      },
+      {
+        "page": 122,
+        "kind": "heading",
+        "code": "2",
+        "title": "指定的modeOfOperation无效"
+      },
+      {
+        "page": 122,
+        "kind": "heading",
+        "code": "31",
+        "title": "3.指定的fileSizeParameterLength无效"
+      },
+      {
+        "page": 122,
+        "kind": "heading",
+        "code": "4",
+        "title": "指定的filePathAndNameLength无效"
+      },
+      {
+        "page": 122,
+        "kind": "heading",
+        "code": "5",
+        "title": "指定的fileSizeUncompressed无效"
+      },
+      {
+        "page": 122,
+        "kind": "heading",
+        "code": "6",
+        "title": "指定的fileSizeCompressed无效"
+      },
+      {
+        "page": 122,
+        "kind": "heading",
+        "code": "7",
+        "title": "指定的filePathAndName无效"
+      },
+      {
+        "page": 122,
+        "kind": "heading",
+        "code": "33",
+        "title": "如果服务器是安全的（对于支持SecurityAccess服务的服务器），则在收到此请求后，将发"
+      },
+      {
+        "page": 123,
+        "kind": "heading",
+        "code": "8.23.3",
+        "title": "否定响应流程"
+      },
+      {
+        "page": 123,
+        "kind": "heading",
+        "code": "8.23.4",
+        "title": "参数定义"
+      },
+      {
+        "page": 123,
+        "kind": "heading",
+        "code": "8.23.3.1",
+        "title": "文件传输服务参数定义见表134。"
+      },
+      {
+        "page": 125,
+        "kind": "heading",
+        "code": "8.23.3.2",
+        "title": "modeOfOperation 值的定义见表 135。"
+      },
+      {
+        "page": 126,
+        "kind": "heading",
+        "code": "8.23.5",
+        "title": "执行规定"
+      },
+      {
+        "page": 126,
+        "kind": "heading",
+        "code": "8.24",
+        "title": "写入内存WriteMemoryByAddress（3Dh）"
+      },
+      {
+        "page": 126,
+        "kind": "heading",
+        "code": "8.24.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 126,
+        "kind": "heading",
+        "code": "8.24.1.1",
+        "title": "写入内存服务的请求报文见表 136。"
+      },
+      {
+        "page": 126,
+        "kind": "heading",
+        "code": "8.24.1.2",
+        "title": "写入内存服务的肯定响应见表 137。"
+      },
+      {
+        "page": 127,
+        "kind": "heading",
+        "code": "8.24.2",
+        "title": "支持的否定响应"
+      },
+      {
+        "page": 127,
+        "kind": "heading",
+        "code": "8.24.3",
+        "title": "参数定义"
+      },
+      {
+        "page": 127,
+        "kind": "heading",
+        "code": "8.24.4",
+        "title": "执行规定"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "8.25",
+        "title": "诊断设备在线 TesterPresent（3Eh）"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "8.25.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "8.25.1.1",
+        "title": "诊断设备在线服务的请求报文见表 139。"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "8.25.1.2",
+        "title": "诊断设备在线服务的肯定响应见表 140。"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "8.25.2",
+        "title": "支持的否定响应"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "8.25.3",
+        "title": "参数定义"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "8.25.4",
+        "title": "执行规定"
+      },
+      {
+        "page": 129,
+        "kind": "heading",
+        "code": "8.26",
+        "title": "控制DTC 设置 ControlDTCSetting（85h）"
+      },
+      {
+        "page": 129,
+        "kind": "heading",
+        "code": "8.26.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 129,
+        "kind": "heading",
+        "code": "8.26.1.1",
+        "title": "控制 DTC 设置服务的请求报文见表 143。"
+      },
+      {
+        "page": 129,
+        "kind": "heading",
+        "code": "8.26.1.2",
+        "title": "控制 DTC 设置服务的肯定响应见表 144。"
+      },
+      {
+        "page": 129,
+        "kind": "heading",
+        "code": "8.26.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 129,
+        "kind": "heading",
+        "code": "8.26.3",
+        "title": "参数定义"
+      },
+      {
+        "page": 130,
+        "kind": "heading",
+        "code": "8.26.4",
+        "title": "执行规定"
+      },
+      {
+        "page": 130,
+        "kind": "heading",
+        "code": "8.27",
+        "title": "认证 Authentication（29h）"
+      },
+      {
+        "page": 130,
+        "kind": "heading",
+        "code": "8.27.1",
+        "title": "报文格式"
+      },
+      {
+        "page": 130,
+        "kind": "heading",
+        "code": "8.27.1.1",
+        "title": "认证 – 解除认证（29h 00h）"
+      },
+      {
+        "page": 130,
+        "kind": "heading",
+        "code": "8.27.1.1.1",
+        "title": "认证服务的请求报文见表147。"
+      },
+      {
+        "page": 130,
+        "kind": "heading",
+        "code": "8.27.1.1.2",
+        "title": "认证服务的肯定响应报文见表 148。"
+      },
+      {
+        "page": 130,
+        "kind": "heading",
+        "code": "8.27.1.2",
+        "title": "认证 – 基于APEC 的单向证书认证（29h 01h）"
+      },
+      {
+        "page": 130,
+        "kind": "heading",
+        "code": "8.27.1.2.1",
+        "title": "基于APEC的单向证书认证服务的请求报文见表149。"
+      },
+      {
+        "page": 131,
+        "kind": "heading",
+        "code": "1",
+        "title": "Authentication Request SID M 29"
+      },
+      {
+        "page": 131,
+        "kind": "heading",
+        "code": "2",
+        "title": "authenticationTask = verifyCertificateUnidirectional] M 01"
+      },
+      {
+        "page": 131,
+        "kind": "heading",
+        "code": "3",
+        "title": "communicationConfiguration [] = [ byte#1 ] M 00-FF"
+      },
+      {
+        "page": 131,
+        "kind": "heading",
+        "code": "4",
+        "title": "byte#1 (MSB) M 00-FF"
+      },
+      {
+        "page": 131,
+        "kind": "heading",
+        "code": "5",
+        "title": "byte#2 (LSB)] M 00-FF"
+      },
+      {
+        "page": 131,
+        "kind": "heading",
+        "code": "6",
+        "title": "byte#1 M 00-FF"
+      },
+      {
+        "page": 131,
+        "kind": "heading",
+        "code": "8.27.1.2.2",
+        "title": "基于APEC的单向证书认证服务的肯定响应见表150。"
+      },
+      {
+        "page": 131,
+        "kind": "heading",
+        "code": "1",
+        "title": "Authentication Response SID M 69"
+      },
+      {
+        "page": 131,
+        "kind": "heading",
+        "code": "2",
+        "title": "authenticationTask = verifyCertificateUnidirectional] M 01"
+      },
+      {
+        "page": 131,
+        "kind": "heading",
+        "code": "3",
+        "title": "returnValue [] =[ authenticationReturnParameter ] M 00-FF"
+      },
+      {
+        "page": 131,
+        "kind": "heading",
+        "code": "4",
+        "title": "byte#1 (MSB) M 00-FF"
+      },
+      {
+        "page": 131,
+        "kind": "heading",
+        "code": "5",
+        "title": "byte#2 (LSB) ] M 00-FF"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "8.27.1.3",
+        "title": "认证 – 所有权认证（29h 03h）"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "8.27.1.3.1",
+        "title": "所有权认证服务的请求报文见表151。"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "1",
+        "title": "Authentication Request SID M 29"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "2",
+        "title": "SubFunction = [authenticationTask = proofOfOwnership] M 03"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "3",
+        "title": "byte#1 (MSB) M 00-FF"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "4",
+        "title": "byte#2 (LSB) ] M 00-FF"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "5",
+        "title": "byte#1 M 00-FF"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "8.27.1.3.2",
+        "title": "所有权认证服务的肯定响应见表152。"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "1",
+        "title": "Authentication Response SID M 69"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "2",
+        "title": "SubFunction = [authenticationTask = proofOfOwnership] M 03"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "3",
+        "title": "returnValue [] = [authenticationReturnParameter] M 00-FF"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "4",
+        "title": "byte#1 (MSB) M 00-FF"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "6",
+        "title": "byte#1 C 00-FF"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "8.27.2",
+        "title": "支持的否定响应码"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "12",
+        "title": "M"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "13",
+        "title": "M"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "22",
+        "title": "M"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "24",
+        "title": "M 如果在成功接收子功能‘verifyCertificateUnidirectional’ 请求前收到"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "8.27.3",
+        "title": "参数定义"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "00",
+        "title": "请求被接受，请求成功 U"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "01",
+        "title": "通用拒绝，请求失败 U"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "02",
+        "title": "M"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "03",
+        "title": "M"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "04",
+        "title": "M"
+      },
+      {
+        "page": 134,
+        "kind": "heading",
+        "code": "14",
+        "title": "9F ISO SAE预留 M"
+      },
+      {
+        "page": 134,
+        "kind": "heading",
+        "code": "8.27.4",
+        "title": "执行规定"
+      },
+      {
+        "page": 135,
+        "kind": "appendix",
+        "code": "A",
+        "title": "附录 A"
+      },
+      {
+        "page": 135,
+        "kind": "heading",
+        "code": "01",
+        "title": "– 0F （ISO保留）"
+      },
+      {
+        "page": 135,
+        "kind": "heading",
+        "code": "11",
+        "title": "在诊断工具发送了带有不为ECU所知或所支持的服务标识符的请求报文后，ECU将发送该响应码。因此，"
+      },
+      {
+        "page": 135,
+        "kind": "heading",
+        "code": "13",
+        "title": "该响应码表示由于接收到的请求报文的长度与具体服务预定义的长度不能匹配或参数的格式与具体服"
+      },
+      {
+        "page": 135,
+        "kind": "heading",
+        "code": "14",
+        "title": "如果ECU生成的响应超过了下层的网络层可用的最大字节数，则ECU将报告该响应码。"
+      },
+      {
+        "page": 135,
+        "kind": "heading",
+        "code": "15",
+        "title": "– 20 （ISO保留）"
+      },
+      {
+        "page": 136,
+        "kind": "heading",
+        "code": "23",
+        "title": "（ISO保留）"
+      },
+      {
+        "page": 136,
+        "kind": "heading",
+        "code": "24",
+        "title": "当对顺序有要求的请求以错误的顺序被发出时，将用到该响应码。"
+      },
+      {
+        "page": 136,
+        "kind": "heading",
+        "code": "25",
+        "title": "网关可接收针对子网部件的请求然后向子网部件请求必要的信息，如果子网部件响应失败，则ECU应"
+      },
+      {
+        "page": 136,
+        "kind": "heading",
+        "code": "26",
+        "title": "该否定响应码可引导维修技师去读取DTC以识别并定位问题。"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "8.10.1.2",
+          "requirement_count": 103,
+          "missing_section_anchor_count": 103,
+          "remote_section_match_count": 103,
+          "sample_missing_codes": [
+            "8.10.1.3",
+            "8.10.1.4",
+            "8.10.2",
+            "8.10.3",
+            "8.10.4",
+            "8.11",
+            "8.11.1",
+            "8.11.2"
+          ],
+          "expected_direct_children": [
+            "8"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "4.23",
+          "requirement_count": 3,
+          "missing_section_anchor_count": 3,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "4.24",
+            "4.25",
+            "4.26"
+          ],
+          "expected_direct_children": [
+            "4"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "4.16",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "4.17"
+          ],
+          "expected_direct_children": [
+            "4"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "4.20",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "4.21"
+          ],
+          "expected_direct_children": [
+            "4"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "4.28",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "4.29"
+          ],
+          "expected_direct_children": [
+            "4"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "7.6.3.2",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "7.2"
+          ],
+          "expected_direct_children": [
+            "7"
+          ]
+        }
+      ],
+      "page_counts": {
+        "5": 103,
+        "12": 1,
+        "13": 5,
+        "38": 1
+      }
+    },
+    "duplicate_scope_summary": {
+      "duplicates": [
+        {
+          "scoped_code": "MAIN:8.10.1.1",
+          "appendix_scope": "MAIN",
+          "section_code": "8.10.1.1",
+          "raw_duplicate_count": 2,
+          "section_instance_key_count": 2,
+          "requirement_row_count": 2
+        },
+        {
+          "scoped_code": "MAIN:8.10.1.2",
+          "appendix_scope": "MAIN",
+          "section_code": "8.10.1.2",
+          "raw_duplicate_count": 2,
+          "section_instance_key_count": 2,
+          "requirement_row_count": 106
+        }
+      ]
+    },
+    "baseline_delta": {
+      "requirements_count": 436,
+      "sections_count": 365,
+      "requirements_drift": null,
+      "sections_drift": null,
+      "table_row_issue_count": 0,
+      "complex_table_signal": true,
+      "hotspot_section_code": "duplicate_scoped_codes"
+    },
+    "page_hotspots": [
+      {
+        "page": 13,
+        "requirement_count": 12,
+        "missing_local_clause_count": 5,
+        "low_confidence": true,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 0.1948,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 12,
+        "requirement_count": 9,
+        "missing_local_clause_count": 1,
+        "low_confidence": true,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": -0.0047,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 89,
+        "requirement_count": 1,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.58,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 105,
+        "requirement_count": 1,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.58,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 108,
+        "requirement_count": 1,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.42,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 112,
+        "requirement_count": 1,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.53,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 1,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pdfplumber",
+        "quality_score": 0.9867,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 11,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pypdf",
+        "quality_score": -0.5503,
+        "table_count": 0,
+        "enum_signal": 0
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [
+        1,
+        11,
+        12,
+        13,
+        70,
+        89,
+        105,
+        108,
+        112
+      ],
+      "selected_engine_pages": {
+        "pdfplumber": 45,
+        "pymupdf_raw": 23,
+        "pymupdf4llm": 72,
+        "pypdf": 1
+      }
+    },
+    "expected_structure_summary": [
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "8.10.1.2",
+        "expected_children": [
+          "8"
+        ],
+        "summary": "8.10.1.2 should expose local anchors: 8"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "4.23",
+        "expected_children": [
+          "4"
+        ],
+        "summary": "4.23 should expose local anchors: 4"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "4.16",
+        "expected_children": [
+          "4"
+        ],
+        "summary": "4.16 should expose local anchors: 4"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "4.20",
+        "expected_children": [
+          "4"
+        ],
+        "summary": "4.20 should expose local anchors: 4"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "4.28",
+        "expected_children": [
+          "4"
+        ],
+        "summary": "4.28 should expose local anchors: 4"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "7.6.3.2",
+        "expected_children": [
+          "7"
+        ],
+        "summary": "7.6.3.2 should expose local anchors: 7"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "8.10.1.1",
+        "expected_children": [],
+        "summary": "MAIN:8.10.1.1 should stop colliding at raw outline level or become explicitly instance-safe."
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "8.10.1.2",
+        "expected_children": [],
+        "summary": "MAIN:8.10.1.2 should stop colliding at raw outline level or become explicitly instance-safe."
+      }
+    ]
+  },
+  "findings": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "8.10.1.2",
+      "expected_structure_summary": "8.10.1.2 should expose local section anchors such as 8",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[8.10.1.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.93,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 103,
+        "remote_section_match_count": 103,
+        "sample_missing_codes": [
+          "8.10.1.3",
+          "8.10.1.4",
+          "8.10.2",
+          "8.10.3",
+          "8.10.4",
+          "8.11",
+          "8.11.1",
+          "8.11.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "4.23",
+      "expected_structure_summary": "4.23 should expose local section anchors such as 4",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[4.23]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 3,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "4.24",
+          "4.25",
+          "4.26"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "4.16",
+      "expected_structure_summary": "4.16 should expose local section anchors such as 4",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[4.16]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "4.17"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "4.20",
+      "expected_structure_summary": "4.20 should expose local section anchors such as 4",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[4.20]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "4.21"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "4.28",
+      "expected_structure_summary": "4.28 should expose local section anchors such as 4",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[4.28]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "4.29"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "7.6.3.2",
+      "expected_structure_summary": "7.6.3.2 should expose local section anchors such as 7",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[7.6.3.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "7.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "raw_scoped_code_namespace_collision",
+      "category": "scope_and_namespace",
+      "issue_type": "duplicate_section_code",
+      "impacted_scope": "MAIN",
+      "impacted_section": "8.10.1.1",
+      "expected_structure_summary": "Duplicate scoped codes should map to an intentional namespace or collapse upstream.",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Tighten appendix scope / section instance generation before relying on duplicate scoped codes.",
+      "evidence_refs": [
+        "issue_rollup[duplicate_section_code]"
+      ],
+      "confidence": 0.58,
+      "needs_human_review": false,
+      "details": {
+        "detail": "duplicate_count=2"
+      }
+    },
+    {
+      "pattern_id": "raw_scoped_code_namespace_collision",
+      "category": "scope_and_namespace",
+      "issue_type": "duplicate_section_code",
+      "impacted_scope": "MAIN",
+      "impacted_section": "8.10.1.2",
+      "expected_structure_summary": "Duplicate scoped codes should map to an intentional namespace or collapse upstream.",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Tighten appendix scope / section instance generation before relying on duplicate scoped codes.",
+      "evidence_refs": [
+        "issue_rollup[duplicate_section_code]"
+      ],
+      "confidence": 0.58,
+      "needs_human_review": false,
+      "details": {
+        "detail": "duplicate_count=2"
+      }
+    },
+    {
+      "pattern_id": "raw_scoped_code_namespace_collision",
+      "category": "scope_and_namespace",
+      "issue_type": "raw_duplicate_scoped_code",
+      "impacted_scope": "MAIN",
+      "impacted_section": "8.10.1.1",
+      "expected_structure_summary": "Duplicate scoped codes should either collapse upstream or remain explicitly instance-safe before gating.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Tighten appendix scope / section instance generation before relying on duplicate scoped codes.",
+      "evidence_refs": [
+        "duplicate_scope_summary.duplicates[MAIN:8.10.1.1]"
+      ],
+      "confidence": 0.82,
+      "needs_human_review": true,
+      "details": {
+        "raw_duplicate_count": 2,
+        "section_instance_key_count": 2,
+        "requirement_row_count": 2
+      }
+    },
+    {
+      "pattern_id": "raw_scoped_code_namespace_collision",
+      "category": "scope_and_namespace",
+      "issue_type": "raw_duplicate_scoped_code",
+      "impacted_scope": "MAIN",
+      "impacted_section": "8.10.1.2",
+      "expected_structure_summary": "Duplicate scoped codes should either collapse upstream or remain explicitly instance-safe before gating.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Tighten appendix scope / section instance generation before relying on duplicate scoped codes.",
+      "evidence_refs": [
+        "duplicate_scope_summary.duplicates[MAIN:8.10.1.2]"
+      ],
+      "confidence": 0.82,
+      "needs_human_review": true,
+      "details": {
+        "raw_duplicate_count": 2,
+        "section_instance_key_count": 2,
+        "requirement_row_count": 106
+      }
+    },
+    {
+      "pattern_id": "profile_unmatched",
+      "category": "heading_recovery",
+      "issue_type": "profile_unmatched",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "evidence_refs": [
+        "issue_summary",
+        "profiles"
+      ],
+      "confidence": 0.66,
+      "needs_human_review": true,
+      "details": {
+        "quality_profile": "",
+        "fidelity_profile": ""
+      }
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "issue_type": "parser_low_confidence_hotspot",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Low-confidence pages should be stabilized before downstream clause binding is tuned.",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "evidence_refs": [
+        "parser_diagnostics.low_confidence_pages",
+        "page_hotspots"
+      ],
+      "confidence": 0.62,
+      "needs_human_review": true,
+      "details": {
+        "low_confidence_pages": [
+          1,
+          11,
+          12,
+          13,
+          70,
+          89,
+          105,
+          108,
+          112
+        ]
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "pattern_name": "Local clause heading not promoted to section anchor",
+      "category": "heading_recovery",
+      "doc_key": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范",
+      "pdf_name": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+      "issue_type": "local_clause_section_missing",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "raw_scoped_code_namespace_collision",
+      "pattern_name": "Raw scoped code namespace collision",
+      "category": "scope_and_namespace",
+      "doc_key": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范",
+      "pdf_name": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+      "issue_type": "duplicate_section_code",
+      "suspected_layer": "extractor",
+      "recommended_fix_direction": "Tighten appendix scope / section instance generation before relying on duplicate scoped codes.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "profile_unmatched",
+      "pattern_name": "profile_unmatched",
+      "category": "heading_recovery",
+      "doc_key": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范",
+      "pdf_name": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+      "issue_type": "profile_unmatched",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "pattern_name": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "doc_key": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范",
+      "pdf_name": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+      "issue_type": "parser_low_confidence_hotspot",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf\",\n  \"issue_rollup\": [\n    {\n      \"gate\": \"quality_gate\",\n      \"pdf_name\": \"Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf\",\n      \"profile\": \"\",\n      \"category\": \"outline_structure\",\n      \"category_label\": \"Outline Structure\",\n      \"issue_type\": \"duplicate_section_code\",\n      \"severity\": \"medium\",\n      \"appendix_scope\": \"MAIN\",\n      \"section_code\": \"8.10.1.1\",\n      \"detail\": \"duplicate_count=2\"\n    },\n    {\n      \"gate\": \"quality_gate\",\n      \"pdf_name\": \"Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf\",\n      \"profile\": \"\",\n      \"category\": \"outline_structure\",\n      \"category_label\": \"Outline Structure\",\n      \"issue_type\": \"duplicate_section_code\",\n      \"severity\": \"medium\",\n      \"appendix_scope\": \"MAIN\",\n      \"section_code\": \"8.10.1.2\",\n      \"detail\": \"duplicate_count=2\"\n    },\n    {\n      \"gate\": \"quality_gate\",\n      \"pdf_name\": \"Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf\",\n      \"profile\": \"\",\n      \"category\": \"outline_structure\",\n      \"category_label\": \"Outline Structure\",\n      \"issue_type\": \"sibling_gap_alert\",\n      \"severity\": \"medium\",\n      \"appendix_scope\": \"MAIN\",\n      \"section_code\": \"4\",\n      \"detail\": \"missing=['4.17', '4.21', '4.24', '4.25', '4.26', '4.29']\"\n    }\n  ],\n  \"findings\": [\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"8.10.1.2\",\n      \"expected_structure_summary\": \"8.10.1.2 should expose local section anchors such as 8\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[8.10.1.2]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.93,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 103,\n        \"remote_section_match_count\": 103,\n        \"sample_missing_codes\": [\n          \"8.10.1.3\",\n          \"8.10.1.4\",\n          \"8.10.2\",\n          \"8.10.3\",\n          \"8.10.4\",\n          \"8.11\",\n          \"8.11.1\",\n          \"8.11.2\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"4.23\",\n      \"expected_structure_summary\": \"4.23 should expose local section anchors such as 4\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[4.23]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 3,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"4.24\",\n          \"4.25\",\n          \"4.26\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"4.16\",\n      \"expected_structure_summary\": \"4.16 should expose local section anchors such as 4\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[4.16]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"4.17\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"4.20\",\n      \"expected_structure_summary\": \"4.20 should expose local section anchors such as 4\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[4.20]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"4.21\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"4.28\",\n      \"expected_structure_summary\": \"4.28 should expose local section anchors such as 4\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[4.28]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"4.29\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"7.6.3.2\",\n      \"expected_structure_summary\": \"7.6.3.2 should expose local section anchors such as 7\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[7.6.3.2]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"7.2\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"raw_scoped_code_namespace_collision\",\n      \"category\": \"scope_and_namespace\",\n      \"issue_type\": \"duplicate_section_code\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"8.10.1.1\",\n      \"expected_structure_summary\": \"Duplicate scoped codes should map to an intentional namespace or collapse upstream.\",\n      \"suspected_layer\": \"extractor\",\n      \"recommended_fix_direction\": \"Tighten appendix scope / section instance generation before relying on duplicate scoped codes.\",\n      \"evidence_refs\": [\n        \"issue_rollup[duplicate_section_code]\"\n      ],\n      \"confidence\": 0.58,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"detail\": \"duplicate_count=2\"\n      }\n    },\n    {\n      \"pattern_id\": \"raw_scoped_code_namespace_collision\",\n      \"category\": \"scope_and_namespace\",\n      \"issue_type\": \"duplicate_section_code\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"8.10.1.2\",\n      \"expected_structure_summary\": \"Duplicate scoped codes should map to an intentional namespace or collapse upstream.\",\n      \"suspected_layer\": \"extractor\",\n      \"recommended_fix_direction\": \"Tighten appendix scope / section instance generation before relying on duplicate scoped codes.\",\n      \"evidence_refs\": [\n        \"issue_rollup[duplicate_section_code]\"\n      ],\n      \"confidence\": 0.58,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"detail\": \"duplicate_count=2\"\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 13,\n      \"requirement_count\": 12,\n      \"missing_local_clause_count\": 5,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 0.1948,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 12,\n      \"requirement_count\": 9,\n      \"missing_local_clause_count\": 1,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": -0.0047,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 89,\n      \"requirement_count\": 1,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.58,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 105,\n      \"requirement_count\": 1,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.58,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 108,\n      \"requirement_count\": 1,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.42,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 112,\n      \"requirement_count\": 1,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.53,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"8.10.1.2\",\n        \"requirement_count\": 103,\n        \"missing_section_anchor_count\": 103,\n        \"remote_section_match_count\": 103,\n        \"sample_missing_codes\": [\n          \"8.10.1.3\",\n          \"8.10.1.4\",\n          \"8.10.2\",\n          \"8.10.3\",\n          \"8.10.4\",\n          \"8.11\",\n          \"8.11.1\",\n          \"8.11.2\"\n        ],\n        \"expected_direct_children\": [\n          \"8\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"4.23\",\n        \"requirement_count\": 3,\n        \"missing_section_anchor_count\": 3,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"4.24\",\n          \"4.25\",\n          \"4.26\"\n        ],\n        \"expected_direct_children\": [\n          \"4\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"4.16\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"4.17\"\n        ],\n        \"expected_direct_children\": [\n          \"4\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"4.20\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"4.21\"\n        ],\n        \"expected_direct_children\": [\n          \"4\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"4.28\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"4.29\"\n        ],\n        \"expected_direct_children\": [\n          \"4\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"7.6.3.2\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"7.2\"\n        ],\n        \"expected_direct_children\": [\n          \"7\"\n        ]\n      }\n    ],\n    \"page_counts\": {\n      \"5\": 103,\n      \"12\": 1,\n      \"13\": 5,\n      \"38\": 1\n    }\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": [\n      {\n        \"scoped_code\": \"MAIN:8.10.1.1\",\n        \"appendix_scope\": \"MAIN\",\n        \"section_code\": \"8.10.1.1\",\n        \"raw_duplicate_count\": 2,\n        \"section_instance_key_count\": 2,\n        \"requirement_row_count\": 2\n      },\n      {\n        \"scoped_code\": \"MAIN:8.10.1.2\",\n        \"appendix_scope\": \"MAIN\",\n        \"section_code\": \"8.10.1.2\",\n        \"raw_duplicate_count\": 2,\n        \"section_instance_key_count\": 2,\n        \"requirement_row_count\": 106\n      }\n    ]\n  }\n}"
+    }
+  ]
+}

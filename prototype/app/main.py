@@ -74,10 +74,12 @@ from app.services.progress_tracker import (
     update_progress_checkpoint,
 )
 from app.services.preview_cache import (
+    cancel_preview_refresh,
     get_preview_cache_state,
     load_cached_preview,
     mark_preview_stale,
     persist_preview_cache,
+    purge_preview_artifacts,
     reset_document_snapshot_root,
     request_preview_refresh,
 )
@@ -711,6 +713,16 @@ def _build_ai_profile_catalog(knowledge_docs: list[dict[str, Any]]) -> list[dict
 
 
 def _default_knowledge_sync_profile_ids() -> list[str]:
+    """Return profile IDs for all retrieval-ready profiles (azure + aliyun when configured).
+
+    Previously only returned the single default profile, which caused aliyun to be skipped
+    on resync even when its retrieval backend (Qdrant) was fully configured and running.
+    """
+    from app.services.ai_copilot import list_ai_copilot_profiles
+    ready = [c.profile_id for c in list_ai_copilot_profiles() if c.retrieval_runtime_ready]
+    if ready:
+        return ready
+    # Fallback: at least sync the default profile
     return [load_ai_copilot_config().profile_id]
 
 
@@ -842,9 +854,12 @@ def delete_sor_document(project_id: str, document_id: str) -> dict:
     document = db.get_sor_document(document_id)
     if not document or document["project_id"] != project_id:
         raise HTTPException(status_code=404, detail="SOR document not found for this project.")
+    cancel_preview_refresh(document_id)
     deleted = db.delete_sor_document(document_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="SOR document not found.")
+    purge_preview_artifacts(document_id, recreate_snapshot_root=False)
+    _purge_table_snapshot_root(document_id)
     return {"ok": True, "file_name": deleted["file_name"]}
 
 
@@ -3107,19 +3122,26 @@ def _json_dumps(value: object) -> str:
     return json.dumps(value if value is not None else [], ensure_ascii=False)
 
 
-def _table_snapshot_root(document_id: str) -> Path:
+def _table_snapshot_root(document_id: str, *, create: bool = True) -> Path:
     token = str(document_id or "").strip() or "preview"
     path = TABLE_SNAPSHOT_DIR / "persisted" / token
-    path.mkdir(parents=True, exist_ok=True)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def _reset_table_snapshot_root(document_id: str) -> Path:
-    path = _table_snapshot_root(document_id)
+    path = _table_snapshot_root(document_id, create=False)
     if path.exists():
         shutil.rmtree(path, ignore_errors=True)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _purge_table_snapshot_root(document_id: str) -> None:
+    path = _table_snapshot_root(document_id, create=False)
+    if path.exists():
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def _materialize_document_table_assets(

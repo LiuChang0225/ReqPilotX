@@ -263,6 +263,7 @@ def run_extraction_audit(
         outline=preview.get("section_outline", []) or [],
         requirements=preview.get("complete_requirement_entries", []) or [],
         parser_diagnostics=preview.get("parser_diagnostics", {}) or {},
+        section_consistency=preview.get("section_consistency", {}) or {},
         defaults=quality_defaults,
         profile=quality_profile,
     )
@@ -406,6 +407,7 @@ def build_evidence_pack(
         outline=preview.get("section_outline", []) or [],
         sections=preview.get("sections", []) or [],
         requirements=preview.get("requirements", []) or [],
+        section_consistency=preview.get("section_consistency", {}) or {},
     )
     baseline_delta = _build_baseline_delta(
         preview_summary=preview.get("summary", {}) or {},
@@ -887,10 +889,19 @@ def _build_duplicate_scope_summary(
     outline: list[dict[str, Any]],
     sections: list[dict[str, Any]],
     requirements: list[dict[str, Any]],
+    section_consistency: dict[str, Any] | None = None,
 ) -> dict[str, Any]:
     raw_counts: Counter[str] = Counter()
     instance_keys: dict[str, set[str]] = defaultdict(set)
     requirement_counts: Counter[str] = Counter()
+    ignored_scoped_codes: set[str] = set()
+
+    for item in (section_consistency or {}).get("issues", []) or []:
+        if str(item.get("issue_type") or "").strip() != "source_faithful_duplicate_code":
+            continue
+        scoped_code = _join_scope_code(str(item.get("appendix_scope") or ""), str(item.get("section_code") or ""))
+        if scoped_code:
+            ignored_scoped_codes.add(scoped_code)
 
     for row in outline:
         scoped_code = _join_scope_code(str(row.get("appendix_scope") or ""), str(row.get("section_code") or ""))
@@ -908,6 +919,8 @@ def _build_duplicate_scope_summary(
     duplicates: list[dict[str, Any]] = []
     for scoped_code, count in sorted(raw_counts.items()):
         if count <= 1:
+            continue
+        if scoped_code in ignored_scoped_codes:
             continue
         scope, code = _split_scope_code(scoped_code)
         duplicates.append(
@@ -1166,7 +1179,16 @@ def _load_fidelity_profiles(path: Path) -> list[fidelity_benchmark.FidelityProfi
 
 
 def _resolve_path(path: Path) -> Path:
-    return path.expanduser().resolve() if path.is_absolute() else (PROJECT_DIR / path).resolve()
+    expanded = path.expanduser()
+    if expanded.is_absolute():
+        return expanded.resolve()
+    cwd_candidate = (Path.cwd() / expanded).resolve()
+    parts = expanded.parts
+    if cwd_candidate.exists():
+        return cwd_candidate
+    if parts and parts[0] == "prototype" and (Path.cwd() / "prototype").exists():
+        return cwd_candidate
+    return (PROJECT_DIR / expanded).resolve()
 
 
 def _load_json(path: Path) -> dict[str, Any]:

@@ -2093,15 +2093,16 @@ function renderReviewKindFilter() {
     return;
   }
   const kinds = new Set((state.reviewEntries || []).map((item) => String(item.entry_kind || "REQUIREMENT").toUpperCase()));
+  const selectedKinds = new Set((Array.isArray(state.reviewSelectedKinds) ? state.reviewSelectedKinds : []).map((kind) => String(kind || "").toUpperCase()));
   const chips = el.reviewKindFilter.querySelectorAll(".kind-chip");
   chips.forEach((chip) => {
     const kind = chip.dataset.kind;
-    if (kinds.has(kind)) {
-      chip.style.display = "";
-    } else {
-      chip.style.display = "none";
-    }
+    const available = kinds.has(kind);
+    chip.style.display = available ? "" : "none";
+    const shouldBeActive = available && (selectedKinds.size === 0 || selectedKinds.has(kind));
+    chip.classList.toggle("is-active", shouldBeActive);
   });
+  state.reviewSelectedKinds = getSelectedReviewKinds();
 }
 
 function getSelectedReviewKinds() {
@@ -3933,7 +3934,11 @@ function buildSectionLabel(label, code, title) {
   return [String(code || "").trim(), String(title || "").trim()].filter(Boolean).join(" ");
 }
 
-function formatScope(scope) {
+function formatScope(scope, title) {
+  const normalizedTitle = String(title || "").trim();
+  if (normalizedTitle) {
+    return normalizedTitle;
+  }
   const normalized = String(scope || "MAIN").trim().toUpperCase();
   return normalized || "MAIN";
 }

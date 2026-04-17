@@ -18,7 +18,8 @@ logger = logging.getLogger(__name__)
 _PREVIEW_EXECUTOR = ThreadPoolExecutor(max_workers=1, thread_name_prefix="preview-cache")
 _PREVIEW_LOCK = threading.Lock()
 _ACTIVE_REFRESHES: set[str] = set()
-_PREVIEW_CACHE_VERSION = "preview-cache-v28-numbered-heading-anchor-fragments"
+_CANCELLED_REFRESHES: set[str] = set()
+_PREVIEW_CACHE_VERSION = "preview-cache-v29-section-window-visual-override"
 
 
 def _now_iso() -> str:
@@ -35,28 +36,50 @@ def preview_cache_path(document_id: str) -> Path:
     return _preview_dir() / f"{document_id}.json"
 
 
-def document_snapshot_root(document_id: str) -> Path:
+def document_snapshot_root(document_id: str, *, create: bool = True) -> Path:
     token = str(document_id or "").strip() or "preview"
     path = db.STORAGE_DIR / "table_snapshots" / "preview" / token
-    path.mkdir(parents=True, exist_ok=True)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def reset_document_snapshot_root(document_id: str) -> Path:
-    path = document_snapshot_root(document_id)
+    path = document_snapshot_root(document_id, create=False)
     if path.exists():
         shutil.rmtree(path, ignore_errors=True)
     path.mkdir(parents=True, exist_ok=True)
     return path
 
 
-def purge_preview_artifacts(document_id: str) -> Path:
+def purge_preview_artifacts(document_id: str, *, recreate_snapshot_root: bool = True) -> Path:
     cache_path = preview_cache_path(document_id)
     try:
         cache_path.unlink()
     except FileNotFoundError:
         pass
-    return reset_document_snapshot_root(document_id)
+    snapshot_root = document_snapshot_root(document_id, create=False)
+    if snapshot_root.exists():
+        shutil.rmtree(snapshot_root, ignore_errors=True)
+    if recreate_snapshot_root:
+        snapshot_root.mkdir(parents=True, exist_ok=True)
+    return snapshot_root
+
+
+def cancel_preview_refresh(document_id: str) -> None:
+    token = str(document_id or "").strip()
+    if not token:
+        return
+    with _PREVIEW_LOCK:
+        _CANCELLED_REFRESHES.add(token)
+
+
+def _refresh_cancelled(document_id: str) -> bool:
+    token = str(document_id or "").strip()
+    if not token:
+        return False
+    with _PREVIEW_LOCK:
+        return token in _CANCELLED_REFRESHES
 
 
 def _source_mtime_token(file_path: str) -> str:
@@ -203,6 +226,7 @@ def request_preview_refresh(document: dict | None, *, force: bool = False) -> di
         return {"accepted": False, **meta}
 
     with _PREVIEW_LOCK:
+        _CANCELLED_REFRESHES.discard(document_id)
         if document_id in _ACTIVE_REFRESHES:
             current = db.update_sor_document_preview_state(document_id, preview_status="BUILDING", preview_error="")
             current_meta = get_preview_cache_state(current or document)
@@ -216,15 +240,32 @@ def request_preview_refresh(document: dict | None, *, force: bool = False) -> di
 
 def _run_preview_refresh(document_id: str, file_path: str) -> None:
     try:
+        if _refresh_cancelled(document_id):
+            return
         snapshot_root = purge_preview_artifacts(document_id)
+        if _refresh_cancelled(document_id):
+            return
         preview = build_extraction_preview(
             file_path,
             document_id=document_id,
             snapshot_root=snapshot_root,
         )
+        if _refresh_cancelled(document_id):
+            return
         document = db.get_sor_document(document_id)
         if document:
             persist_preview_cache(document, preview)
+    except FileNotFoundError as exc:  # pragma: no cover - delete race is integration-level
+        document = db.get_sor_document(document_id)
+        if _refresh_cancelled(document_id) or not document:
+            logger.info("Preview refresh skipped for deleted/cancelled document %s: %s", document_id, exc)
+            return
+        logger.exception("Preview refresh failed for %s", document_id)
+        db.update_sor_document_preview_state(
+            document_id,
+            preview_status="FAILED",
+            preview_error=str(exc)[:500],
+        )
     except Exception as exc:  # pragma: no cover - failure path is integration-level
         logger.exception("Preview refresh failed for %s", document_id)
         db.update_sor_document_preview_state(
@@ -235,3 +276,4 @@ def _run_preview_refresh(document_id: str, file_path: str) -> None:
     finally:
         with _PREVIEW_LOCK:
             _ACTIVE_REFRESHES.discard(document_id)
+            _CANCELLED_REFRESHES.discard(document_id)

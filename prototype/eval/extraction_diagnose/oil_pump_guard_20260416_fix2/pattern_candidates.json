@@ -1,0 +1,18 @@
+[
+  {
+    "pattern_id": "local_clause_heading_not_promoted",
+    "pattern_name": "Local clause heading not promoted to section anchor",
+    "category": "heading_recovery",
+    "doc_key": "pds_de_oil_pump_v1_1",
+    "pdf_name": "产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf",
+    "issue_type": "local_clause_section_missing",
+    "suspected_layer": "preview",
+    "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+    "benchmark_impact": [
+      "regression-suite",
+      "oil-pump-benchmark"
+    ],
+    "promoted": false,
+    "validation_status": "candidate"
+  }
+]
