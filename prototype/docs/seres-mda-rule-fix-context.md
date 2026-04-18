@@ -1,6 +1,6 @@
 # SERES MDA Rule Fix Context
 
-更新时间：2026-04-18 17:03 CST
+更新时间：2026-04-19 02:06 CST
 分支：`codex/extraction-quality-loop`
 适用范围：`SERES MDA` 系列客户文档的 extraction 审计、通用修规则、验证证据沉淀
 
@@ -37,6 +37,7 @@
 
 - 当前 SERES 主批次：`seres_mda_customer_docs`
 - 当前完整基线：`prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13`
+- 当前最新 focused residual：`prototype/eval/extraction_diagnose/j02_311_20260419_fix15`
 - 当前导出项目：`SERES MDA Batch Export 20260417_163356`
 - 批量导出结果：
   - `12 / 12` PDF 完成 upload -> analyze -> lock -> export
@@ -237,7 +238,7 @@
   - `9.3` 仍是 section 级图片挂接，尚未做逐图 caption pairing
   - 当前已无新的用户可见显性错误；剩余更像机器侧稳健性债务
 - `SERES` 整批
-  - `J02.311` 当前已修完这轮用户指出的显式图表问题，但 `fix13` diagnose 仍保留 `complex_table_clause_binding_drift`；根因表象仍是 `requirements_drift = 26`
+  - `J02.311` 当前已修完这轮用户指出的显式图表问题，但最新 focused diagnose `j02_311_20260419_fix15` 仍保留 `complex_table_clause_binding_drift`；当前根因表象是 `requirements_drift = 17`
   - `J02.311` 当前仍有 parser 风险页：`1 / 11 / 12 / 13 / 70 / 89 / 105 / 108 / 112`
   - `profile_unmatched = 9` 说明仍有 9 份 SERES 文档没有专属 profile
   - `parser_low_confidence_hotspot = 11`、`complex_table_clause_binding_drift = 2` 说明 parser/preview 侧仍有审计空间，但不能直接等价为用户可见回归

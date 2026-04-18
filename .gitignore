@@ -43,25 +43,30 @@ env/
 Thumbs.db
 
 # Project specific
+.playwright-cli/
+storage/
 prototype/storage/*.db
 prototype/storage/*.db-wal
 prototype/storage/*.db-shm
 prototype/storage/*.appdb
 prototype/storage/*.appdb-wal
 prototype/storage/*.appdb-shm
+prototype/.env
+prototype/.playwright-cli/
 prototype/storage/ai_traces/
 prototype/storage/exports/
 prototype/storage/knowledge_index/
 prototype/storage/previews/
 prototype/storage/smoke/
 prototype/storage/source_snapshots/
-prototype/storage/table_snapshots/preview/
-prototype/storage/table_snapshots/persisted/*/
-prototype/storage/table_snapshots/persisted/preview/*.png
+prototype/storage/table_snapshots/
 prototype/eval/ai_smoke/latest/
 prototype/eval/azure_smoke/
 prototype/eval/table_assets/latest/
+prototype/eval/**/staged_docs/
 prototype/.tmp_sdk_inspect/
+prototype/tmp/
+prototype/tmp_uvicorn*.log
 output/
 tmp/
 worktrees/

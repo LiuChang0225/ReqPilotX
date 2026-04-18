@@ -1,269 +1,49 @@
 # Extraction Active Context
 
-更新时间：2026-04-19 01:19 CST
+更新时间：2026-04-19 02:06 CST
 分支：`codex/extraction-quality-loop`
 
 ## 分支目的
 
-- 只在 extraction 轨道内做 `parser / extractor / extraction_preview / scripts / tests / eval`
-- 继续执行单线闭环：`新文档 -> diagnose -> classify -> patch generic logic -> rerun focused tests -> benchmark-safe promotion`
+- 当前分支已作为“已合入 `main` 的 extraction 质量基线”保留，用于回滚、对照和下一轮 extraction 回归修复入口。
+- 主线代码状态以 `main` 为准；只有出现新 extraction 问题时，再回到本分支继续推进。
 
 ## 当前样本
 
-- 主复核端口：`5555`
-- 主批次：
-  - `seres_mda_customer_docs`
-  - `legacy_benchmark_core`
-- 本轮重点文档：
-  - `【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf`
-  - `Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf`
-  - `Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则【机密】.pdf`
-  - `Q-SK J02.385-2024_总线网络E2E通信保护设计要求 (1).pdf`
-- 当前新增验收工件：
-  - `output/playwright/seres-evidence/cts_batch1`
-  - `output/playwright/seres-evidence/cts_batch2`
-  - `output/playwright/seres-evidence/j02_311_before`
-  - `output/playwright/seres-evidence/j02_311_after`
-  - `output/playwright/seres-evidence/j02311_fix14_before`
-  - `output/playwright/seres-evidence/j02311_fix14_after`
+- `Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf`
+- `【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf`
+- `Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则【机密】.pdf`
+- `Q-SK J02.385-2024_总线网络E2E通信保护设计要求 (1).pdf`
 
 ## 最近已修
 
-- preview / review cache 代际收口已落地：
-  - `db.py`：`sor_documents / requirements / document_table_assets` 新增 `preview_generation_id`
-  - `preview_cache.py`：新 preview 一律先切 generation，再清旧 preview cache；cached preview 若 generation 不一致直接判旧
-  - `main.py`：review overlay、table asset API fallback、workspace/export requirement 展示只允许当前 generation 的视觉资产回流
-  - 同 source requirement 若仍匹配当前 preview，会先剥掉旧 generation 的 `table_refs / content_blocks`，再尝试回填当前 preview 版本，避免旧图表混入
-  - 新增 focused 回归：
-    - `test_overlay_review_entries_drops_stale_visual_assets_from_previous_preview_generation`
-    - `test_enrich_requirements_with_preview_context_replaces_stale_visual_assets_from_current_preview`
-    - `test_table_asset_source_snapshot_does_not_fall_back_to_previous_preview_generation`
-- SERES MDA 专项上下文已改成长期规则台账：
-  - `prototype/docs/seres-mda-rule-fix-context.md` 不再写短 handoff，而是持续记录系列文档结构、问题、通用规则、验证效果与残余
-- `extraction_preview`
-  - ad hoc / 外链 PDF 的 snapshot root 现可安全回退到 workspace storage，修掉 `Downloads/SERES MDA/table_snapshots` 写入失败
-  - simple scoped ordered item 不再升成 standalone synthetic section / heading；普通 `1）/2）/3）` 现在只保留 requirement 标签
-- `extractor`
-  - 版本示例值、章节引用值不再误拆成 fake local clause
-  - `Profile 1A` heading 不再被 measurement-title 过滤
-  - title-only table / flowchart spillover 现在会让位于近距离 explicit 同 code header
-    - `J02.311`：`7.3` 不再被 `表10 连接器PIN 脚定义` 顶替
-    - `J02.311`：`8.6` 不再被 `子功能是否支持` 顶替
-  - 新增 focused 覆盖：
-    - `test_table_spillover_title_does_not_preempt_explicit_same_code_header`
-    - `test_flowchart_node_title_does_not_preempt_explicit_same_code_header`
-- 已真实核对通过：
-  - `J00.14`：version example fake clause 消失
-  - `J02.311`：`8.10.4` 下 `section_tree / heading entries` 不再生成 `1）/2）/3）` 伪节，但 requirement 标签仍保留
-  - `J02.385`：`5.2 Profile 1A` 恢复
-  - `CTS_ASC`：`4.2.2.4 / 4.4.2 / 5.4 / 9.1 / 9.3` 在新规则下保持稳定
-- `J02.311` 本轮新增真实前端闭环：
-  - 可见问题不是 parser 假警报，而是 review preview 里的 scoped local clause owner 仍漂到 `1）/2）/3）`
-  - 现已在 `_attach_requirement_section_context(...)` 中统一改成：非 surfaced scoped local clause 的 `owner_section_*` 回退到 `structural_parent_*`
-  - 对应 fidelity profile `seres_q_sk_j02_311` 的 `expected_requirements_count` 已从 `308` 对齐到真实 `333`
-  - 前后证据：
-    - `output/playwright/seres-evidence/j02_311_before/j02_311_8_13_4_owner_drift_before.png`
-    - `output/playwright/seres-evidence/j02_311_after/j02_311_8_13_4_owner_drift_after.png`
-    - `output/playwright/seres-evidence/j02_311_after/j02_311_8_13_4_owner_drift_after_viewport.png`
-  - 当前单文档 diagnose：`prototype/eval/extraction_diagnose/j02_311_20260418_fix13`
-    - `total_findings = 2`
-    - `complex_table_clause_binding_drift + parser_low_confidence_hotspot`
-  - 用户新增指出的 `J02.311` 显式图表问题已完成一轮修复与 source 复核：
-    - `6.2.2`：`d）1）~6）` 及 `e）~h）` 当前已在 live preview 可见，无需新修
-    - `6.3.2.2`：`表3 / 表4 / 表5` 当前截图已正确，无需新修
-    - `7.3`：`表10` 当前仍未升成结构表，但文字与原文截图可用
-    - `7.5.5`：`表12（续）` 当前已修复 source 裁切
-    - `7.5.6.1`：`图3` 与 `表14` 当前已修复 source 裁切
-    - `7.5.6.2`：`图4 / 图5` 当前已修复 source 裁切
-  - 本轮新增通用规则 `SERES-R017`：
-    - figure crop 同时评估标题上/下候选区
-    - split note continuation 不再提前截断续表
-    - 末表若无后续显式标题，则按最后观测行收口，避免吞入后文
-  - 新证据：
-    - `prototype/storage/uploads/table_snapshots/src_474f9ba4f38cd7db.png`
-    - `prototype/storage/uploads/table_snapshots/src_d65c251746aca81c.png`
-    - `prototype/storage/uploads/table_snapshots/src_9829b514d4e47b54.png`
-    - `prototype/storage/uploads/table_snapshots/src_9594fc8e3ad85a23.png`
-    - `prototype/storage/uploads/table_snapshots/src_a923352776805594.png`
-  - 本轮 fix14 新增真实前端闭环：
-    - 根因已确认不是 parser，也不是前端渲染，而是 `extractor` 的 title-only child recovery 抢占了后续 explicit 同 code header
-    - 修前/修后证据：
-      - `output/playwright/seres-evidence/j02311_fix14_before/j02311_7_3_before_full.png`
-      - `output/playwright/seres-evidence/j02311_fix14_before/j02311_8_6_before_full.png`
-      - `output/playwright/seres-evidence/j02311_fix14_after/j02311_7_3_after_full.png`
-      - `output/playwright/seres-evidence/j02311_fix14_after/j02311_8_6_after_full.png`
-    - `5555` live preview 当前已恢复：
-      - `7.3 -> 零部件诊断规范`
-      - `8.6 -> 诊断会话说明`
-  - `J02.311 requirements_drift = 25` 的 residual root cause 已进一步收窄到 preview clause repair：
-    - `_repair_preview_clause_rows_from_pdf(...)` 之前会把重复 numeric local clause 按 label 覆盖，导致第二组 `1）/2）/...` 文本被前一组或后一组挤掉
-    - alpha clause 之前也会被统一挂到最后一个 numeric item 后；当前已改成按 numeric position 插入
-    - 新回归已补齐：
-      - `test_repair_preview_clause_rows_from_pdf_repairs_wrapped_items_and_appends_alpha_tail`
-      - `test_repair_preview_clause_rows_from_pdf_preserves_repeated_numeric_groups_and_alpha_positions`
-      - `prototype/tests/test_extraction_preview.py` 当前 `44 tests / OK`
-  - `J02.311 fix15` focused diagnose 已补跑：
-    - 工件：`prototype/eval/extraction_diagnose/j02_311_20260419_fix15`
-    - `requirements_count = 350`，`expected = 333`，`requirements_drift = 17`
-    - finding types 仍是 `complex_table_clause_binding_drift + parser_low_confidence_hotspot`
-    - parser 风险页仍是 `1 / 11 / 12 / 13 / 70 / 89 / 105 / 108 / 112`
-  - live 项目 `J02.311` 已做 `refresh-preview`：
-    - 新 `preview_generation_id = 813cee56-c0c1-4d95-99d9-c677ff8baa86`
-    - 当前 `5555` 刷新后仍返回 `summary.requirements_count = 358`
-    - 结合进程启动时间 `2026-04-18 22:53`，当前判断是在线服务尚未承载到本轮 `fix15` 内存态；最新代码级确认以 focused diagnose 为准
-- `CTS_ASC` 已按用户新口径完成主要真实前端截图验收：
-  - `1.1 / 1.2 / 1.3 / 2 / 2.1` 已由用户在真实前端确认完全正确
-  - 第二批证据已补齐到可审状态：
-    - `4.1.2.2`：`cts_4_1_2_2_fullpage_seq.png`
-    - `4.2.2.3`：`cts_4_2_2_3_refresh.png`
-    - `4.2.2.4`：`cts_4_2_2_4_refresh.png`
-    - `4.4.2`：`cts_4_4_2_fullpage_seq.png`
-    - `5.4`：`cts_5_4_refresh.png`
-    - `6 / 7 / 8`：`cts_6_fullpage_seq.png`、`cts_7_refresh.png`、`cts_8_refresh.png`
-    - `9.1 / 9.3`：`cts_9_1_refresh.png`、`cts_9_3_fullpage_seq.png`
-  - 当前判断：
-    - `4.1.2.2`：当前 live preview 已恢复为 `ASC_F / ASC_R` 两张无表头结构表，且用户已确认符合预期
-    - `4.4.2`：当前 live preview 已去掉假表头、恢复 `ASC_F 前置条件 / ASC_R 备注 / source split`，且用户已确认符合预期；剩余仅是机器侧 complex-table binding residual
-    - `9.3`：双图已回挂，但仍是 section 级输出，未做逐图 caption pairing
-- 本轮新增通用规则实现：
-  - local-clause 二列表支持 `headerless structured table`
-  - 已存在的 synthetic local-clause headers（如 `ASC_R / 说明`）会在 preview 响应阶段被剥离
-  - 前端 `app.js` 与导出 `exporter.py` 已支持“无表头结构表”渲染/导出
-  - 新增 section-window line-spec recovery：对“跨页、无显式表头、左侧短标签 + 右侧长正文”的 layout table，优先恢复为 `headerless structured table`，失败时才退回 `snapshot_only`
-  - 聚焦回归：`prototype/tests/test_extraction_preview.py` -> `31 tests / OK`
-- 本轮继续把“真实前端证据”闭环补齐：
-  - preview rebuild 后的 `headerless structured table` 之前没有带出 `source_snapshot_path`，导致前端不显示 `原文截图`
-  - 现在 `_build_preview_structured_table_ref_and_asset(...)` 及各类 rebuild 路径都已贯通 `source_snapshot_path / source_image_block_count`
-  - `_apply_preview_fallback_assets(...)` 改成优先跑 section-window line-spec recovery，并允许它覆盖旧的坏 `table_ref`
-  - `4.4.2` 因此补回了 `ASC_F` 页末 `前置条件` 与 `ASC_R` 结尾 `备注`
-  - review 页面新增通用 deep-link 参数：
-    - `projectId / documentId / section / keyword / sourceOnly / tableView`
-    - 用于稳定复现和截图，不再依赖手工切换文档/过滤器
-- 本轮继续收口用户新指出的两个真问题：
-  - `4.1.2.2 / 4.4.2` 的 `ASC_F / ASC_R` 最初共用了同一张 `原文截图`
-  - `4.4.2` 的尾 `备注` 被错误塞进最后一张表，而不是 section 级注记
-  - 已在 `extraction_preview.py` 增加：
-    - per-group `row_specs / used_indexes`
-    - 基于 group 级 crop plan 的独立 source snapshot 构建
-    - 跨 subject 尾 `备注` 的 section-level 抽离
-  - live 复验结果：
-    - `4.1.2.2` 的 `ASC_F / ASC_R` 现在是两张不同的 source snapshot
-    - `4.4.2` 的 `ASC_F / ASC_R` 现在是两张不同的 source snapshot
-    - `4.4.2` 的 `备注` 已移出表格，显示为 section note block
-  - 新证据：
-    - `output/playwright/seres-evidence/cts_batch2/live_verify/cts_4_1_2_2_source_split_verify.png`
-    - `output/playwright/seres-evidence/cts_batch2/live_verify/cts_4_1_2_2_asc_f_source_only.png`
-    - `output/playwright/seres-evidence/cts_batch2/live_verify/cts_4_1_2_2_asc_r_source_only.png`
-    - `output/playwright/seres-evidence/cts_batch2/live_verify/cts_4_4_2_source_split_verify.png`
-    - `output/playwright/seres-evidence/cts_batch2/live_verify/cts_4_4_2_asc_f_source_only.png`
-    - `output/playwright/seres-evidence/cts_batch2/live_verify/cts_4_4_2_asc_r_source_only.png`
-    - `output/playwright/seres-evidence/cts_batch2/live_verify/cts_4_4_2_note_block_only.png`
-- `CTS_ASC` 新增真实前端复验：
-  - `4.1.2.2` 已在 `5555` live preview 恢复为 `ASC_F / ASC_R` 两张无表头结构表
-    - 证据：`output/playwright/seres-evidence/cts_batch2/cts_4_1_2_2_viewport_verify.png`
-  - `4.4.2` 已在 `5555` live preview 二次确认不再出现 synthetic header
-    - 证据：`output/playwright/seres-evidence/cts_batch2/cts_4_4_2_viewport_verify.png`
-  - `4.1.2.2` 当前 live preview 已出现 `表格 / 原文截图` 双切换
-    - 证据：`output/playwright/seres-evidence/cts_batch2/cts_4_1_2_2_source_toggle_live.png`
-  - `4.4.2` 当前 live preview 已出现 `表格 / 原文截图` 双切换；`tableView=slice` 时可直接看到 `ASC_F 前置条件` 与 `ASC_R 备注`
-    - 证据：
-      - `output/playwright/seres-evidence/cts_batch2/cts_4_4_2_source_toggle_live.png`
-      - `output/playwright/seres-evidence/cts_batch2/cts_4_4_2_slice_verify.png`
-- export / runtime：
-  - 已提交并推送：`ae8235f Stabilize SERES extraction loop and Excel exports`
-  - `5555` 已用最新代码重启
-  - `SERES MDA Batch Export 20260417_163356` 已完成 `12` 份 PDF 的 upload -> analyze -> lock -> export
-  - 批量导出报告：`prototype/storage/exports/seres_mda_batch_export_report_20260417_163356.json`
-  - 已定位 preview / export 内容偏差主因：
-    - 单文档 export 路由此前构建 workspace requirements 时传了 `preview=None`
-    - 导致导出回退到 `fallback_page_anchor`，并丢失 cached preview 中的 `content_blocks / table_refs`
-  - 现已改为 export 先 `load_cached_preview(document)` 再走 `_build_document_workspace(...)`
-  - 已补回归：`test_export_uses_cached_preview_workspace_order_and_blocks`
-  - 已对真实 SERES batch 复核：`12/12` 文档当前 `order_source=review_overlay`、`order_mismatch_count=0`
+- `preview_generation_id` 已贯通 `prototype/app/db.py`、`prototype/app/main.py`、`prototype/app/services/preview_cache.py`、`prototype/app/services/exporter.py`、`prototype/app/static/app.js`，review/preview/export 统一只认当前 generation 资产。
+- `prototype/app/services/extractor.py` 已收口：
+  - simple scoped ordered item 不再长成 synthetic section
+  - version/reference fake clause 被抑制
+  - title-only table / flowchart spillover 不再抢占后续 explicit same-code header
+- `prototype/app/services/extraction_preview.py` 已收口：
+  - repeated numeric local clause repair 改成按 sequence/position 修复
+  - `J02.311` focused residual 从 `requirements_drift = 25` 降到 `17`
+- 长期规则台账保留在 `prototype/docs/seres-mda-rule-fix-context.md`，不再把长账本塞回 active-context。
 
-## 当前结果
+## 当前保留工件
 
-- 最新完整批次：`prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13`
-  - `quality_gate = PASS (99 / 102, 97.06%)`
-  - `fidelity_gate = PASS (72 / 72, 100%)`
-  - `regression-suite = PASS`
-  - `diagnosis = 22 findings`
-  - `finding_type_counts = {complex_table_clause_binding_drift: 2, parser_low_confidence_hotspot: 11, profile_unmatched: 9}`
-- `J02.311` 单文档 diagnose：`prototype/eval/extraction_diagnose/j02_311_20260418_fix13`
-  - `total_findings = 2`
-  - `complex_table_clause_binding_drift + parser_low_confidence_hotspot`
-- `J02.311` fix14 focused diagnose：`prototype/eval/extraction_diagnose/j02_311_20260418_fix14`
-  - `total_findings = 2`
-  - `complex_table_clause_binding_drift.requirements_drift = 25`
-  - `parser_low_confidence_hotspot = [1, 11, 12, 13, 70, 89, 105, 108, 112]`
-- `J02.311` fix15 focused diagnose：`prototype/eval/extraction_diagnose/j02_311_20260419_fix15`
-  - `total_findings = 2`
-  - `complex_table_clause_binding_drift.requirements_drift = 17`
-  - `requirements_count = 350`
-  - `parser_low_confidence_hotspot = [1, 11, 12, 13, 70, 89, 105, 108, 112]`
-- 本轮聚焦回归：
-  - `python3 -m unittest prototype/tests/test_extraction_preview.py -q` -> `44 tests / OK`
-  - `python3 -m unittest prototype/tests/test_extractor_sections.py -q` -> `66 tests / OK`
-  - `python3 -m unittest prototype/tests/test_parser_page_selection.py -q` -> `2 tests / OK`
-  - `J02.311 fix14` focused extractor 回归：
-    - `3 tests / OK`
-- legacy benchmark 对照：
-  - `prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13`
-  - `quality_gate = FAIL (38 / 40, 95.0%)`
-  - `fidelity_gate = FAIL (80 / 96, 83.33%)`
-  - `oil-pump-benchmark = FAIL`
-  - 说明本轮 `SERES` 规则与 profile 调整未把 legacy 基线额外打坏，只是延续既有失败态
-- targeted rebuild：
-  - `J02.311`：`sections_count = 345`
-  - `CTS_ASC`：`requirements_count = 41`，`raw_requirement_rows_count = 43`
-- 当前截图验收批次：
-  - `cts_batch1`：`1.1 / 1.2 / 1.3`
-  - `cts_batch2`：`2 / 2.1 / 4.1.2.2 / 4.2.2.3 / 4.2.2.4 / 4.4.2 / 5.4 / 6 / 7 / 8 / 9.1 / 9.3`
-- batch export：
-  - `AES-CMAC / J00.14 / J02.226 / J02.233 / J02.311 / J02.321 / J02.385 / J02.71 / J02.86 / CTS_ASC / UDS signing / UDS 27` 共 `12` 份 Excel 已全部生成
+- `prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13`
+- `prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13`
+- `prototype/eval/extraction_diagnose/j02_311_20260418_fix13`
+- `prototype/eval/extraction_diagnose/j02_311_20260418_fix14`
+- `prototype/eval/extraction_diagnose/j02_311_20260419_fix15`
+- `prototype/storage/exports/seres_mda_batch_export_report_20260417_163356.json`
 
 ## 当前已知问题
 
-- preview generation 收口还差 live verify：
-  - 还没在 `5555` 上重复执行“生成条目集 / refresh-preview / 再看同 section”验证旧图旧表不回流
-  - 新策略下 preview rebuild 失败会直接暴露失败态，不再兜底上一代视觉资产；这是有意行为，但仍需观察前端提示是否足够
-- `CTS_ASC`
-  - 前端截图链路已收敛到“单会话串行 + full-page 补长文本”的 capture 方式，但 chat 内联图对用户端不可见，汇报必须给可点击证据路径
-  - page `29` `parser_low_confidence_hotspot`
-  - `4.4.2` complex-table binding 仍未完全收口；但当前已无用户可见显性错误
-  - `9.3` 仍是 section 级图片输出，未做逐图 caption pairing
-- `SERES`
-  - `fix13` 是当前 extraction baseline；`J02.311` 的 preview owner 漂移和用户指出的显式图表问题已修，整批 diagnose 仍有 `22` 条 finding
-  - `J02.311` 当前已新修掉 `7.3 / 8.6` 的 leading spillover ownership drift，但 `7.3 表10` 仍未升成结构表，只保留了准确文字与原文截图
-  - `J02.311` 仍有 parser 风险页：`1 / 11 / 12 / 13 / 70 / 89 / 105 / 108 / 112`
-  - 这 `9` 页已完成一轮人工核对，当前统一记为“parser 风险，无当前可见回归”
-  - `J02.311` 与 `CTS_ASC` 当前都仍保留机器侧 `complex_table_clause_binding_drift`；`J02.311` 当前度量已从 `requirements_drift = 25` 降到 `17`
-  - 当前 `5555` live refresh 仍给出 `358` 条 requirement；若要拿最新前端结论，需先重启服务再刷新
-  - 前端 workspace 的单文档 export 已与 preview 对齐；无 `document_id` 的项目级 export 仍不是当前主路径，后续若启用需再定义多文档聚合规则
-  - 未建 profile 文档仍会有 `profile_unmatched`
+- `J02.311`：`7.3 表10` 仍未升成结构表，当前保持“正确文字 + 原文截图”。
+- `J02.311`：focused diagnose 仍保留 `complex_table_clause_binding_drift + parser_low_confidence_hotspot`；最新 residual 为 `requirements_drift = 17`。
+- `CTS_ASC`：`9.3` 仍是 section 级双图输出，尚未做逐图 caption pairing。
+- 当前没有新的用户可见主线回归；剩余更多是机器侧稳健性债务。
 
 ## 下一步
 
-- 先向用户汇报：
-  - `7.3 / 8.6` 根因、通用修法、修前修后 live review 证据
-  - `requirements_drift 25 -> 17` 的 focused diagnose 结果与当前测试托底
-- 若用户要求最新 live UI 证据，先重启 `5555` 再对 `J02.311` 做一次 refresh-preview，确认前端是否也从 `358` 对齐到 `350`
-- 再回到真实残项：
-  - `J02.311` `7.3 表10` 是否值得继续升成结构表
-  - `J02.311` parser 低置信页里哪些只是风险、哪些还有真回归
-  - `CTS_ASC` page `29` parser 选型
-  - `CTS_ASC 4.4.2` complex-table binding
-  - `CTS_ASC 9.3` 是否值得继续做通用 caption-image pairing
-- 若用户继续核对 Excel，与 preview 有偏差时先确认：
-  - 是否走当前前端的单文档 export
-  - 是否命中 cached preview
-  - 差异发生在顺序、文字，还是 `content_blocks/table_refs` 结构层
-- 若继续升规则，再找下一份高价值样本，而不是先给 `9` 份无 profile 文档机械补 profile
-- 再决定哪些 SERES 文档值得补 profile，而不是继续追噪音 finding
-- 若用户继续看导出效果，直接检查 `prototype/storage/exports/seres_mda_batch_export_report_20260417_163356.json` 与对应 `12` 份 xlsx
-
-## 运行状态
-
-- `5555` 当前在线，但进程启动时间仍是 `2026-04-18 22:53`
-- `http://127.0.0.1:5555/api/health = 200`
-- `http://127.0.0.1:5555/workspace?stage=review = 200`
+- 如需继续 extraction 调优，先在本分支重启 `5555` 后复核 live preview，再决定是否补 full batch rerun。
+- 只有在新问题能被复现为通用规则时，才继续更新 `seres-mda-rule-fix-context.md` 和 retained baseline。

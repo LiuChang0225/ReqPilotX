@@ -1,16 +1,16 @@
 {
   "project_name": "ReqPilotX Project Control Tower",
   "north_star": "Keep governance, quality gates, and active tracks aligned while the product matures toward trial run.",
-  "updated_at": "2026-04-09T18:00:00",
+  "updated_at": "2026-04-19T02:06:09+08:00",
   "plan": [
     {
       "id": "track-release-foundation",
       "title": "Release Foundation",
       "owner": "Coordinator + Backend/Ops",
-      "status": "IN_PROGRESS",
+      "status": "TODO",
       "progress_pct": 0,
       "target_date": "",
-      "notes": "P0 stability, Entra auth, feedback skeleton, and trial-run foundation.",
+      "notes": "Paused after mainline convergence; recreate branch/worktree only when this track is resumed.",
       "track_id": "release-foundation",
       "branch_name": "codex/release-foundation",
       "worktree_path": "/Users/liuchang/Documents/New project/worktrees/_active/release-foundation",
@@ -18,17 +18,17 @@
       "acceptance_gate": "p0-smoke, auth-login, feedback-roundtrip, health-readiness",
       "depends_on": "",
       "drift_status": "ON_PLAN",
-      "last_update_at": "",
-      "latest_event_summary": ""
+      "last_update_at": "2026-04-19T02:06:09+08:00",
+      "latest_event_summary": "Archived locally during repo convergence cleanup on 2026-04-19."
     },
     {
       "id": "track-extraction-quality-loop",
       "title": "Extraction Quality Loop",
       "owner": "AI/Extraction",
-      "status": "IN_PROGRESS",
-      "progress_pct": 0,
+      "status": "DONE",
+      "progress_pct": 100,
       "target_date": "",
-      "notes": "Batch extraction regression loop, error taxonomy, and benchmark stability.",
+      "notes": "Merged into main; keep codex/extraction-quality-loop only as rollback/comparison and future extraction re-entry branch.",
       "track_id": "extraction-quality-loop",
       "branch_name": "codex/extraction-quality-loop",
       "worktree_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop",
@@ -36,17 +36,17 @@
       "acceptance_gate": "batch-report, oil-pump-benchmark, regression-suite",
       "depends_on": "",
       "drift_status": "ON_PLAN",
-      "last_update_at": "",
-      "latest_event_summary": ""
+      "last_update_at": "2026-04-19T02:06:09+08:00",
+      "latest_event_summary": "PR #2 merged to main; retained SERES baseline and cleanup landed on main."
     },
     {
       "id": "track-rag-quality-loop",
       "title": "RAG Quality Loop",
       "owner": "AI/RAG",
-      "status": "IN_PROGRESS",
+      "status": "TODO",
       "progress_pct": 0,
       "target_date": "",
-      "notes": "Labeled evidence set, retrieval tuning, and judgment-quality gates.",
+      "notes": "Paused after repo convergence; preserve only external archive until the track is explicitly resumed.",
       "track_id": "rag-quality-loop",
       "branch_name": "codex/rag-quality-loop",
       "worktree_path": "/Users/liuchang/Documents/New project/worktrees/_active/rag-quality-loop",
@@ -54,8 +54,8 @@
       "acceptance_gate": "sample10, labeled-set, evidence-metrics",
       "depends_on": "",
       "drift_status": "ON_PLAN",
-      "last_update_at": "",
-      "latest_event_summary": ""
+      "last_update_at": "2026-04-19T02:06:09+08:00",
+      "latest_event_summary": "Archived locally during repo convergence cleanup on 2026-04-19."
     },
     {
       "id": "track-product-kb",
@@ -64,7 +64,7 @@
       "status": "TODO",
       "progress_pct": 0,
       "target_date": "",
-      "notes": "Dual-scope knowledge architecture, package binding, and admin curation.",
+      "notes": "Still queued; start only after an explicit new branch/worktree is created.",
       "track_id": "product-kb",
       "branch_name": "codex/product-kb",
       "worktree_path": "/Users/liuchang/Documents/New project/worktrees/_active/product-kb",
@@ -72,8 +72,8 @@
       "acceptance_gate": "package-binding, dual-scope-retrieval, admin-curation",
       "depends_on": "release-foundation",
       "drift_status": "ON_PLAN",
-      "last_update_at": "",
-      "latest_event_summary": ""
+      "last_update_at": "2026-04-19T02:06:09+08:00",
+      "latest_event_summary": "Still queued after repo convergence."
     },
     {
       "id": "track-angular-feasibility",
@@ -82,7 +82,7 @@
       "status": "TODO",
       "progress_pct": 0,
       "target_date": "",
-      "notes": "Angular shell, auth integration feasibility, and migration report.",
+      "notes": "Still queued; start only after an explicit new branch/worktree is created.",
       "track_id": "angular-feasibility",
       "branch_name": "codex/angular-feasibility",
       "worktree_path": "/Users/liuchang/Documents/New project/worktrees/_active/angular-feasibility",
@@ -90,14 +90,14 @@
       "acceptance_gate": "shell-build, msal-login, migration-report",
       "depends_on": "release-foundation",
       "drift_status": "ON_PLAN",
-      "last_update_at": "",
-      "latest_event_summary": ""
+      "last_update_at": "2026-04-19T02:06:09+08:00",
+      "latest_event_summary": "Still queued after repo convergence."
     }
   ],
   "events": [
     {
       "id": "evt-control-tower-bootstrap",
-      "time": "2026-04-09T18:00:00",
+      "time": "2026-04-09T18:00:00+08:00",
       "category": "note",
       "status": "INFO",
       "title": "Control tower bootstrap committed",
@@ -106,6 +106,18 @@
       "track_id": "",
       "branch_name": "",
       "event_type": "manual"
+    },
+    {
+      "id": "evt-mainline-convergence-20260419",
+      "time": "2026-04-19T02:06:09+08:00",
+      "category": "infra",
+      "status": "DONE",
+      "title": "Extraction mainline convergence and repo cleanup completed",
+      "detail": "PR #2 merged codex/extraction-quality-loop into main, retained SERES baseline assets, removed tracked runtime artifacts from HEAD, and reduced local active branches/worktrees to main plus extraction-quality-loop.",
+      "source": "manual",
+      "track_id": "extraction-quality-loop",
+      "branch_name": "main",
+      "event_type": "done"
     }
   ],
   "gates": []

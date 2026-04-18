@@ -2,6 +2,8 @@
 __pycache__/
 *.pyc
 .tmp_sdk_inspect/
+.playwright-cli/
+.env
 
 storage/app.db
 storage/*.appdb
@@ -11,14 +13,15 @@ storage/ai_traces/
 storage/exports/
 storage/knowledge_index/
 storage/smoke/
-storage/table_snapshots/preview/
-storage/table_snapshots/persisted/*/
-storage/table_snapshots/persisted/preview/*.png
+storage/table_snapshots/
 storage/uploads/
 storage/knowledge/
 
 eval/azure_smoke/
 eval/ai_smoke/latest/
 eval/table_assets/latest/
+eval/**/staged_docs/
 
+tmp/
+tmp_uvicorn*.log
 tmp_demo/
