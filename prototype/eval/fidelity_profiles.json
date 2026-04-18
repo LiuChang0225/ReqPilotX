@@ -434,7 +434,7 @@
       "min_requirements_count": 300,
       "expected_sections_count": 345,
       "max_section_count_drift": 45,
-      "expected_requirements_count": 308,
+      "expected_requirements_count": 333,
       "max_requirement_count_drift": 60,
       "max_section_consistency_issues": 8,
       "required_scoped_codes": [

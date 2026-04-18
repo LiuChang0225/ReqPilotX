@@ -1,0 +1,5404 @@
+{
+  "doc_key": "q_jly_core",
+  "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+  "pdf_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/99a6d551d7aa4acb98c9e587c9cfcea6_Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+  "batch_id": "legacy_benchmark_core",
+  "gate_tags": [
+    "regression-suite"
+  ],
+  "section_split_target": true,
+  "profiles": {
+    "quality": "q_jly_2024",
+    "fidelity": "q_jly_core"
+  },
+  "status": {
+    "quality_profile_matched": true,
+    "fidelity_profile_matched": true,
+    "needs_human_review": true
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "profile": "q_jly_2024",
+      "outline_count": 407,
+      "checks_passed": 10,
+      "checks_total": 10,
+      "score_pct": 100.0,
+      "duplicate_code_count": 0,
+      "source_duplicate_code_count": 4,
+      "suspicious_heading_count": 2,
+      "suspicious_heading_ratio": 0.004914,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 1,
+      "detail_outline_count_min": "outline_count=407",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=0",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0049",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0",
+      "check_profile_required_codes_present": 1,
+      "detail_profile_required_codes_present": "missing_required=0",
+      "check_profile_guard_sections_clean": 1,
+      "detail_profile_guard_sections_clean": "guard_violations=0"
+    },
+    "checks_total": 10,
+    "checks_passed": 10
+  },
+  "fidelity_gate": {
+    "doc_row": {
+      "pdf_name": "99a6d551d7aa4acb98c9e587c9cfcea6_Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "profile": "q_jly_core",
+      "sections_count": 407,
+      "requirements_count": 451,
+      "appendix_scope_count": 0,
+      "appendix_marker_count": 0,
+      "section_consistency_issues": 8,
+      "list_style_heading_count": 0,
+      "leading_punct_heading_count": 0,
+      "short_deep_heading_count": 3,
+      "merge_mode": "strict_single_engine",
+      "supplemental_heading_total": 0,
+      "table_block_injected_total": 0,
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "checks_passed": 22,
+      "checks_total": 24,
+      "score_pct": 91.67,
+      "passed": 0,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_min_sections_count": 1,
+      "detail_min_sections_count": "sections=407 min=360",
+      "check_min_requirements_count": 1,
+      "detail_min_requirements_count": "requirements=451 min=350",
+      "check_sections_count_drift": 1,
+      "detail_sections_count_drift": "sections=407 expected=399 drift=8",
+      "check_requirements_count_drift": 0,
+      "detail_requirements_count_drift": "requirements=451 expected=398 drift=53",
+      "check_section_consistency_issue_limit": 0,
+      "detail_section_consistency_issue_limit": "consistency_issues=8 max=3",
+      "check_required_codes_present": 1,
+      "detail_required_codes_present": "missing_required=0",
+      "check_forbidden_codes_absent": 1,
+      "detail_forbidden_codes_absent": "forbidden_present=0",
+      "check_required_appendix_scopes_present": 1,
+      "detail_required_appendix_scopes_present": "missing_appendix_scopes=0",
+      "check_appendix_marker_count_min": 1,
+      "detail_appendix_marker_count_min": "appendix_markers=0 min=0",
+      "check_required_title_contains": 1,
+      "detail_required_title_contains": "title_mismatch=0",
+      "check_required_requirement_text_contains": 1,
+      "detail_required_requirement_text_contains": "requirement_text_mismatch=0",
+      "check_required_requirement_ordered_snippets": 1,
+      "detail_required_requirement_ordered_snippets": "requirement_order_mismatch=0",
+      "check_required_table_row_snippets": 1,
+      "detail_required_table_row_snippets": "table_row_mismatch=0",
+      "check_required_visual_asset_codes": 1,
+      "detail_required_visual_asset_codes": "visual_asset_mismatch=0",
+      "check_required_tree_children": 1,
+      "detail_required_tree_children": "tree_child_mismatch=0",
+      "check_required_single_requirement_codes": 1,
+      "detail_required_single_requirement_codes": "single_requirement_mismatch=0",
+      "check_required_duplicate_code_titles": 1,
+      "detail_required_duplicate_code_titles": "duplicate_title_mismatch=0",
+      "check_forbidden_cross_section_snippets": 1,
+      "detail_forbidden_cross_section_snippets": "forbidden_cross_section_hits=0",
+      "check_forbidden_requirement_text_absent": 1,
+      "detail_forbidden_requirement_text_absent": "forbidden_requirement_text_hits=0",
+      "check_list_style_heading_limit": 1,
+      "detail_list_style_heading_limit": "list_style_headings=0 max=0",
+      "check_leading_punct_heading_limit": 1,
+      "detail_leading_punct_heading_limit": "leading_punct_headings=0 max=0",
+      "check_short_deep_heading_limit": 1,
+      "detail_short_deep_heading_limit": "short_deep_headings=3 max=8"
+    },
+    "checks_total": 24,
+    "checks_passed": 22,
+    "passed": false
+  },
+  "section_split": {
+    "pdf_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/99a6d551d7aa4acb98c9e587c9cfcea6_Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+    "summary": {
+      "passed_checks": 4,
+      "total_checks": 4,
+      "score_pct": 100.0,
+      "outline_count": 407,
+      "requirements_count": 451,
+      "passed": true
+    },
+    "checks": [
+      {
+        "name": "required_codes_present",
+        "passed": true,
+        "detail": {
+          "missing_required_codes": []
+        }
+      },
+      {
+        "name": "no_suspicious_global_rows",
+        "passed": true,
+        "detail": {
+          "suspicious_global_rows": []
+        }
+      },
+      {
+        "name": "no_suspicious_rows_near_guard_sections",
+        "passed": true,
+        "detail": {
+          "suspicious_near_guard_sections": []
+        }
+      },
+      {
+        "name": "default_requirement_candidate_is_true",
+        "passed": true,
+        "detail": {
+          "non_default_candidate_rows": 0
+        }
+      }
+    ],
+    "detail": {
+      "missing_required": [],
+      "suspicious_global": [],
+      "suspicious_near_guards": [],
+      "default_candidate_violations": 0
+    }
+  },
+  "issue_summary": {
+    "total_issues": 4,
+    "issue_types": [
+      "requirement_count_drift",
+      "section_consistency_issue_limit",
+      "suspicious_heading"
+    ]
+  },
+  "issue_rollup": [
+    {
+      "gate": "fidelity",
+      "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "profile": "q_jly_core",
+      "category": "content_fidelity",
+      "category_label": "Content Fidelity",
+      "issue_type": "requirement_count_drift",
+      "severity": "medium",
+      "appendix_scope": "",
+      "section_code": "",
+      "detail": "requirements=451 expected=398 drift=53"
+    },
+    {
+      "gate": "fidelity",
+      "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "profile": "q_jly_core",
+      "category": "outline_structure",
+      "category_label": "Outline Structure",
+      "issue_type": "section_consistency_issue_limit",
+      "severity": "medium",
+      "appendix_scope": "",
+      "section_code": "",
+      "detail": "consistency_issues=8 max=3"
+    },
+    {
+      "gate": "quality_gate",
+      "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "profile": "q_jly_core",
+      "category": "outline_structure",
+      "category_label": "Outline Structure",
+      "issue_type": "suspicious_heading",
+      "severity": "medium",
+      "appendix_scope": "",
+      "section_code": "5.1.8.2.2",
+      "detail": "table_like_title"
+    },
+    {
+      "gate": "quality_gate",
+      "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "profile": "q_jly_core",
+      "category": "outline_structure",
+      "category_label": "Outline Structure",
+      "issue_type": "suspicious_heading",
+      "severity": "medium",
+      "appendix_scope": "",
+      "section_code": "5.1.8.2.3",
+      "detail": "table_like_title"
+    }
+  ],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Documents/New project/prototype/storage/uploads/99a6d551d7aa4acb98c9e587c9cfcea6_Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+    "heading_skeleton": [
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2024",
+        "title": "05-30 发布 Issue date：30/05/2024"
+      },
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2024",
+        "title": "08-30 实施 Implementation date：30/08/2024"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围 Scope..................................................................................................................................................1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件 Normative References....................................................................................................1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3",
+        "title": "术语和定义 Terms and Definitions............................................................................................................2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4",
+        "title": "通用要求 General Requirements................................................................................................................3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5",
+        "title": "试验方法和技术要求 Test Method And Technical Requirements .........................................................15"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围 Scope"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "1",
+        "title": "000) a.c. (RMS) or (> 60 and ≤ 1 500) d.c. respectively."
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件 Normative References"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "术语和定义 Terms and Definitions"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "1"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "2"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "3"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "4"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "5"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "6"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "3",
+        "title": "7"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3",
+        "title": "8"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3",
+        "title": "9"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3.10",
+        "title": "KL.15"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3.11",
+        "title": "KL.30"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3.12",
+        "title": "Umax"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3.13",
+        "title": "Umin"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3.14",
+        "title": "Ulow"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3.15",
+        "title": "Uhigh"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3.16",
+        "title": "UNHV"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "3.17",
+        "title": "DUT"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4",
+        "title": "通用要求 General Requirements"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "总体要求 Total Requirements"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "4.1.2",
+        "title": "试验至少用3个试件。"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "4.1.3",
+        "title": "如果没有其他要求，试验温度为T RT，相对湿度为25%～75%。"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "4.1.4",
+        "title": "试验电压按表1，缺少检测精度说明的，以基本要求为准。"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "测试仪器误差范围要求 Test instrument tolerance range requirements"
+      },
+      {
+        "page": 10,
+        "kind": "heading",
+        "code": "4.3",
+        "title": "汽车零件的要求范围 Automotive parts requirement range"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4.4",
+        "title": "工作模式 Operating Modes"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4.4.1",
+        "title": "工作模式1 Operating Mode 1"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "4.4.2",
+        "title": "工作模式2 Operating Mode 2"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4.4.3",
+        "title": "工作模式3 Operating Mode 3"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4.4.4",
+        "title": "工作模式4 Operating Mode 4"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "4.5",
+        "title": "功能状态分类 Functional status classification"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "4.5.1",
+        "title": "功能状态A Functional status A"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "4.5.2",
+        "title": "功能状态B Functional status B"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "4.5.3",
+        "title": "功能状态C Functional status C"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4.5.4",
+        "title": "功能状态D Functional status D"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4.5.5",
+        "title": "功能状态E Functional status E"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4.6",
+        "title": "流程和活动 Process and activities"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4.6.1",
+        "title": "供应商应当执行和报告有关的设计验证（DV/ECV），确保所有的样件应符合吉利要求的所有"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4.6.2",
+        "title": "DV/ECV测试的需求和程度取决于产品设计的成熟程度。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4.6.3",
+        "title": "DV/ECV测试计划应被批准并存档。计划应包括可靠性的、电气安全功耗相关要求及测试序列、"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4.6.4",
+        "title": "如果批准的测试计划中的测试失败，依据工作声明文件中的条件规定通知吉利。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4.6.5",
+        "title": "S-FMEA和/或D-FMEA应该贡献/指导测试设置的选择，哪些参数和功能需要监控。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4.6.6",
+        "title": "一些应用程序和/或安装条件可能要求更改或增加测试程序，需要单独评估和确定。"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "4.6.7",
+        "title": "如果有修改的产品设计，材料或生产流程，需要申请并由吉利判断和同意。"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "4.6.8",
+        "title": "测试报告上应记录细节以便评估测试是通过或失败。"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "4.6.9",
+        "title": "健壮性测试需要在 DV/ECV 试验之前完成，不作为 ESER 认可必须项，是否执行健壮性测试，"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "4.7",
+        "title": "现成的产品 Off-the-shelf product"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "4.8",
+        "title": "测试顺序和要求 Test sequences and requirements"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "4.8.1",
+        "title": "样本量 Sample size"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "4.8.2",
+        "title": "通用性 General"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "4.8.2.1",
+        "title": "功能测试定义如下："
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "4.8.2.2",
+        "title": "在每个测试序列测试前、测试期间、测试后的测试如下："
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "4.8.2.3",
+        "title": "外观检查 Visual inspection"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "4.8.2.4",
+        "title": "拆解检查 Dismantling inspection"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "4.8.3",
+        "title": "测试顺序 Test sequences"
+      },
+      {
+        "page": 20,
+        "kind": "heading",
+        "code": "4.8.4",
+        "title": "监控要求 Monitoring requirements"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "5",
+        "title": "试验方法和技术要求 Test Method And Technical Requirements"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "电气负荷 Electrical loads"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "5.1.1",
+        "title": "通用要求 General requirement"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "5.1.2",
+        "title": "测试矩阵 Test matrix"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "5.1.3",
+        "title": "工作电压 Operating voltage"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "5.1.4",
+        "title": "测试前五点功能检测 Before test five point function test"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "5.1.4.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "5.1.4.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "5.1.4.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "5.1.4.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "5.1.5",
+        "title": "启动脉冲 Start pulses"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "5.1.5.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "5.1.5.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "5.1.5.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "5.1.5.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.1.6",
+        "title": "在欠压和过压情况下的功能 Function requirements of undervoltage and overvoltage"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.1.6.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.1.6.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "5.1.6.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "5.1.6.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "5.1.7",
+        "title": "静态电流 Static current"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "5.1.7.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "5.1.7.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "5.1.7.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "5.1.7.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "0",
+        "title": "1mA. Deviation must refer to the target value released by the vehicle electrical architecture team or the"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "5.1.8",
+        "title": "反极性 Reverse polarity"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "5.1.8.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "5.1.8.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "5.1.8.2.1",
+        "title": "试验参数要求如下：Test parameters are as follows:"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "5.1.8.2.2",
+        "title": "测试用例1-静态反极性 Test case 1–Static reverse polarity"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "5.1.8.2.3",
+        "title": "测试用例2-动态反极性 Test case 2–Dynamic reverse polarity"
+      },
+      {
+        "page": 31,
+        "kind": "heading",
+        "code": "5.1.8.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "5.1.8.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "5.1.9",
+        "title": "过高电流 Overcurrents"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "5.1.9.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "5.1.9.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 32,
+        "kind": "heading",
+        "code": "5.1.9.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 33,
+        "kind": "heading",
+        "code": "5.1.9.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 33,
+        "kind": "heading",
+        "code": "5.1.10",
+        "title": "长时间过压 Long-term overvoltage"
+      },
+      {
+        "page": 33,
+        "kind": "heading",
+        "code": "5.1.10.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 33,
+        "kind": "heading",
+        "code": "5.1.10.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "5.1.10.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "5.1.10.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "5.1.11",
+        "title": "跳跃启动 Jump start"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "5.1.11.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 34,
+        "kind": "heading",
+        "code": "5.1.11.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "5.1.11.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 35,
+        "kind": "heading",
+        "code": "5.1.11.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 36,
+        "kind": "heading",
+        "code": "5.1.12",
+        "title": "供给电压缓降和缓升 Slow decrease and increase of the supply voltage"
+      },
+      {
+        "page": 36,
+        "kind": "heading",
+        "code": "5.1.12.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 36,
+        "kind": "heading",
+        "code": "5.1.12.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 37,
+        "kind": "heading",
+        "code": "5.1.12.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 37,
+        "kind": "heading",
+        "code": "5.1.12.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 37,
+        "kind": "heading",
+        "code": "5.1.13",
+        "title": "供给电压缓降和快升 Slow decrease and quick increase of the supply voltage"
+      },
+      {
+        "page": 37,
+        "kind": "heading",
+        "code": "5.1.13.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 38,
+        "kind": "heading",
+        "code": "5.1.13.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "5.1.13.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "5.1.13.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "5.1.14",
+        "title": "清零重设行为 Reset behavior"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "5.1.14.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 39,
+        "kind": "heading",
+        "code": "5.1.14.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 40,
+        "kind": "heading",
+        "code": "1",
+        "title": "cycle with Operating mode 2.1 and test case 1"
+      },
+      {
+        "page": 40,
+        "kind": "heading",
+        "code": "1",
+        "title": "cycle with Operating mode 3.2 or 4.2 and test case 1"
+      },
+      {
+        "page": 40,
+        "kind": "heading",
+        "code": "1",
+        "title": "cycle with Operating mode 2.1 and test case 2"
+      },
+      {
+        "page": 40,
+        "kind": "heading",
+        "code": "1",
+        "title": "cycle with Operating mode 3.2 or 4.2and test case 2"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "5.1.14.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "5.1.14.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "5.1.15",
+        "title": "信号线和负载回路的短路保护 Short circuit in signal circuit and load circuits"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "5.1.15.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 41,
+        "kind": "heading",
+        "code": "5.1.15.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 43,
+        "kind": "heading",
+        "code": "5.1.15.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 43,
+        "kind": "heading",
+        "code": "5.1.15.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 43,
+        "kind": "heading",
+        "code": "5.1.16",
+        "title": "耐电压 Withstand voltage"
+      },
+      {
+        "page": 43,
+        "kind": "heading",
+        "code": "5.1.16.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 43,
+        "kind": "heading",
+        "code": "5.1.16.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "5.1.16.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "21",
+        "title": "尽快完成测试。"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "5.1.16.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "5.1.17",
+        "title": "绝缘电阻 Insulation resistance"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "5.1.17.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 44,
+        "kind": "heading",
+        "code": "5.1.17.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "5.1.17.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "22",
+        "title": "尽快完成测试。"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "5.1.17.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "5.1.18",
+        "title": "Pin 断路和连接器断路 Pin interruption and Connector interruption"
+      },
+      {
+        "page": 45,
+        "kind": "heading",
+        "code": "5.1.18.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 46,
+        "kind": "heading",
+        "code": "5.1.18.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 47,
+        "kind": "heading",
+        "code": "5.1.18.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 47,
+        "kind": "heading",
+        "code": "5.1.18.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 47,
+        "kind": "heading",
+        "code": "5.1.19",
+        "title": "重叠的交流电压 Superimposed alternating voltage"
+      },
+      {
+        "page": 47,
+        "kind": "heading",
+        "code": "5.1.19.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 48,
+        "kind": "heading",
+        "code": "5.1.19.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "5.1.19.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "5.1.19.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "5.1.20",
+        "title": "接地偏移 Ground offset"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "5.1.20.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 49,
+        "kind": "heading",
+        "code": "5.1.20.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "5.1.20.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "5.1.20.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "5.1.21",
+        "title": "短暂的低电压 Transient undervoltage"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "5.1.21.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 50,
+        "kind": "heading",
+        "code": "5.1.21.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "5.1.21.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "5.1.21.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "5.1.22",
+        "title": "抛负载 Load dump"
+      },
+      {
+        "page": 51,
+        "kind": "heading",
+        "code": "5.1.22.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 52,
+        "kind": "heading",
+        "code": "5.1.22.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 53,
+        "kind": "heading",
+        "code": "5.1.22.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 53,
+        "kind": "heading",
+        "code": "5.1.22.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 53,
+        "kind": "heading",
+        "code": "5.1.23",
+        "title": "智能控制的电压波形 Voltage curve with electric system control"
+      },
+      {
+        "page": 53,
+        "kind": "heading",
+        "code": "5.1.23.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 53,
+        "kind": "heading",
+        "code": "5.1.23.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 54,
+        "kind": "heading",
+        "code": "5.1.23.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 54,
+        "kind": "heading",
+        "code": "5.1.23.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 54,
+        "kind": "heading",
+        "code": "5.1.24",
+        "title": "短暂的过压 Transient overvoltage"
+      },
+      {
+        "page": 54,
+        "kind": "heading",
+        "code": "5.1.24.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 54,
+        "kind": "heading",
+        "code": "5.1.24.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 55,
+        "kind": "heading",
+        "code": "5.1.24.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 55,
+        "kind": "heading",
+        "code": "5.1.24.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 56,
+        "kind": "heading",
+        "code": "5.1.25",
+        "title": "短暂的断路 Short interruptions"
+      },
+      {
+        "page": 56,
+        "kind": "heading",
+        "code": "5.1.25.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 56,
+        "kind": "heading",
+        "code": "5.1.25.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 57,
+        "kind": "heading",
+        "code": "5.1.25.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 57,
+        "kind": "heading",
+        "code": "5.1.25.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 58,
+        "kind": "heading",
+        "code": "5.1.26",
+        "title": "测试后五点功能检测 After test five point function test"
+      },
+      {
+        "page": 58,
+        "kind": "heading",
+        "code": "5.1.26.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 58,
+        "kind": "heading",
+        "code": "5.1.26.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 58,
+        "kind": "heading",
+        "code": "5.1.26.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 58,
+        "kind": "heading",
+        "code": "5.1.26.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 58,
+        "kind": "heading",
+        "code": "5.1.27",
+        "title": "测试后拆解检查 After test disassembly inspection"
+      },
+      {
+        "page": 58,
+        "kind": "heading",
+        "code": "5.1.27.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 58,
+        "kind": "heading",
+        "code": "5.1.27.2",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 58,
+        "kind": "heading",
+        "code": "5.1.27.3",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 59,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "机械负荷试验 Mechanical loads test"
+      },
+      {
+        "page": 59,
+        "kind": "heading",
+        "code": "5.2.1",
+        "title": "温度循环振动 Temperature cycle vibration"
+      },
+      {
+        "page": 59,
+        "kind": "heading",
+        "code": "5.2.1.1",
+        "title": "试验1-乘用车燃油发动机上轻型和小型DUT Test 1- Light and small DUTs on"
+      },
+      {
+        "page": 59,
+        "kind": "heading",
+        "code": "5.2.1.1.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 59,
+        "kind": "heading",
+        "code": "5.2.1.1.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 61,
+        "kind": "heading",
+        "code": "0",
+        "title": "51"
+      },
+      {
+        "page": 61,
+        "kind": "heading",
+        "code": "5.2.1.1.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 61,
+        "kind": "heading",
+        "code": "5.2.1.1.3.1",
+        "title": "正弦振动 Sinusoidal vibration"
+      },
+      {
+        "page": 61,
+        "kind": "heading",
+        "code": "5.2.1.1.3.2",
+        "title": "随机振动 Random vibration"
+      },
+      {
+        "page": 62,
+        "kind": "heading",
+        "code": "5.2.1.1.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 62,
+        "kind": "heading",
+        "code": "5.2.1.2",
+        "title": "试验2–乘用车燃油发动机变速箱上轻型和小型DUT Test 2- Light and Small DUTs on"
+      },
+      {
+        "page": 62,
+        "kind": "heading",
+        "code": "5.2.1.2.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 62,
+        "kind": "heading",
+        "code": "5.2.1.2.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 63,
+        "kind": "heading",
+        "code": "0",
+        "title": "51"
+      },
+      {
+        "page": 64,
+        "kind": "heading",
+        "code": "5.2.1.2.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 64,
+        "kind": "heading",
+        "code": "5.2.1.2.3.1",
+        "title": "正弦振动 sinusoidal vibration"
+      },
+      {
+        "page": 64,
+        "kind": "heading",
+        "code": "5.2.1.2.3.2",
+        "title": "随机振动 sinusoidal vibration"
+      },
+      {
+        "page": 64,
+        "kind": "heading",
+        "code": "5.2.1.2.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 64,
+        "kind": "heading",
+        "code": "5.2.1.3",
+        "title": "试验3-乘用车混合动力系统，发动机和变速箱上重型和大型DUT Test 3- Passenger Car"
+      },
+      {
+        "page": 64,
+        "kind": "heading",
+        "code": "5.2.1.3.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 65,
+        "kind": "heading",
+        "code": "5.2.1.3.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 65,
+        "kind": "heading",
+        "code": "1",
+        "title": "X 轴曲线"
+      },
+      {
+        "page": 65,
+        "kind": "heading",
+        "code": "1",
+        "title": "X-axis curve"
+      },
+      {
+        "page": 65,
+        "kind": "heading",
+        "code": "2",
+        "title": "Y 轴曲线"
+      },
+      {
+        "page": 65,
+        "kind": "heading",
+        "code": "2",
+        "title": "Y-axis curve"
+      },
+      {
+        "page": 66,
+        "kind": "heading",
+        "code": "3",
+        "title": "Z轴曲线"
+      },
+      {
+        "page": 66,
+        "kind": "heading",
+        "code": "3",
+        "title": "Z-axis curve"
+      },
+      {
+        "page": 67,
+        "kind": "heading",
+        "code": "5.2.1.3.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 67,
+        "kind": "heading",
+        "code": "5.2.1.3.3.1",
+        "title": "正弦振动 Sinusoidal vibration"
+      },
+      {
+        "page": 67,
+        "kind": "heading",
+        "code": "5.2.1.3.3.2",
+        "title": "随机振动 sinusoidal vibration"
+      },
+      {
+        "page": 67,
+        "kind": "heading",
+        "code": "5.2.1.3.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 67,
+        "kind": "heading",
+        "code": "5.2.1.4",
+        "title": "试验4-乘用车驱动电机 Test 4- Passenger Car Drive Motor"
+      },
+      {
+        "page": 67,
+        "kind": "heading",
+        "code": "5.2.1.4.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 67,
+        "kind": "heading",
+        "code": "1",
+        "title": "每轴向20h 的持续时间，相当于6000h（在40km/h的平均车速下24万公里）车辆的寿命要求。"
+      },
+      {
+        "page": 67,
+        "kind": "heading",
+        "code": "1",
+        "title": "The duration of 20h per axis is equivalent to the service life requirement of a vehicle of 6000 hours (240000 kilometers"
+      },
+      {
+        "page": 67,
+        "kind": "heading",
+        "code": "2",
+        "title": "电机的不平衡和变速箱谐振引起的正弦振动，由吉利试验工程师和相关部门商定后，增加相应"
+      },
+      {
+        "page": 67,
+        "kind": "heading",
+        "code": "2",
+        "title": "The sine vibration caused by the imbalance of the motor and the resonance of the gearbox shall be increased by the"
+      },
+      {
+        "page": 68,
+        "kind": "heading",
+        "code": "5.2.1.4.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 68,
+        "kind": "heading",
+        "code": "1",
+        "title": "X轴曲线"
+      },
+      {
+        "page": 68,
+        "kind": "heading",
+        "code": "1",
+        "title": "X-axis curve"
+      },
+      {
+        "page": 68,
+        "kind": "heading",
+        "code": "2",
+        "title": "Y轴曲线"
+      },
+      {
+        "page": 68,
+        "kind": "heading",
+        "code": "2",
+        "title": "Y-axis curve"
+      },
+      {
+        "page": 68,
+        "kind": "heading",
+        "code": "3",
+        "title": "Z轴曲线"
+      },
+      {
+        "page": 68,
+        "kind": "heading",
+        "code": "3",
+        "title": "Z-axis curve"
+      },
+      {
+        "page": 69,
+        "kind": "heading",
+        "code": "5.2.1.4.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 69,
+        "kind": "heading",
+        "code": "5.2.1.4.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 69,
+        "kind": "heading",
+        "code": "5.2.1.5",
+        "title": "试验5-乘用车，弹性体车身大型和重型DUT Test 5- Passenger cars, elastomeric body"
+      },
+      {
+        "page": 69,
+        "kind": "heading",
+        "code": "5.2.1.5.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 69,
+        "kind": "heading",
+        "code": "5.2.1.5.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 70,
+        "kind": "heading",
+        "code": "1",
+        "title": "X轴曲线 3：Z轴曲线"
+      },
+      {
+        "page": 70,
+        "kind": "heading",
+        "code": "1",
+        "title": "X-axis curve 3: Z-axis curve"
+      },
+      {
+        "page": 70,
+        "kind": "heading",
+        "code": "10",
+        "title": "10 10 5 10 10"
+      },
+      {
+        "page": 70,
+        "kind": "heading",
+        "code": "30",
+        "title": "10 50 5 70 10"
+      },
+      {
+        "page": 70,
+        "kind": "heading",
+        "code": "700",
+        "title": "0.001 700 0.001 500 0.003"
+      },
+      {
+        "page": 70,
+        "kind": "heading",
+        "code": "2000",
+        "title": "0.001 2000 0.001 2000 0.003"
+      },
+      {
+        "page": 70,
+        "kind": "heading",
+        "code": "5.2.1.5.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 71,
+        "kind": "heading",
+        "code": "5.2.1.5.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 71,
+        "kind": "heading",
+        "code": "5.2.1.6",
+        "title": "试验6–乘用车柔性气室 Test 3 - Passenger car, on flexible plenum chamber"
+      },
+      {
+        "page": 71,
+        "kind": "heading",
+        "code": "5.2.1.6.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 71,
+        "kind": "heading",
+        "code": "5.2.1.6.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "5.2.1.6.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "5.2.1.6.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "5.2.1.7",
+        "title": "试验7–乘用车弹性体 (车身)轻型和小型DUT Test 7- Passenger Car Elastomers"
+      },
+      {
+        "page": 72,
+        "kind": "heading",
+        "code": "5.2.1.7.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 73,
+        "kind": "heading",
+        "code": "5.2.1.7.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 73,
+        "kind": "heading",
+        "code": "10",
+        "title": "30"
+      },
+      {
+        "page": 73,
+        "kind": "heading",
+        "code": "400",
+        "title": "0.2"
+      },
+      {
+        "page": 73,
+        "kind": "heading",
+        "code": "1000",
+        "title": "0.2"
+      },
+      {
+        "page": 73,
+        "kind": "heading",
+        "code": "5.2.1.7.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 74,
+        "kind": "heading",
+        "code": "5.2.1.7.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 74,
+        "kind": "heading",
+        "code": "5.2.1.8",
+        "title": "试验8–乘用车非弹性体 (车轮，车轮悬挂) 轻型或小型DUT Test 8- Passenger car non"
+      },
+      {
+        "page": 74,
+        "kind": "heading",
+        "code": "5.2.1.8.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 74,
+        "kind": "heading",
+        "code": "5.2.1.8.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 75,
+        "kind": "heading",
+        "code": "20",
+        "title": "200"
+      },
+      {
+        "page": 75,
+        "kind": "heading",
+        "code": "40",
+        "title": "200"
+      },
+      {
+        "page": 75,
+        "kind": "heading",
+        "code": "300",
+        "title": "0.5"
+      },
+      {
+        "page": 75,
+        "kind": "heading",
+        "code": "800",
+        "title": "0.5"
+      },
+      {
+        "page": 75,
+        "kind": "heading",
+        "code": "1000",
+        "title": "3"
+      },
+      {
+        "page": 75,
+        "kind": "heading",
+        "code": "2000",
+        "title": "3"
+      },
+      {
+        "page": 75,
+        "kind": "heading",
+        "code": "5.2.1.8.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "5.2.1.8.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "5.2.1.9",
+        "title": "试验9-旋转机构 Test 9- Rotating Mechanism"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "5.2.1.9.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 76,
+        "kind": "heading",
+        "code": "5.2.1.9.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 77,
+        "kind": "heading",
+        "code": "100",
+        "title": "20"
+      },
+      {
+        "page": 77,
+        "kind": "heading",
+        "code": "200",
+        "title": "50"
+      },
+      {
+        "page": 77,
+        "kind": "heading",
+        "code": "800",
+        "title": "50"
+      },
+      {
+        "page": 78,
+        "kind": "heading",
+        "code": "10",
+        "title": "10"
+      },
+      {
+        "page": 78,
+        "kind": "heading",
+        "code": "100",
+        "title": "10"
+      },
+      {
+        "page": 78,
+        "kind": "heading",
+        "code": "150",
+        "title": "0.1"
+      },
+      {
+        "page": 78,
+        "kind": "heading",
+        "code": "700",
+        "title": "0.1"
+      },
+      {
+        "page": 78,
+        "kind": "heading",
+        "code": "800",
+        "title": "10"
+      },
+      {
+        "page": 78,
+        "kind": "heading",
+        "code": "2000",
+        "title": "10"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "5.2.1.9.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "5.2.1.9.3.1",
+        "title": "正弦振动 Sinusoidal vibration"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "5.2.1.9.3.2",
+        "title": "随机振动 random vibration"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "115",
+        "title": "2m/s2，加速度功率谱密度和频率见表44和图32所示；"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "5.2.1.9.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "5.2.1.10",
+        "title": "试验10-乘用车排气管 Test 10- Passenger Car Exhaust Pipe"
+      },
+      {
+        "page": 79,
+        "kind": "heading",
+        "code": "5.2.1.10.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 80,
+        "kind": "heading",
+        "code": "5.2.1.10.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "50",
+        "title": "0.3 -"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "160",
+        "title": "0.3 -"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "2000",
+        "title": "300"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "125",
+        "title": "60"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "250",
+        "title": "60"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "260",
+        "title": "40"
+      },
+      {
+        "page": 81,
+        "kind": "heading",
+        "code": "500",
+        "title": "40"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "0",
+        "title": "75"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "0",
+        "title": "75"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "5.2.1.10.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 82,
+        "kind": "heading",
+        "code": "5.2.1.10.3.1",
+        "title": "试验10.1 适用于固有频率大于1000Hz 的轻型和小型DUT Test 10.1 is applicable"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "5.2.1.10.3.2",
+        "title": "试验10.2 适用安装在去耦元件之前的大型和重型模块 Test 10.2 applies to large"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "5.2.1.10.3.3",
+        "title": "试验10.3 适用安装在去耦元件之后的大型和重型模块 Test 10.3 applies to large"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "5.2.1.10.3.3",
+        "title": "1 正弦振动 Sinusoidal vibration"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "5.2.1.10.3.3",
+        "title": "2 随机振动 random vibration"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "5.2.1.10.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "5.2.2",
+        "title": "机械冲击 Mechanical shock"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "5.2.2.1",
+        "title": "装在门和盖板内/上 Test for devices in or on doors and flaps"
+      },
+      {
+        "page": 83,
+        "kind": "heading",
+        "code": "5.2.2.1.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "5.2.2.1.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 84,
+        "kind": "heading",
+        "code": "5.2.2.1.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "5.2.2.1.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "5.2.2.2",
+        "title": "装在车身和车架刚性点上的试验 Test for devices on rigid points on the body and"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "5.2.2.2.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "5.2.2.2.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "5.2.2.2.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "5.2.2.2.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 85,
+        "kind": "heading",
+        "code": "5.2.2.3",
+        "title": "装在变速器上/内的试验 Test for devices in or on the gearbox"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "5.2.2.3.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "5.2.2.3.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "5.2.2.3.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "5.2.2.3.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "5.2.3",
+        "title": "自由跌落 Free fall"
+      },
+      {
+        "page": 86,
+        "kind": "heading",
+        "code": "5.2.3.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 87,
+        "kind": "heading",
+        "code": "5.2.3.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 87,
+        "kind": "heading",
+        "code": "5.2.3.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 88,
+        "kind": "heading",
+        "code": "5.2.3.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 88,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "气候负荷 Climatic loads"
+      },
+      {
+        "page": 88,
+        "kind": "heading",
+        "code": "5.3.1",
+        "title": "低温储存试验 Storage test"
+      },
+      {
+        "page": 88,
+        "kind": "heading",
+        "code": "5.3.1.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 88,
+        "kind": "heading",
+        "code": "5.3.1.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 88,
+        "kind": "heading",
+        "code": "5.3.1.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 88,
+        "kind": "heading",
+        "code": "5.3.1.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 89,
+        "kind": "heading",
+        "code": "5.3.2",
+        "title": "低温工作试验 Operation test"
+      },
+      {
+        "page": 89,
+        "kind": "heading",
+        "code": "5.3.2.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 89,
+        "kind": "heading",
+        "code": "5.3.2.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 89,
+        "kind": "heading",
+        "code": "5.3.2.3",
+        "title": "试验方法 Test methods Test methods"
+      },
+      {
+        "page": 89,
+        "kind": "heading",
+        "code": "5.3.2.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 89,
+        "kind": "heading",
+        "code": "5.3.3",
+        "title": "高温储存试验 Storage test"
+      },
+      {
+        "page": 89,
+        "kind": "heading",
+        "code": "5.3.3.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 89,
+        "kind": "heading",
+        "code": "5.3.3.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "5.3.3.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "在持续时间存放结束后，在最高储存温度（见表3）下运行工作模式3.4或4.4进行功能检查，然"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "3",
+        "title": "for functional inspection, and then perform a complete functional test after returning to room temperature."
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "1",
+        "title": "基于电器架构3.0及以上的车型，优先选择持续时间504h；"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "1",
+        "title": "For models based on electrical architecture 3.0 and above, priority is given to selecting a duration of 504h;"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "2",
+        "title": "基于高风险件、易失效件、四新件，优先选择持续时间504h。"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "2",
+        "title": "Based on high-risk parts, vulnerable parts, and four new parts, priority is given to selecting a duration of 504h."
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "5.3.3.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "5.3.4",
+        "title": "高温工作试验 Operation test"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "5.3.4.1",
+        "title": "试验目的 Aim"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "5.3.4.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 90,
+        "kind": "heading",
+        "code": "5.3.4.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 91,
+        "kind": "heading",
+        "code": "5.3.5",
+        "title": "温度梯度试验 Temperature step test"
+      },
+      {
+        "page": 91,
+        "kind": "heading",
+        "code": "5.3.5.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 91,
+        "kind": "heading",
+        "code": "5.3.5.3",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "5.3.5.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "5.3.5.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "5.3.6",
+        "title": "规定变化率的温度循环 Temperature cycle with specified change rate"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "5.3.6.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 92,
+        "kind": "heading",
+        "code": "5.3.6.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 94,
+        "kind": "heading",
+        "code": "1",
+        "title": "环境温度 2：DUT 温度"
+      },
+      {
+        "page": 94,
+        "kind": "heading",
+        "code": "1",
+        "title": "Environmental temperature 2: DUT temperature"
+      },
+      {
+        "page": 95,
+        "kind": "heading",
+        "code": "5.3.6.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "1",
+        "title": "重型或大型DUT在执行该试验前，应以工作模式2.1进行单独的温度测量，用于确定DUT在T min 和T max 的稳"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "1",
+        "title": "Before conducting this test, heavy or large DUTs should undergo separate temperature measurements in operating mode"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "2.1",
+        "title": "to determine the stability time of the DUT at T min and T max. If operating mode 2.1 is not applicable, it can be changed to"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "2",
+        "title": "温度的测试点及T min 和T max 的停留和稳定时间，最终以吉利试验工程师和相关部门达成一致意见为准。"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "2",
+        "title": "The testing points for temperature, as well as the residence and stabilization time of T min and Tmax, shall be subject to the"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "5.3.6.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "5.3.7",
+        "title": "规定转换时间的温度快速变化 Rapid change of temperature with specified transition"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "5.3.7.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 96,
+        "kind": "heading",
+        "code": "5.3.7.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 97,
+        "kind": "heading",
+        "code": "5.3.7.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 97,
+        "kind": "heading",
+        "code": "1",
+        "title": "该测试可以在打开外壳或不带外壳的情况下执行；"
+      },
+      {
+        "page": 97,
+        "kind": "heading",
+        "code": "1",
+        "title": "This test can be performed with or without the casing open;"
+      },
+      {
+        "page": 97,
+        "kind": "heading",
+        "code": "2",
+        "title": "样品的温度稳定时间可以按照工作模式2.1进行测试，温度的测试点及T min 和T max 的停留和稳定时间，最终以"
+      },
+      {
+        "page": 97,
+        "kind": "heading",
+        "code": "2",
+        "title": "The temperature stability time of the sample can be tested according to working mode 2.1. The testing points for temperature,"
+      },
+      {
+        "page": 97,
+        "kind": "heading",
+        "code": "5.3.7.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 97,
+        "kind": "heading",
+        "code": "5.3.8",
+        "title": "冰水冲击试验 Ice water shock test"
+      },
+      {
+        "page": 97,
+        "kind": "heading",
+        "code": "5.3.8.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 98,
+        "kind": "heading",
+        "code": "5.3.8.2",
+        "title": "水飞溅试验 Splash water test"
+      },
+      {
+        "page": 98,
+        "kind": "heading",
+        "code": "5.3.8.2.1",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 100,
+        "kind": "heading",
+        "code": "5.3.8.2.2",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 100,
+        "kind": "heading",
+        "code": "5.3.8.2.3",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 100,
+        "kind": "heading",
+        "code": "5.3.8.3",
+        "title": "浸没试验 Submersion test"
+      },
+      {
+        "page": 100,
+        "kind": "heading",
+        "code": "5.3.8.3.1",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "5.3.8.3.2",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "20",
+        "title": "seconds, with a maximum immersion depth of no less than 10mm and a duration of 5 minutes. Working"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "1",
+        "title": "针对大型或重型样件，经吉利试验工程师同意后，转换时间可以延长至3min内；"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "1",
+        "title": "For large or heavy samples, with the approval of Geely testing engineers, the conversion time can be extended to within 3"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "2",
+        "title": "可以在去离子水中添加颜色或者盐及润湿剂，用以提高检测能力。"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "2",
+        "title": "Color or salt and wetting agents can be added to deionized water to improve detection capability."
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "5.3.8.3.3",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "5.3.9",
+        "title": "盐雾试验 Salt spray test"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "5.3.9.1",
+        "title": "腐蚀试验 Corrosion test"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "5.3.9.1.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 101,
+        "kind": "heading",
+        "code": "5.3.9.1.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 102,
+        "kind": "heading",
+        "code": "5.3.9.1.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 102,
+        "kind": "heading",
+        "code": "5.3.9.1.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "5.3.9.2",
+        "title": "渗漏和功能 Leakage and function test"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "5.3.9.2.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 103,
+        "kind": "heading",
+        "code": "5.3.9.2.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 104,
+        "kind": "heading",
+        "code": "5.3.9.2.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 104,
+        "kind": "heading",
+        "code": "5.3.9.2.3",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 104,
+        "kind": "heading",
+        "code": "5.3.9.3",
+        "title": "带有开放外壳的旋转机构盐雾试验 Salt spray test on rotating mechanism with open"
+      },
+      {
+        "page": 105,
+        "kind": "heading",
+        "code": "5.3.9.3.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 105,
+        "kind": "heading",
+        "code": "5.3.9.3.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 105,
+        "kind": "heading",
+        "code": "5.3.9.3.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "5.3.9.3.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "5.3.9.4",
+        "title": "组合循环盐雾试验 Combined cycle salt spray test"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "5.3.9.4.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 106,
+        "kind": "heading",
+        "code": "5.3.9.4.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "5.3.9.4.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "1",
+        "title": "2, and perform the test cycle shown in Figure 42. The severity level should be selected according to Table 53"
+      },
+      {
+        "page": 107,
+        "kind": "heading",
+        "code": "1",
+        "title": "℃ and relative humidity (20~30)% RH, and store for 2 hours at (50±1) ℃ and relative humidity greater"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "1",
+        "title": "发动机 / 电机（前端，下部）"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "2",
+        "title": "发动机 / 电机（低于侧梁）"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "1",
+        "title": "Engine/Motor (Front, Lower)"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "2",
+        "title": "Engine/motor (lower than side beam)"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "3",
+        "title": "发动机 / 电机（发动机 / 电机，底部）"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "4",
+        "title": "外部（顶部）"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "3",
+        "title": "Engine/Motor (Engine/Motor, Bottom)"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "4",
+        "title": "External (Top)"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "5",
+        "title": "外部（侧部）"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "6",
+        "title": "外部（底部）"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "5",
+        "title": "External (side)"
+      },
+      {
+        "page": 109,
+        "kind": "heading",
+        "code": "6",
+        "title": "External (bottom)"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "5.3.9.4.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "5.3.10",
+        "title": "湿热循环 Humid heat, cyclic test"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "5.3.10.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 110,
+        "kind": "heading",
+        "code": "5.3.10.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "5.3.10.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 111,
+        "kind": "heading",
+        "code": "5",
+        "title": "5h after the cycle test;"
+      },
+      {
+        "page": 112,
+        "kind": "heading",
+        "code": "3.4",
+        "title": "or 4.4, and the other working modes are 2.1."
+      },
+      {
+        "page": 112,
+        "kind": "heading",
+        "code": "5.3.10.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 113,
+        "kind": "heading",
+        "code": "5.3.11",
+        "title": "结露试验 Dewing test"
+      },
+      {
+        "page": 113,
+        "kind": "heading",
+        "code": "5.3.11.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 113,
+        "kind": "heading",
+        "code": "5.3.11.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 114,
+        "kind": "heading",
+        "code": "5.3.11.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 115,
+        "kind": "heading",
+        "code": "5.3.11.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 115,
+        "kind": "heading",
+        "code": "5.3.12",
+        "title": "稳态湿热试验 Damp heat, steady-state test"
+      },
+      {
+        "page": 115,
+        "kind": "heading",
+        "code": "5.3.12.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 115,
+        "kind": "heading",
+        "code": "5.3.12.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 115,
+        "kind": "heading",
+        "code": "5.3.12.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 115,
+        "kind": "heading",
+        "code": "5.3.12.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "5.3.13",
+        "title": "冷凝试验 Condensation test"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "5.3.13.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 116,
+        "kind": "heading",
+        "code": "5.3.13.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "5.3.13.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "5.3.13.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "5.3.14",
+        "title": "防尘试验 Dust Test"
+      },
+      {
+        "page": 119,
+        "kind": "heading",
+        "code": "5.3.14.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 120,
+        "kind": "heading",
+        "code": "5.3.14.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "5.3.14.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "1.2",
+        "title": "持续 15min ，每个循环周期如图 48 所示。"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "5.3.14.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "5.3.15",
+        "title": "防水试验 Waterproof Test"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "5.3.15.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 121,
+        "kind": "heading",
+        "code": "5.3.15.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 126,
+        "kind": "heading",
+        "code": "5.3.15.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 127,
+        "kind": "heading",
+        "code": "5.3.15.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 127,
+        "kind": "heading",
+        "code": "5.3.16",
+        "title": "流动混合气体腐蚀试验 Corrosion test with flow of mixed gas"
+      },
+      {
+        "page": 127,
+        "kind": "heading",
+        "code": "5.3.16.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 127,
+        "kind": "heading",
+        "code": "5.3.16.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "5.3.16.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "5.3.16.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "5.3.17",
+        "title": "太阳光辐射试验 Solar radiation test"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "5.3.17.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "5.3.17.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "5.3.17.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "5.3.17.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "5.3.18",
+        "title": "拆解检查 Disassembly inspection"
+      },
+      {
+        "page": 128,
+        "kind": "heading",
+        "code": "5.3.18.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 129,
+        "kind": "heading",
+        "code": "5.3.18.2",
+        "title": "试验方法 test method"
+      },
+      {
+        "page": 129,
+        "kind": "heading",
+        "code": "5.3.18.3",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 129,
+        "kind": "heading",
+        "code": "5.4",
+        "title": "化学负荷试验 Chemical load test"
+      },
+      {
+        "page": 129,
+        "kind": "heading",
+        "code": "5.4.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 129,
+        "kind": "heading",
+        "code": "5.4.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "5.4.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 132,
+        "kind": "heading",
+        "code": "5.4.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "5.5",
+        "title": "寿命试验 Life test"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "5.5.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 133,
+        "kind": "heading",
+        "code": "5.5.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 134,
+        "kind": "heading",
+        "code": "176",
+        "title": "h≈22 循环温度负荷（参见规定变化率的温度循环）"
+      },
+      {
+        "page": 134,
+        "kind": "heading",
+        "code": "176",
+        "title": "h ≈ 22 cycle temperature load (see temperature cycle with specified rate of change)"
+      },
+      {
+        "page": 134,
+        "kind": "heading",
+        "code": "376",
+        "title": "h≈47 循环温度负荷（参见规定变化率的温度循环）"
+      },
+      {
+        "page": 134,
+        "kind": "heading",
+        "code": "376",
+        "title": "h ≈ 47 cycle temperature load (see temperature cycle with specified rate of change)"
+      },
+      {
+        "page": 134,
+        "kind": "heading",
+        "code": "5.5.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 134,
+        "kind": "heading",
+        "code": "5.5.3.1",
+        "title": "电子电气部件寿命试验 Life test of electronic and electrical components"
+      },
+      {
+        "page": 134,
+        "kind": "heading",
+        "code": "5.5.3.2",
+        "title": "发动机安装件寿命试验 Engine mount life test"
+      },
+      {
+        "page": 134,
+        "kind": "heading",
+        "code": "5.5.3.3",
+        "title": "特殊零部件的寿命试验 Life test of special parts"
+      },
+      {
+        "page": 135,
+        "kind": "heading",
+        "code": "5.5.4",
+        "title": "技术要求 Technical Requirement"
+      },
+      {
+        "page": 135,
+        "kind": "heading",
+        "code": "5.6",
+        "title": "机械、气候、化学、寿命试验矩阵 Mechanical, climatic, chemical and life test matrix"
+      },
+      {
+        "page": 136,
+        "kind": "heading",
+        "code": "1",
+        "title": "无特殊要求每组样件数量至少为3；"
+      },
+      {
+        "page": 136,
+        "kind": "heading",
+        "code": "2",
+        "title": "第一、三组需要按照顺序执行，若顺序变更需要有吉利工程师的书面同意；"
+      },
+      {
+        "page": 137,
+        "kind": "heading",
+        "code": "3",
+        "title": "第二组无需按照顺序执行；"
+      },
+      {
+        "page": 137,
+        "kind": "heading",
+        "code": "4",
+        "title": "第三组防尘试验，拆解后影响后续试验，可以增加样件数量，与防水同步进行；"
+      },
+      {
+        "page": 137,
+        "kind": "heading",
+        "code": "5",
+        "title": "第四组可以顺序或并行执行，不强制要求按照顺序开展"
+      },
+      {
+        "page": 137,
+        "kind": "heading",
+        "code": "6",
+        "title": "轻型和小型样件质量＜ 2kg ，重型和大型样件质量≥ 2kg."
+      },
+      {
+        "page": 137,
+        "kind": "heading",
+        "code": "5.7",
+        "title": "健壮性测试 robustness test"
+      },
+      {
+        "page": 137,
+        "kind": "heading",
+        "code": "5.7.1",
+        "title": "试验目的 Test aim"
+      },
+      {
+        "page": 137,
+        "kind": "heading",
+        "code": "5.7.2",
+        "title": "试验参数 Test parameters"
+      },
+      {
+        "page": 137,
+        "kind": "heading",
+        "code": "5.7.3",
+        "title": "试验方法 Test methods"
+      },
+      {
+        "page": 137,
+        "kind": "heading",
+        "code": "5.7.4",
+        "title": "技术要求 Technical Requirement"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.3.6.3",
+          "requirement_count": 9,
+          "missing_section_anchor_count": 9,
+          "remote_section_match_count": 9,
+          "sample_missing_codes": [
+            "3.3",
+            "4.3",
+            "3.3",
+            "3.4",
+            "3.4",
+            "4.4",
+            "4.3",
+            "3.3"
+          ],
+          "expected_direct_children": [
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.14.2",
+          "requirement_count": 5,
+          "missing_section_anchor_count": 5,
+          "remote_section_match_count": 5,
+          "sample_missing_codes": [
+            "4.2",
+            "2.1",
+            "4.2",
+            "2.1",
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "2",
+            "3",
+            "4"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "4.4.3",
+          "requirement_count": 4,
+          "missing_section_anchor_count": 4,
+          "remote_section_match_count": 4,
+          "sample_missing_codes": [
+            "3.4",
+            "3.2",
+            "3.4",
+            "3.4"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.3.14.3",
+          "requirement_count": 4,
+          "missing_section_anchor_count": 4,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "5.11.2",
+            "5.11.2",
+            "3.2",
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3",
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.3.8.2.1",
+          "requirement_count": 4,
+          "missing_section_anchor_count": 4,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "1.2",
+            "1.2",
+            "1.2",
+            "1.2"
+          ],
+          "expected_direct_children": [
+            "1"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.5.3.1",
+          "requirement_count": 4,
+          "missing_section_anchor_count": 4,
+          "remote_section_match_count": 4,
+          "sample_missing_codes": [
+            "5.3",
+            "5.2",
+            "5.3",
+            "5.2"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.5.3.2",
+          "requirement_count": 4,
+          "missing_section_anchor_count": 4,
+          "remote_section_match_count": 4,
+          "sample_missing_codes": [
+            "5.3",
+            "5.2",
+            "5.3",
+            "5.2"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.18.2",
+          "requirement_count": 3,
+          "missing_section_anchor_count": 3,
+          "remote_section_match_count": 3,
+          "sample_missing_codes": [
+            "4.2",
+            "2.1",
+            "2.1"
+          ],
+          "expected_direct_children": [
+            "2",
+            "4"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.3.11.3",
+          "requirement_count": 3,
+          "missing_section_anchor_count": 3,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "5.6.2.4",
+            "5.6.2.4",
+            "2.1"
+          ],
+          "expected_direct_children": [
+            "2",
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "4.8.3",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "5.1.2",
+            "5.6"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.10.3",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "3.2",
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.12.2",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "2.1",
+            "4.2"
+          ],
+          "expected_direct_children": [
+            "2",
+            "4"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.16.3",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "5.3.10.3",
+            "5.3.10.3"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.17.3",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "5.3.10.3",
+            "5.3.10.3"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.19.3",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "3.2",
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.20.2",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "4.2",
+            "4.2"
+          ],
+          "expected_direct_children": [
+            "4"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.21.2",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "4.2",
+            "10.8"
+          ],
+          "expected_direct_children": [
+            "4",
+            "10"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.23.3",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "3.2",
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.24.3",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "3.2",
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.25.3",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "3.2",
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.2.2.2.3",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "4.2.2.2",
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3",
+            "4"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.2.2.2.4",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "3.2",
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.3.12.3",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "5.7.2",
+            "2.1"
+          ],
+          "expected_direct_children": [
+            "2",
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.3.13.3",
+          "requirement_count": 2,
+          "missing_section_anchor_count": 2,
+          "remote_section_match_count": 2,
+          "sample_missing_codes": [
+            "3.3",
+            "3.3"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "10.2",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "5.2.1.5"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.11.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.14.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "2.1"
+          ],
+          "expected_direct_children": [
+            "2"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.15.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.20.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.21.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.22.2",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "21.5"
+          ],
+          "expected_direct_children": [
+            "21"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.22.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.1.8.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "3.1"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.2.1.10.3.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "0.5"
+          ],
+          "expected_direct_children": [
+            "0"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.2.1.2.2",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "0.51"
+          ],
+          "expected_direct_children": [
+            "0"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.2.1.3.3.1",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "0.5"
+          ],
+          "expected_direct_children": [
+            "0"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.2.1.9.3.1",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "0.5"
+          ],
+          "expected_direct_children": [
+            "0"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.2.2.3.4",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.3.1.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "4.3"
+          ],
+          "expected_direct_children": [
+            "4"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.3.16.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "5.9.2"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.3.2.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "5.1.1.2.2"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.3.4.3",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 0,
+          "sample_missing_codes": [
+            "5.1.2.2.2"
+          ],
+          "expected_direct_children": [
+            "5"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.3.8.2.2",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        },
+        {
+          "appendix_scope": "MAIN",
+          "parent_section_code": "5.3.9.2.2",
+          "requirement_count": 1,
+          "missing_section_anchor_count": 1,
+          "remote_section_match_count": 1,
+          "sample_missing_codes": [
+            "3.2"
+          ],
+          "expected_direct_children": [
+            "3"
+          ]
+        }
+      ],
+      "page_counts": {
+        "13": 4,
+        "20": 2,
+        "31": 1,
+        "34": 2,
+        "35": 1,
+        "36": 2,
+        "39": 5,
+        "41": 1,
+        "43": 1,
+        "44": 2,
+        "45": 2,
+        "46": 3,
+        "49": 4,
+        "50": 3,
+        "51": 1,
+        "52": 1,
+        "53": 1,
+        "54": 2,
+        "55": 2,
+        "57": 2,
+        "62": 1,
+        "67": 1,
+        "79": 1,
+        "83": 2,
+        "85": 4,
+        "86": 1,
+        "88": 1,
+        "89": 1,
+        "90": 1,
+        "95": 9,
+        "98": 4,
+        "100": 1,
+        "103": 1,
+        "114": 3,
+        "115": 2,
+        "119": 2,
+        "121": 4,
+        "128": 1,
+        "134": 8
+      }
+    },
+    "duplicate_scope_summary": {
+      "duplicates": []
+    },
+    "baseline_delta": {
+      "requirements_count": 451,
+      "sections_count": 407,
+      "requirements_drift": 53,
+      "sections_drift": 8,
+      "table_row_issue_count": 0,
+      "complex_table_signal": true,
+      "hotspot_section_code": ""
+    },
+    "page_hotspots": [
+      {
+        "page": 5,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pypdf",
+        "quality_score": 1.3867,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 95,
+        "requirement_count": 13,
+        "missing_local_clause_count": 9,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.97,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 134,
+        "requirement_count": 12,
+        "missing_local_clause_count": 8,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.6627,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 39,
+        "requirement_count": 10,
+        "missing_local_clause_count": 5,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 2.545,
+        "table_count": 7,
+        "enum_signal": 0
+      },
+      {
+        "page": 121,
+        "requirement_count": 13,
+        "missing_local_clause_count": 4,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 2.8682,
+        "table_count": 8,
+        "enum_signal": 0
+      },
+      {
+        "page": 85,
+        "requirement_count": 12,
+        "missing_local_clause_count": 4,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 2.1416,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 49,
+        "requirement_count": 8,
+        "missing_local_clause_count": 4,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 2.5018,
+        "table_count": 7,
+        "enum_signal": 0
+      },
+      {
+        "page": 13,
+        "requirement_count": 6,
+        "missing_local_clause_count": 4,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.6267,
+        "table_count": 0,
+        "enum_signal": 0
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [
+        5
+      ],
+      "selected_engine_pages": {
+        "pymupdf4llm": 40,
+        "pymupdf_raw": 32,
+        "pypdf": 65
+      }
+    },
+    "expected_structure_summary": [
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "5.3.6.3",
+        "expected_children": [
+          "2",
+          "3",
+          "4"
+        ],
+        "summary": "5.3.6.3 should expose local anchors: 2, 3, 4"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "5.1.14.2",
+        "expected_children": [
+          "2",
+          "3",
+          "4"
+        ],
+        "summary": "5.1.14.2 should expose local anchors: 2, 3, 4"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "4.4.3",
+        "expected_children": [
+          "3"
+        ],
+        "summary": "4.4.3 should expose local anchors: 3"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "5.3.14.3",
+        "expected_children": [
+          "3",
+          "5"
+        ],
+        "summary": "5.3.14.3 should expose local anchors: 3, 5"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "5.3.8.2.1",
+        "expected_children": [
+          "1"
+        ],
+        "summary": "5.3.8.2.1 should expose local anchors: 1"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "5.5.3.1",
+        "expected_children": [
+          "5"
+        ],
+        "summary": "5.5.3.1 should expose local anchors: 5"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "5.5.3.2",
+        "expected_children": [
+          "5"
+        ],
+        "summary": "5.5.3.2 should expose local anchors: 5"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "5.1.18.2",
+        "expected_children": [
+          "2",
+          "4"
+        ],
+        "summary": "5.1.18.2 should expose local anchors: 2, 4"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "5.3.11.3",
+        "expected_children": [
+          "2",
+          "5"
+        ],
+        "summary": "5.3.11.3 should expose local anchors: 2, 5"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "4.8.3",
+        "expected_children": [
+          "5"
+        ],
+        "summary": "4.8.3 should expose local anchors: 5"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "5.1.10.3",
+        "expected_children": [
+          "3"
+        ],
+        "summary": "5.1.10.3 should expose local anchors: 3"
+      },
+      {
+        "appendix_scope": "MAIN",
+        "parent_section_code": "5.1.12.2",
+        "expected_children": [
+          "2",
+          "4"
+        ],
+        "summary": "5.1.12.2 should expose local anchors: 2, 4"
+      }
+    ]
+  },
+  "findings": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.3.6.3",
+      "expected_structure_summary": "5.3.6.3 should expose local section anchors such as 2, 3, 4",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3.6.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.93,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 9,
+        "remote_section_match_count": 9,
+        "sample_missing_codes": [
+          "3.3",
+          "4.3",
+          "3.3",
+          "3.4",
+          "3.4",
+          "4.4",
+          "4.3",
+          "3.3"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.14.2",
+      "expected_structure_summary": "5.1.14.2 should expose local section anchors such as 2, 3, 4",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.14.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.93,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 5,
+        "remote_section_match_count": 5,
+        "sample_missing_codes": [
+          "4.2",
+          "2.1",
+          "4.2",
+          "2.1",
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "4.4.3",
+      "expected_structure_summary": "4.4.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[4.4.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.93,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 4,
+        "remote_section_match_count": 4,
+        "sample_missing_codes": [
+          "3.4",
+          "3.2",
+          "3.4",
+          "3.4"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.3.14.3",
+      "expected_structure_summary": "5.3.14.3 should expose local section anchors such as 3, 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3.14.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.93,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 4,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "5.11.2",
+          "5.11.2",
+          "3.2",
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.3.8.2.1",
+      "expected_structure_summary": "5.3.8.2.1 should expose local section anchors such as 1",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3.8.2.1]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.93,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 4,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "1.2",
+          "1.2",
+          "1.2",
+          "1.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.5.3.1",
+      "expected_structure_summary": "5.5.3.1 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.5.3.1]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.93,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 4,
+        "remote_section_match_count": 4,
+        "sample_missing_codes": [
+          "5.3",
+          "5.2",
+          "5.3",
+          "5.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.5.3.2",
+      "expected_structure_summary": "5.5.3.2 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.5.3.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.93,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 4,
+        "remote_section_match_count": 4,
+        "sample_missing_codes": [
+          "5.3",
+          "5.2",
+          "5.3",
+          "5.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.18.2",
+      "expected_structure_summary": "5.1.18.2 should expose local section anchors such as 2, 4",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.18.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 3,
+        "remote_section_match_count": 3,
+        "sample_missing_codes": [
+          "4.2",
+          "2.1",
+          "2.1"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.3.11.3",
+      "expected_structure_summary": "5.3.11.3 should expose local section anchors such as 2, 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3.11.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 3,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "5.6.2.4",
+          "5.6.2.4",
+          "2.1"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "4.8.3",
+      "expected_structure_summary": "4.8.3 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[4.8.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "5.1.2",
+          "5.6"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.10.3",
+      "expected_structure_summary": "5.1.10.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.10.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "3.2",
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.12.2",
+      "expected_structure_summary": "5.1.12.2 should expose local section anchors such as 2, 4",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.12.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "2.1",
+          "4.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.16.3",
+      "expected_structure_summary": "5.1.16.3 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.16.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "5.3.10.3",
+          "5.3.10.3"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.17.3",
+      "expected_structure_summary": "5.1.17.3 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.17.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "5.3.10.3",
+          "5.3.10.3"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.19.3",
+      "expected_structure_summary": "5.1.19.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.19.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "3.2",
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.20.2",
+      "expected_structure_summary": "5.1.20.2 should expose local section anchors such as 4",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.20.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "4.2",
+          "4.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.21.2",
+      "expected_structure_summary": "5.1.21.2 should expose local section anchors such as 4, 10",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.21.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "4.2",
+          "10.8"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.23.3",
+      "expected_structure_summary": "5.1.23.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.23.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "3.2",
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.24.3",
+      "expected_structure_summary": "5.1.24.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.24.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "3.2",
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.25.3",
+      "expected_structure_summary": "5.1.25.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.25.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "3.2",
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.2.2.2.3",
+      "expected_structure_summary": "5.2.2.2.3 should expose local section anchors such as 3, 4",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.2.2.2.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "4.2.2.2",
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.2.2.2.4",
+      "expected_structure_summary": "5.2.2.2.4 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.2.2.2.4]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "3.2",
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.3.12.3",
+      "expected_structure_summary": "5.3.12.3 should expose local section anchors such as 2, 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3.12.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "5.7.2",
+          "2.1"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.3.13.3",
+      "expected_structure_summary": "5.3.13.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3.13.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 2,
+        "remote_section_match_count": 2,
+        "sample_missing_codes": [
+          "3.3",
+          "3.3"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "10.2",
+      "expected_structure_summary": "10.2 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[10.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "5.2.1.5"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.11.3",
+      "expected_structure_summary": "5.1.11.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.11.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.14.3",
+      "expected_structure_summary": "5.1.14.3 should expose local section anchors such as 2",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.14.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "2.1"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.15.3",
+      "expected_structure_summary": "5.1.15.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.15.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.20.3",
+      "expected_structure_summary": "5.1.20.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.20.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.21.3",
+      "expected_structure_summary": "5.1.21.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.21.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.22.2",
+      "expected_structure_summary": "5.1.22.2 should expose local section anchors such as 21",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.22.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "21.5"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.22.3",
+      "expected_structure_summary": "5.1.22.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.22.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.1.8.3",
+      "expected_structure_summary": "5.1.8.3 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.1.8.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "3.1"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.2.1.10.3.3",
+      "expected_structure_summary": "5.2.1.10.3.3 should expose local section anchors such as 0",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.2.1.10.3.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "0.5"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.2.1.2.2",
+      "expected_structure_summary": "5.2.1.2.2 should expose local section anchors such as 0",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.2.1.2.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "0.51"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.2.1.3.3.1",
+      "expected_structure_summary": "5.2.1.3.3.1 should expose local section anchors such as 0",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.2.1.3.3.1]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "0.5"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.2.1.9.3.1",
+      "expected_structure_summary": "5.2.1.9.3.1 should expose local section anchors such as 0",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.2.1.9.3.1]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "0.5"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.2.2.3.4",
+      "expected_structure_summary": "5.2.2.3.4 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.2.2.3.4]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.3.1.3",
+      "expected_structure_summary": "5.3.1.3 should expose local section anchors such as 4",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3.1.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "4.3"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.3.16.3",
+      "expected_structure_summary": "5.3.16.3 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3.16.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "5.9.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.3.2.3",
+      "expected_structure_summary": "5.3.2.3 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3.2.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "5.1.1.2.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.3.4.3",
+      "expected_structure_summary": "5.3.4.3 should expose local section anchors such as 5",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3.4.3]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 0,
+        "sample_missing_codes": [
+          "5.1.2.2.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.3.8.2.2",
+      "expected_structure_summary": "5.3.8.2.2 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3.8.2.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "category": "heading_recovery",
+      "issue_type": "local_clause_section_missing",
+      "impacted_scope": "MAIN",
+      "impacted_section": "5.3.9.2.2",
+      "expected_structure_summary": "5.3.9.2.2 should expose local section anchors such as 3",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "evidence_refs": [
+        "local_clause_summary.parent_findings[5.3.9.2.2]",
+        "expected_structure_summary"
+      ],
+      "confidence": 0.78,
+      "needs_human_review": false,
+      "details": {
+        "missing_section_anchor_count": 1,
+        "remote_section_match_count": 1,
+        "sample_missing_codes": [
+          "3.2"
+        ]
+      }
+    },
+    {
+      "pattern_id": "complex_table_clause_binding_drift",
+      "category": "table_and_clause_binding",
+      "issue_type": "complex_table_clause_binding_drift",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Complex-table pages should keep stable section ownership while preserving row coverage.",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.",
+      "evidence_refs": [
+        "baseline_delta",
+        "page_hotspots"
+      ],
+      "confidence": 0.76,
+      "needs_human_review": false,
+      "details": {
+        "requirements_drift": 53,
+        "table_row_issue_count": 0,
+        "hotspot_section_code": ""
+      }
+    },
+    {
+      "pattern_id": "complex_table_clause_binding_drift",
+      "category": "table_and_clause_binding",
+      "issue_type": "requirement_count_drift",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Requirement counts should return to the benchmark band without losing section anchors.",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.",
+      "evidence_refs": [
+        "issue_rollup[requirement_count_drift]"
+      ],
+      "confidence": 0.58,
+      "needs_human_review": false,
+      "details": {
+        "detail": "requirements=451 expected=398 drift=53"
+      }
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "issue_type": "parser_low_confidence_hotspot",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Low-confidence pages should be stabilized before downstream clause binding is tuned.",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "evidence_refs": [
+        "parser_diagnostics.low_confidence_pages",
+        "page_hotspots"
+      ],
+      "confidence": 0.62,
+      "needs_human_review": true,
+      "details": {
+        "low_confidence_pages": [
+          5
+        ]
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "local_clause_heading_not_promoted",
+      "pattern_name": "Local clause heading not promoted to section anchor",
+      "category": "heading_recovery",
+      "doc_key": "q_jly_core",
+      "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "issue_type": "local_clause_section_missing",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.",
+      "benchmark_impact": [
+        "regression-suite"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "complex_table_clause_binding_drift",
+      "pattern_name": "Complex table rewrite drifts clause binding",
+      "category": "table_and_clause_binding",
+      "doc_key": "q_jly_core",
+      "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "issue_type": "complex_table_clause_binding_drift",
+      "suspected_layer": "preview",
+      "recommended_fix_direction": "Stabilize complex-table rewrite ordering, requirement binding, and dedupe semantics without sample hacks.",
+      "benchmark_impact": [
+        "regression-suite"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "pattern_name": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "doc_key": "q_jly_core",
+      "pdf_name": "Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf",
+      "issue_type": "parser_low_confidence_hotspot",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "benchmark_impact": [
+        "regression-suite"
+      ],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf\",\n  \"issue_rollup\": [\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf\",\n      \"profile\": \"q_jly_core\",\n      \"category\": \"content_fidelity\",\n      \"category_label\": \"Content Fidelity\",\n      \"issue_type\": \"requirement_count_drift\",\n      \"severity\": \"medium\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"\",\n      \"detail\": \"requirements=451 expected=398 drift=53\"\n    },\n    {\n      \"gate\": \"fidelity\",\n      \"pdf_name\": \"Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf\",\n      \"profile\": \"q_jly_core\",\n      \"category\": \"outline_structure\",\n      \"category_label\": \"Outline Structure\",\n      \"issue_type\": \"section_consistency_issue_limit\",\n      \"severity\": \"medium\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"\",\n      \"detail\": \"consistency_issues=8 max=3\"\n    },\n    {\n      \"gate\": \"quality_gate\",\n      \"pdf_name\": \"Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf\",\n      \"profile\": \"q_jly_core\",\n      \"category\": \"outline_structure\",\n      \"category_label\": \"Outline Structure\",\n      \"issue_type\": \"suspicious_heading\",\n      \"severity\": \"medium\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"5.1.8.2.2\",\n      \"detail\": \"table_like_title\"\n    },\n    {\n      \"gate\": \"quality_gate\",\n      \"pdf_name\": \"Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf\",\n      \"profile\": \"q_jly_core\",\n      \"category\": \"outline_structure\",\n      \"category_label\": \"Outline Structure\",\n      \"issue_type\": \"suspicious_heading\",\n      \"severity\": \"medium\",\n      \"appendix_scope\": \"\",\n      \"section_code\": \"5.1.8.2.3\",\n      \"detail\": \"table_like_title\"\n    }\n  ],\n  \"findings\": [\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"5.3.6.3\",\n      \"expected_structure_summary\": \"5.3.6.3 should expose local section anchors such as 2, 3, 4\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[5.3.6.3]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.93,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 9,\n        \"remote_section_match_count\": 9,\n        \"sample_missing_codes\": [\n          \"3.3\",\n          \"4.3\",\n          \"3.3\",\n          \"3.4\",\n          \"3.4\",\n          \"4.4\",\n          \"4.3\",\n          \"3.3\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"5.1.14.2\",\n      \"expected_structure_summary\": \"5.1.14.2 should expose local section anchors such as 2, 3, 4\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[5.1.14.2]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.93,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 5,\n        \"remote_section_match_count\": 5,\n        \"sample_missing_codes\": [\n          \"4.2\",\n          \"2.1\",\n          \"4.2\",\n          \"2.1\",\n          \"3.2\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"4.4.3\",\n      \"expected_structure_summary\": \"4.4.3 should expose local section anchors such as 3\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[4.4.3]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.93,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 4,\n        \"remote_section_match_count\": 4,\n        \"sample_missing_codes\": [\n          \"3.4\",\n          \"3.2\",\n          \"3.4\",\n          \"3.4\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"5.3.14.3\",\n      \"expected_structure_summary\": \"5.3.14.3 should expose local section anchors such as 3, 5\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[5.3.14.3]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.93,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 4,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"5.11.2\",\n          \"5.11.2\",\n          \"3.2\",\n          \"3.2\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"5.3.8.2.1\",\n      \"expected_structure_summary\": \"5.3.8.2.1 should expose local section anchors such as 1\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[5.3.8.2.1]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.93,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 4,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"1.2\",\n          \"1.2\",\n          \"1.2\",\n          \"1.2\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"5.5.3.1\",\n      \"expected_structure_summary\": \"5.5.3.1 should expose local section anchors such as 5\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[5.5.3.1]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.93,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 4,\n        \"remote_section_match_count\": 4,\n        \"sample_missing_codes\": [\n          \"5.3\",\n          \"5.2\",\n          \"5.3\",\n          \"5.2\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"5.5.3.2\",\n      \"expected_structure_summary\": \"5.5.3.2 should expose local section anchors such as 5\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[5.5.3.2]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.93,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 4,\n        \"remote_section_match_count\": 4,\n        \"sample_missing_codes\": [\n          \"5.3\",\n          \"5.2\",\n          \"5.3\",\n          \"5.2\"\n        ]\n      }\n    },\n    {\n      \"pattern_id\": \"local_clause_heading_not_promoted\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"local_clause_section_missing\",\n      \"impacted_scope\": \"MAIN\",\n      \"impacted_section\": \"5.1.18.2\",\n      \"expected_structure_summary\": \"5.1.18.2 should expose local section anchors such as 2, 4\",\n      \"suspected_layer\": \"preview\",\n      \"recommended_fix_direction\": \"Preserve local clause anchors as canonical sections; inspect extractor clause classification and preview local-clause promotion heuristics together.\",\n      \"evidence_refs\": [\n        \"local_clause_summary.parent_findings[5.1.18.2]\",\n        \"expected_structure_summary\"\n      ],\n      \"confidence\": 0.78,\n      \"needs_human_review\": false,\n      \"details\": {\n        \"missing_section_anchor_count\": 3,\n        \"remote_section_match_count\": 3,\n        \"sample_missing_codes\": [\n          \"4.2\",\n          \"2.1\",\n          \"2.1\"\n        ]\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 5,\n      \"requirement_count\": 0,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.3867,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 95,\n      \"requirement_count\": 13,\n      \"missing_local_clause_count\": 9,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.97,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 134,\n      \"requirement_count\": 12,\n      \"missing_local_clause_count\": 8,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.6627,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 39,\n      \"requirement_count\": 10,\n      \"missing_local_clause_count\": 5,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 2.545,\n      \"table_count\": 7,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 121,\n      \"requirement_count\": 13,\n      \"missing_local_clause_count\": 4,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 2.8682,\n      \"table_count\": 8,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 85,\n      \"requirement_count\": 12,\n      \"missing_local_clause_count\": 4,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 2.1416,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.3.6.3\",\n        \"requirement_count\": 9,\n        \"missing_section_anchor_count\": 9,\n        \"remote_section_match_count\": 9,\n        \"sample_missing_codes\": [\n          \"3.3\",\n          \"4.3\",\n          \"3.3\",\n          \"3.4\",\n          \"3.4\",\n          \"4.4\",\n          \"4.3\",\n          \"3.3\"\n        ],\n        \"expected_direct_children\": [\n          \"2\",\n          \"3\",\n          \"4\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.14.2\",\n        \"requirement_count\": 5,\n        \"missing_section_anchor_count\": 5,\n        \"remote_section_match_count\": 5,\n        \"sample_missing_codes\": [\n          \"4.2\",\n          \"2.1\",\n          \"4.2\",\n          \"2.1\",\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"2\",\n          \"3\",\n          \"4\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"4.4.3\",\n        \"requirement_count\": 4,\n        \"missing_section_anchor_count\": 4,\n        \"remote_section_match_count\": 4,\n        \"sample_missing_codes\": [\n          \"3.4\",\n          \"3.2\",\n          \"3.4\",\n          \"3.4\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.3.14.3\",\n        \"requirement_count\": 4,\n        \"missing_section_anchor_count\": 4,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"5.11.2\",\n          \"5.11.2\",\n          \"3.2\",\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\",\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.3.8.2.1\",\n        \"requirement_count\": 4,\n        \"missing_section_anchor_count\": 4,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"1.2\",\n          \"1.2\",\n          \"1.2\",\n          \"1.2\"\n        ],\n        \"expected_direct_children\": [\n          \"1\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.5.3.1\",\n        \"requirement_count\": 4,\n        \"missing_section_anchor_count\": 4,\n        \"remote_section_match_count\": 4,\n        \"sample_missing_codes\": [\n          \"5.3\",\n          \"5.2\",\n          \"5.3\",\n          \"5.2\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.5.3.2\",\n        \"requirement_count\": 4,\n        \"missing_section_anchor_count\": 4,\n        \"remote_section_match_count\": 4,\n        \"sample_missing_codes\": [\n          \"5.3\",\n          \"5.2\",\n          \"5.3\",\n          \"5.2\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.18.2\",\n        \"requirement_count\": 3,\n        \"missing_section_anchor_count\": 3,\n        \"remote_section_match_count\": 3,\n        \"sample_missing_codes\": [\n          \"4.2\",\n          \"2.1\",\n          \"2.1\"\n        ],\n        \"expected_direct_children\": [\n          \"2\",\n          \"4\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.3.11.3\",\n        \"requirement_count\": 3,\n        \"missing_section_anchor_count\": 3,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"5.6.2.4\",\n          \"5.6.2.4\",\n          \"2.1\"\n        ],\n        \"expected_direct_children\": [\n          \"2\",\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"4.8.3\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"5.1.2\",\n          \"5.6\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.10.3\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"3.2\",\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.12.2\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"2.1\",\n          \"4.2\"\n        ],\n        \"expected_direct_children\": [\n          \"2\",\n          \"4\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.16.3\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"5.3.10.3\",\n          \"5.3.10.3\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.17.3\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"5.3.10.3\",\n          \"5.3.10.3\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.19.3\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"3.2\",\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.20.2\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"4.2\",\n          \"4.2\"\n        ],\n        \"expected_direct_children\": [\n          \"4\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.21.2\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"4.2\",\n          \"10.8\"\n        ],\n        \"expected_direct_children\": [\n          \"4\",\n          \"10\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.23.3\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"3.2\",\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.24.3\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"3.2\",\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.25.3\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"3.2\",\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.2.2.2.3\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"4.2.2.2\",\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\",\n          \"4\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.2.2.2.4\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"3.2\",\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.3.12.3\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"5.7.2\",\n          \"2.1\"\n        ],\n        \"expected_direct_children\": [\n          \"2\",\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.3.13.3\",\n        \"requirement_count\": 2,\n        \"missing_section_anchor_count\": 2,\n        \"remote_section_match_count\": 2,\n        \"sample_missing_codes\": [\n          \"3.3\",\n          \"3.3\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"10.2\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"5.2.1.5\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.11.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.14.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"2.1\"\n        ],\n        \"expected_direct_children\": [\n          \"2\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.15.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.20.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.21.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.22.2\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"21.5\"\n        ],\n        \"expected_direct_children\": [\n          \"21\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.22.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.1.8.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"3.1\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.2.1.10.3.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"0.5\"\n        ],\n        \"expected_direct_children\": [\n          \"0\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.2.1.2.2\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"0.51\"\n        ],\n        \"expected_direct_children\": [\n          \"0\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.2.1.3.3.1\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"0.5\"\n        ],\n        \"expected_direct_children\": [\n          \"0\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.2.1.9.3.1\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"0.5\"\n        ],\n        \"expected_direct_children\": [\n          \"0\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.2.2.3.4\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.3.1.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"4.3\"\n        ],\n        \"expected_direct_children\": [\n          \"4\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.3.16.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"5.9.2\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.3.2.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"5.1.1.2.2\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.3.4.3\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 0,\n        \"sample_missing_codes\": [\n          \"5.1.2.2.2\"\n        ],\n        \"expected_direct_children\": [\n          \"5\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.3.8.2.2\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      },\n      {\n        \"appendix_scope\": \"MAIN\",\n        \"parent_section_code\": \"5.3.9.2.2\",\n        \"requirement_count\": 1,\n        \"missing_section_anchor_count\": 1,\n        \"remote_section_match_count\": 1,\n        \"sample_missing_codes\": [\n          \"3.2\"\n        ],\n        \"expected_direct_children\": [\n          \"3\"\n        ]\n      }\n    ],\n    \"page_counts\": {\n      \"13\": 4,\n      \"20\": 2,\n      \"31\": 1,\n      \"34\": 2,\n      \"35\": 1,\n      \"36\": 2,\n      \"39\": 5,\n      \"41\": 1,\n      \"43\": 1,\n      \"44\": 2,\n      \"45\": 2,\n      \"46\": 3,\n      \"49\": 4,\n      \"50\": 3,\n      \"51\": 1,\n      \"52\": 1,\n      \"53\": 1,\n      \"54\": 2,\n      \"55\": 2,\n      \"57\": 2,\n      \"62\": 1,\n      \"67\": 1,\n      \"79\": 1,\n      \"83\": 2,\n      \"85\": 4,\n      \"86\": 1,\n      \"88\": 1,\n      \"89\": 1,\n      \"90\": 1,\n      \"95\": 9,\n      \"98\": 4,\n      \"100\": 1,\n      \"103\": 1,\n      \"114\": 3,\n      \"115\": 2,\n      \"119\": 2,\n      \"121\": 4,\n      \"128\": 1,\n      \"134\": 8\n    }\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": []\n  }\n}"
+    }
+  ]
+}

@@ -1,0 +1,120 @@
+{
+  "created_at": "2026-04-17T16:39:19.211852",
+  "project_id": "bbf965e5-3814-4fde-810b-122138a0fedf",
+  "project_name": "SERES MDA Batch Export 20260417_163356",
+  "version_label": "seres_mda_batch_20260417_163356",
+  "pdf_count": 12,
+  "successful_exports": 12,
+  "failed_exports": 0,
+  "results": [
+    {
+      "file_name": "AES-CMAC128算法伪代码20250410【AAA】.pdf",
+      "document_id": "cfd1c483-663c-4f53-9c04-ec45f2df5e7f",
+      "requirements_generated": 11,
+      "requirement_set_version": 1,
+      "export_id": "dc42948b-fa41-4786-ba1a-da778b5b3614",
+      "export_file_name": "seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163522.xlsx",
+      "export_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163522.xlsx"
+    },
+    {
+      "file_name": "Q-SK J00.14-2025_汽车电子控制单元版本管理编码规则【机密】.pdf",
+      "document_id": "8660c305-f5d9-4a75-a48d-10501bd6b42f",
+      "requirements_generated": 53,
+      "requirement_set_version": 1,
+      "export_id": "a50af798-7cd6-438b-b38e-082e05187047",
+      "export_file_name": "seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163541.xlsx",
+      "export_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163541.xlsx"
+    },
+    {
+      "file_name": "Q-SK J02.226-2023_CAN(FD) AUTOSAR直接网络管理需求规范.pdf",
+      "document_id": "868c6870-e328-466f-afd1-fc344f79a403",
+      "requirements_generated": 19,
+      "requirement_set_version": 1,
+      "export_id": "981a6257-ff49-4a89-bf53-b2bff06308bd",
+      "export_file_name": "seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163547.xlsx",
+      "export_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163547.xlsx"
+    },
+    {
+      "file_name": "Q-SK J02.233-2023_CANFD 通信需求规范(2MbpS)  20231024.pdf",
+      "document_id": "1ed892b2-03e2-41a3-ae16-3b425d889ffc",
+      "requirements_generated": 55,
+      "requirement_set_version": 1,
+      "export_id": "346dce14-8ffa-4fe4-8008-0475f2788e40",
+      "export_file_name": "seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163607.xlsx",
+      "export_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163607.xlsx"
+    },
+    {
+      "file_name": "Q-SK J02.311-2025_UDS on IP、CAN、CANFD诊断技术规范.pdf",
+      "document_id": "a188f391-ac13-4382-ab19-d3b00ca07fe0",
+      "requirements_generated": 357,
+      "requirement_set_version": 1,
+      "export_id": "f11aa0bd-9594-4991-9e59-f6b0d03a3db4",
+      "export_file_name": "seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163818.xlsx",
+      "export_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163818.xlsx"
+    },
+    {
+      "file_name": "Q-SK J02.321-2025_CAN、CANFD、Ethernet、LIN BootLoader刷写规范.pdf",
+      "document_id": "28032cec-5a69-4466-9243-67cf15287f5d",
+      "requirements_generated": 152,
+      "requirement_set_version": 1,
+      "export_id": "f9d27d5a-d7b4-4014-8a63-1cd5cd234b08",
+      "export_file_name": "seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163841.xlsx",
+      "export_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163841.xlsx"
+    },
+    {
+      "file_name": "Q-SK J02.385-2024_总线网络E2E通信保护设计要求 (1).pdf",
+      "document_id": "4f285e2e-e48c-4036-8f27-6d9c680b892d",
+      "requirements_generated": 92,
+      "requirement_set_version": 1,
+      "export_id": "1bb9bcb9-a994-4c9b-becd-7c00a61fa26b",
+      "export_file_name": "seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163849.xlsx",
+      "export_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163849.xlsx"
+    },
+    {
+      "file_name": "Q-SK J02.71-2023_CAN(FD)-CAN(FD)网关需求规范.pdf",
+      "document_id": "37a9809f-2796-431c-9a74-56ae9e1b9500",
+      "requirements_generated": 56,
+      "requirement_set_version": 1,
+      "export_id": "18444f11-58ea-4c11-a5ad-6dc7b5871f09",
+      "export_file_name": "seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163852.xlsx",
+      "export_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163852.xlsx"
+    },
+    {
+      "file_name": "Q-SK J02.86-2024_CAN(FD)间接网络管理需求规范.pdf",
+      "document_id": "b366ef7a-fa9c-4505-b70e-49db93def332",
+      "requirements_generated": 17,
+      "requirement_set_version": 1,
+      "export_id": "a127ec93-8560-4470-9195-a6b5d1a5478b",
+      "export_file_name": "seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163855.xlsx",
+      "export_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163855.xlsx"
+    },
+    {
+      "file_name": "【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
+      "document_id": "e5ea5f2b-0824-4184-9c8b-be56f2246227",
+      "requirements_generated": 43,
+      "requirement_set_version": 1,
+      "export_id": "527de173-3400-4838-ad21-4a573a0df222",
+      "export_file_name": "seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163913.xlsx",
+      "export_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163913.xlsx"
+    },
+    {
+      "file_name": "赛力斯UDS刷写规范 安全签名算法要求V1.1_20250410【AAA】.pdf",
+      "document_id": "121362a2-d6b5-4bb5-8ba8-66ce50bb6b46",
+      "requirements_generated": 16,
+      "requirement_set_version": 1,
+      "export_id": "8bc9045a-1e46-4c96-9cc2-a60e21adcc7e",
+      "export_file_name": "seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163915.xlsx",
+      "export_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163915.xlsx"
+    },
+    {
+      "file_name": "赛力斯UDS诊断规范 27服务安全算法要求V2.9_20250410【AAA】.pdf",
+      "document_id": "9392ff14-ac58-4da7-9b67-0c912200c549",
+      "requirements_generated": 18,
+      "requirement_set_version": 1,
+      "export_id": "cb11af4e-bb64-4f7d-bb56-14f07218bd5f",
+      "export_file_name": "seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163919.xlsx",
+      "export_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_20260417_163356_compliance_matrix_seres_mda_batch_20260417_163356_20260417_163919.xlsx"
+    }
+  ],
+  "failures": []
+}

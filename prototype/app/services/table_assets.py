@@ -1169,8 +1169,19 @@ def _write_png_atomically(target: Path, image_bytes: bytes) -> Path:
     return target
 
 
-def render_table_png(headers: list[str], rows: list[list[str]], *, max_width_px: int = _SNAPSHOT_MAX_WIDTH_PX) -> bytes:
-    image_bytes, _, _ = _render_table_image([headers, *rows], max_width_px=max_width_px)
+def render_table_png(
+    headers: list[str],
+    rows: list[list[str]],
+    *,
+    max_width_px: int = _SNAPSHOT_MAX_WIDTH_PX,
+    include_header: bool = True,
+) -> bytes:
+    table_rows = [headers, *rows] if include_header and headers else rows
+    image_bytes, _, _ = _render_table_image(
+        table_rows,
+        max_width_px=max_width_px,
+        header_row_count=1 if include_header and headers else 0,
+    )
     return image_bytes.getvalue()
 
 
@@ -2418,8 +2429,8 @@ def _write_snapshot(
 ) -> Path:
     snapshot_root.mkdir(parents=True, exist_ok=True)
     target = snapshot_root / f"{table_id}.png"
-    if render_mode == "structured" and headers:
-        image_bytes = render_table_png(headers, rows)
+    if render_mode == "structured" and (headers or rows):
+        image_bytes = render_table_png(headers, rows, include_header=bool(headers))
     else:
         image_bytes = render_text_snapshot_png(text)
     return _write_png_atomically(target, image_bytes)
@@ -4399,7 +4410,12 @@ def _coerce_int(value: Any) -> int:
         return 0
 
 
-def _render_table_image(rows: list[list[str]], *, max_width_px: int) -> tuple[BytesIO, int, int]:
+def _render_table_image(
+    rows: list[list[str]],
+    *,
+    max_width_px: int,
+    header_row_count: int = 1,
+) -> tuple[BytesIO, int, int]:
     normalized_rows = _normalize_table_rows(rows)
     font = _load_font(_TABLE_FONT_SIZE)
     probe = ImageDraw.Draw(PILImage.new("RGB", (1, 1), "white"))
@@ -4427,7 +4443,7 @@ def _render_table_image(rows: list[list[str]], *, max_width_px: int) -> tuple[By
     y = 0
     for row_index, row in enumerate(wrapped_rows):
         x = 0
-        fill_color = "#DCE9F8" if row_index == 0 else "#FFFFFF"
+        fill_color = "#DCE9F8" if row_index < max(0, int(header_row_count or 0)) else "#FFFFFF"
         for col_index, content in enumerate(row):
             width = column_widths[col_index]
             height = row_heights[row_index]

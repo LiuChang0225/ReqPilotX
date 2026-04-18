@@ -1,0 +1,494 @@
+{
+  "doc_key": "seres_q_sk_j02_226",
+  "pdf_name": "Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf",
+  "pdf_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/16fb65c2e940475cb29de6424cfadda2_Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf",
+  "batch_id": "seres_mda_customer_docs",
+  "gate_tags": [],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "",
+    "fidelity": ""
+  },
+  "status": {
+    "quality_profile_matched": false,
+    "fidelity_profile_matched": false,
+    "needs_human_review": true
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf",
+      "profile": "",
+      "outline_count": 20,
+      "checks_passed": 8,
+      "checks_total": 8,
+      "score_pct": 100.0,
+      "duplicate_code_count": 0,
+      "source_duplicate_code_count": 0,
+      "suspicious_heading_count": 0,
+      "suspicious_heading_ratio": 0.0,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 1,
+      "detail_outline_count_min": "outline_count=20",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=0",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0000",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0"
+    },
+    "checks_total": 8,
+    "checks_passed": 8
+  },
+  "fidelity_gate": {
+    "doc_row": {},
+    "checks_total": 0,
+    "checks_passed": 0,
+    "passed": false
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 0,
+    "issue_types": []
+  },
+  "issue_rollup": [],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/16fb65c2e940475cb29de6424cfadda2_Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf",
+    "heading_skeleton": [
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2023",
+        "title": "12 - 20发布 2023 - 12 - 20实施"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围 ............................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件 ..................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3",
+        "title": "术语和缩写 ......................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4",
+        "title": "网络管理概述 ....................................................................... 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5",
+        "title": "DNM类ECU网络管理 .................................................................. 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "AUTOSAR网络管理概述 ............................................................ 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "运行模式 ....................................................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.2.1",
+        "title": "总线睡眠模式(Bus Sleep Mode) ............................................... 4"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.2.2",
+        "title": "准备总线睡眠模式(Prepare Bus Sleep Mode) ................................... 5"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.2.3",
+        "title": "网络模式(Network Mode) ...................................................... 5"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.2.3.1",
+        "title": "重复报文状态(Repeat Message State) ..................................... 6"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "5.2.3.2",
+        "title": "常规运行状态(Normal Operation State) ................................... 8"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件"
+      },
+      {
+        "page": 4,
+        "kind": "heading",
+        "code": "3",
+        "title": "术语和缩写"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "4",
+        "title": "网络管理概述"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "5",
+        "title": "DNM类ECU网络管理"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "AUTOSAR网络管理概述"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "运行模式"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "5.2.1",
+        "title": "总线睡眠模式(Bus Sleep Mode)"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5.2.2",
+        "title": "准备总线睡眠模式(Prepare Bus Sleep Mode)"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "5.2.3",
+        "title": "网络模式(Network Mode)"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "5.2.3.1",
+        "title": "重复报文状态(Repeat Message State)"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "5.2.3.2",
+        "title": "常规运行状态(Normal Operation State)"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "5.2.3.3",
+        "title": "准备睡眠状态(Ready Sleep State)"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "网络状态"
+      },
+      {
+        "page": 12,
+        "kind": "heading",
+        "code": "5.4",
+        "title": "定时参数"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "25",
+        "title": "次 -"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "5.5",
+        "title": "网络管理报文（NM PDU）"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "5.5.1",
+        "title": "网络管理报文数据格式"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "5.5.2",
+        "title": "源节点地址（Source Node Identifier）"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "5.5.3",
+        "title": "控制比特向量（Control Bit Vector）"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "1",
+        "title": "0x0：该报文发送节点未请求其他节点进入重复报文状态"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "2",
+        "title": "0x1：该报文发送节点请求其他节点进入重复报文状态"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "1",
+        "title": "0x0：该报文发送节点未主动唤醒网络（被其它节点唤醒）"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "2",
+        "title": "0x1：该报文发送节点主动唤醒网络"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "5.5.4",
+        "title": "用户数据（User data）"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [],
+      "page_counts": {}
+    },
+    "duplicate_scope_summary": {
+      "duplicates": []
+    },
+    "baseline_delta": {
+      "requirements_count": 25,
+      "sections_count": 20,
+      "requirements_drift": null,
+      "sections_drift": null,
+      "table_row_issue_count": 0,
+      "complex_table_signal": false,
+      "hotspot_section_code": ""
+    },
+    "page_hotspots": [
+      {
+        "page": 1,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pypdf",
+        "quality_score": 1.22,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 14,
+        "requirement_count": 6,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.0615,
+        "table_count": 2,
+        "enum_signal": 2
+      },
+      {
+        "page": 4,
+        "requirement_count": 3,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.5137,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 5,
+        "requirement_count": 2,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.6794,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 8,
+        "requirement_count": 2,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 2.0576,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 11,
+        "requirement_count": 2,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf_raw",
+        "quality_score": 1.8967,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 12,
+        "requirement_count": 2,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.5974,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 13,
+        "requirement_count": 2,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.6371,
+        "table_count": 4,
+        "enum_signal": 0
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [
+        1
+      ],
+      "selected_engine_pages": {
+        "pypdf": 9,
+        "pymupdf4llm": 2,
+        "pdfplumber": 1,
+        "pymupdf_raw": 3
+      }
+    },
+    "expected_structure_summary": []
+  },
+  "findings": [
+    {
+      "pattern_id": "profile_unmatched",
+      "category": "heading_recovery",
+      "issue_type": "profile_unmatched",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "evidence_refs": [
+        "issue_summary",
+        "profiles"
+      ],
+      "confidence": 0.66,
+      "needs_human_review": true,
+      "details": {
+        "quality_profile": "",
+        "fidelity_profile": ""
+      }
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "issue_type": "parser_low_confidence_hotspot",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Low-confidence pages should be stabilized before downstream clause binding is tuned.",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "evidence_refs": [
+        "parser_diagnostics.low_confidence_pages",
+        "page_hotspots"
+      ],
+      "confidence": 0.62,
+      "needs_human_review": true,
+      "details": {
+        "low_confidence_pages": [
+          1
+        ]
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "profile_unmatched",
+      "pattern_name": "profile_unmatched",
+      "category": "heading_recovery",
+      "doc_key": "seres_q_sk_j02_226",
+      "pdf_name": "Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf",
+      "issue_type": "profile_unmatched",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "pattern_name": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "doc_key": "seres_q_sk_j02_226",
+      "pdf_name": "Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf",
+      "issue_type": "parser_low_confidence_hotspot",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf\",\n  \"issue_rollup\": [],\n  \"findings\": [\n    {\n      \"pattern_id\": \"profile_unmatched\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"profile_unmatched\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.\",\n      \"suspected_layer\": \"gate\",\n      \"recommended_fix_direction\": \"Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.\",\n      \"evidence_refs\": [\n        \"issue_summary\",\n        \"profiles\"\n      ],\n      \"confidence\": 0.66,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"quality_profile\": \"\",\n        \"fidelity_profile\": \"\"\n      }\n    },\n    {\n      \"pattern_id\": \"parser_low_confidence_hotspot\",\n      \"category\": \"table_and_clause_binding\",\n      \"issue_type\": \"parser_low_confidence_hotspot\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Low-confidence pages should be stabilized before downstream clause binding is tuned.\",\n      \"suspected_layer\": \"parser\",\n      \"recommended_fix_direction\": \"Inspect page merge selection and parser confidence signals before changing downstream section logic.\",\n      \"evidence_refs\": [\n        \"parser_diagnostics.low_confidence_pages\",\n        \"page_hotspots\"\n      ],\n      \"confidence\": 0.62,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"low_confidence_pages\": [\n          1\n        ]\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 1,\n      \"requirement_count\": 0,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.22,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 14,\n      \"requirement_count\": 6,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 2.0615,\n      \"table_count\": 2,\n      \"enum_signal\": 2\n    },\n    {\n      \"page\": 4,\n      \"requirement_count\": 3,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.5137,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 5,\n      \"requirement_count\": 2,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.6794,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 8,\n      \"requirement_count\": 2,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 2.0576,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 11,\n      \"requirement_count\": 2,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf_raw\",\n      \"quality_score\": 1.8967,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [],\n    \"page_counts\": {}\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": []\n  }\n}"
+    }
+  ]
+}

@@ -155,6 +155,78 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
             ],
         )
 
+    def test_table_spillover_title_does_not_preempt_explicit_same_code_header(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 25,
+                    "source_anchor": "Page 25",
+                    "text": "7.2 诊断接口\n表10 连接器PIN 脚定义",
+                    "table_count": 1,
+                },
+                {
+                    "source_page": 26,
+                    "source_anchor": "Page 26",
+                    "text": "7.3 零部件诊断规范",
+                    "table_count": 0,
+                },
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("7.2", "诊断接口"),
+                ("7.3", "零部件诊断规范"),
+            ],
+        )
+        self.assertEqual(
+            [entry["text"] for entry in blocks[0]["entries"]],
+            ["7.2 诊断接口", "表10 连接器PIN 脚定义"],
+        )
+        self.assertEqual(
+            [entry["text"] for entry in blocks[1]["entries"]],
+            ["7.3 零部件诊断规范"],
+        )
+
+    def test_flowchart_node_title_does_not_preempt_explicit_same_code_header(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 69,
+                    "source_anchor": "Page 69",
+                    "text": "8.5 一般 UDS 服务否定应答判断流程\n子功能是否支持",
+                    "table_count": 1,
+                },
+                {
+                    "source_page": 70,
+                    "source_anchor": "Page 70",
+                    "text": "8.6 诊断会话说明",
+                    "table_count": 0,
+                },
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("8.5", "一般 UDS 服务否定应答判断流程"),
+                ("8.6", "诊断会话说明"),
+            ],
+        )
+        self.assertEqual(
+            [entry["text"] for entry in blocks[0]["entries"]],
+            ["8.5 一般 UDS 服务否定应答判断流程", "子功能是否支持"],
+        )
+        self.assertEqual(
+            [entry["text"] for entry in blocks[1]["entries"]],
+            ["8.6 诊断会话说明"],
+        )
+
     def test_bom_bridge_artifact_does_not_swallow_real_section_headers(self) -> None:
         self.assertFalse(_is_bom_bridge_artifact("1.3 图例"))
         self.assertFalse(_is_bom_bridge_artifact("2 功能分配"))

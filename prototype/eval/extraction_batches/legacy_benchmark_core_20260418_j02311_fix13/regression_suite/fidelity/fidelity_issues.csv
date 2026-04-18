@@ -1,0 +1,68 @@
+pdf_name,profile,issue_type,severity,appendix_scope,section_code,detail
+Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,q_jly_core,requirement_count_drift,medium,,,requirements=451 expected=398 drift=53
+Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf,q_jly_core,section_consistency_issue_limit,medium,,,consistency_issues=8 max=3
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,requirement_count_too_low,high,,,requirements=172 min=180
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,requirement_count_drift,medium,,,requirements=172 expected=219 drift=47
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,section_consistency_issue_limit,medium,,,consistency_issues=7 max=1
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_code_missing,high,A,1,required scoped code missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_code_missing,high,B,2,required scoped code missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_code_missing,high,B,3,required scoped code missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_code_missing,high,C,1,required scoped code missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_code_missing,high,D,1,required scoped code missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_code_missing,high,E,1,required scoped code missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_code_missing,high,E,2,required scoped code missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_code_missing,high,F,1,required scoped code missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_code_missing,high,G,1,required scoped code missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,appendix_scope_missing,high,A,*,required appendix scope missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,appendix_scope_missing,high,B,*,required appendix scope missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,appendix_scope_missing,high,C,*,required appendix scope missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,appendix_scope_missing,high,D,*,required appendix scope missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,appendix_scope_missing,high,E,*,required appendix scope missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,appendix_scope_missing,high,F,*,required appendix scope missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,appendix_scope_missing,high,G,*,required appendix scope missing
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_title_missing_code,high,B,2,title check missing code; need contains '项目信息'
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_title_missing_code,high,B,3,title check missing code; need contains '项目进度表'
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_title_missing_code,high,E,1,title check missing code; need contains '产品要求综述'
+SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf,sor_baic_core,required_title_missing_code,high,E,2,title check missing code; need contains '系统职责'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_code_missing,high,T,1,required scoped code missing
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_code_missing,high,U,1,required scoped code missing
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_code_missing,high,V,1,required scoped code missing
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_code_missing,high,Y,1,required scoped code missing
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,appendix_scope_missing,high,T,*,required appendix scope missing
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,appendix_scope_missing,high,U,*,required appendix scope missing
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,appendix_scope_missing,high,V,*,required appendix scope missing
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,appendix_scope_missing,high,W,*,required appendix scope missing
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,appendix_scope_missing,high,X,*,required appendix scope missing
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,appendix_scope_missing,high,Y,*,required appendix scope missing
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '3）减振器阻尼力基础要求'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '0.026m/s-1m/s阻尼力需线性变化'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '4）前蓄能器布置及要求'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '5）工作环境及寿命要求'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '6）整车载荷输入'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '7）DVP试验要求'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '7.3.1 ）外观磕伤、划伤标准'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '9）产品永久性标识应符合Q/JQ 158、Q/JQ 159'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '10）三新件及首发技术风险'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '10.1 ）是否三新件'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '[ √ ]新技术'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '[ ]新材料'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '[ ]新工艺'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '11.1 ） 低压电器件防护等级要求'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '11.2 ） 涉水要求'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '11.3 ） 冰冻要求'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '12、零部件需满足GB/T 26988'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '13、试验大纲内涉及强化耐久项目'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '14、电气部件低压连接器需满足Q/JQ4009'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,,3.2.2,requirement text does not contain '15、供应商应配合完成减振器能耗优化'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,U,63,requirement text does not contain '63 EMC'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_text_mismatch,high,Y,17,requirement text does not contain '绝缘电阻 Insulation Resistance'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_requirement_order_missing_snippet,high,,3.2.2,ordered snippet not found: '9）产品永久性标识应符合Q/JQ 158、Q/JQ 159'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_table_row_snippet_missing,high,,3.2.2,table row snippet not found: '16 法规'
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,required_duplicate_code_title_missing,high,U,63,"missing duplicate titles: ['上支撑—铆接扭矩', 'EMC']"
+产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf,pds_de_active_damper_v1_0,forbidden_cross_section_source_missing,high,,3.2.2,source does not contain snippet: '7.3.1 ）外观磕伤、划伤标准'
+产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,required_tree_children_mismatch,high,,3.2.2,"expected children ['1', '2', '3', '4', '5', '6', '7', '8', '9', '10', '11', '12'], actual []"
+产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,required_tree_children_mismatch,high,3.2.2,:6,"expected children ['6.1', '6.2', '6.3', '6.4', '6.5', '6.6', '6.7'], actual []"
+产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,required_tree_children_mismatch,high,3.2.2,:7,"expected children ['7.1', '7.2', '7.3', '7.4', '7.5'], actual []"
+产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,required_tree_children_mismatch,high,3.2.2,:8,"expected children ['8.1', '8.2', '8.3', '8.4', '8.5', '8.6'], actual []"
+产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,required_tree_children_mismatch,high,3.2.2,:9,"expected children ['9.1', '9.2', '9.3', '9.4', '9.5', '9.6', '9.7'], actual []"
+产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf,pds_de_oil_pump_v1_1,required_tree_children_mismatch,high,3.2.2,:11,"expected children ['11.1', '11.2', '11.3', '11.4', '11.5', '11.6', '11.7', '11.8', '11.9', '11.10', '11.11', '11.12'], actual []"

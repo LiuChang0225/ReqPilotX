@@ -1,0 +1,13 @@
+{
+  "pdf_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/staged_docs",
+  "docs": 4,
+  "checks_passed": 38,
+  "checks_total": 40,
+  "gate_score_pct": 95.0,
+  "high_severity_issues": 14,
+  "gate_pass": false,
+  "gate_failure_reasons": [
+    "high_severity_issues=14 > 0"
+  ],
+  "split_metric_confidence": null
+}

@@ -1,0 +1,830 @@
+{
+  "doc_key": "seres_q_sk_j02_233",
+  "pdf_name": "Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf",
+  "pdf_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/46d24db3ad064d3fb378a1a0aecbecd9_Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf",
+  "batch_id": "seres_mda_customer_docs",
+  "gate_tags": [],
+  "section_split_target": false,
+  "profiles": {
+    "quality": "",
+    "fidelity": ""
+  },
+  "status": {
+    "quality_profile_matched": false,
+    "fidelity_profile_matched": false,
+    "needs_human_review": true
+  },
+  "quality_gate": {
+    "doc_row": {
+      "pdf_name": "Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf",
+      "profile": "",
+      "outline_count": 58,
+      "checks_passed": 8,
+      "checks_total": 8,
+      "score_pct": 100.0,
+      "duplicate_code_count": 0,
+      "source_duplicate_code_count": 1,
+      "suspicious_heading_count": 0,
+      "suspicious_heading_ratio": 0.0,
+      "sibling_gap_alert_count": 0,
+      "required_missing_count": 0,
+      "guard_violation_count": 0,
+      "merge_mode": "strict_single_engine",
+      "line_injection_count": 0,
+      "line_reorder_count": 0,
+      "order_integrity_ok": 1,
+      "check_strict_merge_mode": 1,
+      "detail_strict_merge_mode": "merge_mode=strict_single_engine injection_disabled=True",
+      "check_line_injection_count_limit": 1,
+      "detail_line_injection_count_limit": "line_injection_count=0 max=0",
+      "check_line_reorder_count_limit": 1,
+      "detail_line_reorder_count_limit": "line_reorder_count=0 max=0",
+      "check_order_integrity_ok": 1,
+      "detail_order_integrity_ok": "order_integrity_ok=True",
+      "check_outline_count_min": 1,
+      "detail_outline_count_min": "outline_count=58",
+      "check_duplicate_code_limit": 1,
+      "detail_duplicate_code_limit": "duplicate_codes=0",
+      "check_suspicious_heading_ratio_limit": 1,
+      "detail_suspicious_heading_ratio_limit": "suspicious_ratio=0.0000",
+      "check_sibling_gap_alert_limit": 1,
+      "detail_sibling_gap_alert_limit": "sibling_gap_alerts=0"
+    },
+    "checks_total": 8,
+    "checks_passed": 8
+  },
+  "fidelity_gate": {
+    "doc_row": {},
+    "checks_total": 0,
+    "checks_passed": 0,
+    "passed": false
+  },
+  "section_split": {},
+  "issue_summary": {
+    "total_issues": 0,
+    "issue_types": []
+  },
+  "issue_rollup": [],
+  "evidence": {
+    "pdf_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/46d24db3ad064d3fb378a1a0aecbecd9_Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf",
+    "heading_skeleton": [
+      {
+        "page": 1,
+        "kind": "heading",
+        "code": "2023",
+        "title": "11-06发布 2023-11-06实施"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围 ............................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件 ..................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "3",
+        "title": "术语和定义 ......................................................................... 1"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4",
+        "title": "物理层 ............................................................................. 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "相关标准 ....................................................................... 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "推荐ECU接口电路 ............................................................... 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.2.1",
+        "title": "CAN FD控制器 ............................................................... 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.2.2",
+        "title": "CAN FD收发器 ............................................................... 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.2.3",
+        "title": "推荐收发器型号 ............................................................. 2"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.2.4",
+        "title": "收发器TX延迟和RX延迟对称性 ............................................... 3"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.2.5",
+        "title": "收发器回路延迟 ............................................................. 4"
+      },
+      {
+        "page": 2,
+        "kind": "heading",
+        "code": "4.2.6",
+        "title": "共模电感 ................................................................... 4"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.1",
+        "title": "概述 .......................................................................... 17"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.2",
+        "title": "位格式和字节格式 .............................................................. 18"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.3",
+        "title": "报文发送方式 .................................................................. 19"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.3.1",
+        "title": "周期 ...................................................................... 19"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.3.2",
+        "title": "事件 ...................................................................... 19"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.3.3",
+        "title": "周期和事件 ................................................................ 20"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.3.4",
+        "title": "使能 ...................................................................... 20"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "6.3.5",
+        "title": "周期使能型 ................................................................ 21"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "7",
+        "title": "网络相关诊断 ...................................................................... 22"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "7.1",
+        "title": "诊断条件定义 .................................................................. 22"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "7.2",
+        "title": "网络故障后相关行为 ............................................................ 22"
+      },
+      {
+        "page": 3,
+        "kind": "heading",
+        "code": "7.3",
+        "title": "总线网络相关故障描述 .......................................................... 22"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "1",
+        "title": "范围"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "2",
+        "title": "规范性引用文件"
+      },
+      {
+        "page": 5,
+        "kind": "heading",
+        "code": "3",
+        "title": "术语和定义"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4",
+        "title": "物理层"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.1",
+        "title": "相关标准"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.2",
+        "title": "推荐ECU 接口电路"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.2.1",
+        "title": "CAN FD 控制器"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.2.2",
+        "title": "CAN FD 收发器"
+      },
+      {
+        "page": 6,
+        "kind": "heading",
+        "code": "4.2.3",
+        "title": "推荐收发器型号"
+      },
+      {
+        "page": 7,
+        "kind": "heading",
+        "code": "4.2.4",
+        "title": "收发器TX 延迟和RX 延迟对称性"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4.2.5",
+        "title": "收发器回路延迟"
+      },
+      {
+        "page": 8,
+        "kind": "heading",
+        "code": "4.2.6",
+        "title": "共模电感"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.2.7",
+        "title": "总线终端"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.2.8",
+        "title": "EMC 电容"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.2.9",
+        "title": "静电释放和过压保护"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.2.10",
+        "title": "接地要求"
+      },
+      {
+        "page": 9,
+        "kind": "heading",
+        "code": "4.2.11",
+        "title": "ECU 节点振铃抑制要求"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "1",
+        "title": "按图5中拓扑结构搭建台架。节点1、2、3、4、5分别通过5m双绞线连接成星型，在星型中央的无源接"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "3",
+        "title": "节点1发送CANFD报文（仲裁域速率500Kbps，数据域速率2Mbps，数据长度64字节，数据为全0）。"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "1",
+        "title": "将示波器差分探头分别接入节点1、2、3、4、5的CAN_H和CAN_L。"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "4.3",
+        "title": "晶振"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "4.4",
+        "title": "系统设计要求"
+      },
+      {
+        "page": 11,
+        "kind": "heading",
+        "code": "4.4.1",
+        "title": "拓扑要求"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "120",
+        "title": "Ω"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "120",
+        "title": "Ω"
+      },
+      {
+        "page": 13,
+        "kind": "heading",
+        "code": "4.4.2",
+        "title": "线束要求"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "4.5",
+        "title": "ECU 要求"
+      },
+      {
+        "page": 14,
+        "kind": "heading",
+        "code": "4.5.1",
+        "title": "总线电压"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "4.5.2",
+        "title": "连接器参数要求"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "15",
+        "title": "CAN_H、CAN_L 连接器PIN 电气特性"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "4.5.3",
+        "title": "ECU 节点内部延迟时间"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "4.5.4",
+        "title": "地偏移"
+      },
+      {
+        "page": 15,
+        "kind": "heading",
+        "code": "4.5.5",
+        "title": "燃油动力车型控制器供电电压"
+      },
+      {
+        "page": 16,
+        "kind": "heading",
+        "code": "6",
+        "title": "5"
+      },
+      {
+        "page": 17,
+        "kind": "heading",
+        "code": "4.5.6",
+        "title": "纯电车型控制器供电电压"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "4.5.7",
+        "title": "PCB 指导"
+      },
+      {
+        "page": 18,
+        "kind": "heading",
+        "code": "5",
+        "title": "数据链路层"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "5.1",
+        "title": "概述"
+      },
+      {
+        "page": 19,
+        "kind": "heading",
+        "code": "5.2",
+        "title": "位定时参数"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "5.3",
+        "title": "帧类型"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "5.4",
+        "title": "初始值和无效值"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "6",
+        "title": "交互层"
+      },
+      {
+        "page": 21,
+        "kind": "heading",
+        "code": "6.1",
+        "title": "概述"
+      },
+      {
+        "page": 22,
+        "kind": "heading",
+        "code": "6.2",
+        "title": "位格式和字节格式"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.3",
+        "title": "报文发送方式"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.3.1",
+        "title": "周期"
+      },
+      {
+        "page": 23,
+        "kind": "heading",
+        "code": "6.3.2",
+        "title": "事件"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "6.3.3",
+        "title": "周期和事件"
+      },
+      {
+        "page": 24,
+        "kind": "heading",
+        "code": "6.3.4",
+        "title": "使能"
+      },
+      {
+        "page": 25,
+        "kind": "heading",
+        "code": "6.3.5",
+        "title": "周期使能型"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "7",
+        "title": "网络相关诊断"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "7.1",
+        "title": "诊断条件定义"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "7.2",
+        "title": "网络故障后相关行为"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "7.3",
+        "title": "总线网络相关故障描述"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "7.4",
+        "title": "Bus-off"
+      },
+      {
+        "page": 26,
+        "kind": "heading",
+        "code": "7.4.1",
+        "title": "Bus-off故障"
+      },
+      {
+        "page": 27,
+        "kind": "heading",
+        "code": "7.4.2",
+        "title": "Bus-off 处理"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "7.4.3",
+        "title": "Bus-off后的超时监测"
+      },
+      {
+        "page": 28,
+        "kind": "heading",
+        "code": "7.5",
+        "title": "节点超时监测"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "7.6",
+        "title": "报文内容错误（可选择）"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "7.7",
+        "title": "报文计数（rolling counter）或者Checksum 校验错误（可选择）"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "1",
+        "title": "报文计数（rolling counter）故障处理机制：如果两帧报文之间的counter 间隔差值大于2 或者"
+      },
+      {
+        "page": 29,
+        "kind": "heading",
+        "code": "2",
+        "title": "Checksum 故障处理机制：当接收节点计算的校验和与报文中的校验和不一致时，接收节点应舍弃该"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "3",
+        "title": "ECU需要验证收到的报文数据内容的正确性， 某些重要的报文和信号都设置了 “报文计数 （Counter）”"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "4",
+        "title": "如果出现BUSOFF故障，不记录报文丢失故障码，也不记录rolling counter和checksum故障码；"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "5",
+        "title": "具体哪些报文计数或者 Checksum 校验错误需要记录故障码，由供应商根据节点的功能和控制策略"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "7.8",
+        "title": "总线故障行为"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "7.8.1",
+        "title": "本地故障"
+      },
+      {
+        "page": 30,
+        "kind": "heading",
+        "code": "7.8.2",
+        "title": "全局故障"
+      }
+    ],
+    "local_clause_summary": {
+      "parent_findings": [],
+      "page_counts": {}
+    },
+    "duplicate_scope_summary": {
+      "duplicates": []
+    },
+    "baseline_delta": {
+      "requirements_count": 54,
+      "sections_count": 58,
+      "requirements_drift": null,
+      "sections_drift": null,
+      "table_row_issue_count": 0,
+      "complex_table_signal": true,
+      "hotspot_section_code": ""
+    },
+    "page_hotspots": [
+      {
+        "page": 1,
+        "requirement_count": 0,
+        "missing_local_clause_count": 0,
+        "low_confidence": true,
+        "selected_engine": "pypdf",
+        "quality_score": 0.7533,
+        "table_count": 0,
+        "enum_signal": 0
+      },
+      {
+        "page": 6,
+        "requirement_count": 5,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.6318,
+        "table_count": 1,
+        "enum_signal": 0
+      },
+      {
+        "page": 9,
+        "requirement_count": 5,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.8926,
+        "table_count": 3,
+        "enum_signal": 0
+      },
+      {
+        "page": 21,
+        "requirement_count": 5,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.7707,
+        "table_count": 2,
+        "enum_signal": 0
+      },
+      {
+        "page": 30,
+        "requirement_count": 5,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.8527,
+        "table_count": 4,
+        "enum_signal": 3
+      },
+      {
+        "page": 15,
+        "requirement_count": 4,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 1.5925,
+        "table_count": 4,
+        "enum_signal": 0
+      },
+      {
+        "page": 26,
+        "requirement_count": 4,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pypdf",
+        "quality_score": 1.5848,
+        "table_count": 4,
+        "enum_signal": 0
+      },
+      {
+        "page": 29,
+        "requirement_count": 4,
+        "missing_local_clause_count": 0,
+        "low_confidence": false,
+        "selected_engine": "pymupdf4llm",
+        "quality_score": 2.1773,
+        "table_count": 2,
+        "enum_signal": 2
+      }
+    ],
+    "parser_diagnostics": {
+      "merge_mode": "strict_single_engine",
+      "line_reorder_count": 0,
+      "low_confidence_pages": [
+        1
+      ],
+      "selected_engine_pages": {
+        "pypdf": 9,
+        "pymupdf4llm": 18,
+        "pymupdf_raw": 1,
+        "pdfplumber": 2
+      }
+    },
+    "expected_structure_summary": []
+  },
+  "findings": [
+    {
+      "pattern_id": "profile_unmatched",
+      "category": "heading_recovery",
+      "issue_type": "profile_unmatched",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "evidence_refs": [
+        "issue_summary",
+        "profiles"
+      ],
+      "confidence": 0.66,
+      "needs_human_review": true,
+      "details": {
+        "quality_profile": "",
+        "fidelity_profile": ""
+      }
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "issue_type": "parser_low_confidence_hotspot",
+      "impacted_scope": "",
+      "impacted_section": "",
+      "expected_structure_summary": "Low-confidence pages should be stabilized before downstream clause binding is tuned.",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "evidence_refs": [
+        "parser_diagnostics.low_confidence_pages",
+        "page_hotspots"
+      ],
+      "confidence": 0.62,
+      "needs_human_review": true,
+      "details": {
+        "low_confidence_pages": [
+          1
+        ]
+      }
+    }
+  ],
+  "pattern_candidates": [
+    {
+      "pattern_id": "profile_unmatched",
+      "pattern_name": "profile_unmatched",
+      "category": "heading_recovery",
+      "doc_key": "seres_q_sk_j02_233",
+      "pdf_name": "Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf",
+      "issue_type": "profile_unmatched",
+      "suspected_layer": "gate",
+      "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    },
+    {
+      "pattern_id": "parser_low_confidence_hotspot",
+      "pattern_name": "parser_low_confidence_hotspot",
+      "category": "table_and_clause_binding",
+      "doc_key": "seres_q_sk_j02_233",
+      "pdf_name": "Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf",
+      "issue_type": "parser_low_confidence_hotspot",
+      "suspected_layer": "parser",
+      "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+      "benchmark_impact": [],
+      "promoted": false,
+      "validation_status": "candidate"
+    }
+  ],
+  "diagnosis_messages": [
+    {
+      "role": "system",
+      "content": "You are auditing extraction output. Use only the evidence pack, identify the most likely failing layer, and recommend a benchmark-safe generic fix."
+    },
+    {
+      "role": "user",
+      "content": "{\n  \"pdf_name\": \"Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf\",\n  \"issue_rollup\": [],\n  \"findings\": [\n    {\n      \"pattern_id\": \"profile_unmatched\",\n      \"category\": \"heading_recovery\",\n      \"issue_type\": \"profile_unmatched\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.\",\n      \"suspected_layer\": \"gate\",\n      \"recommended_fix_direction\": \"Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.\",\n      \"evidence_refs\": [\n        \"issue_summary\",\n        \"profiles\"\n      ],\n      \"confidence\": 0.66,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"quality_profile\": \"\",\n        \"fidelity_profile\": \"\"\n      }\n    },\n    {\n      \"pattern_id\": \"parser_low_confidence_hotspot\",\n      \"category\": \"table_and_clause_binding\",\n      \"issue_type\": \"parser_low_confidence_hotspot\",\n      \"impacted_scope\": \"\",\n      \"impacted_section\": \"\",\n      \"expected_structure_summary\": \"Low-confidence pages should be stabilized before downstream clause binding is tuned.\",\n      \"suspected_layer\": \"parser\",\n      \"recommended_fix_direction\": \"Inspect page merge selection and parser confidence signals before changing downstream section logic.\",\n      \"evidence_refs\": [\n        \"parser_diagnostics.low_confidence_pages\",\n        \"page_hotspots\"\n      ],\n      \"confidence\": 0.62,\n      \"needs_human_review\": true,\n      \"details\": {\n        \"low_confidence_pages\": [\n          1\n        ]\n      }\n    }\n  ],\n  \"page_hotspots\": [\n    {\n      \"page\": 1,\n      \"requirement_count\": 0,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": true,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 0.7533,\n      \"table_count\": 0,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 6,\n      \"requirement_count\": 5,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.6318,\n      \"table_count\": 1,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 9,\n      \"requirement_count\": 5,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.8926,\n      \"table_count\": 3,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 21,\n      \"requirement_count\": 5,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.7707,\n      \"table_count\": 2,\n      \"enum_signal\": 0\n    },\n    {\n      \"page\": 30,\n      \"requirement_count\": 5,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pypdf\",\n      \"quality_score\": 1.8527,\n      \"table_count\": 4,\n      \"enum_signal\": 3\n    },\n    {\n      \"page\": 15,\n      \"requirement_count\": 4,\n      \"missing_local_clause_count\": 0,\n      \"low_confidence\": false,\n      \"selected_engine\": \"pymupdf4llm\",\n      \"quality_score\": 1.5925,\n      \"table_count\": 4,\n      \"enum_signal\": 0\n    }\n  ],\n  \"local_clause_summary\": {\n    \"parent_findings\": [],\n    \"page_counts\": {}\n  },\n  \"duplicate_scope_summary\": {\n    \"duplicates\": []\n  }\n}"
+    }
+  ]
+}

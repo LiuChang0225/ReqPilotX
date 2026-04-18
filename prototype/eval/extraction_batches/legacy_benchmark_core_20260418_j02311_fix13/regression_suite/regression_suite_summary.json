@@ -1,0 +1,34 @@
+{
+  "run_id": "regression_suite",
+  "timestamp": "2026-04-18T16:55:09",
+  "pdf_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/staged_docs",
+  "exclude_name_regex": [
+    "PRINT_21033420"
+  ],
+  "paths": {
+    "quality_summary_json": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/regression_suite/quality_gate/structural_quality_summary.json",
+    "fidelity_summary_json": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/regression_suite/fidelity/fidelity_summary.json",
+    "quality_summary_md": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/regression_suite/quality_gate/structural_quality_summary.md",
+    "fidelity_summary_md": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/regression_suite/fidelity/fidelity_summary.md"
+  },
+  "quality_gate": {
+    "docs": 4,
+    "checks_passed": 38,
+    "checks_total": 40,
+    "gate_score_pct": 95.0,
+    "high_severity_issues": 14,
+    "gate_pass": false
+  },
+  "fidelity_gate": {
+    "target_docs": 4,
+    "checks_passed": 80,
+    "checks_total": 96,
+    "score_pct": 83.33,
+    "failed_docs": 4,
+    "overall_pass": false
+  },
+  "exit_codes": {
+    "quality": 1,
+    "fidelity": 1
+  }
+}

@@ -1596,6 +1596,132 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(rows[0]["source_anchor"], "Main > 6")
         self.assertEqual(rows[0]["parent_section_label"], "6 投标说明")
 
+    def test_overlay_review_entries_drops_stale_visual_assets_from_previous_preview_generation(self) -> None:
+        preview_rows = [
+            {
+                "entry_id": "REQ0201",
+                "req_code": "REQ0201",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "供应商应满足新的当前条目。",
+                "raw_text": "供应商应满足新的当前条目。",
+                "requirement_text": "供应商应满足新的当前条目。",
+                "source_page": 6,
+                "source_page_end": 6,
+                "source_anchor": "Main > 2.1",
+                "parent_section_code": "2.1",
+                "parent_section_title": "当前条目",
+                "parent_section_label": "2.1 当前条目",
+            }
+        ]
+        persisted_rows = [
+            {
+                "id": "persisted-stale-assets",
+                "req_code": "REQ0201",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "供应商应满足新的当前条目。",
+                "raw_text": "供应商应满足新的当前条目。",
+                "requirement_text": "供应商应满足新的当前条目。",
+                "source_page": 6,
+                "source_page_end": 6,
+                "source_anchor": "Main > 2.1",
+                "parent_section_code": "2.1",
+                "parent_section_title": "当前条目",
+                "parent_section_label": "2.1 当前条目",
+                "preview_generation_id": "gen-old",
+                "table_refs": [{"table_id": "tbl_stale"}],
+                "content_blocks": [{"kind": "table", "table_id": "tbl_stale"}],
+                "has_table_asset": True,
+                "table_render_mode": "structured",
+                "status": "reviewed",
+            }
+        ]
+
+        rows = main._overlay_review_entries(
+            preview_rows,
+            persisted_rows,
+            prefer_raw=False,
+            preview_generation_id="gen-current",
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["keep"])
+        self.assertEqual(rows[0]["table_refs"], [])
+        self.assertEqual(rows[0]["content_blocks"], [])
+        self.assertFalse(rows[0]["has_table_asset"])
+        self.assertEqual(rows[0]["table_render_mode"], "")
+
+    def test_enrich_requirements_with_preview_context_replaces_stale_visual_assets_from_current_preview(self) -> None:
+        project, document = self._create_project_with_document("-generation-enrich")
+        preview_source = self.tmp_path / "generation-current.png"
+        preview_source.write_bytes(b"preview-current")
+        db.update_sor_document_preview_state(document["id"], preview_generation_id="gen-current")
+        preview_cache.persist_preview_cache(
+            db.get_sor_document(document["id"]) or document,
+            {
+                "preview_generation_id": "gen-current",
+                "summary": {"dedupe_version": "heading_requirement_v1"},
+                "complete_requirement_entries": [
+                    {
+                        "entry_id": "REQ0001",
+                        "req_code": "REQ0001",
+                        "entry_kind": "REQUIREMENT",
+                        "display_text": "供应商需要满足总成试验要求。",
+                        "raw_text": "供应商需要满足总成试验要求。",
+                        "requirement_text": "供应商需要满足总成试验要求。",
+                        "source_page": 1,
+                        "source_page_end": 1,
+                        "source_anchor": "Main > 1",
+                        "parent_section_code": "1",
+                        "parent_section_title": "概述",
+                        "parent_section_label": "1 概述",
+                        "table_refs": [
+                            {
+                                "table_id": "tbl_current",
+                                "source_snapshot_path": str(preview_source),
+                                "slice_snapshot_path": str(preview_source),
+                                "slice_render_mode": "snapshot_only",
+                                "export_variant": "source",
+                                "recommended_export_variant": "source",
+                                "inherited_headers": [],
+                                "slice_rows": [],
+                            }
+                        ],
+                        "content_blocks": [{"kind": "table", "table_id": "tbl_current"}],
+                        "has_table_asset": True,
+                        "table_render_mode": "structured",
+                    }
+                ],
+                "complete_requirement_entries_raw": [],
+            },
+        )
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Main > 1",
+            requirement_text="供应商需要满足总成试验要求。",
+            raw_text="供应商需要满足总成试验要求。",
+            display_text="供应商需要满足总成试验要求。",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            table_refs=json.dumps([{"table_id": "tbl_old"}], ensure_ascii=False),
+            content_blocks=json.dumps([{"kind": "table", "table_id": "tbl_old"}], ensure_ascii=False),
+            has_table_asset=True,
+            table_render_mode="structured",
+            preview_generation_id="gen-old",
+        )
+
+        rows = main._enrich_requirements_with_preview_context(
+            db.list_requirements(project["id"], document["id"]),
+            str(document["file_path"]),
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["preview_generation_id"], "gen-current")
+        self.assertEqual(rows[0]["table_refs"][0]["table_id"], "tbl_current")
+        self.assertEqual(rows[0]["content_blocks"][0]["table_id"], "tbl_current")
+
     def test_find_requirement_for_review_entry_prefers_source_match_over_stale_req_code(self) -> None:
         requirements = [
             {
@@ -1890,6 +2016,58 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         source_snapshot = main.get_document_table_asset_source_snapshot(project["id"], document["id"], "tbl_source_fallback")
 
         self.assertEqual(Path(source_snapshot.path), db_source)
+
+    def test_table_asset_source_snapshot_does_not_fall_back_to_previous_preview_generation(self) -> None:
+        project, document = self._create_project_with_document("-preview-source-generation")
+        preview_snapshot = self.tmp_path / "preview-generation.png"
+        preview_snapshot.write_bytes(b"preview")
+        db_source = self.tmp_path / "db_generation_source.png"
+        db_source.write_bytes(b"db-source")
+
+        db.update_sor_document_preview_state(document["id"], preview_generation_id="gen-current")
+        db.replace_document_table_assets(
+            project["id"],
+            document["id"],
+            [
+                {
+                    "table_id": "tbl_generation_guard",
+                    "document_id": document["id"],
+                    "headers": ["Persisted"],
+                    "rows": [["stale"]],
+                    "render_mode": "structured",
+                    "snapshot_path": str(self.tmp_path / "db_generation.png"),
+                    "source_snapshot_path": str(db_source),
+                    "preview_generation_id": "gen-old",
+                }
+            ],
+            preview_generation_id="gen-old",
+        )
+        preview_cache.persist_preview_cache(
+            db.get_sor_document(document["id"]) or document,
+            {
+                "preview_generation_id": "gen-current",
+                "summary": {"dedupe_version": "heading_requirement_v1"},
+                "table_assets": [
+                    {
+                        "table_id": "tbl_generation_guard",
+                        "document_id": document["id"],
+                        "headers": ["Preview"],
+                        "rows": [["broken"]],
+                        "render_mode": "structured",
+                        "snapshot_path": str(preview_snapshot),
+                        "source_snapshot_path": str(self.tmp_path / "missing_generation_source.png"),
+                        "preview_generation_id": "gen-current",
+                    }
+                ],
+                "complete_requirement_entries": [],
+                "complete_requirement_entries_raw": [],
+            },
+        )
+
+        with self.assertRaises(HTTPException) as detail_exc:
+            main.get_document_table_asset_source_snapshot(project["id"], document["id"], "tbl_generation_guard")
+
+        self.assertEqual(detail_exc.exception.status_code, 404)
 
     def test_review_entry_save_persists_table_export_variant_override(self) -> None:
         project, document = self._create_project_with_pdf_document("-table-choice")
@@ -3093,6 +3271,107 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         with patch.object(main, "build_extraction_preview", return_value=_fake_preview()):
             result = main.export_project(project["id"], main.ExportRequest(document_id=document["id"]))
         self.assertTrue((self.tmp_path / "exports" / result["file_name"]).exists())
+
+    def test_export_uses_cached_preview_workspace_order_and_blocks(self) -> None:
+        project, document = self._create_project_with_document("-export-preview-order")
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0023",
+            source_page=5,
+            source_anchor="Main > 5.7",
+            requirement_text="5.7 次条需求",
+            raw_text="5.7 次条需求",
+            display_text="5.7 次条需求",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="5.7",
+            parent_section_title="次条需求",
+            parent_section_label="5.7 次条需求",
+        )
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0024",
+            source_page=5,
+            source_anchor="Main > 5.1",
+            requirement_text="5.1 首条需求",
+            raw_text="5.1 首条需求",
+            display_text="5.1 首条需求",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="5.1",
+            parent_section_title="首条需求",
+            parent_section_label="5.1 首条需求",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+
+        preview_source = self.tmp_path / "preview-source.png"
+        PILImage.new("RGB", (320, 160), "forestgreen").save(preview_source)
+        preview = _fake_preview_with_reversed_req_codes()
+        preview["complete_requirement_entries"][0]["table_refs"] = [
+            {
+                "table_id": "tbl_preview",
+                "table_title": "首条需求截图",
+                "source_snapshot_path": str(preview_source),
+                "slice_snapshot_path": str(preview_source),
+                "slice_render_mode": "snapshot_only",
+                "export_variant": "source",
+                "recommended_export_variant": "source",
+                "inherited_headers": [],
+                "slice_rows": [],
+            }
+        ]
+        preview["complete_requirement_entries"][0]["content_blocks"] = [
+            {"kind": "paragraph", "text": "5.1 首条需求\n含截图块。"},
+            {"kind": "table", "table_id": "tbl_preview"},
+        ]
+        preview_cache.persist_preview_cache(db.get_sor_document(document["id"]) or {}, preview)
+        main.lock_document_extraction(project["id"], document["id"])
+
+        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=True)
+        captured: dict[str, object] = {}
+
+        def _capture_export(**kwargs):
+            requirements = kwargs.get("requirements") or []
+            captured["requirements"] = [dict(row) for row in requirements]
+            export_dir = Path(kwargs["export_dir"])
+            export_dir.mkdir(parents=True, exist_ok=True)
+            file_path = export_dir / "captured.xlsx"
+            file_path.write_text("stub", encoding="utf-8")
+            return file_path.name, str(file_path)
+
+        with patch.object(main, "export_compliance_matrix", side_effect=_capture_export):
+            result = main.export_project(project["id"], main.ExportRequest(document_id=document["id"]))
+
+        self.assertEqual(result["file_name"], "captured.xlsx")
+        exported_requirements = captured["requirements"]
+        self.assertIsInstance(exported_requirements, list)
+        self.assertEqual(
+            [
+                (
+                    row["req_code"],
+                    row["display_req_code"],
+                    [block.get("kind") for block in row.get("content_blocks") or []],
+                )
+                for row in exported_requirements
+            ],
+            [
+                (
+                    row["req_code"],
+                    row["display_req_code"],
+                    [block.get("kind") for block in row.get("content_blocks") or []],
+                )
+                for row in workspace["requirements"]
+            ],
+        )
+        self.assertEqual([row["req_code"] for row in exported_requirements], ["REQ0024", "REQ0023"])
+        self.assertEqual([row["display_req_code"] for row in exported_requirements], ["REQ0001", "REQ0002"])
+        self.assertEqual(
+            [block.get("kind") for block in exported_requirements[0]["content_blocks"]],
+            ["paragraph", "table"],
+        )
+        self.assertEqual(exported_requirements[0]["table_refs"][0]["table_id"], "tbl_preview")
 
     def test_run_ai_analysis_persists_extended_assessment_fields_and_runs(self) -> None:
         project, document = self._create_project_with_document("-ai-copilot")
