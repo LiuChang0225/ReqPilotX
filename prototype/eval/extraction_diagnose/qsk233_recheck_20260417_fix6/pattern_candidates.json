@@ -1,0 +1,28 @@
+[
+  {
+    "pattern_id": "profile_unmatched",
+    "pattern_name": "profile_unmatched",
+    "category": "heading_recovery",
+    "doc_key": "seres_q_sk_j02_233",
+    "pdf_name": "Q-SK J02.233-2023_CANFD 通信需求规范(2MbpS)  20231024.pdf",
+    "issue_type": "profile_unmatched",
+    "suspected_layer": "gate",
+    "recommended_fix_direction": "Add or refresh benchmark profiles only after confirming the current sample is a reusable regression target.",
+    "benchmark_impact": [],
+    "promoted": false,
+    "validation_status": "candidate"
+  },
+  {
+    "pattern_id": "parser_low_confidence_hotspot",
+    "pattern_name": "parser_low_confidence_hotspot",
+    "category": "table_and_clause_binding",
+    "doc_key": "seres_q_sk_j02_233",
+    "pdf_name": "Q-SK J02.233-2023_CANFD 通信需求规范(2MbpS)  20231024.pdf",
+    "issue_type": "parser_low_confidence_hotspot",
+    "suspected_layer": "parser",
+    "recommended_fix_direction": "Inspect page merge selection and parser confidence signals before changing downstream section logic.",
+    "benchmark_impact": [],
+    "promoted": false,
+    "validation_status": "candidate"
+  }
+]

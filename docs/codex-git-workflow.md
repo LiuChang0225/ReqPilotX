@@ -2,34 +2,45 @@
 
 适用范围：`/Users/liuchang/Documents/New project`
 
-这份文档定义当前项目的分支优先级、标准 worktree 结构，以及在 Codex 中并行处理不同任务的统一方式。
+这份文档定义当前仓库的控制塔、worktree、分支和上下文同步规则。执行真相源以控制塔为准，不再使用旧的“随任务自由开长期分支”方式。
 
-## 1. 当前主线策略
+## 1. 当前分支治理模型
 
-当前策略已经收敛为：**表格优先，活跃开发线控制在 3 条以内。**
+当前模型固定为：
 
-正式优先级固定如下：
+- `1` 个协调窗口
+- 最多 `3` 条活跃实现支线
+- 每条支线对应 `1` 个独立 worktree
+- 每条支线必须映射到 `track_registry.json` 里的注册 track
 
-1. `codex/table-assets-mainline`
-   - 唯一承载表格资产化主线
-   - 负责 `table_asset / table_ref`、截图优先、Web/Excel 同源展示
-2. `codex/workspace-stabilization`
-   - 负责统一工作台稳定性、性能、虚拟滚动、锁定/导出状态一致性
-3. `codex/ai-slice-integration`
-   - 负责让 AI 改为消费 `slice_ai_projection + requirement 正文 + section context`
+当前第一阶段活跃支线：
 
-已淘汰方案：
+1. `codex/release-foundation`
+2. `codex/extraction-quality-loop`
+3. `codex/rag-quality-loop`
 
-- `codex/table-snapshot-assets`
-  - 不再继续
-  - 不再作为任何后续任务的候选基线
+排队支线：
 
-## 2. 基本原则
+1. `codex/product-kb`
+2. `codex/angular-feasibility`
 
-- `main` 只保留可运行、可演示、相对稳定的代码。
-- 所有长期开发任务都放到 `codex/*` 分支，不直接在 `main` 上长期开发。
-- 一个 Codex 窗口只负责一个正式 worktree。
-- 不再允许两条“表格主线”并存。
+## 2. 控制塔是真相源
+
+当前执行控制面固定为：
+
+- 轨道注册表：`/Users/liuchang/Documents/New project/prototype/eval/progress/track_registry.json`
+- 控制塔页面：`/Users/liuchang/Documents/New project/prototype/app/static/progress-dashboard.html`
+- 控制塔接口：`/api/progress/*`
+- 操作脚本：`/Users/liuchang/Documents/New project/prototype/scripts/trackctl.py`
+
+控制塔需要持续观测：
+
+- `Tracks Overview`
+- `Branch Lanes`
+- `Gate Board`
+- `Drift Alerts`
+
+如果分支活动、门禁状态和控制塔不一致，以控制塔登记与实际 worktree 状态为准，先修正记录，再继续开发。
 
 ## 3. 标准 worktree 结构
 
@@ -37,256 +48,191 @@
 
 ```text
 /Users/liuchang/Documents/New project/
-├── prototype/                  # 主仓库，默认 main
-└── worktrees/
-    ├── _active/
-    │   ├── table-assets-mainline/
-    │   ├── workspace-stabilization/
-    │   └── hotfix-<topic>/
-    └── _archive/
-        ├── legacy-table-assets-dual-track/
-        └── retired-table-snapshot-assets/
+├── prototype/                  # 主仓库，默认 main / 协调窗口
+├── worktrees/
+│   ├── _active/
+│   │   ├── release-foundation/
+│   │   ├── extraction-quality-loop/
+│   │   └── rag-quality-loop/
+│   └── _archive/
+└── .codex/
+    └── skills-src/
 ```
 
 规则固定：
 
-- `_active/` 只放正式注册的 git worktree。
-- `_archive/` 只放退役目录或历史快照。
-- 活跃 worktree 不超过 2 条正式开发线，外加按需短命 `hotfix`。
+- `main` 只保留稳定基线与协调入口，不做长期功能实现
+- 一个窗口只负责一个 worktree
+- 不允许多个窗口共用同一个工作目录
+- 不允许一个长周期支线拆成多个 agent 共用同一个 worktree
 
-## 4. 当前目录与分支处置约定
+## 4. 启动一轮并行开发
 
-- 主仓库 `main`
-  - 保持稳定基线
-  - 不承担高风险实验开发
-- `worktrees/_active/table-assets-mainline`
-  - 表格资产化唯一主线
-- `worktrees/_active/workspace-stabilization`
-  - 工作台稳定性与性能主线
-- `worktrees/_archive/legacy-table-assets-dual-track`
-  - 历史实现来源，只归档，不继续开发
-- `worktrees/_archive/retired-table-snapshot-assets`
-  - 淘汰方案占位，不再使用
-
-## 5. 日常开发流程
-
-### 5.1 开工前同步主线
+先同步主线：
 
 ```bash
+cd "/Users/liuchang/Documents/New project"
 git checkout main
 git fetch origin
 git pull --ff-only origin main
+mkdir -p worktrees/_active
 ```
 
-### 5.2 新任务创建功能分支
+创建第一阶段 3 条活跃支线：
 
 ```bash
-git checkout -b codex/feature-name
+git worktree add worktrees/_active/release-foundation -b codex/release-foundation main
+git worktree add worktrees/_active/extraction-quality-loop -b codex/extraction-quality-loop main
+git worktree add worktrees/_active/rag-quality-loop -b codex/rag-quality-loop main
 ```
 
-如果远端已有同名分支，改为：
+窗口分工固定为：
+
+- 窗口 A：主仓库 `main`，协调窗口
+- 窗口 B：`worktrees/_active/release-foundation`
+- 窗口 C：`worktrees/_active/extraction-quality-loop`
+- 窗口 D：`worktrees/_active/rag-quality-loop`
+
+只有当至少一条活跃支线进入 `DONE` 或 `BLOCKED_BY_DECISION` 后，才允许开启 `product-kb` 或 `angular-feasibility`。
+
+## 5. Repo-Managed Skills
+
+技能源码固定放在仓库内：
+
+- `/.codex/skills-src/reqpilot-control-tower`
+- `/.codex/skills-src/reqpilot-track-release-foundation`
+- `/.codex/skills-src/reqpilot-track-extraction-quality`
+- `/.codex/skills-src/reqpilot-track-rag-quality`
+- `/.codex/skills-src/reqpilot-track-product-kb`
+- `/.codex/skills-src/reqpilot-track-angular-feasibility`
+
+同步到本机 `$CODEX_HOME/skills`：
 
 ```bash
-git fetch origin
-git checkout -b codex/feature-name origin/codex/feature-name
+cd "/Users/liuchang/Documents/New project"
+python3 scripts/sync_codex_skills.py --validate
+python3 scripts/sync_codex_skills.py --overwrite
 ```
 
-### 5.3 开发中提交与推送
+同步完成后重启 Codex，确保新技能生效。
+
+## 6. trackctl 使用规则
+
+每条支线窗口都必须用 `trackctl` 回写控制塔：
 
 ```bash
-git add .
-git commit -m "implement feature"
-git push -u origin codex/feature-name
+cd "/Users/liuchang/Documents/New project/<worktree>"
+PYTHONPATH=prototype python prototype/scripts/trackctl.py init
+python prototype/scripts/trackctl.py start --track <track-id>
+python prototype/scripts/trackctl.py checkpoint --track <track-id> --progress 25 --status INFO --summary "..."
+python prototype/scripts/trackctl.py gate --track <track-id> --gate <gate-name> --result PASS --detail "..."
+python prototype/scripts/trackctl.py handoff --track <track-id> --summary "..." --next "..."
+python prototype/scripts/trackctl.py status
 ```
 
-### 5.4 合并前同步主线
+固定节奏：
 
-```bash
-git fetch origin
-git rebase origin/main
-```
+- 开工时 `start`
+- 完成一个子目标时 `checkpoint`
+- 遇到 blocker 时 `checkpoint --status RISK` 或 `BLOCKED`
+- 完成门禁时 `gate`
+- 交接前 `handoff`
 
-如不使用 `rebase`，可改为：
+## 7. 漂移规则
 
-```bash
-git fetch origin
-git merge origin/main
-```
+每条 track 都有 `allowed_paths` 和 `blocked_paths`。控制塔按以下规则标记：
 
-### 5.5 合并回主线
+- `ON_PLAN`
+  - 修改范围留在本 track 的 `allowed_paths` 内
+  - 最近 gate 结果健康
+- `RISK`
+  - 2 天没有 checkpoint
+  - gate 失败或 blocker 未收口
+- `OFF_PLAN`
+  - 改动落入其它支线的 owner 范围
+  - 分支没有对应注册 track
+  - 长期直接在 `main` 上做实现开发
 
-- 在 GitHub 上提 PR：`codex/* -> main`
-- 经过验证和 review 后再合并
-- 合并完成后，本地更新：
+## 8. 上下文同步门禁
 
-```bash
-git checkout main
-git fetch origin
-git pull --ff-only origin main
-```
+当 staged 改动涉及以下范围之一时：
 
-## 6. Codex 多窗口并行开发
+- `prototype/app/`
+- `prototype/tests/`
+- `prototype/scripts/`
+- `docs/项目.md`
+- `docs/codex-git-workflow.md`
+- `docs/next-agent-handoff-prompt.md`
+- `AGENTS.md`
 
-可以，但不要多个窗口共用同一个工作目录。
+必须同时更新：
 
-正确方式是：**一个窗口对应一个 worktree，一个 worktree 对应一个分支。**
-
-### 6.1 为什么不能多个窗口共用一个目录
-
-如果两个 Codex 窗口同时改同一个工作目录，会出现这些问题：
-
-- 文件改动互相覆盖
-- `git status` 难以判断改动归属
-- 一个窗口切分支会直接影响另一个窗口
-- 运行中的服务、缓存、临时文件会互相污染
-
-### 6.2 正确做法：使用标准 worktree
-
-先保证主仓库是最新的：
-
-```bash
-git checkout main
-git fetch origin
-git pull --ff-only origin main
-```
-
-然后为新任务创建独立 worktree：
-
-```bash
-mkdir -p worktrees/_active worktrees/_archive
-git worktree add worktrees/_active/<task-name> -b codex/<task-name> main
-```
-
-这样你就可以：
-
-- 窗口 A 打开：`/Users/liuchang/Documents/New project/prototype`
-- 窗口 B 打开：`/Users/liuchang/Documents/New project/worktrees/_active/table-assets-mainline`
-- 窗口 C 打开：`/Users/liuchang/Documents/New project/worktrees/_active/workspace-stabilization`
-
-### 6.3 查看当前所有 worktree
-
-```bash
-git worktree list
-```
-
-### 6.4 任务结束后移除 worktree
-
-先确认改动已经提交并推送，然后执行：
-
-```bash
-git worktree remove worktrees/_active/<task-name>
-```
-
-如果对应分支也不再需要：
-
-```bash
-git branch -d codex/<task-name>
-```
-
-如果远端分支也要删除：
-
-```bash
-git push origin --delete codex/<task-name>
-```
-
-## 7. Codex 中与 GitHub 保持同步
-
-Codex 本身不自动替你做双向同步。Codex 操作的是本地仓库，和 GitHub 的同步仍然靠 Git。
-
-### 拉取远端最新代码
-
-```bash
-git fetch origin
-git pull --ff-only origin main
-```
-
-### 推送当前分支
-
-```bash
-git push
-```
-
-首次推送新分支：
-
-```bash
-git push -u origin codex/feature-name
-```
-
-### 检查当前分支和工作区状态
-
-```bash
-git branch --show-current
-git status -sb
-```
-
-## 8. 项目内的推荐约束
-
-- `main` 不做长期开发
-- 大改动先开分支，再开独立 worktree
-- 一个功能一条主分支，避免“超大杂糅分支”
-- 表格相关长期工作只进 `codex/table-assets-mainline`
-- 工作台稳定性和性能只进 `codex/workspace-stabilization`
-- 提交前至少做对应范围的最小验证
-
-## 8.1 Context Sync 门禁
-
-仓库内现在要求：
-
-- 当 staged 里有代码或核心项目文档变更时
-- 必须同时更新至少一个滚动上下文文件
+1. `docs/active-context.md`
+2. 当前 track 对应的 `prototype/docs/*active-context.md`
 
 检查脚本：
 
-`/Users/liuchang/Documents/New project/scripts/check_context_sync.py`
+- `/Users/liuchang/Documents/New project/scripts/check_context_sync.py`
 
-安装本地 pre-commit hook：
+安装本地 hook：
 
 ```bash
 cd "/Users/liuchang/Documents/New project"
 ./scripts/install-context-hook.sh
 ```
 
-默认触发范围：
+## 9. 推荐提交流程
 
-- `prototype/app/`
-- `prototype/tests/`
-- `prototype/scripts/`
-- `prototype/README.md`
-- `docs/项目.md`
-- `docs/codex-git-workflow.md`
-- `AGENTS.md`
-
-满足以上任一改动时，必须同时更新至少一个：
-
-- `docs/active-context.md`
-- `prototype/docs/*active-context.md`
-
-目的：
-
-- 新窗口/新线程不依赖长对话历史
-- 重要状态变化总能在仓库内找到最新滚动上下文
-
-## 9. 最小实践模板
-
-一个新任务，从开始到结束可以按这个顺序执行：
+在各自 worktree 中完成改动后：
 
 ```bash
-git checkout main
-git fetch origin
-git pull --ff-only origin main
-mkdir -p worktrees/_active worktrees/_archive
-git worktree add worktrees/_active/<task-name> -b codex/<task-name> main
-cd worktrees/_active/<task-name>
+git status -sb
 git add .
-git commit -m "implement <task-name>"
-git push -u origin codex/<task-name>
+git commit -m "implement <track-scope>"
+git push -u origin <branch-name>
 ```
 
-完成并合并后：
+PR 仍然使用：
+
+- `codex/* -> main`
+
+合并后清理 worktree：
 
 ```bash
+cd "/Users/liuchang/Documents/New project"
 git checkout main
 git fetch origin
 git pull --ff-only origin main
-git worktree remove worktrees/_active/<task-name>
+git worktree remove worktrees/_active/<track-name>
 ```
+
+如需删除分支：
+
+```bash
+git branch -d codex/<track-name>
+git push origin --delete codex/<track-name>
+```
+
+## 10. 最小实践模板
+
+一轮标准并行开发顺序：
+
+```bash
+cd "/Users/liuchang/Documents/New project"
+git checkout main
+git fetch origin
+git pull --ff-only origin main
+python3 scripts/sync_codex_skills.py --overwrite
+mkdir -p worktrees/_active
+git worktree add worktrees/_active/release-foundation -b codex/release-foundation main
+git worktree add worktrees/_active/extraction-quality-loop -b codex/extraction-quality-loop main
+git worktree add worktrees/_active/rag-quality-loop -b codex/rag-quality-loop main
+```
+
+然后：
+
+1. 在主仓库窗口打开协调窗口
+2. 在 3 个 worktree 中分别打开对应 worker 窗口
+3. 每个窗口使用对应 track skill
+4. 用 `trackctl` 回写 checkpoint 和 gate
+5. 用控制塔页面检查 drift 和 next action

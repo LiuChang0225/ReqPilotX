@@ -206,6 +206,140 @@ def _fake_preview_with_reused_req_codes() -> dict:
     }
 
 
+def _fake_preview_with_same_code_local_clause_in_section_six() -> dict:
+    section_six_title = "投标说明"
+    clause_titles = {
+        1: "技术标书为简体中文",
+        2: "技术标书须包含完整技术方案",
+        3: "技术方案需包含关键器件选型",
+        4: "技术方案需包含测试验证计划",
+        5: "技术方案需包含质量控制方案",
+        6: "技术标书中应包含生产工艺部分的描述，针对技术标书中提出的技术方案，论证工艺可行性",
+        7: "技术标书需说明量产能力",
+        8: "技术标书需说明项目进度计划",
+        9: "技术标书需说明交流文件要求",
+        10: "商务报价",
+    }
+
+    def _heading_row() -> dict:
+        return {
+            "entry_id": "H-6",
+            "req_code": "",
+            "entry_kind": "HEADING",
+            "section_code": "6",
+            "section_key": "6",
+            "section_instance_key": "6",
+            "section_title": section_six_title,
+            "section_label": "",
+            "owner_section_code": "6",
+            "owner_section_title": section_six_title,
+            "owner_section_label": "6",
+            "parent_section_code": "",
+            "parent_section_title": "",
+            "parent_section_label": "",
+            "structural_parent_section_code": "",
+            "structural_parent_section_key": "",
+            "structural_parent_section_title": "",
+            "structural_parent_section_label": "",
+            "display_text": "6 投标说明",
+            "raw_text": "6 投标说明",
+            "requirement_text": "6 投标说明",
+            "source_page": 9,
+            "source_page_end": 9,
+            "source_anchor": "Page 9 | Section 6 投标说明",
+            "text_relation": "exact_match",
+            "is_deduped": True,
+            "merged_from_req_codes": [],
+            "merged_from_entry_ids": [],
+        }
+
+    def _requirement_row(number: int) -> dict:
+        title = clause_titles[number]
+        text = f"{number}）{title}"
+        return {
+            "entry_id": f"REQ06{number:02d}",
+            "req_code": f"REQ06{number:02d}",
+            "entry_kind": "REQUIREMENT",
+            "section_code": str(number),
+            "section_key": f"6::{number}",
+            "section_instance_key": f"6::{number}",
+            "section_title": title,
+            "section_label": f"{number}）",
+            "owner_section_code": str(number),
+            "owner_section_title": title,
+            "owner_section_label": f"{number}）",
+            "parent_section_code": str(number),
+            "parent_section_title": title,
+            "parent_section_label": f"{number} {title}",
+            "structural_parent_section_code": "6",
+            "structural_parent_section_key": "6",
+            "structural_parent_section_title": section_six_title,
+            "structural_parent_section_label": "6",
+            "display_text": text,
+            "raw_text": text,
+            "requirement_text": text,
+            "source_page": 9,
+            "source_page_end": 9,
+            "source_anchor": f"Page 9 | Section 6 投标说明 | Clause {number} {title}",
+            "requirement_type": "FUNCTIONAL",
+            "priority": "MEDIUM",
+            "text_relation": "distinct",
+            "is_deduped": False,
+            "merged_from_req_codes": [],
+            "merged_from_entry_ids": [],
+        }
+
+    section_tree = [
+        {
+            "appendix_scope": "",
+            "section_code": "6",
+            "section_key": "6",
+            "section_instance_key": "6",
+            "section_title": section_six_title,
+            "owner_section_code": "6",
+            "owner_section_title": section_six_title,
+            "owner_section_label": "6",
+            "parent_section_code": "",
+            "parent_section_key": "",
+            "structural_parent_section_code": "",
+            "structural_parent_section_key": "",
+            "source_page_start": 9,
+            "source_page_end": 9,
+            "requirement_count": 10,
+            "tree_order": 0,
+        }
+    ]
+    section_tree.extend(
+        {
+            "appendix_scope": "",
+            "section_code": str(number),
+            "section_key": f"6::{number}",
+            "section_instance_key": f"6::{number}",
+            "section_title": clause_titles[number],
+            "section_label": f"{number}）",
+            "owner_section_code": str(number),
+            "owner_section_title": clause_titles[number],
+            "owner_section_label": f"{number}）",
+            "parent_section_code": "6",
+            "parent_section_key": "6",
+            "structural_parent_section_code": "6",
+            "structural_parent_section_key": "6",
+            "source_page_start": 9,
+            "source_page_end": 9,
+            "requirement_count": 1,
+            "tree_order": number,
+        }
+        for number in range(1, 11)
+    )
+    return {
+        "summary": {"dedupe_version": "heading_requirement_v1"},
+        "sections": section_tree,
+        "section_tree": section_tree,
+        "complete_requirement_entries": [_heading_row(), *[_requirement_row(number) for number in range(1, 11)]],
+        "complete_requirement_entries_raw": [_heading_row(), *[_requirement_row(number) for number in range(1, 11)]],
+    }
+
+
 def _fake_preview_with_table_markdown() -> dict:
     table_text = (
         "试验条件如下：\n\n"
@@ -274,10 +408,10 @@ def _fake_preview_with_single_row_slice_table() -> dict:
                 "requirement_text": table_text,
                 "source_page": 20,
                 "source_page_end": 20,
-                "source_anchor": "Appendix Y > 1",
-                "parent_section_code": "Y.1",
-                "parent_section_title": "用电器试验大纲",
-                "parent_section_label": "Y.1 用电器试验大纲",
+                "source_anchor": "Appendix SUB1 > 1",
+                "parent_section_code": "SUB1.1",
+                "parent_section_title": "试验大纲",
+                "parent_section_label": "SUB1.1 试验大纲",
                 "requirement_type": "FUNCTIONAL",
                 "priority": "MEDIUM",
             }
@@ -475,6 +609,28 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             for row in range(1, sheet.max_row + 1)
             if sheet.cell(row=row, column=1).value is not None
         }
+
+    def _content_images(self, sheet) -> list:
+        images = []
+        for image in getattr(sheet, "_images", []):
+            anchor = getattr(image, "anchor", None)
+            marker = getattr(anchor, "_from", None)
+            if marker is None:
+                continue
+            if marker.col == 2 and marker.row >= 3:
+                images.append(image)
+        return images
+
+    def _logo_images(self, sheet) -> list:
+        images = []
+        for image in getattr(sheet, "_images", []):
+            anchor = getattr(image, "anchor", None)
+            marker = getattr(anchor, "_from", None)
+            if marker is None:
+                continue
+            if marker.row <= 1 and marker.col >= 3:
+                images.append(image)
+        return images
 
     def test_extraction_review_redirects_to_workspace_review(self) -> None:
         response = main.extraction_review_page()
@@ -974,6 +1130,45 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertFalse(stale_file.exists())
         self.assertTrue(cache_path.exists())
 
+    def test_cancelled_preview_refresh_exits_before_build(self) -> None:
+        project, document = self._create_project_with_document("-refresh-cancelled")
+        preview_cache.cancel_preview_refresh(document["id"])
+
+        with patch.object(preview_cache, "build_extraction_preview") as build_preview:
+            preview_cache._run_preview_refresh(document["id"], document["file_path"])
+
+        build_preview.assert_not_called()
+
+    def test_delete_document_purges_preview_and_snapshot_artifacts(self) -> None:
+        project, document = self._create_project_with_document("-delete-artifacts")
+        cache_path = preview_cache.preview_cache_path(document["id"])
+        cache_path.write_text("{}", encoding="utf-8")
+        preview_root = preview_cache.document_snapshot_root(document["id"])
+        (preview_root / "preview.png").write_text("preview", encoding="utf-8")
+        persisted_root = main._table_snapshot_root(document["id"])
+        (persisted_root / "persisted.png").write_text("persisted", encoding="utf-8")
+
+        result = main.delete_sor_document(project["id"], document["id"])
+
+        self.assertTrue(result["ok"])
+        self.assertFalse(cache_path.exists())
+        self.assertFalse(preview_cache.document_snapshot_root(document["id"], create=False).exists())
+        self.assertFalse(main._table_snapshot_root(document["id"], create=False).exists())
+        self.assertIsNone(db.get_sor_document(document["id"]))
+
+    def test_deleted_document_preview_refresh_missing_file_does_not_mark_failed(self) -> None:
+        project, document = self._create_project_with_document("-deleted-refresh-race")
+        document_id = document["id"]
+        file_path = document["file_path"]
+        db.delete_sor_document(document_id)
+
+        with patch.object(preview_cache, "build_extraction_preview", side_effect=FileNotFoundError("missing")), patch.object(
+            preview_cache.db, "update_sor_document_preview_state"
+        ) as update_preview_state:
+            preview_cache._run_preview_refresh(document_id, file_path)
+
+        update_preview_state.assert_not_called()
+
     def test_sync_document_table_assets_keeps_preview_snapshot_root_intact(self) -> None:
         project, document = self._create_project_with_document("-isolated-snapshots")
         preview_root = preview_cache.document_snapshot_root(document["id"])
@@ -1103,6 +1298,78 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual([row["display_req_code"] for row in workspace["requirements"]], ["REQ0001", "REQ0002"])
         self.assertEqual(workspace["summary"]["order_source"], "review_overlay")
         self.assertEqual(workspace["summary"]["order_mismatch_count"], 0)
+
+    def test_workspace_keeps_same_code_local_clause_in_preview_order(self) -> None:
+        project, document = self._create_project_with_document("-same-code-local-clause")
+        preview = _fake_preview_with_same_code_local_clause_in_section_six()
+        for number in range(10, 0, -1):
+            preview_row = preview["complete_requirement_entries"][number]
+            db.insert_requirement(
+                project_id=project["id"],
+                sor_document_id=document["id"],
+                req_code=str(preview_row["req_code"]),
+                source_page=9,
+                source_anchor=str(preview_row["source_anchor"]),
+                requirement_text=str(preview_row["display_text"]),
+                raw_text=str(preview_row["raw_text"]),
+                display_text=str(preview_row["display_text"]),
+                requirement_type="FUNCTIONAL",
+                priority="MEDIUM",
+                parent_section_code=str(preview_row["parent_section_code"]),
+                parent_section_title=str(preview_row["parent_section_title"]),
+                parent_section_label=str(preview_row["parent_section_label"]),
+            )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        preview_cache.persist_preview_cache(db.get_sor_document(document["id"]) or {}, preview)
+
+        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=True)
+
+        self.assertEqual(
+            [row["section_key"] for row in workspace["requirements"]],
+            [f"6::{number}" for number in range(1, 11)],
+        )
+        self.assertEqual(
+            [row["owner_section_label"] for row in workspace["requirements"]],
+            [f"{number}）" for number in range(1, 11)],
+        )
+        self.assertEqual(workspace["requirements"][5]["section_key"], "6::6")
+        self.assertEqual(workspace["requirements"][5]["owner_section_label"], "6）")
+        self.assertEqual(workspace["summary"]["order_source"], "review_overlay")
+        self.assertEqual(workspace["summary"]["order_mismatch_count"], 0)
+
+    def test_workspace_review_entries_preserve_section_six_subtree_order_and_owner_labels(self) -> None:
+        project, document = self._create_project_with_document("-review-same-code-local-clause")
+        preview = _fake_preview_with_same_code_local_clause_in_section_six()
+        for number in range(10, 0, -1):
+            preview_row = preview["complete_requirement_entries"][number]
+            db.insert_requirement(
+                project_id=project["id"],
+                sor_document_id=document["id"],
+                req_code=str(preview_row["req_code"]),
+                source_page=9,
+                source_anchor=str(preview_row["source_anchor"]),
+                requirement_text=str(preview_row["display_text"]),
+                raw_text=str(preview_row["raw_text"]),
+                display_text=str(preview_row["display_text"]),
+                requirement_type="FUNCTIONAL",
+                priority="MEDIUM",
+                parent_section_code=str(preview_row["parent_section_code"]),
+                parent_section_title=str(preview_row["parent_section_title"]),
+                parent_section_label=str(preview_row["parent_section_label"]),
+            )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        preview_cache.persist_preview_cache(db.get_sor_document(document["id"]) or {}, preview)
+
+        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=True)
+
+        self.assertEqual(
+            [row["section_key"] for row in workspace["review_entries"]],
+            ["6", *[f"6::{number}" for number in range(1, 11)]],
+        )
+        self.assertEqual(workspace["review_entries"][0]["owner_section_label"], "6")
+        self.assertEqual(workspace["review_entries"][6]["section_key"], "6::6")
+        self.assertEqual(workspace["review_entries"][6]["owner_section_label"], "6）")
+        self.assertEqual(workspace["review_entries"][6]["structural_parent_section_label"], "6")
 
     def test_workspace_matrix_rows_prefer_current_review_text_over_stale_persisted_text(self) -> None:
         project, document = self._create_project_with_document("-matrix-preview")
@@ -1328,6 +1595,132 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(rows[0]["priority"], "HIGH")
         self.assertEqual(rows[0]["source_anchor"], "Main > 6")
         self.assertEqual(rows[0]["parent_section_label"], "6 投标说明")
+
+    def test_overlay_review_entries_drops_stale_visual_assets_from_previous_preview_generation(self) -> None:
+        preview_rows = [
+            {
+                "entry_id": "REQ0201",
+                "req_code": "REQ0201",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "供应商应满足新的当前条目。",
+                "raw_text": "供应商应满足新的当前条目。",
+                "requirement_text": "供应商应满足新的当前条目。",
+                "source_page": 6,
+                "source_page_end": 6,
+                "source_anchor": "Main > 2.1",
+                "parent_section_code": "2.1",
+                "parent_section_title": "当前条目",
+                "parent_section_label": "2.1 当前条目",
+            }
+        ]
+        persisted_rows = [
+            {
+                "id": "persisted-stale-assets",
+                "req_code": "REQ0201",
+                "entry_kind": "REQUIREMENT",
+                "display_text": "供应商应满足新的当前条目。",
+                "raw_text": "供应商应满足新的当前条目。",
+                "requirement_text": "供应商应满足新的当前条目。",
+                "source_page": 6,
+                "source_page_end": 6,
+                "source_anchor": "Main > 2.1",
+                "parent_section_code": "2.1",
+                "parent_section_title": "当前条目",
+                "parent_section_label": "2.1 当前条目",
+                "preview_generation_id": "gen-old",
+                "table_refs": [{"table_id": "tbl_stale"}],
+                "content_blocks": [{"kind": "table", "table_id": "tbl_stale"}],
+                "has_table_asset": True,
+                "table_render_mode": "structured",
+                "status": "reviewed",
+            }
+        ]
+
+        rows = main._overlay_review_entries(
+            preview_rows,
+            persisted_rows,
+            prefer_raw=False,
+            preview_generation_id="gen-current",
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertTrue(rows[0]["keep"])
+        self.assertEqual(rows[0]["table_refs"], [])
+        self.assertEqual(rows[0]["content_blocks"], [])
+        self.assertFalse(rows[0]["has_table_asset"])
+        self.assertEqual(rows[0]["table_render_mode"], "")
+
+    def test_enrich_requirements_with_preview_context_replaces_stale_visual_assets_from_current_preview(self) -> None:
+        project, document = self._create_project_with_document("-generation-enrich")
+        preview_source = self.tmp_path / "generation-current.png"
+        preview_source.write_bytes(b"preview-current")
+        db.update_sor_document_preview_state(document["id"], preview_generation_id="gen-current")
+        preview_cache.persist_preview_cache(
+            db.get_sor_document(document["id"]) or document,
+            {
+                "preview_generation_id": "gen-current",
+                "summary": {"dedupe_version": "heading_requirement_v1"},
+                "complete_requirement_entries": [
+                    {
+                        "entry_id": "REQ0001",
+                        "req_code": "REQ0001",
+                        "entry_kind": "REQUIREMENT",
+                        "display_text": "供应商需要满足总成试验要求。",
+                        "raw_text": "供应商需要满足总成试验要求。",
+                        "requirement_text": "供应商需要满足总成试验要求。",
+                        "source_page": 1,
+                        "source_page_end": 1,
+                        "source_anchor": "Main > 1",
+                        "parent_section_code": "1",
+                        "parent_section_title": "概述",
+                        "parent_section_label": "1 概述",
+                        "table_refs": [
+                            {
+                                "table_id": "tbl_current",
+                                "source_snapshot_path": str(preview_source),
+                                "slice_snapshot_path": str(preview_source),
+                                "slice_render_mode": "snapshot_only",
+                                "export_variant": "source",
+                                "recommended_export_variant": "source",
+                                "inherited_headers": [],
+                                "slice_rows": [],
+                            }
+                        ],
+                        "content_blocks": [{"kind": "table", "table_id": "tbl_current"}],
+                        "has_table_asset": True,
+                        "table_render_mode": "structured",
+                    }
+                ],
+                "complete_requirement_entries_raw": [],
+            },
+        )
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Main > 1",
+            requirement_text="供应商需要满足总成试验要求。",
+            raw_text="供应商需要满足总成试验要求。",
+            display_text="供应商需要满足总成试验要求。",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            table_refs=json.dumps([{"table_id": "tbl_old"}], ensure_ascii=False),
+            content_blocks=json.dumps([{"kind": "table", "table_id": "tbl_old"}], ensure_ascii=False),
+            has_table_asset=True,
+            table_render_mode="structured",
+            preview_generation_id="gen-old",
+        )
+
+        rows = main._enrich_requirements_with_preview_context(
+            db.list_requirements(project["id"], document["id"]),
+            str(document["file_path"]),
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["preview_generation_id"], "gen-current")
+        self.assertEqual(rows[0]["table_refs"][0]["table_id"], "tbl_current")
+        self.assertEqual(rows[0]["content_blocks"][0]["table_id"], "tbl_current")
 
     def test_find_requirement_for_review_entry_prefers_source_match_over_stale_req_code(self) -> None:
         requirements = [
@@ -1624,6 +2017,58 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         self.assertEqual(Path(source_snapshot.path), db_source)
 
+    def test_table_asset_source_snapshot_does_not_fall_back_to_previous_preview_generation(self) -> None:
+        project, document = self._create_project_with_document("-preview-source-generation")
+        preview_snapshot = self.tmp_path / "preview-generation.png"
+        preview_snapshot.write_bytes(b"preview")
+        db_source = self.tmp_path / "db_generation_source.png"
+        db_source.write_bytes(b"db-source")
+
+        db.update_sor_document_preview_state(document["id"], preview_generation_id="gen-current")
+        db.replace_document_table_assets(
+            project["id"],
+            document["id"],
+            [
+                {
+                    "table_id": "tbl_generation_guard",
+                    "document_id": document["id"],
+                    "headers": ["Persisted"],
+                    "rows": [["stale"]],
+                    "render_mode": "structured",
+                    "snapshot_path": str(self.tmp_path / "db_generation.png"),
+                    "source_snapshot_path": str(db_source),
+                    "preview_generation_id": "gen-old",
+                }
+            ],
+            preview_generation_id="gen-old",
+        )
+        preview_cache.persist_preview_cache(
+            db.get_sor_document(document["id"]) or document,
+            {
+                "preview_generation_id": "gen-current",
+                "summary": {"dedupe_version": "heading_requirement_v1"},
+                "table_assets": [
+                    {
+                        "table_id": "tbl_generation_guard",
+                        "document_id": document["id"],
+                        "headers": ["Preview"],
+                        "rows": [["broken"]],
+                        "render_mode": "structured",
+                        "snapshot_path": str(preview_snapshot),
+                        "source_snapshot_path": str(self.tmp_path / "missing_generation_source.png"),
+                        "preview_generation_id": "gen-current",
+                    }
+                ],
+                "complete_requirement_entries": [],
+                "complete_requirement_entries_raw": [],
+            },
+        )
+
+        with self.assertRaises(HTTPException) as detail_exc:
+            main.get_document_table_asset_source_snapshot(project["id"], document["id"], "tbl_generation_guard")
+
+        self.assertEqual(detail_exc.exception.status_code, 404)
+
     def test_review_entry_save_persists_table_export_variant_override(self) -> None:
         project, document = self._create_project_with_pdf_document("-table-choice")
         with patch.object(main, "build_extraction_preview", return_value=_fake_preview_with_complex_table_markdown()):
@@ -1907,8 +2352,8 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         self.assertIn("备注", values)
 
-    def test_preview_does_not_promote_unrelated_dotted_local_clause(self) -> None:
-        self.assertFalse(
+    def test_preview_promotes_local_reset_clause_heading(self) -> None:
+        self.assertTrue(
             extraction_preview._should_promote_local_clause_to_section(
                 parent_section_code="3.2.2",
                 clause_code="6.6",
@@ -1920,6 +2365,39 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                 clause_code="3.2.1",
             )
         )
+
+    def test_fidelity_section_count_skips_main_doc_synthetic_local_split(self) -> None:
+        self.assertFalse(
+            extraction_preview.counts_toward_fidelity_section(
+                {
+                    "section_code": "6.1",
+                    "appendix_scope": "",
+                    "structural_kind": "synthetic",
+                }
+            )
+        )
+        self.assertTrue(
+            extraction_preview.counts_toward_fidelity_section(
+                {
+                    "section_code": "6",
+                    "appendix_scope": "",
+                    "structural_kind": "outline",
+                }
+            )
+        )
+        self.assertTrue(
+            extraction_preview.counts_toward_fidelity_section(
+                {
+                    "section_code": "1",
+                    "appendix_scope": "SUB1",
+                    "structural_kind": "synthetic",
+                }
+            )
+        )
+
+    def test_split_section_key_preserves_local_code_for_scoped_clause_keys(self) -> None:
+        self.assertEqual(extraction_preview._split_section_key("3.2.2::11.12"), ("", "11.12"))
+        self.assertEqual(extraction_preview._split_section_key("SUB1:6::10"), ("SUB1", "10"))
 
     def test_preview_keeps_standard_ids_inside_parent_section(self) -> None:
         rows = extraction_preview._split_requirement_preview_rows(
@@ -1936,6 +2414,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             appendix_scope="",
             section_code="4.4",
             section_title_hint="依据标准",
+            explicit_section_code="4.4",
             text=(
                 "4.4 依据标准\n"
                 "GB/T 30512 汽车禁用物质要求\n"
@@ -2057,16 +2536,17 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             [["12", "活塞杆弯曲强度"]],
         )
 
-    def test_trial_outline_single_row_header_inference_applies_to_appendix_t(self) -> None:
+    def test_trial_outline_single_row_header_inference_applies_to_canonical_appendix_scope(self) -> None:
         headers = table_assets._infer_contextual_single_row_header(
             lines=[
                 "|12|活塞杆弯曲强度|-|台架试验|通过|DV/PV|供应商|6件/OTS|1天|"
             ],
             row={
-                "appendix_scope": "T",
+                "appendix_scope": "SUB1",
+                "appendix_title": "主动前减振器试验大纲",
                 "parent_section_code": "12",
                 "parent_section_title": "主动前减振器试验大纲",
-                "source_anchor": "Appendix T | 主动前减振器试验大纲",
+                "source_anchor": "Appendix SUB1 | 主动前减振器试验大纲",
             },
             table_title="12 活塞杆弯曲强度",
         )
@@ -2204,6 +2684,139 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         self.assertEqual([row["section_code"] for row in sections], ["5.8", "6.9"])
 
+    def test_canonical_section_tree_attaches_scoped_local_clauses_under_formal_parent(self) -> None:
+        sections, _ = extraction_preview._build_canonical_section_rows(
+            [
+                {
+                    "appendix_scope": "",
+                    "section_code": "3.2.2",
+                    "section_key": "3.2.2",
+                    "section_instance_key": "3.2.2",
+                    "section_title": "产品详细描述",
+                    "section_level": 3,
+                    "parent_section_code": "3.2",
+                    "parent_section_key": "3.2",
+                    "source_page_start": 2,
+                    "source_page_end": 8,
+                    "source_line_index_start": 0,
+                    "source_line_index_end": 72,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 14,
+                    "outline_order": 21,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "1",
+                    "section_key": "3.2.2::1",
+                    "section_instance_key": "3.2.2::1",
+                    "section_title": "油泵性能要求",
+                    "section_label": "1）",
+                    "section_level": 1,
+                    "parent_section_code": "3.2.2",
+                    "parent_section_key": "3.2.2",
+                    "source_page_start": 3,
+                    "source_page_end": 3,
+                    "source_line_index_start": 1,
+                    "source_line_index_end": 1,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 15,
+                    "outline_order": None,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "6",
+                    "section_key": "3.2.2::6",
+                    "section_instance_key": "3.2.2::6",
+                    "section_title": "双电机控制器总成要求",
+                    "section_label": "6）",
+                    "section_level": 1,
+                    "parent_section_code": "3.2.2",
+                    "parent_section_key": "3.2.2",
+                    "source_page_start": 5,
+                    "source_page_end": 5,
+                    "source_line_index_start": 20,
+                    "source_line_index_end": 20,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 20,
+                    "outline_order": None,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "6.1",
+                    "section_key": "3.2.2::6.1",
+                    "section_instance_key": "3.2.2::6.1",
+                    "section_title": "简述",
+                    "section_label": "6.1）",
+                    "section_level": 2,
+                    "parent_section_code": "6",
+                    "parent_section_key": "3.2.2::6",
+                    "source_page_start": 5,
+                    "source_page_end": 5,
+                    "source_line_index_start": 21,
+                    "source_line_index_end": 21,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 21,
+                    "outline_order": None,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "6.6",
+                    "section_key": "3.2.2::6.6",
+                    "section_instance_key": "3.2.2::6.6",
+                    "section_title": "模式管理",
+                    "section_label": "6.6）",
+                    "section_level": 2,
+                    "parent_section_code": "6",
+                    "parent_section_key": "3.2.2::6",
+                    "source_page_start": 6,
+                    "source_page_end": 6,
+                    "source_line_index_start": 10,
+                    "source_line_index_end": 10,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 26,
+                    "outline_order": None,
+                },
+                {
+                    "appendix_scope": "",
+                    "section_code": "6.6.4",
+                    "section_key": "3.2.2::6.6.4",
+                    "section_instance_key": "3.2.2::6.6.4",
+                    "section_title": "OTA要求",
+                    "section_label": "6.6.4）",
+                    "section_level": 3,
+                    "parent_section_code": "6.6",
+                    "parent_section_key": "3.2.2::6.6",
+                    "source_page_start": 7,
+                    "source_page_end": 7,
+                    "source_line_index_start": 1,
+                    "source_line_index_end": 1,
+                    "has_children": False,
+                    "is_leaf": True,
+                    "requirement_count": 1,
+                    "first_req_order": 30,
+                    "outline_order": None,
+                },
+            ]
+        )
+
+        by_key = {row["section_key"]: row for row in sections}
+        self.assertEqual(by_key["3.2.2::1"]["structural_parent_key"], "3.2.2")
+        self.assertEqual(by_key["3.2.2::6"]["structural_parent_key"], "3.2.2")
+        self.assertEqual(by_key["3.2.2::6.1"]["structural_parent_key"], "3.2.2::6")
+        self.assertEqual(by_key["3.2.2::6.6.4"]["structural_parent_key"], "3.2.2::6.6")
+        self.assertTrue(by_key["3.2.2"]["has_children"])
+        self.assertFalse(by_key["3.2.2"]["is_leaf"])
+
     def test_preview_section_sort_key_uses_tree_order_when_available(self) -> None:
         earlier = extraction_preview._preview_section_row_sort_key(
             {
@@ -2270,12 +2883,14 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         workbook = load_workbook(file_path)
         sheet = workbook["ComplianceMatrix"]
         meta = self._version_meta_values(workbook)
+        content_images = self._content_images(sheet)
 
         self.assertEqual(sheet["C4"].value, "试验条件如下：")
         self.assertIsNone(sheet["C5"].value)
-        self.assertEqual(len(sheet._images), 1)
+        self.assertEqual(len(content_images), 1)
+        self.assertEqual(len(self._logo_images(sheet)), 1)
         self.assertEqual(meta["TableImageCount"], 1)
-        self.assertGreater(sheet.column_dimensions["C"].width or 0, 170)
+        self.assertAlmostEqual(sheet.column_dimensions["C"].width or 0, 130.0, delta=1.0)
 
     def test_table_ref_snapshot_prefers_source_variant(self) -> None:
         slice_path = self.tmp_path / "slice.png"
@@ -2340,6 +2955,143 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         self.assertEqual(meta["TableExportWarningCount"], 1)
         self.assertIn("source snapshot missing", str(meta["TableExportWarnings"]))
+
+    def test_exporter_applies_schaeffler_branding_and_logo(self) -> None:
+        _, file_path = export_compliance_matrix(
+            project_name="Workspace Test",
+            customer_name="Customer",
+            requirements=[
+                {
+                    "display_req_code": "REQ0201",
+                    "req_code": "REQ0201",
+                    "parent_section_label": "9.3 Branding",
+                    "raw_text": "导出模板应带 Schaeffler 品牌化样式。",
+                    "final_decision": "ACCEPT",
+                    "engineer_reason": "Branding",
+                }
+            ],
+            export_dir=self.tmp_path / "exports",
+        )
+
+        workbook = load_workbook(file_path)
+        sheet = workbook["ComplianceMatrix"]
+        logo_images = self._logo_images(sheet)
+
+        self.assertEqual((sheet["A3"].fill.fgColor.rgb or "")[-6:], "00893D")
+        self.assertEqual(len(logo_images), 1)
+        self.assertEqual(logo_images[0].anchor._from.row, 0)
+        self.assertGreaterEqual(logo_images[0].anchor._from.col, 3)
+
+    def test_exporter_expands_row_height_for_long_comments(self) -> None:
+        _, file_path = export_compliance_matrix(
+            project_name="Workspace Test",
+            customer_name="Customer",
+            requirements=[
+                {
+                    "display_req_code": "REQ0202",
+                    "req_code": "REQ0202",
+                    "parent_section_label": "9.4 Long Comments",
+                    "raw_text": "短句。",
+                    "final_decision": "NEED_CLARIFICATION",
+                    "engineer_reason": "需要补充说明。" * 80,
+                }
+            ],
+            export_dir=self.tmp_path / "exports",
+        )
+
+        workbook = load_workbook(file_path)
+        sheet = workbook["ComplianceMatrix"]
+
+        self.assertGreater(sheet.row_dimensions[4].height or 0, 120)
+
+    def test_exporter_prefers_single_image_fit_before_split(self) -> None:
+        source_path = self.tmp_path / "medium-snapshot.png"
+        PILImage.new("RGB", (1000, 800), "white").save(source_path)
+
+        _, file_path = export_compliance_matrix(
+            project_name="Workspace Test",
+            customer_name="Customer",
+            requirements=[
+                {
+                    "display_req_code": "REQ0202A",
+                    "req_code": "REQ0202A",
+                    "parent_section_label": "9.4 Medium Snapshot",
+                    "raw_text": "中等高度截图。",
+                    "content_blocks": [
+                        {"kind": "paragraph", "text": "中等高度截图。"},
+                        {"kind": "table", "table_id": "tbl_medium_snapshot"},
+                    ],
+                    "table_refs": [
+                        {
+                            "table_id": "tbl_medium_snapshot",
+                            "slice_render_mode": "snapshot_only",
+                            "slice_snapshot_path": str(source_path),
+                            "source_snapshot_path": str(source_path),
+                            "export_variant": "source",
+                        }
+                    ],
+                    "final_decision": "ACCEPT",
+                    "engineer_reason": "Single image fit",
+                }
+            ],
+            export_dir=self.tmp_path / "exports",
+        )
+
+        workbook = load_workbook(file_path)
+        sheet = workbook["ComplianceMatrix"]
+        content_images = self._content_images(sheet)
+
+        self.assertEqual(len(content_images), 1)
+        self.assertEqual(content_images[0].anchor._from.row, 4)
+        self.assertLessEqual(sheet.row_dimensions[5].height or 0, 409.5)
+
+    def test_exporter_splits_tall_snapshot_into_multiple_rows(self) -> None:
+        source_path = self.tmp_path / "tall-snapshot.png"
+        PILImage.new("RGB", (420, 2400), "white").save(source_path)
+
+        _, file_path = export_compliance_matrix(
+            project_name="Workspace Test",
+            customer_name="Customer",
+            requirements=[
+                {
+                    "display_req_code": "REQ0203",
+                    "req_code": "REQ0203",
+                    "parent_section_label": "9.5 Tall Snapshot",
+                    "raw_text": "流程图见下图。",
+                    "content_blocks": [
+                        {"kind": "paragraph", "text": "流程图见下图。"},
+                        {"kind": "table", "table_id": "tbl_tall_snapshot"},
+                    ],
+                    "table_refs": [
+                        {
+                            "table_id": "tbl_tall_snapshot",
+                            "slice_render_mode": "snapshot_only",
+                            "slice_snapshot_path": str(source_path),
+                            "source_snapshot_path": str(source_path),
+                            "export_variant": "source",
+                        }
+                    ],
+                    "final_decision": "ACCEPT",
+                    "engineer_reason": "Tall screenshot",
+                }
+            ],
+            export_dir=self.tmp_path / "exports",
+        )
+
+        workbook = load_workbook(file_path)
+        sheet = workbook["ComplianceMatrix"]
+        meta = self._version_meta_values(workbook)
+        content_images = self._content_images(sheet)
+        anchored_rows = [image.anchor._from.row for image in content_images]
+
+        self.assertEqual(meta["TableImageCount"], 1)
+        self.assertGreater(len(content_images), 1)
+        self.assertEqual(anchored_rows, list(range(4, 4 + len(content_images))))
+        self.assertLessEqual(
+            max(sheet.row_dimensions[row_index + 1].height or 0 for row_index in anchored_rows),
+            409.5,
+        )
+        self.assertGreaterEqual(sheet.row_dimensions[5].height or 0, 350)
 
     def test_single_row_pipe_table_slice_is_materialized_as_table_asset(self) -> None:
         project, document = self._create_project_with_document("-single-row-slice")
@@ -2519,6 +3271,107 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         with patch.object(main, "build_extraction_preview", return_value=_fake_preview()):
             result = main.export_project(project["id"], main.ExportRequest(document_id=document["id"]))
         self.assertTrue((self.tmp_path / "exports" / result["file_name"]).exists())
+
+    def test_export_uses_cached_preview_workspace_order_and_blocks(self) -> None:
+        project, document = self._create_project_with_document("-export-preview-order")
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0023",
+            source_page=5,
+            source_anchor="Main > 5.7",
+            requirement_text="5.7 次条需求",
+            raw_text="5.7 次条需求",
+            display_text="5.7 次条需求",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="5.7",
+            parent_section_title="次条需求",
+            parent_section_label="5.7 次条需求",
+        )
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0024",
+            source_page=5,
+            source_anchor="Main > 5.1",
+            requirement_text="5.1 首条需求",
+            raw_text="5.1 首条需求",
+            display_text="5.1 首条需求",
+            requirement_type="FUNCTIONAL",
+            priority="MEDIUM",
+            parent_section_code="5.1",
+            parent_section_title="首条需求",
+            parent_section_label="5.1 首条需求",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+
+        preview_source = self.tmp_path / "preview-source.png"
+        PILImage.new("RGB", (320, 160), "forestgreen").save(preview_source)
+        preview = _fake_preview_with_reversed_req_codes()
+        preview["complete_requirement_entries"][0]["table_refs"] = [
+            {
+                "table_id": "tbl_preview",
+                "table_title": "首条需求截图",
+                "source_snapshot_path": str(preview_source),
+                "slice_snapshot_path": str(preview_source),
+                "slice_render_mode": "snapshot_only",
+                "export_variant": "source",
+                "recommended_export_variant": "source",
+                "inherited_headers": [],
+                "slice_rows": [],
+            }
+        ]
+        preview["complete_requirement_entries"][0]["content_blocks"] = [
+            {"kind": "paragraph", "text": "5.1 首条需求\n含截图块。"},
+            {"kind": "table", "table_id": "tbl_preview"},
+        ]
+        preview_cache.persist_preview_cache(db.get_sor_document(document["id"]) or {}, preview)
+        main.lock_document_extraction(project["id"], document["id"])
+
+        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=True)
+        captured: dict[str, object] = {}
+
+        def _capture_export(**kwargs):
+            requirements = kwargs.get("requirements") or []
+            captured["requirements"] = [dict(row) for row in requirements]
+            export_dir = Path(kwargs["export_dir"])
+            export_dir.mkdir(parents=True, exist_ok=True)
+            file_path = export_dir / "captured.xlsx"
+            file_path.write_text("stub", encoding="utf-8")
+            return file_path.name, str(file_path)
+
+        with patch.object(main, "export_compliance_matrix", side_effect=_capture_export):
+            result = main.export_project(project["id"], main.ExportRequest(document_id=document["id"]))
+
+        self.assertEqual(result["file_name"], "captured.xlsx")
+        exported_requirements = captured["requirements"]
+        self.assertIsInstance(exported_requirements, list)
+        self.assertEqual(
+            [
+                (
+                    row["req_code"],
+                    row["display_req_code"],
+                    [block.get("kind") for block in row.get("content_blocks") or []],
+                )
+                for row in exported_requirements
+            ],
+            [
+                (
+                    row["req_code"],
+                    row["display_req_code"],
+                    [block.get("kind") for block in row.get("content_blocks") or []],
+                )
+                for row in workspace["requirements"]
+            ],
+        )
+        self.assertEqual([row["req_code"] for row in exported_requirements], ["REQ0024", "REQ0023"])
+        self.assertEqual([row["display_req_code"] for row in exported_requirements], ["REQ0001", "REQ0002"])
+        self.assertEqual(
+            [block.get("kind") for block in exported_requirements[0]["content_blocks"]],
+            ["paragraph", "table"],
+        )
+        self.assertEqual(exported_requirements[0]["table_refs"][0]["table_id"], "tbl_preview")
 
     def test_run_ai_analysis_persists_extended_assessment_fields_and_runs(self) -> None:
         project, document = self._create_project_with_document("-ai-copilot")
@@ -4090,15 +4943,17 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         workbook = load_workbook(file_path)
         sheet = workbook["ComplianceMatrix"]
         meta = self._version_meta_values(workbook)
+        content_images = self._content_images(sheet)
 
+        self.assertEqual(sheet["B3"].value, "Section")
         self.assertEqual(sheet["A4"].value, "REQ0001")
         self.assertEqual(sheet["C4"].value, "试验条件如下：")
         self.assertIsNone(sheet["C5"].value)
         self.assertEqual(sheet["D4"].value, "ACCEPT")
         self.assertEqual(sheet["E4"].value, "Reviewed")
-        self.assertEqual(len(sheet._images), 1)
-        self.assertEqual(sheet._images[0].anchor._from.col, 2)
-        self.assertEqual(sheet._images[0].anchor._from.row, 4)
+        self.assertEqual(len(content_images), 1)
+        self.assertEqual(content_images[0].anchor._from.col, 2)
+        self.assertEqual(content_images[0].anchor._from.row, 4)
         merged_ranges = {str(item) for item in sheet.merged_cells.ranges}
         self.assertNotIn("C3:D3", merged_ranges)
         self.assertEqual(meta["TableImageCount"], 1)
@@ -4130,14 +4985,15 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         workbook = load_workbook(file_path)
         sheet = workbook["ComplianceMatrix"]
+        content_images = self._content_images(sheet)
 
         self.assertEqual(sheet["A4"].value, "REQ0002")
         self.assertEqual(sheet["C4"].value, "第一段说明。")
         self.assertIsNone(sheet["C5"].value)
         self.assertEqual(sheet["C6"].value, "第二段说明。")
-        self.assertEqual(len(sheet._images), 1)
-        self.assertEqual(sheet._images[0].anchor._from.col, 2)
-        self.assertEqual(sheet._images[0].anchor._from.row, 4)
+        self.assertEqual(len(content_images), 1)
+        self.assertEqual(content_images[0].anchor._from.col, 2)
+        self.assertEqual(content_images[0].anchor._from.row, 4)
         merged_ranges = {str(item) for item in sheet.merged_cells.ranges}
         self.assertIn("A4:A6", merged_ranges)
         self.assertIn("B4:B6", merged_ranges)
@@ -4165,7 +5021,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         sheet = workbook["ComplianceMatrix"]
         meta = self._version_meta_values(workbook)
 
-        self.assertEqual(len(sheet._images), 0)
+        self.assertEqual(len(self._content_images(sheet)), 0)
         self.assertEqual(
             sheet["C4"].value,
             "| Item | Condition |\n| --- | --- |\n| Too | Many | Cells |",
@@ -4199,13 +5055,14 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         workbook = load_workbook(file_path)
         sheet = workbook["ComplianceMatrix"]
         meta = self._version_meta_values(workbook)
+        content_images = self._content_images(sheet)
 
         self.assertEqual(sheet["C4"].value, "1）前减振器布置要求")
         self.assertIsNone(sheet["C5"].value)
         self.assertEqual(sheet["C6"].value, "表格后说明。")
-        self.assertEqual(len(sheet._images), 1)
-        self.assertEqual(sheet._images[0].anchor._from.col, 2)
-        self.assertEqual(sheet._images[0].anchor._from.row, 4)
+        self.assertEqual(len(content_images), 1)
+        self.assertEqual(content_images[0].anchor._from.col, 2)
+        self.assertEqual(content_images[0].anchor._from.row, 4)
         self.assertEqual(meta["TableImageCount"], 1)
         self.assertEqual(meta["TableFallbackTextCount"], 0)
 
@@ -4238,16 +5095,17 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         workbook = load_workbook(file_path)
         sheet = workbook["ComplianceMatrix"]
+        content_images = self._content_images(sheet)
 
         self.assertEqual(sheet.max_column, 5)
         self.assertEqual(sheet["C4"].value, "第一段说明。")
         self.assertEqual(sheet["C6"].value, "中间说明。")
         self.assertEqual(sheet["C8"].value, "最后说明。")
-        self.assertEqual(len(sheet._images), 2)
-        self.assertEqual(sheet._images[0].anchor._from.col, 2)
-        self.assertEqual(sheet._images[0].anchor._from.row, 4)
-        self.assertEqual(sheet._images[1].anchor._from.col, 2)
-        self.assertEqual(sheet._images[1].anchor._from.row, 6)
+        self.assertEqual(len(content_images), 2)
+        self.assertEqual(content_images[0].anchor._from.col, 2)
+        self.assertEqual(content_images[0].anchor._from.row, 4)
+        self.assertEqual(content_images[1].anchor._from.col, 2)
+        self.assertEqual(content_images[1].anchor._from.row, 6)
 
 
 if __name__ == "__main__":

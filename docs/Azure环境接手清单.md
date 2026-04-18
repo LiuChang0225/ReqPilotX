@@ -107,8 +107,9 @@ azd up
 1. [`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/%E9%A1%B9%E7%9B%AE.md)
 2. [`/Users/liuchang/Documents/New project/docs/开发执行清单.md`](/Users/liuchang/Documents/New%20project/docs/%E5%BC%80%E5%8F%91%E6%89%A7%E8%A1%8C%E6%B8%85%E5%8D%95.md)
 3. [`/Users/liuchang/Documents/New project/docs/active-context.md`](/Users/liuchang/Documents/New%20project/docs/active-context.md)
-4. [`/Users/liuchang/Documents/New project/prototype/docs/extraction-active-context.md`](/Users/liuchang/Documents/New%20project/prototype/docs/extraction-active-context.md)
-5. 本文
+4. [`/Users/liuchang/Documents/New project/prototype/eval/progress/track_registry.json`](/Users/liuchang/Documents/New%20project/prototype/eval/progress/track_registry.json)
+5. 当前 track 对应的 `prototype/docs/*-active-context.md`
+6. 本文
 
 ## 3. 本轮不要重开的范围
 
@@ -431,7 +432,7 @@ LIMIT 40;
 Azure 联通或切换状态发生变化后，至少同步更新：
 
 1. [`/Users/liuchang/Documents/New project/docs/active-context.md`](/Users/liuchang/Documents/New%20project/docs/active-context.md)
-2. [`/Users/liuchang/Documents/New project/prototype/docs/extraction-active-context.md`](/Users/liuchang/Documents/New%20project/prototype/docs/extraction-active-context.md)
+2. 当前 track 对应的 `prototype/docs/*-active-context.md`
 3. [`/Users/liuchang/Documents/New project/docs/开发执行清单.md`](/Users/liuchang/Documents/New%20project/docs/%E5%BC%80%E5%8F%91%E6%89%A7%E8%A1%8C%E6%B8%85%E5%8D%95.md)
 4. 如状态有实质变化，再更新 [`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/%E9%A1%B9%E7%9B%AE.md)
 

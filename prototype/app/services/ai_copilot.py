@@ -4450,6 +4450,25 @@ def _response_embeddings(response: Any) -> list[list[float]]:
     return [list(getattr(item, "embedding", []) or []) for item in items]
 
 
+
+# DashScope text-embedding-v4 maximum input length (tokens ≈ chars for CJK text).
+# Use 8000 as a conservative buffer below the 8192 hard limit.
+_DASHSCOPE_MAX_EMBED_CHARS = 8000
+
+
+def _truncate_for_dashscope(text: str) -> str:
+    """Truncate text to fit within DashScope embedding model's input limit."""
+    if len(text) <= _DASHSCOPE_MAX_EMBED_CHARS:
+        return text
+    # Try to truncate at a sentence boundary first
+    truncated = text[:_DASHSCOPE_MAX_EMBED_CHARS]
+    for sep in ("。", ".\n", ". ", "\n"):
+        idx = truncated.rfind(sep)
+        if idx > _DASHSCOPE_MAX_EMBED_CHARS // 2:
+            return truncated[: idx + len(sep)].strip()
+    return truncated.strip()
+
+
 def _embed_texts(texts: list[str], *, config: AICopilotConfig) -> list[list[float]]:
     normalized = [str(text or "") for text in texts]
     if not normalized:
@@ -4461,14 +4480,33 @@ def _embed_texts(texts: list[str], *, config: AICopilotConfig) -> list[list[floa
         client = _aliyun_openai_client(config)
         embeddings: list[list[float]] = []
         for batch in _batched_texts(normalized, batch_size=batch_size):
+            # Truncate each text to stay within DashScope's 8192-token input limit.
+            safe_batch = [_truncate_for_dashscope(t) for t in batch]
+            # Filter out any empty strings (API rejects empty input); track positions.
+            index_map: list[int] = []
+            non_empty: list[str] = []
+            for i, t in enumerate(safe_batch):
+                if t.strip():
+                    index_map.append(i)
+                    non_empty.append(t)
+            if not non_empty:
+                # All texts in this batch are empty — return zero vectors.
+                embeddings.extend([[]] * len(safe_batch))
+                continue
             payload: dict[str, Any] = {
                 "model": config.embedding_model,
-                "input": batch if len(batch) > 1 else batch[0],
+                "input": non_empty if len(non_empty) > 1 else non_empty[0],
             }
             if config.dashscope_embedding_dimensions > 0:
                 payload["dimensions"] = config.dashscope_embedding_dimensions
             response = client.embeddings.create(**payload)
-            embeddings.extend(_response_embeddings(response))
+            batch_vecs = _response_embeddings(response)
+            # Re-insert zero vectors for originally empty slots.
+            dim = len(batch_vecs[0]) if batch_vecs else 0
+            result: list[list[float]] = [[0.0] * dim] * len(safe_batch)
+            for vec_idx, orig_idx in enumerate(index_map):
+                result[orig_idx] = batch_vecs[vec_idx] if vec_idx < len(batch_vecs) else [0.0] * dim
+            embeddings.extend(result)
         return embeddings
 
     if not config.azure_openai_embedding_ready:

@@ -1,0 +1,27 @@
+{
+  "docs": 1,
+  "total_findings": 2,
+  "pattern_candidate_count": 2,
+  "docs_requiring_human_review": 1,
+  "finding_type_counts": {
+    "complex_table_clause_binding_drift": 1,
+    "parser_low_confidence_hotspot": 1
+  },
+  "suspected_layer_counts": {
+    "parser": 1,
+    "preview": 1
+  },
+  "documents": [
+    {
+      "doc_key": "seres_v32_k89_cts_asc",
+      "pdf_name": "【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
+      "profiles": {
+        "quality": "seres_v32_k89_cts_asc",
+        "fidelity": "seres_v32_k89_cts_asc"
+      },
+      "finding_count": 2,
+      "pattern_candidate_count": 2,
+      "needs_human_review": true
+    }
+  ]
+}

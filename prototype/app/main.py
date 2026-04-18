@@ -65,13 +65,22 @@ from app.services.iteration_insights import (
     list_iteration_rounds,
     load_high_risk_queue,
 )
-from app.services.progress_tracker import add_progress_event, load_progress_snapshot, replace_plan_items
+from app.services.progress_tracker import (
+    add_progress_event,
+    load_branch_snapshots,
+    load_gate_statuses,
+    load_progress_snapshot,
+    replace_plan_items,
+    update_progress_checkpoint,
+)
 from app.services.preview_cache import (
+    begin_preview_generation,
+    cancel_preview_refresh,
     get_preview_cache_state,
     load_cached_preview,
     mark_preview_stale,
     persist_preview_cache,
-    reset_document_snapshot_root,
+    purge_preview_artifacts,
     request_preview_refresh,
 )
 from app.services.table_assets import (
@@ -119,6 +128,60 @@ _AI_REASONING_EVENT_FLUSH_INTERVAL_SECONDS = 0.9
 _AI_REASONING_OUTPUT_PREVIEW_LIMIT = 2200
 
 
+def _normalize_preview_generation_id(value: object) -> str:
+    return str(value or "").strip()
+
+
+def _resolve_active_preview_generation_id(
+    *,
+    preview: dict | None = None,
+    document: dict | None = None,
+) -> str:
+    preview_generation_id = _normalize_preview_generation_id((preview or {}).get("preview_generation_id"))
+    if preview_generation_id:
+        return preview_generation_id
+    return _normalize_preview_generation_id((document or {}).get("preview_generation_id"))
+
+
+def _visual_assets_match_active_generation(
+    asset_generation_id: object,
+    active_generation_id: str,
+) -> bool:
+    if not active_generation_id:
+        return True
+    return _normalize_preview_generation_id(asset_generation_id) == active_generation_id
+
+
+def _strip_preview_visual_assets(row: dict[str, Any]) -> dict[str, Any]:
+    copied = dict(row)
+    copied["table_refs"] = []
+    copied["content_blocks"] = []
+    copied["has_table_asset"] = False
+    copied["table_render_mode"] = ""
+    return copied
+
+
+def _row_visual_assets_match_active_generation(row: dict | None, active_generation_id: str) -> bool:
+    if not isinstance(row, dict):
+        return False
+    return _visual_assets_match_active_generation(row.get("preview_generation_id"), active_generation_id)
+
+
+def _filter_table_assets_by_generation(
+    assets: list[dict[str, Any]] | None,
+    *,
+    active_generation_id: str,
+) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+    for asset in assets or []:
+        if not isinstance(asset, dict):
+            continue
+        if not _visual_assets_match_active_generation(asset.get("preview_generation_id"), active_generation_id):
+            continue
+        filtered.append(asset)
+    return filtered
+
+
 def _asset_file_ready(path_value: object) -> bool:
     path = Path(str(path_value or "").strip())
     if not path.exists():
@@ -156,6 +219,7 @@ def _resolve_document_table_asset(
     if not document or document["project_id"] != project_id:
         raise HTTPException(status_code=404, detail="SOR document not found for this project.")
 
+    active_generation_id = _resolve_active_preview_generation_id(document=document)
     preview_asset = None
     preview, _ = load_cached_preview(document)
     preview_assets = (preview or {}).get("table_assets") if isinstance(preview, dict) else []
@@ -163,8 +227,15 @@ def _resolve_document_table_asset(
         if isinstance(item, dict) and str(item.get("table_id") or "").strip() == table_id:
             preview_asset = item
             break
+    if preview_asset and not _visual_assets_match_active_generation(
+        preview_asset.get("preview_generation_id") or (preview or {}).get("preview_generation_id"),
+        active_generation_id,
+    ):
+        preview_asset = None
 
     db_asset = db.get_document_table_asset(project_id, document_id, table_id)
+    if db_asset and not _visual_assets_match_active_generation(db_asset.get("preview_generation_id"), active_generation_id):
+        db_asset = None
     if _table_asset_variant_is_ready(
         preview_asset,
         require_snapshot=require_snapshot,
@@ -219,6 +290,11 @@ class ReviewedRequirementEntry(BaseModel):
     entry_id: str | None = None
     req_code: str | None = None
     entry_kind: str | None = None
+    section_code: str | None = None
+    section_title: str | None = None
+    section_label: str | None = None
+    section_key: str | None = None
+    section_instance_key: str | None = None
     source_page: int | None = None
     source_page_end: int | None = None
     source_anchor: str | None = None
@@ -233,6 +309,13 @@ class ReviewedRequirementEntry(BaseModel):
     parent_section_code: str | None = None
     parent_section_title: str | None = None
     parent_section_label: str | None = None
+    owner_section_code: str | None = None
+    owner_section_title: str | None = None
+    owner_section_label: str | None = None
+    structural_parent_section_code: str | None = None
+    structural_parent_section_key: str | None = None
+    structural_parent_section_title: str | None = None
+    structural_parent_section_label: str | None = None
     merged_from_req_codes: list[str] | None = None
     merged_from_entry_ids: list[str] | None = None
     dedupe_version: str | None = None
@@ -334,6 +417,9 @@ class ProgressEventCreateRequest(BaseModel):
     category: str = Field(default="manual", max_length=32)
     status: str = Field(default="DONE", max_length=32)
     event_time: str | None = None
+    track_id: str = Field(default="", max_length=80)
+    branch_name: str = Field(default="", max_length=255)
+    event_type: str = Field(default="manual", max_length=32)
 
 
 class ProgressPlanItem(BaseModel):
@@ -344,10 +430,27 @@ class ProgressPlanItem(BaseModel):
     progress_pct: int = Field(default=0, ge=0, le=100)
     target_date: str = Field(default="", max_length=32)
     notes: str = Field(default="", max_length=1000)
+    track_id: str = Field(default="", max_length=80)
+    branch_name: str = Field(default="", max_length=255)
+    worktree_path: str = Field(default="", max_length=1024)
+    scope_summary: str = Field(default="", max_length=1000)
+    acceptance_gate: str = Field(default="", max_length=500)
+    depends_on: str = Field(default="", max_length=500)
+    drift_status: str = Field(default="ON_PLAN", max_length=32)
+    last_update_at: str = Field(default="", max_length=64)
+    latest_event_summary: str = Field(default="", max_length=1000)
 
 
 class ProgressPlanUpdateRequest(BaseModel):
     items: list[ProgressPlanItem]
+
+
+class ProgressCheckpointRequest(BaseModel):
+    track_id: str = Field(min_length=1, max_length=80)
+    progress_pct: int = Field(ge=0, le=100)
+    status: str = Field(default="INFO", max_length=32)
+    summary: str = Field(min_length=1, max_length=3000)
+    branch_name: str = Field(default="", max_length=255)
 
 
 app = FastAPI(title="SOR AI Prototype", version="1.0.0")
@@ -672,6 +775,16 @@ def _build_ai_profile_catalog(knowledge_docs: list[dict[str, Any]]) -> list[dict
 
 
 def _default_knowledge_sync_profile_ids() -> list[str]:
+    """Return profile IDs for all retrieval-ready profiles (azure + aliyun when configured).
+
+    Previously only returned the single default profile, which caused aliyun to be skipped
+    on resync even when its retrieval backend (Qdrant) was fully configured and running.
+    """
+    from app.services.ai_copilot import list_ai_copilot_profiles
+    ready = [c.profile_id for c in list_ai_copilot_profiles() if c.retrieval_runtime_ready]
+    if ready:
+        return ready
+    # Fallback: at least sync the default profile
     return [load_ai_copilot_config().profile_id]
 
 
@@ -803,9 +916,12 @@ def delete_sor_document(project_id: str, document_id: str) -> dict:
     document = db.get_sor_document(document_id)
     if not document or document["project_id"] != project_id:
         raise HTTPException(status_code=404, detail="SOR document not found for this project.")
+    cancel_preview_refresh(document_id)
     deleted = db.delete_sor_document(document_id)
     if not deleted:
         raise HTTPException(status_code=404, detail="SOR document not found.")
+    purge_preview_artifacts(document_id, recreate_snapshot_root=False)
+    _purge_table_snapshot_root(document_id)
     return {"ok": True, "file_name": deleted["file_name"]}
 
 
@@ -829,21 +945,24 @@ def get_sor_extraction_preview(project_id: str, document_id: str, response: Resp
     requirements = db.list_requirements(project_id, document_id)
     if preview is not None:
         preview = _attach_table_asset_urls_to_preview(preview, project_id=project_id, document_id=document_id)
+        preview_generation_id = _resolve_active_preview_generation_id(preview=preview, document=document)
         payload.update(preview)
         payload["review_entries"] = _attach_table_asset_urls_to_rows(
             _overlay_review_entries(
-            preview.get("complete_requirement_entries"),
-            requirements,
-            prefer_raw=False,
+                preview.get("complete_requirement_entries"),
+                requirements,
+                prefer_raw=False,
+                preview_generation_id=preview_generation_id,
             ),
             project_id=project_id,
             document_id=document_id,
         )
         payload["review_entries_raw"] = _attach_table_asset_urls_to_rows(
             _overlay_review_entries(
-            preview.get("complete_requirement_entries_raw") or preview.get("complete_requirement_entries"),
-            requirements,
-            prefer_raw=True,
+                preview.get("complete_requirement_entries_raw") or preview.get("complete_requirement_entries"),
+                requirements,
+                prefer_raw=True,
+                preview_generation_id=preview_generation_id,
             ),
             project_id=project_id,
             document_id=document_id,
@@ -1315,25 +1434,36 @@ def analyze_document(project_id: str, payload: AnalyzeRequest) -> dict:
     if not document or document["project_id"] != project_id:
         raise HTTPException(status_code=404, detail="SOR document not found for this project.")
 
-    preview = build_extraction_preview(
-        document["file_path"],
-        document_id=document["id"],
-        snapshot_root=reset_document_snapshot_root(document["id"]),
-    )
-    extracted = _build_analysis_rows_from_preview(preview)
-    if not extracted:
-        raise HTTPException(status_code=422, detail="No atomic requirements extracted from document.")
+    preview_generation_id, document = begin_preview_generation(document["id"])
+    try:
+        preview = build_extraction_preview(
+            document["file_path"],
+            document_id=document["id"],
+            snapshot_root=purge_preview_artifacts(document["id"]),
+        )
+        preview["preview_generation_id"] = preview_generation_id
+        extracted = _build_analysis_rows_from_preview(preview)
+        if not extracted:
+            raise HTTPException(status_code=422, detail="No atomic requirements extracted from document.")
 
-    inserted = _persist_requirements(
-        project_id=project_id,
-        sor_document_id=payload.document_id,
-        rows=extracted,
-        knowledge_docs=[],
-        dedupe_version=str(preview.get("summary", {}).get("dedupe_version") or ""),
-    )
-    document_state = db.increment_sor_document_requirement_set_version(payload.document_id, "EXTRACTED")
-    document_state = persist_preview_cache(document_state, preview) or document_state
-    knowledge_docs = _list_project_knowledge_documents(project_id)
+        inserted = _persist_requirements(
+            project_id=project_id,
+            sor_document_id=payload.document_id,
+            rows=extracted,
+            knowledge_docs=[],
+            dedupe_version=str(preview.get("summary", {}).get("dedupe_version") or ""),
+        )
+        document_state = db.increment_sor_document_requirement_set_version(payload.document_id, "EXTRACTED")
+        document_state = persist_preview_cache(document_state, preview) or document_state
+        knowledge_docs = _list_project_knowledge_documents(project_id)
+    except Exception as exc:
+        db.update_sor_document_preview_state(
+            document["id"],
+            preview_status="FAILED",
+            preview_error=str(exc)[:500],
+            preview_generation_id=preview_generation_id,
+        )
+        raise
 
     return {
         "project_id": project_id,
@@ -1435,6 +1565,7 @@ def save_review_entry(project_id: str, document_id: str, payload: ReviewedRequir
                 content_blocks=_json_dumps(normalized.get("content_blocks") or []),
                 has_table_asset=bool(normalized.get("has_table_asset")),
                 table_render_mode=str(normalized.get("table_render_mode") or ""),
+                preview_generation_id=_normalize_preview_generation_id(document.get("preview_generation_id")),
             )
             persisted_row = db.get_requirement(str(updated_row.get("id") or "")) or matched
             action = "updated"
@@ -1474,6 +1605,7 @@ def save_review_entry(project_id: str, document_id: str, payload: ReviewedRequir
                 content_blocks=_json_dumps(normalized.get("content_blocks") or []),
                 has_table_asset=bool(normalized.get("has_table_asset")),
                 table_render_mode=str(normalized.get("table_render_mode") or ""),
+                preview_generation_id=_normalize_preview_generation_id(document.get("preview_generation_id")),
             )
             persisted_row = db.get_requirement(str(inserted_row.get("id") or "")) or inserted_row
             action = "inserted"
@@ -2539,13 +2671,14 @@ def export_project(project_id: str, payload: ExportRequest | None = None) -> dic
         raise HTTPException(status_code=422, detail="No requirement data to export.")
     if document_id:
         requirements = _enrich_requirements_with_preview_context(requirements, str(document.get("file_path") or ""))
+        preview, preview_meta = load_cached_preview(document)
         requirements = _build_document_workspace(
             project=project,
             document=document,
             requirements=requirements,
             knowledge_docs_count=len(_list_project_knowledge_documents(project_id)),
-            preview=None,
-            preview_meta=get_preview_cache_state(document),
+            preview=preview,
+            preview_meta=preview_meta,
         )["requirements"]
     else:
         requirements = _present_requirements(requirements, preview=None)
@@ -2681,6 +2814,16 @@ def get_progress_snapshot(limit_rounds: int = 60, limit_events: int = 200) -> di
     return load_progress_snapshot(limit_rounds=limit_rounds, limit_events=limit_events)
 
 
+@app.get("/api/progress/branches")
+def get_progress_branches() -> dict:
+    return {"branches": load_branch_snapshots()}
+
+
+@app.get("/api/progress/gates")
+def get_progress_gates() -> dict:
+    return {"gates": load_gate_statuses()}
+
+
 @app.post("/api/progress/events")
 def create_progress_event(payload: ProgressEventCreateRequest) -> dict:
     try:
@@ -2690,6 +2833,9 @@ def create_progress_event(payload: ProgressEventCreateRequest) -> dict:
             category=payload.category,
             status=payload.status,
             event_time=payload.event_time,
+            track_id=payload.track_id,
+            branch_name=payload.branch_name,
+            event_type=payload.event_type,
         )
     except ValueError as exc:
         raise HTTPException(status_code=422, detail=str(exc)) from exc
@@ -2700,6 +2846,21 @@ def create_progress_event(payload: ProgressEventCreateRequest) -> dict:
 def update_progress_plan(payload: ProgressPlanUpdateRequest) -> dict:
     result = replace_plan_items([item.model_dump() for item in payload.items])
     return {"ok": True, **result}
+
+
+@app.post("/api/progress/checkpoint")
+def create_progress_checkpoint(payload: ProgressCheckpointRequest) -> dict:
+    try:
+        result = update_progress_checkpoint(
+            track_id=payload.track_id,
+            progress_pct=payload.progress_pct,
+            status=payload.status,
+            summary=payload.summary,
+            branch_name=payload.branch_name,
+        )
+    except ValueError as exc:
+        raise HTTPException(status_code=422, detail=str(exc)) from exc
+    return result
 
 
 def _require_project(project_id: str) -> dict:
@@ -2824,6 +2985,11 @@ def _build_analysis_rows_from_preview(preview: dict) -> list[dict]:
         base = {
             **row,
             "entry_kind": entry_kind,
+            "section_code": str(row.get("section_code") or "").strip(),
+            "section_title": str(row.get("section_title") or "").strip(),
+            "section_label": str(row.get("section_label") or "").strip(),
+            "section_key": str(row.get("section_key") or "").strip(),
+            "section_instance_key": str(row.get("section_instance_key") or "").strip(),
             "display_text": text,
             "raw_text": str(row.get("raw_text") or row.get("requirement_text") or text).strip(),
             "text_relation": str(row.get("text_relation") or "distinct").strip() or "distinct",
@@ -2831,6 +2997,13 @@ def _build_analysis_rows_from_preview(preview: dict) -> list[dict]:
             "parent_section_code": str(row.get("parent_section_code") or "").strip(),
             "parent_section_title": str(row.get("parent_section_title") or "").strip(),
             "parent_section_label": str(row.get("parent_section_label") or "").strip(),
+            "owner_section_code": str(row.get("owner_section_code") or "").strip(),
+            "owner_section_title": str(row.get("owner_section_title") or "").strip(),
+            "owner_section_label": str(row.get("owner_section_label") or "").strip(),
+            "structural_parent_section_code": str(row.get("structural_parent_section_code") or "").strip(),
+            "structural_parent_section_key": str(row.get("structural_parent_section_key") or "").strip(),
+            "structural_parent_section_title": str(row.get("structural_parent_section_title") or "").strip(),
+            "structural_parent_section_label": str(row.get("structural_parent_section_label") or "").strip(),
             "merged_from_req_codes": row.get("merged_from_req_codes") or [],
             "merged_from_entry_ids": row.get("merged_from_entry_ids") or [],
             "table_refs": row.get("table_refs") or [],
@@ -2865,6 +3038,11 @@ def _build_analysis_rows_from_review_payload(entries: list[ReviewedRequirementEn
                 "entry_id": str(row.get("entry_id") or row.get("req_code") or ""),
                 "req_code": str(row.get("req_code") or "").strip(),
                 "entry_kind": entry_kind,
+                "section_code": str(row.get("section_code") or "").strip(),
+                "section_title": str(row.get("section_title") or "").strip(),
+                "section_label": str(row.get("section_label") or "").strip(),
+                "section_key": str(row.get("section_key") or "").strip(),
+                "section_instance_key": str(row.get("section_instance_key") or "").strip(),
                 "source_page": row.get("source_page"),
                 "source_page_end": row.get("source_page_end"),
                 "source_anchor": str(row.get("source_anchor") or "Unknown"),
@@ -2878,6 +3056,13 @@ def _build_analysis_rows_from_review_payload(entries: list[ReviewedRequirementEn
                 "parent_section_code": str(row.get("parent_section_code") or "").strip(),
                 "parent_section_title": str(row.get("parent_section_title") or "").strip(),
                 "parent_section_label": str(row.get("parent_section_label") or "").strip(),
+                "owner_section_code": str(row.get("owner_section_code") or "").strip(),
+                "owner_section_title": str(row.get("owner_section_title") or "").strip(),
+                "owner_section_label": str(row.get("owner_section_label") or "").strip(),
+                "structural_parent_section_code": str(row.get("structural_parent_section_code") or "").strip(),
+                "structural_parent_section_key": str(row.get("structural_parent_section_key") or "").strip(),
+                "structural_parent_section_title": str(row.get("structural_parent_section_title") or "").strip(),
+                "structural_parent_section_label": str(row.get("structural_parent_section_label") or "").strip(),
                 "merged_from_req_codes": row.get("merged_from_req_codes") or [],
                 "merged_from_entry_ids": row.get("merged_from_entry_ids") or [],
                 "table_refs": row.get("table_refs") or [],
@@ -2900,6 +3085,8 @@ def _persist_requirements(
     knowledge_docs: list[dict],
     dedupe_version: str = "",
 ) -> int:
+    document = db.get_sor_document(sor_document_id) or {}
+    preview_generation_id = _normalize_preview_generation_id(document.get("preview_generation_id"))
     materialized_rows, table_assets = _materialize_document_table_assets(rows, sor_document_id=sor_document_id)
     db.clear_requirements_for_document(sor_document_id)
     used_req_codes: set[str] = set()
@@ -2941,6 +3128,7 @@ def _persist_requirements(
             content_blocks=content_blocks,
             has_table_asset=bool(item.get("has_table_asset")),
             table_render_mode=str(item.get("table_render_mode") or ""),
+            preview_generation_id=preview_generation_id,
         )
         if knowledge_docs:
             ai_config = load_ai_copilot_config()
@@ -2979,7 +3167,12 @@ def _persist_requirements(
             db.replace_evidences(requirement_id=req["id"], evidences=result["evidences"])
             _record_assessment_runs(req["id"], result.get("runs") or [])
         inserted += 1
-    db.replace_document_table_assets(project_id, sor_document_id, table_assets)
+    db.replace_document_table_assets(
+        project_id,
+        sor_document_id,
+        table_assets,
+        preview_generation_id=preview_generation_id,
+    )
     return inserted
 
 
@@ -3016,19 +3209,26 @@ def _json_dumps(value: object) -> str:
     return json.dumps(value if value is not None else [], ensure_ascii=False)
 
 
-def _table_snapshot_root(document_id: str) -> Path:
+def _table_snapshot_root(document_id: str, *, create: bool = True) -> Path:
     token = str(document_id or "").strip() or "preview"
     path = TABLE_SNAPSHOT_DIR / "persisted" / token
-    path.mkdir(parents=True, exist_ok=True)
+    if create:
+        path.mkdir(parents=True, exist_ok=True)
     return path
 
 
 def _reset_table_snapshot_root(document_id: str) -> Path:
-    path = _table_snapshot_root(document_id)
+    path = _table_snapshot_root(document_id, create=False)
     if path.exists():
         shutil.rmtree(path, ignore_errors=True)
     path.mkdir(parents=True, exist_ok=True)
     return path
+
+
+def _purge_table_snapshot_root(document_id: str) -> None:
+    path = _table_snapshot_root(document_id, create=False)
+    if path.exists():
+        shutil.rmtree(path, ignore_errors=True)
 
 
 def _materialize_document_table_assets(
@@ -3063,6 +3263,8 @@ def _materialize_document_table_assets(
 
 
 def _sync_document_table_assets(project_id: str, sor_document_id: str) -> None:
+    document = db.get_sor_document(sor_document_id) or {}
+    preview_generation_id = _normalize_preview_generation_id(document.get("preview_generation_id"))
     _reset_table_snapshot_root(sor_document_id)
     current_rows = db.list_requirements(project_id, sor_document_id)
     materialized_rows, table_assets = _materialize_document_table_assets(current_rows, sor_document_id=sor_document_id)
@@ -3093,14 +3295,29 @@ def _sync_document_table_assets(project_id: str, sor_document_id: str) -> None:
             content_blocks=_json_dumps(row.get("content_blocks") or []),
             has_table_asset=bool(row.get("has_table_asset")),
             table_render_mode=str(row.get("table_render_mode") or ""),
+            preview_generation_id=preview_generation_id,
         )
-    db.replace_document_table_assets(project_id, sor_document_id, table_assets)
+    db.replace_document_table_assets(
+        project_id,
+        sor_document_id,
+        table_assets,
+        preview_generation_id=preview_generation_id,
+    )
 
 
 def _enrich_requirements_with_preview_context(rows: list[dict], file_path: str) -> list[dict]:
     if not rows or not file_path:
         return rows
-    if all(str(row.get("parent_section_label") or "").strip() for row in rows):
+    if all(
+        str(row.get("parent_section_label") or "").strip()
+        and str(row.get("owner_section_label") or "").strip()
+        and (
+            str(row.get("section_instance_key") or "").strip()
+            or str(row.get("section_key") or "").strip()
+            or str(row.get("section_code") or "").strip()
+        )
+        for row in rows
+    ):
         return rows
     document = None
     for row in rows:
@@ -3114,17 +3331,40 @@ def _enrich_requirements_with_preview_context(rows: list[dict], file_path: str) 
     preview, _ = load_cached_preview(document)
     if preview is None:
         return rows
+    active_generation_id = _resolve_active_preview_generation_id(preview=preview, document=document)
     preview_index = _build_requirement_row_index(_build_analysis_rows_from_preview(preview))
     enriched: list[dict] = []
     pending_updates: list[dict[str, str]] = []
     for row in rows:
-        meta = _find_indexed_requirement_row(row, preview_index, allow_weak_identifier=True)
-        if not meta:
-            enriched.append(row)
-            continue
         copied = dict(row)
         changed = False
+        if not _row_visual_assets_match_active_generation(copied, active_generation_id):
+            copied = _strip_preview_visual_assets(copied)
+            changed = True
+        meta = _find_indexed_requirement_row(row, preview_index, allow_weak_identifier=True)
+        if not meta:
+            enriched.append(copied if changed else row)
+            continue
         for key in ("parent_section_code", "parent_section_title", "parent_section_label"):
+            if not str(copied.get(key) or "").strip():
+                value = str(meta.get(key) or "").strip()
+                if value:
+                    copied[key] = value
+                    changed = True
+        for key in (
+            "section_code",
+            "section_title",
+            "section_label",
+            "section_key",
+            "section_instance_key",
+            "owner_section_code",
+            "owner_section_title",
+            "owner_section_label",
+            "structural_parent_section_code",
+            "structural_parent_section_key",
+            "structural_parent_section_title",
+            "structural_parent_section_label",
+        ):
             if not str(copied.get(key) or "").strip():
                 value = str(meta.get(key) or "").strip()
                 if value:
@@ -3144,6 +3384,9 @@ def _enrich_requirements_with_preview_context(rows: list[dict], file_path: str) 
             changed = True
         if not bool(copied.get("complex_table_mode")) and bool(meta.get("complex_table_mode")):
             copied.update(_copy_complex_row_fields(meta))
+            changed = True
+        if active_generation_id and str(copied.get("preview_generation_id") or "").strip() != active_generation_id:
+            copied["preview_generation_id"] = active_generation_id
             changed = True
         if copied.get("table_refs") or copied.get("content_blocks"):
             refreshed = hydrate_complex_row_metadata(normalize_preserved_entry_table_assets(copied))
@@ -3185,6 +3428,8 @@ def _attach_table_asset_urls_to_rows(rows: list[dict], *, project_id: str, docum
 def _attach_table_asset_urls_to_preview(preview: dict | None, *, project_id: str, document_id: str) -> dict | None:
     if not isinstance(preview, dict):
         return preview
+    document = db.get_sor_document(document_id)
+    active_generation_id = _resolve_active_preview_generation_id(preview=preview, document=document)
     copied = dict(preview)
     copied["complete_requirement_entries"] = _attach_table_asset_urls_to_rows(
         copied.get("complete_requirement_entries") or [],
@@ -3199,6 +3444,7 @@ def _attach_table_asset_urls_to_preview(preview: dict | None, *, project_id: str
     assets = copied.get("table_assets")
     if not isinstance(assets, list) or not assets:
         assets = db.list_document_table_assets(project_id, document_id)
+    assets = _filter_table_assets_by_generation(assets, active_generation_id=active_generation_id)
     copied["table_assets"] = [
         prepare_table_asset_urls(asset, project_id=project_id, document_id=document_id)
         for asset in assets
@@ -3246,6 +3492,7 @@ def _build_document_workspace(
     )
     if ai_stale and ai_status == "READY":
         ai_status = "STALE"
+    preview_generation_id = _resolve_active_preview_generation_id(preview=preview, document=document)
 
     review_entries: list[dict] = []
     review_entries_raw: list[dict] = []
@@ -3255,11 +3502,13 @@ def _build_document_workspace(
             preview.get("complete_requirement_entries"),
             requirements,
             prefer_raw=False,
+            preview_generation_id=preview_generation_id,
         )
         review_entries_raw = _overlay_review_entries(
             preview.get("complete_requirement_entries_raw") or preview.get("complete_requirement_entries"),
             requirements,
             prefer_raw=True,
+            preview_generation_id=preview_generation_id,
         )
         if not review_entries and requirements:
             review_entries = [dict(item, keep=True) for item in presented_requirements]
@@ -3309,6 +3558,7 @@ def _build_document_workspace(
             "default_ai_profile_id": ai_runtime.profile_id,
             "created_at": document.get("created_at"),
             "updated_at": document.get("updated_at"),
+            "preview_generation_id": preview_generation_id,
         },
         "summary": {
             "requirement_count": len(presented_requirements),
@@ -3363,7 +3613,27 @@ def _prepare_requirements_for_display(
     *,
     preview: dict | None = None,
 ) -> tuple[list[dict], dict[str, object]]:
-    presented = _present_requirements(requirements, preview=preview)
+    active_generation_id = _resolve_active_preview_generation_id(preview=preview)
+    document_generation_cache: dict[str, str] = {}
+    normalized_requirements: list[dict] = []
+    for row in requirements:
+        if not isinstance(row, dict):
+            continue
+        copied = dict(row)
+        expected_generation_id = active_generation_id
+        if not expected_generation_id:
+            document_id = str(copied.get("sor_document_id") or "").strip()
+            if document_id:
+                expected_generation_id = document_generation_cache.get(document_id, "")
+                if document_id not in document_generation_cache:
+                    document_generation_cache[document_id] = _normalize_preview_generation_id(
+                        (db.get_sor_document(document_id) or {}).get("preview_generation_id")
+                    )
+                    expected_generation_id = document_generation_cache.get(document_id, "")
+        if not _row_visual_assets_match_active_generation(copied, expected_generation_id):
+            copied = _strip_preview_visual_assets(copied)
+        normalized_requirements.append(copied)
+    presented = _present_requirements(normalized_requirements, preview=preview)
     diagnostics = _build_requirement_order_diagnostics(presented, preview=preview)
     return presented, diagnostics
 
@@ -3410,40 +3680,71 @@ def _sort_requirements_for_display(
     preview: dict | None = None,
 ) -> tuple[list[dict], dict[str, object]]:
     preview_order = _build_preview_requirement_order_index(preview)
-    ranked: list[tuple[tuple, dict]] = []
+    if not preview_order:
+        ranked: list[tuple[tuple, dict]] = []
+        for original_index, row in enumerate(requirements):
+            copied = dict(row)
+            copied["preview_rank"] = None
+            ranked.append((_fallback_requirement_display_sort_key(copied, original_index), copied))
+        ranked.sort(key=lambda item: item[0])
+        ordered = [row for _, row in ranked]
+        for display_order, row in enumerate(ordered, start=1):
+            row["display_order"] = display_order
+            row["source_order"] = display_order
+        return ordered, {
+            "order_source": "fallback_page_anchor",
+            "order_mismatch_count": 0,
+        }
+
+    matched: list[tuple[int, int, dict]] = []
+    unmatched: list[tuple[int, dict]] = []
     mismatch_count = 0
     for original_index, row in enumerate(requirements):
         preview_rank = _lookup_preview_rank(row, preview_order)
-        if preview_order and preview_rank >= 10**9:
-            mismatch_count += 1
-        page = _coerce_positive_int(row.get("source_page"))
-        page_end = _coerce_positive_int(row.get("source_page_end")) or page
-        section_key = _natural_sort_key(
-            str(row.get("parent_section_code") or row.get("section_code") or row.get("parent_section_label") or "")
-        )
-        anchor_key = _natural_sort_key(str(row.get("source_anchor") or ""))
-        req_code_key = _natural_sort_key(str(row.get("req_code") or ""))
-        text_key = _natural_sort_key(str(row.get("raw_text") or row.get("display_text") or row.get("requirement_text") or ""))
         copied = dict(row)
-        copied["source_order"] = preview_rank + 1 if preview_rank < 10**9 else 0
-        ranked.append(
-            (
-                (
-                    preview_rank,
-                    page if page > 0 else 10**9,
-                    page_end if page_end > 0 else 10**9,
-                    section_key,
-                    anchor_key,
-                    req_code_key,
-                    text_key,
-                    original_index,
-                ),
-                copied,
-            )
-        )
-    ranked.sort(key=lambda item: item[0])
-    return [row for _, row in ranked], {
-        "order_source": "review_overlay" if preview_order else "fallback_page_anchor",
+        if preview_rank < 10**9:
+            copied["preview_rank"] = preview_rank
+            copied["source_order"] = preview_rank + 1
+            matched.append((preview_rank, original_index, copied))
+        else:
+            copied["preview_rank"] = None
+            copied["source_order"] = 0
+            unmatched.append((original_index, copied))
+            mismatch_count += 1
+
+    matched.sort(key=lambda item: (item[0], item[1]))
+    matched_rows = [row for _, _, row in matched]
+    last_matched_index_by_owner: dict[str, int] = {}
+    for matched_index, row in enumerate(matched_rows):
+        for token in _row_owner_section_tokens(row):
+            last_matched_index_by_owner[token] = matched_index
+
+    unmatched_after_index: dict[int, list[dict]] = {}
+    unmatched_tail: list[dict] = []
+    for _, row in unmatched:
+        anchor_indices = [
+            last_matched_index_by_owner[token]
+            for token in _row_owner_section_tokens(row)
+            if token in last_matched_index_by_owner
+        ]
+        if anchor_indices:
+            unmatched_after_index.setdefault(max(anchor_indices), []).append(row)
+        else:
+            unmatched_tail.append(row)
+
+    ordered: list[dict] = []
+    for matched_index, row in enumerate(matched_rows):
+        ordered.append(row)
+        ordered.extend(unmatched_after_index.get(matched_index, []))
+    ordered.extend(unmatched_tail)
+
+    for display_order, row in enumerate(ordered, start=1):
+        row["display_order"] = display_order
+        if row.get("preview_rank") is None:
+            row["source_order"] = display_order
+
+    return ordered, {
+        "order_source": "review_overlay",
         "order_mismatch_count": mismatch_count,
     }
 
@@ -3488,6 +3789,33 @@ def _lookup_preview_rank(row: dict, preview_order: dict[str, object]) -> int:
         return int(rank_by_row_id.get(id(matched), 10**9))
     except (TypeError, ValueError):
         return 10**9
+
+
+def _fallback_requirement_display_sort_key(row: dict, original_index: int) -> tuple:
+    page = _coerce_positive_int(row.get("source_page"))
+    page_end = _coerce_positive_int(row.get("source_page_end")) or page
+    section_key = _natural_sort_key(
+        str(
+            row.get("owner_section_code")
+            or row.get("section_code")
+            or row.get("parent_section_code")
+            or row.get("owner_section_label")
+            or row.get("parent_section_label")
+            or ""
+        )
+    )
+    anchor_key = _natural_sort_key(str(row.get("source_anchor") or ""))
+    req_code_key = _natural_sort_key(str(row.get("req_code") or ""))
+    text_key = _natural_sort_key(str(row.get("raw_text") or row.get("display_text") or row.get("requirement_text") or ""))
+    return (
+        page if page > 0 else 10**9,
+        page_end if page_end > 0 else 10**9,
+        section_key,
+        anchor_key,
+        req_code_key,
+        text_key,
+        original_index,
+    )
 
 
 def _requirement_match_tokens(row: dict) -> list[str]:
@@ -3572,6 +3900,64 @@ def _requirement_entry_kind_group(row: dict) -> str:
     return str(row.get("entry_kind") or "").strip().upper()
 
 
+def _normalized_section_identity_value(value: object) -> str:
+    return re.sub(r"\s+", " ", str(value or "").strip())
+
+
+def _requirement_structural_identity_keys(row: dict) -> list[str]:
+    kind = _requirement_entry_kind_group(row)
+    if not kind:
+        return []
+    section_tokens: list[str] = []
+    for field_name in (
+        "section_instance_key",
+        "section_key",
+        "owner_section_code",
+        "parent_section_code",
+        "section_code",
+    ):
+        value = _normalized_section_identity_value(row.get(field_name))
+        if value and value not in section_tokens:
+            prefix = "code" if field_name.endswith("_code") else "section"
+            section_tokens.append(f"{prefix}:{value}")
+    identifier_tokens: list[str] = []
+    entry_id = str(row.get("entry_id") or "").strip()
+    if entry_id:
+        identifier_tokens.append(f"entry:{entry_id}")
+    req_code = str(row.get("req_code") or "").strip()
+    if req_code:
+        identifier_tokens.append(f"req:{req_code}")
+        base_req_code = _base_req_code(req_code)
+        if base_req_code:
+            identifier_tokens.append(f"base:{base_req_code}")
+    if not section_tokens or not identifier_tokens:
+        return []
+    keys: list[str] = []
+    for section_token in section_tokens:
+        for identifier_token in identifier_tokens:
+            keys.append(f"{kind}|{section_token}|{identifier_token}")
+    return keys
+
+
+def _row_owner_section_tokens(row: dict) -> list[str]:
+    tokens: list[str] = []
+    for field_name in (
+        "section_instance_key",
+        "section_key",
+        "owner_section_code",
+        "owner_section_label",
+        "owner_section_title",
+        "section_code",
+        "parent_section_code",
+        "parent_section_label",
+        "parent_section_title",
+    ):
+        value = _normalized_section_identity_value(row.get(field_name))
+        if value and value not in tokens:
+            tokens.append(value)
+    return tokens
+
+
 def _rows_have_compatible_entry_kind(left: dict, right: dict) -> bool:
     left_kind = _requirement_entry_kind_group(left)
     right_kind = _requirement_entry_kind_group(right)
@@ -3608,6 +3994,8 @@ def _append_requirement_row_to_index(index: dict[str, object], row: dict) -> Non
     _append_bucket("by_page_text", _requirement_page_text_match_key(row))
     _append_bucket("by_anchor_text", _requirement_anchor_text_match_key(row))
     _append_bucket("by_anchor_only", _requirement_anchor_only_key(row))
+    for identity_key in _requirement_structural_identity_keys(row):
+        _append_bucket("by_identity", identity_key)
     entry_id = str(row.get("entry_id") or "").strip()
     if entry_id:
         _append_bucket("by_entry", entry_id)
@@ -3623,6 +4011,7 @@ def _build_requirement_row_index(rows: list[dict]) -> dict[str, object]:
     index: dict[str, object] = {
         "rows": [],
         "rank_by_row_id": {},
+        "by_identity": {},
         "by_exact": {},
         "by_anchor": {},
         "by_page_text": {},
@@ -3689,6 +4078,11 @@ def _find_indexed_requirement_row(
     rows = index.get("rows")
     if not isinstance(rows, list) or not rows:
         return None
+
+    for identity_key in _requirement_structural_identity_keys(row):
+        candidate = _first_unique_index_match(index, "by_identity", identity_key)
+        if candidate is not None and _rows_have_compatible_entry_kind(row, candidate):
+            return candidate
 
     for bucket_name, key in (
         ("by_exact", _requirement_exact_match_key(row)),
@@ -3793,7 +4187,13 @@ def _coerce_int(value: object) -> int:
         return 0
 
 
-def _overlay_review_entries(rows: object, persisted_requirements: list[dict], *, prefer_raw: bool) -> list[dict]:
+def _overlay_review_entries(
+    rows: object,
+    persisted_requirements: list[dict],
+    *,
+    prefer_raw: bool,
+    preview_generation_id: str = "",
+) -> list[dict]:
     if not isinstance(rows, list):
         return []
     persisted_index = _build_requirement_row_index([dict(item) for item in (persisted_requirements or []) if isinstance(item, dict)])
@@ -3802,6 +4202,10 @@ def _overlay_review_entries(rows: object, persisted_requirements: list[dict], *,
         if not isinstance(raw_row, dict):
             continue
         row = dict(raw_row)
+        row["preview_rank"] = index
+        row["display_order"] = index + 1
+        if preview_generation_id:
+            row["preview_generation_id"] = preview_generation_id
         persisted = _find_indexed_requirement_row(row, persisted_index, allow_weak_identifier=True)
         if persisted and not _persisted_review_matches_preview_row(persisted, row):
             persisted = None
@@ -3809,6 +4213,7 @@ def _overlay_review_entries(rows: object, persisted_requirements: list[dict], *,
             merged_refs, merged_blocks, merged_has_asset, merged_render_mode = _merge_preview_table_assets_for_review_row(
                 preview_row=row,
                 persisted_row=persisted,
+                active_preview_generation_id=preview_generation_id,
             )
             row["id"] = persisted.get("id")
             row["keep"] = True
@@ -3851,9 +4256,14 @@ def _merge_preview_table_assets_for_review_row(
     *,
     preview_row: dict,
     persisted_row: dict,
+    active_preview_generation_id: str = "",
 ) -> tuple[list[dict], list[dict], bool, str]:
     preview_refs = [dict(item) for item in (preview_row.get("table_refs") or []) if isinstance(item, dict)]
-    persisted_refs = [dict(item) for item in (persisted_row.get("table_refs") or []) if isinstance(item, dict)]
+    persisted_refs = (
+        [dict(item) for item in (persisted_row.get("table_refs") or []) if isinstance(item, dict)]
+        if _row_visual_assets_match_active_generation(persisted_row, active_preview_generation_id)
+        else []
+    )
     merged_refs: list[dict]
 
     if preview_refs:
@@ -3888,12 +4298,23 @@ def _merge_preview_table_assets_for_review_row(
         merged_refs = persisted_refs
 
     preview_blocks = preview_row.get("content_blocks") if isinstance(preview_row.get("content_blocks"), list) else []
-    persisted_blocks = persisted_row.get("content_blocks") if isinstance(persisted_row.get("content_blocks"), list) else []
-    merged_blocks = preview_blocks or persisted_blocks or []
-    merged_has_asset = bool(preview_row.get("has_table_asset")) if preview_row.get("has_table_asset") is not None else bool(
-        persisted_row.get("has_table_asset")
+    persisted_blocks = (
+        persisted_row.get("content_blocks")
+        if _row_visual_assets_match_active_generation(persisted_row, active_preview_generation_id)
+        and isinstance(persisted_row.get("content_blocks"), list)
+        else []
     )
-    merged_render_mode = str(preview_row.get("table_render_mode") or persisted_row.get("table_render_mode") or "").strip()
+    merged_blocks = preview_blocks or persisted_blocks or []
+    persisted_has_asset = bool(persisted_row.get("has_table_asset")) if _row_visual_assets_match_active_generation(
+        persisted_row, active_preview_generation_id
+    ) else False
+    merged_has_asset = bool(preview_row.get("has_table_asset")) if preview_row.get("has_table_asset") is not None else persisted_has_asset
+    persisted_render_mode = (
+        str(persisted_row.get("table_render_mode") or "").strip()
+        if _row_visual_assets_match_active_generation(persisted_row, active_preview_generation_id)
+        else ""
+    )
+    merged_render_mode = str(preview_row.get("table_render_mode") or persisted_render_mode or "").strip()
     if merged_refs:
         merged_has_asset = True
     return merged_refs, merged_blocks, merged_has_asset, merged_render_mode
@@ -3933,11 +4354,14 @@ def _build_workspace_requirements_from_review_entries(
     fallback_requirements: list[dict],
     preview: dict | None,
 ) -> tuple[list[dict], dict[str, object]]:
+    active_generation_id = _resolve_active_preview_generation_id(preview=preview)
     current_rows: list[dict] = []
     for row in rows or []:
         if not bool(row.get("keep", True)):
             continue
         copied = hydrate_complex_row_metadata(dict(row))
+        if not _row_visual_assets_match_active_generation(copied, active_generation_id):
+            copied = _strip_preview_visual_assets(copied)
         copied["requirement_text"] = str(
             row.get("raw_text") or row.get("requirement_text") or row.get("display_text") or ""
         ).strip()
@@ -3958,6 +4382,8 @@ def _build_workspace_requirements_from_review_entries(
         if _find_indexed_requirement_row(row, current_index, allow_weak_identifier=True) is not None:
             continue
         copied = hydrate_complex_row_metadata(dict(row))
+        if not _row_visual_assets_match_active_generation(copied, active_generation_id):
+            copied = _strip_preview_visual_assets(copied)
         copied["requirement_text"] = str(
             copied.get("raw_text") or copied.get("requirement_text") or copied.get("display_text") or ""
         ).strip()
@@ -3993,6 +4419,11 @@ def _normalize_review_entry_payload(item: ReviewedRequirementEntry) -> dict[str,
         "req_code": str(row.get("req_code") or "").strip(),
         "keep": bool(row.get("keep", True)),
         "entry_kind": str(row.get("entry_kind") or "REQUIREMENT").strip().upper() or "REQUIREMENT",
+        "section_code": str(row.get("section_code") or "").strip(),
+        "section_title": str(row.get("section_title") or "").strip(),
+        "section_label": str(row.get("section_label") or "").strip(),
+        "section_key": str(row.get("section_key") or "").strip(),
+        "section_instance_key": str(row.get("section_instance_key") or "").strip(),
         "source_page": row.get("source_page"),
         "source_page_end": row.get("source_page_end"),
         "source_anchor": str(row.get("source_anchor") or "Unknown").strip() or "Unknown",
@@ -4006,6 +4437,13 @@ def _normalize_review_entry_payload(item: ReviewedRequirementEntry) -> dict[str,
         "parent_section_code": str(row.get("parent_section_code") or "").strip(),
         "parent_section_title": str(row.get("parent_section_title") or "").strip(),
         "parent_section_label": str(row.get("parent_section_label") or "").strip(),
+        "owner_section_code": str(row.get("owner_section_code") or "").strip(),
+        "owner_section_title": str(row.get("owner_section_title") or "").strip(),
+        "owner_section_label": str(row.get("owner_section_label") or "").strip(),
+        "structural_parent_section_code": str(row.get("structural_parent_section_code") or "").strip(),
+        "structural_parent_section_key": str(row.get("structural_parent_section_key") or "").strip(),
+        "structural_parent_section_title": str(row.get("structural_parent_section_title") or "").strip(),
+        "structural_parent_section_label": str(row.get("structural_parent_section_label") or "").strip(),
         "merged_from_req_codes": row.get("merged_from_req_codes") or [],
         "merged_from_entry_ids": row.get("merged_from_entry_ids") or [],
         "table_refs": row.get("table_refs") or [],
@@ -4067,6 +4505,13 @@ def _build_saved_review_entry(normalized: dict[str, object], persisted: dict | N
         "keep": bool(keep),
         "entry_kind": str(persisted.get("entry_kind") or normalized.get("entry_kind") or "REQUIREMENT").strip().upper()
         or "REQUIREMENT",
+        "section_code": str(persisted.get("section_code") or normalized.get("section_code") or "").strip(),
+        "section_title": str(persisted.get("section_title") or normalized.get("section_title") or "").strip(),
+        "section_label": str(persisted.get("section_label") or normalized.get("section_label") or "").strip(),
+        "section_key": str(persisted.get("section_key") or normalized.get("section_key") or "").strip(),
+        "section_instance_key": str(
+            persisted.get("section_instance_key") or normalized.get("section_instance_key") or ""
+        ).strip(),
         "source_page": source_page,
         "source_page_end": source_page_end,
         "source_anchor": str(persisted.get("source_anchor") or normalized.get("source_anchor") or "Unknown").strip()
@@ -4095,6 +4540,27 @@ def _build_saved_review_entry(normalized: dict[str, object], persisted: dict | N
         ).strip(),
         "parent_section_label": str(
             persisted.get("parent_section_label") or normalized.get("parent_section_label") or ""
+        ).strip(),
+        "owner_section_code": str(
+            persisted.get("owner_section_code") or normalized.get("owner_section_code") or ""
+        ).strip(),
+        "owner_section_title": str(
+            persisted.get("owner_section_title") or normalized.get("owner_section_title") or ""
+        ).strip(),
+        "owner_section_label": str(
+            persisted.get("owner_section_label") or normalized.get("owner_section_label") or ""
+        ).strip(),
+        "structural_parent_section_code": str(
+            persisted.get("structural_parent_section_code") or normalized.get("structural_parent_section_code") or ""
+        ).strip(),
+        "structural_parent_section_key": str(
+            persisted.get("structural_parent_section_key") or normalized.get("structural_parent_section_key") or ""
+        ).strip(),
+        "structural_parent_section_title": str(
+            persisted.get("structural_parent_section_title") or normalized.get("structural_parent_section_title") or ""
+        ).strip(),
+        "structural_parent_section_label": str(
+            persisted.get("structural_parent_section_label") or normalized.get("structural_parent_section_label") or ""
         ).strip(),
         "merged_from_req_codes": persisted.get("merged_from_req_codes")
         if isinstance(persisted.get("merged_from_req_codes"), list)

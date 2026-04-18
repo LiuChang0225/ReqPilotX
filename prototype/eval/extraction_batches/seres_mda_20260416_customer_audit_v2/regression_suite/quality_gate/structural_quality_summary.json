@@ -1,0 +1,13 @@
+{
+  "pdf_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260416_customer_audit_v2/staged_docs",
+  "docs": 12,
+  "checks_passed": 95,
+  "checks_total": 102,
+  "gate_score_pct": 93.14,
+  "high_severity_issues": 42,
+  "gate_pass": false,
+  "gate_failure_reasons": [
+    "high_severity_issues=42 > 0"
+  ],
+  "split_metric_confidence": null
+}

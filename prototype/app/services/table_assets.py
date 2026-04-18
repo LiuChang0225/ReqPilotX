@@ -11,6 +11,7 @@ from typing import Any
 from PIL import Image as PILImage
 from PIL import ImageChops, ImageDraw, ImageFont
 
+from app.services.appendix_scopes import is_test_outline_scope_value, normalize_scope_id
 from app.services.complex_table_mode import hydrate_complex_row_metadata, is_complex_table_row
 
 try:
@@ -1168,8 +1169,19 @@ def _write_png_atomically(target: Path, image_bytes: bytes) -> Path:
     return target
 
 
-def render_table_png(headers: list[str], rows: list[list[str]], *, max_width_px: int = _SNAPSHOT_MAX_WIDTH_PX) -> bytes:
-    image_bytes, _, _ = _render_table_image([headers, *rows], max_width_px=max_width_px)
+def render_table_png(
+    headers: list[str],
+    rows: list[list[str]],
+    *,
+    max_width_px: int = _SNAPSHOT_MAX_WIDTH_PX,
+    include_header: bool = True,
+) -> bytes:
+    table_rows = [headers, *rows] if include_header and headers else rows
+    image_bytes, _, _ = _render_table_image(
+        table_rows,
+        max_width_px=max_width_px,
+        header_row_count=1 if include_header and headers else 0,
+    )
     return image_bytes.getvalue()
 
 
@@ -1851,11 +1863,13 @@ def _infer_contextual_single_row_header(
     if len(cells) < 2:
         return []
 
-    appendix_scope = str(row.get("appendix_scope") or "").strip().upper()
+    appendix_scope = normalize_scope_id(str(row.get("appendix_scope") or ""))
+    appendix_title = str(row.get("appendix_title") or "").strip()
     parent_code = str(row.get("parent_section_code") or "").strip().upper()
     context_text = " ".join(
         str(value or "").strip()
         for value in (
+            appendix_title,
             table_title,
             row.get("table_title"),
             row.get("parent_section_title"),
@@ -1866,9 +1880,12 @@ def _infer_contextual_single_row_header(
         if str(value or "").strip()
     )
     if (
-        appendix_scope in {"T", "U", "V", "Y"}
-        or parent_code.startswith(("T.", "U.", "V.", "Y."))
+        is_test_outline_scope_value(appendix_scope)
+        or is_test_outline_scope_value(appendix_title)
+        or is_test_outline_scope_value(parent_code.split(".", 1)[0])
         or "试验大纲" in context_text
+        or "匹配评估表" in context_text
+        or "测试分组" in context_text
     ):
         return _infer_test_outline_single_row_headers(cells)
     return []
@@ -2412,8 +2429,8 @@ def _write_snapshot(
 ) -> Path:
     snapshot_root.mkdir(parents=True, exist_ok=True)
     target = snapshot_root / f"{table_id}.png"
-    if render_mode == "structured" and headers:
-        image_bytes = render_table_png(headers, rows)
+    if render_mode == "structured" and (headers or rows):
+        image_bytes = render_table_png(headers, rows, include_header=bool(headers))
     else:
         image_bytes = render_text_snapshot_png(text)
     return _write_png_atomically(target, image_bytes)
@@ -4393,7 +4410,12 @@ def _coerce_int(value: Any) -> int:
         return 0
 
 
-def _render_table_image(rows: list[list[str]], *, max_width_px: int) -> tuple[BytesIO, int, int]:
+def _render_table_image(
+    rows: list[list[str]],
+    *,
+    max_width_px: int,
+    header_row_count: int = 1,
+) -> tuple[BytesIO, int, int]:
     normalized_rows = _normalize_table_rows(rows)
     font = _load_font(_TABLE_FONT_SIZE)
     probe = ImageDraw.Draw(PILImage.new("RGB", (1, 1), "white"))
@@ -4421,7 +4443,7 @@ def _render_table_image(rows: list[list[str]], *, max_width_px: int) -> tuple[By
     y = 0
     for row_index, row in enumerate(wrapped_rows):
         x = 0
-        fill_color = "#DCE9F8" if row_index == 0 else "#FFFFFF"
+        fill_color = "#DCE9F8" if row_index < max(0, int(header_row_count or 0)) else "#FFFFFF"
         for col_index, content in enumerate(row):
             width = column_widths[col_index]
             height = row_heights[row_index]

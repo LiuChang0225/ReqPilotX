@@ -153,20 +153,22 @@ def rewrite_preview_sections_for_complex_tables(
         return copied_sections
 
     output: list[dict[str, Any]] = []
-    inserted_zone_ids: set[str] = set()
     matched_index_to_zone_id = _rewrite_match_index_map(rewrite_plans)
+    emitted_zone_ids: set[str] = set()
     for index, row in enumerate(copied_sections):
         zone_id = matched_index_to_zone_id.get(index)
         if not zone_id:
             output.append(row)
             continue
-        if zone_id in inserted_zone_ids:
+        if zone_id in emitted_zone_ids:
             continue
-        inserted_zone_ids.add(zone_id)
         plan = rewrite_plans.get(zone_id) or {}
         zone = plan.get("zone")
-        if isinstance(zone, dict):
-            output.extend(_build_zone_section_rows(zone))
+        if not isinstance(zone, dict):
+            output.append(row)
+            continue
+        output.extend(_build_zone_section_rows(zone))
+        emitted_zone_ids.add(zone_id)
     return output
 
 

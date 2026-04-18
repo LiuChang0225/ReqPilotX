@@ -3,6 +3,30 @@ from __future__ import annotations
 import re
 from typing import Any
 
+from app.services.appendix_scopes import (
+    APPENDIX_EVIDENCE_EXPLICIT,
+    APPENDIX_EVIDENCE_HEADING,
+    APPENDIX_EVIDENCE_TABLE_HEADER,
+    APPENDIX_EVIDENCE_TOC,
+    MAIN_SCOPE_ID,
+    TEST_OUTLINE_INFERRED_GENERIC_TITLE,
+    is_test_outline_scope_value,
+    is_reference_only_test_outline_scope,
+    is_synthetic_scope,
+    infer_generic_test_outline_title,
+    normalize_scope_id,
+    normalize_test_outline_scope,
+    scope_evidence_rank,
+    scope_sort_key,
+    test_outline_scope_identity,
+    TEST_OUTLINE_SCOPE_ACCUMULATOR,
+    TEST_OUTLINE_SCOPE_ELECTRIC,
+    TEST_OUTLINE_SCOPE_FRONT_DAMPER,
+    TEST_OUTLINE_SCOPE_GROUPS,
+    TEST_OUTLINE_SCOPE_REAR_DAMPER,
+    TEST_OUTLINE_SCOPE_VEHICLE_WIRING,
+)
+
 
 DOT_LEADER_RE = re.compile(r"\.{5,}|…{3,}")
 PAGE_MARK_RE = re.compile(r"^(?:page\s*)?\d+\s*(?:of|/)\s*\d+$", re.I)
@@ -16,6 +40,7 @@ EMBEDDED_LOCAL_CLAUSE_HEAD_RE = re.compile(r"^\s*(\d+(?:\.\d+)+)(?:\s*[）)]\s*|
 HEADER_TITLE_LEADING_PUNCT_RE = re.compile(r"^[,，;；:：、)）\]】\-\.\|]+")
 HEADER_TITLE_VALID_START_RE = re.compile(r"[A-Za-z\u4e00-\u9fff]")
 HEADER_ENUM_LIKE_RE = re.compile(r"^\d+\s*[)）:：、\.]")
+HEADER_PAREN_ENUM_PREFIX_RE = re.compile(r"^\s*[（(]\s*[A-Za-z0-9一二三四五六七八九十]{1,8}\s*[）)]\s*")
 HEADER_SENTENCE_PREFIX_RE = re.compile(
     r"^(?:and|or|to|for|with|without|in|on|at|by|from|than|while|where|then|if|when|which|that|operate|operating|mode)\b",
     re.I,
@@ -36,9 +61,11 @@ HEADING_KEYWORD_RE = re.compile(
     re.I,
 )
 STRONG_MAJOR_HEADING_KEYWORD_RE = re.compile(
-    r"(?:chapter|section|scope|requirement|standard|appendix|annex|lifecycle|phase|development|production|maintenance|support|概述|范围|要求|标准|规范|术语|定义|总则|附录|附件|阶段|生命周期|开发|生产|维护|支持)",
+    r"(?:chapter|section|scope|requirement|standard|appendix|annex|lifecycle|phase|development|production|maintenance|support|概述|范围|要求|需求|标准|规范|术语|定义|总则|附录|附件|阶段|生命周期|开发|生产|维护|支持)",
     re.I,
 )
+GLOSSARY_PARENT_TITLE_RE = re.compile(r"(?:缩略语|缩写|术语和定义|术语|定义|图例)", re.I)
+PROFILE_HEADING_RE = re.compile(r"^profile\s+\d+[a-z0-9\-]*$", re.I)
 ATTACHMENT_TITLE_HINT_RE = re.compile(
     r"(?:附件目录|软件开发|FMEA|特殊特性|技术要求|网络安全|数据安全|密码算法|保密|RASIC|OTA|诊断|协议|规范|要求|安全)",
     re.I,
@@ -88,13 +115,14 @@ ELECTRIC_TEST_OUTLINE_HEADER_RE = re.compile(
 TEST_OUTLINE_ROW_RE = re.compile(r"^\|\s*(\d{1,3})(?:\s*[（(][^|）)]{0,10}[）)])?\s*\|")
 DVP_ENUM_LINE_RE = re.compile(r"^\s*((?:[5-9]|1[0-5])(?:\.\d+)*)\s*[）)、)]")
 DVP_ENUM_INLINE_RE = re.compile(r"(?<![（(])((?:[5-9]|1[0-5])(?:\.\d+)*)\s*[）)、)]")
+DVP_RESET_ENUM_LINE_RE = re.compile(r"^\s*((?:[5-9]|1[0-5])(?:\.\d+)*)\s*、\s*(.+)$")
 TEST_OUTLINE_SCOPE_TITLES: list[tuple[re.Pattern[str], str, str]] = [
-    (re.compile(r"主动前减振器试验大纲", re.I), "T", "主动前减振器试验大纲"),
-    (re.compile(r"主动后减振器试验大纲", re.I), "U", "主动后减振器试验大纲"),
-    (re.compile(r"蓄能器试验大纲", re.I), "V", "蓄能器试验大纲"),
-    (re.compile(r"整车用电器与线束匹配评估表", re.I), "W", "整车用电器与线束匹配评估表"),
-    (re.compile(r"测试分组\s*/\s*test groups", re.I), "X", "测试分组 / Test Groups（推荐）"),
-    (re.compile(r"用电器试验大纲", re.I), "Y", "用电器试验大纲"),
+    (re.compile(r"主动前减振器试验大纲", re.I), TEST_OUTLINE_SCOPE_FRONT_DAMPER, TEST_OUTLINE_SCOPE_FRONT_DAMPER),
+    (re.compile(r"主动后减振器试验大纲", re.I), TEST_OUTLINE_SCOPE_REAR_DAMPER, TEST_OUTLINE_SCOPE_REAR_DAMPER),
+    (re.compile(r"蓄能器试验大纲", re.I), TEST_OUTLINE_SCOPE_ACCUMULATOR, TEST_OUTLINE_SCOPE_ACCUMULATOR),
+    (re.compile(r"整车用电器与线束匹配评估表", re.I), TEST_OUTLINE_SCOPE_VEHICLE_WIRING, TEST_OUTLINE_SCOPE_VEHICLE_WIRING),
+    (re.compile(r"测试分组\s*/\s*test groups", re.I), TEST_OUTLINE_SCOPE_GROUPS, TEST_OUTLINE_SCOPE_GROUPS),
+    (re.compile(r"用电器试验大纲", re.I), TEST_OUTLINE_SCOPE_ELECTRIC, TEST_OUTLINE_SCOPE_ELECTRIC),
 ]
 
 MODAL_PATTERNS = [
@@ -220,6 +248,9 @@ def extract_atomic_requirements(segments: list[dict[str, Any]]) -> list[dict[str
                     "source_line_index_end": sub.get("source_line_index_end"),
                     "source_anchor": source_anchor,
                     "appendix_scope": appendix_scope,
+                    "appendix_title": str(block.get("appendix_title") or ""),
+                    "appendix_scope_evidence": str(block.get("appendix_scope_evidence") or ""),
+                    "appendix_title_source": str(block.get("appendix_title_source") or ""),
                     "requirement_text": block_text,
                     "requirement_type": infer_requirement_type(block_text),
                     "priority": infer_priority(block_text),
@@ -257,6 +288,9 @@ def extract_section_outline(segments: list[dict[str, Any]]) -> list[dict[str, An
         outline.append(
             {
                 "appendix_scope": appendix_scope,
+                "appendix_title": str(block.get("appendix_title") or ""),
+                "appendix_scope_evidence": str(block.get("appendix_scope_evidence") or ""),
+                "appendix_title_source": str(block.get("appendix_title_source") or ""),
                 "section_code": code,
                 "section_title": str(block.get("section_title") or ""),
                 "section_level": level,
@@ -279,37 +313,100 @@ def extract_section_outline(segments: list[dict[str, Any]]) -> list[dict[str, An
 
 def analyze_section_consistency(section_outline: list[dict[str, Any]]) -> dict[str, Any]:
     issues: list[dict[str, Any]] = []
-    code_counter: dict[str, int] = {}
     parsed_rows: list[dict[str, Any]] = []
+    duplicate_groups: dict[tuple[str, str, str], list[dict[str, Any]]] = {}
+    scope_rows: dict[str, list[dict[str, Any]]] = {}
 
     for row in section_outline:
-        code = str(row.get("section_code") or "").strip()
-        if not code:
+        appendix_scope = normalize_scope_id(str(row.get("appendix_scope") or ""))
+        section_code = str(row.get("section_code") or "").strip()
+        parent_section_code = str(row.get("parent_section_code") or "").strip()
+        parsed = {
+            "appendix_scope": appendix_scope,
+            "appendix_title": str(row.get("appendix_title") or ""),
+            "section_code": section_code,
+            "parent_section_code": parent_section_code,
+            "section_tuple": _parse_section_code_tuple(section_code),
+            "source_page_start": _safe_int(row.get("source_page_start")),
+            "section_title": str(row.get("section_title") or ""),
+        }
+        scope_rows.setdefault(appendix_scope, []).append(parsed)
+        if not section_code:
             continue
-        appendix_scope = str(row.get("appendix_scope") or "").strip().upper()
-        scoped_code = f"{appendix_scope}:{code}" if appendix_scope else code
-        code_counter[scoped_code] = code_counter.get(scoped_code, 0) + 1
-        parsed_rows.append(
+        parsed_rows.append(parsed)
+        duplicate_groups.setdefault((appendix_scope, parent_section_code, section_code), []).append(parsed)
+
+    duplicate_code_count = 0
+    source_duplicate_code_count = 0
+    for (appendix_scope, parent_section_code, section_code), rows in sorted(duplicate_groups.items()):
+        count = len(rows)
+        if count <= 1:
+            continue
+        issue_type = _classify_duplicate_code_issue(
+            appendix_scope=appendix_scope,
+            parent_section_code=parent_section_code,
+            rows=rows,
+        )
+        if issue_type == "duplicate_code":
+            duplicate_code_count += 1
+            severity = "HIGH" if count >= 3 else "MEDIUM"
+        else:
+            source_duplicate_code_count += 1
+            severity = "INFO"
+        title_preview = " / ".join(
+            sorted(
+                {
+                    str(item.get("section_title") or "").strip()
+                    for item in rows
+                    if str(item.get("section_title") or "").strip()
+                }
+            )[:3]
+        )
+        detail_parts = [f"duplicate_count={count}"]
+        if parent_section_code:
+            detail_parts.append(f"parent={parent_section_code}")
+        if title_preview:
+            detail_parts.append(f"titles={title_preview}")
+        issues.append(
             {
+                "issue_type": issue_type,
+                "severity": severity,
                 "appendix_scope": appendix_scope,
-                "scoped_code": scoped_code,
-                "section_code": code,
-                "section_tuple": _parse_section_code_tuple(code),
-                "source_page_start": _safe_int(row.get("source_page_start")),
-                "section_title": str(row.get("section_title") or ""),
+                "section_code": section_code,
+                "detail": "; ".join(detail_parts),
             }
         )
 
-    duplicate_codes = {code: count for code, count in code_counter.items() if count > 1}
-    for scoped_code, count in sorted(duplicate_codes.items()):
-        appendix_scope, section_code = _split_scoped_code(scoped_code)
+    missing_scope_root_count = 0
+    for appendix_scope, rows in sorted(scope_rows.items(), key=lambda item: _appendix_scope_sort_key(item[0])):
+        if appendix_scope == MAIN_SCOPE_ID:
+            continue
+        has_explicit_root = any(
+            not str(row.get("section_code") or "").strip() and str(row.get("section_title") or "").strip()
+            for row in rows
+        )
+        top_level_codes = [
+            str(row.get("section_code") or "").strip()
+            for row in rows
+            if len(tuple(row.get("section_tuple") or ())) == 1 and str(row.get("section_code") or "").strip()
+        ]
+        if has_explicit_root or not top_level_codes:
+            continue
+        missing_scope_root_count += 1
+        scope_title = next(
+            (str(row.get("appendix_title") or "").strip() for row in rows if str(row.get("appendix_title") or "").strip()),
+            "",
+        )
+        detail = f"top_level_children={','.join(top_level_codes[:6])}"
+        if scope_title:
+            detail = f"title={scope_title}; {detail}"
         issues.append(
             {
-                "issue_type": "duplicate_code",
-                "severity": "HIGH" if count >= 3 else "MEDIUM",
+                "issue_type": "missing_scope_root",
+                "severity": "MEDIUM",
                 "appendix_scope": appendix_scope,
-                "section_code": section_code,
-                "detail": f"duplicate_count={count}",
+                "section_code": "",
+                "detail": detail,
             }
         )
 
@@ -394,11 +491,40 @@ def analyze_section_consistency(section_outline: list[dict[str, Any]]) -> dict[s
 
     return {
         "total_issues": len(issues),
-        "duplicate_code_count": len(duplicate_codes),
+        "duplicate_code_count": duplicate_code_count,
+        "source_duplicate_code_count": source_duplicate_code_count,
+        "missing_scope_root_count": missing_scope_root_count,
         "missing_sibling_group_count": missing_group_count,
         "issue_type_counts": issue_counter,
         "issues": issues,
     }
+
+
+def _classify_duplicate_code_issue(
+    *,
+    appendix_scope: str,
+    parent_section_code: str,
+    rows: list[dict[str, Any]],
+) -> str:
+    if normalize_scope_id(appendix_scope) != MAIN_SCOPE_ID:
+        return "source_faithful_duplicate_code"
+    if parent_section_code:
+        return "source_faithful_duplicate_code"
+    title_norms = {
+        _normalized_section_title(str(row.get("section_title") or ""))
+        for row in rows
+        if str(row.get("section_title") or "").strip()
+    }
+    if len(title_norms) > 1:
+        return "source_faithful_duplicate_code"
+    scope_titles = {
+        str(row.get("appendix_title") or "").strip()
+        for row in rows
+        if str(row.get("appendix_title") or "").strip()
+    }
+    if any(is_test_outline_scope_value(title) for title in scope_titles):
+        return "source_faithful_duplicate_code"
+    return "duplicate_code"
 
 
 def _safe_int(value: Any) -> int:
@@ -440,11 +566,14 @@ def _build_line_entries(segments: list[dict[str, Any]]) -> list[dict[str, Any]]:
     entries: list[dict[str, Any]] = []
     global_line_index = 0
     for seg in segments:
+        raw_text = str(seg.get("text", ""))
+        if _is_likely_index_or_metadata(raw_text):
+            continue
         source_page = seg.get("source_page")
         source_anchor = seg.get("source_anchor") or "Unknown"
         table_count = int(seg.get("table_count", 0) or 0)
         prepared_lines: list[tuple[int, str]] = []
-        for source_line_index, raw_line in enumerate(str(seg.get("text", "")).splitlines()):
+        for source_line_index, raw_line in enumerate(raw_text.splitlines()):
             line = _normalize_line(raw_line)
             if not line or _is_line_noise(line):
                 continue
@@ -519,6 +648,70 @@ def _split_embedded_local_clause_line(line: str) -> list[str]:
     return chunks or [value]
 
 
+def _extract_contextual_child_section_title_candidate(title: str) -> str:
+    value = _normalize_line(str(title or ""))
+    if not value or len(value) > 220:
+        return ""
+    if _looks_like_table_row_text(value) or _is_line_noise(value):
+        return ""
+    if len(value) <= 32 and _looks_like_heading_phrase(value):
+        return value
+
+    head = re.split(r"[，,；;：:。]", value, maxsplit=1)[0].strip()
+    if not head or head == value:
+        return ""
+    if len(head) > 24 or _is_line_noise(head):
+        return ""
+    if _looks_like_heading_phrase(head):
+        return head
+
+    token_count = len(re.findall(r"[A-Za-z\u4e00-\u9fff0-9]+", head))
+    if token_count == 0 or token_count > 8:
+        return ""
+    if not re.search(r"[A-Za-z\u4e00-\u9fff]", head):
+        return ""
+    return head
+
+
+def _recover_contextual_child_section_header(
+    line: str,
+    *,
+    current_section_code: str,
+    last_section_code: str,
+) -> dict[str, Any] | None:
+    value = _normalize_line(str(line or ""))
+    if not value or _looks_like_table_row_text(value):
+        return None
+
+    match = re.match(r"^\s*(\d+(?:\.\d+){2,5})\s+(.+)$", value)
+    if not match:
+        return None
+
+    code = str(match.group(1) or "").strip()
+    title = _sanitize_section_header_title(str(match.group(2) or "").strip(), level_hint=code.count(".") + 1)
+    code_tuple = _parse_section_code_tuple(code)
+    if not code or not title or not code_tuple or len(code_tuple) < 3:
+        return None
+    if _looks_like_date_section_code(code):
+        return None
+
+    parent_code = _section_parent_code(code)
+    context_code = str(current_section_code or last_section_code or "").strip()
+    if not parent_code or parent_code != context_code:
+        return None
+
+    title_candidate = _extract_contextual_child_section_title_candidate(title)
+    if not title_candidate:
+        return None
+
+    return {
+        "code": code,
+        "title": title_candidate,
+        "level": len(code_tuple),
+        "punct": "",
+    }
+
+
 def _looks_like_valid_embedded_local_clause_chunk(chunk: str) -> bool:
     value = _normalize_line(str(chunk or ""))
     if not value:
@@ -536,6 +729,10 @@ def _looks_like_valid_embedded_local_clause_chunk(chunk: str) -> bool:
         return False
     title = _normalize_line(str(match.group(2) or ""))
     if not title or len(title) > 220 or "|" in title:
+        return False
+    if _looks_like_reference_only_clause_title(title):
+        return False
+    if _looks_like_identifier_example_clause_title(title):
         return False
     if re.search(r"[\u4e00-\u9fff]", title):
         return True
@@ -563,11 +760,13 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
     last_section_page_by_scope: dict[str, int] = {}
     last_section_table_count_by_scope: dict[str, int] = {}
     seen_section_codes_by_scope: dict[str, set[str]] = {}
+    seen_section_titles_by_scope_code: dict[tuple[str, str], set[str]] = {}
     discovery_counter = 0
     serial_table_mode_until = -1
     in_test_outline_zone = False
     synthetic_scope_counter = 0
     main_max_top_level_seen = 0
+    scope_metadata_by_scope: dict[str, dict[str, Any]] = {}
     while idx < len(line_entries):
         entry = line_entries[idx]
         line = entry["text"]
@@ -610,6 +809,13 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                 blocks.append(current)
                 current = None
             current_scope = appendix_scope
+            _remember_scope_metadata(
+                scope_metadata_by_scope,
+                current_scope,
+                evidence=APPENDIX_EVIDENCE_EXPLICIT,
+                title_source="appendix_marker",
+                start_page=_safe_int(entry.get("source_page")) or None,
+            )
             idx += 1
             continue
 
@@ -618,7 +824,14 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
         last_section_page = last_section_page_by_scope.get(current_scope)
         last_section_table_count = last_section_table_count_by_scope.get(current_scope, 0)
         header = _parse_section_header(line)
+        if header is None and current is not None:
+            header = _recover_contextual_child_section_header(
+                line,
+                current_section_code=str(current.get("section_code") or ""),
+                last_section_code=last_section_code,
+            )
         title_only_heading = _extract_title_only_heading_candidate(line)
+        main_title_only_heading = _extract_main_title_only_heading_candidate(line)
         embedded_attachment_title = _extract_embedded_attachment_title_candidate(line)
         consumed_following = 0
 
@@ -634,11 +847,34 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             if (not current_scope and current_title == "附件目录") or current_scope:
                 if current and current.get("entries"):
                     blocks.append(current)
-                if not current_scope:
+                current_scope_meta = scope_metadata_by_scope.get(normalize_scope_id(current_scope), {})
+                rotate_scope = _should_rotate_scope_for_upcoming_duplicate_codes(
+                    current_scope=current_scope,
+                    seen_codes=seen_section_codes_by_scope.get(current_scope, set()),
+                    line_entries=line_entries,
+                    start_index=idx,
+                ) or _should_split_embedded_scope_on_new_title(
+                    current_scope=current_scope,
+                    current_scope_title=str(current_scope_meta.get("appendix_title") or ""),
+                    candidate_title=title_only_heading,
+                    current_block=current,
+                    candidate_page=_safe_int(entry.get("source_page")) or None,
+                    scope_start_page=_safe_int(current_scope_meta.get("scope_start_page")) or None,
+                )
+                if not current_scope or rotate_scope:
                     synthetic_scope_counter += 1
                     current_scope = f"SUB{synthetic_scope_counter}"
+                _remember_scope_metadata(
+                    scope_metadata_by_scope,
+                    current_scope,
+                    evidence=APPENDIX_EVIDENCE_TOC if current_title == "附件目录" else APPENDIX_EVIDENCE_HEADING,
+                    title_source="title_only_heading",
+                    title=title_only_heading,
+                    start_page=_safe_int(entry.get("source_page")) or None,
+                )
                 current = {
                     "appendix_scope": current_scope,
+                    **_scope_metadata_for(scope_metadata_by_scope, current_scope),
                     "section_code": "",
                     "section_title": title_only_heading,
                     "section_level": 0,
@@ -654,7 +890,84 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                 idx += 1
                 continue
 
+        title_only_main_header = _recover_main_body_title_only_section_header(
+            title=main_title_only_heading,
+            current=current,
+            current_scope=current_scope,
+            last_section_code=last_section_code,
+            table_count=int(entry.get("table_count", 0) or 0),
+        )
+        if (
+            title_only_main_header
+            and int(entry.get("table_count", 0) or 0) > 0
+            and _has_upcoming_explicit_section_header(
+                line_entries=line_entries,
+                start_index=idx + 1,
+                target_code=str(title_only_main_header.get("code") or ""),
+                start_page=_safe_int(entry.get("source_page")) or None,
+            )
+        ):
+            title_only_main_header = None
+        if title_only_main_header:
+            if current and current.get("entries"):
+                blocks.append(current)
+            current = {
+                "appendix_scope": current_scope,
+                **_scope_metadata_for(scope_metadata_by_scope, current_scope),
+                "section_code": title_only_main_header["code"],
+                "section_title": title_only_main_header["title"],
+                "section_level": title_only_main_header["level"],
+                "_discovery_order": discovery_counter,
+                "source_page": entry["source_page"],
+                "source_page_end": entry["source_page"],
+                "source_line_index": entry.get("source_line_index"),
+                "source_line_index_end": entry.get("source_line_index"),
+                "source_anchor": entry["source_anchor"],
+                "entries": [entry],
+            }
+            discovery_counter += 1
+            last_section_code_by_scope[current_scope] = str(title_only_main_header["code"])
+            last_section_title_by_scope[current_scope] = str(title_only_main_header["title"])
+            src_page = entry.get("source_page")
+            last_section_page_by_scope[current_scope] = int(src_page) if isinstance(src_page, int) else 0
+            last_section_table_count_by_scope[current_scope] = int(entry.get("table_count", 0) or 0)
+            seen_section_codes_by_scope.setdefault(current_scope, set()).add(str(title_only_main_header["code"]))
+            title_norm = _normalized_section_title(str(title_only_main_header["title"]))
+            if title_norm:
+                scope_code_key = (str(current_scope or "").strip().upper(), str(title_only_main_header["code"]).strip())
+                seen_section_titles_by_scope_code.setdefault(scope_code_key, set()).add(title_norm)
+            if not current_scope:
+                code_tuple = _parse_section_code_tuple(str(title_only_main_header["code"]))
+                if code_tuple:
+                    main_max_top_level_seen = max(main_max_top_level_seen, code_tuple[0])
+            idx += 1
+            continue
+
         if embedded_attachment_title and current_scope:
+            current_scope_meta = scope_metadata_by_scope.get(normalize_scope_id(current_scope), {})
+            if _should_rotate_scope_for_upcoming_duplicate_codes(
+                current_scope=current_scope,
+                seen_codes=seen_section_codes_by_scope.get(current_scope, set()),
+                line_entries=line_entries,
+                start_index=idx,
+            ) or _should_split_embedded_scope_on_new_title(
+                current_scope=current_scope,
+                current_scope_title=str(current_scope_meta.get("appendix_title") or ""),
+                candidate_title=embedded_attachment_title,
+                current_block=current,
+                candidate_page=_safe_int(entry.get("source_page")) or None,
+                scope_start_page=_safe_int(current_scope_meta.get("scope_start_page")) or None,
+            ):
+                synthetic_scope_counter += 1
+                current_scope = f"SUB{synthetic_scope_counter}"
+            _remember_scope_metadata(
+                scope_metadata_by_scope,
+                current_scope,
+                evidence=APPENDIX_EVIDENCE_HEADING,
+                title_source="embedded_attachment_title",
+                title=embedded_attachment_title,
+                start_page=_safe_int(entry.get("source_page")) or None,
+            )
             carried_entries: list[dict[str, Any]] = []
             candidate_page = _safe_int(entry.get("source_page"))
             candidate_line_index = _safe_int(entry.get("source_line_index"))
@@ -669,6 +982,7 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                     blocks.append(current)
             current = {
                 "appendix_scope": current_scope,
+                **_scope_metadata_for(scope_metadata_by_scope, current_scope),
                 "section_code": "",
                 "section_title": embedded_attachment_title,
                 "section_level": 0,
@@ -691,10 +1005,35 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             appendix_scope=current_scope,
         )
         if standalone_table_title:
+            current_scope_meta = scope_metadata_by_scope.get(normalize_scope_id(current_scope), {})
+            if _should_rotate_scope_for_upcoming_duplicate_codes(
+                current_scope=current_scope,
+                seen_codes=seen_section_codes_by_scope.get(current_scope, set()),
+                line_entries=line_entries,
+                start_index=idx,
+            ) or _should_split_embedded_scope_on_new_title(
+                current_scope=current_scope,
+                current_scope_title=str(current_scope_meta.get("appendix_title") or ""),
+                candidate_title=standalone_table_title,
+                current_block=current,
+                candidate_page=_safe_int(entry.get("source_page")) or None,
+                scope_start_page=_safe_int(current_scope_meta.get("scope_start_page")) or None,
+            ):
+                synthetic_scope_counter += 1
+                current_scope = f"SUB{synthetic_scope_counter}"
+            _remember_scope_metadata(
+                scope_metadata_by_scope,
+                current_scope,
+                evidence=APPENDIX_EVIDENCE_TABLE_HEADER,
+                title_source="table_page_title",
+                title=standalone_table_title,
+                start_page=_safe_int(entry.get("source_page")) or None,
+            )
             if current and current.get("entries"):
                 blocks.append(current)
             current = {
                 "appendix_scope": current_scope,
+                **_scope_metadata_for(scope_metadata_by_scope, current_scope),
                 "section_code": "",
                 "section_title": standalone_table_title,
                 "section_level": 0,
@@ -759,6 +1098,13 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
         ):
             header = None
 
+        if header and _should_suppress_glossary_child_header(
+            header=header,
+            current=current,
+            last_section_title=last_section_title,
+        ):
+            header = None
+
         if header and _looks_like_attachment_reference_list_item(
             header=header,
             line_entries=line_entries,
@@ -766,6 +1112,34 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             appendix_scope=current_scope,
         ):
             header = None
+
+        if header and _should_rotate_scope_for_duplicate_header(
+            current_scope=current_scope,
+            header=header,
+            seen_codes=seen_section_codes_by_scope.get(current_scope, set()),
+            seen_titles_by_scope_code=seen_section_titles_by_scope_code,
+            candidate_page=_safe_int(entry.get("source_page")) or None,
+            previous_page=last_section_page_by_scope.get(current_scope),
+        ):
+            if current and current.get("entries"):
+                blocks.append(current)
+                current = None
+            synthetic_scope_counter += 1
+            current_scope = f"SUB{synthetic_scope_counter}"
+            last_section_code = last_section_code_by_scope.get(current_scope, "")
+            last_section_title = last_section_title_by_scope.get(current_scope, "")
+            last_section_page = last_section_page_by_scope.get(current_scope)
+            last_section_table_count = last_section_table_count_by_scope.get(current_scope, 0)
+
+        has_immediate_child = bool(
+            header
+            and int(header.get("level") or 0) == 1
+            and _has_immediate_child_section_header(
+                line_entries=line_entries,
+                start_index=idx + 1,
+                parent_code=str(header.get("code") or ""),
+            )
+        )
 
         if header and not _is_plausible_section_transition(
             last_section_code,
@@ -778,6 +1152,7 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             candidate_page=entry.get("source_page"),
             previous_table_count=last_section_table_count,
             candidate_table_count=int(entry.get("table_count", 0) or 0),
+            has_immediate_child=has_immediate_child,
         ):
             header = None
 
@@ -793,6 +1168,13 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                 current = None
             synthetic_scope_counter += 1
             current_scope = f"SUB{synthetic_scope_counter}"
+            _remember_scope_metadata(
+                scope_metadata_by_scope,
+                current_scope,
+                evidence=APPENDIX_EVIDENCE_HEADING,
+                title_source="section_header",
+                start_page=_safe_int(entry.get("source_page")) or None,
+            )
             last_section_code = last_section_code_by_scope.get(current_scope, "")
             last_section_title = last_section_title_by_scope.get(current_scope, "")
             last_section_page = last_section_page_by_scope.get(current_scope)
@@ -803,6 +1185,7 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
                 blocks.append(current)
             current = {
                 "appendix_scope": current_scope,
+                **_scope_metadata_for(scope_metadata_by_scope, current_scope),
                 "section_code": header["code"],
                 "section_title": header.get("title", ""),
                 "section_level": header.get("level", 0),
@@ -821,6 +1204,10 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             last_section_page_by_scope[current_scope] = int(src_page) if isinstance(src_page, int) else 0
             last_section_table_count_by_scope[current_scope] = int(entry.get("table_count", 0) or 0)
             seen_section_codes_by_scope.setdefault(current_scope, set()).add(str(header.get("code") or ""))
+            title_norm = _normalized_section_title(str(header.get("title") or ""))
+            if title_norm:
+                scope_code_key = (str(current_scope or "").strip().upper(), str(header.get("code") or "").strip())
+                seen_section_titles_by_scope_code.setdefault(scope_code_key, set()).add(title_norm)
             if not current_scope:
                 code_tuple = _parse_section_code_tuple(str(header.get("code") or ""))
                 if code_tuple:
@@ -901,17 +1288,39 @@ def _shape_subblock(entries: list[dict[str, Any]], default_anchor: str) -> dict[
 def _split_entries_by_local_clause_headers(entries: list[dict[str, Any]], default_anchor: str) -> list[dict[str, Any]]:
     clause_indexes: list[int] = []
     previous_heading = ""
+    contextual_seed_tuple: tuple[int, ...] = ()
+    contextual_seed_page: int | None = None
     for idx, entry in enumerate(entries):
         text = _normalize_line(str(entry.get("text") or ""))
         heading_text = _extract_local_clause_heading_text(text)
         if not heading_text:
             continue
-        if not _looks_like_local_clause_header_line(text) and not _looks_like_local_clause_series_header(entries, idx):
+        clause_match = _match_local_clause_heading(text)
+        contextual_match = _match_contextual_dvp_reset_clause_heading(
+            text,
+            previous_deep_clause_tuple=contextual_seed_tuple,
+            previous_deep_clause_page=contextual_seed_page,
+            candidate_page=entry.get("source_page"),
+        )
+        if clause_match:
+            current_tuple = _parse_section_code_tuple(clause_match[0])
+            if len(current_tuple) > 1:
+                contextual_seed_tuple = current_tuple
+                contextual_seed_page = entry.get("source_page") if isinstance(entry.get("source_page"), int) else None
+        if (
+            not clause_match
+            and not contextual_match
+            and not _looks_like_local_clause_header_line(text)
+            and not _looks_like_local_clause_series_header(entries, idx)
+        ):
             continue
-        if previous_heading and _normalize_line(previous_heading) == _normalize_line(heading_text):
+        heading_identity = heading_text
+        if contextual_match:
+            heading_identity = f"{contextual_match[0]}、{contextual_match[1]}"
+        if previous_heading and _normalize_line(previous_heading) == _normalize_line(heading_identity):
             continue
         clause_indexes.append(idx)
-        previous_heading = heading_text
+        previous_heading = heading_identity
 
     if len(clause_indexes) < 2:
         return []
@@ -1003,6 +1412,33 @@ def _match_local_clause_heading(line: str) -> tuple[str, str] | None:
     return (code, title)
 
 
+def _match_contextual_dvp_reset_clause_heading(
+    line: str,
+    *,
+    previous_deep_clause_tuple: tuple[int, ...],
+    previous_deep_clause_page: int | None,
+    candidate_page: Any,
+) -> tuple[str, str] | None:
+    value = _normalize_line(str(line or ""))
+    if not value or len(previous_deep_clause_tuple) <= 1:
+        return None
+    if previous_deep_clause_page is None or candidate_page != previous_deep_clause_page:
+        return None
+    match = DVP_RESET_ENUM_LINE_RE.match(value)
+    if not match:
+        return None
+    code = str(match.group(1) or "").strip()
+    title = str(match.group(2) or "").strip()
+    code_tuple = _parse_section_code_tuple(code)
+    if len(code_tuple) != 1 or code_tuple[0] <= previous_deep_clause_tuple[0]:
+        return None
+    if not title or len(title) > 220 or "|" in title:
+        return None
+    if _looks_like_table_row_text(title):
+        return None
+    return (code, title)
+
+
 def _local_clause_code_tuple(entry: dict[str, Any] | None) -> tuple[int, ...]:
     if not entry:
         return ()
@@ -1077,6 +1513,13 @@ def _shape_local_clause_subblock(entries: list[dict[str, Any]], default_anchor: 
     first = _extract_local_clause_heading_text(str(entries[0].get("text") or ""))
     if first and _looks_like_local_clause_header_line(first):
         shaped["source_anchor"] = f"{shaped['source_anchor']} | Clause {first}"
+    else:
+        contextual_match = DVP_RESET_ENUM_LINE_RE.match(first)
+        if contextual_match:
+            code = str(contextual_match.group(1) or "").strip()
+            title = str(contextual_match.group(2) or "").strip()
+            if code and title:
+                shaped["source_anchor"] = f"{shaped['source_anchor']} | Clause {code} {title}"
     return shaped
 
 
@@ -1167,6 +1610,8 @@ def _parse_section_header(line: str) -> dict[str, Any] | None:
             return None
         token_count = len(re.findall(r"[A-Za-z\u4e00-\u9fff0-9]+", title))
         if token_count > 20:
+            return None
+        if _looks_like_requirement_sentence_title(title):
             return None
     if HEADER_ENUM_LIKE_RE.match(title):
         return None
@@ -1300,6 +1745,8 @@ def _allow_code_hint_recovery(code_hint: str, next_title: str, last_section_code
         return False
     if not _looks_like_heading_phrase(next_title):
         return False
+    if _looks_like_requirement_sentence_title(next_title):
+        return False
 
     hint_tuple = _parse_section_code_tuple(code_hint)
     prev_tuple = _parse_section_code_tuple(last_section_code)
@@ -1326,6 +1773,90 @@ def _allow_code_hint_recovery(code_hint: str, next_title: str, last_section_code
         if abs(hint_major - prev_major) > 1 and not HEADING_KEYWORD_RE.search(next_title):
             return False
     return True
+
+
+def _looks_like_reference_only_clause_title(title: str) -> bool:
+    value = re.sub(r"[。！？!?；;：:]+$", "", _normalize_line(str(title or ""))).strip()
+    if not value:
+        return False
+    compact = re.sub(r"\s+", "", value).lower()
+    return compact in {"章节", "章", "节", "条款", "条", "section", "clause"}
+
+
+def _looks_like_identifier_example_clause_title(title: str) -> bool:
+    value = _normalize_line(str(title or ""))
+    if not value:
+        return False
+    if not re.search(r"(?:版本号|标识|序号代码)", value):
+        return False
+    if ":" in value or "：" in value or "_" in value:
+        return True
+    if re.search(r"\b\d+(?:\.\d+){1,}[A-Za-z0-9._-]*\b", value):
+        return True
+    if re.search(r"\b[A-Z]{1,6}\s*:\s*[A-Za-z0-9._-]*", value):
+        return True
+    return False
+
+
+def _has_immediate_child_section_header(
+    *,
+    line_entries: list[dict[str, Any]],
+    start_index: int,
+    parent_code: str,
+) -> bool:
+    parent = str(parent_code or "").strip()
+    if not parent or "." in parent:
+        return False
+    for idx in range(start_index, min(len(line_entries), start_index + 6)):
+        line = str((line_entries[idx] or {}).get("text") or "").strip()
+        if not line:
+            continue
+        header = _parse_section_header(line)
+        code = str((header or {}).get("code") or "").strip()
+        if code.startswith(f"{parent}."):
+            return True
+        if header and "." not in code and code != parent:
+            break
+        code_hint = _extract_section_code_hint(line)
+        if code_hint.startswith(f"{parent}."):
+            return True
+    return False
+
+
+def _has_upcoming_explicit_section_header(
+    *,
+    line_entries: list[dict[str, Any]],
+    start_index: int,
+    target_code: str,
+    start_page: int | None,
+) -> bool:
+    target = str(target_code or "").strip()
+    if not target:
+        return False
+    for idx in range(start_index, min(len(line_entries), start_index + 24)):
+        line = str((line_entries[idx] or {}).get("text") or "").strip()
+        if not line:
+            continue
+        page = _safe_int(line_entries[idx].get("source_page"))
+        if (
+            isinstance(start_page, int)
+            and start_page > 0
+            and isinstance(page, int)
+            and page > start_page + 2
+        ):
+            break
+        if _extract_appendix_scope(line):
+            break
+        header = _parse_section_header(line)
+        code = str((header or {}).get("code") or "").strip()
+        if code == target:
+            return True
+        code_hint = _extract_section_code_hint(line)
+        if code_hint == target:
+            next_title, _ = _next_header_title_hint(line_entries, idx + 1)
+            if next_title:
+                return True
+    return False
 
 
 def _looks_like_heading_phrase(text: str) -> bool:
@@ -1372,6 +1903,142 @@ def _looks_like_table_row_text(text: str) -> bool:
     return False
 
 
+def _looks_like_requirement_sentence_title(title: str) -> bool:
+    value = str(title or "").strip()
+    if len(value) < 18:
+        return False
+    if STRONG_MAJOR_HEADING_KEYWORD_RE.search(value):
+        return False
+    if any(pattern.search(value) for pattern in MODAL_PATTERNS):
+        return True
+    if re.search(r"(?:应|需|须|必须|不得|优先|实时|反馈|执行|校验|验证)", value) and re.search(r"[，,；;、]", value):
+        return True
+    if len(value) >= 36 and re.search(r"[，,；;、]", value):
+        return True
+    return False
+
+
+def _looks_like_glossary_parent_title(title: str) -> bool:
+    return GLOSSARY_PARENT_TITLE_RE.search(str(title or "").strip()) is not None
+
+
+def _looks_like_glossary_entry_title(title: str) -> bool:
+    value = str(title or "").strip()
+    if not value or len(value) > 24:
+        return False
+    if re.fullmatch(r"[A-Z][A-Z0-9_/\-]{1,20}", value):
+        return True
+    if re.fullmatch(r"[A-Za-z]{2,12}", value) and value.upper() == value:
+        return True
+    compact = re.sub(r"[^A-Za-z0-9_/\-]", "", value)
+    if compact and " " not in value and sum(1 for ch in compact if ch.isupper()) >= 2 and len(compact) <= 20:
+        return True
+    return False
+
+
+def _should_suppress_glossary_child_header(
+    *,
+    header: dict[str, Any],
+    current: dict[str, Any] | None,
+    last_section_title: str,
+) -> bool:
+    code = str(header.get("code") or "").strip()
+    title = str(header.get("title") or "").strip()
+    if not code or not title or "." not in code:
+        return False
+    parent_title = ""
+    current_code = str((current or {}).get("section_code") or "").strip()
+    if current_code and code.startswith(f"{current_code}."):
+        parent_title = str((current or {}).get("section_title") or "").strip()
+    if not parent_title:
+        parent_title = str(last_section_title or "").strip()
+    if not _looks_like_glossary_parent_title(parent_title):
+        return False
+    return _looks_like_glossary_entry_title(title)
+
+
+def _recover_main_body_table_child_title_only_section_header(
+    *,
+    title: str,
+    current: dict[str, Any],
+    last_section_code: str,
+) -> dict[str, Any] | None:
+    value = str(title or "").strip()
+    current_code = str(current.get("section_code") or "").strip()
+    current_title = str(current.get("section_title") or "").strip()
+    if not value or not current_code or value == current_title:
+        return None
+    if _looks_like_attachment_title_phrase(value) or _looks_like_measurement_title(value):
+        return None
+    if _looks_like_requirement_sentence_title(value):
+        return None
+    if len(value) > 18:
+        return None
+
+    current_tuple = _parse_section_code_tuple(current_code)
+    last_tuple = _parse_section_code_tuple(last_section_code)
+    if len(current_tuple) == 1:
+        parent_tuple = current_tuple
+        next_minor = 1
+    elif len(current_tuple) == 2:
+        parent_tuple = current_tuple[:-1]
+        next_minor = current_tuple[-1] + 1
+    else:
+        return None
+
+    if len(last_tuple) == 2 and last_tuple[:-1] == parent_tuple:
+        next_minor = max(next_minor, last_tuple[-1] + 1)
+
+    return {
+        "code": _tuple_to_code((*parent_tuple, next_minor)),
+        "title": value,
+        "level": len(parent_tuple) + 1,
+        "punct": "",
+    }
+
+
+def _recover_main_body_title_only_section_header(
+    *,
+    title: str,
+    current: dict[str, Any] | None,
+    current_scope: str,
+    last_section_code: str,
+    table_count: int = 0,
+) -> dict[str, Any] | None:
+    value = str(title or "").strip()
+    if current_scope or not value or current is None:
+        return None
+    if table_count > 0:
+        recovered_child = _recover_main_body_table_child_title_only_section_header(
+            title=value,
+            current=current,
+            last_section_code=last_section_code,
+        )
+        if recovered_child:
+            return recovered_child
+    current_code = str(current.get("section_code") or "").strip()
+    current_tuple = _parse_section_code_tuple(current_code)
+    last_tuple = _parse_section_code_tuple(last_section_code)
+    seed_tuple = current_tuple or last_tuple
+    if not seed_tuple or len(seed_tuple) != 1:
+        return None
+    if str(current.get("section_title") or "").strip() == "附件目录":
+        return None
+    if _looks_like_attachment_title_phrase(value):
+        return None
+    if len(value) > 20 and not STRONG_MAJOR_HEADING_KEYWORD_RE.search(value):
+        return None
+    if not (_looks_like_glossary_parent_title(value) or STRONG_MAJOR_HEADING_KEYWORD_RE.search(value)):
+        return None
+    next_major = seed_tuple[0] + 1
+    return {
+        "code": str(next_major),
+        "title": value,
+        "level": 1,
+        "punct": "",
+    }
+
+
 def _looks_like_component_bom_title(title: str) -> bool:
     value = str(title or "").strip()
     if not value:
@@ -1403,6 +2070,8 @@ def _is_test_outline_header_line(line: str) -> bool:
     value = str(line or "").strip()
     if not value:
         return False
+    if infer_generic_test_outline_title(value):
+        return True
     if TEST_OUTLINE_HEADER_RE.search(value) and len(value) <= 140:
         return True
     if "|" in value:
@@ -1555,6 +2224,44 @@ def _extract_title_only_heading_candidate(line: str) -> str:
     return candidate
 
 
+def _extract_main_title_only_heading_candidate(line: str) -> str:
+    candidate = _normalize_line(str(line or ""))
+    from_single_markdown_cell = False
+    if _looks_like_markdown_table_row(candidate):
+        cells = _parse_markdown_cells(candidate)
+        meaningful: list[str] = []
+        for cell in cells:
+            cell_value = _normalize_line(cell)
+            if not cell_value or re.fullmatch(r"col\d+", cell_value, re.I):
+                continue
+            if _parse_section_header(cell_value) or _extract_appendix_scope(cell_value):
+                continue
+            meaningful.append(cell_value)
+        if len(meaningful) != 1:
+            return ""
+        candidate = meaningful[0]
+        from_single_markdown_cell = True
+    if not candidate or _parse_section_header(candidate) or _extract_appendix_scope(candidate):
+        return ""
+    if _extract_section_code_hint(candidate):
+        return ""
+    if _looks_like_table_row_text(candidate):
+        return ""
+    if _is_line_noise(candidate):
+        return ""
+    if len(candidate) > 24 or re.search(r"[。！？!?；;：:]", candidate):
+        return ""
+    if not re.search(r"[\u4e00-\u9fff]", candidate):
+        return ""
+    if not (
+        _looks_like_glossary_parent_title(candidate)
+        or STRONG_MAJOR_HEADING_KEYWORD_RE.search(candidate)
+        or (from_single_markdown_cell and len(candidate) <= 10)
+    ):
+        return ""
+    return candidate
+
+
 def _looks_like_attachment_title_phrase(text: str) -> bool:
     value = _normalize_line(str(text or ""))
     if not value:
@@ -1591,6 +2298,7 @@ def _sanitize_section_header_title(title: str, level_hint: int = 0) -> str:
     value = str(title or "").strip()
     if not value:
         return ""
+    value = HEADER_PAREN_ENUM_PREFIX_RE.sub("", value).strip()
     value = re.sub(r"[：:]\s*$", "", value).strip()
     if level_hint == 1:
         value = re.sub(r"\s*[（(]\s*(?:注|note)\s*[:：][^）)]*[）)]\s*$", "", value, flags=re.I).strip()
@@ -1607,6 +2315,8 @@ def _looks_like_measurement_title(title: str) -> bool:
         .replace("＋", "+")
         .replace("－", "-")
     )
+    if PROFILE_HEADING_RE.match(normalized):
+        return False
     if MEASUREMENT_TITLE_START_RE.match(normalized):
         return True
 
@@ -1645,6 +2355,9 @@ def _normalize_block_text(lines: list[str]) -> str:
     # Keep line boundaries to preserve original subsection completeness.
     text = "\n".join(normalized_lines).strip()
     if len(text) < 20:
+        if len(normalized_lines) >= 2 and SECTION_CODE_HINT_RE.match(normalized_lines[0]):
+            if any(len(_build_dedupe_key(line)) >= 4 for line in normalized_lines[1:]):
+                return text
         if len(normalized_lines) == 1 and (
             _looks_like_local_clause_header_line(normalized_lines[0])
             or _match_local_clause_heading(normalized_lines[0])
@@ -3983,6 +4696,8 @@ def _should_preserve_table_bridge_line(line: str, prev_line: str, next_line: str
     value = _normalize_line(str(line or ""))
     if not value:
         return False
+    if _parse_section_header(value):
+        return True
     if re.match(r"^\d+[）)]\s*", value):
         return True
     if re.match(r"^\d+(?:\.\d+)?\s*(?:A|V|kN|N|mm|cm|bar|℃|°C|m/s|h)\b", value, re.I):
@@ -4009,6 +4724,8 @@ def _should_preserve_table_bridge_line(line: str, prev_line: str, next_line: str
 def _is_bom_bridge_artifact(line: str) -> bool:
     value = _normalize_line(str(line or ""))
     if not value:
+        return False
+    if _parse_section_header(value):
         return False
     if len(value) > 40:
         return False
@@ -4213,13 +4930,8 @@ def _section_code_order_key(section_code: str) -> tuple[int, ...]:
 
 
 def _appendix_scope_sort_key(scope: str) -> tuple[int, int]:
-    normalized = str(scope or "").strip().upper()
-    if not normalized:
-        return (0, 0)
-    first = normalized[:1]
-    if "A" <= first <= "Z":
-        return (1, ord(first) - ord("A"))
-    return (2, 0)
+    rank, order, _ = scope_sort_key(scope)
+    return (rank, order)
 
 
 def _is_plausible_section_transition(
@@ -4233,6 +4945,7 @@ def _is_plausible_section_transition(
     candidate_page: int | None = None,
     previous_table_count: int = 0,
     candidate_table_count: int = 0,
+    has_immediate_child: bool = False,
 ) -> bool:
     candidate_tuple = _parse_section_code_tuple(candidate_code)
     if not candidate_tuple:
@@ -4272,6 +4985,7 @@ def _is_plausible_section_transition(
         and len(prev_tuple) >= 2
         and len(candidate_title.strip()) <= 90
         and not STRONG_MAJOR_HEADING_KEYWORD_RE.search(candidate_title)
+        and not has_immediate_child
     ):
         return False
     if (
@@ -4303,6 +5017,13 @@ def _is_plausible_section_transition(
             and not STRONG_MAJOR_HEADING_KEYWORD_RE.search(f"{previous_title} {candidate_title}")
         ):
             return False
+    if (
+        len(candidate_tuple) == 1
+        and len(prev_tuple) >= 2
+        and candidate_punct in {".", "．"}
+        and _looks_like_requirement_sentence_title(candidate_title)
+    ):
+        return False
     if len(prev_tuple) >= 4 and len(candidate_tuple) >= 4 and cand_major < prev_major:
         # References like "...see 4.1.2.2.2 执行" can be OCR-split into fake headings.
         short_title = candidate_title.strip()
@@ -4780,6 +5501,129 @@ def _normalized_section_title(title: str) -> str:
     return value
 
 
+def _scope_title_matches_seen(title_norm: str, seen_title_norms: set[str]) -> bool:
+    if not title_norm:
+        return False
+    for seen in seen_title_norms:
+        if not seen:
+            continue
+        if title_norm == seen or title_norm in seen or seen in title_norm:
+            return True
+    return False
+
+
+def _remember_scope_metadata(
+    scope_metadata_by_scope: dict[str, dict[str, Any]],
+    scope: str,
+    *,
+    evidence: str = "",
+    title_source: str = "",
+    title: str = "",
+    start_page: int | None = None,
+) -> None:
+    normalized_scope = normalize_scope_id(scope)
+    if not normalized_scope or normalized_scope == MAIN_SCOPE_ID:
+        return
+    meta = scope_metadata_by_scope.setdefault(normalized_scope, {})
+    existing_evidence = str(meta.get("appendix_scope_evidence") or "")
+    if evidence and scope_evidence_rank(evidence) >= scope_evidence_rank(existing_evidence):
+        meta["appendix_scope_evidence"] = evidence
+        if title_source:
+            meta["appendix_title_source"] = title_source
+    elif title_source and not meta.get("appendix_title_source"):
+        meta["appendix_title_source"] = title_source
+    if title and not meta.get("appendix_title"):
+        meta["appendix_title"] = title
+    if isinstance(start_page, int) and start_page > 0 and not meta.get("scope_start_page"):
+        meta["scope_start_page"] = start_page
+
+
+def _scope_metadata_for(scope_metadata_by_scope: dict[str, dict[str, Any]], scope: str) -> dict[str, Any]:
+    meta = scope_metadata_by_scope.get(normalize_scope_id(scope), {})
+    return {
+        key: meta[key]
+        for key in ("appendix_title", "appendix_scope_evidence", "appendix_title_source")
+        if meta.get(key)
+    }
+
+
+def _should_split_embedded_scope_on_new_title(
+    *,
+    current_scope: str,
+    current_scope_title: str,
+    candidate_title: str,
+    current_block: dict[str, Any] | None,
+    candidate_page: int | None,
+    scope_start_page: int | None,
+) -> bool:
+    if not is_synthetic_scope(current_scope):
+        return False
+    candidate_norm = _normalized_section_title(candidate_title)
+    current_norm = _normalized_section_title(current_scope_title or str((current_block or {}).get("section_title") or ""))
+    if not candidate_norm or not current_norm or candidate_norm == current_norm:
+        return False
+    if isinstance(candidate_page, int) and isinstance(scope_start_page, int) and scope_start_page > 0 and candidate_page <= scope_start_page:
+        return False
+    if current_block is not None and not str(current_block.get("section_code") or "").strip():
+        block_title_norm = _normalized_section_title(str(current_block.get("section_title") or ""))
+        if block_title_norm == candidate_norm:
+            return False
+    return True
+
+
+def _should_rotate_scope_for_duplicate_header(
+    *,
+    current_scope: str,
+    header: dict[str, Any],
+    seen_codes: set[str],
+    seen_titles_by_scope_code: dict[tuple[str, str], set[str]],
+    candidate_page: int | None,
+    previous_page: int | None,
+) -> bool:
+    scope = str(current_scope or "").strip().upper()
+    code = str(header.get("code") or "").strip()
+    if not is_synthetic_scope(scope) or not code or code not in seen_codes:
+        return False
+    if candidate_page is not None and previous_page is not None and candidate_page <= previous_page:
+        return False
+    title_norm = _normalized_section_title(str(header.get("title") or ""))
+    seen_title_norms = seen_titles_by_scope_code.get((scope, code), set())
+    if not seen_title_norms or _scope_title_matches_seen(title_norm, seen_title_norms):
+        return False
+    return True
+
+
+def _should_rotate_scope_for_upcoming_duplicate_codes(
+    *,
+    current_scope: str,
+    seen_codes: set[str],
+    line_entries: list[dict[str, Any]],
+    start_index: int,
+) -> bool:
+    scope = str(current_scope or "").strip().upper()
+    if not is_synthetic_scope(scope) or not seen_codes:
+        return False
+    if start_index < 0 or start_index >= len(line_entries):
+        return False
+
+    start_page = _safe_int(line_entries[start_index].get("source_page"))
+    for idx in range(start_index + 1, min(len(line_entries), start_index + 64)):
+        candidate = line_entries[idx]
+        page = _safe_int(candidate.get("source_page"))
+        if start_page > 0 and page > start_page + 3:
+            break
+        text = str(candidate.get("text") or "")
+        if _extract_appendix_scope(text):
+            break
+        header = _parse_section_header(text)
+        if not header:
+            continue
+        code = str(header.get("code") or "").strip()
+        if code and code in seen_codes:
+            return True
+    return False
+
+
 def _should_start_embedded_scope(
     header: dict[str, Any],
     current_scope: str,
@@ -5191,10 +6035,11 @@ def _append_test_outline_requirements(
         text = str(row.get("requirement_text") or "").strip()
         if not text:
             continue
-        scope = str(row.get("appendix_scope") or "").strip().upper()
+        scope = normalize_test_outline_scope(str(row.get("appendix_scope") or ""))
+        scope_identity = test_outline_scope_identity(scope)
         item_code = str(row.get("item_code") or "").strip()
-        if scope and item_code:
-            dedupe = f"{scope}:{item_code}:{_build_dedupe_key(text)}"
+        if scope_identity and item_code:
+            dedupe = f"{scope_identity}:{item_code}:{_build_dedupe_key(text)}"
         else:
             dedupe = _build_dedupe_key(text)
         if dedupe in seen_keys:
@@ -5253,11 +6098,11 @@ def _extract_test_outline_rows(segments: list[dict[str, Any]]) -> list[dict[str,
 
             marker_scope, marker_title = _detect_test_outline_scope(line)
             if marker_scope:
-                current_scope = marker_scope
-                current_outline_title = marker_title
+                current_scope = normalize_test_outline_scope(marker_scope)
+                current_outline_title = str(marker_title or current_scope).strip()
                 continue
 
-            if not current_scope or current_scope == "X":
+            if not current_scope or is_reference_only_test_outline_scope(current_scope):
                 continue
             if "|" not in line:
                 continue
@@ -5310,17 +6155,18 @@ def _merge_test_outline_rows(rows: list[dict[str, Any]]) -> list[dict[str, Any]]
     order: list[tuple[str, str, str]] = []
 
     for row in rows:
-        scope = str(row.get("appendix_scope") or "").strip().upper()
+        scope = normalize_test_outline_scope(str(row.get("appendix_scope") or ""))
+        scope_identity = test_outline_scope_identity(scope)
         item_code = str(row.get("item_code") or "").strip()
         item_title = str(row.get("item_title") or "").strip()
-        if not scope or not item_code or not item_title:
+        if not scope or not scope_identity or not item_code or not item_title:
             continue
         text_line = str(row.get("requirement_text") or "").strip()
         title_key = _test_item_title_key(item_title)
         # Merge by item identity across all test-outline appendices.
         # This keeps one requirement item per "序号 + 标题", while concatenating
         # multi-line/sub-step rows into the same requirement text.
-        key = (scope, item_code, title_key)
+        key = (scope_identity, item_code, title_key)
 
         page = row.get("source_page")
         page_int = int(page) if isinstance(page, int) else 0
@@ -5501,6 +6347,10 @@ def _detect_test_outline_scope(line: str) -> tuple[str, str]:
     if not value:
         return ("", "")
 
+    generic_title = infer_generic_test_outline_title(value)
+    if generic_title:
+        return (generic_title, generic_title)
+
     candidates = [value]
     if "|" in value:
         candidates.extend(part.strip() for part in value.split("|") if part.strip())
@@ -5510,7 +6360,7 @@ def _detect_test_outline_scope(line: str) -> tuple[str, str]:
             if pattern.search(candidate):
                 return (scope, normalized_title)
         if ELECTRIC_TEST_OUTLINE_HEADER_RE.search(candidate):
-            return ("Y", "用电器试验大纲")
+            return (TEST_OUTLINE_INFERRED_GENERIC_TITLE, TEST_OUTLINE_INFERRED_GENERIC_TITLE)
     return ("", "")
 
 

@@ -557,50 +557,241 @@ function renderEngineTable(engineMap) {
     .join("");
 }
 
+function buildSectionOverviewLookupKey(scope, code) {
+  const normalizedScope = String(scope || "").trim().toUpperCase();
+  const normalizedCode = String(code || "").trim();
+  return normalizedCode ? `${normalizedScope}:${normalizedCode}` : "";
+}
+
+function buildSectionOverviewNodeLabel(row) {
+  if (!String(row.section_code || row.owner_section_code || "").trim() && row.is_appendix_scope_root) {
+    return "ROOT";
+  }
+  const explicitLabel = String(row.owner_section_label || row.section_label || row.section_code || "").trim();
+  const sectionCode = String(row.section_code || row.owner_section_code || "").trim();
+  const sectionTitle = String(row.section_title || row.owner_section_title || "").trim();
+  if (explicitLabel && sectionTitle) {
+    const compactLabel = explicitLabel.replace(/\s+/g, "");
+    const compactTitle = sectionTitle.replace(/\s+/g, "");
+    if (compactLabel.includes(compactTitle)) {
+      return explicitLabel;
+    }
+    return `${explicitLabel} ${sectionTitle}`.trim();
+  }
+  return explicitLabel || [sectionCode, sectionTitle].filter(Boolean).join(" ").trim() || sectionTitle;
+}
+
+function buildSectionOverviewParentLabel(row) {
+  const parentLabel = String(row.structural_parent_section_label || row.parent_section_label || "").trim();
+  const parentCode = String(row.structural_parent_section_code || row.parent_section_code || "").trim();
+  const parentTitle = String(row.structural_parent_section_title || row.parent_section_title || "").trim();
+  if (parentLabel && parentTitle) {
+    const compactLabel = parentLabel.replace(/\s+/g, "");
+    const compactTitle = parentTitle.replace(/\s+/g, "");
+    if (compactLabel.includes(compactTitle)) {
+      return parentLabel;
+    }
+    return `${parentLabel} ${parentTitle}`.trim();
+  }
+  return parentLabel || [parentCode, parentTitle].filter(Boolean).join(" ").trim();
+}
+
+function buildSectionOverviewTitleMeta(row) {
+  if (!row?.is_appendix_scope_root) {
+    return "";
+  }
+  const nodeLabel = String(row.node_label || buildSectionOverviewNodeLabel(row) || "").trim();
+  const sectionTitle = String(row.section_title || "").trim();
+  if (!sectionTitle) {
+    return "";
+  }
+  const compactNode = nodeLabel.replace(/\s+/g, "");
+  const compactTitle = sectionTitle.replace(/\s+/g, "");
+  if (!compactTitle) {
+    return "";
+  }
+  if (compactNode === compactTitle || compactNode.includes(compactTitle)) {
+    return "";
+  }
+  return sectionTitle;
+}
+
+function renderSectionOverviewHead(bodyEl, levelCount, trailingHeaders) {
+  const head = bodyEl?.closest("table")?.querySelector("thead");
+  if (!head) {
+    return;
+  }
+  const levelHeaders = Array.from({ length: levelCount }, (_, index) => {
+    const classes = ["section-overview-path-header"];
+    if (index === 0) {
+      classes.push("is-sticky-l0");
+    }
+    if (index === 1) {
+      classes.push("is-sticky-l1");
+    }
+    return `<th class="${classes.join(" ")}">L${index}</th>`;
+  }).join("");
+  const trailing = (trailingHeaders || []).map((label) => `<th>${escapeHtml(label)}</th>`).join("");
+  head.innerHTML = `<tr><th class="section-overview-scope-header is-sticky-scope">附录域</th>${levelHeaders}${trailing}</tr>`;
+}
+
+function renderSectionOverviewPathCard(node, titleMeta, isCurrent) {
+  const toneClasses = [node.is_root ? "is-root" : "", isCurrent ? "is-current" : "is-ancestor"].filter(Boolean).join(" ");
+  return `<div class="section-overview-path-card ${toneClasses}">
+    <div class="section-overview-path-label">${escapeHtml(node.label || "-")}</div>
+    ${titleMeta ? `<div class="section-overview-path-meta">${escapeHtml(titleMeta)}</div>` : ""}
+  </div>`;
+}
+
+function renderSectionOverviewPathCells(row, levelCount) {
+  const path = Array.isArray(row.level_path) ? row.level_path : [];
+  return Array.from({ length: levelCount }, (_, levelIndex) => {
+    const node = path[levelIndex];
+    const classes = ["section-overview-path-cell"];
+    if (levelIndex === 0) {
+      classes.push("is-sticky-l0");
+    }
+    if (levelIndex === 1) {
+      classes.push("is-sticky-l1");
+    }
+    if (!node) {
+      classes.push("is-empty");
+      return `<td class="${classes.join(" ")}"><span class="section-overview-empty-slot"></span></td>`;
+    }
+    const isCurrent = levelIndex === path.length - 1;
+    classes.push(isCurrent ? "is-current" : "is-ancestor");
+    return `<td class="${classes.join(" ")}">${renderSectionOverviewPathCard(
+      node,
+      isCurrent ? row.title_meta : "",
+      isCurrent
+    )}</td>`;
+  }).join("");
+}
+
 function buildSectionOverviewRows(rows) {
-  return (rows || [])
-    .map((row, index) => ({
-      appendix_scope: row.appendix_scope || "",
-      section_code: row.section_code || "",
-      section_title: row.section_title || "",
-      section_level: Number(row.section_level || 0),
-      parent_section_code: row.parent_section_code || "",
-      source_page_start: row.source_page_start ?? null,
-      source_page_end: row.source_page_end ?? null,
-      requirement_count: row.requirement_count ?? 0,
-      total_chars: row.total_chars ?? row.section_char_count ?? row.char_count ?? 0,
-      requirement_like: row.requirement_like,
-      outline_order: Number.isFinite(Number(row.tree_order))
-        ? Number(row.tree_order)
-        : Number.isFinite(Number(row.outline_order))
-        ? Number(row.outline_order)
-        : index,
-      section_order: index,
-    }))
-    .filter((row) => row.section_code || row.section_title);
+  const sourceRows = (rows || []).filter(
+    (row) => (row?.section_code || row?.section_title) && !row?.is_appendix_scope_root
+  );
+  const rowByKey = new Map();
+  const rowByScopeCode = new Map();
+
+  sourceRows.forEach((row) => {
+    const sectionKey = String(row.section_instance_key || row.section_key || "").trim();
+    const scopeCodeKey = buildSectionOverviewLookupKey(row.appendix_scope, row.section_code);
+    if (sectionKey) {
+      rowByKey.set(sectionKey, row);
+    }
+    if (scopeCodeKey && !rowByScopeCode.has(scopeCodeKey)) {
+      rowByScopeCode.set(scopeCodeKey, row);
+    }
+  });
+
+  const depthCache = new Map();
+  const visiting = new Set();
+  const pathCache = new Map();
+  const pathVisiting = new Set();
+
+  function findParentRow(row) {
+    const parentKey = String(row.structural_parent_section_key || row.parent_section_key || "").trim();
+    const parentCode = String(row.structural_parent_section_code || row.parent_section_code || "").trim();
+    const lookupKey = buildSectionOverviewLookupKey(row.appendix_scope, parentCode);
+    return (parentKey ? rowByKey.get(parentKey) : null) || (lookupKey ? rowByScopeCode.get(lookupKey) : null) || null;
+  }
+
+  function resolveDepth(row) {
+    const sectionKey = String(row.section_instance_key || row.section_key || "").trim();
+    if (sectionKey && depthCache.has(sectionKey)) {
+      return depthCache.get(sectionKey);
+    }
+    if (sectionKey && visiting.has(sectionKey)) {
+      return Math.max(0, Number(row.section_level || 1) - 1);
+    }
+    if (sectionKey) {
+      visiting.add(sectionKey);
+    }
+    const parentRow = findParentRow(row);
+    const depth = parentRow ? resolveDepth(parentRow) + 1 : 0;
+    if (sectionKey) {
+      depthCache.set(sectionKey, depth);
+      visiting.delete(sectionKey);
+    }
+    return depth;
+  }
+
+  function resolvePath(row) {
+    const sectionKey = String(row.section_instance_key || row.section_key || "").trim();
+    if (sectionKey && pathCache.has(sectionKey)) {
+      return pathCache.get(sectionKey);
+    }
+    if (sectionKey && pathVisiting.has(sectionKey)) {
+      return [row];
+    }
+    if (sectionKey) {
+      pathVisiting.add(sectionKey);
+    }
+    const parentRow = findParentRow(row);
+    const path = parentRow ? [...resolvePath(parentRow), row] : [row];
+    if (sectionKey) {
+      pathCache.set(sectionKey, path);
+      pathVisiting.delete(sectionKey);
+    }
+    return path;
+  }
+
+  return sourceRows.map((row, index) => ({
+    appendix_scope: row.appendix_scope || "",
+    appendix_title: row.appendix_title || "",
+    section_code: row.section_code || "",
+    section_title: row.section_title || "",
+    numbering_level: Number(row.numbering_level ?? row.section_level ?? 0),
+    structural_level: Number(row.structural_level ?? resolveDepth(row)),
+    tree_depth: resolveDepth(row),
+    node_label: buildSectionOverviewNodeLabel(row),
+    parent_label: buildSectionOverviewParentLabel(row),
+    is_appendix_scope_root: Boolean(row.is_appendix_scope_root),
+    parent_section_code: row.parent_section_code || "",
+    source_page_start: row.source_page_start ?? null,
+    source_page_end: row.source_page_end ?? null,
+    requirement_count: row.requirement_count ?? 0,
+    total_chars: row.total_chars ?? row.section_char_count ?? row.char_count ?? 0,
+    requirement_like: row.requirement_like,
+    title_meta: buildSectionOverviewTitleMeta({ ...row, node_label: buildSectionOverviewNodeLabel(row) }),
+    level_path: resolvePath(row)
+      .filter((pathRow) => !pathRow?.is_appendix_scope_root)
+      .map((pathRow) => ({
+      label: buildSectionOverviewNodeLabel(pathRow),
+      is_root: Boolean(pathRow.is_appendix_scope_root),
+      })),
+    outline_order: Number.isFinite(Number(row.tree_order))
+      ? Number(row.tree_order)
+      : Number.isFinite(Number(row.outline_order))
+      ? Number(row.outline_order)
+      : index,
+    section_order: index,
+  }));
 }
 
 function renderSectionOverviewTable(rows) {
+  const levelCount = Math.max(
+    1,
+    ...rows.map((row) => (Array.isArray(row.level_path) ? row.level_path.length : 0))
+  );
+  renderSectionOverviewHead(el.sectionOverviewBody, levelCount, ["页范围", "字符数", "需求候选"]);
   if (!rows.length) {
-    el.sectionOverviewBody.innerHTML = `<tr><td colspan="9">未识别到章节</td></tr>`;
+    el.sectionOverviewBody.innerHTML = `<tr><td colspan="${levelCount + 4}">未识别到章节</td></tr>`;
     return;
   }
 
   el.sectionOverviewBody.innerHTML = rows
     .map((row) => {
-      const span = `${row.source_page_start ?? ""}-${row.source_page_end ?? ""}`;
-      const level = Number(row.section_level || 0);
-      const indent = level > 1 ? "&nbsp;".repeat((level - 1) * 4) : "";
+      const span = row.source_page_start ? `${row.source_page_start}-${row.source_page_end ?? row.source_page_start}` : "-";
+      const scopeTitle = row.appendix_title ? ` title="${escapeHtml(row.appendix_title)}"` : "";
       return `<tr>
-        <td>${escapeHtml(formatScope(row.appendix_scope))}</td>
-        <td>${indent}${escapeHtml(row.section_code || "")}</td>
-        <td>${escapeHtml(row.section_title || "")}</td>
-        <td>${level || ""}</td>
-        <td>${escapeHtml(row.parent_section_code || "")}</td>
-        <td>${escapeHtml(span)}</td>
-        <td>${row.requirement_count ?? 0}</td>
-        <td>${row.total_chars ?? 0}</td>
-        <td>${row.requirement_like ? "是" : "否"}</td>
+        <td class="section-overview-scope-cell is-sticky-scope"><span class="section-overview-scope-pill"${scopeTitle}>${escapeHtml(formatScope(row.appendix_scope, row.appendix_title))}</span></td>
+        ${renderSectionOverviewPathCells(row, levelCount)}
+        <td class="section-overview-metric-cell"><span class="section-overview-page-pill">${escapeHtml(span)}</span></td>
+        <td class="section-overview-metric-cell"><span class="section-overview-page-pill">${escapeHtml(String(row.total_chars ?? 0))}</span></td>
+        <td class="section-overview-metric-cell"><span class="section-overview-flag ${row.requirement_like ? "is-yes" : "is-no"}">${row.requirement_like ? "是" : "否"}</span></td>
       </tr>`;
     })
     .join("");
@@ -624,8 +815,8 @@ function compareSectionOverviewRows(a, b) {
 }
 
 function compareScopeCode(a, b) {
-  const left = String(a || "").trim().toUpperCase();
-  const right = String(b || "").trim().toUpperCase();
+  const left = String(a || "MAIN").trim().toUpperCase();
+  const right = String(b || "MAIN").trim().toUpperCase();
   if (left === right) {
     return 0;
   }
@@ -633,6 +824,17 @@ function compareScopeCode(a, b) {
     return -1;
   }
   if (right === "MAIN") {
+    return 1;
+  }
+  const leftMatch = left.match(/^SUB(\d+)$/);
+  const rightMatch = right.match(/^SUB(\d+)$/);
+  if (leftMatch && rightMatch) {
+    return Number(leftMatch[1]) - Number(rightMatch[1]);
+  }
+  if (leftMatch) {
+    return -1;
+  }
+  if (rightMatch) {
     return 1;
   }
   return left.localeCompare(right);
@@ -652,6 +854,32 @@ function normalizeSectionTitle(value) {
     .toLowerCase();
 }
 
+function formatConsistencyIssueType(issueType) {
+  const normalized = String(issueType || "").trim();
+  if (!normalized) {
+    return "";
+  }
+  if (normalized === "missing_scope_root") {
+    return "附件根节点缺失";
+  }
+  if (normalized === "source_faithful_duplicate_code") {
+    return "源文档重复编号";
+  }
+  if (normalized === "duplicate_code") {
+    return "重复编号";
+  }
+  if (normalized === "missing_sibling_code") {
+    return "缺失同级编号";
+  }
+  if (normalized === "level_jump") {
+    return "层级跳变";
+  }
+  if (normalized === "late_major_reset") {
+    return "晚期主编号重置";
+  }
+  return normalized;
+}
+
 function renderConsistencyTable(consistency) {
   const rows = consistency?.issues || [];
   if (!rows.length) {
@@ -661,9 +889,9 @@ function renderConsistencyTable(consistency) {
   el.consistencyBody.innerHTML = rows
     .map((row) => {
       return `<tr>
-        <td>${escapeHtml(row.issue_type || "")}</td>
+        <td>${escapeHtml(formatConsistencyIssueType(row.issue_type))}</td>
         <td>${escapeHtml(row.severity || "")}</td>
-        <td>${escapeHtml(formatScope(row.appendix_scope))}</td>
+        <td>${escapeHtml(formatScope(row.appendix_scope, row.appendix_title))}</td>
         <td>${escapeHtml(row.section_code || "")}</td>
         <td>${escapeHtml(row.detail || "")}</td>
       </tr>`;
@@ -2224,9 +2452,13 @@ function escapeHtml(value) {
     .replaceAll('"', "&quot;");
 }
 
-function formatScope(scope) {
-  const normalized = String(scope || "").trim().toUpperCase();
-  return normalized || "Main";
+function formatScope(scope, title) {
+  const normalizedTitle = String(title || "").trim();
+  if (normalizedTitle) {
+    return normalizedTitle;
+  }
+  const normalized = String(scope || "MAIN").trim().toUpperCase();
+  return normalized || "MAIN";
 }
 
 function formatTime(value) {

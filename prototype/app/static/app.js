@@ -19,6 +19,7 @@ const state = {
   reviewEntries: [],
   reviewSelectedKinds: [],
   reviewShowRecommendedSourceOnly: false,
+  reviewDefaultTableVariant: "",
   reviewActiveEntryId: "",
   reviewPdfBaseUrl: "",
   reviewPdfCurrentPage: 1,
@@ -167,6 +168,7 @@ async function init() {
   restoreWorkspaceSelection();
   bindEvents();
   syncStageFromUrl();
+  restoreReviewFiltersFromUrl();
   syncStagePanels();
   await loadAiProviderSetup();
   await loadProjects();
@@ -182,6 +184,15 @@ function restoreWorkspaceSelection() {
   } catch (_error) {
     state.projectId = state.projectId || null;
     state.currentSorDocumentId = state.currentSorDocumentId || null;
+  }
+  const params = new URLSearchParams(window.location.search);
+  const projectId = String(params.get("projectId") || "").trim();
+  const documentId = String(params.get("documentId") || "").trim();
+  if (projectId) {
+    state.projectId = projectId;
+  }
+  if (documentId) {
+    state.currentSorDocumentId = documentId;
   }
 }
 
@@ -225,6 +236,26 @@ function syncStageFromUrl() {
   const stage = new URLSearchParams(window.location.search).get("stage");
   if (stage && ["review", "ai", "matrix"].includes(stage)) {
     state.currentStage = stage;
+  }
+}
+
+function restoreReviewFiltersFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const section = String(params.get("section") || "").trim();
+  const keyword = String(params.get("keyword") || "").trim();
+  const sourceOnly = String(params.get("sourceOnly") || "").trim().toLowerCase();
+  const tableView = String(params.get("tableView") || "").trim().toLowerCase();
+  if (el.reviewSectionFilter && section) {
+    el.reviewSectionFilter.value = section;
+  }
+  if (el.reviewKeywordFilter && keyword) {
+    el.reviewKeywordFilter.value = keyword;
+  }
+  if (sourceOnly) {
+    state.reviewShowRecommendedSourceOnly = ["1", "true", "yes", "source"].includes(sourceOnly);
+  }
+  if (tableView === "slice" || tableView === "source") {
+    state.reviewDefaultTableVariant = tableView;
   }
 }
 
@@ -948,9 +979,11 @@ async function onCreateProject(event) {
   await loadProjects();
 }
 
-async function onProjectChanged() {
+async function onProjectChanged(preferredDocumentId = null) {
+  const preferredDocument =
+    typeof preferredDocumentId === "string" && preferredDocumentId.trim() ? preferredDocumentId.trim() : null;
   state.projectId = el.projectSelect.value || null;
-  state.currentSorDocumentId = null;
+  state.currentSorDocumentId = preferredDocument || null;
   state.sorDocuments = [];
   state.workspace = null;
   resetAiAnalysisState();
@@ -965,7 +998,7 @@ async function onProjectChanged() {
   el.downloadLink.removeAttribute("href");
   persistWorkspaceSelection();
   if (state.projectId) {
-    await loadSorDocuments();
+    await loadSorDocuments(state.currentSorDocumentId || null);
     await Promise.all([loadWorkspace(), loadExportJobs(), loadKnowledgeDocuments()]);
   } else {
     state.knowledgeDocuments = [];
@@ -1341,11 +1374,15 @@ async function onApplyBatchDecision() {
 
 async function loadProjects() {
   const projects = await api("/api/projects");
-  await renderProjectOptions(projects);
+  const hydratedSelection = await renderProjectOptions(projects);
+  if (!hydratedSelection && state.projectId) {
+    await onProjectChanged(state.currentSorDocumentId || null);
+  }
 }
 
 async function renderProjectOptions(projects) {
   const current = state.projectId;
+  const hasCurrent = Boolean(current) && projects.some((project) => project.id === current);
   el.projectSelect.innerHTML = "";
   const placeholder = document.createElement("option");
   placeholder.value = "";
@@ -1356,18 +1393,26 @@ async function renderProjectOptions(projects) {
     const option = document.createElement("option");
     option.value = project.id;
     option.textContent = `${project.name} / ${project.customer_name}`;
-    if (project.id === current) {
+    if (hasCurrent && project.id === current) {
       option.selected = true;
     }
     el.projectSelect.appendChild(option);
   });
 
-  if (!current && projects.length) {
+  if (!hasCurrent && current) {
+    state.projectId = null;
+  }
+
+  if (!state.projectId && projects.length) {
     state.projectId = projects[0].id;
     el.projectSelect.value = state.projectId;
     persistWorkspaceSelection();
     await onProjectChanged();
+    return true;
   }
+
+  el.projectSelect.value = state.projectId || "";
+  return false;
 }
 
 async function loadSorDocuments(preferredDocumentId = null) {
@@ -1844,36 +1889,236 @@ function renderReviewDiagnostics() {
       .join("");
   }
   if (el.reviewSectionOverviewBody) {
-    const rows = buildReviewSectionOverviewRows(preview.sections || []);
+    const rows = buildReviewSectionOverviewRows(preview.section_tree || preview.sections || []);
+    const levelCount = Math.max(
+      1,
+      ...rows.map((row) => (Array.isArray(row.level_path) ? row.level_path.length : 0))
+    );
+    renderSectionOverviewHead(el.reviewSectionOverviewBody, levelCount, ["页范围"]);
     if (!rows.length) {
-      el.reviewSectionOverviewBody.innerHTML = `<tr><td colspan="5">暂无章节数据</td></tr>`;
+      el.reviewSectionOverviewBody.innerHTML = `<tr><td colspan="${levelCount + 2}">暂无章节数据</td></tr>`;
     } else {
       el.reviewSectionOverviewBody.innerHTML = rows
         .map(
-          (row) => `<tr>
-            <td>${escapeHtml(formatScope(row.appendix_scope))}</td>
-            <td>${escapeHtml(row.section_code || "")}</td>
-            <td>${escapeHtml(row.section_title || "")}</td>
-            <td>${escapeHtml(`${row.source_page_start || ""}-${row.source_page_end || ""}`)}</td>
-            <td>${escapeHtml(String(row.requirement_count || 0))}</td>
-          </tr>`
+          (row) => {
+            const span = row.source_page_start ? `${row.source_page_start}-${row.source_page_end || row.source_page_start}` : "-";
+            const scopeTitle = row.appendix_title ? ` title="${escapeHtml(row.appendix_title)}"` : "";
+            return `<tr>
+            <td><span class="section-overview-scope-pill"${scopeTitle}>${escapeHtml(formatScope(row.appendix_scope, row.appendix_title))}</span></td>
+            ${renderSectionOverviewPathCells(row, levelCount)}
+            <td class="section-overview-metric-cell"><span class="section-overview-page-pill">${escapeHtml(span)}</span></td>
+          </tr>`;
+          }
         )
         .join("");
     }
   }
 }
 
+function buildSectionOverviewLookupKey(scope, code) {
+  const normalizedScope = String(scope || "").trim().toUpperCase();
+  const normalizedCode = String(code || "").trim();
+  return normalizedCode ? `${normalizedScope}:${normalizedCode}` : "";
+}
+
+function buildSectionOverviewNodeLabel(row) {
+  if (!String(row.section_code || row.owner_section_code || "").trim() && row.is_appendix_scope_root) {
+    return "ROOT";
+  }
+  const explicitLabel = String(row.owner_section_label || row.section_label || row.section_code || "").trim();
+  const sectionCode = String(row.section_code || row.owner_section_code || "").trim();
+  const sectionTitle = String(row.section_title || row.owner_section_title || "").trim();
+  if (explicitLabel && sectionTitle) {
+    const compactLabel = explicitLabel.replace(/\s+/g, "");
+    const compactTitle = sectionTitle.replace(/\s+/g, "");
+    if (compactLabel.includes(compactTitle)) {
+      return explicitLabel;
+    }
+    return `${explicitLabel} ${sectionTitle}`.trim();
+  }
+  return explicitLabel || [sectionCode, sectionTitle].filter(Boolean).join(" ").trim() || sectionTitle;
+}
+
+function buildSectionOverviewParentLabel(row) {
+  const parentLabel = String(row.structural_parent_section_label || row.parent_section_label || "").trim();
+  const parentCode = String(row.structural_parent_section_code || row.parent_section_code || "").trim();
+  const parentTitle = String(row.structural_parent_section_title || row.parent_section_title || "").trim();
+  if (parentLabel && parentTitle) {
+    const compactLabel = parentLabel.replace(/\s+/g, "");
+    const compactTitle = parentTitle.replace(/\s+/g, "");
+    if (compactLabel.includes(compactTitle)) {
+      return parentLabel;
+    }
+    return `${parentLabel} ${parentTitle}`.trim();
+  }
+  return parentLabel || [parentCode, parentTitle].filter(Boolean).join(" ").trim();
+}
+
+function buildSectionOverviewTitleMeta(row) {
+  if (!row?.is_appendix_scope_root) {
+    return "";
+  }
+  const nodeLabel = String(row.node_label || buildSectionOverviewNodeLabel(row) || "").trim();
+  const sectionTitle = String(row.section_title || "").trim();
+  if (!sectionTitle) {
+    return "";
+  }
+  const compactNode = nodeLabel.replace(/\s+/g, "");
+  const compactTitle = sectionTitle.replace(/\s+/g, "");
+  if (!compactTitle) {
+    return "";
+  }
+  if (compactNode === compactTitle || compactNode.includes(compactTitle)) {
+    return "";
+  }
+  return sectionTitle;
+}
+
+function renderSectionOverviewHead(bodyEl, levelCount, trailingHeaders) {
+  const head = bodyEl?.closest("table")?.querySelector("thead");
+  if (!head) {
+    return;
+  }
+  const levelHeaders = Array.from({ length: levelCount }, (_, index) => {
+    const classes = ["section-overview-path-header"];
+    if (index === 0) {
+      classes.push("is-sticky-l0");
+    }
+    if (index === 1) {
+      classes.push("is-sticky-l1");
+    }
+    return `<th class="${classes.join(" ")}">L${index}</th>`;
+  }).join("");
+  const trailing = (trailingHeaders || []).map((label) => `<th>${escapeHtml(label)}</th>`).join("");
+  head.innerHTML = `<tr><th class="section-overview-scope-header is-sticky-scope">附录域</th>${levelHeaders}${trailing}</tr>`;
+}
+
+function renderSectionOverviewPathCard(node, titleMeta, isCurrent) {
+  const toneClasses = [node.is_root ? "is-root" : "", isCurrent ? "is-current" : "is-ancestor"].filter(Boolean).join(" ");
+  return `<div class="section-overview-path-card ${toneClasses}">
+    <div class="section-overview-path-label">${escapeHtml(node.label || "-")}</div>
+    ${titleMeta ? `<div class="section-overview-path-meta">${escapeHtml(titleMeta)}</div>` : ""}
+  </div>`;
+}
+
+function renderSectionOverviewPathCells(row, levelCount) {
+  const path = Array.isArray(row.level_path) ? row.level_path : [];
+  return Array.from({ length: levelCount }, (_, levelIndex) => {
+    const node = path[levelIndex];
+    const classes = ["section-overview-path-cell"];
+    if (levelIndex === 0) {
+      classes.push("is-sticky-l0");
+    }
+    if (levelIndex === 1) {
+      classes.push("is-sticky-l1");
+    }
+    if (!node) {
+      classes.push("is-empty");
+      return `<td class="${classes.join(" ")}"><span class="section-overview-empty-slot"></span></td>`;
+    }
+    const isCurrent = levelIndex === path.length - 1;
+    classes.push(isCurrent ? "is-current" : "is-ancestor");
+    return `<td class="${classes.join(" ")}">${renderSectionOverviewPathCard(
+      node,
+      isCurrent ? row.title_meta : "",
+      isCurrent
+    )}</td>`;
+  }).join("");
+}
+
 function buildReviewSectionOverviewRows(rows) {
-  return (rows || [])
-    .map((row) => ({
+  const sourceRows = (rows || []).filter(
+    (row) => (row?.section_code || row?.section_title) && !row?.is_appendix_scope_root
+  );
+  const rowByKey = new Map();
+  const rowByScopeCode = new Map();
+
+  sourceRows.forEach((row) => {
+    const sectionKey = String(row.section_instance_key || row.section_key || "").trim();
+    const scopeCodeKey = buildSectionOverviewLookupKey(row.appendix_scope, row.section_code);
+    if (sectionKey) {
+      rowByKey.set(sectionKey, row);
+    }
+    if (scopeCodeKey && !rowByScopeCode.has(scopeCodeKey)) {
+      rowByScopeCode.set(scopeCodeKey, row);
+    }
+  });
+
+  const depthCache = new Map();
+  const visiting = new Set();
+  const pathCache = new Map();
+  const pathVisiting = new Set();
+
+  function findParentRow(row) {
+    const parentKey = String(row.structural_parent_section_key || row.parent_section_key || "").trim();
+    const parentCode = String(row.structural_parent_section_code || row.parent_section_code || "").trim();
+    const lookupKey = buildSectionOverviewLookupKey(row.appendix_scope, parentCode);
+    return (parentKey ? rowByKey.get(parentKey) : null) || (lookupKey ? rowByScopeCode.get(lookupKey) : null) || null;
+  }
+
+  function resolveDepth(row) {
+    const sectionKey = String(row.section_instance_key || row.section_key || "").trim();
+    if (sectionKey && depthCache.has(sectionKey)) {
+      return depthCache.get(sectionKey);
+    }
+    if (sectionKey && visiting.has(sectionKey)) {
+      return Math.max(0, Number(row.section_level || 1) - 1);
+    }
+    if (sectionKey) {
+      visiting.add(sectionKey);
+    }
+    const parentRow = findParentRow(row);
+    const depth = parentRow ? resolveDepth(parentRow) + 1 : 0;
+    if (sectionKey) {
+      depthCache.set(sectionKey, depth);
+      visiting.delete(sectionKey);
+    }
+    return depth;
+  }
+
+  function resolvePath(row) {
+    const sectionKey = String(row.section_instance_key || row.section_key || "").trim();
+    if (sectionKey && pathCache.has(sectionKey)) {
+      return pathCache.get(sectionKey);
+    }
+    if (sectionKey && pathVisiting.has(sectionKey)) {
+      return [row];
+    }
+    if (sectionKey) {
+      pathVisiting.add(sectionKey);
+    }
+    const parentRow = findParentRow(row);
+    const path = parentRow ? [...resolvePath(parentRow), row] : [row];
+    if (sectionKey) {
+      pathCache.set(sectionKey, path);
+      pathVisiting.delete(sectionKey);
+    }
+    return path;
+  }
+
+  return sourceRows.map((row) => {
+    const path = resolvePath(row).filter((pathRow) => !pathRow?.is_appendix_scope_root);
+    return {
       appendix_scope: row.appendix_scope || "",
+      appendix_title: row.appendix_title || "",
       section_code: row.section_code || "",
       section_title: row.section_title || "",
+      numbering_level: Number(row.numbering_level ?? row.section_level ?? 0) || 0,
+      structural_level: Number(row.structural_level ?? resolveDepth(row)) || 0,
+      tree_depth: resolveDepth(row),
+      node_label: buildSectionOverviewNodeLabel(row),
+      parent_label: buildSectionOverviewParentLabel(row),
+      is_appendix_scope_root: Boolean(row.is_appendix_scope_root),
       source_page_start: row.source_page_start || "",
       source_page_end: row.source_page_end || "",
       requirement_count: row.requirement_count || 0,
-    }))
-    .filter((row) => row.section_code || row.section_title);
+      title_meta: buildSectionOverviewTitleMeta({ ...row, node_label: buildSectionOverviewNodeLabel(row) }),
+      level_path: path.map((pathRow) => ({
+        label: buildSectionOverviewNodeLabel(pathRow),
+        is_root: Boolean(pathRow.is_appendix_scope_root),
+      })),
+    };
+  });
 }
 
 function renderReviewKindFilter() {
@@ -1881,15 +2126,16 @@ function renderReviewKindFilter() {
     return;
   }
   const kinds = new Set((state.reviewEntries || []).map((item) => String(item.entry_kind || "REQUIREMENT").toUpperCase()));
+  const selectedKinds = new Set((Array.isArray(state.reviewSelectedKinds) ? state.reviewSelectedKinds : []).map((kind) => String(kind || "").toUpperCase()));
   const chips = el.reviewKindFilter.querySelectorAll(".kind-chip");
   chips.forEach((chip) => {
     const kind = chip.dataset.kind;
-    if (kinds.has(kind)) {
-      chip.style.display = "";
-    } else {
-      chip.style.display = "none";
-    }
+    const available = kinds.has(kind);
+    chip.style.display = available ? "" : "none";
+    const shouldBeActive = available && (selectedKinds.size === 0 || selectedKinds.has(kind));
+    chip.classList.toggle("is-active", shouldBeActive);
   });
+  state.reviewSelectedKinds = getSelectedReviewKinds();
 }
 
 function getSelectedReviewKinds() {
@@ -1953,7 +2199,18 @@ function filterReviewEntries(rows) {
     if (selectedKinds.length && !selectedKinds.includes(entryKind)) {
       return false;
     }
-    const sectionKey = [row.parent_section_label, row.section_code, row.section_title].filter(Boolean).join(" ").toLowerCase();
+    const sectionKey = [
+      row.owner_section_label,
+      row.owner_section_code,
+      row.owner_section_title,
+      row.section_label,
+      row.section_code,
+      row.section_title,
+      row.parent_section_label,
+    ]
+      .filter(Boolean)
+      .join(" ")
+      .toLowerCase();
     if (sectionFilter && !sectionKey.includes(sectionFilter)) {
       return false;
     }
@@ -2047,6 +2304,11 @@ function buildReviewedExtractionEntriesPayload(rows) {
     entry_id: row.entry_id || "",
     req_code: row.req_code || "",
     entry_kind: row.entry_kind || "REQUIREMENT",
+    section_code: row.section_code || "",
+    section_title: row.section_title || "",
+    section_label: row.section_label || "",
+    section_key: row.section_key || "",
+    section_instance_key: row.section_instance_key || "",
     source_page: Number(row.source_page || 0) || null,
     source_page_end: Number(row.source_page_end || 0) || null,
     source_anchor: row.source_anchor || "",
@@ -2061,6 +2323,13 @@ function buildReviewedExtractionEntriesPayload(rows) {
     parent_section_code: row.parent_section_code || "",
     parent_section_title: row.parent_section_title || "",
     parent_section_label: row.parent_section_label || "",
+    owner_section_code: row.owner_section_code || "",
+    owner_section_title: row.owner_section_title || "",
+    owner_section_label: row.owner_section_label || "",
+    structural_parent_section_code: row.structural_parent_section_code || "",
+    structural_parent_section_key: row.structural_parent_section_key || "",
+    structural_parent_section_title: row.structural_parent_section_title || "",
+    structural_parent_section_label: row.structural_parent_section_label || "",
     merged_from_req_codes: Array.isArray(row.merged_from_req_codes) ? row.merged_from_req_codes : [],
     merged_from_entry_ids: Array.isArray(row.merged_from_entry_ids) ? row.merged_from_entry_ids : [],
     dedupe_version: row.dedupe_version || state.reviewPreview?.summary?.dedupe_version || "",
@@ -3490,21 +3759,28 @@ function decisionChip(decision) {
 }
 
 function renderParentSectionLabel(item) {
-  const label = getParentSectionLabel(item);
+  const label = getOwnerSectionLabel(item);
   return escapeHtml(label || "-");
 }
 
 function renderParentSectionPlainText(item) {
-  return getParentSectionLabel(item) || "-";
+  return getOwnerSectionLabel(item) || "-";
 }
 
-function getParentSectionLabel(item) {
-  return (
-    buildSectionLabel(item.parent_section_label, item.parent_section_code, item.parent_section_title) ||
-    buildSectionLabel(item.section_label, item.section_code, item.section_title) ||
-    extractSectionLabelFromAnchor(item.source_anchor) ||
-    String(item.heading_text || "").trim()
-  );
+function getOwnerSectionLabel(item) {
+  const ownerLabel = String(item?.owner_section_label || "").trim();
+  if (ownerLabel) {
+    return ownerLabel;
+  }
+  const ownerCode = String(item?.owner_section_code || item?.section_code || item?.parent_section_code || "").trim();
+  if (ownerCode) {
+    return ownerCode;
+  }
+  const ownerTitle = String(item?.owner_section_title || item?.section_title || item?.parent_section_title || "").trim();
+  if (ownerTitle) {
+    return ownerTitle;
+  }
+  return extractSectionLabelFromAnchor(item?.source_anchor) || String(item?.heading_text || "").trim();
 }
 
 function formatAiJobStatus(status) {
@@ -3691,9 +3967,13 @@ function buildSectionLabel(label, code, title) {
   return [String(code || "").trim(), String(title || "").trim()].filter(Boolean).join(" ");
 }
 
-function formatScope(scope) {
-  const normalized = String(scope || "").trim().toUpperCase();
-  return normalized || "Main";
+function formatScope(scope, title) {
+  const normalizedTitle = String(title || "").trim();
+  if (normalizedTitle) {
+    return normalizedTitle;
+  }
+  const normalized = String(scope || "MAIN").trim().toUpperCase();
+  return normalized || "MAIN";
 }
 
 function extractSectionLabelFromAnchor(anchor) {
@@ -3850,11 +4130,11 @@ function renderTableRef(ref, row = null) {
   const headers = Array.isArray(ref.inherited_headers) ? ref.inherited_headers : [];
   const rows = Array.isArray(ref.slice_rows) ? ref.slice_rows.filter((row) => Array.isArray(row)) : [];
   const sliceLabel =
-    String(ref.slice_render_mode || "") === "structured" && headers.length ? "结构化切片" : "切片快照";
+    String(ref.slice_render_mode || "") === "structured" && (headers.length || rows.length) ? "结构化切片" : "切片快照";
   let content = "";
   if (variant === "source" && ref.source_snapshot_url) {
     content = renderTableSnapshot(ref, row, ref.source_snapshot_url, "source table snapshot");
-  } else if (String(ref.slice_render_mode || "") === "structured" && headers.length) {
+  } else if (String(ref.slice_render_mode || "") === "structured" && (headers.length || rows.length)) {
     content = renderStructuredTable(headers, rows);
   } else if (ref.slice_snapshot_url) {
     content = renderTableSnapshot(ref, row, ref.slice_snapshot_url, "table snapshot");
@@ -3883,6 +4163,12 @@ function renderTableRef(ref, row = null) {
 function activeTableVariant(ref) {
   const tableId = String(ref?.table_id || "").trim();
   if (!tableId) {
+    if (state.reviewDefaultTableVariant === "source" && ref?.source_snapshot_url) {
+      return "source";
+    }
+    if (state.reviewDefaultTableVariant === "slice") {
+      return "slice";
+    }
     return ref?.source_snapshot_url ? "source" : "slice";
   }
   const preferred = state.tableViewByTableId[tableId];
@@ -3890,7 +4176,13 @@ function activeTableVariant(ref) {
     if (preferred === "source" && !ref?.source_snapshot_url) {
       return "slice";
     }
-    return preferred;
+      return preferred;
+  }
+  if (state.reviewDefaultTableVariant === "source" && ref?.source_snapshot_url) {
+    return "source";
+  }
+  if (state.reviewDefaultTableVariant === "slice") {
+    return "slice";
   }
   const dbVariant = String(ref?.export_variant || "").trim().toLowerCase();
   if (dbVariant === "source" || dbVariant === "slice") {
@@ -3934,14 +4226,16 @@ function renderStructuredTable(headers, rows) {
   const colgroup = colPercents.length
     ? `<colgroup>${colPercents.map((pct) => `<col style="width:${pct.toFixed(2)}%">`).join("")}</colgroup>`
     : "";
-  const head = normalizedHeaders.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("");
+  const hasHeader = normalizedHeaders.some((cell) => cell);
+  const head = hasHeader ? normalizedHeaders.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("") : "";
   const body = normalizedRows
     .map(
       (row) =>
         `<tr>${row.map((cell) => `<td>${escapeHtml(String(cell || ""))}</td>`).join("")}</tr>`
     )
     .join("");
-  return `<div class="md-table-wrap asset-table-wrap"><table class="md-table asset-table md-table-accurate">${colgroup}<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const thead = hasHeader ? `<thead><tr>${head}</tr></thead>` : "";
+  return `<div class="md-table-wrap asset-table-wrap"><table class="md-table asset-table md-table-accurate">${colgroup}${thead}<tbody>${body}</tbody></table></div>`;
 }
 
 function looksLikeMarkdownTableRow(line) {

@@ -1,0 +1,212 @@
+{
+  "updated_at": "2026-04-11T18:20:00",
+  "tracks": [
+    {
+      "id": "release-foundation",
+      "title": "Release Foundation",
+      "lane_order": 1,
+      "status": "ACTIVE",
+      "branch_name": "codex/release-foundation",
+      "worktree_path": "/Users/liuchang/Documents/New project/worktrees/_active/release-foundation",
+      "skill_name": "reqpilot-track-release-foundation",
+      "branch_context_doc": "prototype/docs/release-foundation-active-context.md",
+      "scope_summary": "P0 stability, Entra auth, feedback skeleton, and trial-run foundation.",
+      "non_goals": "Do not tune extraction quality, RAG ranking, or product-package architecture in this track.",
+      "allowed_paths": [
+        "prototype/app/main.py",
+        "prototype/app/db.py",
+        "prototype/app/runtime_readiness.py",
+        "prototype/app/static/*",
+        "prototype/tests/*",
+        "prototype/scripts/*"
+      ],
+      "blocked_paths": [
+        "prototype/app/services/parser.py",
+        "prototype/app/services/extractor.py",
+        "prototype/app/services/extraction_preview.py",
+        "prototype/app/services/ai_copilot.py",
+        "prototype/app/services/rag.py",
+        "prototype/scripts/azure_rag_smoke.py"
+      ],
+      "required_docs": [
+        "AGENTS.md",
+        "docs/项目.md",
+        "docs/开发执行清单.md",
+        "docs/active-context.md",
+        "prototype/eval/progress/track_registry.json",
+        "prototype/docs/release-foundation-active-context.md"
+      ],
+      "required_gates": [
+        "p0-smoke",
+        "auth-login",
+        "feedback-roundtrip",
+        "health-readiness"
+      ],
+      "owner_role": "Coordinator + Backend/Ops",
+      "target_date": ""
+    },
+    {
+      "id": "extraction-quality-loop",
+      "title": "Extraction Quality Loop",
+      "lane_order": 2,
+      "status": "ACTIVE",
+      "branch_name": "codex/extraction-quality-loop",
+      "worktree_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop",
+      "skill_name": "reqpilot-track-extraction-quality",
+      "branch_context_doc": "prototype/docs/extraction-active-context.md",
+      "scope_summary": "Single-line extraction loop: batch regression, document-level audit, pattern capture, and benchmark-safe rule promotion.",
+      "non_goals": "Do not change auth, feedback, product-side audit runtime, or RAG evidence logic in this track.",
+      "allowed_paths": [
+        "prototype/app/services/parser.py",
+        "prototype/app/services/extractor.py",
+        "prototype/app/services/extraction_preview.py",
+        "prototype/scripts/*",
+        "prototype/tests/*",
+        "prototype/eval/*",
+        ".codex/skills-src/reqpilot-track-extraction-quality/*"
+      ],
+      "blocked_paths": [
+        "prototype/app/main.py",
+        "prototype/app/db.py",
+        "prototype/app/runtime_readiness.py",
+        "prototype/app/services/ai_copilot.py",
+        "prototype/app/services/rag.py",
+        "prototype/app/static/app.js"
+      ],
+      "required_docs": [
+        "AGENTS.md",
+        "docs/项目.md",
+        "docs/开发执行清单.md",
+        "docs/active-context.md",
+        "prototype/eval/progress/track_registry.json",
+        "prototype/docs/extraction-active-context.md"
+      ],
+      "required_gates": [
+        "batch-report",
+        "oil-pump-benchmark",
+        "regression-suite"
+      ],
+      "owner_role": "AI/Extraction",
+      "target_date": ""
+    },
+    {
+      "id": "rag-quality-loop",
+      "title": "RAG Quality Loop",
+      "lane_order": 3,
+      "status": "ACTIVE",
+      "branch_name": "codex/rag-quality-loop",
+      "worktree_path": "/Users/liuchang/Documents/New project/worktrees/_active/rag-quality-loop",
+      "skill_name": "reqpilot-track-rag-quality",
+      "branch_context_doc": "prototype/docs/rag-quality-active-context.md",
+      "scope_summary": "Labeled evidence set, retrieval tuning, and judgment-quality gates.",
+      "non_goals": "Do not touch extraction parser internals or Entra auth implementation in this track.",
+      "allowed_paths": [
+        "prototype/app/services/ai_copilot.py",
+        "prototype/app/services/rag.py",
+        "prototype/scripts/azure_rag_smoke.py",
+        "prototype/tests/*",
+        "prototype/eval/*"
+      ],
+      "blocked_paths": [
+        "prototype/app/services/parser.py",
+        "prototype/app/services/extractor.py",
+        "prototype/app/runtime_readiness.py",
+        "prototype/app/main.py",
+        "prototype/app/static/app.js"
+      ],
+      "required_docs": [
+        "AGENTS.md",
+        "docs/项目.md",
+        "docs/开发执行清单.md",
+        "docs/active-context.md",
+        "prototype/eval/progress/track_registry.json",
+        "prototype/docs/rag-quality-active-context.md"
+      ],
+      "required_gates": [
+        "sample10",
+        "labeled-set",
+        "evidence-metrics"
+      ],
+      "owner_role": "AI/RAG",
+      "target_date": ""
+    },
+    {
+      "id": "product-kb",
+      "title": "Product Knowledge Base",
+      "lane_order": 4,
+      "status": "QUEUED",
+      "branch_name": "codex/product-kb",
+      "worktree_path": "/Users/liuchang/Documents/New project/worktrees/_active/product-kb",
+      "skill_name": "reqpilot-track-product-kb",
+      "branch_context_doc": "prototype/docs/product-kb-active-context.md",
+      "scope_summary": "Dual-scope knowledge architecture, package binding, and admin curation.",
+      "non_goals": "Do not replace the entire upload flow or Angular shell in this track.",
+      "allowed_paths": [
+        "prototype/app/db.py",
+        "prototype/app/main.py",
+        "prototype/app/services/ai_copilot.py",
+        "prototype/app/static/*",
+        "prototype/tests/*"
+      ],
+      "blocked_paths": [
+        "prototype/app/services/parser.py",
+        "prototype/app/services/extractor.py",
+        "prototype/app/runtime_readiness.py"
+      ],
+      "required_docs": [
+        "AGENTS.md",
+        "docs/项目.md",
+        "docs/开发执行清单.md",
+        "docs/active-context.md",
+        "prototype/eval/progress/track_registry.json",
+        "prototype/docs/product-kb-active-context.md"
+      ],
+      "required_gates": [
+        "package-binding",
+        "dual-scope-retrieval",
+        "admin-curation"
+      ],
+      "owner_role": "Backend/Product",
+      "target_date": ""
+    },
+    {
+      "id": "angular-feasibility",
+      "title": "Angular Feasibility",
+      "lane_order": 5,
+      "status": "QUEUED",
+      "branch_name": "codex/angular-feasibility",
+      "worktree_path": "/Users/liuchang/Documents/New project/worktrees/_active/angular-feasibility",
+      "skill_name": "reqpilot-track-angular-feasibility",
+      "branch_context_doc": "prototype/docs/angular-feasibility-active-context.md",
+      "scope_summary": "Angular shell, auth integration feasibility, and migration report.",
+      "non_goals": "Do not replace the current workspace UI or change production runtime architecture in this track.",
+      "allowed_paths": [
+        "prototype/frontend/angular-shell/*",
+        "prototype/tests/*",
+        "prototype/scripts/*"
+      ],
+      "blocked_paths": [
+        "prototype/app/static/index.html",
+        "prototype/app/static/app.js",
+        "prototype/app/static/styles.css",
+        "prototype/app/static/home.*",
+        "prototype/app/static/progress-dashboard.*"
+      ],
+      "required_docs": [
+        "AGENTS.md",
+        "docs/项目.md",
+        "docs/开发执行清单.md",
+        "docs/active-context.md",
+        "prototype/eval/progress/track_registry.json",
+        "prototype/docs/angular-feasibility-active-context.md"
+      ],
+      "required_gates": [
+        "shell-build",
+        "msal-login",
+        "migration-report"
+      ],
+      "owner_role": "Frontend/Spike",
+      "target_date": ""
+    }
+  ]
+}

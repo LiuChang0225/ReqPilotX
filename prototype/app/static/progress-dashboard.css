@@ -69,6 +69,72 @@ h2 {
   gap: 10px;
 }
 
+.track-cards {
+  display: grid;
+  grid-template-columns: repeat(3, minmax(0, 1fr));
+  gap: 12px;
+}
+
+.track-card {
+  border-radius: 14px;
+  border: 1px solid #dfe6e0;
+  padding: 14px;
+  background: linear-gradient(180deg, #ffffff, #fafcfb);
+}
+
+.track-good {
+  border-color: #bfe0cb;
+}
+
+.track-warning {
+  border-color: #f1d39a;
+  background: linear-gradient(180deg, #fffef9, #fff8eb);
+}
+
+.track-risk {
+  border-color: #efb4c0;
+  background: linear-gradient(180deg, #fff9fb, #fff0f4);
+}
+
+.track-head {
+  display: flex;
+  justify-content: space-between;
+  gap: 8px;
+  align-items: flex-start;
+}
+
+.track-head h3 {
+  margin: 4px 0 0;
+  font-size: 1rem;
+}
+
+.track-kicker {
+  margin: 0;
+  color: var(--apple-accent);
+  font-size: 0.74rem;
+  letter-spacing: 0.06em;
+  font-weight: 700;
+  text-transform: uppercase;
+}
+
+.track-summary {
+  margin: 10px 0 12px;
+  color: var(--apple-muted);
+  line-height: 1.55;
+}
+
+.track-grid {
+  display: grid;
+  grid-template-columns: repeat(2, minmax(0, 1fr));
+  gap: 8px 12px;
+  margin-bottom: 10px;
+}
+
+.track-grid p {
+  margin: 0;
+  font-size: 0.86rem;
+}
+
 .kpi-card {
   border-radius: 14px;
   border: 1px solid #dfe6e0;
@@ -160,10 +226,30 @@ table {
   gap: 10px;
 }
 
+.inline-fields-wide {
+  grid-template-columns: 1fr 1.2fr 1fr;
+}
+
 .timeline-list,
-.next-actions {
+.next-actions,
+.drift-alerts {
   display: grid;
   gap: 10px;
+}
+
+.alert-card {
+  border: 1px solid #dfe6e0;
+  border-radius: 12px;
+  padding: 11px;
+  background: #fff;
+}
+
+.alert-warning {
+  border-color: #f1d39a;
+}
+
+.alert-risk {
+  border-color: #efb4c0;
 }
 
 .timeline-item {
@@ -208,6 +294,11 @@ table {
 .tag-INFO {
   color: #2f5e4d;
   background: #e7f2eb;
+}
+
+.tag-TODO {
+  color: #385f82;
+  background: #e7f0f8;
 }
 
 .tag-RISK {
@@ -261,6 +352,7 @@ table {
     justify-items: start;
   }
 
+  .track-cards,
   .kpi-grid {
     grid-template-columns: repeat(2, minmax(0, 1fr));
   }
@@ -272,11 +364,16 @@ table {
 }
 
 @media (max-width: 760px) {
+  .track-cards,
   .kpi-grid {
     grid-template-columns: 1fr;
   }
 
   .inline-fields {
+    grid-template-columns: 1fr;
+  }
+
+  .track-grid {
     grid-template-columns: 1fr;
   }
 }

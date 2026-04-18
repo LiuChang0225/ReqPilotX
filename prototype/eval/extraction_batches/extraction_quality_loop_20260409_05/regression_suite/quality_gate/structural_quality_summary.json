@@ -1,0 +1,14 @@
+{
+  "pdf_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/extraction_quality_loop_20260409_05/staged_docs",
+  "docs": 4,
+  "checks_passed": 37,
+  "checks_total": 40,
+  "gate_score_pct": 92.5,
+  "high_severity_issues": 5,
+  "gate_pass": false,
+  "gate_failure_reasons": [
+    "gate_score_pct=92.50 < 95.00",
+    "high_severity_issues=5 > 0"
+  ],
+  "split_metric_confidence": null
+}

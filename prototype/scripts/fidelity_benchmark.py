@@ -13,7 +13,7 @@ PROJECT_DIR = Path(__file__).resolve().parents[1]
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
-from app.services.extraction_preview import build_extraction_preview
+from app.services.extraction_preview import build_extraction_preview, counts_toward_fidelity_section
 
 
 LIST_STYLE_HEADING_RE = re.compile(r"^\s*\d+\s*[)）]")
@@ -39,6 +39,8 @@ class FidelityProfile:
     required_requirement_text_contains: dict[str, str] = field(default_factory=dict)
     required_requirement_ordered_snippets: dict[str, list[str]] = field(default_factory=dict)
     required_table_row_snippets: dict[str, list[str]] = field(default_factory=dict)
+    required_visual_asset_codes: list[str] = field(default_factory=list)
+    required_tree_children: dict[str, list[str]] = field(default_factory=dict)
     forbidden_cross_section_snippets: list[dict[str, Any]] = field(default_factory=list)
     required_single_requirement_codes: list[str] = field(default_factory=list)
     required_duplicate_code_titles: dict[str, list[str]] = field(default_factory=dict)
@@ -182,6 +184,7 @@ def _evaluate_document(pdf_path: Path, profile: FidelityProfile) -> dict[str, An
     parser_diagnostics = preview.get("parser_diagnostics", {}) if isinstance(preview, dict) else {}
     all_sections = preview.get("sections", []) if isinstance(preview, dict) else []
     requirements = preview.get("requirements", []) if isinstance(preview, dict) else []
+    complete_entries = preview.get("complete_requirement_entries", []) if isinstance(preview, dict) else []
     appendix_markers = preview.get("appendix_markers", []) if isinstance(preview, dict) else []
     test_outline_markers = preview.get("test_outline_markers", []) if isinstance(preview, dict) else []
     sections = [
@@ -189,9 +192,10 @@ def _evaluate_document(pdf_path: Path, profile: FidelityProfile) -> dict[str, An
         for row in all_sections
         if str(row.get("section_code") or "").strip()
     ]
+    countable_sections = [row for row in sections if counts_toward_fidelity_section(row)]
 
     requirements_count = _to_int(summary.get("requirements_count"))
-    sections_count = len(sections)
+    sections_count = len(countable_sections)
     section_consistency_issues = _to_int(summary.get("section_consistency_issues_total"))
     appendix_marker_count = _to_int(summary.get("appendix_marker_count")) + _to_int(
         summary.get("test_outline_marker_count")
@@ -231,6 +235,8 @@ def _evaluate_document(pdf_path: Path, profile: FidelityProfile) -> dict[str, An
     requirement_text_by_scoped_code: dict[str, str] = {}
     requirement_rows_by_scoped_code: dict[str, list[dict[str, Any]]] = {}
     requirement_titles_by_scoped_code: dict[str, set[str]] = {}
+    visual_asset_counts_by_scoped_code: dict[str, int] = {}
+    tree_child_codes_by_parent = _collect_tree_child_codes(sections)
     for row in requirements:
         scope = _normalize_scope(str(row.get("appendix_scope") or ""))
         code = str(row.get("section_code") or "").strip()
@@ -250,6 +256,21 @@ def _evaluate_document(pdf_path: Path, profile: FidelityProfile) -> dict[str, An
         merged = requirement_text_by_scoped_code[scoped_code]
         if text not in merged:
             requirement_text_by_scoped_code[scoped_code] = f"{merged}\n{text}".strip()
+    for row in complete_entries:
+        scope = _normalize_scope(str(row.get("appendix_scope") or ""))
+        code = str(row.get("section_code") or "").strip()
+        scoped_code = _join_scope_code(scope, code)
+        if not scoped_code:
+            continue
+        refs = row.get("table_refs") or []
+        visual_asset_counts_by_scoped_code[scoped_code] = (
+            visual_asset_counts_by_scoped_code.get(scoped_code, 0)
+            + sum(
+                1
+                for ref in refs
+                if str(ref.get("source_snapshot_path") or ref.get("slice_snapshot_path") or "").strip()
+            )
+        )
 
     list_style_heading_count = sum(
         1 for row in sections if LIST_STYLE_HEADING_RE.search(str(row.get("section_title") or ""))
@@ -516,7 +537,11 @@ def _evaluate_document(pdf_path: Path, profile: FidelityProfile) -> dict[str, An
         scoped_code = _normalize_scoped_code(raw_code)
         if not scoped_code:
             continue
-        req_text = requirement_text_by_scoped_code.get(scoped_code, "")
+        req_text = _lookup_requirement_text_for_scoped_code(
+            scoped_code,
+            requirement_text_by_scoped_code,
+            tree_child_codes_by_parent,
+        )
         if _normalize_match_text(needle) not in _normalize_match_text(req_text):
             requirement_text_mismatch.append(scoped_code)
             add_issue(
@@ -536,7 +561,11 @@ def _evaluate_document(pdf_path: Path, profile: FidelityProfile) -> dict[str, An
         scoped_code = _normalize_scoped_code(raw_code)
         if not scoped_code:
             continue
-        req_text = requirement_text_by_scoped_code.get(scoped_code, "")
+        req_text = _lookup_requirement_text_for_scoped_code(
+            scoped_code,
+            requirement_text_by_scoped_code,
+            tree_child_codes_by_parent,
+        )
         if not req_text:
             requirement_order_mismatch.append(scoped_code)
             add_issue(
@@ -608,6 +637,47 @@ def _evaluate_document(pdf_path: Path, profile: FidelityProfile) -> dict[str, An
         "required_table_row_snippets",
         len(table_row_mismatch) == 0,
         f"table_row_mismatch={len(table_row_mismatch)}",
+    )
+
+    visual_asset_mismatch: list[str] = []
+    for raw_code in profile.required_visual_asset_codes:
+        scoped_code = _normalize_scoped_code(raw_code)
+        if not scoped_code:
+            continue
+        if visual_asset_counts_by_scoped_code.get(scoped_code, 0) > 0:
+            continue
+        visual_asset_mismatch.append(scoped_code)
+        add_issue(
+            "required_visual_asset_missing",
+            "high",
+            scoped_code,
+            "preview visual asset not found",
+        )
+    add_check(
+        "required_visual_asset_codes",
+        len(visual_asset_mismatch) == 0,
+        f"visual_asset_mismatch={len(visual_asset_mismatch)}",
+    )
+
+    tree_child_mismatch: list[str] = []
+    for raw_parent, child_codes in profile.required_tree_children.items():
+        parent_key = str(raw_parent or "").strip()
+        expected_codes = [str(code).strip() for code in (child_codes or []) if str(code).strip()]
+        if not parent_key or not expected_codes:
+            continue
+        actual_codes = tree_child_codes_by_parent.get(parent_key, [])
+        if actual_codes != expected_codes:
+            tree_child_mismatch.append(parent_key)
+            add_issue(
+                "required_tree_children_mismatch",
+                "high",
+                parent_key,
+                f"expected children {expected_codes}, actual {actual_codes}",
+            )
+    add_check(
+        "required_tree_children",
+        len(tree_child_mismatch) == 0,
+        f"tree_child_mismatch={len(tree_child_mismatch)}",
     )
 
     single_requirement_mismatch: list[str] = []
@@ -846,6 +916,14 @@ def _load_profiles(payload: list[dict[str, Any]], defaults: dict[str, Any]) -> l
                     for key, value in (item.get("required_table_row_snippets", {}) or {}).items()
                     if str(key).strip() and isinstance(value, list)
                 },
+                required_visual_asset_codes=[
+                    str(code).strip() for code in (item.get("required_visual_asset_codes", []) or []) if str(code).strip()
+                ],
+                required_tree_children={
+                    str(key).strip(): [str(code).strip() for code in (value or []) if str(code).strip()]
+                    for key, value in (item.get("required_tree_children", {}) or {}).items()
+                    if str(key).strip() and isinstance(value, list)
+                },
                 forbidden_cross_section_snippets=[
                     value for value in (item.get("forbidden_cross_section_snippets", []) or []) if isinstance(value, dict)
                 ],
@@ -937,6 +1015,44 @@ def _requirement_title_from_row(row: dict[str, Any]) -> str:
     if code and first_line.startswith(code):
         first_line = first_line[len(code):].strip(" .、:：)\t")
     return first_line[:120]
+
+
+def _collect_tree_child_codes(sections: list[dict[str, Any]]) -> dict[str, list[str]]:
+    child_codes_by_parent: dict[str, list[str]] = {}
+    for row in sections:
+        parent_key = _normalize_scoped_code(str(row.get("structural_parent_key") or ""))
+        code = str(row.get("section_code") or "").strip()
+        if not parent_key or not code:
+            continue
+        child_codes_by_parent.setdefault(parent_key, []).append(code)
+    return child_codes_by_parent
+
+
+def _lookup_requirement_text_for_scoped_code(
+    scoped_code: str,
+    requirement_text_by_scoped_code: dict[str, str],
+    tree_child_codes_by_parent: dict[str, list[str]],
+) -> str:
+    direct = str(requirement_text_by_scoped_code.get(scoped_code) or "").strip()
+    if direct:
+        return direct
+
+    descendant_texts: list[str] = []
+    seen_descendants: set[str] = set()
+    stack = [scoped_code]
+    while stack:
+        parent_key = stack.pop()
+        parent_scope, _ = _split_scope_code(parent_key)
+        for child_code in tree_child_codes_by_parent.get(parent_key, []):
+            child_scoped_code = _join_scope_code(parent_scope, child_code)
+            if not child_scoped_code or child_scoped_code in seen_descendants:
+                continue
+            seen_descendants.add(child_scoped_code)
+            stack.append(child_scoped_code)
+            child_text = str(requirement_text_by_scoped_code.get(child_scoped_code) or "").strip()
+            if child_text and child_text not in descendant_texts:
+                descendant_texts.append(child_text)
+    return "\n".join(descendant_texts).strip()
 
 
 def _normalize_scoped_code(raw: str) -> str:

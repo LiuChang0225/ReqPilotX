@@ -8,7 +8,10 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.services.extractor import (
     _build_line_entries,
     _extract_section_blocks,
+    _extract_test_outline_rows,
+    _is_bom_bridge_artifact,
     _is_line_noise,
+    _is_plausible_section_transition,
     _parse_section_header,
     _consolidate_section_blocks,
     _is_serial_table_row_candidate,
@@ -17,16 +20,23 @@ from app.services.extractor import (
     _shape_subblock,
     _split_embedded_local_clause_line,
     _split_block_by_bullets,
+    analyze_section_consistency,
 )
 from app.services.extraction_preview import _build_complete_requirement_entries
+from app.services.extraction_preview import _build_canonical_section_rows
+from app.services.extraction_preview import _build_scope_catalog
 from app.services.extraction_preview import _attach_requirement_section_context
 from app.services.extraction_preview import _assign_section_instance_keys
+from app.services.extraction_preview import _collect_test_outline_markers
 from app.services.extraction_preview import _collect_section_instance_groups
+from app.services.extraction_preview import counts_toward_fidelity_section
 from app.services.extraction_preview import _extract_appendix_scope
+from app.services.extraction_preview import _extract_explicit_section_code
 from app.services.extraction_preview import _extract_section_code
 from app.services.extraction_preview import _extract_section_title
 from app.services.extraction_preview import _join_title_section_key
 from app.services.extraction_preview import _preview_section_row_sort_key
+from app.services.extraction_preview import _resolve_scope_info
 from app.services.extraction_preview import _resolve_outline_section_instance_key
 from app.services.extraction_preview import _split_requirement_preview_rows
 
@@ -57,11 +67,170 @@ def _block(code: str, title: str, page_start: int, page_end: int | None = None, 
 
 
 class ExtractorSectionConsolidationTest(unittest.TestCase):
+    def test_major_requirement_heading_survives_after_deep_subsection(self) -> None:
+        self.assertTrue(
+            _is_plausible_section_transition(
+                "5.6.3",
+                "6",
+                "法规需求",
+                appendix_scope="",
+                previous_title="下线配置",
+                previous_page=26,
+                candidate_page=27,
+                previous_table_count=0,
+                candidate_table_count=1,
+            )
+        )
+        self.assertTrue(
+            _is_plausible_section_transition(
+                "6",
+                "7",
+                "功能安全需求",
+                appendix_scope="",
+                previous_title="法规需求",
+                previous_page=27,
+                candidate_page=27,
+                previous_table_count=1,
+                candidate_table_count=1,
+            )
+        )
+        self.assertTrue(
+            _is_plausible_section_transition(
+                "1.6.3",
+                "2",
+                "功能分配",
+                appendix_scope="",
+                previous_title="文件命名",
+                previous_page=7,
+                candidate_page=7,
+                previous_table_count=2,
+                candidate_table_count=2,
+                has_immediate_child=True,
+            )
+        )
+
     def test_short_series_clause_with_sentence_punctuation_is_not_dropped(self) -> None:
         self.assertEqual(
             _normalize_block_text(["10）表面处理要求以DVP为准。"]),
             "10）表面处理要求以DVP为准。",
         )
+
+    def test_short_heading_plus_single_line_body_is_preserved(self) -> None:
+        self.assertEqual(
+            _normalize_block_text(["5.4 环境要求", "环境温度≤110℃。"]),
+            "5.4 环境要求\n环境温度≤110℃。",
+        )
+
+    def test_table_title_rows_recover_missing_child_sections(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 4,
+                    "source_anchor": "Page 4",
+                    "text": (
+                        "1 文档范围及控制方法\n"
+                        "|版本历史|Col2|Col3|Col4|Col5|\n"
+                        "|版本|更改内容|更改人|审核|日期|\n"
+                        "|V1.0.0|初版|李方龙||20250415|\n"
+                        "|缩写|Col2|Col3|\n"
+                        "|缩写|英文描述|中文描述|\n"
+                        "|CTS|Component Technology Specification|零部件技术规范|\n"
+                        "1.3 图例\n"
+                        "|图例|说明|图例|说明|"
+                    ),
+                    "table_count": 3,
+                }
+            ]
+        )
+
+        blocks = _consolidate_section_blocks(_extract_section_blocks(entries))
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("1", "文档范围及控制方法"),
+                ("1.1", "版本历史"),
+                ("1.2", "缩写"),
+                ("1.3", "图例"),
+            ],
+        )
+
+    def test_table_spillover_title_does_not_preempt_explicit_same_code_header(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 25,
+                    "source_anchor": "Page 25",
+                    "text": "7.2 诊断接口\n表10 连接器PIN 脚定义",
+                    "table_count": 1,
+                },
+                {
+                    "source_page": 26,
+                    "source_anchor": "Page 26",
+                    "text": "7.3 零部件诊断规范",
+                    "table_count": 0,
+                },
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("7.2", "诊断接口"),
+                ("7.3", "零部件诊断规范"),
+            ],
+        )
+        self.assertEqual(
+            [entry["text"] for entry in blocks[0]["entries"]],
+            ["7.2 诊断接口", "表10 连接器PIN 脚定义"],
+        )
+        self.assertEqual(
+            [entry["text"] for entry in blocks[1]["entries"]],
+            ["7.3 零部件诊断规范"],
+        )
+
+    def test_flowchart_node_title_does_not_preempt_explicit_same_code_header(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 69,
+                    "source_anchor": "Page 69",
+                    "text": "8.5 一般 UDS 服务否定应答判断流程\n子功能是否支持",
+                    "table_count": 1,
+                },
+                {
+                    "source_page": 70,
+                    "source_anchor": "Page 70",
+                    "text": "8.6 诊断会话说明",
+                    "table_count": 0,
+                },
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("8.5", "一般 UDS 服务否定应答判断流程"),
+                ("8.6", "诊断会话说明"),
+            ],
+        )
+        self.assertEqual(
+            [entry["text"] for entry in blocks[0]["entries"]],
+            ["8.5 一般 UDS 服务否定应答判断流程", "子功能是否支持"],
+        )
+        self.assertEqual(
+            [entry["text"] for entry in blocks[1]["entries"]],
+            ["8.6 诊断会话说明"],
+        )
+
+    def test_bom_bridge_artifact_does_not_swallow_real_section_headers(self) -> None:
+        self.assertFalse(_is_bom_bridge_artifact("1.3 图例"))
+        self.assertFalse(_is_bom_bridge_artifact("2 功能分配"))
+        self.assertTrue(_is_bom_bridge_artifact("0.0 左后蓄能器"))
 
     def test_terminal_sentence_top_level_clause_still_splits_large_block(self) -> None:
         block = _block("3.2.2", "产品详细描述", 8, text="3.2.2 产品详细描述")
@@ -78,6 +247,75 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         self.assertEqual([item["lines"][0] for item in subblocks[1:]], ["9.7）供应商在虚拟评审前两周提供仿真报告及模型", "10）表面处理要求以DVP为准。", "11）自带标准件应满足相关标准要求："])
         self.assertIn("Clause 10）表面处理要求以DVP为准。", subblocks[2]["source_anchor"])
 
+    def test_contextual_dvp_reset_clauses_split_after_deep_clause(self) -> None:
+        block = _block("3.2.2", "产品详细描述", 6, text="3.2.2 产品详细描述")
+        block["entries"] = [
+            {"text": "3.2.2 产品详细描述", "source_page": 6, "source_line_index": 1, "source_anchor": "Page 6"},
+            {"text": "11.3）冰冻要求：", "source_page": 6, "source_line_index": 46, "source_anchor": "Page 6"},
+            {"text": "零部件在整车安装姿态下，100bar水压冲洗5个循环后，进入-30℃低温舱8小时，冰冻后零部件无功能损失及性能下降；", "source_page": 6, "source_line_index": 47, "source_anchor": "Page 6"},
+            {"text": "12、零部件需满足GB/T 26988 汽车部件可回收利用性标识要求；", "source_page": 6, "source_line_index": 48, "source_anchor": "Page 6"},
+            {"text": "13、试验大纲内涉及强化耐久项目，每轮虚拟评审前两周，供应商需提供仿真报告及模型。", "source_page": 6, "source_line_index": 49, "source_anchor": "Page 6"},
+            {"text": "14、电气部件低压连接器需满足Q/JQ4009 车用电线束连接器技术要求，或USCAR-2、LV214汽车连接器规范，如果采用其他车规", "source_page": 6, "source_line_index": 50, "source_anchor": "Page 6"},
+            {"text": "连接器标准，需提供相关规范标准进行评审。", "source_page": 6, "source_line_index": 51, "source_anchor": "Page 6"},
+            {"text": "15、供应商应配合完成减振器能耗优化的工作。", "source_page": 6, "source_line_index": 52, "source_anchor": "Page 6"},
+        ]
+        block["source_anchor"] = "Page 6 | Section 3.2.2 产品详细描述"
+
+        subblocks = _split_block_by_bullets(block)
+
+        self.assertEqual(
+            [item["lines"][0] for item in subblocks],
+            [
+                "3.2.2 产品详细描述",
+                "11.3）冰冻要求：",
+                "12、零部件需满足GB/T 26988 汽车部件可回收利用性标识要求；",
+                "13、试验大纲内涉及强化耐久项目，每轮虚拟评审前两周，供应商需提供仿真报告及模型。",
+                "14、电气部件低压连接器需满足Q/JQ4009 车用电线束连接器技术要求，或USCAR-2、LV214汽车连接器规范，如果采用其他车规",
+                "15、供应商应配合完成减振器能耗优化的工作。",
+            ],
+        )
+        self.assertIn("Clause 12 零部件需满足GB/T 26988 汽车部件可回收利用性标识要求；", subblocks[2]["source_anchor"])
+
+    def test_comma_style_major_headings_do_not_split_without_local_clause_context(self) -> None:
+        block = _block("4", "标准法规要求", 6, text="4、标准法规要求")
+        block["entries"] = [
+            {"text": "4、标准法规要求", "source_page": 6, "source_line_index": 1, "source_anchor": "Page 6"},
+            {"text": "4.1 法规与认证", "source_page": 7, "source_line_index": 1, "source_anchor": "Page 7"},
+            {"text": "5、可靠性设计与验证需求", "source_page": 8, "source_line_index": 1, "source_anchor": "Page 8"},
+        ]
+        block["source_anchor"] = "Page 6 | Section 4 标准法规要求"
+
+        subblocks = _split_block_by_bullets(block)
+
+        self.assertEqual(len(subblocks), 1)
+        self.assertEqual(subblocks[0]["lines"][0], "4、标准法规要求")
+
+    def test_preview_scopes_clause_from_contextual_anchor_without_global_comma_regex(self) -> None:
+        anchor = "Page 6 | Clause 12 零部件需满足GB/T 26988 汽车部件可回收利用性标识要求； | Section 3.2.2 产品详细描述"
+        rows = _split_requirement_preview_rows(
+            item={
+                "req_code": "REQ-0100",
+                "requirement_type": "TEST",
+                "priority": "LOW",
+                "source_anchor": anchor,
+                "source_line_index": 48,
+                "source_line_index_end": 48,
+            },
+            source_page=6,
+            source_page_end=6,
+            appendix_scope=_extract_appendix_scope(anchor),
+            section_code=_extract_section_code(anchor),
+            section_title_hint=_extract_section_title(anchor),
+            explicit_section_code=_extract_explicit_section_code(anchor),
+            text="12、零部件需满足GB/T 26988 汽车部件可回收利用性标识要求；",
+            req_order_start=99,
+        )
+
+        self.assertEqual(len(rows), 1)
+        self.assertEqual(rows[0]["section_code"], "12")
+        self.assertEqual(rows[0]["section_key"], "3.2.2::12")
+        self.assertEqual(rows[0]["section_title"], "零部件需满足GB/T 26988 汽车部件可回收利用性标识要求；")
+
     def test_embedded_local_clause_headers_are_split_before_section_blocking(self) -> None:
         entries = _build_line_entries(
             [
@@ -93,12 +331,292 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         self.assertEqual(entries[0]["text"], "1.3 化学性能要求（必备）")
         self.assertTrue(entries[1]["text"].startswith("1.3.1 电子电气部件"))
 
+    def test_contextual_child_section_header_recovers_long_prefixed_body_line(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 13,
+                    "source_anchor": "Page 13",
+                    "text": "1.3 化学性能要求（必备）\n1.3.1 电子电气部件，前油泵部件安装在前副车架的前转和电池包之间位置，后油泵安装在后轮转向和尾消之间，需满足GB/T 2423.18盐雾腐蚀要求（舱外：严酷度4（14天）；舱\n内：严酷度3（7天）），《GBT 28046.5-2013 道路车辆电气及电子设备的环境条件和试验第5部分：化学负荷》对应安装位置的要求。\n1.3.2 结构件",
+                    "table_count": 0,
+                }
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("1.3", "化学性能要求（必备）"),
+                ("1.3.1", "电子电气部件"),
+                ("1.3.2", "结构件"),
+            ],
+        )
+
+    def test_contextual_child_section_header_requires_direct_parent_context(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 13,
+                    "source_anchor": "Page 13",
+                    "text": "1.2 机械性能要求\n1.3.1 电子电气部件，前油泵部件安装在前副车架的前转和电池包之间位置，后油泵安装在后轮转向和尾消之间，需满足GB/T 2423.18盐雾腐蚀要求（舱外：严酷度4（14天）；舱\n内：严酷度3（7天）），《GBT 28046.5-2013 道路车辆电气及电子设备的环境条件和试验第5部分：化学负荷》对应安装位置的要求。",
+                    "table_count": 0,
+                }
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual([(row["section_code"], row["section_title"]) for row in blocks], [("1.2", "机械性能要求")])
+
+    def test_parse_section_header_strips_parenthesized_prefix_for_deep_children(self) -> None:
+        header = _parse_section_header("3.1.2 （b）版本文件已签名")
+
+        self.assertIsNotNone(header)
+        self.assertEqual(header["code"], "3.1.2")
+        self.assertEqual(header["title"], "版本文件已签名")
+
+    def test_parenthesized_child_sequence_recovers_all_sibling_headers(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 6,
+                    "source_anchor": "Page 6",
+                    "text": (
+                        "3.1 软件包签名方案简介\n"
+                        "3.1.1 （a）版本文件未签名\n"
+                        "未签名的版本文件，由各个ECU通过编译源代码生成原始的安装包和软件包版本。\n"
+                        "3.1.2 （b）版本文件已签名\n"
+                        "各ECU供应商自己生成非对称密钥或者对称密钥后，使用密钥对软件进行安全签名得到SigVal。\n"
+                        "3.1.3 （c）已签名版本数据下载\n"
+                        "已签名的版本文件的下载流程，参考《刷写规范》把已签名的文件数据下载到ECU内部。\n"
+                        "3.1.4 （d）安全签名验证\n"
+                        "版本文件的安全签名验证在《刷写规范》刷写流程中进行。"
+                    ),
+                    "table_count": 0,
+                }
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("3.1", "软件包签名方案简介"),
+                ("3.1.1", "版本文件未签名"),
+                ("3.1.2", "版本文件已签名"),
+                ("3.1.3", "已签名版本数据下载"),
+                ("3.1.4", "安全签名验证"),
+            ],
+        )
+
+    def test_modal_top_level_dot_sentence_is_not_promoted_to_section(self) -> None:
+        header = _parse_section_header("5. ASC_F 需实时反馈当前油压及其有效位（ASCFL_UpPSnsr、ASCFR_UpPSnsr）")
+        self.assertIsNone(header)
+
+    def test_glossary_like_acronym_rows_stay_inside_parent_section(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 11,
+                    "source_anchor": "Page 11",
+                    "text": (
+                        "4 缩略语\n"
+                        "以下缩略语适用于本文件。\n"
+                        "4.1 UDS\n"
+                        "Unified Diagnostic Service（统一诊断服务）。\n"
+                        "4.2 ECU\n"
+                        "Electronic Control Unit（电子控制单元）。\n"
+                        "5 总体要求"
+                    ),
+                    "table_count": 0,
+                }
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("4", "缩略语"),
+                ("5", "总体要求"),
+            ],
+        )
+
+    def test_title_only_major_headings_recover_sequential_main_sections(self) -> None:
+        entries = _build_line_entries(
+            [
+                {
+                    "source_page": 10,
+                    "source_anchor": "Page 10",
+                    "text": (
+                        "2 规范性引用文件\n"
+                        "引用文件说明。\n"
+                        "术语和定义\n"
+                        "本文件没有需要界定的术语和定义。\n"
+                        "缩略语\n"
+                        "以下缩略语适用于本文件。\n"
+                        "4.9 STmin\n"
+                        "Minimum Separation Time（最小连续帧时间间隔）。\n"
+                        "5 总体要求"
+                    ),
+                    "table_count": 0,
+                }
+            ]
+        )
+
+        blocks = _extract_section_blocks(entries)
+
+        self.assertEqual(
+            [(row["section_code"], row["section_title"]) for row in blocks],
+            [
+                ("2", "规范性引用文件"),
+                ("3", "术语和定义"),
+                ("4", "缩略语"),
+                ("5", "总体要求"),
+            ],
+        )
+
+    def test_preview_extracts_real_appendix_title_scope_from_anchor(self) -> None:
+        anchor = "Page 29 | Appendix 测试分组 / Test Groups（推荐） | Section 1 组1"
+        self.assertEqual(_extract_appendix_scope(anchor), "测试分组 / Test Groups（推荐）")
+
+    def test_scope_catalog_maps_test_outline_titles_to_canonical_sub_ids(self) -> None:
+        catalog = _build_scope_catalog(
+            section_outline=[
+                {
+                    "appendix_scope": "",
+                    "section_code": "1",
+                    "section_title": "概述",
+                    "source_page_start": 1,
+                },
+                {
+                    "appendix_scope": "SUB1",
+                    "section_code": "",
+                    "section_title": "附件1 软件开发要求",
+                    "source_page_start": 10,
+                },
+            ],
+            appendix_markers=[],
+            test_outline_markers=[
+                {
+                    "appendix_scope": "主动前减振器试验大纲",
+                    "section_title": "主动前减振器试验大纲",
+                    "source_page_start": 20,
+                },
+                {
+                    "appendix_scope": "主动后减振器试验大纲",
+                    "section_title": "主动后减振器试验大纲",
+                    "source_page_start": 30,
+                },
+            ],
+            requirements=[],
+        )
+
+        self.assertEqual(_resolve_scope_info(catalog, "")["scope_id"], "MAIN")
+        self.assertEqual(_resolve_scope_info(catalog, "主动前减振器试验大纲")["scope_id"], "SUB2")
+        self.assertEqual(_resolve_scope_info(catalog, "T")["scope_id"], "SUB2")
+        self.assertEqual(_resolve_scope_info(catalog, "主动后减振器试验大纲")["scope_id"], "SUB3")
+
+    def test_canonical_section_rows_add_scope_roots_and_structural_levels(self) -> None:
+        sections = [
+            {
+                "appendix_scope": "MAIN",
+                "appendix_title": "正文（Main）",
+                "section_code": "1",
+                "section_key": "MAIN:1",
+                "section_instance_key": "MAIN:1",
+                "section_title": "概述",
+                "section_level": 1,
+                "parent_section_code": "",
+                "parent_section_key": "",
+                "outline_order": 0,
+                "source_page_start": 1,
+                "source_page_end": 1,
+                "requirement_count": 1,
+            },
+            {
+                "appendix_scope": "SUB1",
+                "appendix_title": "主动前减振器试验大纲",
+                "section_code": "1",
+                "section_key": "SUB1:1",
+                "section_instance_key": "SUB1:1",
+                "section_title": "外观检查",
+                "section_level": 1,
+                "parent_section_code": "",
+                "parent_section_key": "",
+                "outline_order": 1,
+                "source_page_start": 20,
+                "source_page_end": 20,
+                "requirement_count": 1,
+            },
+        ]
+
+        ordered, _ = _build_canonical_section_rows(sections, include_scope_roots=True)
+
+        main_root = next(row for row in ordered if row.get("is_appendix_scope_root") and row.get("appendix_scope") == "MAIN")
+        sub_root = next(row for row in ordered if row.get("is_appendix_scope_root") and row.get("appendix_scope") == "SUB1")
+        main_child = next(row for row in ordered if row.get("section_key") == "MAIN:1")
+        sub_child = next(row for row in ordered if row.get("section_key") == "SUB1:1")
+
+        self.assertEqual(main_root["structural_level"], 0)
+        self.assertEqual(sub_root["structural_level"], 0)
+        self.assertEqual(main_child["structural_level"], 1)
+        self.assertEqual(sub_child["structural_level"], 1)
+        self.assertEqual(main_child["numbering_level"], 1)
+        self.assertEqual(sub_child["structural_parent_section_key"], "SUB1:ROOT")
+
+    def test_main_synthetic_sections_do_not_count_toward_fidelity(self) -> None:
+        self.assertFalse(
+            counts_toward_fidelity_section(
+                {
+                    "appendix_scope": "MAIN",
+                    "section_code": "12",
+                    "structural_kind": "synthetic",
+                }
+            )
+        )
+        self.assertTrue(
+            counts_toward_fidelity_section(
+                {
+                    "appendix_scope": "SUB1",
+                    "section_code": "12",
+                    "structural_kind": "synthetic",
+                }
+            )
+        )
+
     def test_embedded_numeric_table_values_do_not_split_into_fake_local_clauses(self) -> None:
         line = (
             "8.1.3）在下列分析工况下，油泵总成质心位移满足下表中的要求； "
             "2.5 RX -0.5 0.5 RY -2.5 2.5 RZ -0.5 0.5"
         )
         self.assertEqual(_split_embedded_local_clause_line(line), [line])
+
+    def test_embedded_version_example_values_do_not_split_into_fake_local_clauses(self) -> None:
+        line = (
+            "5.1 标识内容 ECU硬件外部应对版本号进行标识。"
+            " 示例：空调控制器的一个版本号标识为： SW:AC. "
+            "1.16.23 ECU软件版本号 HW:C. "
+            "1.3 ECU硬件版本号 1.08.A_220120_2223_00 ECU序号代码"
+        )
+
+        self.assertEqual(_split_embedded_local_clause_line(line), [line])
+
+    def test_embedded_section_reference_values_do_not_split_into_fake_local_clauses(self) -> None:
+        line = "7.6.3.2 OBD 布局 OBD 的PIN脚分布见 7.2 章节。"
+
+        self.assertEqual(_split_embedded_local_clause_line(line), [line])
+
+    def test_profile_heading_is_not_filtered_as_measurement_title(self) -> None:
+        header = _parse_section_header("5.2 Profile 1A")
+
+        self.assertIsNotNone(header)
+        self.assertEqual(header["code"], "5.2")
+        self.assertEqual(header["title"], "Profile 1A")
 
     def test_distant_duplicate_codes_are_kept_as_independent_instances(self) -> None:
         blocks = [
@@ -678,13 +1196,21 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         self.assertEqual(_extract_section_code(anchor), "8.1.2")
         self.assertEqual(_extract_section_title(anchor), "产品各方向解耦率及各向频率应满足下表的要求")
 
-    def test_top_level_ordered_clause_anchor_keeps_parent_section_context(self) -> None:
+    def test_top_level_ordered_clause_anchor_is_promoted_to_local_section_anchor(self) -> None:
         anchor = (
             "Page 10 | Clause 9）技术标书及交流过程中只接受简体中文文件，防止分歧。 "
             "| Section 6 投标说明"
         )
-        self.assertEqual(_extract_section_code(anchor), "6")
-        self.assertEqual(_extract_section_title(anchor), "投标说明")
+        self.assertEqual(_extract_section_code(anchor), "9")
+        self.assertEqual(_extract_section_title(anchor), "技术标书及交流过程中只接受简体中文文件，防止分歧。")
+
+    def test_one_dot_clause_anchor_under_deep_parent_is_promoted(self) -> None:
+        anchor = (
+            "Page 5 | Clause 6.1）简述 "
+            "| Section 3.2.2 产品详细描述"
+        )
+        self.assertEqual(_extract_section_code(anchor), "6.1")
+        self.assertEqual(_extract_section_title(anchor), "简述")
 
     def test_multiline_clause_requirement_uses_first_line_clause_code_in_preview_row(self) -> None:
         anchor = (
@@ -705,6 +1231,7 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
             appendix_scope="",
             section_code=_extract_section_code(anchor),
             section_title_hint=_extract_section_title(anchor),
+            explicit_section_code="3.2.2",
             text=(
                 "8.1.2）产品各方向解耦率及各向频率应满足下表的要求（油泵支架隔振衬套如存在小衬套，需要考虑二级隔振），油泵的刚体模态\n"
                 "油泵总成刚体模态分配（整车坐标系）\n"
@@ -713,10 +1240,13 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
             req_order_start=44,
         )
         self.assertEqual(rows[0]["section_code"], "8.1.2")
-        self.assertEqual(rows[0]["section_key"], "8.1.2")
+        self.assertEqual(rows[0]["section_key"], "3.2.2::8.1.2")
+        self.assertEqual(rows[0]["structural_parent_section_code"], "8.1")
+        self.assertEqual(rows[0]["structural_parent_section_key"], "3.2.2::8.1")
+        self.assertEqual(rows[0]["section_label"], "8.1.2）")
         self.assertTrue(rows[0]["section_title"].startswith("产品各方向解耦率及各向频率应满足下表的要求"))
 
-    def test_preview_rows_keep_parent_section_for_top_level_ordered_item(self) -> None:
+    def test_preview_rows_promote_top_level_ordered_item_to_local_section_anchor(self) -> None:
         anchor = (
             "Page 10 | Clause 10）商务报价应至少包含设计开发费用、模具夹具检具治具费用。 "
             "| Section 6 投标说明"
@@ -735,12 +1265,45 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
             appendix_scope="",
             section_code=_extract_section_code(anchor),
             section_title_hint=_extract_section_title(anchor),
+            explicit_section_code="6",
             text="10）商务报价应至少包含设计开发费用、模具夹具检具治具费用。",
             req_order_start=103,
         )
+        self.assertEqual(rows[0]["section_code"], "10")
+        self.assertEqual(rows[0]["section_key"], "6::10")
+        self.assertEqual(rows[0]["structural_parent_section_code"], "6")
+        self.assertEqual(rows[0]["structural_parent_section_key"], "6")
+        self.assertEqual(rows[0]["section_label"], "10）")
+        self.assertEqual(rows[0]["section_title"], "商务报价应至少包含设计开发费用、模具夹具检具治具费用。")
+
+    def test_preview_rows_promote_same_code_local_clause_inside_parent_section(self) -> None:
+        anchor = "Page 9 | Section 6 投标说明"
+        rows = _split_requirement_preview_rows(
+            item={
+                "req_code": "REQ-0606",
+                "source_anchor": anchor,
+                "requirement_type": "",
+                "priority": "",
+                "source_line_index": 0,
+                "source_line_index_end": 0,
+            },
+            source_page=9,
+            source_page_end=9,
+            appendix_scope="",
+            section_code=_extract_section_code(anchor),
+            section_title_hint=_extract_section_title(anchor),
+            explicit_section_code="6",
+            text="6）技术标书中应包含生产工艺部分的描述，针对技术标书中提出的技术方案，论证工艺可行性",
+            req_order_start=605,
+        )
         self.assertEqual(rows[0]["section_code"], "6")
-        self.assertEqual(rows[0]["section_title"], "投标说明")
-        self.assertEqual(rows[0]["section_key"], "6")
+        self.assertEqual(rows[0]["section_key"], "6::6")
+        self.assertEqual(rows[0]["section_instance_key"], "")
+        self.assertEqual(rows[0]["structural_parent_section_code"], "6")
+        self.assertEqual(rows[0]["structural_parent_section_key"], "6")
+        self.assertEqual(rows[0]["section_label"], "6）")
+        self.assertEqual(rows[0]["owner_section_label"], "6）")
+        self.assertIn("Clause 6 技术标书中应包含生产工艺部分的描述", rows[0]["source_anchor"])
 
     def test_attachment_directory_heading_is_preserved_as_main_body_section(self) -> None:
         header = _parse_section_header("7、附件目录")
@@ -825,8 +1388,66 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
             [
                 ("", "7", "附件目录", 10, 10),
                 ("SUB1", "", "软件开发要求", 11, 11),
-                ("SUB1", "", "FMEA与特殊特性", 12, 12),
+                ("SUB2", "", "FMEA与特殊特性", 12, 12),
+                ("SUB2", "1", "FMEA要求", 12, 12),
+            ],
+        )
+
+    def test_repeated_embedded_scope_codes_with_distinct_titles_rotate_to_new_synthetic_scope(self) -> None:
+        entries = [
+            {
+                "text": "7、附件目录",
+                "source_page": 10,
+                "source_anchor": "Page 10",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 0,
+            },
+            {
+                "text": "|Col1|Col2|软件开发要求|",
+                "source_page": 11,
+                "source_anchor": "Page 11",
+                "table_count": 1,
+                "source_line_index": 0,
+                "global_line_index": 1,
+            },
+            {
+                "text": "1 FMEA要求",
+                "source_page": 12,
+                "source_anchor": "Page 12",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 2,
+            },
+            {
+                "text": "1.可靠性设计目标",
+                "source_page": 13,
+                "source_anchor": "Page 13",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 3,
+            },
+            {
+                "text": "2.主要设计和验证要求",
+                "source_page": 13,
+                "source_anchor": "Page 13",
+                "table_count": 0,
+                "source_line_index": 1,
+                "global_line_index": 4,
+            },
+        ]
+
+        blocks = _extract_section_blocks(entries)
+        shaped = [(row["appendix_scope"], row["section_code"], row["section_title"], row["source_page"], row["source_page_end"]) for row in blocks]
+
+        self.assertEqual(
+            shaped,
+            [
+                ("", "7", "附件目录", 10, 10),
+                ("SUB1", "", "软件开发要求", 11, 11),
                 ("SUB1", "1", "FMEA要求", 12, 12),
+                ("SUB2", "1", "可靠性设计目标", 13, 13),
+                ("SUB2", "2", "主要设计和验证要求", 13, 13),
             ],
         )
 
@@ -963,8 +1584,66 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
                 ("", "7", "附件目录", 10, 10),
                 ("SUB1", "", "软件开发要求", 11, 11),
                 ("SUB1", "1.4", "其他要求（可选，如电气负荷等）", 13, 13),
-                ("SUB1", "", "附件4--诊断、OTA相关标准接入认证设计规范", 15, 15),
-                ("SUB1", "3", "诊断设计要求", 15, 15),
+                ("SUB2", "", "附件4--诊断、OTA相关标准接入认证设计规范", 15, 15),
+                ("SUB2", "3", "诊断设计要求", 15, 15),
+            ],
+        )
+
+    def test_embedded_attachment_title_rotates_scope_when_upcoming_codes_repeat(self) -> None:
+        entries = [
+            {
+                "text": "7、附件目录",
+                "source_page": 10,
+                "source_anchor": "Page 10",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 0,
+            },
+            {
+                "text": "|Col1|Col2|软件开发要求|",
+                "source_page": 11,
+                "source_anchor": "Page 11",
+                "table_count": 1,
+                "source_line_index": 0,
+                "global_line_index": 1,
+            },
+            {
+                "text": "3.样件数量要求",
+                "source_page": 13,
+                "source_anchor": "Page 13",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 2,
+            },
+            {
+                "text": "附件4--诊断、OTA相关标准接入认证设计规范",
+                "source_page": 15,
+                "source_anchor": "Page 15",
+                "table_count": 0,
+                "source_line_index": 0,
+                "global_line_index": 3,
+            },
+            {
+                "text": "3、诊断设计要求",
+                "source_page": 15,
+                "source_anchor": "Page 15",
+                "table_count": 0,
+                "source_line_index": 1,
+                "global_line_index": 4,
+            },
+        ]
+
+        blocks = _extract_section_blocks(entries)
+        shaped = [(row["appendix_scope"], row["section_code"], row["section_title"], row["source_page"], row["source_page_end"]) for row in blocks]
+
+        self.assertEqual(
+            shaped,
+            [
+                ("", "7", "附件目录", 10, 10),
+                ("SUB1", "", "软件开发要求", 11, 11),
+                ("SUB1", "3", "样件数量要求", 13, 13),
+                ("SUB2", "", "附件4--诊断、OTA相关标准接入认证设计规范", 15, 15),
+                ("SUB2", "3", "诊断设计要求", 15, 15),
             ],
         )
 
@@ -1041,6 +1720,58 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         self.assertEqual(requirements[0]["parent_section_code"], "3.2.2")
         self.assertEqual(requirements[0]["parent_section_title"], "产品详细描述")
         self.assertEqual(requirements[0]["parent_section_label"], "3.2.2 产品详细描述")
+
+    def test_requirement_context_exposes_owner_and_structural_parent_labels(self) -> None:
+        requirements = [
+            {
+                "req_code": "REQ-0606",
+                "appendix_scope": "",
+                "section_code": "6",
+                "section_key": "6::6",
+                "section_instance_key": "6::6",
+                "section_title": "技术标书中应包含生产工艺部分的描述，针对技术标书中提出的技术方案，论证工艺可行性",
+                "section_label": "6）",
+                "source_page": 9,
+                "structural_parent_section_code": "6",
+                "structural_parent_section_key": "6",
+            }
+        ]
+        sections = [
+            {
+                "appendix_scope": "",
+                "section_code": "6",
+                "section_key": "6",
+                "section_instance_key": "6",
+                "section_title": "投标说明",
+                "section_label": "",
+                "parent_section_code": "",
+                "source_page_start": 9,
+            },
+            {
+                "appendix_scope": "",
+                "section_code": "6",
+                "section_key": "6::6",
+                "section_instance_key": "6::6",
+                "section_title": "技术标书中应包含生产工艺部分的描述，针对技术标书中提出的技术方案，论证工艺可行性",
+                "section_label": "6）",
+                "parent_section_code": "6",
+                "parent_section_key": "6",
+                "structural_parent_section_code": "6",
+                "structural_parent_section_key": "6",
+                "structural_parent_section_title": "投标说明",
+                "structural_parent_section_label": "6",
+                "source_page_start": 9,
+            },
+        ]
+
+        _attach_requirement_section_context(requirements, sections)
+
+        self.assertEqual(requirements[0]["owner_section_code"], "6")
+        self.assertEqual(requirements[0]["owner_section_label"], "6）")
+        self.assertEqual(requirements[0]["parent_section_code"], "6")
+        self.assertEqual(requirements[0]["parent_section_label"], "6 技术标书中应包含生产工艺部分的描述，针对技术标书中提出的技术方案，论证工艺可行性")
+        self.assertEqual(requirements[0]["structural_parent_section_code"], "6")
+        self.assertEqual(requirements[0]["structural_parent_section_label"], "6")
 
     def test_sub1_requirement_context_does_not_bind_to_future_duplicate_section_code(self) -> None:
         requirements = [
@@ -1386,6 +2117,26 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         self.assertNotIn("1. 参考软件质量协议确定并签订指标 2. 软件交付与验收需要满足软件度量指标要求", texts)
         self.assertNotIn("4）解锁力 / Unlock force： ~ 51N", texts)
 
+    def test_build_line_entries_skips_table_of_contents_segments(self) -> None:
+        segments = [
+            {
+                "source_page": 5,
+                "source_anchor": "Page 5",
+                "table_count": 0,
+                "text": "\n".join(
+                    [
+                        "目录",
+                        "8.10 读取DTC 信息ReadDTCInformation（19h） ........................................ 70",
+                        "8.10.1.1 读取DTC 信息 – 通过状态掩码报告DTC 数目 .............................. 70",
+                        "8.10.1.2 读取DTC 信息 – 报告DTCSnapshot 记录标识 .............................. 71",
+                        "8.11 读取数据ReadDataByIdentifier（22h） ...................................... 78",
+                    ]
+                ),
+            }
+        ]
+
+        self.assertEqual(_build_line_entries(segments), [])
+
     def test_shape_subblock_uses_first_page_line_index_for_ordering(self) -> None:
         shaped = _shape_subblock(
             [
@@ -1413,6 +2164,76 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         subblocks = _split_block_by_bullets(block)
         first_lines = [item["lines"][0] for item in subblocks]
         self.assertIn("7.5.2）橡塑件表示按照QC/T797执行，并满足GB/T26988要求。", first_lines)
+
+    def test_electric_test_outline_marker_uses_real_title_scope(self) -> None:
+        markers = _collect_test_outline_markers(
+            [
+                {
+                    "source_page": 21,
+                    "source_anchor": "Page 21",
+                    "text": "|序号 / No.|项目 / Item|测试顺序|参考标准|要求 / Requirements|",
+                }
+            ]
+        )
+
+        self.assertEqual(len(markers), 1)
+        self.assertEqual(markers[0]["appendix_scope"], "试验大纲")
+        self.assertEqual(markers[0]["section_title"], "试验大纲")
+
+    def test_test_group_reference_table_does_not_emit_requirement_rows(self) -> None:
+        rows = _extract_test_outline_rows(
+            [
+                {
+                    "source_page": 18,
+                    "source_anchor": "Page 18",
+                    "text": "\n".join(
+                        [
+                            "测试分组 / Test Groups（推荐）",
+                            "|1|动力总成|建议先执行|",
+                            "|2|整车电器|建议随后执行|",
+                        ]
+                    ),
+                }
+            ]
+        )
+
+        self.assertEqual(rows, [])
+
+    def test_section_consistency_marks_source_duplicate_and_missing_scope_root(self) -> None:
+        consistency = analyze_section_consistency(
+            [
+                {
+                    "appendix_scope": "SUB1",
+                    "appendix_title": "主动前减振器试验大纲",
+                    "section_code": "63",
+                    "parent_section_code": "",
+                    "section_title": "试验项目A",
+                    "source_page_start": 20,
+                },
+                {
+                    "appendix_scope": "SUB1",
+                    "appendix_title": "主动前减振器试验大纲",
+                    "section_code": "63",
+                    "parent_section_code": "",
+                    "section_title": "试验项目B",
+                    "source_page_start": 21,
+                },
+                {
+                    "appendix_scope": "SUB1",
+                    "appendix_title": "主动前减振器试验大纲",
+                    "section_code": "64",
+                    "parent_section_code": "",
+                    "section_title": "试验项目C",
+                    "source_page_start": 22,
+                },
+            ]
+        )
+
+        issue_types = {item["issue_type"] for item in consistency["issues"]}
+        self.assertIn("source_faithful_duplicate_code", issue_types)
+        self.assertIn("missing_scope_root", issue_types)
+        self.assertEqual(consistency["source_duplicate_code_count"], 1)
+        self.assertEqual(consistency["missing_scope_root_count"], 1)
 
 
 if __name__ == "__main__":

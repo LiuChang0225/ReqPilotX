@@ -69,6 +69,7 @@ def _decode_json_payload(value: Any, *, default: Any) -> Any:
 
 
 def _normalize_requirement_record(item: dict[str, Any]) -> dict[str, Any]:
+    item["preview_generation_id"] = str(item.get("preview_generation_id") or "")
     item["entry_kind"] = str(item.get("entry_kind") or "REQUIREMENT").strip().upper() or "REQUIREMENT"
     item["text_relation"] = str(item.get("text_relation") or "distinct").strip() or "distinct"
     item["is_deduped"] = bool(int(item.get("is_deduped") or 0))
@@ -350,6 +351,7 @@ def init_db() -> None:
                 sor_document_id TEXT NOT NULL,
                 table_id TEXT NOT NULL,
                 asset_json TEXT NOT NULL,
+                preview_generation_id TEXT NOT NULL DEFAULT '',
                 created_at TEXT NOT NULL,
                 updated_at TEXT NOT NULL,
                 UNIQUE(sor_document_id, table_id),
@@ -376,6 +378,7 @@ def init_db() -> None:
         _ensure_column(conn, "requirements", "content_blocks", "TEXT DEFAULT '[]'")
         _ensure_column(conn, "requirements", "has_table_asset", "INTEGER DEFAULT 0")
         _ensure_column(conn, "requirements", "table_render_mode", "TEXT DEFAULT ''")
+        _ensure_column(conn, "requirements", "preview_generation_id", "TEXT DEFAULT ''")
         _ensure_requirements_document_unique(conn)
         _cleanup_orphan_records(conn)
         _ensure_column(conn, "knowledge_documents", "doc_type", "TEXT DEFAULT 'REFERENCE'")
@@ -398,6 +401,7 @@ def init_db() -> None:
         _ensure_column(conn, "sor_documents", "preview_generated_at", "TEXT DEFAULT ''")
         _ensure_column(conn, "sor_documents", "preview_file_mtime", "TEXT DEFAULT ''")
         _ensure_column(conn, "sor_documents", "preview_error", "TEXT DEFAULT ''")
+        _ensure_column(conn, "sor_documents", "preview_generation_id", "TEXT DEFAULT ''")
         _ensure_column(conn, "export_jobs", "version_label", "TEXT")
         _ensure_column(conn, "export_jobs", "compare_export_id", "TEXT")
         _ensure_column(conn, "export_jobs", "snapshot_json", "TEXT")
@@ -418,6 +422,7 @@ def init_db() -> None:
         _ensure_column(conn, "ai_analysis_jobs", "assessment_mode", "TEXT DEFAULT ''")
         _ensure_column(conn, "ai_analysis_jobs", "retrieval_backend", "TEXT DEFAULT ''")
         _ensure_column(conn, "ai_analysis_jobs", "chat_model", "TEXT DEFAULT ''")
+        _ensure_column(conn, "document_table_assets", "preview_generation_id", "TEXT DEFAULT ''")
         _ensure_column(conn, "ai_analysis_jobs", "embedding_model", "TEXT DEFAULT ''")
         _ensure_column(conn, "ai_analysis_events", "profile_id", "TEXT DEFAULT ''")
         _ensure_column(conn, "ai_analysis_events", "provider", "TEXT DEFAULT ''")
@@ -461,8 +466,8 @@ def add_sor_document(
             (id, project_id, file_name, file_type, file_path, extracted_text,
              created_at, workflow_stage, requirement_set_version, extraction_locked_at,
              ai_status, ai_assessed_at, ai_requirement_set_version, ai_knowledge_base_version, updated_at,
-             preview_status, preview_generated_at, preview_file_mtime, preview_error)
-            VALUES (?, ?, ?, ?, ?, ?, ?, 'UPLOADED', 0, '', 'NOT_RUN', '', 0, 0, ?, 'NOT_READY', '', '', '')
+             preview_status, preview_generated_at, preview_file_mtime, preview_error, preview_generation_id)
+            VALUES (?, ?, ?, ?, ?, ?, ?, 'UPLOADED', 0, '', 'NOT_RUN', '', 0, 0, ?, 'NOT_READY', '', '', '', '')
             """,
             (document_id, project_id, file_name, file_type, file_path, extracted_text, created_at, created_at),
         )
@@ -669,6 +674,7 @@ def update_sor_document_preview_state(
     preview_generated_at: str | None = None,
     preview_file_mtime: str | None = None,
     preview_error: str | None = None,
+    preview_generation_id: str | None = None,
 ) -> dict[str, Any]:
     updated_at = _now_iso()
     with get_conn() as conn:
@@ -682,6 +688,7 @@ def update_sor_document_preview_state(
                 preview_generated_at = ?,
                 preview_file_mtime = ?,
                 preview_error = ?,
+                preview_generation_id = ?,
                 updated_at = ?
             WHERE id = ?
             """,
@@ -690,6 +697,7 @@ def update_sor_document_preview_state(
                 str(preview_generated_at if preview_generated_at is not None else current["preview_generated_at"] or ""),
                 str(preview_file_mtime if preview_file_mtime is not None else current["preview_file_mtime"] or ""),
                 str(preview_error if preview_error is not None else current["preview_error"] or ""),
+                str(preview_generation_id if preview_generation_id is not None else current["preview_generation_id"] or ""),
                 updated_at,
                 document_id,
             ),
@@ -1000,6 +1008,7 @@ def insert_requirement(
     content_blocks: str = "[]",
     has_table_asset: bool = False,
     table_render_mode: str = "",
+    preview_generation_id: str = "",
 ) -> dict[str, Any]:
     requirement_id = str(uuid.uuid4())
     timestamp = _now_iso()
@@ -1012,9 +1021,9 @@ def insert_requirement(
              entry_kind, text_relation, is_deduped, parent_section_code, parent_section_title, parent_section_label,
              heading_text, raw_text, display_text,
              merged_from_req_codes, merged_from_entry_ids, dedupe_version,
-             table_refs, content_blocks, has_table_asset, table_render_mode,
+             table_refs, content_blocks, has_table_asset, table_render_mode, preview_generation_id,
              created_at, updated_at)
-            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
+            VALUES (?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?, ?)
             """,
             (
                 requirement_id,
@@ -1043,6 +1052,7 @@ def insert_requirement(
                 content_blocks,
                 1 if has_table_asset else 0,
                 table_render_mode,
+                preview_generation_id,
                 timestamp,
                 timestamp,
             ),
@@ -1075,9 +1085,13 @@ def update_requirement_entry(
     content_blocks: str,
     has_table_asset: bool,
     table_render_mode: str,
+    preview_generation_id: str | None = None,
 ) -> dict[str, Any]:
     updated_at = _now_iso()
     with get_conn() as conn:
+        current = conn.execute("SELECT * FROM requirements WHERE id = ?", (requirement_id,)).fetchone()
+        if current is None:
+            return {}
         conn.execute(
             """
             UPDATE requirements
@@ -1085,7 +1099,7 @@ def update_requirement_entry(
                 entry_kind = ?, text_relation = ?, is_deduped = ?, parent_section_code = ?, parent_section_title = ?,
                 parent_section_label = ?, heading_text = ?, raw_text = ?, display_text = ?,
                 merged_from_req_codes = ?, merged_from_entry_ids = ?, dedupe_version = ?,
-                table_refs = ?, content_blocks = ?, has_table_asset = ?, table_render_mode = ?, updated_at = ?
+                table_refs = ?, content_blocks = ?, has_table_asset = ?, table_render_mode = ?, preview_generation_id = ?, updated_at = ?
             WHERE id = ?
             """,
             (
@@ -1110,6 +1124,7 @@ def update_requirement_entry(
                 content_blocks,
                 1 if has_table_asset else 0,
                 table_render_mode,
+                str(preview_generation_id if preview_generation_id is not None else current["preview_generation_id"] or ""),
                 updated_at,
                 requirement_id,
             ),
@@ -1791,11 +1806,19 @@ def replace_document_table_assets(
     project_id: str,
     sor_document_id: str,
     assets: list[dict[str, Any]],
+    *,
+    preview_generation_id: str = "",
 ) -> None:
     timestamp = _now_iso()
     deduped_assets: list[dict[str, Any]] = []
     seen_table_ids: set[str] = set()
     for asset in assets:
+        normalized_asset = dict(asset)
+        if preview_generation_id:
+            normalized_asset["preview_generation_id"] = preview_generation_id
+        else:
+            normalized_asset["preview_generation_id"] = str(normalized_asset.get("preview_generation_id") or "")
+        asset = normalized_asset
         table_id = str(asset.get("table_id") or "").strip()
         if not table_id or table_id in seen_table_ids:
             continue
@@ -1810,8 +1833,8 @@ def replace_document_table_assets(
             conn.execute(
                 """
                 INSERT INTO document_table_assets
-                (id, project_id, sor_document_id, table_id, asset_json, created_at, updated_at)
-                VALUES (?, ?, ?, ?, ?, ?, ?)
+                (id, project_id, sor_document_id, table_id, asset_json, preview_generation_id, created_at, updated_at)
+                VALUES (?, ?, ?, ?, ?, ?, ?, ?)
                 """,
                 (
                     str(uuid.uuid4()),
@@ -1819,6 +1842,7 @@ def replace_document_table_assets(
                     sor_document_id,
                     table_id,
                     json.dumps(asset, ensure_ascii=False),
+                    str(asset.get("preview_generation_id") or ""),
                     timestamp,
                     timestamp,
                 ),
@@ -1928,6 +1952,7 @@ def _ensure_requirements_document_unique(conn: sqlite3.Connection) -> None:
             content_blocks TEXT DEFAULT '[]',
             has_table_asset INTEGER DEFAULT 0,
             table_render_mode TEXT DEFAULT '',
+            preview_generation_id TEXT DEFAULT '',
             UNIQUE(sor_document_id, req_code),
             FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
             FOREIGN KEY(sor_document_id) REFERENCES sor_documents(id) ON DELETE CASCADE
@@ -1939,7 +1964,7 @@ def _ensure_requirements_document_unique(conn: sqlite3.Connection) -> None:
             entry_kind, text_relation, is_deduped, heading_text, raw_text, display_text,
             merged_from_req_codes, merged_from_entry_ids, dedupe_version,
             parent_section_code, parent_section_title, parent_section_label,
-            table_refs, content_blocks, has_table_asset, table_render_mode
+            table_refs, content_blocks, has_table_asset, table_render_mode, preview_generation_id
         )
         SELECT
             id, project_id, sor_document_id, req_code, source_page, source_anchor,
@@ -1948,7 +1973,7 @@ def _ensure_requirements_document_unique(conn: sqlite3.Connection) -> None:
             merged_from_req_codes, merged_from_entry_ids, dedupe_version,
             parent_section_code, parent_section_title, parent_section_label,
             COALESCE(table_refs, '[]'), COALESCE(content_blocks, '[]'),
-            COALESCE(has_table_asset, 0), COALESCE(table_render_mode, '')
+            COALESCE(has_table_asset, 0), COALESCE(table_render_mode, ''), ''
         FROM requirements;
 
         DROP TABLE requirements;
