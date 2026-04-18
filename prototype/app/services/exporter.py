@@ -675,9 +675,13 @@ def _table_ref_snapshot(payload: dict[str, Any], max_width_px: int) -> tuple[Byt
         for row in payload.get("slice_rows") or []
         if isinstance(row, list)
     ]
-    if headers:
+    if headers or rows:
         try:
-            buffer, image_width, image_height = _render_table_image([headers, *rows], max_width_px=max_width_px)
+            buffer, image_width, image_height = _render_table_image(
+                [headers, *rows] if headers else rows,
+                max_width_px=max_width_px,
+                header_row_count=1 if headers else 0,
+            )
             return buffer, image_width, image_height, warning_text
         except Exception:
             return None, 0, 0, warning_text
@@ -692,7 +696,9 @@ def _table_ref_to_text(payload: dict[str, Any]) -> str:
         if isinstance(row, list)
     ]
     if headers:
-        return _table_rows_to_text([headers, *rows])
+        return _table_rows_to_text([headers, *rows], include_header=True)
+    if rows:
+        return _table_rows_to_text(rows, include_header=False)
     return str(payload.get("slice_ai_projection") or "").strip()
 
 
@@ -999,13 +1005,15 @@ def _pixels_to_row_height_points(pixels: int) -> float:
     return round(min(_MAX_ROW_HEIGHT_PX, max(20, pixels)) * 0.75, 2)
 
 
-def _table_rows_to_text(rows: list[list[str]]) -> str:
+def _table_rows_to_text(rows: list[list[str]], *, include_header: bool = True) -> str:
     if not rows:
         return ""
-    header = "| " + " | ".join(str(cell or "") for cell in rows[0]) + " |"
-    separator = "| " + " | ".join("---" for _ in rows[0]) + " |"
-    body = ["| " + " | ".join(str(cell or "") for cell in row) + " |" for row in rows[1:]]
-    return "\n".join([header, separator, *body]).strip()
+    if include_header:
+        header = "| " + " | ".join(str(cell or "") for cell in rows[0]) + " |"
+        separator = "| " + " | ".join("---" for _ in rows[0]) + " |"
+        body = ["| " + " | ".join(str(cell or "") for cell in row) + " |" for row in rows[1:]]
+        return "\n".join([header, separator, *body]).strip()
+    return "\n".join("| " + " | ".join(str(cell or "") for cell in row) + " |" for row in rows).strip()
 
 
 @lru_cache(maxsize=8)
@@ -1019,7 +1027,12 @@ def _load_table_font(size: int) -> ImageFont.ImageFont:
     return ImageFont.load_default()
 
 
-def _render_table_image(rows: list[list[str]], *, max_width_px: int) -> tuple[BytesIO, int, int]:
+def _render_table_image(
+    rows: list[list[str]],
+    *,
+    max_width_px: int,
+    header_row_count: int = 1,
+) -> tuple[BytesIO, int, int]:
     normalized_rows = _normalize_table_rows(rows)
     font = _load_table_font(_TABLE_FONT_SIZE)
     probe = ImageDraw.Draw(PILImage.new("RGB", (1, 1), "white"))
@@ -1047,7 +1060,7 @@ def _render_table_image(rows: list[list[str]], *, max_width_px: int) -> tuple[By
     y = 0
     for row_index, row in enumerate(wrapped_rows):
         x = 0
-        fill_color = _BRAND_HEADER_BACKGROUND if row_index == 0 else "#FFFFFF"
+        fill_color = _BRAND_HEADER_BACKGROUND if row_index < max(0, int(header_row_count or 0)) else "#FFFFFF"
         for col_index, content in enumerate(row):
             width = column_widths[col_index]
             height = row_heights[row_index]

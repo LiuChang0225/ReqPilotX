@@ -74,13 +74,13 @@ from app.services.progress_tracker import (
     update_progress_checkpoint,
 )
 from app.services.preview_cache import (
+    begin_preview_generation,
     cancel_preview_refresh,
     get_preview_cache_state,
     load_cached_preview,
     mark_preview_stale,
     persist_preview_cache,
     purge_preview_artifacts,
-    reset_document_snapshot_root,
     request_preview_refresh,
 )
 from app.services.table_assets import (
@@ -128,6 +128,60 @@ _AI_REASONING_EVENT_FLUSH_INTERVAL_SECONDS = 0.9
 _AI_REASONING_OUTPUT_PREVIEW_LIMIT = 2200
 
 
+def _normalize_preview_generation_id(value: object) -> str:
+    return str(value or "").strip()
+
+
+def _resolve_active_preview_generation_id(
+    *,
+    preview: dict | None = None,
+    document: dict | None = None,
+) -> str:
+    preview_generation_id = _normalize_preview_generation_id((preview or {}).get("preview_generation_id"))
+    if preview_generation_id:
+        return preview_generation_id
+    return _normalize_preview_generation_id((document or {}).get("preview_generation_id"))
+
+
+def _visual_assets_match_active_generation(
+    asset_generation_id: object,
+    active_generation_id: str,
+) -> bool:
+    if not active_generation_id:
+        return True
+    return _normalize_preview_generation_id(asset_generation_id) == active_generation_id
+
+
+def _strip_preview_visual_assets(row: dict[str, Any]) -> dict[str, Any]:
+    copied = dict(row)
+    copied["table_refs"] = []
+    copied["content_blocks"] = []
+    copied["has_table_asset"] = False
+    copied["table_render_mode"] = ""
+    return copied
+
+
+def _row_visual_assets_match_active_generation(row: dict | None, active_generation_id: str) -> bool:
+    if not isinstance(row, dict):
+        return False
+    return _visual_assets_match_active_generation(row.get("preview_generation_id"), active_generation_id)
+
+
+def _filter_table_assets_by_generation(
+    assets: list[dict[str, Any]] | None,
+    *,
+    active_generation_id: str,
+) -> list[dict[str, Any]]:
+    filtered: list[dict[str, Any]] = []
+    for asset in assets or []:
+        if not isinstance(asset, dict):
+            continue
+        if not _visual_assets_match_active_generation(asset.get("preview_generation_id"), active_generation_id):
+            continue
+        filtered.append(asset)
+    return filtered
+
+
 def _asset_file_ready(path_value: object) -> bool:
     path = Path(str(path_value or "").strip())
     if not path.exists():
@@ -165,6 +219,7 @@ def _resolve_document_table_asset(
     if not document or document["project_id"] != project_id:
         raise HTTPException(status_code=404, detail="SOR document not found for this project.")
 
+    active_generation_id = _resolve_active_preview_generation_id(document=document)
     preview_asset = None
     preview, _ = load_cached_preview(document)
     preview_assets = (preview or {}).get("table_assets") if isinstance(preview, dict) else []
@@ -172,8 +227,15 @@ def _resolve_document_table_asset(
         if isinstance(item, dict) and str(item.get("table_id") or "").strip() == table_id:
             preview_asset = item
             break
+    if preview_asset and not _visual_assets_match_active_generation(
+        preview_asset.get("preview_generation_id") or (preview or {}).get("preview_generation_id"),
+        active_generation_id,
+    ):
+        preview_asset = None
 
     db_asset = db.get_document_table_asset(project_id, document_id, table_id)
+    if db_asset and not _visual_assets_match_active_generation(db_asset.get("preview_generation_id"), active_generation_id):
+        db_asset = None
     if _table_asset_variant_is_ready(
         preview_asset,
         require_snapshot=require_snapshot,
@@ -883,21 +945,24 @@ def get_sor_extraction_preview(project_id: str, document_id: str, response: Resp
     requirements = db.list_requirements(project_id, document_id)
     if preview is not None:
         preview = _attach_table_asset_urls_to_preview(preview, project_id=project_id, document_id=document_id)
+        preview_generation_id = _resolve_active_preview_generation_id(preview=preview, document=document)
         payload.update(preview)
         payload["review_entries"] = _attach_table_asset_urls_to_rows(
             _overlay_review_entries(
-            preview.get("complete_requirement_entries"),
-            requirements,
-            prefer_raw=False,
+                preview.get("complete_requirement_entries"),
+                requirements,
+                prefer_raw=False,
+                preview_generation_id=preview_generation_id,
             ),
             project_id=project_id,
             document_id=document_id,
         )
         payload["review_entries_raw"] = _attach_table_asset_urls_to_rows(
             _overlay_review_entries(
-            preview.get("complete_requirement_entries_raw") or preview.get("complete_requirement_entries"),
-            requirements,
-            prefer_raw=True,
+                preview.get("complete_requirement_entries_raw") or preview.get("complete_requirement_entries"),
+                requirements,
+                prefer_raw=True,
+                preview_generation_id=preview_generation_id,
             ),
             project_id=project_id,
             document_id=document_id,
@@ -1369,25 +1434,36 @@ def analyze_document(project_id: str, payload: AnalyzeRequest) -> dict:
     if not document or document["project_id"] != project_id:
         raise HTTPException(status_code=404, detail="SOR document not found for this project.")
 
-    preview = build_extraction_preview(
-        document["file_path"],
-        document_id=document["id"],
-        snapshot_root=reset_document_snapshot_root(document["id"]),
-    )
-    extracted = _build_analysis_rows_from_preview(preview)
-    if not extracted:
-        raise HTTPException(status_code=422, detail="No atomic requirements extracted from document.")
+    preview_generation_id, document = begin_preview_generation(document["id"])
+    try:
+        preview = build_extraction_preview(
+            document["file_path"],
+            document_id=document["id"],
+            snapshot_root=purge_preview_artifacts(document["id"]),
+        )
+        preview["preview_generation_id"] = preview_generation_id
+        extracted = _build_analysis_rows_from_preview(preview)
+        if not extracted:
+            raise HTTPException(status_code=422, detail="No atomic requirements extracted from document.")
 
-    inserted = _persist_requirements(
-        project_id=project_id,
-        sor_document_id=payload.document_id,
-        rows=extracted,
-        knowledge_docs=[],
-        dedupe_version=str(preview.get("summary", {}).get("dedupe_version") or ""),
-    )
-    document_state = db.increment_sor_document_requirement_set_version(payload.document_id, "EXTRACTED")
-    document_state = persist_preview_cache(document_state, preview) or document_state
-    knowledge_docs = _list_project_knowledge_documents(project_id)
+        inserted = _persist_requirements(
+            project_id=project_id,
+            sor_document_id=payload.document_id,
+            rows=extracted,
+            knowledge_docs=[],
+            dedupe_version=str(preview.get("summary", {}).get("dedupe_version") or ""),
+        )
+        document_state = db.increment_sor_document_requirement_set_version(payload.document_id, "EXTRACTED")
+        document_state = persist_preview_cache(document_state, preview) or document_state
+        knowledge_docs = _list_project_knowledge_documents(project_id)
+    except Exception as exc:
+        db.update_sor_document_preview_state(
+            document["id"],
+            preview_status="FAILED",
+            preview_error=str(exc)[:500],
+            preview_generation_id=preview_generation_id,
+        )
+        raise
 
     return {
         "project_id": project_id,
@@ -1489,6 +1565,7 @@ def save_review_entry(project_id: str, document_id: str, payload: ReviewedRequir
                 content_blocks=_json_dumps(normalized.get("content_blocks") or []),
                 has_table_asset=bool(normalized.get("has_table_asset")),
                 table_render_mode=str(normalized.get("table_render_mode") or ""),
+                preview_generation_id=_normalize_preview_generation_id(document.get("preview_generation_id")),
             )
             persisted_row = db.get_requirement(str(updated_row.get("id") or "")) or matched
             action = "updated"
@@ -1528,6 +1605,7 @@ def save_review_entry(project_id: str, document_id: str, payload: ReviewedRequir
                 content_blocks=_json_dumps(normalized.get("content_blocks") or []),
                 has_table_asset=bool(normalized.get("has_table_asset")),
                 table_render_mode=str(normalized.get("table_render_mode") or ""),
+                preview_generation_id=_normalize_preview_generation_id(document.get("preview_generation_id")),
             )
             persisted_row = db.get_requirement(str(inserted_row.get("id") or "")) or inserted_row
             action = "inserted"
@@ -2593,13 +2671,14 @@ def export_project(project_id: str, payload: ExportRequest | None = None) -> dic
         raise HTTPException(status_code=422, detail="No requirement data to export.")
     if document_id:
         requirements = _enrich_requirements_with_preview_context(requirements, str(document.get("file_path") or ""))
+        preview, preview_meta = load_cached_preview(document)
         requirements = _build_document_workspace(
             project=project,
             document=document,
             requirements=requirements,
             knowledge_docs_count=len(_list_project_knowledge_documents(project_id)),
-            preview=None,
-            preview_meta=get_preview_cache_state(document),
+            preview=preview,
+            preview_meta=preview_meta,
         )["requirements"]
     else:
         requirements = _present_requirements(requirements, preview=None)
@@ -3006,6 +3085,8 @@ def _persist_requirements(
     knowledge_docs: list[dict],
     dedupe_version: str = "",
 ) -> int:
+    document = db.get_sor_document(sor_document_id) or {}
+    preview_generation_id = _normalize_preview_generation_id(document.get("preview_generation_id"))
     materialized_rows, table_assets = _materialize_document_table_assets(rows, sor_document_id=sor_document_id)
     db.clear_requirements_for_document(sor_document_id)
     used_req_codes: set[str] = set()
@@ -3047,6 +3128,7 @@ def _persist_requirements(
             content_blocks=content_blocks,
             has_table_asset=bool(item.get("has_table_asset")),
             table_render_mode=str(item.get("table_render_mode") or ""),
+            preview_generation_id=preview_generation_id,
         )
         if knowledge_docs:
             ai_config = load_ai_copilot_config()
@@ -3085,7 +3167,12 @@ def _persist_requirements(
             db.replace_evidences(requirement_id=req["id"], evidences=result["evidences"])
             _record_assessment_runs(req["id"], result.get("runs") or [])
         inserted += 1
-    db.replace_document_table_assets(project_id, sor_document_id, table_assets)
+    db.replace_document_table_assets(
+        project_id,
+        sor_document_id,
+        table_assets,
+        preview_generation_id=preview_generation_id,
+    )
     return inserted
 
 
@@ -3176,6 +3263,8 @@ def _materialize_document_table_assets(
 
 
 def _sync_document_table_assets(project_id: str, sor_document_id: str) -> None:
+    document = db.get_sor_document(sor_document_id) or {}
+    preview_generation_id = _normalize_preview_generation_id(document.get("preview_generation_id"))
     _reset_table_snapshot_root(sor_document_id)
     current_rows = db.list_requirements(project_id, sor_document_id)
     materialized_rows, table_assets = _materialize_document_table_assets(current_rows, sor_document_id=sor_document_id)
@@ -3206,8 +3295,14 @@ def _sync_document_table_assets(project_id: str, sor_document_id: str) -> None:
             content_blocks=_json_dumps(row.get("content_blocks") or []),
             has_table_asset=bool(row.get("has_table_asset")),
             table_render_mode=str(row.get("table_render_mode") or ""),
+            preview_generation_id=preview_generation_id,
         )
-    db.replace_document_table_assets(project_id, sor_document_id, table_assets)
+    db.replace_document_table_assets(
+        project_id,
+        sor_document_id,
+        table_assets,
+        preview_generation_id=preview_generation_id,
+    )
 
 
 def _enrich_requirements_with_preview_context(rows: list[dict], file_path: str) -> list[dict]:
@@ -3236,16 +3331,20 @@ def _enrich_requirements_with_preview_context(rows: list[dict], file_path: str) 
     preview, _ = load_cached_preview(document)
     if preview is None:
         return rows
+    active_generation_id = _resolve_active_preview_generation_id(preview=preview, document=document)
     preview_index = _build_requirement_row_index(_build_analysis_rows_from_preview(preview))
     enriched: list[dict] = []
     pending_updates: list[dict[str, str]] = []
     for row in rows:
-        meta = _find_indexed_requirement_row(row, preview_index, allow_weak_identifier=True)
-        if not meta:
-            enriched.append(row)
-            continue
         copied = dict(row)
         changed = False
+        if not _row_visual_assets_match_active_generation(copied, active_generation_id):
+            copied = _strip_preview_visual_assets(copied)
+            changed = True
+        meta = _find_indexed_requirement_row(row, preview_index, allow_weak_identifier=True)
+        if not meta:
+            enriched.append(copied if changed else row)
+            continue
         for key in ("parent_section_code", "parent_section_title", "parent_section_label"):
             if not str(copied.get(key) or "").strip():
                 value = str(meta.get(key) or "").strip()
@@ -3285,6 +3384,9 @@ def _enrich_requirements_with_preview_context(rows: list[dict], file_path: str) 
             changed = True
         if not bool(copied.get("complex_table_mode")) and bool(meta.get("complex_table_mode")):
             copied.update(_copy_complex_row_fields(meta))
+            changed = True
+        if active_generation_id and str(copied.get("preview_generation_id") or "").strip() != active_generation_id:
+            copied["preview_generation_id"] = active_generation_id
             changed = True
         if copied.get("table_refs") or copied.get("content_blocks"):
             refreshed = hydrate_complex_row_metadata(normalize_preserved_entry_table_assets(copied))
@@ -3326,6 +3428,8 @@ def _attach_table_asset_urls_to_rows(rows: list[dict], *, project_id: str, docum
 def _attach_table_asset_urls_to_preview(preview: dict | None, *, project_id: str, document_id: str) -> dict | None:
     if not isinstance(preview, dict):
         return preview
+    document = db.get_sor_document(document_id)
+    active_generation_id = _resolve_active_preview_generation_id(preview=preview, document=document)
     copied = dict(preview)
     copied["complete_requirement_entries"] = _attach_table_asset_urls_to_rows(
         copied.get("complete_requirement_entries") or [],
@@ -3340,6 +3444,7 @@ def _attach_table_asset_urls_to_preview(preview: dict | None, *, project_id: str
     assets = copied.get("table_assets")
     if not isinstance(assets, list) or not assets:
         assets = db.list_document_table_assets(project_id, document_id)
+    assets = _filter_table_assets_by_generation(assets, active_generation_id=active_generation_id)
     copied["table_assets"] = [
         prepare_table_asset_urls(asset, project_id=project_id, document_id=document_id)
         for asset in assets
@@ -3387,6 +3492,7 @@ def _build_document_workspace(
     )
     if ai_stale and ai_status == "READY":
         ai_status = "STALE"
+    preview_generation_id = _resolve_active_preview_generation_id(preview=preview, document=document)
 
     review_entries: list[dict] = []
     review_entries_raw: list[dict] = []
@@ -3396,11 +3502,13 @@ def _build_document_workspace(
             preview.get("complete_requirement_entries"),
             requirements,
             prefer_raw=False,
+            preview_generation_id=preview_generation_id,
         )
         review_entries_raw = _overlay_review_entries(
             preview.get("complete_requirement_entries_raw") or preview.get("complete_requirement_entries"),
             requirements,
             prefer_raw=True,
+            preview_generation_id=preview_generation_id,
         )
         if not review_entries and requirements:
             review_entries = [dict(item, keep=True) for item in presented_requirements]
@@ -3450,6 +3558,7 @@ def _build_document_workspace(
             "default_ai_profile_id": ai_runtime.profile_id,
             "created_at": document.get("created_at"),
             "updated_at": document.get("updated_at"),
+            "preview_generation_id": preview_generation_id,
         },
         "summary": {
             "requirement_count": len(presented_requirements),
@@ -3504,7 +3613,27 @@ def _prepare_requirements_for_display(
     *,
     preview: dict | None = None,
 ) -> tuple[list[dict], dict[str, object]]:
-    presented = _present_requirements(requirements, preview=preview)
+    active_generation_id = _resolve_active_preview_generation_id(preview=preview)
+    document_generation_cache: dict[str, str] = {}
+    normalized_requirements: list[dict] = []
+    for row in requirements:
+        if not isinstance(row, dict):
+            continue
+        copied = dict(row)
+        expected_generation_id = active_generation_id
+        if not expected_generation_id:
+            document_id = str(copied.get("sor_document_id") or "").strip()
+            if document_id:
+                expected_generation_id = document_generation_cache.get(document_id, "")
+                if document_id not in document_generation_cache:
+                    document_generation_cache[document_id] = _normalize_preview_generation_id(
+                        (db.get_sor_document(document_id) or {}).get("preview_generation_id")
+                    )
+                    expected_generation_id = document_generation_cache.get(document_id, "")
+        if not _row_visual_assets_match_active_generation(copied, expected_generation_id):
+            copied = _strip_preview_visual_assets(copied)
+        normalized_requirements.append(copied)
+    presented = _present_requirements(normalized_requirements, preview=preview)
     diagnostics = _build_requirement_order_diagnostics(presented, preview=preview)
     return presented, diagnostics
 
@@ -4058,7 +4187,13 @@ def _coerce_int(value: object) -> int:
         return 0
 
 
-def _overlay_review_entries(rows: object, persisted_requirements: list[dict], *, prefer_raw: bool) -> list[dict]:
+def _overlay_review_entries(
+    rows: object,
+    persisted_requirements: list[dict],
+    *,
+    prefer_raw: bool,
+    preview_generation_id: str = "",
+) -> list[dict]:
     if not isinstance(rows, list):
         return []
     persisted_index = _build_requirement_row_index([dict(item) for item in (persisted_requirements or []) if isinstance(item, dict)])
@@ -4069,6 +4204,8 @@ def _overlay_review_entries(rows: object, persisted_requirements: list[dict], *,
         row = dict(raw_row)
         row["preview_rank"] = index
         row["display_order"] = index + 1
+        if preview_generation_id:
+            row["preview_generation_id"] = preview_generation_id
         persisted = _find_indexed_requirement_row(row, persisted_index, allow_weak_identifier=True)
         if persisted and not _persisted_review_matches_preview_row(persisted, row):
             persisted = None
@@ -4076,6 +4213,7 @@ def _overlay_review_entries(rows: object, persisted_requirements: list[dict], *,
             merged_refs, merged_blocks, merged_has_asset, merged_render_mode = _merge_preview_table_assets_for_review_row(
                 preview_row=row,
                 persisted_row=persisted,
+                active_preview_generation_id=preview_generation_id,
             )
             row["id"] = persisted.get("id")
             row["keep"] = True
@@ -4118,9 +4256,14 @@ def _merge_preview_table_assets_for_review_row(
     *,
     preview_row: dict,
     persisted_row: dict,
+    active_preview_generation_id: str = "",
 ) -> tuple[list[dict], list[dict], bool, str]:
     preview_refs = [dict(item) for item in (preview_row.get("table_refs") or []) if isinstance(item, dict)]
-    persisted_refs = [dict(item) for item in (persisted_row.get("table_refs") or []) if isinstance(item, dict)]
+    persisted_refs = (
+        [dict(item) for item in (persisted_row.get("table_refs") or []) if isinstance(item, dict)]
+        if _row_visual_assets_match_active_generation(persisted_row, active_preview_generation_id)
+        else []
+    )
     merged_refs: list[dict]
 
     if preview_refs:
@@ -4155,12 +4298,23 @@ def _merge_preview_table_assets_for_review_row(
         merged_refs = persisted_refs
 
     preview_blocks = preview_row.get("content_blocks") if isinstance(preview_row.get("content_blocks"), list) else []
-    persisted_blocks = persisted_row.get("content_blocks") if isinstance(persisted_row.get("content_blocks"), list) else []
-    merged_blocks = preview_blocks or persisted_blocks or []
-    merged_has_asset = bool(preview_row.get("has_table_asset")) if preview_row.get("has_table_asset") is not None else bool(
-        persisted_row.get("has_table_asset")
+    persisted_blocks = (
+        persisted_row.get("content_blocks")
+        if _row_visual_assets_match_active_generation(persisted_row, active_preview_generation_id)
+        and isinstance(persisted_row.get("content_blocks"), list)
+        else []
     )
-    merged_render_mode = str(preview_row.get("table_render_mode") or persisted_row.get("table_render_mode") or "").strip()
+    merged_blocks = preview_blocks or persisted_blocks or []
+    persisted_has_asset = bool(persisted_row.get("has_table_asset")) if _row_visual_assets_match_active_generation(
+        persisted_row, active_preview_generation_id
+    ) else False
+    merged_has_asset = bool(preview_row.get("has_table_asset")) if preview_row.get("has_table_asset") is not None else persisted_has_asset
+    persisted_render_mode = (
+        str(persisted_row.get("table_render_mode") or "").strip()
+        if _row_visual_assets_match_active_generation(persisted_row, active_preview_generation_id)
+        else ""
+    )
+    merged_render_mode = str(preview_row.get("table_render_mode") or persisted_render_mode or "").strip()
     if merged_refs:
         merged_has_asset = True
     return merged_refs, merged_blocks, merged_has_asset, merged_render_mode
@@ -4200,11 +4354,14 @@ def _build_workspace_requirements_from_review_entries(
     fallback_requirements: list[dict],
     preview: dict | None,
 ) -> tuple[list[dict], dict[str, object]]:
+    active_generation_id = _resolve_active_preview_generation_id(preview=preview)
     current_rows: list[dict] = []
     for row in rows or []:
         if not bool(row.get("keep", True)):
             continue
         copied = hydrate_complex_row_metadata(dict(row))
+        if not _row_visual_assets_match_active_generation(copied, active_generation_id):
+            copied = _strip_preview_visual_assets(copied)
         copied["requirement_text"] = str(
             row.get("raw_text") or row.get("requirement_text") or row.get("display_text") or ""
         ).strip()
@@ -4225,6 +4382,8 @@ def _build_workspace_requirements_from_review_entries(
         if _find_indexed_requirement_row(row, current_index, allow_weak_identifier=True) is not None:
             continue
         copied = hydrate_complex_row_metadata(dict(row))
+        if not _row_visual_assets_match_active_generation(copied, active_generation_id):
+            copied = _strip_preview_visual_assets(copied)
         copied["requirement_text"] = str(
             copied.get("raw_text") or copied.get("requirement_text") or copied.get("display_text") or ""
         ).strip()

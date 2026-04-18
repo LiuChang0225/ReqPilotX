@@ -102,6 +102,10 @@ TEST_OUTLINE_MARKER_PATTERNS: list[tuple[re.Pattern[str], str, str]] = [
     (re.compile(r"用电器试验大纲", re.I), TEST_OUTLINE_SCOPE_ELECTRIC, TEST_OUTLINE_SCOPE_ELECTRIC),
 ]
 VISUAL_SNAPSHOT_CUE_RE = re.compile(r"(?:如下图|图例|原理图|框图|流程图|示意图|效果图|产品效果图)", re.I)
+EXPLICIT_VISUAL_TITLE_LINE_RE = re.compile(r"^\s*((?:表|图)\s*\d+[^\n]*)$")
+EXPLICIT_CLAUSE_LINE_RE = re.compile(r"^\s*([0-9]+|[A-Za-z])\s*[)）]\s*(.+)$")
+MULTI_VISUAL_REFERENCE_TITLE_RE = re.compile(r"^(?:表|图)\s*\d+\s*[、,，/]\s*(?:表|图)?\s*\d+")
+FORMAL_SECTION_HEADING_LINE_RE = re.compile(r"^\s*\d+(?:\.\d+){0,5}\s+.+$")
 _SECTION_WINDOW_SNAPSHOT_SIGNATURE_VERSION = "section-window-v2"
 _SIGNIFICANT_VISUAL_MIN_AREA = 3000.0
 _SIGNIFICANT_VISUAL_MIN_WIDTH = 100.0
@@ -111,6 +115,9 @@ _LAYOUT_TABLE_MIN_BODY_BLOCKS = 6
 _LAYOUT_TABLE_MIN_PAGE_SPAN = 2
 _LAYOUT_TABLE_MAX_TEXT_CHARS = 1800
 _LAYOUT_TABLE_MAX_TEXT_LINES = 28
+_LAYOUT_TABLE_MAX_LABEL_CHARS = 20
+_LAYOUT_TABLE_LEFT_COLUMN_MAX_OFFSET = 96.0
+_LAYOUT_TABLE_PRELABEL_GAP = 24.0
 _VISUAL_BAND_MAX_GAP = 28.0
 _PROTOTYPE_DIR = Path(__file__).resolve().parents[2]
 
@@ -240,6 +247,153 @@ def _normalize_preview_title_token(value: str) -> str:
     return re.sub(r"\s+", "", str(value or "").strip()).strip("：:").lower()
 
 
+def _is_cross_visual_reference_title(value: str) -> bool:
+    return bool(MULTI_VISUAL_REFERENCE_TITLE_RE.match(str(value or "").strip()))
+
+
+def _looks_like_formal_section_heading_line(text: str) -> bool:
+    value = str(text or "").strip()
+    if not value or EXPLICIT_VISUAL_TITLE_LINE_RE.match(value):
+        return False
+    return bool(FORMAL_SECTION_HEADING_LINE_RE.match(value))
+
+
+def _looks_like_table_note_marker_line(text: str) -> bool:
+    value = str(text or "").strip()
+    if not value:
+        return False
+    if value in {"注", "Note", "NOTE"}:
+        return True
+    return bool(re.match(r"^(?:注|Note|NOTE)\s*\d*[：:]?$", value))
+
+
+def _is_running_header_or_footer_line(text: str) -> bool:
+    value = str(text or "").strip()
+    if not value:
+        return False
+    if re.fullmatch(r"\d{1,3}", value):
+        return True
+    return value.startswith(("Q/SK ", "Q-SK ", "Q／SK ", "Q／SKJ", "Q-SKJ", "Q/SKJ"))
+
+
+def _looks_like_table_explanatory_paragraph_line(
+    text: str,
+    *,
+    bbox: tuple[float, float, float, float],
+    page_width: float,
+) -> bool:
+    value = str(text or "").strip()
+    if not value or len(value) < 20:
+        return False
+    if value.startswith(("注", "Note", "NOTE")):
+        return False
+    if re.match(r"^[0-9A-Za-zＡ-Ｚａ-ｚ]+[：:]", value):
+        return False
+    if _looks_like_formal_section_heading_line(value) or EXPLICIT_VISUAL_TITLE_LINE_RE.match(value):
+        return False
+    width = max(0.0, float(bbox[2]) - float(bbox[0]))
+    return width >= max(240.0, page_width * 0.62)
+
+
+def _find_explicit_visual_cutoff_y(
+    page_specs: list[dict[str, Any]],
+    *,
+    kind: str,
+    page_width: float,
+    start_line_index: int,
+) -> float | None:
+    data_lines_seen = 0
+    for spec in page_specs[start_line_index:]:
+        text = str(spec.get("text") or "").strip()
+        bbox = tuple(spec.get("bbox") or ())
+        if len(bbox) < 4 or not text:
+            continue
+        if _looks_like_formal_section_heading_line(text):
+            return max(0.0, float(bbox[1]) - 8.0)
+        if kind != "table":
+            continue
+        if _looks_like_table_explanatory_paragraph_line(
+            text,
+            bbox=tuple(float(value) for value in bbox[:4]),
+            page_width=page_width,
+        ) and data_lines_seen >= 4:
+            return max(0.0, float(bbox[1]) - 8.0)
+        data_lines_seen += 1
+    return None
+
+
+def _page_segment_has_non_title_content(
+    page_specs: list[dict[str, Any]],
+    *,
+    title_token: str,
+) -> bool:
+    for spec in page_specs:
+        text = str(spec.get("text") or "").strip()
+        if not text:
+            continue
+        token = _normalize_preview_title_token(text)
+        if not token or token == title_token:
+            continue
+        if _looks_like_formal_section_heading_line(text):
+            continue
+        if _is_running_header_or_footer_line(text):
+            continue
+        return True
+    return False
+
+
+def _find_last_meaningful_spec_before_index(
+    page_specs: list[dict[str, Any]],
+    *,
+    end_index: int,
+    title_token: str,
+) -> dict[str, Any] | None:
+    for idx in range(min(end_index, len(page_specs)) - 1, -1, -1):
+        spec = page_specs[idx]
+        text = str(spec.get("text") or "").strip()
+        if not text:
+            continue
+        token = _normalize_preview_title_token(text)
+        if not token or token == title_token:
+            continue
+        if _is_running_header_or_footer_line(text):
+            continue
+        if _looks_like_formal_section_heading_line(text):
+            continue
+        if EXPLICIT_VISUAL_TITLE_LINE_RE.match(text):
+            continue
+        return spec
+    return None
+
+
+def _score_explicit_visual_candidate(
+    pdf_document,
+    *,
+    page_index: int,
+    bbox: tuple[float, float, float, float],
+) -> tuple[int, float]:
+    if bbox[3] <= bbox[1] + 16.0 or bbox[2] <= bbox[0] + 16.0:
+        return (0, 0.0)
+    summary = _summarize_section_window_visual_features(pdf_document, [(page_index, bbox)])
+    return (
+        int(summary.get("significant_visual_count") or 0),
+        float(bbox[3]) - float(bbox[1]),
+    )
+
+
+def _collapse_preview_table_render_mode(refs: list[dict[str, Any]]) -> str:
+    normalized = [
+        str(ref.get("slice_render_mode") or ref.get("render_mode") or "").strip().lower()
+        for ref in refs or []
+        if isinstance(ref, dict)
+    ]
+    if any(mode == "structured" for mode in normalized):
+        return "structured"
+    if any(mode == "snapshot_only" for mode in normalized):
+        return "snapshot_only"
+    return ""
+
+
 def _is_suspicious_structured_table_ref(ref: dict[str, Any]) -> bool:
     if str(ref.get("slice_render_mode") or "").strip().lower() != "structured":
         return False
@@ -261,6 +415,84 @@ def _is_suspicious_structured_table_ref(ref: dict[str, Any]) -> bool:
     if placeholder_count >= 1 and duplicate_count >= 1:
         return True
     return False
+
+
+def _looks_like_synthetic_local_clause_header_ref(ref: dict[str, Any]) -> bool:
+    if str(ref.get("slice_render_mode") or "").strip().lower() != "structured":
+        return False
+    headers = [str(cell or "").strip() for cell in (ref.get("inherited_headers") or []) if str(cell or "").strip()]
+    if len(headers) != 2:
+        return False
+    title = _normalize_preview_title_token(ref.get("table_title") or "")
+    if not title or _normalize_preview_title_token(headers[0]) != title:
+        return False
+    if _normalize_table_header_token(headers[1]) not in {"说明", "内容", "description"}:
+        return False
+    rows = [
+        [str(cell or "").strip() for cell in row]
+        for row in (ref.get("slice_rows") or [])
+        if isinstance(row, list)
+    ]
+    return _looks_like_headerless_key_value_rows(rows)
+
+
+def _insert_missing_table_title_block(
+    content_blocks: list[dict[str, Any]],
+    *,
+    table_id: str,
+    table_title: str,
+) -> list[dict[str, Any]]:
+    if not table_id or not table_title:
+        return list(content_blocks or [])
+    updated: list[dict[str, Any]] = []
+    inserted = False
+    for block in content_blocks or []:
+        kind = str(block.get("kind") or "").strip().lower()
+        block_table_id = str(block.get("table_id") or "").strip()
+        if kind == "table" and block_table_id == table_id:
+            previous = updated[-1] if updated else None
+            previous_kind = str(previous.get("kind") or "").strip().lower() if isinstance(previous, dict) else ""
+            previous_text = str(previous.get("text") or "").strip() if isinstance(previous, dict) else ""
+            if previous_kind != "paragraph" or previous_text != table_title:
+                updated.append({"kind": "paragraph", "text": table_title})
+                inserted = True
+        updated.append(block)
+    return updated if inserted else list(content_blocks or [])
+
+
+def _strip_synthetic_local_clause_headers(row: dict[str, Any]) -> dict[str, Any]:
+    refs = list(row.get("table_refs") or [])
+    if not refs:
+        return row
+    changed = False
+    updated_refs: list[dict[str, Any]] = []
+    content_blocks = list(row.get("content_blocks") or [])
+    for ref in refs:
+        if not _looks_like_synthetic_local_clause_header_ref(ref):
+            updated_refs.append(ref)
+            continue
+        changed = True
+        normalized_ref = dict(ref)
+        normalized_ref["inherited_headers"] = []
+        normalized_ref["headerless"] = True
+        table_id = str(normalized_ref.get("table_id") or "").strip()
+        table_title = str(normalized_ref.get("table_title") or "").strip()
+        if content_blocks:
+            content_blocks = _insert_missing_table_title_block(
+                content_blocks,
+                table_id=table_id,
+                table_title=table_title,
+            )
+        updated_refs.append(_normalize_table_ref(normalized_ref))
+    if not changed:
+        return row
+    updated = dict(row)
+    updated["table_refs"] = updated_refs
+    if content_blocks:
+        updated["content_blocks"] = content_blocks
+    updated["table_render_mode"] = "structured"
+    updated["has_table_asset"] = True
+    return updated
 
 
 def _filter_content_blocks_by_table_ids(
@@ -309,6 +541,1082 @@ def _infer_pipe_table_subject_token(rows: list[list[str]]) -> str:
     return token if hits >= 2 else ""
 
 
+def _looks_like_headerless_key_value_rows(rows: list[list[str]]) -> bool:
+    if len(rows) < 2:
+        return False
+    normalized_rows = [
+        [str(cell or "").strip() for cell in row]
+        for row in rows
+        if isinstance(row, list)
+    ]
+    if not normalized_rows or any(len(row) != 2 for row in normalized_rows):
+        return False
+    first_cells = [row[0] for row in normalized_rows if row and row[0]]
+    second_cells = [row[1] for row in normalized_rows if len(row) > 1]
+    if len(first_cells) < len(normalized_rows) - 1:
+        return False
+    label_like_count = sum(
+        1
+        for cell in first_cells
+        if cell.endswith(("：", ":")) or (len(cell) <= 12 and not re.search(r"[。；;!?！？]$", cell))
+    )
+    informative_value_count = sum(
+        1
+        for cell in second_cells
+        if cell in {"/", "-", "--"} or len(cell) >= 4 or re.search(r"[A-Za-z\u4e00-\u9fff0-9]", cell)
+    )
+    return label_like_count >= max(2, len(first_cells) - 1) and informative_value_count >= len(normalized_rows) - 1
+
+
+def _compact_layout_table_text(text: str) -> str:
+    return re.sub(r"\s+", "", str(text or "").strip())
+
+
+def _normalize_layout_table_text(text: str) -> str:
+    return re.sub(r"\s+", " ", str(text or "").strip())
+
+
+def _looks_like_layout_table_list_item(text: str) -> bool:
+    return bool(re.match(r"^(?:\d+\.|[A-Za-z]\.)", str(text or "").strip()))
+
+
+def _looks_like_layout_table_body_prefill(text: str) -> bool:
+    value = str(text or "").strip()
+    return bool(re.match(r"^(?:\d+\.|[A-Za-z]\.)", value))
+
+
+def _looks_like_layout_table_label_line(
+    text: str,
+    *,
+    x0: float,
+    clip_x0: float,
+    section_heading_tokens: set[str],
+) -> bool:
+    compact = _compact_layout_table_text(text)
+    if not compact or compact in section_heading_tokens:
+        return False
+    if re.fullmatch(r"\d{1,3}", compact):
+        return False
+    if re.fullmatch(r"[A-Za-z]\.?", compact):
+        return False
+    if float(x0) > float(clip_x0) + _LAYOUT_TABLE_LEFT_COLUMN_MAX_OFFSET:
+        return False
+    if len(compact) > _LAYOUT_TABLE_MAX_LABEL_CHARS:
+        return False
+    if not (compact.endswith(("：", ":")) or re.search(r"[\u4e00-\u9fff]", compact)):
+        return False
+    if re.search(r"[，,；;。]", compact) and not compact.endswith(("：", ":")):
+        return False
+    return compact.endswith(("：", ":")) or len(compact) <= 12
+
+
+def _extract_layout_table_subject_and_label(text: str) -> tuple[str, str]:
+    compact = _compact_layout_table_text(text)
+    match = re.match(r"^(?P<subject>[A-Z]{2,}(?:_[A-Z0-9]+)+)(?P<label>.*)$", compact)
+    if not match:
+        return "", compact
+    return str(match.group("subject") or "").strip(), str(match.group("label") or "").strip()
+
+
+def _normalize_layout_table_label_text(text: str) -> str:
+    value = _compact_layout_table_text(text)
+    if not value:
+        return ""
+    if value in {"件：", "件:"}:
+        return value
+    value = re.sub(r"触发条：?件：?$", "触发条件：", value)
+    value = re.sub(r"^[（(]+", "", value)
+    if value.endswith(("：", ":")):
+        return value[:-1] + "："
+    return f"{value}：" if re.search(r"[\u4e00-\u9fff]", value) else value
+
+
+def _append_layout_table_text_fragment(base: str, piece: str) -> str:
+    left = str(base or "").strip()
+    right = str(piece or "").strip()
+    if not right:
+        return left
+    if not left:
+        return right
+    if right in {"、", ",", "，", "；", ";", "）", ")"}:
+        return left + right
+    if right.startswith(("、", ",", "，", "）", ")", "：", ":", "；", ";")):
+        return left + right
+    if left.endswith(("（", "(", "/", "=", "0x", "：", ":")):
+        return left + right
+    return f"{left} {right}"
+
+
+def _collapse_layout_table_body_lines(lines: list[str]) -> str:
+    normalized = [_normalize_layout_table_text(line) for line in lines if _normalize_layout_table_text(line)]
+    if not normalized:
+        return ""
+
+    if any(_looks_like_layout_table_list_item(line) for line in normalized):
+        items: list[str] = []
+        current = ""
+        for line in normalized:
+            if _looks_like_layout_table_list_item(line):
+                if current:
+                    items.append(current)
+                current = line
+                continue
+            current = _append_layout_table_text_fragment(current, line)
+        if current:
+            items.append(current)
+        return "\n".join(item for item in items if item)
+
+    value = ""
+    for line in normalized:
+        value = _append_layout_table_text_fragment(value, line)
+    return value
+
+
+def _build_layout_table_line_specs(
+    *,
+    pdf_document,
+    source_key: str,
+    plan: list[tuple[int, tuple[float, float, float, float] | None]],
+    line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]],
+    section_heading_tokens: set[str],
+) -> list[dict[str, Any]]:
+    specs: list[dict[str, Any]] = []
+    for page_index, bbox in plan:
+        if bbox is None:
+            continue
+        clip_x0 = float(bbox[0])
+        lines = _load_pdf_page_line_records(
+            pdf_document,
+            source_key=source_key,
+            page_index=page_index,
+            detection_cache=line_detection_cache,
+        )
+        for line in lines:
+            bbox_value = tuple(line.get("bbox") or ())
+            if len(bbox_value) < 4:
+                continue
+            x0, y0, _x1, y1 = bbox_value
+            if float(y1) < float(bbox[1]) or float(y0) > float(bbox[3]):
+                continue
+            text = _normalize_layout_table_text(line.get("text") or "")
+            compact = _compact_layout_table_text(text)
+            if not compact:
+                continue
+            if compact in section_heading_tokens:
+                continue
+            if re.fullmatch(r"\d{1,3}", compact):
+                continue
+            if "重庆赛力斯汽车有限公司" in text:
+                continue
+            specs.append(
+                {
+                    "page_index": page_index,
+                    "bbox": bbox_value,
+                    "text": text,
+                    "clip_x0": clip_x0,
+                }
+            )
+    specs.sort(key=lambda item: (int(item["page_index"]), float(item["bbox"][1]), float(item["bbox"][0])))
+    return specs
+
+
+def _build_section_visual_line_specs(
+    *,
+    pdf_document,
+    source_key: str,
+    plan: list[tuple[int, tuple[float, float, float, float] | None]],
+    line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]],
+) -> list[dict[str, Any]]:
+    specs: list[dict[str, Any]] = []
+    for page_index, bbox in plan:
+        if bbox is None:
+            continue
+        lines = _load_pdf_page_line_records(
+            pdf_document,
+            source_key=source_key,
+            page_index=page_index,
+            detection_cache=line_detection_cache,
+        )
+        for line in lines:
+            bbox_value = tuple(line.get("bbox") or ())
+            if len(bbox_value) < 4:
+                continue
+            x0, y0, _x1, y1 = bbox_value
+            if float(y1) < float(bbox[1]) or float(y0) > float(bbox[3]):
+                continue
+            text = _normalize_layout_table_text(line.get("text") or "")
+            compact = _compact_layout_table_text(text)
+            if not compact:
+                continue
+            if re.fullmatch(r"\d{1,3}", compact):
+                continue
+            if "重庆赛力斯汽车有限公司" in text:
+                continue
+            specs.append(
+                {
+                    "page_index": page_index,
+                    "bbox": bbox_value,
+                    "text": text,
+                    "clip_x0": float(bbox[0]),
+                }
+            )
+    specs.sort(key=lambda item: (int(item["page_index"]), float(item["bbox"][1]), float(item["bbox"][0])))
+    return specs
+
+
+def _recover_layout_headerless_tables_from_line_specs(
+    line_specs: list[dict[str, Any]],
+    *,
+    section_heading_tokens: set[str],
+) -> list[dict[str, Any]]:
+    if not line_specs:
+        return []
+
+    label_events: list[dict[str, Any]] = []
+    for idx, spec in enumerate(line_specs):
+        text = str(spec.get("text") or "")
+        bbox = tuple(spec.get("bbox") or ())
+        if len(bbox) < 4:
+            continue
+        if not _looks_like_layout_table_label_line(
+            text,
+            x0=float(bbox[0]),
+            clip_x0=float(spec.get("clip_x0") or 0.0),
+            section_heading_tokens=section_heading_tokens,
+        ):
+            continue
+        subject, label = _extract_layout_table_subject_and_label(text)
+        normalized_label = _normalize_layout_table_label_text(label or text)
+        if normalized_label in {"件：", "件:"} and label_events:
+            label_events[-1]["label"] = _normalize_layout_table_label_text(
+                str(label_events[-1].get("label") or "") + normalized_label
+            )
+            label_events[-1]["consumed_indexes"].add(idx)
+            continue
+        inherited_subject = subject or str(label_events[-1].get("subject") or "") if label_events else subject
+        label_events.append(
+            {
+                "anchor_index": idx,
+                "consumed_indexes": {idx},
+                "subject": inherited_subject,
+                "label": normalized_label,
+            }
+        )
+
+    if not label_events:
+        return []
+
+    subject_groups: list[dict[str, Any]] = []
+    current_group: dict[str, Any] | None = None
+    for event in label_events:
+        subject = str(event.get("subject") or "").strip()
+        if subject:
+            if current_group and current_group.get("subject") != subject:
+                subject_groups.append(current_group)
+                current_group = None
+            if current_group is None:
+                current_group = {"subject": subject, "events": []}
+        elif current_group is None:
+            continue
+        assert current_group is not None
+        current_group["events"].append(event)
+    if current_group:
+        subject_groups.append(current_group)
+
+    recovered: list[dict[str, Any]] = []
+    for group_index, group in enumerate(subject_groups):
+        subject = str(group.get("subject") or "").strip()
+        events = list(group.get("events") or [])
+        if not subject or len(events) < 2:
+            continue
+        group_start = events[0]["anchor_index"]
+        previous_group = subject_groups[group_index - 1] if group_index > 0 else None
+        if previous_group is None:
+            group_start = 0
+        group_end = (
+            subject_groups[group_index + 1]["events"][0]["anchor_index"]
+            if group_index + 1 < len(subject_groups)
+            else len(line_specs)
+        )
+        consumed_indexes = {
+            consumed_idx
+            for event in events
+            for consumed_idx in set(event.get("consumed_indexes") or set())
+        }
+        prefills: dict[int, list[tuple[str, int]]] = defaultdict(list)
+        rows: list[list[str]] = []
+        row_specs: list[dict[str, Any]] = []
+        for event_index, event in enumerate(events):
+            anchor_index = int(event.get("anchor_index") or 0)
+            next_anchor = int(events[event_index + 1]["anchor_index"]) if event_index + 1 < len(events) else group_end
+            segment_indexes = list(range(group_start if event_index == 0 else anchor_index, next_anchor))
+            candidate_entries = [
+                (position, line_specs[position])
+                for position in segment_indexes
+                if position not in consumed_indexes
+            ]
+            if event_index + 1 < len(events) and candidate_entries:
+                split_index: int | None = None
+                current_specs = prefills.pop(event_index, [])
+                for position in range(1, len(candidate_entries)):
+                    previous = candidate_entries[position - 1][1]
+                    current = candidate_entries[position][1]
+                    previous_y = float(previous.get("bbox", (0.0, 0.0, 0.0, 0.0))[1])
+                    current_y = float(current.get("bbox", (0.0, 0.0, 0.0, 0.0))[1])
+                    if int(previous.get("page_index") or 0) != int(current.get("page_index") or 0):
+                        continue
+                    gap = current_y - previous_y
+                    if gap >= _LAYOUT_TABLE_PRELABEL_GAP and _looks_like_layout_table_body_prefill(str(current.get("text") or "")):
+                        split_index = position
+                if split_index is not None:
+                    prefills[event_index + 1].extend(
+                        (str(item.get("text") or ""), candidate_position)
+                        for candidate_position, item in candidate_entries[split_index:]
+                    )
+                    candidate_entries = candidate_entries[:split_index]
+                body_specs = current_specs + [
+                    (str(item.get("text") or ""), candidate_position) for candidate_position, item in candidate_entries
+                ]
+            else:
+                body_specs = prefills.pop(event_index, []) + [
+                    (str(item.get("text") or ""), candidate_position) for candidate_position, item in candidate_entries
+                ]
+
+            label_text = _normalize_layout_table_label_text(event.get("label") or "")
+            body_text = _collapse_layout_table_body_lines([text for text, _ in body_specs])
+            if not label_text or not body_text:
+                continue
+            rows.append([label_text, body_text])
+            row_specs.append(
+                {
+                    "values": [label_text, body_text],
+                    "used_indexes": sorted(
+                        {
+                            *set(event.get("consumed_indexes") or set()),
+                            *(position for _text, position in body_specs),
+                        }
+                    ),
+                }
+            )
+        if len(rows) < 2:
+            continue
+        recovered.append(
+            {
+                "title": f"{subject}:",
+                "rows": rows,
+                "row_specs": row_specs,
+            }
+        )
+    return recovered
+
+
+def _extract_section_level_tail_notes_from_layout_groups(
+    groups: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[str]]:
+    if len(groups) < 2:
+        return groups, []
+    subjects = [
+        _normalize_preview_title_token(group.get("title") or "")
+        for group in groups
+        if _normalize_preview_title_token(group.get("title") or "")
+    ]
+    if len(subjects) < 2:
+        return groups, []
+    updated_groups = [dict(group) for group in groups]
+    last_group = dict(updated_groups[-1])
+    rows = [list(row) for row in (last_group.get("rows") or []) if isinstance(row, list)]
+    row_specs = [dict(spec) for spec in (last_group.get("row_specs") or []) if isinstance(spec, dict)]
+    if not rows or not row_specs or len(rows) != len(row_specs):
+        return groups, []
+    tail_row = rows[-1]
+    tail_spec = row_specs[-1]
+    label = _normalize_layout_table_label_text(tail_row[0] if tail_row else "")
+    body = str(tail_row[1] if len(tail_row) > 1 else "").strip()
+    if label != "备注：" or not body:
+        return groups, []
+    compact_body = _normalize_preview_title_token(body)
+    subject_hits = [
+        subject
+        for subject in subjects
+        if subject and subject in compact_body
+    ]
+    if len(set(subject_hits)) < 2:
+        return groups, []
+    rows.pop()
+    row_specs.pop()
+    if len(rows) < 2:
+        return groups, []
+    last_group["rows"] = rows
+    last_group["row_specs"] = row_specs
+    updated_groups[-1] = last_group
+    return updated_groups, [f"{label}\n{body}"]
+
+
+def _build_layout_group_crop_plan(
+    pdf_document,
+    *,
+    line_specs: list[dict[str, Any]],
+    used_indexes: list[int],
+) -> list[tuple[int, tuple[float, float, float, float] | None]]:
+    valid_specs = [
+        line_specs[position]
+        for position in sorted({int(position) for position in used_indexes})
+        if 0 <= int(position) < len(line_specs)
+    ]
+    if not valid_specs:
+        return []
+    by_page: dict[int, list[tuple[float, float, float, float]]] = defaultdict(list)
+    for spec in valid_specs:
+        bbox = tuple(spec.get("bbox") or ())
+        if len(bbox) < 4:
+            continue
+        by_page[int(spec.get("page_index") or 0)].append(tuple(float(value) for value in bbox[:4]))
+    crop_plan: list[tuple[int, tuple[float, float, float, float] | None]] = []
+    for page_index in sorted(by_page):
+        page = pdf_document.load_page(page_index)
+        page_boxes = by_page.get(page_index) or []
+        if not page_boxes:
+            continue
+        window_top = max(0.0, min(float(box[1]) for box in page_boxes) - 8.0)
+        window_bottom = min(float(page.rect.height), max(float(box[3]) for box in page_boxes) + 8.0)
+        if window_bottom <= window_top + 4.0:
+            continue
+        content_bboxes = _collect_anchor_window_content_bboxes(
+            page,
+            window_top=window_top,
+            window_bottom=window_bottom,
+            include_drawings=True,
+        )
+        crop_bbox = _expand_section_window_crop_bbox(page, content_bboxes)
+        if crop_bbox is None:
+            crop_bbox = (
+                max(0.0, min(float(box[0]) for box in page_boxes) - 12.0),
+                window_top,
+                min(float(page.rect.width), max(float(box[2]) for box in page_boxes) + 12.0),
+                window_bottom,
+            )
+        if crop_bbox[3] <= crop_bbox[1] + 16.0:
+            continue
+        crop_plan.append((page_index, crop_bbox))
+    return crop_plan
+
+
+def _extract_explicit_visual_titles_from_text(text: str) -> list[dict[str, Any]]:
+    titles: list[dict[str, Any]] = []
+    seen: set[str] = set()
+    for raw_line in str(text or "").splitlines():
+        line = _normalize_layout_table_text(raw_line)
+        if not line:
+            continue
+        match = EXPLICIT_VISUAL_TITLE_LINE_RE.match(line)
+        if not match:
+            continue
+        title = str(match.group(1) or "").strip()
+        if _is_cross_visual_reference_title(title):
+            continue
+        token = _normalize_preview_title_token(title)
+        if not token or token in seen:
+            continue
+        seen.add(token)
+        titles.append(
+            {
+                "title": title,
+                "kind": "table" if title.startswith("表") else "figure",
+                "token": token,
+            }
+        )
+    return titles
+
+
+def _score_explicit_visual_title_match(title: str, line_text: str) -> int:
+    title_token = _normalize_preview_title_token(title)
+    line_token = _normalize_preview_title_token(line_text)
+    if not title_token or not line_token:
+        return 0
+    if title_token == line_token:
+        return 100
+    if title_token in line_token or line_token in title_token:
+        return 85
+    title_head = re.match(r"^(表|图)\s*(\d+)", title.strip())
+    line_head = re.match(r"^(表|图)\s*(\d+)", str(line_text or "").strip())
+    if title_head and line_head and title_head.groups() == line_head.groups():
+        return 65
+    return 0
+
+
+def _match_explicit_visual_titles_to_line_specs(
+    titles: list[dict[str, Any]],
+    *,
+    line_specs: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    matched: list[dict[str, Any]] = []
+    cursor = 0
+    used_indexes: set[int] = set()
+    for title in titles:
+        best_index: int | None = None
+        best_score = 0
+        for idx in range(cursor, len(line_specs)):
+            if idx in used_indexes:
+                continue
+            score = _score_explicit_visual_title_match(str(title.get("title") or ""), str(line_specs[idx].get("text") or ""))
+            if score <= 0:
+                continue
+            if score > best_score:
+                best_index = idx
+                best_score = score
+                if score >= 100:
+                    break
+        if best_index is None:
+            continue
+        used_indexes.add(best_index)
+        cursor = best_index + 1
+        matched.append(
+            {
+                **title,
+                "line_index": best_index,
+                "page_index": int(line_specs[best_index].get("page_index") or 0),
+                "bbox": tuple(line_specs[best_index].get("bbox") or ()),
+            }
+        )
+    return matched
+
+
+def _build_explicit_visual_event_crop_plan(
+    pdf_document,
+    *,
+    line_specs: list[dict[str, Any]],
+    start_index: int,
+    next_index: int | None,
+    kind: str = "table",
+) -> list[tuple[int, tuple[float, float, float, float] | None]]:
+    if start_index < 0 or start_index >= len(line_specs):
+        return []
+    start_spec = line_specs[start_index]
+    next_spec = line_specs[next_index] if next_index is not None and 0 <= next_index < len(line_specs) else None
+    start_bbox = tuple(start_spec.get("bbox") or ())
+    next_bbox = tuple(next_spec.get("bbox") or ()) if next_spec else ()
+    if len(start_bbox) < 4:
+        return []
+
+    segment_specs = line_specs[start_index : next_index if next_index is not None else len(line_specs)]
+    start_page = int(start_spec.get("page_index") or 0)
+    end_page = int(next_spec.get("page_index") or start_page) if next_spec else int(segment_specs[-1].get("page_index") or start_page)
+    title_token = _normalize_preview_title_token(start_spec.get("text") or "")
+
+    if kind == "figure":
+        title_page = pdf_document.load_page(start_page)
+        title_page_specs = [
+            spec
+            for spec in line_specs
+            if int(spec.get("page_index") or 0) == start_page
+        ]
+        title_page_position = next(
+            (
+                idx
+                for idx, spec in enumerate(title_page_specs)
+                if _normalize_preview_title_token(spec.get("text") or "") == title_token
+            ),
+            len(title_page_specs),
+        )
+        previous_spec = _find_last_meaningful_spec_before_index(
+            title_page_specs,
+            end_index=title_page_position,
+            title_token=title_token,
+        )
+        above_top = (
+            min(float(title_page.rect.height) - 24.0, float(tuple(previous_spec.get("bbox") or (0.0, 0.0, 0.0, 0.0))[3]) + 10.0)
+            if previous_spec is not None and len(tuple(previous_spec.get("bbox") or ())) >= 4
+            else 24.0
+        )
+        above_bbox = (
+            24.0,
+            max(0.0, above_top),
+            max(25.0, float(title_page.rect.width) - 24.0),
+            min(float(title_page.rect.height), float(start_bbox[3]) + 10.0),
+        )
+        below_top = max(0.0, float(start_bbox[1]) - 6.0)
+        below_bottom = float(title_page.rect.height)
+        if next_spec is not None and int(next_spec.get("page_index") or -1) == start_page and len(next_bbox) >= 4:
+            below_bottom = min(below_bottom, max(below_top + 24.0, float(next_bbox[1]) - 8.0))
+        below_bbox = (
+            24.0,
+            below_top,
+            max(25.0, float(title_page.rect.width) - 24.0),
+            below_bottom,
+        )
+        above_score = _score_explicit_visual_candidate(pdf_document, page_index=start_page, bbox=above_bbox)
+        below_score = _score_explicit_visual_candidate(pdf_document, page_index=start_page, bbox=below_bbox)
+        prefer_above = above_score[0] > below_score[0] or (
+            above_score[0] == below_score[0] and above_score[1] > below_score[1] + 48.0
+        )
+        prefer_below = below_score[0] > above_score[0] or (
+            above_score[0] == below_score[0] and below_score[1] > above_score[1] + 48.0
+        )
+        if prefer_above:
+            if above_bbox[3] > above_bbox[1] + 16.0:
+                return [(start_page, above_bbox)]
+        elif prefer_below and below_bbox[3] > below_bbox[1] + 16.0:
+            return [(start_page, below_bbox)]
+
+    crop_plan: list[tuple[int, tuple[float, float, float, float] | None]] = []
+    for page_index in range(start_page, end_page + 1):
+        page = pdf_document.load_page(page_index)
+        page_specs = [spec for spec in segment_specs if int(spec.get("page_index") or 0) == page_index]
+        page_boxes = [
+            tuple(float(value) for value in (spec.get("bbox") or ())[:4])
+            for spec in page_specs
+            if len(tuple(spec.get("bbox") or ())) >= 4
+        ]
+        window_top = max(0.0, float(start_bbox[1]) - 6.0) if page_index == start_page else 0.0
+        if next_spec is not None and page_index == int(next_spec.get("page_index") or -1) and len(next_bbox) >= 4:
+            window_bottom = max(window_top + 24.0, float(next_bbox[1]) - 8.0)
+        else:
+            window_bottom = float(page.rect.height)
+        cutoff_y = _find_explicit_visual_cutoff_y(
+            page_specs,
+            kind=kind,
+            page_width=float(page.rect.width),
+            start_line_index=1 if page_index == start_page else 0,
+        )
+        if cutoff_y is not None:
+            window_bottom = min(window_bottom, cutoff_y)
+        elif kind == "table" and page_boxes and (
+            next_spec is None or int(next_spec.get("page_index") or -1) != page_index
+        ):
+            observed_bottom = max(float(box[3]) for box in page_boxes) + 12.0
+            window_bottom = min(window_bottom, observed_bottom)
+        if window_bottom <= window_top + 8.0:
+            continue
+        if page_index == start_page and end_page > start_page and not _page_segment_has_non_title_content(
+            page_specs,
+            title_token=title_token,
+        ):
+            continue
+        content_bboxes = _collect_anchor_window_content_bboxes(
+            page,
+            window_top=window_top,
+            window_bottom=window_bottom,
+            include_drawings=True,
+        )
+        if kind == "figure":
+            crop_bbox = (
+                24.0,
+                window_top,
+                max(25.0, float(page.rect.width) - 24.0),
+                window_bottom,
+            )
+        else:
+            crop_bbox = _expand_section_window_crop_bbox(page, content_bboxes)
+            if crop_bbox is None and page_boxes:
+                crop_bbox = (
+                    max(0.0, min(float(box[0]) for box in page_boxes) - 16.0),
+                    window_top,
+                    min(float(page.rect.width), max(float(box[2]) for box in page_boxes) + 16.0),
+                    min(float(page.rect.height), max(window_bottom, max(float(box[3]) for box in page_boxes) + 8.0)),
+                )
+            elif crop_bbox is None:
+                crop_bbox = (
+                    24.0,
+                    window_top,
+                    max(25.0, float(page.rect.width) - 24.0),
+                    window_bottom,
+                )
+        crop_bbox = (
+            max(0.0, float(crop_bbox[0])),
+            max(window_top, float(crop_bbox[1])),
+            min(float(page.rect.width), float(crop_bbox[2])),
+            min(window_bottom, float(crop_bbox[3])),
+        )
+        if end_page > start_page and float(crop_bbox[3]) - float(crop_bbox[1]) < 56.0 and len(page_specs) <= 2:
+            continue
+        if crop_bbox[3] <= crop_bbox[1] + 16.0:
+            continue
+        crop_plan.append((page_index, crop_bbox))
+    return crop_plan
+
+
+def _build_preview_snapshot_ref_and_asset(
+    row: dict[str, Any],
+    *,
+    document_id: str,
+    title: str,
+    table_id: str,
+    source_snapshot_path: str,
+    source_snapshot_meta: dict[str, Any],
+    existing_ref: dict[str, Any] | None = None,
+) -> tuple[dict[str, Any], dict[str, Any]]:
+    source_page = int(source_snapshot_meta.get("resolved_page_start") or row.get("source_page") or 0)
+    source_page_end = int(source_snapshot_meta.get("resolved_page_end") or row.get("source_page_end") or source_page)
+    image_block_count = int(source_snapshot_meta.get("image_block_count") or 0)
+    if existing_ref is not None:
+        ref = dict(existing_ref)
+        ref["table_title"] = title
+        ref["source_snapshot_path"] = source_snapshot_path
+        ref["source_page"] = source_page
+        ref["source_page_end"] = source_page_end
+        ref["source_image_block_count"] = image_block_count
+        if not str(ref.get("slice_snapshot_path") or "").strip() and str(ref.get("slice_render_mode") or "").strip().lower() == "snapshot_only":
+            ref["slice_snapshot_path"] = source_snapshot_path
+        if str(ref.get("slice_render_mode") or "").strip().lower() == "snapshot_only":
+            ref["export_variant_locked"] = True
+            ref["export_variant"] = "source"
+            ref["recommended_export_variant"] = "source"
+            ref["export_variant_reasons"] = ["原文更忠实"]
+            ref["export_variant_score"] = 100
+        ref = _normalize_table_ref(ref)
+    else:
+        ai_projection = _build_ai_projection(
+            table_id=table_id,
+            title=title,
+            headers=[],
+            rows=[],
+            notes=["visual_fallback"],
+            render_mode="snapshot_only",
+        )
+        ref = _normalize_table_ref(
+            {
+                "table_id": table_id,
+                "table_title": title,
+                "row_range": [],
+                "row_ids": [],
+                "inherited_headers": [],
+                "slice_rows": [],
+                "inherited_group_title": "",
+                "inherited_notes": ["visual_fallback"],
+                "slice_ai_projection": ai_projection,
+                "slice_snapshot_path": source_snapshot_path,
+                "source_snapshot_path": source_snapshot_path,
+                "slice_render_key": table_id,
+                "slice_render_mode": "snapshot_only",
+                "source_page": source_page,
+                "source_page_end": source_page_end,
+                "structure_confidence": 0.45,
+                "source_image_block_count": image_block_count,
+                "export_variant_locked": True,
+                "export_variant": "source",
+                "recommended_export_variant": "source",
+                "export_variant_reasons": ["原文更忠实"],
+                "export_variant_score": 100,
+            }
+        )
+    asset = {
+        "table_id": str(ref.get("table_id") or table_id),
+        "document_id": document_id,
+        "section_instance_key": str(row.get("section_instance_key") or row.get("section_key") or ""),
+        "page_span": {"start": source_page, "end": source_page_end},
+        "table_title": title,
+        "headers": [str(cell or "").strip() for cell in (ref.get("inherited_headers") or []) if str(cell or "").strip()],
+        "rows": [list(row_cells) for row_cells in (ref.get("slice_rows") or []) if isinstance(row_cells, list)],
+        "group_labels": [],
+        "notes": list(ref.get("inherited_notes") or []),
+        "render_mode": str(ref.get("slice_render_mode") or ref.get("render_mode") or "snapshot_only"),
+        "snapshot_path": str(ref.get("slice_snapshot_path") or source_snapshot_path),
+        "source_snapshot_path": source_snapshot_path,
+        "ai_projection": ref.get("slice_ai_projection") or "",
+        "confidence": float(ref.get("structure_confidence") or 0.45),
+        "source_entry_id": str(row.get("entry_id") or row.get("req_code") or ""),
+        "source_image_block_count": image_block_count,
+    }
+    return ref, asset
+
+
+def _match_existing_ref_for_explicit_title(
+    refs: list[dict[str, Any]],
+    *,
+    title: str,
+    used_indexes: set[int],
+) -> tuple[int, dict[str, Any]] | tuple[None, None]:
+    best_index: int | None = None
+    best_score = 0
+    for idx, ref in enumerate(refs):
+        if idx in used_indexes:
+            continue
+        score = _score_explicit_visual_title_match(title, str(ref.get("table_title") or ""))
+        if score > best_score:
+            best_index = idx
+            best_score = score
+    if best_index is None or best_score <= 0:
+        return (None, None)
+    return best_index, refs[best_index]
+
+
+def _content_blocks_for_explicit_visual_titles(
+    row: dict[str, Any],
+    matched_events: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
+    if not matched_events:
+        return list(row.get("content_blocks") or [])
+    title_to_refs: dict[str, list[str]] = defaultdict(list)
+    for event in matched_events:
+        title_to_refs[_normalize_preview_title_token(event.get("title") or "")].append(str(event.get("table_id") or ""))
+    lines = [line.strip() for line in str(row.get("raw_text") or row.get("display_text") or "").splitlines() if line.strip()]
+    if not lines:
+        return [{"kind": "table", "table_id": str(event.get("table_id") or "")} for event in matched_events]
+    blocks: list[dict[str, Any]] = []
+    paragraph_buffer: list[str] = []
+    title_ref_offsets: dict[str, int] = defaultdict(int)
+    for line in lines:
+        token = _normalize_preview_title_token(line)
+        ref_ids = title_to_refs.get(token) or []
+        if ref_ids:
+            if paragraph_buffer:
+                blocks.append({"kind": "paragraph", "text": "\n".join(paragraph_buffer)})
+                paragraph_buffer = []
+            blocks.append({"kind": "paragraph", "text": line})
+            ref_index = title_ref_offsets[token]
+            if ref_index < len(ref_ids):
+                blocks.append({"kind": "table", "table_id": ref_ids[ref_index]})
+                title_ref_offsets[token] += 1
+            continue
+        paragraph_buffer.append(line)
+    if paragraph_buffer:
+        blocks.append({"kind": "paragraph", "text": "\n".join(paragraph_buffer)})
+    return blocks
+
+
+def _should_repair_row_with_explicit_visual_titles(
+    row: dict[str, Any],
+    *,
+    titles: list[dict[str, Any]],
+) -> bool:
+    if not titles or str(row.get("entry_kind") or "").strip().upper() != "REQUIREMENT":
+        return False
+    kinds = {str(item.get("kind") or "") for item in titles}
+    if "figure" in kinds:
+        return True
+    if len(titles) >= 2:
+        return True
+    if any("续" in str(item.get("title") or "") for item in titles):
+        return True
+    if any(str(item.get("kind") or "") == "table" for item in titles) and not list(row.get("table_refs") or []):
+        return True
+    return False
+
+
+def _repair_row_explicit_visual_assets(
+    row: dict[str, Any],
+    *,
+    document_id: str,
+    snapshot_root: Path,
+    source_file_path: str,
+    source_snapshot_cache: dict[tuple[str, int, int, str], Path | None],
+    pdf_document,
+    source_key: str,
+    section_window_meta: dict[str, Any] | None,
+    line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]],
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    if pdf_document is None or not section_window_meta or not section_window_meta.get("plan"):
+        return None, []
+    titles = _extract_explicit_visual_titles_from_text(str(row.get("raw_text") or row.get("display_text") or ""))
+    if not _should_repair_row_with_explicit_visual_titles(row, titles=titles):
+        return None, []
+
+    line_specs = _build_section_visual_line_specs(
+        pdf_document=pdf_document,
+        source_key=source_key,
+        plan=list(section_window_meta.get("plan") or []),
+        line_detection_cache=line_detection_cache,
+    )
+    matched_titles = _match_explicit_visual_titles_to_line_specs(titles, line_specs=line_specs)
+    if not matched_titles:
+        return None, []
+
+    existing_refs = [dict(ref) for ref in (row.get("table_refs") or []) if isinstance(ref, dict)]
+    used_ref_indexes: set[int] = set()
+    rebuilt_refs: list[dict[str, Any]] = []
+    rebuilt_events: list[dict[str, Any]] = []
+    extra_assets: list[dict[str, Any]] = []
+    for event_index, event in enumerate(matched_titles):
+        next_index = int(matched_titles[event_index + 1]["line_index"]) if event_index + 1 < len(matched_titles) else None
+        crop_plan = _build_explicit_visual_event_crop_plan(
+            pdf_document,
+            line_specs=line_specs,
+            start_index=int(event.get("line_index") or 0),
+            next_index=next_index,
+            kind=str(event.get("kind") or "table"),
+        )
+        if not crop_plan:
+            continue
+        snapshot_path, snapshot_meta = _write_source_snapshot_from_crop_plan(
+            snapshot_root=snapshot_root,
+            source_file_path=source_file_path,
+            cache_token="preview-explicit-visual",
+            cache_key_hint=(
+                f"{row.get('section_instance_key') or row.get('section_key') or row.get('entry_id') or row.get('req_code') or 'visual'}"
+                f":{event_index}:{str(event.get('title') or '').strip()}"
+            ),
+            source_snapshot_cache=source_snapshot_cache,
+            pdf_document=pdf_document,
+            crop_plan=crop_plan,
+        )
+        if snapshot_path is None:
+            continue
+        ref_index, existing_ref = _match_existing_ref_for_explicit_title(
+            existing_refs,
+            title=str(event.get("title") or ""),
+            used_indexes=used_ref_indexes,
+        )
+        if ref_index is not None:
+            used_ref_indexes.add(ref_index)
+        table_id = str(existing_ref.get("table_id") or "") if existing_ref else _build_table_id(
+            row,
+            f"preview-explicit::{event.get('kind') or 'visual'}::{event.get('title') or ''}",
+            event_index,
+        )
+        ref, asset = _build_preview_snapshot_ref_and_asset(
+            row,
+            document_id=document_id,
+            title=str(event.get("title") or ""),
+            table_id=table_id,
+            source_snapshot_path=str(snapshot_path),
+            source_snapshot_meta=snapshot_meta,
+            existing_ref=existing_ref,
+        )
+        rebuilt_refs.append(ref)
+        rebuilt_events.append({**event, "table_id": str(ref.get("table_id") or "")})
+        extra_assets.append(asset)
+    if not rebuilt_refs:
+        return None, []
+
+    updated = dict(row)
+    updated["table_refs"] = rebuilt_refs
+    updated["content_blocks"] = _content_blocks_for_explicit_visual_titles(updated, rebuilt_events)
+    updated["has_table_asset"] = True
+    updated["table_render_mode"] = _collapse_preview_table_render_mode(rebuilt_refs)
+    return updated, extra_assets
+
+
+def _build_layout_group_source_snapshot(
+    row: dict[str, Any],
+    group: dict[str, Any],
+    *,
+    group_index: int,
+    snapshot_root: Path,
+    source_file_path: str,
+    source_snapshot_cache: dict[tuple[str, int, int, str], Path | None] | None,
+    pdf_document,
+    line_specs: list[dict[str, Any]],
+    fallback_source_snapshot_path: str,
+    fallback_source_image_block_count: int,
+) -> tuple[str, int]:
+    if pdf_document is None or not source_snapshot_cache or not source_file_path:
+        return fallback_source_snapshot_path, fallback_source_image_block_count
+    used_indexes: list[int] = []
+    for spec in group.get("row_specs") or []:
+        used_indexes.extend(int(value) for value in (spec.get("used_indexes") or []) if str(value).strip())
+    crop_plan = _build_layout_group_crop_plan(
+        pdf_document,
+        line_specs=line_specs,
+        used_indexes=used_indexes,
+    )
+    if not crop_plan:
+        return fallback_source_snapshot_path, fallback_source_image_block_count
+    cache_key_hint = (
+        f"{row.get('section_instance_key') or row.get('section_key') or row.get('entry_id') or row.get('req_code') or 'layout-group'}"
+        f":{group_index}:{str(group.get('title') or '').strip()}"
+    )
+    snapshot_path, snapshot_meta = _write_source_snapshot_from_crop_plan(
+        snapshot_root=snapshot_root,
+        source_file_path=source_file_path,
+        cache_token="preview-structured-source-group",
+        cache_key_hint=cache_key_hint,
+        source_snapshot_cache=source_snapshot_cache,
+        pdf_document=pdf_document,
+        crop_plan=crop_plan,
+    )
+    if snapshot_path is None:
+        return fallback_source_snapshot_path, fallback_source_image_block_count
+    return str(snapshot_path), int(snapshot_meta.get("image_block_count") or 0)
+
+
+def _build_layout_table_structured_preview(
+    row: dict[str, Any],
+    *,
+    document_id: str,
+    snapshot_root: Path,
+    source_file_path: str = "",
+    source_snapshot_cache: dict[tuple[str, int, int, str], Path | None] | None = None,
+    pdf_document,
+    source_key: str,
+    section_window_meta: dict[str, Any] | None,
+    line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]],
+    source_snapshot_path: str = "",
+    source_image_block_count: int = 0,
+) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
+    if pdf_document is None or not section_window_meta:
+        return None, []
+    plan = list(section_window_meta.get("plan") or [])
+    if not plan:
+        return None, []
+    section_heading_tokens = {
+        _compact_layout_table_text(f"{row.get('section_code') or ''}{row.get('section_title') or ''}"),
+        _compact_layout_table_text(row.get("section_title") or ""),
+        _compact_layout_table_text(row.get("section_label") or ""),
+    }
+    section_heading_tokens = {token for token in section_heading_tokens if token}
+    line_specs = _build_layout_table_line_specs(
+        pdf_document=pdf_document,
+        source_key=source_key,
+        plan=plan,
+        line_detection_cache=line_detection_cache,
+        section_heading_tokens=section_heading_tokens,
+    )
+    groups = _recover_layout_headerless_tables_from_line_specs(
+        line_specs,
+        section_heading_tokens=section_heading_tokens,
+    )
+    if not groups:
+        return None, []
+    groups, trailing_paragraphs = _extract_section_level_tail_notes_from_layout_groups(groups)
+
+    rebuilt_refs: list[dict[str, Any]] = []
+    rebuilt_assets: list[dict[str, Any]] = []
+    rebuilt_blocks: list[dict[str, Any]] = [
+        {"kind": "paragraph", "text": f"{row.get('section_label') or row.get('section_code') or ''} {row.get('section_title') or ''}".strip()}
+    ]
+    for block_index, group in enumerate(groups):
+        group_source_snapshot_path, group_source_image_block_count = _build_layout_group_source_snapshot(
+            row,
+            group,
+            group_index=block_index,
+            snapshot_root=snapshot_root,
+            source_file_path=source_file_path,
+            source_snapshot_cache=source_snapshot_cache,
+            pdf_document=pdf_document,
+            line_specs=line_specs,
+            fallback_source_snapshot_path=source_snapshot_path,
+            fallback_source_image_block_count=source_image_block_count,
+        )
+        ref, asset = _build_preview_structured_table_ref_and_asset(
+            row,
+            document_id=document_id,
+            snapshot_root=snapshot_root,
+            block_index=block_index,
+            table_title=str(group.get("title") or "").strip(),
+            headers=[],
+            rows=[list(item) for item in (group.get("rows") or [])],
+            headerless=True,
+            source_snapshot_path=group_source_snapshot_path,
+            source_image_block_count=group_source_image_block_count,
+        )
+        if ref is None or asset is None:
+            return None, []
+        rebuilt_blocks.append({"kind": "paragraph", "text": str(group.get("title") or "").strip()})
+        rebuilt_blocks.append({"kind": "table", "table_id": str(ref.get("table_id") or "")})
+        rebuilt_refs.append(ref)
+        rebuilt_assets.append(asset)
+    for paragraph in trailing_paragraphs:
+        if str(paragraph or "").strip():
+            rebuilt_blocks.append({"kind": "paragraph", "text": str(paragraph).strip()})
+
+    updated = dict(row)
+    updated["table_refs"] = rebuilt_refs
+    updated["content_blocks"] = rebuilt_blocks
+    updated["has_table_asset"] = True
+    updated["table_render_mode"] = "structured"
+    return updated, rebuilt_assets
+
+
 def _render_preview_structured_table_snapshot(
     *,
     table_id: str,
@@ -320,7 +1628,7 @@ def _render_preview_structured_table_snapshot(
     if _snapshot_file_is_usable(target):
         return target
     try:
-        image_bytes = render_table_png(headers, rows)
+        image_bytes = render_table_png(headers, rows, include_header=bool(headers))
         _write_png_atomically(target, image_bytes)
     except Exception:
         return None
@@ -336,6 +1644,9 @@ def _build_preview_structured_table_ref_and_asset(
     table_title: str,
     headers: list[str],
     rows: list[list[str]],
+    headerless: bool = False,
+    source_snapshot_path: str = "",
+    source_image_block_count: int = 0,
 ) -> tuple[dict[str, Any] | None, dict[str, Any] | None]:
     table_id = _build_table_id(row, f"preview-local-clause::{block_index}:{table_title}", block_index)
     snapshot_path = _render_preview_structured_table_snapshot(
@@ -368,13 +1679,14 @@ def _build_preview_structured_table_ref_and_asset(
             "inherited_notes": [table_title] if table_title else [],
             "slice_ai_projection": ai_projection,
             "slice_snapshot_path": str(snapshot_path),
-            "source_snapshot_path": "",
+            "source_snapshot_path": str(source_snapshot_path or ""),
             "slice_render_key": table_id,
             "slice_render_mode": "structured",
+            "headerless": headerless,
             "source_page": source_page,
             "source_page_end": source_page_end,
             "structure_confidence": 0.86,
-            "source_image_block_count": 0,
+            "source_image_block_count": int(source_image_block_count or 0),
             "export_variant_locked": True,
             "recommended_export_variant": "slice",
             "export_variant": "slice",
@@ -391,12 +1703,13 @@ def _build_preview_structured_table_ref_and_asset(
         "group_labels": [],
         "notes": [table_title] if table_title else [],
         "render_mode": "structured",
+        "headerless": headerless,
         "snapshot_path": str(snapshot_path),
-        "source_snapshot_path": "",
+        "source_snapshot_path": str(source_snapshot_path or ""),
         "ai_projection": ai_projection,
         "confidence": 0.86,
         "source_entry_id": str(row.get("entry_id") or row.get("req_code") or ""),
-        "source_image_block_count": 0,
+        "source_image_block_count": int(source_image_block_count or 0),
     }
     return ref, asset
 
@@ -406,6 +1719,8 @@ def _repair_local_clause_pipe_table_preview(
     *,
     document_id: str,
     snapshot_root: Path,
+    source_snapshot_path: str = "",
+    source_image_block_count: int = 0,
 ) -> tuple[dict[str, Any] | None, list[dict[str, Any]]]:
     raw_text = str(row.get("raw_text") or "")
     if not raw_text:
@@ -460,7 +1775,14 @@ def _repair_local_clause_pipe_table_preview(
                 table_title = f"{subject}:"
             else:
                 table_title = str(row.get("section_label") or row.get("section_code") or row.get("section_title") or "").strip()
-        headers = [table_title or "项目", "说明"]
+        headerless = _looks_like_headerless_key_value_rows(parsed_rows)
+        headers = [] if headerless else [table_title or "项目", "说明"]
+        if headerless and table_title:
+            last_block = rebuilt_blocks[-1] if rebuilt_blocks else None
+            last_kind = str(last_block.get("kind") or "").strip().lower() if isinstance(last_block, dict) else ""
+            last_text = str(last_block.get("text") or "").strip() if isinstance(last_block, dict) else ""
+            if last_kind != "paragraph" or last_text != table_title:
+                rebuilt_blocks.append({"kind": "paragraph", "text": table_title})
         ref, asset = _build_preview_structured_table_ref_and_asset(
             row,
             document_id=document_id,
@@ -469,6 +1791,9 @@ def _repair_local_clause_pipe_table_preview(
             table_title=table_title,
             headers=headers,
             rows=parsed_rows,
+            headerless=headerless,
+            source_snapshot_path=source_snapshot_path,
+            source_image_block_count=source_image_block_count,
         )
         if ref is None or asset is None:
             return None, []
@@ -1501,6 +2826,58 @@ def _build_full_page_snapshot_ref(
     return ref, asset
 
 
+def _build_structured_table_source_snapshot(
+    row: dict[str, Any],
+    *,
+    snapshot_root: Path,
+    source_file_path: str,
+    source_snapshot_cache: dict[tuple[str, int, int, str], Path | None],
+    pdf_document,
+    section_window_meta: dict[str, Any] | None,
+) -> tuple[str, int]:
+    source_path = Path(str(source_file_path or "").strip())
+    if not source_path.exists():
+        return "", 0
+
+    source_page = _to_int(row.get("source_page"))
+    source_page_end = _to_int(row.get("source_page_end")) or source_page
+    cache_key_hint = str(
+        row.get("section_instance_key")
+        or row.get("section_key")
+        or row.get("entry_id")
+        or row.get("req_code")
+        or row.get("section_code")
+        or "structured-table"
+    ).strip()
+    snapshot_path = None
+    snapshot_meta: dict[str, Any] = {}
+
+    if pdf_document is not None and section_window_meta and section_window_meta.get("plan"):
+        snapshot_path, snapshot_meta = _write_source_snapshot_from_crop_plan(
+            snapshot_root=snapshot_root,
+            source_file_path=source_file_path,
+            cache_token="preview-structured-source",
+            cache_key_hint=cache_key_hint,
+            source_snapshot_cache=source_snapshot_cache,
+            pdf_document=pdf_document,
+            crop_plan=list(section_window_meta.get("plan") or []),
+        )
+    if snapshot_path is None and source_page > 0:
+        snapshot_path, snapshot_meta = _write_full_page_span_source_snapshot(
+            snapshot_root=snapshot_root,
+            source_file_path=source_file_path,
+            source_page=source_page,
+            source_page_end=source_page_end,
+            cache_token="preview-structured-source",
+            cache_key_hint=cache_key_hint,
+            source_snapshot_cache=source_snapshot_cache,
+            crop_to_content=True,
+        )
+    if snapshot_path is None:
+        return "", 0
+    return str(snapshot_path), int(snapshot_meta.get("image_block_count") or 0)
+
+
 def _apply_preview_fallback_assets(
     entries: list[dict[str, Any]],
     *,
@@ -1531,16 +2908,8 @@ def _apply_preview_fallback_assets(
 
     with document_cm as pdf_document:
         for idx, row in enumerate(updated):
-            repaired_row, repaired_assets = _repair_local_clause_pipe_table_preview(
-                row,
-                document_id=document_id,
-                snapshot_root=snapshot_root,
-            )
-            if repaired_row is not None:
-                updated[idx] = repaired_row
-                extra_assets.extend(repaired_assets)
-                continue
             row = _sanitize_row_table_refs(row)
+            row = _strip_synthetic_local_clause_headers(row)
             row_key = str(row.get("section_instance_key") or row.get("section_key") or row.get("section_code") or idx)
             row_kind = str(row.get("entry_kind") or "").strip().upper()
             section_window_meta = (
@@ -1556,6 +2925,46 @@ def _apply_preview_fallback_assets(
                 else None
             )
             skip_heading_fallback = row_kind == "HEADING" and row_key in sections_with_non_heading_rows
+            structured_source_snapshot_path = ""
+            structured_source_image_block_count = 0
+            if row_kind != "HEADING":
+                structured_source_snapshot_path, structured_source_image_block_count = _build_structured_table_source_snapshot(
+                    row,
+                    snapshot_root=snapshot_root,
+                    source_file_path=source_file_path,
+                    source_snapshot_cache=source_snapshot_cache,
+                    pdf_document=pdf_document,
+                    section_window_meta=section_window_meta,
+                )
+            if not skip_heading_fallback:
+                rebuilt_row, rebuilt_assets = _build_layout_table_structured_preview(
+                    row,
+                    document_id=document_id,
+                    snapshot_root=snapshot_root,
+                    source_file_path=source_file_path,
+                    source_snapshot_cache=source_snapshot_cache,
+                    pdf_document=pdf_document,
+                    source_key=source_key,
+                    section_window_meta=section_window_meta,
+                    line_detection_cache=line_detection_cache,
+                    source_snapshot_path=structured_source_snapshot_path,
+                    source_image_block_count=structured_source_image_block_count,
+                )
+                if rebuilt_row is not None:
+                    updated[idx] = rebuilt_row
+                    extra_assets.extend(rebuilt_assets)
+                    continue
+            repaired_row, repaired_assets = _repair_local_clause_pipe_table_preview(
+                row,
+                document_id=document_id,
+                snapshot_root=snapshot_root,
+                source_snapshot_path=structured_source_snapshot_path,
+                source_image_block_count=structured_source_image_block_count,
+            )
+            if repaired_row is not None:
+                updated[idx] = repaired_row
+                extra_assets.extend(repaired_assets)
+                continue
             if _row_prefers_visual_snapshot_over_structured_refs(
                 row,
                 section_window_meta=section_window_meta,
@@ -1641,6 +3050,35 @@ def _apply_preview_fallback_assets(
                     extra_assets.append(asset)
                     continue
             updated[idx] = row
+
+        for idx, row in enumerate(updated):
+            section_window_meta = (
+                _get_section_window_snapshot_meta(
+                    row,
+                    pdf_document=pdf_document,
+                    source_key=source_key,
+                    section_window_index=section_window_index,
+                    line_detection_cache=line_detection_cache,
+                    section_window_meta_cache=section_window_meta_cache,
+                )
+                if pdf_document is not None
+                else None
+            )
+            repaired_row, repaired_assets = _repair_row_explicit_visual_assets(
+                row,
+                document_id=document_id,
+                snapshot_root=snapshot_root,
+                source_file_path=source_file_path,
+                source_snapshot_cache=source_snapshot_cache,
+                pdf_document=pdf_document,
+                source_key=source_key,
+                section_window_meta=section_window_meta,
+                line_detection_cache=line_detection_cache,
+            )
+            if repaired_row is None:
+                continue
+            updated[idx] = repaired_row
+            extra_assets.extend(repaired_assets)
 
         section_has_non_heading_assets: set[str] = set()
         for idx, row in enumerate(updated):
@@ -2263,6 +3701,16 @@ def build_extraction_preview(
         sections=sections,
     )
     complete_entries, dedupe_stats = _build_section_unified_entries(complete_entries_raw)
+    complete_entries_raw = _repair_preview_clause_rows_from_pdf(
+        complete_entries_raw,
+        sections=sections,
+        source_file_path=file_path,
+    )
+    complete_entries = _repair_preview_clause_rows_from_pdf(
+        complete_entries,
+        sections=sections,
+        source_file_path=file_path,
+    )
     sections = rewrite_preview_sections_for_complex_tables(
         sections,
         zones=complex_table_zones,
@@ -2506,6 +3954,246 @@ def _split_requirement_preview_rows(
     return rows
 
 
+def _update_preview_requirement_row_text(row: dict[str, Any], text: str) -> dict[str, Any]:
+    updated = dict(row)
+    cleaned = str(text or "").strip()
+    updated["requirement_text"] = cleaned
+    updated["display_text"] = cleaned
+    updated["raw_text"] = cleaned
+    updated["text_length"] = len(cleaned)
+    updated["content_blocks"] = [{"kind": "paragraph", "text": cleaned}] if cleaned else []
+    return updated
+
+
+def _recover_clause_sequence_from_line_specs(
+    line_specs: list[dict[str, Any]],
+    *,
+    first_numeric_label: str,
+) -> list[dict[str, str]]:
+    recovered: list[dict[str, str]] = []
+    current: dict[str, Any] | None = None
+    started = False
+    for spec in line_specs:
+        text = _normalize_layout_table_text(spec.get("text") or "")
+        if not text:
+            continue
+        clause_match = EXPLICIT_CLAUSE_LINE_RE.match(text)
+        if clause_match:
+            label = str(clause_match.group(1) or "").strip()
+            body = str(clause_match.group(2) or "").strip()
+            if not started:
+                if label != first_numeric_label:
+                    continue
+                started = True
+            if current is not None:
+                recovered.append(
+                    {
+                        "label": str(current.get("label") or ""),
+                        "text": "\n".join(str(line).strip() for line in current.get("lines") or [] if str(line).strip()),
+                    }
+                )
+            current = {"label": label, "lines": [text]}
+            continue
+        if not started:
+            continue
+        if re.match(r"^\d+(?:\.\d+){1,}\s+\S+", text):
+            break
+        if current is None:
+            continue
+        current.setdefault("lines", []).append(text)
+    if current is not None:
+        recovered.append(
+            {
+                "label": str(current.get("label") or ""),
+                "text": "\n".join(str(line).strip() for line in current.get("lines") or [] if str(line).strip()),
+            }
+        )
+    return [item for item in recovered if str(item.get("label") or "").strip() and str(item.get("text") or "").strip()]
+
+
+def _build_preview_alpha_clause_row(
+    *,
+    base_row: dict[str, Any],
+    parent_section_code: str,
+    parent_section_key: str,
+    parent_section_title: str,
+    label: str,
+    text: str,
+    sequence: int,
+) -> dict[str, Any]:
+    copied = _update_preview_requirement_row_text(base_row, text)
+    suffix = re.sub(r"[^A-Za-z0-9]+", "", str(label or "").strip()) or str(sequence)
+    base_req_code = str(base_row.get("req_code") or base_row.get("entry_id") or "REQ").strip()
+    copied["req_code"] = f"{base_req_code}-preview-{suffix.lower()}"
+    copied["entry_id"] = copied["req_code"]
+    copied["section_code"] = parent_section_code
+    copied["section_key"] = parent_section_key
+    copied["section_instance_key"] = parent_section_key
+    copied["section_title"] = parent_section_title
+    copied["section_label"] = f"{label}）"
+    copied["owner_section_code"] = parent_section_code
+    copied["owner_section_title"] = parent_section_title
+    copied["owner_section_label"] = _format_owner_section_label(parent_section_code, parent_section_title)
+    copied["parent_section_code"] = parent_section_code
+    copied["parent_section_title"] = parent_section_title
+    copied["parent_section_label"] = _format_section_label(parent_section_code, parent_section_title)
+    copied["structural_parent_section_code"] = parent_section_code
+    copied["structural_parent_section_key"] = parent_section_key
+    copied["structural_parent_section_title"] = parent_section_title
+    copied["structural_parent_section_label"] = _format_owner_section_label(parent_section_code, parent_section_title)
+    copied["is_scoped_local_clause"] = False
+    copied["source_anchor"] = f"{str(base_row.get('source_anchor') or '').strip()} | Clause {label}".strip()
+    copied["table_refs"] = []
+    copied["has_table_asset"] = False
+    copied["table_render_mode"] = ""
+    return copied
+
+
+def _repair_preview_clause_rows_from_pdf(
+    entries: list[dict[str, Any]],
+    *,
+    sections: list[dict[str, Any]],
+    source_file_path: str,
+) -> list[dict[str, Any]]:
+    if not entries:
+        return entries
+    source_path = Path(str(source_file_path or "").strip())
+    if fitz is None or not source_path.exists() or source_path.suffix.lower() != ".pdf":
+        return entries
+
+    updated = [dict(row) for row in entries]
+    grouped: dict[str, list[tuple[int, dict[str, Any]]]] = defaultdict(list)
+    for idx, row in enumerate(updated):
+        if str(row.get("entry_kind") or "").strip().upper() != "REQUIREMENT":
+            continue
+        if not bool(row.get("is_scoped_local_clause", False)):
+            continue
+        label = str(row.get("section_code") or "").strip()
+        if not re.fullmatch(r"\d+", label):
+            continue
+        parent_key = str(
+            row.get("structural_parent_section_key")
+            or row.get("parent_section_key")
+            or row.get("section_instance_key")
+            or ""
+        ).strip()
+        if not parent_key:
+            continue
+        grouped[parent_key].append((idx, row))
+
+    if not grouped:
+        return updated
+
+    section_window_index = _build_section_window_index(sections or [])
+    source_key = str(source_path.resolve())
+    line_detection_cache: dict[tuple[str, int], list[dict[str, Any]]] = {}
+    section_window_meta_cache: dict[str, dict[str, Any]] = {}
+    insertions: dict[int, list[dict[str, Any]]] = defaultdict(list)
+
+    with fitz.open(str(source_path)) as pdf_document:
+        for parent_key, indexed_rows in grouped.items():
+            indexed_rows.sort(key=lambda item: (_to_int(item[1].get("req_order")), item[0]))
+            first_label = str(indexed_rows[0][1].get("section_code") or "").strip()
+            parent_code = str(indexed_rows[0][1].get("owner_section_code") or "").strip()
+            parent_title = str(indexed_rows[0][1].get("owner_section_title") or "").strip()
+            if first_label != "1" or not parent_code:
+                continue
+            synthetic_parent_row = {
+                "section_instance_key": parent_key,
+                "section_key": parent_key,
+                "section_code": parent_code,
+                "section_title": parent_title,
+            }
+            section_window_meta = _get_section_window_snapshot_meta(
+                synthetic_parent_row,
+                pdf_document=pdf_document,
+                source_key=source_key,
+                section_window_index=section_window_index,
+                line_detection_cache=line_detection_cache,
+                section_window_meta_cache=section_window_meta_cache,
+            )
+            if not section_window_meta or not section_window_meta.get("plan"):
+                continue
+            line_specs = _build_section_visual_line_specs(
+                pdf_document=pdf_document,
+                source_key=source_key,
+                plan=list(section_window_meta.get("plan") or []),
+                line_detection_cache=line_detection_cache,
+            )
+            recovered = _recover_clause_sequence_from_line_specs(line_specs, first_numeric_label=first_label)
+            if len(recovered) < len(indexed_rows):
+                continue
+            recovered_by_label_sequence: dict[str, list[str]] = defaultdict(list)
+            recovered_numeric_sequence: list[str] = []
+            for item in recovered:
+                label = str(item.get("label") or "").strip()
+                text = str(item.get("text") or "").strip()
+                if not label or not text:
+                    continue
+                if not re.fullmatch(r"\d+", label):
+                    continue
+                recovered_by_label_sequence[label].append(text)
+                recovered_numeric_sequence.append(label)
+            if len(recovered_numeric_sequence) < len(indexed_rows):
+                continue
+            expected_numeric_sequence = [
+                str(row.get("section_code") or "").strip()
+                for _, row in indexed_rows
+            ]
+            if recovered_numeric_sequence[: len(indexed_rows)] != expected_numeric_sequence:
+                continue
+            for idx, row in indexed_rows:
+                label = str(row.get("section_code") or "").strip()
+                label_recovered = recovered_by_label_sequence.get(label) or []
+                if not label_recovered:
+                    continue
+                repaired_text = label_recovered.pop(0)
+                if not repaired_text:
+                    continue
+                current_text = str(row.get("requirement_text") or "").strip()
+                if _normalize_preview_title_token(repaired_text) == _normalize_preview_title_token(current_text):
+                    continue
+                updated[idx] = _update_preview_requirement_row_text(row, repaired_text)
+
+            numeric_position = 0
+            alpha_sequence = 0
+            for clause in recovered:
+                label = str(clause.get("label") or "").strip()
+                text = str(clause.get("text") or "").strip()
+                if not label or not text:
+                    continue
+                if re.fullmatch(r"\d+", label):
+                    numeric_position += 1
+                    continue
+                if not re.fullmatch(r"[A-Za-z]", label):
+                    continue
+                if numeric_position <= 0 or numeric_position > len(indexed_rows):
+                    continue
+                alpha_sequence += 1
+                anchor_index, anchor_row = indexed_rows[numeric_position - 1]
+                insertions[anchor_index].append(
+                    _build_preview_alpha_clause_row(
+                        base_row=anchor_row,
+                        parent_section_code=parent_code,
+                        parent_section_key=parent_key,
+                        parent_section_title=parent_title,
+                        label=label,
+                        text=text,
+                        sequence=alpha_sequence,
+                    )
+                )
+
+    if not insertions:
+        return updated
+
+    rebuilt: list[dict[str, Any]] = []
+    for idx, row in enumerate(updated):
+        rebuilt.append(row)
+        for extra in insertions.get(idx, []):
+            rebuilt.append(extra)
+    return rebuilt
+
+
 def _should_surface_scoped_local_clause_as_section(row: dict[str, Any]) -> bool:
     if not isinstance(row, dict):
         return True
@@ -2611,15 +4299,16 @@ def _extract_local_clause_code_and_title(text: str) -> tuple[str, str]:
 
 
 def _dedupe_table_assets(assets: list[dict[str, Any]]) -> list[dict[str, Any]]:
-    deduped: list[dict[str, Any]] = []
-    seen_table_ids: set[str] = set()
+    latest_by_id: dict[str, dict[str, Any]] = {}
+    ordered_ids: list[str] = []
     for asset in assets:
         table_id = str(asset.get("table_id") or "").strip()
-        if not table_id or table_id in seen_table_ids:
+        if not table_id:
             continue
-        seen_table_ids.add(table_id)
-        deduped.append(asset)
-    return deduped
+        if table_id not in latest_by_id:
+            ordered_ids.append(table_id)
+        latest_by_id[table_id] = asset
+    return [latest_by_id[table_id] for table_id in ordered_ids]
 
 
 def _format_clause_section_label(section_code: str, *, clause_code: str = "") -> str:
@@ -3588,6 +5277,34 @@ def _build_complete_requirement_entries(
             )
         )
 
+    hidden_groups_by_parent_instance: dict[str, list[list[dict[str, Any]]]] = {}
+    for section_instance_key, grouped in req_groups.items():
+        if not grouped:
+            continue
+        seed = grouped[0]
+        if not bool(seed.get("is_scoped_local_clause", False)):
+            continue
+        if _should_surface_scoped_local_clause_as_section(seed):
+            continue
+        parent_instance_key = str(
+            seed.get("structural_parent_section_key")
+            or seed.get("parent_section_key")
+            or ""
+        ).strip()
+        if not parent_instance_key or parent_instance_key == section_instance_key:
+            continue
+        hidden_groups_by_parent_instance.setdefault(parent_instance_key, []).append(grouped)
+
+    for groups in hidden_groups_by_parent_instance.values():
+        groups.sort(
+            key=lambda grouped: (
+                min((_to_int(row.get("req_order")) for row in grouped), default=10**9),
+                min((_to_int(row.get("source_page")) for row in grouped), default=10**9),
+                min((_to_int(row.get("source_page_end")) for row in grouped), default=10**9),
+                str(grouped[0].get("req_code") or ""),
+            )
+        )
+
     entries: list[dict[str, Any]] = []
     seen_entry_ids: set[str] = set()
     emitted_section_instance_keys: set[str] = set()
@@ -3604,8 +5321,10 @@ def _build_complete_requirement_entries(
     for node in sorted(sections, key=lambda row: _preview_section_row_sort_key(aligned_section_nodes.get(id(row), row))):
         section_instance_key = str(node.get("section_instance_key") or node.get("section_key") or "").strip()
         grouped = req_groups.get(section_instance_key, [])
+        hidden_groups = hidden_groups_by_parent_instance.get(section_instance_key, [])
         if (
             not grouped
+            and not hidden_groups
             and not bool(node.get("is_appendix_marker", False))
             and _has_instance_children(req_groups, str(node.get("section_key") or "").strip())
             and section_instance_key == str(node.get("section_key") or "").strip()
@@ -3627,9 +5346,26 @@ def _build_complete_requirement_entries(
         if preferred_row is not None and preferred_row is not node:
             continue
         emitted_section_instance_keys.add(section_instance_key)
+        for hidden_group in hidden_groups:
+            hidden_section_instance_key = str(
+                hidden_group[0].get("section_instance_key") or hidden_group[0].get("section_key") or ""
+            ).strip()
+            if hidden_section_instance_key:
+                emitted_section_instance_keys.add(hidden_section_instance_key)
         section_code = str(node.get("section_code") or "")
         heading_title = str(heading.get("section_title") or "")
-        for req in grouped:
+        rows_to_emit = list(grouped)
+        for hidden_group in hidden_groups:
+            rows_to_emit.extend(hidden_group)
+        rows_to_emit.sort(
+            key=lambda row: (
+                _to_int(row.get("req_order")),
+                _to_int(row.get("source_page")),
+                _to_int(row.get("source_page_end")),
+                str(row.get("req_code") or ""),
+            )
+        )
+        for req in rows_to_emit:
             normalized_text = _strip_heading_prefix_from_requirement(
                 text=str(req.get("requirement_text") or ""),
                 section_code=section_code,
@@ -3894,22 +5630,6 @@ def _attach_requirement_section_context(requirements: list[dict[str, Any]], sect
             req["numbering_level"] = _to_int(section_row.get("numbering_level") or section_row.get("section_level"))
             req["structural_level"] = _to_int(section_row.get("structural_level"))
 
-        owner_section_code = section_code
-        owner_section_title = section_title
-        owner_section_label = _format_owner_section_label(owner_section_code, owner_section_title, section_label)
-        req["owner_section_code"] = owner_section_code
-        req["owner_section_title"] = owner_section_title
-        req["owner_section_label"] = owner_section_label
-
-        if owner_section_code or owner_section_title:
-            req["parent_section_code"] = owner_section_code
-            req["parent_section_title"] = owner_section_title
-            req["parent_section_label"] = _format_section_label(owner_section_code, owner_section_title)
-        else:
-            req["parent_section_code"] = ""
-            req["parent_section_title"] = ""
-            req["parent_section_label"] = ""
-
         structural_parent_code = str(req.get("structural_parent_section_code") or "").strip()
         structural_parent_key = str(req.get("structural_parent_section_key") or "").strip()
         if section_row:
@@ -3950,6 +5670,29 @@ def _attach_requirement_section_context(requirements: list[dict[str, Any]], sect
         req["structural_parent_section_key"] = structural_parent_key
         req["structural_parent_section_title"] = structural_parent_title
         req["structural_parent_section_label"] = structural_parent_label
+
+        owner_section_code = section_code
+        owner_section_title = section_title
+        owner_section_label = _format_owner_section_label(owner_section_code, owner_section_title, section_label)
+        if bool(req.get("is_scoped_local_clause", False)) and not _should_surface_scoped_local_clause_as_section(req):
+            owner_section_code = structural_parent_code or owner_section_code
+            owner_section_title = structural_parent_title or owner_section_title
+            owner_section_label = structural_parent_label or _format_owner_section_label(
+                owner_section_code,
+                owner_section_title,
+            )
+        req["owner_section_code"] = owner_section_code
+        req["owner_section_title"] = owner_section_title
+        req["owner_section_label"] = owner_section_label
+
+        if owner_section_code or owner_section_title:
+            req["parent_section_code"] = owner_section_code
+            req["parent_section_title"] = owner_section_title
+            req["parent_section_label"] = _format_section_label(owner_section_code, owner_section_title)
+        else:
+            req["parent_section_code"] = ""
+            req["parent_section_title"] = ""
+            req["parent_section_label"] = ""
 
 
 def _format_owner_section_label(section_code: str, section_title: str, section_label: str = "") -> str:

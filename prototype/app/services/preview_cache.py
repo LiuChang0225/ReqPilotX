@@ -4,6 +4,7 @@ import json
 import logging
 import shutil
 import threading
+import uuid
 from concurrent.futures import ThreadPoolExecutor
 from datetime import datetime, timezone
 from pathlib import Path
@@ -107,6 +108,7 @@ def get_preview_cache_state(document: dict | None) -> dict[str, Any]:
             "preview_cache_hit": False,
             "preview_error": "",
             "preview_file_mtime": "",
+            "preview_generation_id": "",
         }
 
     document_id = str(document.get("id") or "").strip()
@@ -115,6 +117,7 @@ def get_preview_cache_state(document: dict | None) -> dict[str, Any]:
     stored_generated_at = str(document.get("preview_generated_at") or "")
     stored_error = str(document.get("preview_error") or "")
     stored_token = str(document.get("preview_file_mtime") or "")
+    preview_generation_id = str(document.get("preview_generation_id") or "").strip()
     current_token = _source_mtime_token(file_path)
     cache_path = preview_cache_path(document_id) if document_id else None
     cache_exists = bool(cache_path and cache_path.exists())
@@ -133,6 +136,7 @@ def get_preview_cache_state(document: dict | None) -> dict[str, Any]:
         "preview_cache_hit": cache_exists,
         "preview_error": stored_error,
         "preview_file_mtime": current_token or stored_token,
+        "preview_generation_id": preview_generation_id,
     }
 
 
@@ -163,6 +167,10 @@ def load_cached_preview(document: dict | None) -> tuple[dict | None, dict[str, A
         not isinstance(preview, dict)
         or str(preview.get("_preview_cache_version") or "") != _PREVIEW_CACHE_VERSION
         or str(preview.get("_preview_build_token") or "") != _preview_build_token()
+        or (
+            str(meta.get("preview_generation_id") or "").strip()
+            and str(preview.get("preview_generation_id") or "").strip() != str(meta.get("preview_generation_id") or "").strip()
+        )
     ):
         meta["preview_status"] = "STALE"
         meta["preview_cache_hit"] = False
@@ -184,6 +192,9 @@ def persist_preview_cache(document: dict | None, preview: dict[str, Any]) -> dic
     cache_path = preview_cache_path(document_id)
     temp_path = cache_path.with_suffix(".tmp")
     payload = dict(preview)
+    preview_generation_id = str(payload.get("preview_generation_id") or document.get("preview_generation_id") or "").strip()
+    if preview_generation_id:
+        payload["preview_generation_id"] = preview_generation_id
     payload["_preview_cache_version"] = _PREVIEW_CACHE_VERSION
     payload["_preview_build_token"] = _preview_build_token()
     temp_path.write_text(json.dumps(payload, ensure_ascii=False), encoding="utf-8")
@@ -196,6 +207,7 @@ def persist_preview_cache(document: dict | None, preview: dict[str, Any]) -> dic
         preview_generated_at=generated_at,
         preview_file_mtime=token,
         preview_error="",
+        preview_generation_id=preview_generation_id,
     )
 
 
@@ -210,6 +222,19 @@ def mark_preview_stale(document: dict | None) -> dict[str, Any]:
         preview_status="STALE",
         preview_error="",
     )
+
+
+def begin_preview_generation(document_id: str) -> tuple[str, dict[str, Any]]:
+    generation_id = str(uuid.uuid4())
+    updated = db.update_sor_document_preview_state(
+        document_id,
+        preview_status="BUILDING",
+        preview_generated_at="",
+        preview_file_mtime="",
+        preview_error="",
+        preview_generation_id=generation_id,
+    )
+    return generation_id, updated
 
 
 def request_preview_refresh(document: dict | None, *, force: bool = False) -> dict[str, Any]:
@@ -233,12 +258,16 @@ def request_preview_refresh(document: dict | None, *, force: bool = False) -> di
             return {"accepted": False, **current_meta}
         _ACTIVE_REFRESHES.add(document_id)
 
-    current = db.update_sor_document_preview_state(document_id, preview_status="BUILDING", preview_error="")
-    _PREVIEW_EXECUTOR.submit(_run_preview_refresh, document_id, file_path)
+    preview_generation_id, current = begin_preview_generation(document_id)
+    _PREVIEW_EXECUTOR.submit(_run_preview_refresh, document_id, file_path, preview_generation_id)
     return {"accepted": True, **get_preview_cache_state(current or document)}
 
 
-def _run_preview_refresh(document_id: str, file_path: str) -> None:
+def _run_preview_refresh(document_id: str, file_path: str, preview_generation_id: str = "") -> None:
+    preview_generation_id = str(preview_generation_id or "").strip()
+    if not preview_generation_id:
+        current_document = db.get_sor_document(document_id) or {}
+        preview_generation_id = str(current_document.get("preview_generation_id") or "").strip()
     try:
         if _refresh_cancelled(document_id):
             return
@@ -250,10 +279,11 @@ def _run_preview_refresh(document_id: str, file_path: str) -> None:
             document_id=document_id,
             snapshot_root=snapshot_root,
         )
+        preview["preview_generation_id"] = preview_generation_id
         if _refresh_cancelled(document_id):
             return
         document = db.get_sor_document(document_id)
-        if document:
+        if document and str(document.get("preview_generation_id") or "").strip() == preview_generation_id:
             persist_preview_cache(document, preview)
     except FileNotFoundError as exc:  # pragma: no cover - delete race is integration-level
         document = db.get_sor_document(document_id)
@@ -265,6 +295,7 @@ def _run_preview_refresh(document_id: str, file_path: str) -> None:
             document_id,
             preview_status="FAILED",
             preview_error=str(exc)[:500],
+            preview_generation_id=preview_generation_id,
         )
     except Exception as exc:  # pragma: no cover - failure path is integration-level
         logger.exception("Preview refresh failed for %s", document_id)
@@ -272,6 +303,7 @@ def _run_preview_refresh(document_id: str, file_path: str) -> None:
             document_id,
             preview_status="FAILED",
             preview_error=str(exc)[:500],
+            preview_generation_id=preview_generation_id,
         )
     finally:
         with _PREVIEW_LOCK:

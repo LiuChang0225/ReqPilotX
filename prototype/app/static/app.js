@@ -19,6 +19,7 @@ const state = {
   reviewEntries: [],
   reviewSelectedKinds: [],
   reviewShowRecommendedSourceOnly: false,
+  reviewDefaultTableVariant: "",
   reviewActiveEntryId: "",
   reviewPdfBaseUrl: "",
   reviewPdfCurrentPage: 1,
@@ -167,6 +168,7 @@ async function init() {
   restoreWorkspaceSelection();
   bindEvents();
   syncStageFromUrl();
+  restoreReviewFiltersFromUrl();
   syncStagePanels();
   await loadAiProviderSetup();
   await loadProjects();
@@ -182,6 +184,15 @@ function restoreWorkspaceSelection() {
   } catch (_error) {
     state.projectId = state.projectId || null;
     state.currentSorDocumentId = state.currentSorDocumentId || null;
+  }
+  const params = new URLSearchParams(window.location.search);
+  const projectId = String(params.get("projectId") || "").trim();
+  const documentId = String(params.get("documentId") || "").trim();
+  if (projectId) {
+    state.projectId = projectId;
+  }
+  if (documentId) {
+    state.currentSorDocumentId = documentId;
   }
 }
 
@@ -225,6 +236,26 @@ function syncStageFromUrl() {
   const stage = new URLSearchParams(window.location.search).get("stage");
   if (stage && ["review", "ai", "matrix"].includes(stage)) {
     state.currentStage = stage;
+  }
+}
+
+function restoreReviewFiltersFromUrl() {
+  const params = new URLSearchParams(window.location.search);
+  const section = String(params.get("section") || "").trim();
+  const keyword = String(params.get("keyword") || "").trim();
+  const sourceOnly = String(params.get("sourceOnly") || "").trim().toLowerCase();
+  const tableView = String(params.get("tableView") || "").trim().toLowerCase();
+  if (el.reviewSectionFilter && section) {
+    el.reviewSectionFilter.value = section;
+  }
+  if (el.reviewKeywordFilter && keyword) {
+    el.reviewKeywordFilter.value = keyword;
+  }
+  if (sourceOnly) {
+    state.reviewShowRecommendedSourceOnly = ["1", "true", "yes", "source"].includes(sourceOnly);
+  }
+  if (tableView === "slice" || tableView === "source") {
+    state.reviewDefaultTableVariant = tableView;
   }
 }
 
@@ -948,9 +979,11 @@ async function onCreateProject(event) {
   await loadProjects();
 }
 
-async function onProjectChanged() {
+async function onProjectChanged(preferredDocumentId = null) {
+  const preferredDocument =
+    typeof preferredDocumentId === "string" && preferredDocumentId.trim() ? preferredDocumentId.trim() : null;
   state.projectId = el.projectSelect.value || null;
-  state.currentSorDocumentId = null;
+  state.currentSorDocumentId = preferredDocument || null;
   state.sorDocuments = [];
   state.workspace = null;
   resetAiAnalysisState();
@@ -965,7 +998,7 @@ async function onProjectChanged() {
   el.downloadLink.removeAttribute("href");
   persistWorkspaceSelection();
   if (state.projectId) {
-    await loadSorDocuments();
+    await loadSorDocuments(state.currentSorDocumentId || null);
     await Promise.all([loadWorkspace(), loadExportJobs(), loadKnowledgeDocuments()]);
   } else {
     state.knowledgeDocuments = [];
@@ -1343,7 +1376,7 @@ async function loadProjects() {
   const projects = await api("/api/projects");
   const hydratedSelection = await renderProjectOptions(projects);
   if (!hydratedSelection && state.projectId) {
-    await onProjectChanged();
+    await onProjectChanged(state.currentSorDocumentId || null);
   }
 }
 
@@ -4097,11 +4130,11 @@ function renderTableRef(ref, row = null) {
   const headers = Array.isArray(ref.inherited_headers) ? ref.inherited_headers : [];
   const rows = Array.isArray(ref.slice_rows) ? ref.slice_rows.filter((row) => Array.isArray(row)) : [];
   const sliceLabel =
-    String(ref.slice_render_mode || "") === "structured" && headers.length ? "结构化切片" : "切片快照";
+    String(ref.slice_render_mode || "") === "structured" && (headers.length || rows.length) ? "结构化切片" : "切片快照";
   let content = "";
   if (variant === "source" && ref.source_snapshot_url) {
     content = renderTableSnapshot(ref, row, ref.source_snapshot_url, "source table snapshot");
-  } else if (String(ref.slice_render_mode || "") === "structured" && headers.length) {
+  } else if (String(ref.slice_render_mode || "") === "structured" && (headers.length || rows.length)) {
     content = renderStructuredTable(headers, rows);
   } else if (ref.slice_snapshot_url) {
     content = renderTableSnapshot(ref, row, ref.slice_snapshot_url, "table snapshot");
@@ -4130,6 +4163,12 @@ function renderTableRef(ref, row = null) {
 function activeTableVariant(ref) {
   const tableId = String(ref?.table_id || "").trim();
   if (!tableId) {
+    if (state.reviewDefaultTableVariant === "source" && ref?.source_snapshot_url) {
+      return "source";
+    }
+    if (state.reviewDefaultTableVariant === "slice") {
+      return "slice";
+    }
     return ref?.source_snapshot_url ? "source" : "slice";
   }
   const preferred = state.tableViewByTableId[tableId];
@@ -4137,7 +4176,13 @@ function activeTableVariant(ref) {
     if (preferred === "source" && !ref?.source_snapshot_url) {
       return "slice";
     }
-    return preferred;
+      return preferred;
+  }
+  if (state.reviewDefaultTableVariant === "source" && ref?.source_snapshot_url) {
+    return "source";
+  }
+  if (state.reviewDefaultTableVariant === "slice") {
+    return "slice";
   }
   const dbVariant = String(ref?.export_variant || "").trim().toLowerCase();
   if (dbVariant === "source" || dbVariant === "slice") {
@@ -4181,14 +4226,16 @@ function renderStructuredTable(headers, rows) {
   const colgroup = colPercents.length
     ? `<colgroup>${colPercents.map((pct) => `<col style="width:${pct.toFixed(2)}%">`).join("")}</colgroup>`
     : "";
-  const head = normalizedHeaders.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("");
+  const hasHeader = normalizedHeaders.some((cell) => cell);
+  const head = hasHeader ? normalizedHeaders.map((cell) => `<th>${escapeHtml(cell)}</th>`).join("") : "";
   const body = normalizedRows
     .map(
       (row) =>
         `<tr>${row.map((cell) => `<td>${escapeHtml(String(cell || ""))}</td>`).join("")}</tr>`
     )
     .join("");
-  return `<div class="md-table-wrap asset-table-wrap"><table class="md-table asset-table md-table-accurate">${colgroup}<thead><tr>${head}</tr></thead><tbody>${body}</tbody></table></div>`;
+  const thead = hasHeader ? `<thead><tr>${head}</tr></thead>` : "";
+  return `<div class="md-table-wrap asset-table-wrap"><table class="md-table asset-table md-table-accurate">${colgroup}${thead}<tbody>${body}</tbody></table></div>`;
 }
 
 function looksLikeMarkdownTableRow(line) {

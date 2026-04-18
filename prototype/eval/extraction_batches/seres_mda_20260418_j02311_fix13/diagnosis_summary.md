@@ -1,0 +1,43 @@
+# Extraction Diagnosis Summary
+
+- docs: `12`
+- findings: `22`
+- pattern_candidates: `22`
+- docs_requiring_human_review: `12`
+- suspected_layer_counts: `{'gate': 9, 'parser': 11, 'preview': 2}`
+
+## Documents
+- `seres_aes_cmac_ref` -> `AES-CMAC128算法伪代码20250410AAA.pdf` | profiles `{'quality': '', 'fidelity': ''}` | findings `1` | pattern_candidates `1`
+  - `profile_unmatched` [gate] Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.
+- `seres_q_sk_j00_14` -> `Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf` | profiles `{'quality': '', 'fidelity': ''}` | findings `2` | pattern_candidates `2`
+  - `profile_unmatched` [gate] Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.
+  - `parser_low_confidence_hotspot` [parser] Low-confidence pages should be stabilized before downstream clause binding is tuned.
+- `seres_q_sk_j02_226` -> `Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf` | profiles `{'quality': '', 'fidelity': ''}` | findings `2` | pattern_candidates `2`
+  - `profile_unmatched` [gate] Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.
+  - `parser_low_confidence_hotspot` [parser] Low-confidence pages should be stabilized before downstream clause binding is tuned.
+- `seres_q_sk_j02_233` -> `Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf` | profiles `{'quality': '', 'fidelity': ''}` | findings `2` | pattern_candidates `2`
+  - `profile_unmatched` [gate] Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.
+  - `parser_low_confidence_hotspot` [parser] Low-confidence pages should be stabilized before downstream clause binding is tuned.
+- `seres_q_sk_j02_311` -> `Q-SKJ02.311-2025_UDSonIPCANCANFD诊断技术规范.pdf` | profiles `{'quality': 'seres_q_sk_j02_311', 'fidelity': 'seres_q_sk_j02_311'}` | findings `2` | pattern_candidates `2`
+  - `complex_table_clause_binding_drift` [preview] Complex-table pages should keep stable section ownership while preserving row coverage.
+  - `parser_low_confidence_hotspot` [parser] Low-confidence pages should be stabilized before downstream clause binding is tuned.
+- `seres_q_sk_j02_321` -> `Q-SKJ02.321-2025_CANCANFDEthernetLINBootLoader刷写规范.pdf` | profiles `{'quality': '', 'fidelity': ''}` | findings `2` | pattern_candidates `2`
+  - `profile_unmatched` [gate] Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.
+  - `parser_low_confidence_hotspot` [parser] Low-confidence pages should be stabilized before downstream clause binding is tuned.
+- `seres_q_sk_j02_385` -> `Q-SKJ02.385-2024_总线网络E2E通信保护设计要求1.pdf` | profiles `{'quality': '', 'fidelity': ''}` | findings `2` | pattern_candidates `2`
+  - `profile_unmatched` [gate] Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.
+  - `parser_low_confidence_hotspot` [parser] Low-confidence pages should be stabilized before downstream clause binding is tuned.
+- `seres_q_sk_j02_71` -> `Q-SKJ02.71-2023_CANFD-CANFD网关需求规范.pdf` | profiles `{'quality': '', 'fidelity': ''}` | findings `2` | pattern_candidates `2`
+  - `profile_unmatched` [gate] Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.
+  - `parser_low_confidence_hotspot` [parser] Low-confidence pages should be stabilized before downstream clause binding is tuned.
+- `seres_q_sk_j02_86` -> `Q-SKJ02.86-2024_CANFD间接网络管理需求规范.pdf` | profiles `{'quality': '', 'fidelity': ''}` | findings `2` | pattern_candidates `2`
+  - `profile_unmatched` [gate] Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.
+  - `parser_low_confidence_hotspot` [parser] Low-confidence pages should be stabilized before downstream clause binding is tuned.
+- `seres_v32_k89_cts_asc` -> `【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf` | profiles `{'quality': 'seres_v32_k89_cts_asc', 'fidelity': 'seres_v32_k89_cts_asc'}` | findings `2` | pattern_candidates `2`
+  - `complex_table_clause_binding_drift` [preview] Complex-table pages should keep stable section ownership while preserving row coverage.
+  - `parser_low_confidence_hotspot` [parser] Low-confidence pages should be stabilized before downstream clause binding is tuned.
+- `seres_uds_signing_v1_1` -> `赛力斯UDS刷写规范安全签名算法要求V1.1_20250410AAA.pdf` | profiles `{'quality': 'seres_uds_signing_v1_1', 'fidelity': 'seres_uds_signing_v1_1'}` | findings `1` | pattern_candidates `1`
+  - `parser_low_confidence_hotspot` [parser] Low-confidence pages should be stabilized before downstream clause binding is tuned.
+- `seres_uds_27_security_v2_9` -> `赛力斯UDS诊断规范27服务安全算法要求V2.9_20250410AAA.pdf` | profiles `{'quality': '', 'fidelity': ''}` | findings `2` | pattern_candidates `2`
+  - `profile_unmatched` [gate] Capture diagnosis evidence first, then decide whether the sample should join a reusable benchmark profile.
+  - `parser_low_confidence_hotspot` [parser] Low-confidence pages should be stabilized before downstream clause binding is tuned.

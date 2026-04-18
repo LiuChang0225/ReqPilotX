@@ -897,6 +897,17 @@ def _extract_section_blocks(line_entries: list[dict[str, Any]]) -> list[dict[str
             last_section_code=last_section_code,
             table_count=int(entry.get("table_count", 0) or 0),
         )
+        if (
+            title_only_main_header
+            and int(entry.get("table_count", 0) or 0) > 0
+            and _has_upcoming_explicit_section_header(
+                line_entries=line_entries,
+                start_index=idx + 1,
+                target_code=str(title_only_main_header.get("code") or ""),
+                start_page=_safe_int(entry.get("source_page")) or None,
+            )
+        ):
+            title_only_main_header = None
         if title_only_main_header:
             if current and current.get("entries"):
                 blocks.append(current)
@@ -1809,6 +1820,42 @@ def _has_immediate_child_section_header(
         code_hint = _extract_section_code_hint(line)
         if code_hint.startswith(f"{parent}."):
             return True
+    return False
+
+
+def _has_upcoming_explicit_section_header(
+    *,
+    line_entries: list[dict[str, Any]],
+    start_index: int,
+    target_code: str,
+    start_page: int | None,
+) -> bool:
+    target = str(target_code or "").strip()
+    if not target:
+        return False
+    for idx in range(start_index, min(len(line_entries), start_index + 24)):
+        line = str((line_entries[idx] or {}).get("text") or "").strip()
+        if not line:
+            continue
+        page = _safe_int(line_entries[idx].get("source_page"))
+        if (
+            isinstance(start_page, int)
+            and start_page > 0
+            and isinstance(page, int)
+            and page > start_page + 2
+        ):
+            break
+        if _extract_appendix_scope(line):
+            break
+        header = _parse_section_header(line)
+        code = str((header or {}).get("code") or "").strip()
+        if code == target:
+            return True
+        code_hint = _extract_section_code_hint(line)
+        if code_hint == target:
+            next_title, _ = _next_header_title_hint(line_entries, idx + 1)
+            if next_title:
+                return True
     return False
 
 
