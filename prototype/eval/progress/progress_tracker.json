@@ -1,7 +1,7 @@
 {
   "project_name": "ReqPilotX Project Control Tower",
   "north_star": "Keep governance, quality gates, and active tracks aligned while the product matures toward trial run.",
-  "updated_at": "2026-04-19T02:06:09+08:00",
+  "updated_at": "2026-04-19T09:45:00+08:00",
   "plan": [
     {
       "id": "track-release-foundation",
@@ -25,10 +25,10 @@
       "id": "track-extraction-quality-loop",
       "title": "Extraction Quality Loop",
       "owner": "AI/Extraction",
-      "status": "DONE",
-      "progress_pct": 100,
+      "status": "IN_PROGRESS",
+      "progress_pct": 95,
       "target_date": "",
-      "notes": "Merged into main; keep codex/extraction-quality-loop only as rollback/comparison and future extraction re-entry branch.",
+      "notes": "Latest mixed alpha/numeric clause fix is on main; keep codex/extraction-quality-loop active for focused residuals, live preview checks, and next diagnose.",
       "track_id": "extraction-quality-loop",
       "branch_name": "codex/extraction-quality-loop",
       "worktree_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop",
@@ -36,8 +36,8 @@
       "acceptance_gate": "batch-report, oil-pump-benchmark, regression-suite",
       "depends_on": "",
       "drift_status": "ON_PLAN",
-      "last_update_at": "2026-04-19T02:06:09+08:00",
-      "latest_event_summary": "PR #2 merged to main; retained SERES baseline and cleanup landed on main."
+      "last_update_at": "2026-04-19T09:45:00+08:00",
+      "latest_event_summary": "Fix21 focused residual now anchors the branch; repository retention narrowed to current batch/diagnose summaries."
     },
     {
       "id": "track-rag-quality-loop",
@@ -118,6 +118,18 @@
       "track_id": "extraction-quality-loop",
       "branch_name": "main",
       "event_type": "done"
+    },
+    {
+      "id": "evt-extraction-fix21-20260419",
+      "time": "2026-04-19T09:45:00+08:00",
+      "category": "quality",
+      "status": "IN_PROGRESS",
+      "title": "Fix21 promoted and retained artifacts narrowed",
+      "detail": "Latest mixed alpha/numeric clause repair is now on main. J02.311 focused residual moved to fix21, and retained repo artifacts were reduced to current batch and diagnose summaries while runtime exports, logs, and stale eval intermediates were removed from HEAD.",
+      "source": "manual",
+      "track_id": "extraction-quality-loop",
+      "branch_name": "main",
+      "event_type": "checkpoint"
     }
   ],
   "gates": []

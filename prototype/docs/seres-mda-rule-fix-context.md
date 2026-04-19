@@ -1,6 +1,6 @@
 # SERES MDA Rule Fix Context
 
-更新时间：2026-04-19 02:06 CST
+更新时间：2026-04-19 09:45 CST
 分支：`codex/extraction-quality-loop`
 适用范围：`SERES MDA` 系列客户文档的 extraction 审计、通用修规则、验证证据沉淀
 
@@ -37,11 +37,8 @@
 
 - 当前 SERES 主批次：`seres_mda_customer_docs`
 - 当前完整基线：`prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13`
-- 当前最新 focused residual：`prototype/eval/extraction_diagnose/j02_311_20260419_fix15`
-- 当前导出项目：`SERES MDA Batch Export 20260417_163356`
-- 批量导出结果：
-  - `12 / 12` PDF 完成 upload -> analyze -> lock -> export
-  - 导出报告：`prototype/storage/exports/seres_mda_batch_export_report_20260417_163356.json`
+- 当前最新 focused residual：`prototype/eval/extraction_diagnose/j02_311_20260419_fix21`
+- 当前仓库只保留 batch / diagnose 摘要与规则结论；runtime 导出报告、截图、source snapshot 仍作为本地运行证据，不再进入版本库。
 - fix13 基线结果：
   - structural quality：`99 / 102`，`97.06%`，`PASS`
   - fidelity：`72 / 72`，`100%`，`PASS`
@@ -55,6 +52,13 @@
   - `docs_requiring_human_review = 12`
   - `finding_type_counts = {parser_low_confidence_hotspot: 11, profile_unmatched: 9, complex_table_clause_binding_drift: 2}`
   - `suspected_layer_counts = {parser: 11, gate: 9, preview: 2}`
+- fix21 focused residual：
+  - `docs = 1`
+  - `total_findings = 2`
+  - `pattern_candidate_count = 2`
+  - `docs_requiring_human_review = 1`
+  - `finding_type_counts = {complex_table_clause_binding_drift: 1, parser_low_confidence_hotspot: 1}`
+  - `suspected_layer_counts = {parser: 1, preview: 1}`
 
 ## 文档清单与结构画像
 
@@ -197,8 +201,8 @@
 ## 规则有效性证据
 
 - 聚焦回归：
-  - `python3 -m unittest prototype/tests/test_extraction_preview.py -q` -> `43 tests / OK`
-  - `python3 -m unittest prototype/tests/test_extractor_sections.py -q` -> `66 tests / OK`
+  - `python3 -m unittest prototype.tests.test_extraction_preview -q` -> `47 tests / OK`
+  - `python3 -m unittest prototype.tests.test_extractor_sections -q` -> `69 tests / OK`
   - `python3 -m unittest prototype/tests/test_parser_page_selection.py -q` -> `2 tests / OK`
 - 真实文档核对：
   - `J00.14`：version example fake clause 已消失
@@ -217,7 +221,7 @@
 - 批次基线：
   - `seres_mda_20260418_j02311_fix13` 当前是这组客户文档的完整验证基线
   - `quality = 97.06% PASS`，`fidelity = 100% PASS`
-  - `J02.311` 单文档 diagnose `j02_311_20260418_fix13` 与整批 `fix13` 当前都仍保留 `complex_table_clause_binding_drift + parser_low_confidence_hotspot`
+  - `J02.311` 当前 focused diagnose 已切到 `j02_311_20260419_fix21`，残余收敛为 `complex_table_clause_binding_drift + parser_low_confidence_hotspot`
   - required profile 全部匹配：`seres_q_sk_j02_311`、`seres_v32_k89_cts_asc`、`seres_uds_signing_v1_1`
 - 在线复核：
   - `5555` review 服务已在新代码上运行
@@ -238,7 +242,7 @@
   - `9.3` 仍是 section 级图片挂接，尚未做逐图 caption pairing
   - 当前已无新的用户可见显性错误；剩余更像机器侧稳健性债务
 - `SERES` 整批
-  - `J02.311` 当前已修完这轮用户指出的显式图表问题，但最新 focused diagnose `j02_311_20260419_fix15` 仍保留 `complex_table_clause_binding_drift`；当前根因表象是 `requirements_drift = 17`
+  - `J02.311` 当前已修完这轮 mixed alpha/numeric clause 漂移问题，但最新 focused diagnose `j02_311_20260419_fix21` 仍保留 `complex_table_clause_binding_drift`；当前根因表象是 `requirements_drift = -1`
   - `J02.311` 当前仍有 parser 风险页：`1 / 11 / 12 / 13 / 70 / 89 / 105 / 108 / 112`
   - `profile_unmatched = 9` 说明仍有 9 份 SERES 文档没有专属 profile
   - `parser_low_confidence_hotspot = 11`、`complex_table_clause_binding_drift = 2` 说明 parser/preview 侧仍有审计空间，但不能直接等价为用户可见回归
@@ -257,19 +261,8 @@
 
 ## 相关工件
 
-- [SERES batch fix13 summary](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/batch_summary.json)
-- [SERES diagnose fix13](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/diagnosis_summary.json)
-- [J02.311 single diagnose fix13](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_diagnose/j02_311_20260418_fix13/diagnosis_summary.json)
-- [J02.311 before screenshot](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/output/playwright/seres-evidence/j02_311_before/j02_311_8_13_4_owner_drift_before.png)
-- [J02.311 after screenshot](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/output/playwright/seres-evidence/j02_311_after/j02_311_8_13_4_owner_drift_after.png)
-- [J02.311 after viewport screenshot](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/output/playwright/seres-evidence/j02_311_after/j02_311_8_13_4_owner_drift_after_viewport.png)
-- [J02.311 表12续表 source snapshot](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/table_snapshots/src_474f9ba4f38cd7db.png)
-- [J02.311 图3 source snapshot](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/table_snapshots/src_d65c251746aca81c.png)
-- [J02.311 表14 source snapshot](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/table_snapshots/src_9829b514d4e47b54.png)
-- [J02.311 图4 source snapshot](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/table_snapshots/src_9594fc8e3ad85a23.png)
-- [J02.311 图5 source snapshot](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/table_snapshots/src_a923352776805594.png)
-- [J02.311 7.5.5 live DOM](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/output/playwright/seres-evidence/j02311_live_verify/.playwright-cli/page-2026-04-18T08-42-00-047Z.yml)
-- [J02.311 7.5.6.1 live DOM](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/output/playwright/seres-evidence/j02311_live_verify/.playwright-cli/page-2026-04-18T08-43-37-487Z.yml)
-- [Legacy benchmark fix13 summary](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/batch_summary.json)
-- [SERES export report](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/prototype/storage/exports/seres_mda_batch_export_report_20260417_163356.json)
-- [Extraction active context](/Users/liuchang/Documents/New%20project/worktrees/_active/extraction-quality-loop/prototype/docs/extraction-active-context.md)
+- [SERES batch fix13 summary](/Users/liuchang/Documents/New%20project/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/batch_summary.json)
+- [SERES batch fix13 diagnose summary](/Users/liuchang/Documents/New%20project/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/diagnosis_summary.json)
+- [J02.311 latest diagnose fix21](/Users/liuchang/Documents/New%20project/prototype/eval/extraction_diagnose/j02_311_20260419_fix21/diagnosis_summary.json)
+- [Legacy benchmark fix13 summary](/Users/liuchang/Documents/New%20project/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/batch_summary.json)
+- [Extraction active context](/Users/liuchang/Documents/New%20project/prototype/docs/extraction-active-context.md)

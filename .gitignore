@@ -45,6 +45,9 @@ Thumbs.db
 # Project specific
 .playwright-cli/
 storage/
+.qdrant-initialized
+prototype/app.db
+prototype/prototype.db
 prototype/storage/*.db
 prototype/storage/*.db-wal
 prototype/storage/*.db-shm
@@ -61,8 +64,26 @@ prototype/storage/smoke/
 prototype/storage/source_snapshots/
 prototype/storage/table_snapshots/
 prototype/eval/ai_smoke/latest/
-prototype/eval/azure_smoke/
+prototype/eval/aliyun_*/latest/
+prototype/eval/fidelity/
+prototype/eval/iterations/
+prototype/eval/phase0_backup_*/
+prototype/eval/phase0_iter*/
+prototype/eval/quality_gate/
+prototype/eval/regression_suite/
 prototype/eval/table_assets/latest/
+prototype/eval/extraction_diagnose/*/per_doc/
+prototype/eval/extraction_diagnose/*/stderr.log
+prototype/eval/extraction_batches/*/per_doc/
+prototype/eval/extraction_batches/*/section_split/
+prototype/eval/extraction_batches/*/document_rollup.csv
+prototype/eval/extraction_batches/*/issue_rollup.csv
+prototype/eval/extraction_batches/*/resolved_documents.json
+prototype/eval/extraction_batches/*/regression_suite/fidelity/fidelity_docs.csv
+prototype/eval/extraction_batches/*/regression_suite/fidelity/fidelity_issues.csv
+prototype/eval/extraction_batches/*/regression_suite/quality_gate/structural_quality_docs.csv
+prototype/eval/extraction_batches/*/regression_suite/quality_gate/structural_quality_issues.csv
+prototype/eval/azure_smoke/
 prototype/eval/**/staged_docs/
 prototype/.tmp_sdk_inspect/
 prototype/tmp/
