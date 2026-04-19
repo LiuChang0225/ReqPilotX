@@ -1,7 +1,7 @@
 {
   "project_name": "ReqPilotX Project Control Tower",
   "north_star": "Keep governance, quality gates, and active tracks aligned while the product matures toward trial run.",
-  "updated_at": "2026-04-19T09:45:00+08:00",
+  "updated_at": "2026-04-19T09:46:17+08:00",
   "plan": [
     {
       "id": "track-release-foundation",
@@ -36,8 +36,8 @@
       "acceptance_gate": "batch-report, oil-pump-benchmark, regression-suite",
       "depends_on": "",
       "drift_status": "ON_PLAN",
-      "last_update_at": "2026-04-19T09:45:00+08:00",
-      "latest_event_summary": "Fix21 focused residual now anchors the branch; repository retention narrowed to current batch/diagnose summaries."
+      "last_update_at": "2026-04-19T09:46:17+08:00",
+      "latest_event_summary": "Fix21 focused residual now anchors the branch; repo history was rewritten to drop runtime/cache blobs while retained artifacts stay on current batch/diagnose summaries."
     },
     {
       "id": "track-rag-quality-loop",
@@ -130,6 +130,18 @@
       "track_id": "extraction-quality-loop",
       "branch_name": "main",
       "event_type": "checkpoint"
+    },
+    {
+      "id": "evt-history-rewrite-20260419",
+      "time": "2026-04-19T09:46:17+08:00",
+      "category": "infra",
+      "status": "DONE",
+      "title": "Repository history rewrite completed",
+      "detail": "A guarded git-filter-repo rewrite removed high-confidence runtime/cache paths from history, then force-updated main and codex/extraction-quality-loop. Current retained repo assets are now code, context docs, control-tower metadata, and current batch/diagnose summaries only.",
+      "source": "manual",
+      "track_id": "extraction-quality-loop",
+      "branch_name": "main",
+      "event_type": "done"
     }
   ],
   "gates": []

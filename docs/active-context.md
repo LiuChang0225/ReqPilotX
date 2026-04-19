@@ -1,6 +1,6 @@
 # Active Context
 
-更新时间：2026-04-19 09:19 CST
+更新时间：2026-04-19 09:46 CST
 适用仓库：`/Users/liuchang/Documents/New project`
 
 长期背景：[`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/项目.md)
@@ -39,6 +39,7 @@
   - `python3 -m unittest prototype.tests.test_extractor_sections -q` -> `69 tests / OK`
   - `python3 -m unittest prototype.tests.test_extraction_preview -q` -> `47 tests / OK`
 - 仓库保留工件已收口到当前 batch/diagnose 摘要；`prototype/eval/fidelity/`、`prototype/eval/regression_suite/`、`prototype/eval/iterations/`、本地 DB/log/export 等旧中间产物从 HEAD 移除。
+- Git 历史瘦身已完成：`main` 与 `codex/extraction-quality-loop` 都已 force-update 到重写后的历史；旧 Qdrant / table snapshot / Playwright / runtime blob 已从历史剥离，本地 `.git` 当前约 `1.8M`。
 - live 复验：
   - `5555` 已从 `codex/extraction-quality-loop` worktree 重启，当前 PID `98277`。
   - `J02.311` 已重新 `refresh-preview`，live `preview_generation_id = 921d2e83-6ee3-4b2d-adc0-520b866646d6`，`preview_generated_at = 2026-04-19T01:18:51.851267+00:00`，API 返回 `READY` 且 `review_entries_count = 720`。
