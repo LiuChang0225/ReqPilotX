@@ -3,7 +3,7 @@
 - batch_id: `seres_mda_customer_docs`
 - run_id: `seres_mda_20260418_j02311_fix13`
 - description: `SERES MDA customer document audit pack covering Q/SK standards, CTS specs, security algorithm addenda, and RFC-style references.`
-- shared_repo_root: `/Users/liuchang/Documents/New project`
+- shared_repo_root: `/Users/liuchang/Documents/ReqPilotX`
 
 ## Gates
 - batch-report: `PASS` | docs=12 issues=0
@@ -19,7 +19,7 @@
 - findings: `22`
 - pattern_candidates: `22`
 - suspected_layer_counts: `{'gate': 9, 'parser': 11, 'preview': 2}`
-- diagnosis_summary: `/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/diagnosis_summary.md`
+- diagnosis_summary: `/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/diagnosis_summary.md`
 
 ## Section Split
 - summary: `{'targets': 0, 'targets_passed': 0, 'checks_passed': 0, 'checks_total': 0, 'score_pct': 100.0, 'results': []}`

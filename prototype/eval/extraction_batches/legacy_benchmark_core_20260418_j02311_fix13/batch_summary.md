@@ -3,7 +3,7 @@
 - batch_id: `legacy_benchmark_core`
 - run_id: `legacy_benchmark_core_20260418_j02311_fix13`
 - description: `Core extraction regression pack with Q-JLY, BAIC SOR, damper PDS, and oil pump PDS.`
-- shared_repo_root: `/Users/liuchang/Documents/New project`
+- shared_repo_root: `/Users/liuchang/Documents/ReqPilotX`
 
 ## Gates
 - batch-report: `PASS` | docs=4 issues=83
@@ -19,7 +19,7 @@
 - findings: `73`
 - pattern_candidates: `10`
 - suspected_layer_counts: `{'extractor': 15, 'parser': 2, 'preview': 56}`
-- diagnosis_summary: `/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/diagnosis_summary.md`
+- diagnosis_summary: `/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/diagnosis_summary.md`
 
 ## Section Split
 - summary: `{'targets': 1, 'targets_passed': 1, 'checks_passed': 4, 'checks_total': 4, 'score_pct': 100.0, 'results': [{'doc_key': 'q_jly_core', 'pdf_name': 'Q-JLYJ7111029E-2024-汽车电气和电子零部件通用技术规范.pdf', 'passed': True, 'score_pct': 100.0}]}`

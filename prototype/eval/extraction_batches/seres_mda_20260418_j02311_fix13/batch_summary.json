@@ -2,16 +2,16 @@
   "run_id": "seres_mda_20260418_j02311_fix13",
   "batch_id": "seres_mda_customer_docs",
   "description": "SERES MDA customer document audit pack covering Q/SK standards, CTS specs, security algorithm addenda, and RFC-style references.",
-  "shared_repo_root": "/Users/liuchang/Documents/New project",
-  "python_executable": "/Users/liuchang/Documents/New project/prototype/.venv/bin/python",
-  "staged_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs",
+  "shared_repo_root": "/Users/liuchang/Documents/ReqPilotX",
+  "python_executable": "/Users/liuchang/Documents/ReqPilotX/prototype/.venv/bin/python",
+  "staged_dir": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs",
   "resolved_docs": [
     {
       "doc_key": "seres_aes_cmac_ref",
       "profile": "",
       "pdf_name": "AES-CMAC128算法伪代码20250410AAA.pdf",
-      "source_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/043cfcde731d4e03bdc604d8131aceb1_AES-CMAC128算法伪代码20250410AAA.pdf",
-      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/AES-CMAC128算法伪代码20250410AAA.pdf",
+      "source_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/043cfcde731d4e03bdc604d8131aceb1_AES-CMAC128算法伪代码20250410AAA.pdf",
+      "staged_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/AES-CMAC128算法伪代码20250410AAA.pdf",
       "source_root": "worktree_uploads",
       "section_split": false,
       "gate_tags": []
@@ -20,8 +20,8 @@
       "doc_key": "seres_q_sk_j00_14",
       "profile": "",
       "pdf_name": "Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf",
-      "source_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/02daced2b77c40c7966f5f56270adde6_Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf",
-      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf",
+      "source_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/02daced2b77c40c7966f5f56270adde6_Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf",
+      "staged_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ00.14-2025_汽车电子控制单元版本管理编码规则机密.pdf",
       "source_root": "worktree_uploads",
       "section_split": false,
       "gate_tags": []
@@ -30,8 +30,8 @@
       "doc_key": "seres_q_sk_j02_226",
       "profile": "",
       "pdf_name": "Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf",
-      "source_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/16fb65c2e940475cb29de6424cfadda2_Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf",
-      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf",
+      "source_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/16fb65c2e940475cb29de6424cfadda2_Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf",
+      "staged_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.226-2023_CANFDAUTOSAR直接网络管理需求规范.pdf",
       "source_root": "worktree_uploads",
       "section_split": false,
       "gate_tags": []
@@ -40,8 +40,8 @@
       "doc_key": "seres_q_sk_j02_233",
       "profile": "",
       "pdf_name": "Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf",
-      "source_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/46d24db3ad064d3fb378a1a0aecbecd9_Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf",
-      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf",
+      "source_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/46d24db3ad064d3fb378a1a0aecbecd9_Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf",
+      "staged_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.233-2023_CANFD通信需求规范2MbpS20231024.pdf",
       "source_root": "worktree_uploads",
       "section_split": false,
       "gate_tags": []
@@ -50,8 +50,8 @@
       "doc_key": "seres_q_sk_j02_311",
       "profile": "seres_q_sk_j02_311",
       "pdf_name": "Q-SKJ02.311-2025_UDSonIPCANCANFD诊断技术规范.pdf",
-      "source_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/3409c72fa9a54955adc9727fb1c0f9a7_Q-SKJ02.311-2025_UDSonIPCANCANFD诊断技术规范.pdf",
-      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.311-2025_UDSonIPCANCANFD诊断技术规范.pdf",
+      "source_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/3409c72fa9a54955adc9727fb1c0f9a7_Q-SKJ02.311-2025_UDSonIPCANCANFD诊断技术规范.pdf",
+      "staged_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.311-2025_UDSonIPCANCANFD诊断技术规范.pdf",
       "source_root": "worktree_uploads",
       "section_split": false,
       "gate_tags": [
@@ -63,8 +63,8 @@
       "doc_key": "seres_q_sk_j02_321",
       "profile": "",
       "pdf_name": "Q-SKJ02.321-2025_CANCANFDEthernetLINBootLoader刷写规范.pdf",
-      "source_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/5d2aa8cf840c4268bf8f10038e7b671a_Q-SKJ02.321-2025_CANCANFDEthernetLINBootLoader刷写规范.pdf",
-      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.321-2025_CANCANFDEthernetLINBootLoader刷写规范.pdf",
+      "source_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/5d2aa8cf840c4268bf8f10038e7b671a_Q-SKJ02.321-2025_CANCANFDEthernetLINBootLoader刷写规范.pdf",
+      "staged_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.321-2025_CANCANFDEthernetLINBootLoader刷写规范.pdf",
       "source_root": "worktree_uploads",
       "section_split": false,
       "gate_tags": []
@@ -73,8 +73,8 @@
       "doc_key": "seres_q_sk_j02_385",
       "profile": "",
       "pdf_name": "Q-SKJ02.385-2024_总线网络E2E通信保护设计要求1.pdf",
-      "source_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/16d6cd9b3a1c4ac4a39ead5f4830225e_Q-SKJ02.385-2024_总线网络E2E通信保护设计要求1.pdf",
-      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.385-2024_总线网络E2E通信保护设计要求1.pdf",
+      "source_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/16d6cd9b3a1c4ac4a39ead5f4830225e_Q-SKJ02.385-2024_总线网络E2E通信保护设计要求1.pdf",
+      "staged_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.385-2024_总线网络E2E通信保护设计要求1.pdf",
       "source_root": "worktree_uploads",
       "section_split": false,
       "gate_tags": []
@@ -83,8 +83,8 @@
       "doc_key": "seres_q_sk_j02_71",
       "profile": "",
       "pdf_name": "Q-SKJ02.71-2023_CANFD-CANFD网关需求规范.pdf",
-      "source_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/3a46e88ce75f4cc78762709eb7cd4861_Q-SKJ02.71-2023_CANFD-CANFD网关需求规范.pdf",
-      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.71-2023_CANFD-CANFD网关需求规范.pdf",
+      "source_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/3a46e88ce75f4cc78762709eb7cd4861_Q-SKJ02.71-2023_CANFD-CANFD网关需求规范.pdf",
+      "staged_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.71-2023_CANFD-CANFD网关需求规范.pdf",
       "source_root": "worktree_uploads",
       "section_split": false,
       "gate_tags": []
@@ -93,8 +93,8 @@
       "doc_key": "seres_q_sk_j02_86",
       "profile": "",
       "pdf_name": "Q-SKJ02.86-2024_CANFD间接网络管理需求规范.pdf",
-      "source_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/af5ba89d8a4941ada68ed30b8becc260_Q-SKJ02.86-2024_CANFD间接网络管理需求规范.pdf",
-      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.86-2024_CANFD间接网络管理需求规范.pdf",
+      "source_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/af5ba89d8a4941ada68ed30b8becc260_Q-SKJ02.86-2024_CANFD间接网络管理需求规范.pdf",
+      "staged_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/Q-SKJ02.86-2024_CANFD间接网络管理需求规范.pdf",
       "source_root": "worktree_uploads",
       "section_split": false,
       "gate_tags": []
@@ -104,7 +104,7 @@
       "profile": "seres_v32_k89_cts_asc",
       "pdf_name": "【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
       "source_path": "/Users/liuchang/Downloads/SERES MDA/【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
-      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
+      "staged_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/【机密】V32&K89_CTS_ASC_V1.1.0_20250630 (1).pdf",
       "source_root": "seres_mda_downloads",
       "section_split": false,
       "gate_tags": [
@@ -116,8 +116,8 @@
       "doc_key": "seres_uds_signing_v1_1",
       "profile": "seres_uds_signing_v1_1",
       "pdf_name": "赛力斯UDS刷写规范安全签名算法要求V1.1_20250410AAA.pdf",
-      "source_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/995b65482918483d8a6773af209dd45b_赛力斯UDS刷写规范安全签名算法要求V1.1_20250410AAA.pdf",
-      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/赛力斯UDS刷写规范安全签名算法要求V1.1_20250410AAA.pdf",
+      "source_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/995b65482918483d8a6773af209dd45b_赛力斯UDS刷写规范安全签名算法要求V1.1_20250410AAA.pdf",
+      "staged_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/赛力斯UDS刷写规范安全签名算法要求V1.1_20250410AAA.pdf",
       "source_root": "worktree_uploads",
       "section_split": false,
       "gate_tags": [
@@ -129,8 +129,8 @@
       "doc_key": "seres_uds_27_security_v2_9",
       "profile": "",
       "pdf_name": "赛力斯UDS诊断规范27服务安全算法要求V2.9_20250410AAA.pdf",
-      "source_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/c087c9a97f4542e99c3b9f6dc0886bc3_赛力斯UDS诊断规范27服务安全算法要求V2.9_20250410AAA.pdf",
-      "staged_path": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/赛力斯UDS诊断规范27服务安全算法要求V2.9_20250410AAA.pdf",
+      "source_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/storage/uploads/c087c9a97f4542e99c3b9f6dc0886bc3_赛力斯UDS诊断规范27服务安全算法要求V2.9_20250410AAA.pdf",
+      "staged_path": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs/赛力斯UDS诊断规范27服务安全算法要求V2.9_20250410AAA.pdf",
       "source_root": "worktree_uploads",
       "section_split": false,
       "gate_tags": []
@@ -150,15 +150,15 @@
   "suite_summary": {
     "run_id": "regression_suite",
     "timestamp": "2026-04-18T16:53:20",
-    "pdf_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs",
+    "pdf_dir": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs",
     "exclude_name_regex": [
       "PRINT_21033420"
     ],
     "paths": {
-      "quality_summary_json": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/regression_suite/quality_gate/structural_quality_summary.json",
-      "fidelity_summary_json": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/regression_suite/fidelity/fidelity_summary.json",
-      "quality_summary_md": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/regression_suite/quality_gate/structural_quality_summary.md",
-      "fidelity_summary_md": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/regression_suite/fidelity/fidelity_summary.md"
+      "quality_summary_json": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/regression_suite/quality_gate/structural_quality_summary.json",
+      "fidelity_summary_json": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/regression_suite/fidelity/fidelity_summary.json",
+      "quality_summary_md": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/regression_suite/quality_gate/structural_quality_summary.md",
+      "fidelity_summary_md": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/regression_suite/fidelity/fidelity_summary.md"
     },
     "quality_gate": {
       "docs": 12,
@@ -182,7 +182,7 @@
     }
   },
   "quality_summary": {
-    "pdf_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs",
+    "pdf_dir": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs",
     "docs": 12,
     "checks_passed": 99,
     "checks_total": 102,
@@ -193,7 +193,7 @@
     "split_metric_confidence": null
   },
   "fidelity_summary": {
-    "pdf_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs",
+    "pdf_dir": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs",
     "target_docs": 3,
     "skipped_docs_count": 9,
     "checks_passed": 72,
@@ -382,10 +382,10 @@
     ]
   },
   "diagnosis_paths": {
-    "summary_json": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/diagnosis_summary.json",
-    "summary_md": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/diagnosis_summary.md",
-    "pattern_candidates_json": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/pattern_candidates.json",
-    "per_doc_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/per_doc"
+    "summary_json": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/diagnosis_summary.json",
+    "summary_md": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/diagnosis_summary.md",
+    "pattern_candidates_json": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/pattern_candidates.json",
+    "per_doc_dir": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/per_doc"
   },
   "gates": {
     "batch-report": {

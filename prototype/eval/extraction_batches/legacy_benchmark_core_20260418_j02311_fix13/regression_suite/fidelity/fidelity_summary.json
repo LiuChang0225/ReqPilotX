@@ -1,5 +1,5 @@
 {
-  "pdf_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/staged_docs",
+  "pdf_dir": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/staged_docs",
   "target_docs": 4,
   "skipped_docs_count": 0,
   "checks_passed": 80,

@@ -1,5 +1,5 @@
 {
-  "pdf_dir": "/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs",
+  "pdf_dir": "/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs",
   "target_docs": 3,
   "skipped_docs_count": 9,
   "checks_passed": 72,

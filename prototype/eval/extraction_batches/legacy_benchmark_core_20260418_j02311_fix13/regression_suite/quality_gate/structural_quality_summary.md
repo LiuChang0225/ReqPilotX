@@ -1,6 +1,6 @@
 # Structural Quality Gate
 
-- PDF dir: `/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/staged_docs`
+- PDF dir: `/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/legacy_benchmark_core_20260418_j02311_fix13/staged_docs`
 - Documents: `4`
 - Checks passed: `38/40`
 - Gate score: `95.00%`

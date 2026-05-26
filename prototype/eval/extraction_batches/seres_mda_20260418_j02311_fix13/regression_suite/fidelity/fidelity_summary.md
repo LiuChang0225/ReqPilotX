@@ -1,6 +1,6 @@
 # Fidelity Benchmark
 
-- PDF dir: `/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs`
+- PDF dir: `/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs`
 - Target docs: `3`
 - Checks: `72/72`
 - Score: `100.00%`

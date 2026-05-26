@@ -1,6 +1,6 @@
 # Structural Quality Gate
 
-- PDF dir: `/Users/liuchang/Documents/New project/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs`
+- PDF dir: `/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop/prototype/eval/extraction_batches/seres_mda_20260418_j02311_fix13/staged_docs`
 - Documents: `12`
 - Checks passed: `99/102`
 - Gate score: `97.06%`
