@@ -18,7 +18,7 @@ from app.services.extraction_preview import build_extraction_preview
 
 _UPLOAD_DIR_CANDIDATES = [
     Path(__file__).resolve().parents[1] / "storage" / "uploads",
-    Path("/Users/liuchang/Documents/New project/worktrees/_active/extraction-optimization/prototype/storage/uploads"),
+    Path("/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-optimization/prototype/storage/uploads"),
 ]
 _OIL_PUMP_SAMPLE_PDF = next(
     (

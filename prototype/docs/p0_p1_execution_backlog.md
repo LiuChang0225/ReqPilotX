@@ -3,8 +3,8 @@
 更新时间：2026-03-29  
 
 > 状态：历史执行清单，已基本完成并归档。  
-> 当前项目总状态、主线优先级、待开发 / 待完善 / 待测试模块，请优先参考：`/Users/liuchang/Documents/New project/docs/项目.md`  
-> 当前可执行任务卡与验收标准，请优先参考：`/Users/liuchang/Documents/New project/docs/开发执行清单.md`
+> 当前项目总状态、主线优先级、待开发 / 待完善 / 待测试模块，请优先参考：`/Users/liuchang/Documents/ReqPilotX/docs/项目.md`  
+> 当前可执行任务卡与验收标准，请优先参考：`/Users/liuchang/Documents/ReqPilotX/docs/开发执行清单.md`
 
 目标：保留 `2026-02-24` 这一轮 P0/P1 执行记录，作为历史里程碑，不再作为当前开发排期真相源。
 

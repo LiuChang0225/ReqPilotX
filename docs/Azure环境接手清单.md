@@ -1,13 +1,13 @@
 # Azure 环境接手清单
 
 更新时间：2026-04-01 13:42 CST  
-适用仓库：`/Users/liuchang/Documents/New project`
+适用仓库：`/Users/liuchang/Documents/ReqPilotX`
 
 这份文档给“正式放行后切到公司网络的下一个 agent”使用。  
 目的只有一个：在 Azure cloud 执行获批后，不重做本地工作、不重新摸索上下文，沿用已经验证通过的 Azure 路径恢复 App Service / Azure 联调，而不是重复踩坑。
 
-长期背景：[`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/%E9%A1%B9%E7%9B%AE.md)  
-执行总表：[`/Users/liuchang/Documents/New project/docs/开发执行清单.md`](/Users/liuchang/Documents/New%20project/docs/%E5%BC%80%E5%8F%91%E6%89%A7%E8%A1%8C%E6%B8%85%E5%8D%95.md)
+长期背景：[`/Users/liuchang/Documents/ReqPilotX/docs/项目.md`](/Users/liuchang/Documents/ReqPilotX/docs/%E9%A1%B9%E7%9B%AE.md)  
+执行总表：[`/Users/liuchang/Documents/ReqPilotX/docs/开发执行清单.md`](/Users/liuchang/Documents/ReqPilotX/docs/%E5%BC%80%E5%8F%91%E6%89%A7%E8%A1%8C%E6%B8%85%E5%8D%95.md)
 
 ## 0. 当前暂停状态
 
@@ -56,7 +56,7 @@
 推荐部署顺序：
 
 ```bash
-cd '/Users/liuchang/Documents/New project'
+cd '/Users/liuchang/Documents/ReqPilotX'
 azd env set AZURE_LOCATION eastasia
 azd env set AZURE_OPENAI_ENDPOINT 'https://<your-openai>.openai.azure.com/'
 azd env set AZURE_OPENAI_CHAT_DEPLOYMENT '<chat-deployment>'
@@ -104,10 +104,10 @@ azd up
 
 按这个顺序看，不要先翻旧 PRD：
 
-1. [`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/%E9%A1%B9%E7%9B%AE.md)
-2. [`/Users/liuchang/Documents/New project/docs/开发执行清单.md`](/Users/liuchang/Documents/New%20project/docs/%E5%BC%80%E5%8F%91%E6%89%A7%E8%A1%8C%E6%B8%85%E5%8D%95.md)
-3. [`/Users/liuchang/Documents/New project/docs/active-context.md`](/Users/liuchang/Documents/New%20project/docs/active-context.md)
-4. [`/Users/liuchang/Documents/New project/prototype/eval/progress/track_registry.json`](/Users/liuchang/Documents/New%20project/prototype/eval/progress/track_registry.json)
+1. [`/Users/liuchang/Documents/ReqPilotX/docs/项目.md`](/Users/liuchang/Documents/ReqPilotX/docs/%E9%A1%B9%E7%9B%AE.md)
+2. [`/Users/liuchang/Documents/ReqPilotX/docs/开发执行清单.md`](/Users/liuchang/Documents/ReqPilotX/docs/%E5%BC%80%E5%8F%91%E6%89%A7%E8%A1%8C%E6%B8%85%E5%8D%95.md)
+3. [`/Users/liuchang/Documents/ReqPilotX/docs/active-context.md`](/Users/liuchang/Documents/ReqPilotX/docs/active-context.md)
+4. [`/Users/liuchang/Documents/ReqPilotX/prototype/eval/progress/track_registry.json`](/Users/liuchang/Documents/ReqPilotX/prototype/eval/progress/track_registry.json)
 5. 当前 track 对应的 `prototype/docs/*-active-context.md`
 6. 本文
 
@@ -175,7 +175,7 @@ export AZURE_AI_SEARCH_SEMANTIC_CONFIGURATION='<semantic-config>'
 ### Step 0. 先确认本地基线没丢
 
 ```bash
-cd '/Users/liuchang/Documents/New project/prototype'
+cd '/Users/liuchang/Documents/ReqPilotX/prototype'
 PYTHONPATH=. .venv/bin/python scripts/ai_smoke_suite.py
 PYTHONPATH=. .venv/bin/python scripts/table_asset_regression_gate.py
 PYTHONPATH=. .venv/bin/python -m unittest -f \
@@ -224,14 +224,14 @@ az account set --subscription '<subscription-id-or-name>'
 优先直接复跑脚本：
 
 ```bash
-cd '/Users/liuchang/Documents/New project/prototype'
+cd '/Users/liuchang/Documents/ReqPilotX/prototype'
 PYTHONPATH=. .venv/bin/python scripts/azure_screening_smoke.py
 ```
 
 启动方式：
 
 ```bash
-cd '/Users/liuchang/Documents/New project/prototype'
+cd '/Users/liuchang/Documents/ReqPilotX/prototype'
 ./stop.sh 8000 || true
 ./start.sh 8000
 ./status.sh 8000
@@ -248,7 +248,7 @@ UI 验证点：
 数据库验证：
 
 ```bash
-cd '/Users/liuchang/Documents/New project/prototype'
+cd '/Users/liuchang/Documents/ReqPilotX/prototype'
 sqlite3 storage/app.db "
 SELECT mode, retrieval_backend, model_name, validation_status, fallback_reason, created_at
 FROM assessment_runs
@@ -281,7 +281,7 @@ LIMIT 20;
 数据库检查：
 
 ```bash
-cd '/Users/liuchang/Documents/New project/prototype'
+cd '/Users/liuchang/Documents/ReqPilotX/prototype'
 sqlite3 storage/app.db "
 SELECT file_name, doc_type, doc_version, status, retrieval_sync_status, retrieval_synced_at, retrieval_sync_error
 FROM knowledge_documents
@@ -313,14 +313,14 @@ LIMIT 20;
 优先直接复跑脚本：
 
 ```bash
-cd '/Users/liuchang/Documents/New project/prototype'
+cd '/Users/liuchang/Documents/ReqPilotX/prototype'
 PYTHONPATH=. .venv/bin/python scripts/azure_rag_smoke.py
 ```
 
 若要直接跑真实 benchmark，统一用这一种入口：
 
 ```bash
-cd '/Users/liuchang/Documents/New project/prototype'
+cd '/Users/liuchang/Documents/ReqPilotX/prototype'
 PYTHONPATH=. .venv/bin/python scripts/azure_rag_smoke.py \
   --sor-file 'path/to/real_sor.pdf' \
   --knowledge-file 'path/to/knowledge_a.pdf' \
@@ -353,7 +353,7 @@ UI 通过标准：
 数据库验证：
 
 ```bash
-cd '/Users/liuchang/Documents/New project/prototype'
+cd '/Users/liuchang/Documents/ReqPilotX/prototype'
 sqlite3 storage/app.db "
 SELECT requirement_id, ai_decision, analysis_label, assessment_mode, model_name, prompt_version, updated_at
 FROM assessments
@@ -363,7 +363,7 @@ LIMIT 20;
 ```
 
 ```bash
-cd '/Users/liuchang/Documents/New project/prototype'
+cd '/Users/liuchang/Documents/ReqPilotX/prototype'
 sqlite3 storage/app.db "
 SELECT mode, retrieval_backend, model_name, validation_status, fallback_reason, created_at
 FROM assessment_runs
@@ -431,10 +431,10 @@ LIMIT 40;
 
 Azure 联通或切换状态发生变化后，至少同步更新：
 
-1. [`/Users/liuchang/Documents/New project/docs/active-context.md`](/Users/liuchang/Documents/New%20project/docs/active-context.md)
+1. [`/Users/liuchang/Documents/ReqPilotX/docs/active-context.md`](/Users/liuchang/Documents/ReqPilotX/docs/active-context.md)
 2. 当前 track 对应的 `prototype/docs/*-active-context.md`
-3. [`/Users/liuchang/Documents/New project/docs/开发执行清单.md`](/Users/liuchang/Documents/New%20project/docs/%E5%BC%80%E5%8F%91%E6%89%A7%E8%A1%8C%E6%B8%85%E5%8D%95.md)
-4. 如状态有实质变化，再更新 [`/Users/liuchang/Documents/New project/docs/项目.md`](/Users/liuchang/Documents/New%20project/docs/%E9%A1%B9%E7%9B%AE.md)
+3. [`/Users/liuchang/Documents/ReqPilotX/docs/开发执行清单.md`](/Users/liuchang/Documents/ReqPilotX/docs/%E5%BC%80%E5%8F%91%E6%89%A7%E8%A1%8C%E6%B8%85%E5%8D%95.md)
+4. 如状态有实质变化，再更新 [`/Users/liuchang/Documents/ReqPilotX/docs/项目.md`](/Users/liuchang/Documents/ReqPilotX/docs/%E9%A1%B9%E7%9B%AE.md)
 
 ## 10. 一句话交接
 

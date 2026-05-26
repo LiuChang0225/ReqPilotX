@@ -3,8 +3,8 @@
 面向汽车行业 SOR（Statement of Requirements）的需求分析平台。  
 目标是把工程师从大量低增值“拆解/抄录”工作中解放出来，让团队把精力集中在真正增值的技术判断与客户沟通上。
 
-当前实现态、系统架构图、模块盘点、开发优先级与文档地图见：`/Users/liuchang/Documents/New project/docs/项目.md`  
-可执行开发任务卡见：`/Users/liuchang/Documents/New project/docs/开发执行清单.md`
+当前实现态、系统架构图、模块盘点、开发优先级与文档地图见：`/Users/liuchang/Documents/ReqPilotX/docs/项目.md`  
+可执行开发任务卡见：`/Users/liuchang/Documents/ReqPilotX/docs/开发执行清单.md`
 
 ---
 
@@ -280,7 +280,7 @@ Aliyun 当前阻塞点：
 ## 8. 迭代与评测主命令
 
 ## 8.1 Git 协作约定
-- 项目级 Git / GitHub / Codex 多窗口协作规范见：`/Users/liuchang/Documents/New project/docs/codex-git-workflow.md`
+- 项目级 Git / GitHub / Codex 多窗口协作规范见：`/Users/liuchang/Documents/ReqPilotX/docs/codex-git-workflow.md`
 
 ### 8.2 准备 Phase0 数据
 ```bash
@@ -356,8 +356,8 @@ PYTHONPATH=. .venv/bin/python scripts/fidelity_benchmark.py \
 - 无需手动写入，运行回归后刷新看板即可看到最新回归门禁状态与历史记录
 
 ### 8.8 执行清单
-- 当前总账：`/Users/liuchang/Documents/New project/docs/项目.md`
-- 历史 P0/P1 执行清单：`/Users/liuchang/Documents/New project/prototype/docs/p0_p1_execution_backlog.md`
+- 当前总账：`/Users/liuchang/Documents/ReqPilotX/docs/项目.md`
+- 历史 P0/P1 执行清单：`/Users/liuchang/Documents/ReqPilotX/prototype/docs/p0_p1_execution_backlog.md`
 - 看板同步：`eval/progress/progress_tracker.json`
 
 ---

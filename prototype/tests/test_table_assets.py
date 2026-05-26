@@ -33,7 +33,7 @@ from app.services.table_assets import render_text_snapshot_png
 
 _UPLOAD_DIR_CANDIDATES = [
     Path(__file__).resolve().parents[1] / "storage" / "uploads",
-    Path("/Users/liuchang/Documents/New project/worktrees/_active/extraction-optimization/prototype/storage/uploads"),
+    Path("/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-optimization/prototype/storage/uploads"),
 ]
 _OIL_PUMP_SAMPLE_PDF = next(
     (

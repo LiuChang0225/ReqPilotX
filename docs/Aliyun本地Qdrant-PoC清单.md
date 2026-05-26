@@ -1,7 +1,7 @@
 # Aliyun 本地 Qdrant POC 清单
 
 更新时间：2026-04-02 07:36 CST  
-适用仓库：`/Users/liuchang/Documents/New project`
+适用仓库：`/Users/liuchang/Documents/ReqPilotX`
 
 ## 1. 适用范围
 

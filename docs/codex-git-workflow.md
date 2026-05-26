@@ -1,6 +1,6 @@
 # Codex Git / GitHub Workflow
 
-适用范围：`/Users/liuchang/Documents/New project`
+适用范围：`/Users/liuchang/Documents/ReqPilotX`
 
 这份文档定义当前仓库的控制塔、worktree、分支和上下文同步规则。执行真相源以控制塔为准，不再使用旧的“随任务自由开长期分支”方式。
 
@@ -28,10 +28,10 @@
 
 当前执行控制面固定为：
 
-- 轨道注册表：`/Users/liuchang/Documents/New project/prototype/eval/progress/track_registry.json`
-- 控制塔页面：`/Users/liuchang/Documents/New project/prototype/app/static/progress-dashboard.html`
+- 轨道注册表：`/Users/liuchang/Documents/ReqPilotX/prototype/eval/progress/track_registry.json`
+- 控制塔页面：`/Users/liuchang/Documents/ReqPilotX/prototype/app/static/progress-dashboard.html`
 - 控制塔接口：`/api/progress/*`
-- 操作脚本：`/Users/liuchang/Documents/New project/prototype/scripts/trackctl.py`
+- 操作脚本：`/Users/liuchang/Documents/ReqPilotX/prototype/scripts/trackctl.py`
 
 控制塔需要持续观测：
 
@@ -47,7 +47,7 @@
 标准目录固定为：
 
 ```text
-/Users/liuchang/Documents/New project/
+/Users/liuchang/Documents/ReqPilotX/
 ├── prototype/                  # 主仓库，默认 main / 协调窗口
 ├── worktrees/
 │   ├── _active/
@@ -71,7 +71,7 @@
 先同步主线：
 
 ```bash
-cd "/Users/liuchang/Documents/New project"
+cd "/Users/liuchang/Documents/ReqPilotX"
 git checkout main
 git fetch origin
 git pull --ff-only origin main
@@ -109,7 +109,7 @@ git worktree add worktrees/_active/rag-quality-loop -b codex/rag-quality-loop ma
 同步到本机 `$CODEX_HOME/skills`：
 
 ```bash
-cd "/Users/liuchang/Documents/New project"
+cd "/Users/liuchang/Documents/ReqPilotX"
 python3 scripts/sync_codex_skills.py --validate
 python3 scripts/sync_codex_skills.py --overwrite
 ```
@@ -121,7 +121,7 @@ python3 scripts/sync_codex_skills.py --overwrite
 每条支线窗口都必须用 `trackctl` 回写控制塔：
 
 ```bash
-cd "/Users/liuchang/Documents/New project/<worktree>"
+cd "/Users/liuchang/Documents/ReqPilotX/<worktree>"
 PYTHONPATH=prototype python prototype/scripts/trackctl.py init
 python prototype/scripts/trackctl.py start --track <track-id>
 python prototype/scripts/trackctl.py checkpoint --track <track-id> --progress 25 --status INFO --summary "..."
@@ -172,12 +172,12 @@ python prototype/scripts/trackctl.py status
 
 检查脚本：
 
-- `/Users/liuchang/Documents/New project/scripts/check_context_sync.py`
+- `/Users/liuchang/Documents/ReqPilotX/scripts/check_context_sync.py`
 
 安装本地 hook：
 
 ```bash
-cd "/Users/liuchang/Documents/New project"
+cd "/Users/liuchang/Documents/ReqPilotX"
 ./scripts/install-context-hook.sh
 ```
 
@@ -199,7 +199,7 @@ PR 仍然使用：
 合并后清理 worktree：
 
 ```bash
-cd "/Users/liuchang/Documents/New project"
+cd "/Users/liuchang/Documents/ReqPilotX"
 git checkout main
 git fetch origin
 git pull --ff-only origin main
@@ -218,7 +218,7 @@ git push origin --delete codex/<track-name>
 一轮标准并行开发顺序：
 
 ```bash
-cd "/Users/liuchang/Documents/New project"
+cd "/Users/liuchang/Documents/ReqPilotX"
 git checkout main
 git fetch origin
 git pull --ff-only origin main

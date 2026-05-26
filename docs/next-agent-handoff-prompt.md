@@ -10,7 +10,7 @@
 You are taking over the ReqPilotX repository.
 
 Workspace root:
-/Users/liuchang/Documents/New project
+/Users/liuchang/Documents/ReqPilotX
 
 Use $reqpilot-control-tower.
 
@@ -60,7 +60,7 @@ Before ending the turn:
 You are taking over the ReqPilotX repository.
 
 Workspace root:
-/Users/liuchang/Documents/New project
+/Users/liuchang/Documents/ReqPilotX
 
 Use $<track-skill-name>.
 
@@ -117,7 +117,7 @@ Do not re-plan the project from scratch. Continue from the current documented st
 ## 4. Worktree Bootstrap
 
 ```bash
-cd "/Users/liuchang/Documents/New project"
+cd "/Users/liuchang/Documents/ReqPilotX"
 git checkout main
 git fetch origin
 git pull --ff-only origin main
@@ -132,7 +132,7 @@ git worktree add worktrees/_active/rag-quality-loop -b codex/rag-quality-loop ma
 If skills were changed in the repo, sync them before opening new worker windows:
 
 ```bash
-cd "/Users/liuchang/Documents/New project"
+cd "/Users/liuchang/Documents/ReqPilotX"
 python3 scripts/sync_codex_skills.py --overwrite
 ```
 

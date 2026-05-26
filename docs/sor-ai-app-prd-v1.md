@@ -1,7 +1,7 @@
 # SOR 智能合规分析平台 PRD v1
 
 > 说明：本文是 `2026-02-19` 的 v1 方案基线，保留产品目标与原始设计思路。  
-> 当前真实代码实现、系统架构、分支优先级与后续优化计划，请优先参考：`/Users/liuchang/Documents/New project/docs/项目.md`
+> 当前真实代码实现、系统架构、分支优先级与后续优化计划，请优先参考：`/Users/liuchang/Documents/ReqPilotX/docs/项目.md`
 
 ## 1. 文档信息
 - 文档版本: `v1.0`

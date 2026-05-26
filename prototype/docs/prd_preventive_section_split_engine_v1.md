@@ -273,7 +273,7 @@
 
 ## 13. 直接对应代码位置
 
-- 解析/拆解主逻辑：`/Users/liuchang/Documents/New project/prototype/app/services/extractor.py`  
-- 预览与审阅数据：`/Users/liuchang/Documents/New project/prototype/app/services/extraction_preview.py`  
-- 保真回归门禁：`/Users/liuchang/Documents/New project/prototype/scripts/fidelity_benchmark.py`  
-- 门禁配置：`/Users/liuchang/Documents/New project/prototype/eval/fidelity_profiles.json`
+- 解析/拆解主逻辑：`/Users/liuchang/Documents/ReqPilotX/prototype/app/services/extractor.py`  
+- 预览与审阅数据：`/Users/liuchang/Documents/ReqPilotX/prototype/app/services/extraction_preview.py`  
+- 保真回归门禁：`/Users/liuchang/Documents/ReqPilotX/prototype/scripts/fidelity_benchmark.py`  
+- 门禁配置：`/Users/liuchang/Documents/ReqPilotX/prototype/eval/fidelity_profiles.json`

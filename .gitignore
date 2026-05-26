@@ -91,3 +91,10 @@ prototype/tmp_uvicorn*.log
 output/
 tmp/
 worktrees/
+
+# Desktop packaging binaries
+prototype/bin/
+
+# CodeGraph & Superpowers IDE settings
+.codegraph/
+.superpowers/
