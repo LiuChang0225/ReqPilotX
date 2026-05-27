@@ -1,6 +1,6 @@
 # Active Context
 
-更新时间：2026-05-27 11:38 CST
+更新时间：2026-05-27 12:42 CST
 适用仓库：`/Users/liuchang/Documents/ReqPilotX`
 
 长期背景：[`/Users/liuchang/Documents/ReqPilotX/docs/项目.md`](/Users/liuchang/Documents/ReqPilotX/docs/项目.md)
@@ -36,7 +36,7 @@
   - `prototype/app/static/app.js` & `styles.css`：重构 AI 判定状态 chip 为半透明 HSL 磨砂质感；对 INFO 行赋以 `.row-info` 样式实施 30% 透明度及淡灰底色视觉降噪。在 AI 判定结果旁渲染 Heuristic/Shadow/Primary/Override 等运行模式勋章胶囊。
   - `prototype/app/static/index.html` & `app.js` & `styles.css`：新增一键切换 Compliance Matrix 判定结果过滤按钮栏（全部/ACCEPT/REJECT/CLARIFY），并实现本地过滤刷新逻辑。
   - `prototype/app/static/app.js`：添加全局键盘快捷键监听：`Esc` 键清除 AI 详情选择，`Arrow Up` / `Arrow Down` 在审阅台（Review）或 AI 分析（AI）列表上下导航，自动滚入可视区并渲染 PDF。
-  - `prototype/app/static/home.html` & `home.css` & `home.js`：根据用户要求，已将首页设计和内容完全替换为用户在 `ui/homepage` 分支中自行制作的版本。在此基础上，针对核心能力模块进行了精细化升级：在六大能力面板（Parse, Review, RAG, Judge, Decide, Export）中嵌入精美 SVG 图标与平滑微悬停动画，并将区域标题从“最新核心能力，围绕需求分析闭环组织”优化为“六大核心能力，实现从 SOR 拆解到合规矩阵的闭环管理”，表达更准确专业。
+  - `prototype/app/static/home.html` & `home.css` & `home.js`：根据用户要求，已将首页设计和内容完全替换为用户在 `ui/homepage` 分支中自行制作的版本。在此基础上，针对核心能力与试运行流程进行了精细化和去项目语境化优化：在六大能力面板中嵌入精美 SVG 图标与平滑微悬停动画；优化核心流程部分文案（去除了“不讲项目维护”等无关冗余词汇）；修改 Hero 栏访问方式为“App 本地安装测试”；重构操作指南 Step A 登录步骤为无需凭据的“启动并进入工作台”单机指导；移除了右下角会导致 Webview 导航丢失的“系统状态”外部链接；在 Footer 引入了统一的项目团队联系人信息（BD PS CE PMT 刘畅及邮箱）。
 - **关系型校验与系统稳定性**：
   - `prototype/app/services/extraction_preview.py`
   - `snapshot_only` 既有 ref 现在会用 `source_snapshot_path` 覆盖旧 `slice_snapshot_path`；`7.5.5 表12` 不再默认展示坏 markdown/slice 图。

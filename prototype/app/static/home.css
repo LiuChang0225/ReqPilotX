@@ -799,11 +799,26 @@ a {
   font-size: 0.9rem;
 }
 
-.site-footer a {
-  min-height: 34px;
-  padding: 0 12px;
+.footer-contact {
+  display: flex;
+  align-items: center;
+  gap: 8px;
+  flex-wrap: wrap;
+}
+
+.footer-divider {
+  color: var(--home-line);
+}
+
+.site-footer a.contact-link {
+  display: inline;
   color: var(--home-green-dark);
-  background: #ecf4ef;
+  text-decoration: underline;
+  transition: color 0.2s ease;
+}
+
+.site-footer a.contact-link:hover {
+  color: var(--home-green);
 }
 
 .reveal-in {
