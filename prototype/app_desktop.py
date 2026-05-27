@@ -172,7 +172,7 @@ def check_qdrant_service() -> bool:
         with urllib.request.urlopen(req, timeout=1.0) as response:
             if response.status == 200:
                 data = json.loads(response.read().decode('utf-8'))
-                return data.get("title") == "qdrant"
+                return "qdrant" in str(data.get("title", "")).lower()
     except Exception:
         pass
     return False

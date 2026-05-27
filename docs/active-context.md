@@ -1,6 +1,6 @@
 # Active Context
 
-更新时间：2026-05-27 10:30 CST
+更新时间：2026-05-27 10:50 CST
 适用仓库：`/Users/liuchang/Documents/ReqPilotX`
 
 长期背景：[`/Users/liuchang/Documents/ReqPilotX/docs/项目.md`](/Users/liuchang/Documents/ReqPilotX/docs/项目.md)
