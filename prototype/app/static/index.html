@@ -5,7 +5,13 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ReqPilotX 智能合规工作台</title>
     <link rel="icon" href="/assets/reqpilotx-logo.svg" type="image/svg+xml" />
-  <link rel="stylesheet" href="/assets/styles.css?v=20260415-review-merge1" />
+    <script>
+      (function() {
+        const theme = localStorage.getItem('reqx-theme') || 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
+    <link rel="stylesheet" href="/assets/styles.css?v=20260415-review-merge1" />
   </head>
   <body>
     <main class="page">
@@ -26,6 +32,11 @@
         <nav class="hero-nav">
           <a href="/home" target="_blank" rel="noreferrer">产品首页</a>
           <a href="/workspace?stage=review" target="_blank" rel="noreferrer">条目审阅台</a>
+          <button id="theme-toggle" type="button" class="theme-toggle-btn" title="切换主题" aria-label="切换主题">
+            <svg class="theme-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
+              <path class="sun-icon-path" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
+            </svg>
+          </button>
         </nav>
       </header>
 
@@ -418,6 +429,15 @@
       <section id="matrix-panel" class="panel matrix-panel workspace-stage-panel is-hidden">
         <h2>6. Compliance Matrix</h2>
         <p id="matrix-status" class="hint matrix-status is-warning is-hidden"></p>
+        <div class="matrix-filter-bar">
+          <span class="filter-label">过滤判定结果：</span>
+          <div id="matrix-decision-filter" class="matrix-filter-chips">
+            <button type="button" class="matrix-filter-chip is-active" data-filter="ALL">全部</button>
+            <button type="button" class="matrix-filter-chip" data-filter="ACCEPT">ACCEPT (PASS)</button>
+            <button type="button" class="matrix-filter-chip" data-filter="REJECT">REJECT</button>
+            <button type="button" class="matrix-filter-chip" data-filter="NEED_CLARIFICATION">NEED_CLARIFICATION</button>
+          </div>
+        </div>
         <div class="table-wrap">
           <table id="requirements-table">
             <colgroup>

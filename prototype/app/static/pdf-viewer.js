@@ -140,6 +140,7 @@ async function renderPage(pageNo) {
     const highlightCount = highlightRects.length;
     if (highlightCount > 0) {
       pinHighlightToTop(highlightRects);
+      flashHighlightOverlays(highlightRects);
     } else {
       resetCanvasViewport();
     }
@@ -283,16 +284,46 @@ function pinHighlightToTop(rects) {
   const leftPadding = 24;
   const nextTop = Math.max(Math.floor(first.y - topPadding), 0);
   const nextLeft = Math.max(Math.floor(first.x - leftPadding), 0);
-  el.canvasWrap.scrollTop = nextTop;
-  el.canvasWrap.scrollLeft = nextLeft;
+  el.canvasWrap.scrollTo({
+    top: nextTop,
+    left: nextLeft,
+    behavior: "smooth"
+  });
 }
 
 function resetCanvasViewport() {
+  const container = document.querySelector("#canvas-container");
+  if (container) {
+    container.querySelectorAll(".pdf-flash-overlay").forEach(el => el.remove());
+  }
   if (!el.canvasWrap) {
     return;
   }
   el.canvasWrap.scrollTop = 0;
   el.canvasWrap.scrollLeft = 0;
+}
+
+function flashHighlightOverlays(rects) {
+  const container = document.querySelector("#canvas-container");
+  if (!container || !rects.length) {
+    return;
+  }
+  container.querySelectorAll(".pdf-flash-overlay").forEach(el => el.remove());
+
+  rects.forEach((rect) => {
+    const overlay = document.createElement("div");
+    overlay.className = "pdf-flash-overlay";
+    overlay.style.position = "absolute";
+    overlay.style.left = `${rect.x}px`;
+    overlay.style.top = `${rect.y}px`;
+    overlay.style.width = `${rect.width}px`;
+    overlay.style.height = `${rect.height}px`;
+    container.appendChild(overlay);
+  });
+
+  setTimeout(() => {
+    container.querySelectorAll(".pdf-flash-overlay").forEach(el => el.remove());
+  }, 1500);
 }
 
 function textItemToRect(item, viewport) {

@@ -1,17 +1,87 @@
 @import url("https://fonts.googleapis.com/css2?family=Noto+Sans:wght@400;500;600;700&display=swap");
 
 :root {
-  --reqx-primary: #00893d;
-  --reqx-primary-dark: #005e46;
-  --reqx-tertiary: #476e75;
-  --reqx-text: #343434;
-  --reqx-text-secondary: #646464;
-  --reqx-background: #f6f6f6;
-  --reqx-surface: #ffffff;
-  --reqx-surface-soft: #f0f5f2;
-  --reqx-outline: #d0d0d0;
-  --reqx-shadow-sm: 0 10px 28px rgba(22, 44, 31, 0.08);
-  --reqx-shadow-md: 0 18px 42px rgba(22, 44, 31, 0.12);
+  /* 舍弗勒公司标志绿 HSL 基底：色相 147，饱和度 100%，亮度 27% */
+  --reqx-primary-h: 147;
+  --reqx-primary-s: 100%;
+  --reqx-primary-l: 27%;
+
+  /* 浅色主题变量 (Light Theme) */
+  --reqx-primary: hsl(var(--reqx-primary-h), var(--reqx-primary-s), var(--reqx-primary-l)); /* #00893d */
+  --reqx-primary-dark: hsl(var(--reqx-primary-h), var(--reqx-primary-s), 18%); /* #005e46 */
+  --reqx-tertiary: hsl(190, 25%, 37%); /* #476e75 */
+  
+  --reqx-text: hsl(147, 30%, 15%); /* 高级暗森林灰，比纯黑更温和 */
+  --reqx-text-secondary: hsl(147, 8%, 42%); /* 柔和灰绿 */
+  --reqx-background: hsl(147, 12%, 96%); /* 浅灰绿色底 */
+  --reqx-surface: hsl(0, 0%, 100%); /* 纯白卡片表面 */
+  --reqx-surface-soft: hsl(147, 24%, 96%); /* 浅绿色背景 */
+  --reqx-outline: hsl(147, 12%, 86%); /* 浅边框 */
+  --reqx-outline-strong: hsl(147, 15%, 76%); /* 强边框 */
+  --reqx-accent-soft: hsl(147, 30%, 94%); /* 轻微绿高亮背景 */
+  
+  --reqx-shadow-sm: 0 10px 28px hsla(var(--reqx-primary-h), 30%, 10%, 0.05);
+  --reqx-shadow-md: 0 18px 42px hsla(var(--reqx-primary-h), 30%, 10%, 0.08);
+}
+
+html[data-theme="dark"] {
+  /* 深色主题变量 (Dark Theme) */
+  --reqx-primary: hsl(var(--reqx-primary-h), 80%, 38%); /* 适度提高暗色下的绿色亮度以确保可读性 */
+  --reqx-primary-dark: hsl(var(--reqx-primary-h), 85%, 28%);
+  --reqx-tertiary: hsl(190, 30%, 50%);
+  
+  --reqx-text: hsl(147, 25%, 93%); /* 极浅乳绿文字 */
+  --reqx-text-secondary: hsl(147, 8%, 68%); /* 柔和暗灰绿 */
+  --reqx-background: hsl(147, 18%, 10%); /* 深邃暗林色背景 */
+  --reqx-surface: hsl(147, 14%, 14%); /* 高雅暗卡片面 */
+  --reqx-surface-soft: hsl(147, 12%, 18%); /* 嵌套区域背景 */
+  --reqx-outline: hsl(147, 12%, 22%); /* 暗边框 */
+  --reqx-outline-strong: hsl(147, 15%, 32%); /* 强暗边框 */
+  --reqx-accent-soft: hsl(147, 20%, 18%); /* 暗绿高亮背景 */
+  
+  --reqx-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.35);
+  --reqx-shadow-md: 0 16px 36px rgba(0, 0, 0, 0.5);
+}
+
+/* 主题切换按钮样式 */
+.theme-toggle-btn {
+  display: inline-flex;
+  align-items: center;
+  justify-content: center;
+  width: 34px;
+  height: 34px;
+  border-radius: 10px;
+  border: 1px solid var(--apple-border);
+  background: var(--apple-surface);
+  color: var(--apple-accent-dark);
+  cursor: pointer;
+  transition: all 0.15s ease;
+  padding: 0;
+  box-shadow: none;
+}
+
+.theme-toggle-btn:hover {
+  background: var(--apple-accent-soft);
+  color: var(--apple-accent);
+  transform: translateY(-1px);
+  box-shadow: var(--apple-shadow);
+}
+
+.theme-toggle-icon {
+  width: 15px;
+  height: 15px;
+  stroke-linecap: round;
+  stroke-linejoin: round;
+  transition: transform 0.3s ease;
+}
+
+.theme-toggle-btn:active .theme-toggle-icon {
+  transform: scale(0.85) rotate(30deg);
+}
+
+/* 暗色模式下 SVG 图标变形效果 */
+html[data-theme="dark"] .sun-icon-path {
+  d: path("M12 3a9 9 0 1 0 9 9 9.9 9.9 0 0 0-9-9Z");
 }
 
 .reqx-brand-lockup {

@@ -23,6 +23,7 @@ const state = {
   reviewActiveEntryId: "",
   reviewPdfBaseUrl: "",
   reviewPdfCurrentPage: 1,
+  matrixDecisionFilter: "ALL",
   reviewPdfViewerReady: false,
   reviewPendingPdfCommand: null,
   reviewPdfDrawerOpen: false,
@@ -306,6 +307,94 @@ function bindEvents() {
   el.reviewPdfToggle?.addEventListener("click", onReviewPdfToggleClicked);
   el.reviewOpenPdfBtn?.addEventListener("click", openReviewPdfInNewWindow);
   window.addEventListener("message", onReviewPdfViewerMessage);
+
+  const themeToggle = document.querySelector("#theme-toggle");
+  themeToggle?.addEventListener("click", () => {
+    const currentTheme = document.documentElement.getAttribute("data-theme") || "light";
+    const nextTheme = currentTheme === "dark" ? "light" : "dark";
+    document.documentElement.setAttribute("data-theme", nextTheme);
+    window.localStorage.setItem("reqx-theme", nextTheme);
+  });
+
+  const matrixFilterContainer = document.querySelector("#matrix-decision-filter");
+  matrixFilterContainer?.addEventListener("click", (event) => {
+    const chip = event.target.closest(".matrix-filter-chip");
+    if (!chip) return;
+    matrixFilterContainer.querySelectorAll(".matrix-filter-chip").forEach(btn => btn.classList.remove("is-active"));
+    chip.classList.add("is-active");
+    state.matrixDecisionFilter = chip.getAttribute("data-filter") || "ALL";
+    renderRequirements(state.requirements);
+  });
+
+  initKeyboardShortcuts();
+}
+
+function initKeyboardShortcuts() {
+  window.addEventListener("keydown", (event) => {
+    const activeElement = document.activeElement;
+    if (activeElement) {
+      const tagName = activeElement.tagName.toLowerCase();
+      if (tagName === "input" || tagName === "textarea" || tagName === "select" || activeElement.isContentEditable) {
+        return;
+      }
+    }
+
+    if (event.key === "Escape" || event.key === "Esc") {
+      if (state.currentStage === "ai" && state.aiSelectedRequirementId) {
+        state.aiSelectedRequirementId = "";
+        renderAiStage();
+        event.preventDefault();
+      }
+    } else if (event.key === "ArrowUp") {
+      if (state.currentStage === "ai") {
+        const rows = getAiInspectableRequirements();
+        if (rows.length) {
+          const currentIndex = rows.findIndex((row) => String(row.id || "") === state.aiSelectedRequirementId);
+          if (currentIndex > 0) {
+            const prevRow = rows[currentIndex - 1];
+            void selectAiRequirement(String(prevRow.id || ""));
+            event.preventDefault();
+          }
+        }
+      } else if (state.currentStage === "review") {
+        const rows = state.reviewEntries || [];
+        if (rows.length) {
+          const currentIndex = rows.findIndex((item) => getReviewEntryKey(item) === state.reviewActiveEntryId);
+          if (currentIndex > 0) {
+            const prevRow = rows[currentIndex - 1];
+            const entryId = getReviewEntryKey(prevRow);
+            const page = Number(prevRow.pdf_page || prevRow.page || 0);
+            focusReviewPdf(entryId, page);
+            event.preventDefault();
+          }
+        }
+      }
+    } else if (event.key === "ArrowDown") {
+      if (state.currentStage === "ai") {
+        const rows = getAiInspectableRequirements();
+        if (rows.length) {
+          const currentIndex = rows.findIndex((row) => String(row.id || "") === state.aiSelectedRequirementId);
+          if (currentIndex < rows.length - 1) {
+            const nextRow = rows[currentIndex + 1];
+            void selectAiRequirement(String(nextRow.id || ""));
+            event.preventDefault();
+          }
+        }
+      } else if (state.currentStage === "review") {
+        const rows = state.reviewEntries || [];
+        if (rows.length) {
+          const currentIndex = rows.findIndex((item) => getReviewEntryKey(item) === state.reviewActiveEntryId);
+          if (currentIndex < rows.length - 1) {
+            const nextRow = rows[currentIndex + 1];
+            const entryId = getReviewEntryKey(nextRow);
+            const page = Number(nextRow.pdf_page || nextRow.page || 0);
+            focusReviewPdf(entryId, page);
+            event.preventDefault();
+          }
+        }
+      }
+    }
+  });
 }
 
 function scheduleReviewEntriesRender() {
@@ -3601,7 +3690,17 @@ function renderRequirements(items) {
     return;
   }
 
-  [...items]
+  let filteredItems = [...items];
+  if (state.matrixDecisionFilter && state.matrixDecisionFilter !== "ALL") {
+    filteredItems = filteredItems.filter((item) => {
+      const analysisLabel = getAnalysisLabel(item);
+      const outcome = analysisLabel === "INFO" ? "INFO" : String(item.ai_decision || "").trim().toUpperCase();
+      const finalDecision = String(item.final_decision || outcome || "NEED_CLARIFICATION").trim().toUpperCase();
+      return finalDecision === state.matrixDecisionFilter;
+    });
+  }
+
+  filteredItems
     .sort((left, right) => Number(left.display_sort_index || 0) - Number(right.display_sort_index || 0))
     .forEach((item) => {
     const row = document.createElement("tr");
@@ -3610,6 +3709,14 @@ function renderRequirements(items) {
     const finalDecision = String(item.final_decision || aiDecision || "NEED_CLARIFICATION").trim().toUpperCase();
     const infoOnly = analysisLabel === "INFO";
     const entryKind = String(item.entry_kind || "REQUIREMENT").toUpperCase();
+    
+    if (infoOnly) {
+      row.classList.add("row-info");
+    } else {
+      row.classList.add("row-requirement");
+    }
+    row.setAttribute("data-requirement-id", String(item.id || ""));
+
     const textMeta = [];
     if (entryKind === "HYBRID") {
       textMeta.push(`<span class="mini-chip mini-chip-hybrid">HYBRID</span>`);
@@ -3756,6 +3863,19 @@ function decisionChip(decision) {
   };
   const [cls, label] = map[decision] || map.NEED_CLARIFICATION;
   return `<span class="status-chip ${cls}">${label}</span>`;
+}
+
+function modeChip(mode) {
+  const map = {
+    heuristic: ["chip-mode-heuristic", "Heuristic"],
+    shadow: ["chip-mode-shadow", "Shadow"],
+    llm_shadow: ["chip-mode-shadow", "Shadow"],
+    primary: ["chip-mode-primary", "Primary"],
+    llm_primary: ["chip-mode-primary", "Primary"],
+    override: ["chip-mode-override", "Override"],
+  };
+  const [cls, label] = map[String(mode).toLowerCase()] || ["chip-mode-heuristic", "Heuristic"];
+  return `<span class="mode-chip ${cls}">${label}</span>`;
 }
 
 function renderParentSectionLabel(item) {
@@ -4076,6 +4196,7 @@ function renderAiAssessmentCell(row) {
   const outcome = getAiOutcome(row);
   const decisionReason = String(row?.ai_reason || "").trim();
   const analysisBasis = String(row?.analysis_basis || "").trim();
+  const mode = getAssessmentMode(row);
   const detailAction = row?.id
     ? `<button class="ai-inline-action" data-ai-detail="${escapeHtml(String(row.id || ""))}" type="button">查看证据</button>`
     : "";
@@ -4113,7 +4234,10 @@ function renderAiAssessmentCell(row) {
     <div class="ai-result-card">
       <div class="ai-result-head">
         <span class="ai-result-label">判定结果</span>
-        ${decisionChip(outcome || "NEED_CLARIFICATION")}
+        <div class="ai-chips-group">
+          ${decisionChip(outcome || "NEED_CLARIFICATION")}
+          ${mode ? modeChip(mode) : ""}
+        </div>
       </div>
       <p class="ai-result-basis">${escapeHtml(decisionReason || analysisBasis || "暂无")}</p>
         ${detailAction}

@@ -5,16 +5,21 @@
   --apple-surface: var(--reqx-surface);
   --apple-surface-soft: var(--reqx-surface-soft);
   --apple-border: var(--reqx-outline);
-  --apple-border-strong: #b9c9bd;
+  --apple-border-strong: var(--reqx-outline-strong);
   --apple-ink: var(--reqx-text);
   --apple-muted: var(--reqx-text-secondary);
   --apple-accent: var(--reqx-primary);
   --apple-accent-dark: var(--reqx-primary-dark);
-  --apple-accent-soft: #e8f3ec;
+  --apple-accent-soft: var(--reqx-accent-soft);
   --apple-green: var(--reqx-primary);
   --apple-amber: #9c6a00;
   --apple-red: #b21f35;
   --apple-shadow: var(--reqx-shadow-sm);
+}
+
+html[data-theme="dark"] {
+  --apple-amber: #e09d00;
+  --apple-red: #e63946;
 }
 
 * {
@@ -81,10 +86,10 @@ input,
 select,
 textarea {
   width: 100%;
-  border: 1px solid #c9d4cb;
+  border: 1px solid var(--apple-border);
   border-radius: 10px;
   padding: 10px 12px;
-  background: #fff;
+  background: var(--apple-surface);
   color: var(--apple-ink);
   transition: border-color 0.14s ease, box-shadow 0.14s ease;
 }
@@ -94,7 +99,7 @@ select:focus,
 textarea:focus {
   outline: none;
   border-color: var(--apple-accent);
-  box-shadow: 0 0 0 3px rgba(0, 137, 61, 0.14);
+  box-shadow: 0 0 0 3px hsla(var(--reqx-primary-h), 100%, 27%, 0.18);
 }
 
 textarea {
@@ -160,7 +165,7 @@ button.ghost {
   overflow-x: auto;
   border: 1px solid var(--apple-border);
   border-radius: 16px;
-  background: #fff;
+  background: var(--apple-surface);
 }
 
 table {
@@ -170,15 +175,15 @@ table {
 
 th,
 td {
-  border-bottom: 1px solid #f0f0f4;
+  border-bottom: 1px solid var(--apple-border);
   padding: 10px;
   text-align: left;
   vertical-align: top;
 }
 
 thead th {
-  background: #eff3ef;
-  color: #475347;
+  background: var(--apple-surface-soft);
+  color: var(--apple-muted);
   font-size: 0.85rem;
   font-weight: 600;
 }

@@ -5,6 +5,12 @@
     <meta name="viewport" content="width=device-width, initial-scale=1.0" />
     <title>ReqPilotX PDF Viewer</title>
     <link rel="icon" href="/assets/reqpilotx-logo.svg" type="image/svg+xml" />
+    <script>
+      (function() {
+        const theme = localStorage.getItem('reqx-theme') || 'light';
+        document.documentElement.setAttribute('data-theme', theme);
+      })();
+    </script>
     <link rel="stylesheet" href="/assets/reqpilotx-brand.css?v=20260403-reqx2" />
     <link rel="stylesheet" href="/assets/pdf-viewer.css?v=20260403-brandfix2" />
   </head>
@@ -36,7 +42,9 @@
       </section>
 
       <section id="canvas-wrap" class="canvas-wrap">
-        <canvas id="pdf-canvas"></canvas>
+        <div id="canvas-container" style="position: relative; display: inline-block;">
+          <canvas id="pdf-canvas"></canvas>
+        </div>
       </section>
     </main>
 
