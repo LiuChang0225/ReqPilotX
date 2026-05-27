@@ -1493,7 +1493,7 @@ class AICopilotTests(unittest.TestCase):
             )
         )
 
-    def test_default_profile_stays_azure_when_aliyun_local_qdrant_poc_is_ready(self) -> None:
+    def test_default_profile_becomes_aliyun_when_aliyun_local_qdrant_poc_is_ready(self) -> None:
         with patch.dict(
             "os.environ",
             {
@@ -1516,8 +1516,8 @@ class AICopilotTests(unittest.TestCase):
         ):
             config = load_ai_copilot_config()
 
-        self.assertEqual(config.profile_id, "azure")
-        self.assertEqual(config.provider, "azure")
+        self.assertEqual(config.profile_id, "aliyun")
+        self.assertEqual(config.provider, "aliyun")
 
     def test_apply_runtime_ai_provider_setup_can_switch_default_profile_to_aliyun(self) -> None:
         with patch.dict(

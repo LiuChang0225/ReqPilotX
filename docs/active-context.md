@@ -1,15 +1,14 @@
 # Active Context
 
-更新时间：2026-05-27 12:42 CST
+更新时间：2026-05-27 17:35 CST
 适用仓库：`/Users/liuchang/Documents/ReqPilotX`
 
 长期背景：[`/Users/liuchang/Documents/ReqPilotX/docs/项目.md`](/Users/liuchang/Documents/ReqPilotX/docs/项目.md)
 
 ## 当前目标
 
-- 开辟新分支 `codex/ui-optimization` 专项进行 UI/UX 精细化升级。
-- 引入符合舍弗勒官方绿色基调（#00893d）的温和高级 HSL 调色板，并实现亮/暗（Light/Dark）双色主题自由切换。
-- 在不重组工作台 HTML 骨架的前提下，通过系统化重构 CSS 变量，确保卡片、表单、表格和 AI 分析状态栏能完美适应深浅两套色彩。
+- 完成 `codex/ui-optimization` 分支的 UI 精细化与配置持久化升级。
+- 保证已调整的顶栏间距、单行 Flex 状态徽章栏及简化后的 Aliyun API Key 表单能完美兼容亮/暗模式且测试通过。
 
 ## 活跃分支 / 工作树
 
@@ -25,6 +24,13 @@
 
 ## 最近已修
 
+- **工作台 UI 精细化与配置持久化**：
+  - `prototype/app/static/index.html`：移除导航栏冗余的“条目审阅台”链接；将默认 AI 路径首选设为 Aliyun，并将 Aliyun 设置表单中的所有高级参数输入框（模型名、Base URL、Qdrant 地址等）隐藏，仅保留 DashScope API Key 的输入框，避免界面冗杂。
+  - `prototype/app/static/styles.css`：将 PDF 对照侧边栏 `.review-pdf` 的定位由 `top: 16px` 调整为 `top: 90px`，使其在收起/展开时完全避开顶栏的主题切换按钮；重构 `.summary-strip` 及 `.summary-card` 的 CSS 样式为单行 Flex 横向流式状态徽章栏，替代原本宽大的网格卡片矩阵；重构了 `html[data-theme="dark"]` 下的全局交互式按钮、阶段标签（.stage-chip）、分类标签（.kind-chip）、对比矩阵过滤芯片（.matrix-filter-chip）及透明指示栏背景，消除刺眼的饱和亮绿/亮白，改为精致质感的渐变翡翠绿和完美融合背景的炭煤灰色，显著提升视感舒适度。
+  - `prototype/app/static/reqpilotx-brand.css`：重构了 `html[data-theme="dark"]` 暗色主题色板，引入“深邃炭煤色 & 翡翠绿 (Charcoal & Emerald)”配色方案（类似 GitHub 暗色调），使用极暗炭煤背景色（#0d0f12）搭配精致中灰色边框（#2e343b）与翡翠绿（#10b981）高亮，显著提升暗色模式下的视觉品质、易读性与高级感。
+  - `prototype/app/static/app.js`：将 AI 配置相关 fallback 及 selection 默认值均更新为 `aliyun`。
+  - `prototype/app/services/ai_copilot.py`：新增 `_load_runtime_config_from_file()` 和 `_save_runtime_config_to_file()`，支持在保存 AI 路径时将所有当前配置项（包含 `REQPILOT_ALIYUN_API_KEY`）写入本地持久化 `config.json`；优化默认 Profile 自动解析排序，默认首选 `aliyun`。
+  - `prototype/app_desktop.py`：更新配置加载逻辑，在启动时将本地 `config.json` 中的所有配置项（包括 API Key）加载并合并到 `os.environ` 中，实现配置的单机跨会话持久化，避免用户重复填写 API Key。
 - **主题切换与 HSL 色彩体系重构**：
   - `prototype/app/static/index.html`：增加 `<script>` 加载免闪烁主题配置，并在导航栏添加 `#theme-toggle` 按钮和 SVG 太阳/月亮变形图标。
   - `prototype/app/static/reqpilotx-brand.css`：基于舍弗勒绿色 HSL 基底（Hue = 147）重建设计系统，包含 Light/Dark 两套主题，并定义主题切换按钮的呼吸、缩放及变形规则。
@@ -48,11 +54,17 @@
   - 新增 `prototype/app_desktop.py`（桌面 GUI 启动器），后台线程拉起 FastAPI，并拉起本地预编译的 Qdrant 数据库（不依赖 Docker）。前端在 Pywebview 原生窗口渲染，数据持久化自动重定向到用户主目录。
   - 新增 `prototype/build_desktop.py`（跨平台打包脚本），一键打包静态资源、排除无用重型 ML 库（将体积优化至 301MB），并打包 macOS 和 Windows 的本地 Qdrant 预编译二进制程序。
   - **Uvicorn 日志流与时区兼容修复**：实现 `DesktopLogger` 属性动态委派避免 Uvicorn 报错；通过动态猴子补丁 `SafeDatetime` 绕过主代码库中 `progress_tracker` 时区 naive/aware 减法报错，且对原有后端没有任何侵入性。
-  - **安全性与可用性升级**：优化 Qdrant 启动检查为真实的 HTTP 接口轮询健康检测（10s 超时），确保彻底启动后再绑定端口；API 密钥读取路径实现 `环境变量优先 > 本地 config.json 次之 > 混淆密文兜底`；清空了 `app_desktop.py` 中硬编码的 `OB_DASHSCOPE_API_KEY` 以确保安全分发；配置 `.gitignore` 过滤 `prototype/bin/` 文件夹防止仓库污染；系统性清理了 `AGENTS.md`、`track_registry.json`、`docs/*`、`prototype/README.md` 以及单元测试代码 (`prototype/tests/`) 中残留的 `New project` 历史路径。
+  - **安全性与可用性升级**：优化 Qdrant 启动检查为真实的 HTTP 接口轮询健康检测（10s 超时），确保彻底启动后再绑定端口；API 密钥读取路径实现 `环境变量优先 > 本地 config.json 次之 > 混淆密文兜底`；清空了 `app_desktop.py` 中硬编码的 `OB_DASHSCOPE_API_KEY` 以确保安全分发；配置 `.gitignore` 过滤 `prototype/bin/` 文件夹防止仓库污染；系统性清理了 `AGENTS.md`、`track_registry.json`、`docs/*`·、`prototype/README.md` 以及单元测试代码 (`prototype/tests/`) 中残留的 `New project` 历史路径。
+  - **配置优先级、持久化保存与测试隔离优化 (2026-05-27)**:
+    - **保存防误删**：重构了 `_set_runtime_config_value` 逻辑，空值以 `""` 保留于 overrides 中以确保覆盖生效；重构 `_save_runtime_config_to_file()` 移除了物理对比，仅在 overrides 中对应 key 显式为 `""` 时才从 `config.json` 抹除该配置，且保留了桌面端在环境变量中已经注入的持久化 API Key，实现安全的局部同步。
+    - **清空配置会话即时生效**：空值 override 在当前会话下获取配置值时会直接截断并返回 `""`，不再错误 fallback 回 `os.getenv`，实现了会话态与持久化状态的 100% 对齐。
+    - **测试隔离修复**：在 `test_runtime_readiness.py` 的测试用例环境中显式补齐了被 `clear=True` 误伤清除的 `REQPILOT_AI_TRACE_DIR` 环境变量，避免测试泄露污染真实存储引起 503 报错，测试完全隔离。
+    - **无空格与全绿规范**：全面清理 `ai_copilot.py` 中多余的行尾空格，`git diff --check` 通过。单元测试全绿通过且打包成功。
 
 ## 验证状态
 
 - Focused tests:
+  - `PYTHONPATH=prototype python3 -m unittest discover -s prototype/tests -p "test_*.py" -q` -> `452 tests / OK` (全绿通过)
   - `python3 -m py_compile prototype/app/services/extraction_preview.py prototype/tests/test_extraction_preview.py` -> OK
   - `python3 -m unittest prototype.tests.test_extraction_preview -q` -> `57 tests / OK`
   - `python3 -m unittest prototype.tests.test_extraction_diagnose -q` -> `8 tests / OK`

@@ -115,6 +115,45 @@ QDRANT_POINT_ID_NAMESPACE = uuid.UUID("3f49040f-6402-4100-a18e-368ded2f08c0")
 
 _RUNTIME_AI_ENV_OVERRIDES: dict[str, str] = {}
 
+def _load_runtime_config_from_file() -> None:
+    try:
+        config_path = STORAGE_DIR / "config.json"
+        if config_path.exists():
+            config_data = json.loads(config_path.read_text(encoding="utf-8"))
+            for k, v in config_data.items():
+                if v:
+                    if not os.getenv(k):
+                        _RUNTIME_AI_ENV_OVERRIDES[k] = str(v)
+    except Exception as e:
+        print(f"[ReqPilotX] Error loading config.json: {e}")
+
+_load_runtime_config_from_file()
+
+def _save_runtime_config_to_file() -> None:
+    try:
+        config_path = STORAGE_DIR / "config.json"
+        existing_config = {}
+        if config_path.exists():
+            try:
+                existing_config = json.loads(config_path.read_text(encoding="utf-8"))
+            except Exception:
+                pass
+        for k, v in _RUNTIME_AI_ENV_OVERRIDES.items():
+            if v is not None:
+                if v == "":
+                    existing_config.pop(k, None)
+                else:
+                    existing_config[k] = v
+        if "REQPILOT_ALIYUN_API_KEY" in existing_config:
+            existing_config["REQPILOT_DASHSCOPE_API_KEY"] = existing_config["REQPILOT_ALIYUN_API_KEY"]
+            existing_config["DASHSCOPE_API_KEY"] = existing_config["REQPILOT_ALIYUN_API_KEY"]
+        else:
+            existing_config.pop("REQPILOT_DASHSCOPE_API_KEY", None)
+            existing_config.pop("DASHSCOPE_API_KEY", None)
+        config_path.write_text(json.dumps(existing_config, indent=2, ensure_ascii=False), encoding="utf-8")
+    except Exception as e:
+        print(f"[ReqPilotX] Error saving config.json: {e}")
+
 
 class AIAnalysisCancelledError(RuntimeError):
     """Raised when a live AI analysis run is stopped by the user."""
@@ -372,7 +411,7 @@ def _resolve_default_profile_id(profiles: dict[str, AICopilotConfig]) -> str:
     requested = _get_config_value("REQPILOT_AI_DEFAULT_PROFILE").lower()
     if requested and requested in profiles:
         return requested
-    ordered = [DEFAULT_AZURE_PROFILE_ID, DEFAULT_ALIYUN_PROFILE_ID]
+    ordered = [DEFAULT_ALIYUN_PROFILE_ID, DEFAULT_AZURE_PROFILE_ID]
     seen: set[str] = set()
     for candidate in ordered:
         if not candidate or candidate in seen or candidate not in profiles:
@@ -634,10 +673,7 @@ def _set_runtime_config_value(name: str, value: str | None) -> None:
     if value is None:
         return
     text = str(value).strip()
-    if text:
-        _RUNTIME_AI_ENV_OVERRIDES[name] = text
-    else:
-        _RUNTIME_AI_ENV_OVERRIDES.pop(name, None)
+    _RUNTIME_AI_ENV_OVERRIDES[name] = text
 
 
 def clear_runtime_ai_provider_overrides() -> None:
@@ -749,6 +785,7 @@ def apply_runtime_ai_provider_setup(payload: dict[str, Any]) -> dict[str, Any]:
         _set_runtime_config_value("REQPILOT_ALIYUN_API_KEY", str(aliyun_payload.get("api_key") or ""))
     if str(aliyun_payload.get("qdrant_api_key") or "").strip():
         _set_runtime_config_value("REQPILOT_ALIYUN_QDRANT_API_KEY", str(aliyun_payload.get("qdrant_api_key") or ""))
+    _save_runtime_config_to_file()
     return build_runtime_ai_provider_setup()
 
 

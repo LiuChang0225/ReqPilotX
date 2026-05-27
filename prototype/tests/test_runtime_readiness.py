@@ -201,6 +201,7 @@ class RuntimeReadinessTests(unittest.TestCase):
         with patch.dict(
             os.environ,
             {
+                "REQPILOT_AI_TRACE_DIR": str(self.tmp_path / "ai_traces"),
                 "REQPILOT_AI_ASSESSMENT_MODE": "llm_shadow",
                 "REQPILOT_RETRIEVAL_BACKEND": "azure_sdk",
                 "AZURE_OPENAI_ENDPOINT": "https://openai.example.openai.azure.com",
@@ -227,12 +228,13 @@ class RuntimeReadinessTests(unittest.TestCase):
         self.assertTrue(payload["ready"])
         self.assertEqual(payload["checks"]["azure"]["status"], "ok")
         self.assertEqual(payload["checks"]["aliyun"]["status"], "ok")
-        self.assertEqual(payload["ai"]["runnable_profiles"], ["azure", "aliyun"])
+        self.assertEqual(payload["ai"]["runnable_profiles"], ["aliyun", "azure"])
 
     def test_readiness_allows_aliyun_only_runtime_when_azure_is_missing(self) -> None:
         with patch.dict(
             os.environ,
             {
+                "REQPILOT_AI_TRACE_DIR": str(self.tmp_path / "ai_traces"),
                 "REQPILOT_AI_ASSESSMENT_MODE": "llm_shadow",
                 "REQPILOT_RETRIEVAL_BACKEND": "azure_sdk",
                 "REQPILOT_ALIYUN_API_KEY": "aliyun-key",

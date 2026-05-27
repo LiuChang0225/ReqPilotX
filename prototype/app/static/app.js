@@ -728,7 +728,7 @@ function renderAiProviderSetup(selectedProfileId = "") {
     return;
   }
   const setup = state.aiProviderSetup || {};
-  const defaultProfileId = String(selectedProfileId || "").trim() || getConfiguredDefaultProfileId() || "azure";
+  const defaultProfileId = String(selectedProfileId || "").trim() || getConfiguredDefaultProfileId() || "aliyun";
   const profiles = getAiProviderSetupProfiles();
   const defaultProfile =
     profiles.find((profile) => String(profile.id || "").trim() === defaultProfileId) || getConfiguredDefaultProfile();
@@ -774,7 +774,7 @@ function renderAiProviderSetup(selectedProfileId = "") {
 }
 
 function onAiProviderSetupSelectionChanged() {
-  const selectedProfileId = String(el.setupDefaultProfileSelect?.value || "").trim() || "azure";
+  const selectedProfileId = String(el.setupDefaultProfileSelect?.value || "").trim() || "aliyun";
   renderAiProviderSetup(selectedProfileId);
   syncWorkspaceActions();
 }
@@ -795,7 +795,7 @@ async function loadAiProviderSetup() {
 
 async function onSaveAiProviderSetup(event) {
   event.preventDefault();
-  const defaultProfileId = String(el.setupDefaultProfileSelect?.value || "azure").trim() || "azure";
+  const defaultProfileId = String(el.setupDefaultProfileSelect?.value || "aliyun").trim() || "aliyun";
   const payload = {
     default_profile_id: defaultProfileId,
     azure: {

@@ -25,22 +25,26 @@
 }
 
 html[data-theme="dark"] {
-  /* 深色主题变量 (Dark Theme) */
-  --reqx-primary: hsl(var(--reqx-primary-h), 80%, 38%); /* 适度提高暗色下的绿色亮度以确保可读性 */
-  --reqx-primary-dark: hsl(var(--reqx-primary-h), 85%, 28%);
-  --reqx-tertiary: hsl(190, 30%, 50%);
+  /* 方案一：深邃炭煤色 & 翡翠绿 (Charcoal & Emerald) */
+  --reqx-primary-h: 147;
+  --reqx-primary-s: 75%;
+  --reqx-primary-l: 45%; /* 翡翠绿 */
+
+  --reqx-primary: hsl(var(--reqx-primary-h), var(--reqx-primary-s), var(--reqx-primary-l));
+  --reqx-primary-dark: hsl(var(--reqx-primary-h), 80%, 36%);
+  --reqx-tertiary: hsl(190, 40%, 55%);
   
-  --reqx-text: hsl(147, 25%, 93%); /* 极浅乳绿文字 */
-  --reqx-text-secondary: hsl(147, 8%, 68%); /* 柔和暗灰绿 */
-  --reqx-background: hsl(147, 18%, 10%); /* 深邃暗林色背景 */
-  --reqx-surface: hsl(147, 14%, 14%); /* 高雅暗卡片面 */
-  --reqx-surface-soft: hsl(147, 12%, 18%); /* 嵌套区域背景 */
-  --reqx-outline: hsl(147, 12%, 22%); /* 暗边框 */
-  --reqx-outline-strong: hsl(147, 15%, 32%); /* 强暗边框 */
-  --reqx-accent-soft: hsl(147, 20%, 18%); /* 暗绿高亮背景 */
+  --reqx-text: hsl(210, 15%, 95%); /* 极轻灰白文字 */
+  --reqx-text-secondary: hsl(210, 10%, 72%); /* 精致灰色次级文字 */
+  --reqx-background: hsl(210, 14%, 7%); /* 极暗炭煤背景 #0d0f12 */
+  --reqx-surface: hsl(210, 11%, 13%); /* 炭煤卡片面 #1d2126 */
+  --reqx-surface-soft: hsl(210, 12%, 9%); /* 嵌套底色 #13171a */
+  --reqx-outline: hsl(210, 10%, 20%); /* 中灰边框 #2e343b */
+  --reqx-outline-strong: hsl(210, 12%, 30%); /* 强灰边框 #434c56 */
+  --reqx-accent-soft: hsla(147, 75%, 45%, 0.15); /* 翡翠绿柔和高亮 */
   
-  --reqx-shadow-sm: 0 8px 24px rgba(0, 0, 0, 0.35);
-  --reqx-shadow-md: 0 16px 36px rgba(0, 0, 0, 0.5);
+  --reqx-shadow-sm: 0 4px 12px rgba(0, 0, 0, 0.45);
+  --reqx-shadow-md: 0 12px 28px rgba(0, 0, 0, 0.6);
 }
 
 /* 主题切换按钮样式 */

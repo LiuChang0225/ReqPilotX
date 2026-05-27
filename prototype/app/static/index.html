@@ -31,7 +31,6 @@
         </div>
         <nav class="hero-nav">
           <a href="/home" target="_blank" rel="noreferrer">产品首页</a>
-          <a href="/workspace?stage=review" target="_blank" rel="noreferrer">条目审阅台</a>
           <button id="theme-toggle" type="button" class="theme-toggle-btn" title="切换主题" aria-label="切换主题">
             <svg class="theme-toggle-icon" width="16" height="16" viewBox="0 0 24 24" fill="none" stroke="currentColor" stroke-width="2">
               <path class="sun-icon-path" d="M12 3v1m0 16v1m9-9h-1M4 12H3m15.364-6.364l-.707.707M6.343 17.657l-.707.707m0-12.728l.707.707m11.314 11.314l.707.707M12 8a4 4 0 100 8 4 4 0 000-8z" />
@@ -84,8 +83,8 @@
             <label>
               默认知识库 / AI 路径
               <select id="setup-default-profile-select">
+                <option value="aliyun" selected>Aliyun</option>
                 <option value="azure">Azure</option>
-                <option value="aliyun">Aliyun</option>
               </select>
             </label>
             <p class="hint">
@@ -95,7 +94,7 @@
           </div>
 
           <form id="provider-setup-form" class="card upload-card">
-            <div id="setup-azure-fields">
+            <div id="setup-azure-fields" hidden>
               <p class="hint">
                 Azure 本地推荐使用 Azure CLI / RBAC。浏览器交互只作为 fallback，不建议作为默认主路径。
               </p>
@@ -104,40 +103,42 @@
                 <span>允许浏览器交互登录 fallback</span>
               </label>
               <div class="upload-card-actions">
-                <button id="setup-azure-probe-btn" type="button" class="button-compact">检查 Azure RBAC</button>
+                <button id="setup-azure-probe-btn" type="button" class="button-active">检查 Azure RBAC</button>
               </div>
               <p id="setup-azure-probe-result" class="hint"></p>
             </div>
 
-            <div id="setup-aliyun-fields" hidden>
+            <div id="setup-aliyun-fields">
               <label>
                 DashScope API Key
                 <input id="setup-aliyun-api-key" type="password" placeholder="sk-..." />
               </label>
-              <label>
-                Chat 模型
-                <input id="setup-aliyun-chat-model" value="qwen3.5-plus" />
-              </label>
-              <label>
-                Embedding 模型
-                <input id="setup-aliyun-embedding-model" value="text-embedding-v4" />
-              </label>
-              <label>
-                DashScope Base URL
-                <input id="setup-aliyun-base-url" value="https://dashscope.aliyuncs.com/compatible-mode/v1" />
-              </label>
-              <label>
-                Qdrant URL
-                <input id="setup-aliyun-qdrant-url" value="http://localhost:6333" />
-              </label>
-              <label>
-                Qdrant Collection
-                <input id="setup-aliyun-qdrant-collection" value="reqpilot-knowledge-aliyun-local" />
-              </label>
-              <label>
-                Qdrant API Key（可选）
-                <input id="setup-aliyun-qdrant-api-key" type="password" />
-              </label>
+              <div style="display: none;">
+                <label>
+                  Chat 模型
+                  <input id="setup-aliyun-chat-model" value="qwen3.5-plus" />
+                </label>
+                <label>
+                  Embedding 模型
+                  <input id="setup-aliyun-embedding-model" value="text-embedding-v4" />
+                </label>
+                <label>
+                  DashScope Base URL
+                  <input id="setup-aliyun-base-url" value="https://dashscope.aliyuncs.com/compatible-mode/v1" />
+                </label>
+                <label>
+                  Qdrant URL
+                  <input id="setup-aliyun-qdrant-url" value="http://localhost:6333" />
+                </label>
+                <label>
+                  Qdrant Collection
+                  <input id="setup-aliyun-qdrant-collection" value="reqpilot-knowledge-aliyun-local" />
+                </label>
+                <label>
+                  Qdrant API Key（可选）
+                  <input id="setup-aliyun-qdrant-api-key" type="password" />
+                </label>
+              </div>
             </div>
 
             <div class="upload-card-actions">

@@ -104,24 +104,25 @@ def deobfuscate_secret(cipher_text: str) -> str:
 # Put obfuscated key here. If empty, fallback to system environment variables.
 OB_DASHSCOPE_API_KEY = ""
 
-# Load API key: environment first, then config.json, then obfuscated key fallback.
+# Load API key and other settings: environment first, then config.json, then obfuscated key fallback.
 has_key = False
 if os.environ.get("REQPILOT_DASHSCOPE_API_KEY") or os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("REQPILOT_ALIYUN_API_KEY"):
     has_key = True
 
-if not has_key:
-    config_file = storage_dir / "config.json"
-    if config_file.exists():
-        try:
-            import json
-            config_data = json.loads(config_file.read_text(encoding="utf-8"))
-            api_key = config_data.get("REQPILOT_DASHSCOPE_API_KEY") or config_data.get("DASHSCOPE_API_KEY")
-            if api_key:
-                os.environ["REQPILOT_DASHSCOPE_API_KEY"] = api_key
-                has_key = True
-                print(f"[ReqPilotX] DashScope API key loaded from {config_file}")
-        except Exception as e:
-            print(f"[ReqPilotX] Warning: Failed to load config.json: {e}")
+config_file = storage_dir / "config.json"
+if config_file.exists():
+    try:
+        import json
+        config_data = json.loads(config_file.read_text(encoding="utf-8"))
+        for key, val in config_data.items():
+            if val:
+                if key not in os.environ:
+                    os.environ[key] = str(val)
+        if os.environ.get("REQPILOT_DASHSCOPE_API_KEY") or os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("REQPILOT_ALIYUN_API_KEY"):
+            has_key = True
+            print(f"[ReqPilotX] Configurations and API key loaded from {config_file}")
+    except Exception as e:
+        print(f"[ReqPilotX] Warning: Failed to load config.json: {e}")
 
 if not has_key and OB_DASHSCOPE_API_KEY:
     api_key = deobfuscate_secret(OB_DASHSCOPE_API_KEY)
