@@ -1,21 +1,20 @@
 # Active Context
 
-更新时间：2026-05-16 17:22 CST
+更新时间：2026-05-26 16:00 CST
 适用仓库：`/Users/liuchang/Documents/ReqPilotX`
 
 长期背景：[`/Users/liuchang/Documents/ReqPilotX/docs/项目.md`](/Users/liuchang/Documents/ReqPilotX/docs/项目.md)
 
 ## 当前目标
 
-- 当前活跃 extraction 工作在 `codex/extraction-quality-loop`。
-- `fix28` 已收掉 `J02.311` 用户反馈残留：`7.5.5 表12` snapshot-only 默认图绑定、`7.6.1.1 图6/图7` source snapshot 复核、`附录 A / 表A.1` source snapshot crop 精度。
-- 本轮新增 SERES 台账规则：`SERES-R022`（snapshot-only ref 默认图强制回源图）与 `SERES-R023`（附录重复表题前的说明段不作为裁切截止）。
-- 结论：没有新增回归；SERES 与 legacy 指标均与 fix27 持平。
+- 开辟新分支 `codex/ui-optimization` 专项进行 UI/UX 精细化升级。
+- 引入符合舍弗勒官方绿色基调（#00893d）的温和高级 HSL 调色板，并实现亮/暗（Light/Dark）双色主题自由切换。
+- 在不重组工作台 HTML 骨架的前提下，通过系统化重构 CSS 变量，确保卡片、表单、表格和 AI 分析状态栏能完美适应深浅两套色彩。
 
 ## 活跃分支 / 工作树
 
 - 主线：`main` -> `/Users/liuchang/Documents/ReqPilotX`
-- extraction 回归入口：`codex/extraction-quality-loop` -> `/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-quality-loop`
+- UI 专项优化分支：`codex/ui-optimization` -> `/Users/liuchang/Documents/ReqPilotX`
 
 ## 当前样本 / 保留工件
 
@@ -26,13 +25,25 @@
 
 ## 最近已修
 
-- `prototype/app/services/extraction_preview.py`
+- **主题切换与 HSL 色彩体系重构**：
+  - `prototype/app/static/index.html`：增加 `<script>` 加载免闪烁主题配置，并在导航栏添加 `#theme-toggle` 按钮和 SVG 太阳/月亮变形图标。
+  - `prototype/app/static/reqpilotx-brand.css`：基于舍弗勒绿色 HSL 基底（Hue = 147）重建设计系统，包含 Light/Dark 两套主题，并定义主题切换按钮的呼吸、缩放及变形规则。
+  - `prototype/app/static/apple-system.css`：将原通用变量（如 `--apple-bg`, `--apple-surface` 等）改用统一的 `--reqx-` 对应词绑定，增加暗色模式下红色/琥珀色的可读性范围，并将表单输入项背景改为变量。
+  - `prototype/app/static/styles.css`：消除 `.hero`, `.summary-card`, `.card` 以及章节总览 `.section-overview-path-card` 里的写死白/浅灰背景，使其完美支持变量；在最末尾追加 `html[data-theme="dark"]` 组件特有选择器，全面修复 AI 运行日志、事件流、按钮 hover 等在暗色下的显示与反差。
+  - `prototype/app/static/app.js`：在事件绑定中添加 `#theme-toggle` 的点击事件处理，支持读取和写入 `localStorage` (`reqx-theme`)。
+- **P1-P2 视觉品质与人机协同交互优化**：
+  - `prototype/app/static/pdf-viewer.js` & `pdf-viewer.css`：将 PDF 证据链跳转重构为平滑滚动，并新增绝对定位的 Canvas 高亮 CSS 闪烁脉冲遮罩层，执行 1.5s 脉冲渐变后从 DOM 中安全清除，保证无卡顿。
+  - `prototype/app/static/app.js` & `styles.css`：重构 AI 判定状态 chip 为半透明 HSL 磨砂质感；对 INFO 行赋以 `.row-info` 样式实施 30% 透明度及淡灰底色视觉降噪。在 AI 判定结果旁渲染 Heuristic/Shadow/Primary/Override 等运行模式勋章胶囊。
+  - `prototype/app/static/index.html` & `app.js` & `styles.css`：新增一键切换 Compliance Matrix 判定结果过滤按钮栏（全部/ACCEPT/REJECT/CLARIFY），并实现本地过滤刷新逻辑。
+  - `prototype/app/static/app.js`：添加全局键盘快捷键监听：`Esc` 键清除 AI 详情选择，`Arrow Up` / `Arrow Down` 在审阅台（Review）或 AI 分析（AI）列表上下导航，自动滚入可视区并渲染 PDF。
+  - `prototype/app/static/home.html` & `home.css` & `home.js`：根据用户要求，已将首页设计和内容完全替换为用户在 `ui/homepage` 分支中自行制作的版本，以契合用户的视觉与内容要求。
+- **关系型校验与系统稳定性**：
+  - `prototype/app/services/extraction_preview.py`
   - `snapshot_only` 既有 ref 现在会用 `source_snapshot_path` 覆盖旧 `slice_snapshot_path`；`7.5.5 表12` 不再默认展示坏 markdown/slice 图。
   - 显式视觉裁切支持传入 title token；同页存在重复同名表题时，重复表题前的说明段不会提前截断 crop；`附录 A / 表A.1` 第一张 source snapshot 已覆盖 `00 positiveResponse` 表体开头。
   - `7.6.1.1 图6/图7` 当前 source snapshot 已复核，未见错切、重复或串正文；无需新增规则。
-- `prototype/tests/test_extraction_preview.py`
-  - 新增 snapshot-only slice 覆盖与重复表题 cutoff regression tests。
-- SERES 长台账已记录 `SERES-R022 / SERES-R023`，并把 J02.311 残留状态更新到 fix28。
+  - `prototype/tests/test_extraction_preview.py`：新增 snapshot-only slice 覆盖与重复表题 cutoff regression tests。
+  - SERES 长台账已记录 `SERES-R022 / SERES-R023`，并把 J02.311 残留状态更新到 fix28。
 - **本地单机打包与 100% 离线运行 (Pywebview + PyInstaller + Native Qdrant)**:
   - 新增 `prototype/app_desktop.py`（桌面 GUI 启动器），后台线程拉起 FastAPI，并拉起本地预编译的 Qdrant 数据库（不依赖 Docker）。前端在 Pywebview 原生窗口渲染，数据持久化自动重定向到用户主目录。
   - 新增 `prototype/build_desktop.py`（跨平台打包脚本），一键打包静态资源、排除无用重型 ML 库（将体积优化至 301MB），并打包 macOS 和 Windows 的本地 Qdrant 预编译二进制程序。
