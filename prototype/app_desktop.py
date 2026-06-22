@@ -9,24 +9,88 @@ import subprocess
 import atexit
 from pathlib import Path
 
-# IMPORTANT: Override storage directory if running inside a PyInstaller frozen bundle.
-# This MUST be set before importing any app modules, so db.py and main.py resolve to the persistent path.
-if getattr(sys, 'frozen', False):
+
+def _prefer_bundled_runtime_packages() -> None:
+    base_dir = Path(__file__).resolve().parent
+    runtime_python = base_dir / "runtime" / "python"
+    bundled_site_packages = runtime_python / "Lib" / "site-packages"
+    if not bundled_site_packages.exists():
+        return
+
+    os.environ["PYTHONNOUSERSITE"] = "1"
+    os.environ.pop("PYTHONPATH", None)
+    os.environ.pop("PYTHONHOME", None)
+
+    priority_paths = [
+        base_dir,
+        runtime_python,
+        runtime_python / "DLLs",
+        runtime_python / "Lib",
+        bundled_site_packages,
+        bundled_site_packages / "win32",
+        bundled_site_packages / "win32" / "lib",
+        bundled_site_packages / "Pythonwin",
+    ]
+    existing_priority_paths = [str(path) for path in priority_paths if path.exists()]
+    normalized_priority = {str(Path(path).resolve()).lower() for path in existing_priority_paths}
+    runtime_root = runtime_python.resolve()
+
+    filtered_paths: list[str] = []
+    for item in sys.path:
+        if not item:
+            continue
+        try:
+            resolved = Path(item).resolve()
+        except Exception:
+            filtered_paths.append(item)
+            continue
+
+        normalized = str(resolved).lower()
+        if normalized in normalized_priority:
+            continue
+        if "site-packages" in normalized:
+            try:
+                resolved.relative_to(runtime_root)
+            except ValueError:
+                continue
+        filtered_paths.append(item)
+
+    sys.path[:] = existing_priority_paths + filtered_paths
+
+    try:
+        import pywin32_bootstrap  # type: ignore[import-not-found]
+    except Exception:
+        pass
+
+
+_prefer_bundled_runtime_packages()
+os.environ["REQPILOT_DESKTOP_EMBEDDED"] = "1"
+
+
+def _default_user_storage_dir() -> Path:
     if sys.platform == 'win32':
-        app_data = Path(os.getenv('APPDATA') or (Path.home() / 'AppData' / 'Roaming'))
-        storage_dir = app_data / 'ReqPilotX' / 'storage'
-    elif sys.platform == 'darwin':
-        storage_dir = Path.home() / 'Library' / 'Application Support' / 'ReqPilotX' / 'storage'
-    else:
-        storage_dir = Path.home() / '.local' / 'share' / 'ReqPilotX' / 'storage'
-    
-    storage_dir.mkdir(parents=True, exist_ok=True)
-    os.environ["REQPILOT_STORAGE_DIR"] = str(storage_dir)
+        app_data = Path(os.getenv('LOCALAPPDATA') or os.getenv('APPDATA') or (Path.home() / 'AppData' / 'Local'))
+        return app_data / 'ReqPilotX' / 'storage'
+    if sys.platform == 'darwin':
+        return Path.home() / 'Library' / 'Application Support' / 'ReqPilotX' / 'storage'
+    return Path.home() / '.local' / 'share' / 'ReqPilotX' / 'storage'
+
+
+# IMPORTANT: Choose storage before importing any app modules, so db.py and
+# main.py resolve to the same persistent path. Packaged and portable builds use
+# per-user local storage to avoid file-lock conflicts in synced folders.
+configured_storage_dir = os.environ.get("REQPILOT_STORAGE_DIR")
+if configured_storage_dir:
+    storage_dir = Path(configured_storage_dir).expanduser()
+elif getattr(sys, 'frozen', False) or os.environ.get("REQPILOT_PORTABLE_MODE") == "1":
+    storage_dir = _default_user_storage_dir()
 else:
     # Development mode uses the local prototype/storage directory
     prototype_dir = Path(__file__).resolve().parent
     storage_dir = prototype_dir / "storage"
-    storage_dir.mkdir(parents=True, exist_ok=True)
+
+storage_dir.mkdir(parents=True, exist_ok=True)
+os.environ["REQPILOT_STORAGE_DIR"] = str(storage_dir)
 
 # Set up logging to app_desktop.log
 class DesktopLogger:
@@ -66,7 +130,9 @@ else:
     sys.stderr = DesktopLogger(log_file_path, sys.stderr)
 
 print(f"\n--- ReqPilotX Desktop Start: {time.strftime('%Y-%m-%d %H:%M:%S')} ---")
-if getattr(sys, 'frozen', False):
+if os.environ.get("REQPILOT_PORTABLE_MODE") == "1":
+    print(f"[ReqPilotX] Running in portable mode. Storage redirected to: {storage_dir}")
+elif getattr(sys, 'frozen', False):
     print(f"[ReqPilotX] Running in packaged mode. Storage redirected to: {storage_dir}")
 else:
     print(f"[ReqPilotX] Running in development mode. Storage: {storage_dir}")

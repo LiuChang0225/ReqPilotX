@@ -2,9 +2,11 @@ from __future__ import annotations
 
 import json
 import logging
+import os
 import re
 import sqlite3
 import subprocess
+import sys
 import shutil
 import time
 import uuid
@@ -2718,7 +2720,7 @@ def export_project(project_id: str, payload: ExportRequest | None = None) -> dic
         if "locked" in str(exc).lower():
             raise HTTPException(status_code=503, detail="Export storage is busy. Please retry.") from exc
         raise
-    return {
+    response = {
         "export_id": job["id"],
         "file_name": file_name,
         "download_url": f"/api/exports/{file_name}",
@@ -2726,6 +2728,11 @@ def export_project(project_id: str, payload: ExportRequest | None = None) -> dic
         "compare_export_id": compare_export_id,
         "document_id": document_id,
     }
+    if _is_desktop_embedded():
+        response["local_file_path"] = file_path
+        response["local_export_dir"] = str(Path(file_path).parent)
+        response["reveal_url"] = f"/api/exports/{file_name}/reveal"
+    return response
 
 
 @app.get("/api/exports/{file_name}")
@@ -2735,6 +2742,39 @@ def download_export(file_name: str) -> FileResponse:
     if not path.exists():
         raise HTTPException(status_code=404, detail="Export file not found.")
     return FileResponse(path, filename=safe, media_type="application/vnd.openxmlformats-officedocument.spreadsheetml.sheet")
+
+
+def _is_desktop_embedded() -> bool:
+    return os.environ.get("REQPILOT_DESKTOP_EMBEDDED") == "1"
+
+
+def _reveal_in_file_manager(path: Path) -> None:
+    if sys.platform == "win32":
+        subprocess.Popen(["explorer", f"/select,{path}"])
+        return
+    if sys.platform == "darwin":
+        subprocess.Popen(["open", "-R", str(path)])
+        return
+    target_dir = path.parent if path.is_file() else path
+    opener = shutil.which("xdg-open")
+    if not opener:
+        raise RuntimeError("No file manager opener is available on this system.")
+    subprocess.Popen([opener, str(target_dir)])
+
+
+@app.post("/api/exports/{file_name}/reveal")
+def reveal_export(file_name: str) -> dict:
+    if not _is_desktop_embedded():
+        raise HTTPException(status_code=404, detail="Reveal action is only available in the desktop app.")
+    safe = _safe_name(file_name)
+    path = EXPORTS_DIR / safe
+    if not path.exists():
+        raise HTTPException(status_code=404, detail="Export file not found.")
+    try:
+        _reveal_in_file_manager(path)
+    except Exception as exc:
+        raise HTTPException(status_code=500, detail=f"Failed to open export location: {exc}") from exc
+    return {"ok": True, "file_name": safe, "file_path": str(path), "export_dir": str(path.parent)}
 
 
 @app.get("/api/projects/{project_id}/exports")

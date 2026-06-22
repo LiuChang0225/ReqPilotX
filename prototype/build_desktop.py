@@ -19,7 +19,13 @@ def main() -> None:
         data_sep = ':'
         
     add_data_static = f"app/static{data_sep}app/static"
-    add_data_bin = f"bin{data_sep}bin"
+    add_data_args = ["--add-data", add_data_static]
+
+    if (root_dir / "bin").exists():
+        add_data_bin = f"bin{data_sep}bin"
+        add_data_args.extend(["--add-data", add_data_bin])
+    else:
+        print("[ReqPilotX Build] Warning: bin directory not found, packaging without bundled Qdrant binaries.")
     
     # 2. Formulate PyInstaller command arguments
     # We package in directory mode (--onedir) as it is highly robust and launches faster.
@@ -29,8 +35,7 @@ def main() -> None:
         "pyinstaller",
         "--name", "ReqPilotX",
         "--onedir",
-        "--add-data", add_data_static,
-        "--add-data", add_data_bin,
+        *add_data_args,
         "--noconsole",
         "--noconfirm", # Overwrite output directory without asking
         "--exclude-module", "torch",
@@ -43,17 +48,10 @@ def main() -> None:
         "app_desktop.py"
     ]
     
-    # 3. Locate the pyinstaller executable in the local virtual environment
-    if sys.platform == 'win32':
-        venv_pyinstaller = root_dir / ".venv" / "Scripts" / "pyinstaller.exe"
-    else:
-        venv_pyinstaller = root_dir / ".venv" / "bin" / "pyinstaller"
-        
-    if venv_pyinstaller.exists():
-        cmd[0] = str(venv_pyinstaller)
-    else:
-        print("[ReqPilotX Build] Warning: Local .venv pyinstaller not found, using global fallback.")
-        cmd[0] = "pyinstaller"
+    # 3. Prefer invoking PyInstaller as a module through the current interpreter.
+    # On some Windows setups, the pyinstaller.exe launcher can fail with WinError 5
+    # even though `python -m PyInstaller` works in the same virtual environment.
+    cmd = [sys.executable, "-m", "PyInstaller", *cmd[1:]]
         
     print(f"[ReqPilotX Build] Executing command: {' '.join(cmd)}")
     

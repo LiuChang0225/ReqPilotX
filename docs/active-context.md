@@ -1,6 +1,6 @@
 # Active Context
 
-更新时间：2026-05-27 17:35 CST
+更新时间：2026-06-22 15:05 CST
 适用仓库：`/Users/liuchang/Documents/ReqPilotX`
 
 长期背景：[`/Users/liuchang/Documents/ReqPilotX/docs/项目.md`](/Users/liuchang/Documents/ReqPilotX/docs/项目.md)
@@ -23,6 +23,13 @@
 - `prototype/docs/seres-mda-rule-fix-context.md`
 
 ## 最近已修
+
+- **Windows 便携测试包分发方案 (2026-05-29)**：
+  - `prototype/build_portable.py`：新增绿色便携目录构建脚本，生成 `prototype/dist/ReqPilotX-Portable`，包含应用代码、静态资源、Windows Qdrant、精简 Python 运行时与当前虚拟环境依赖，并生成双击启动脚本与中文分发说明。
+  - `prototype/app_desktop.py`：便携模式下通过 `REQPILOT_PORTABLE_MODE=1` 运行，默认/脚本指定数据目录为 `%LOCALAPPDATA%\ReqPilotX\storage`，避免 SQLite、Qdrant 数据和日志落入 OneDrive 同步目录。
+  - 2026-06-02 同事电脑复现 `Router.__init__() got an unexpected keyword argument 'on_startup'`：根因是便携 Python 默认把用户级 `AppData\Roaming\Python\Python313\site-packages` 加到包内依赖前后，可能加载到不兼容的 Starlette。已在便携构建中写入 `python._pth` / `python313._pth`，启动脚本清空 `PYTHONHOME/PYTHONPATH` 并设置 `PYTHONNOUSERSITE=1`，`app_desktop.py` 启动早期也会优先锁定包内依赖；`requirements.txt` 显式锁定 `starlette==0.47.3`。
+  - 2026-06-03 桌面端 Compliance Matrix 导出体验补齐：导出接口在桌面模式下返回 `local_file_path` / `local_export_dir` / `reveal_url`，前端导出成功后明确显示文件已保存到 `%LOCALAPPDATA%\ReqPilotX\storage\exports\...`，并支持“打开导出目录”直接定位，而不再依赖浏览器下载提示。
+  - Windows PyInstaller `ReqPilotX.exe` 已能构建，但在当前企业代码完整性策略下被拒绝执行，因此测试分发优先使用自带 Python 的便携文件夹/ZIP；已验证自带 Python、自带 Qdrant、`/api/health`、`/workspace` 与 Qdrant `/collections` 正常。
 
 - **工作台 UI 精细化与配置持久化**：
   - `prototype/app/static/index.html`：移除导航栏冗余的“条目审阅台”链接；将默认 AI 路径首选设为 Aliyun，并将 Aliyun 设置表单中的所有高级参数输入框（模型名、Base URL、Qdrant 地址等）隐藏，仅保留 DashScope API Key 的输入框，避免界面冗杂。
@@ -62,6 +69,15 @@
     - **无空格与全绿规范**：全面清理 `ai_copilot.py` 中多余的行尾空格，`git diff --check` 通过。单元测试全绿通过且打包成功。
 
 ## 验证状态
+
+- 2026-06-22 提交前检查：
+  - `git diff --check` -> OK。
+  - `python -m py_compile app_desktop.py build_desktop.py build_portable.py app/main.py` -> OK。
+  - VS Code diagnostics for touched files -> no errors。
+  - `python -m unittest discover -s tests -p "test_*.py" -q` -> `452 tests` run, only `test_default_table_snapshot_root_prefers_staged_symlink_parent` failed on Windows with `WinError 1314` symlink privilege requirement。
+  - Filtered full suite excluding that Windows symlink privilege case -> `451 tests / OK / skipped=23`。
+  - Portable build smoke -> `build_portable.py` OK; bundled Python isolation OK (`FastAPI 0.116.1`, `Starlette 0.47.3`, no user-site path); launcher and bundled Qdrant present。
+  - FastAPI export smoke with temp storage -> health ready, Compliance Matrix `.xlsx` created, desktop `local_file_path` / `reveal_url` returned and reveal endpoint OK。
 
 - Focused tests:
   - `PYTHONPATH=prototype python3 -m unittest discover -s prototype/tests -p "test_*.py" -q` -> `452 tests / OK` (全绿通过)

@@ -35,6 +35,9 @@ const state = {
   reviewPreviewPollHandle: null,
   exportStatusMessage: "",
   exportStatusTone: "",
+  exportDownloadUrl: "",
+  exportRevealUrl: "",
+  exportLocalFilePath: "",
   tableViewByTableId: {},
   reviewRenderDebounceHandle: null,
   knowledgeSyncRetryingId: "",
@@ -288,6 +291,7 @@ function bindEvents() {
   el.reloadBtn.addEventListener("click", wrap(onReload));
   el.exportBtn.addEventListener("click", wrap(onExport));
   el.refreshExportsBtn.addEventListener("click", wrap(loadExportJobs));
+  el.downloadLink?.addEventListener("click", wrap(onDownloadLinkClicked));
   el.batchApplyBtn.addEventListener("click", wrap(onApplyBatchDecision));
   el.stageSwitcher?.addEventListener("click", onStageSwitcherClicked);
   el.reviewKindFilter?.addEventListener("click", onReviewKindFilterChanged);
@@ -1079,12 +1083,16 @@ async function onProjectChanged(preferredDocumentId = null) {
   state.reviewPreview = null;
   state.exportStatusMessage = "";
   state.exportStatusTone = "";
+  state.exportDownloadUrl = "";
+  state.exportRevealUrl = "";
+  state.exportLocalFilePath = "";
   state.tableViewByTableId = {};
   el.sorUploadResult.textContent = "";
   el.kbUploadResult.textContent = "";
   setAnalyzeStatus("");
   el.downloadLink.textContent = "";
   el.downloadLink.removeAttribute("href");
+  delete el.downloadLink.dataset.action;
   persistWorkspaceSelection();
   if (state.projectId) {
     await loadSorDocuments(state.currentSorDocumentId || null);
@@ -1107,6 +1115,12 @@ async function onSorDocumentChanged() {
   state.reviewPreview = null;
   state.exportStatusMessage = "";
   state.exportStatusTone = "";
+  state.exportDownloadUrl = "";
+  state.exportRevealUrl = "";
+  state.exportLocalFilePath = "";
+  el.downloadLink.textContent = "";
+  el.downloadLink.removeAttribute("href");
+  delete el.downloadLink.dataset.action;
   state.tableViewByTableId = {};
   persistWorkspaceSelection();
   await loadWorkspace();
@@ -1415,10 +1429,24 @@ async function onExport() {
       headers: { "Content-Type": "application/json" },
       body: JSON.stringify(payload),
     });
-    el.downloadLink.href = result.download_url;
-    el.downloadLink.textContent = `下载: ${result.file_name}`;
-    state.exportStatusMessage = `导出完成：${result.file_name}`;
+    state.exportDownloadUrl = String(result.download_url || "").trim();
+    state.exportRevealUrl = String(result.reveal_url || "").trim();
+    state.exportLocalFilePath = String(result.local_file_path || "").trim();
+    if (state.exportRevealUrl) {
+      el.downloadLink.href = state.exportRevealUrl;
+      el.downloadLink.dataset.action = "reveal";
+      el.downloadLink.textContent = `打开导出目录: ${result.file_name}`;
+      state.exportStatusMessage = state.exportLocalFilePath
+        ? `导出完成，文件已保存到：${state.exportLocalFilePath}`
+        : `导出完成：${result.file_name}`;
+    } else {
+      el.downloadLink.href = state.exportDownloadUrl;
+      delete el.downloadLink.dataset.action;
+      el.downloadLink.textContent = `下载: ${result.file_name}`;
+      state.exportStatusMessage = `导出完成：${result.file_name}`;
+    }
     state.exportStatusTone = "success";
+    renderExportStatus();
     await loadExportJobs();
   } catch (error) {
     const status = getApiErrorStatus(error);
@@ -1437,6 +1465,23 @@ async function onExport() {
     state.exportInFlight = false;
     syncWorkspaceActions();
   }
+}
+
+async function onDownloadLinkClicked(event) {
+  if (!el.downloadLink) {
+    return;
+  }
+  const action = String(el.downloadLink.dataset.action || "").trim().toLowerCase();
+  const href = String(el.downloadLink.getAttribute("href") || "").trim();
+  if (action !== "reveal" || !href) {
+    return;
+  }
+  event.preventDefault();
+  const result = await api(href, { method: "POST" });
+  const filePath = String(result?.file_path || state.exportLocalFilePath || "").trim();
+  state.exportStatusMessage = filePath ? `已打开导出目录：${filePath}` : "已打开导出目录。";
+  state.exportStatusTone = "success";
+  renderExportStatus();
 }
 
 async function onApplyBatchDecision() {
