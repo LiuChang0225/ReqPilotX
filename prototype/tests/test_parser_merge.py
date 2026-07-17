@@ -1,5 +1,6 @@
 import sys
 import unittest
+from unittest.mock import patch
 
 
 from pathlib import Path
@@ -10,9 +11,26 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 from app.services.parser import _extract_clean_lines
 from app.services.parser import _should_preserve_structured_table_page
 from app.services.parser import _should_prefer_attachment_band_candidate
+from app.services.parser import parse_document_with_diagnostics
 
 
 class ParserMergeHeuristicsTests(unittest.TestCase):
+    def test_parse_document_with_diagnostics_strips_surrogate_codepoints(self) -> None:
+        with patch(
+            "app.services.parser._parse_pdf",
+            return_value=(
+                "before\ud835\ud835after",
+                [{"source_page": 1, "source_anchor": "P\ud8351", "text": "line\ud835text"}],
+                "PDF",
+                {"mode": "pdf_multi_engine_merge"},
+            ),
+        ):
+            parsed = parse_document_with_diagnostics("surrogate.pdf")
+
+        self.assertEqual(parsed["text"], "beforeafter")
+        self.assertEqual(parsed["segments"][0]["text"], "linetext")
+        self.assertEqual(parsed["segments"][0]["source_anchor"], "P1")
+
     def test_preserves_structured_lifecycle_table_page_over_longer_plain_text_page(self) -> None:
         chosen_lines = [
             "|-3|明确产品运维阶段的网络安全需求|供应商应明确本项目产品在运维阶段的网络安全需求|适用 Applicable|产品运维阶段网络安全需求|机密confidential|●|",

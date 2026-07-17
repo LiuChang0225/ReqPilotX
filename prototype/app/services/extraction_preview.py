@@ -106,6 +106,7 @@ EXPLICIT_VISUAL_TITLE_LINE_RE = re.compile(r"^\s*((?:表|图)\s*\d+[^\n]*)$")
 EXPLICIT_CLAUSE_LINE_RE = re.compile(r"^\s*([0-9]+|[A-Za-z])\s*[)）]\s*(.+)$")
 MULTI_VISUAL_REFERENCE_TITLE_RE = re.compile(r"^(?:表|图)\s*\d+\s*[、,，/]\s*(?:表|图)?\s*\d+")
 FORMAL_SECTION_HEADING_LINE_RE = re.compile(r"^\s*\d+(?:\.\d+){0,5}\s+.+$")
+SURROGATE_CODEPOINT_RE = re.compile(r"[\ud800-\udfff]")
 _SECTION_WINDOW_SNAPSHOT_SIGNATURE_VERSION = "section-window-v2"
 _SIGNIFICANT_VISUAL_MIN_AREA = 3000.0
 _SIGNIFICANT_VISUAL_MIN_WIDTH = 100.0
@@ -120,6 +121,25 @@ _LAYOUT_TABLE_LEFT_COLUMN_MAX_OFFSET = 96.0
 _LAYOUT_TABLE_PRELABEL_GAP = 24.0
 _VISUAL_BAND_MAX_GAP = 28.0
 _PROTOTYPE_DIR = Path(__file__).resolve().parents[2]
+
+
+def _strip_surrogate_codepoints(value: str) -> str:
+    return SURROGATE_CODEPOINT_RE.sub("", str(value or ""))
+
+
+def _sanitize_preview_payload(value: Any) -> Any:
+    if isinstance(value, str):
+        return _strip_surrogate_codepoints(value)
+    if isinstance(value, list):
+        return [_sanitize_preview_payload(item) for item in value]
+    if isinstance(value, tuple):
+        return tuple(_sanitize_preview_payload(item) for item in value)
+    if isinstance(value, dict):
+        return {
+            key: _sanitize_preview_payload(item)
+            for key, item in value.items()
+        }
+    return value
 
 
 def _ensure_snapshot_root_writable(path: Path) -> bool:
@@ -3833,22 +3853,24 @@ def build_extraction_preview(
         "orphan_section_count": int(section_tree_stats.get("orphan_section_count", 0)),
     }
 
-    return {
-        "file_type": parsed.get("file_type", ""),
-        "summary": summary,
-        "requirements": req_rows,
-        "complete_requirement_entries": complete_entries,
-        "complete_requirement_entries_raw": complete_entries_raw,
-        "sections": sections,
-        "section_tree": section_tree,
-        "section_outline": section_outline,
-        "appendix_markers": appendix_markers,
-        "test_outline_markers": test_outline_markers,
-        "section_consistency": section_consistency,
-        "parser_diagnostics": diagnostics,
-        "table_assets": table_assets,
-        "complex_table_zones": complex_table_zones,
-    }
+    return _sanitize_preview_payload(
+        {
+            "file_type": parsed.get("file_type", ""),
+            "summary": summary,
+            "requirements": req_rows,
+            "complete_requirement_entries": complete_entries,
+            "complete_requirement_entries_raw": complete_entries_raw,
+            "sections": sections,
+            "section_tree": section_tree,
+            "section_outline": section_outline,
+            "appendix_markers": appendix_markers,
+            "test_outline_markers": test_outline_markers,
+            "section_consistency": section_consistency,
+            "parser_diagnostics": diagnostics,
+            "table_assets": table_assets,
+            "complex_table_zones": complex_table_zones,
+        }
+    )
 
 
 def _split_requirement_preview_rows(

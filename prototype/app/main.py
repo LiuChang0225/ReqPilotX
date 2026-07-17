@@ -106,6 +106,34 @@ TABLE_SNAPSHOT_DIR = STORAGE_DIR / "table_snapshots"
 STATIC_DIR = APP_DIR / "static"
 
 
+def _load_config_json_into_env() -> None:
+    """Load config.json values into environment variables.
+
+    This mirrors the config loading logic in app_desktop.py so that
+    the app works correctly whether launched via the desktop wrapper
+    or directly via uvicorn (web mode).
+    """
+    config_file = STORAGE_DIR / "config.json"
+    if not config_file.exists():
+        return
+    try:
+        import json as _json
+
+        config_data = _json.loads(config_file.read_text(encoding="utf-8"))
+        loaded_keys: list[str] = []
+        for key, val in config_data.items():
+            if val and key not in os.environ:
+                os.environ[key] = str(val)
+                loaded_keys.append(key)
+        if loaded_keys:
+            print(f"[ReqPilotX] Loaded {len(loaded_keys)} config values from {config_file}")
+    except Exception as exc:
+        print(f"[ReqPilotX] Warning: Failed to load {config_file}: {exc}")
+
+
+_load_config_json_into_env()
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -269,6 +297,12 @@ class RunAIAnalysisRequest(BaseModel):
 class AzureProviderSetupRequest(BaseModel):
     auth_mode: str | None = None
     allow_interactive_login: bool = False
+    search_endpoint: str | None = None
+    search_index_name: str | None = None
+    openai_endpoint: str | None = None
+    chat_deployment: str | None = None
+    embedding_deployment: str | None = None
+    screening_deployment: str | None = None
 
 
 class AliyunProviderSetupRequest(BaseModel):
@@ -635,9 +669,16 @@ def _merge_ai_profile_runtime_state(
     check = runtime_check or {}
     runtime_missing = [str(item).strip() for item in check.get("missing") or [] if str(item).strip()]
     configured_missing = [str(item).strip() for item in profile_payload.get("missing") or [] if str(item).strip()]
+    # ``runnable`` only means "the profile can execute something" — it is True
+    # even when Azure falls back to heuristic/local mode.  Preserve the more
+    # honest ``ready`` signal from ``serialize_ai_profile`` (False for Azure
+    # heuristic) instead of blindly overwriting it with ``runnable``.
+    base_ready = profile_payload.get("ready")
+    check_ready = check.get("runnable")
+    effective_ready = bool(base_ready) if base_ready is not None else bool(check_ready)
     return {
         **profile_payload,
-        "ready": bool(check.get("runnable", profile_payload.get("ready"))),
+        "ready": effective_ready,
         "runtime_status": str(check.get("status") or ""),
         "runtime_detail": str(check.get("detail") or ""),
         "runtime_missing": runtime_missing,

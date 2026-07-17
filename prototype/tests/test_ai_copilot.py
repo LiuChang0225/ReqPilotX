@@ -1,6 +1,8 @@
 from __future__ import annotations
 
 import json
+import ssl
+import sys
 import tempfile
 import unittest
 import uuid
@@ -17,7 +19,9 @@ from app.services.ai_copilot import (
     ALIYUN_RETRIEVAL_DISABLED_REASON,
     AICopilotConfig,
     AssessmentOutputSchema,
+    AzureSearchSDKIndexer,
     _default_azure_credential,
+    _decision_evidence_threshold_for_backend,
     _azure_json_completion,
     _dashscope_json_completion,
     _ensure_qdrant_collection,
@@ -28,6 +32,7 @@ from app.services.ai_copilot import (
     AssessmentEvidenceSchema,
     build_requirement_normalization_detail,
     build_knowledge_chunks,
+    build_llm_messages,
     build_assessment_context,
     build_runtime_ai_provider_setup,
     clear_runtime_ai_provider_overrides,
@@ -467,6 +472,63 @@ class AICopilotTests(unittest.TestCase):
         self.assertEqual(result["validation_status"], "hard_rule_override")
         self.assertIn("hard_rule_negative_reject", result["fallback_reason"])
 
+    def test_run_ai_copilot_assessment_azure_llm_primary_does_not_apply_keyword_hard_rule_override(self) -> None:
+        llm_primary_config = dataclasses.replace(
+            self.config,
+            assessment_mode="llm_primary",
+            retrieval_backend="local",
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+        )
+        row = {
+            "id": "req-azure-hard-rule-1",
+            "req_code": "REQ-AZURE-HARD-RULE-1",
+            "display_text": "Supplier shall provide EMC validation evidence.",
+            "requirement_type": "REGULATION",
+            "parent_section_label": "5.1 Compliance",
+        }
+        retrieved_evidences = [
+            {
+                "source_doc_id": "kb-1",
+                "source_doc_name": "emc-report.txt",
+                "source_location": "Chunk 1",
+                "excerpt": "Supplier submitted the EMC validation evidence package on 2026-05-01.",
+                "relevance": 0.71,
+                "source_doc_version": "v1.0",
+            }
+        ]
+        llm_assessment = {
+            "normalized_requirement": "Supplier shall provide EMC validation evidence.",
+            "proposed_decision": "ACCEPT",
+            "confidence": 0.84,
+            "reason": "The cited evidence directly states that the EMC validation evidence package was submitted.",
+            "risk_level": "LOW",
+            "clarification_question": "",
+            "evidences": retrieved_evidences,
+        }
+
+        with patch(
+            "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
+            return_value={"analysis_label": "REQUIREMENT", "reason": "该条目表达了明确可验证义务。"},
+        ), patch(
+            "app.services.ai_copilot.HeuristicEvidenceRetriever.retrieve",
+            return_value=retrieved_evidences,
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIAssessmentEngine.assess",
+            return_value=llm_assessment,
+        ):
+            result = run_ai_copilot_assessment(row, [{"id": "kb-1"}], config=llm_primary_config)
+
+        assessment = result["assessment"]
+        self.assertEqual(assessment["ai_decision"], "ACCEPT")
+        self.assertEqual(result["runs"][-1]["mode"], "llm_primary")
+        self.assertEqual(result["runs"][-1]["validation_status"], "accepted")
+        self.assertEqual(result["runs"][-1]["fallback_reason"], "")
+
     def test_sync_knowledge_document_index_writes_local_payload(self) -> None:
         knowledge_doc = {
             "id": "kb-2",
@@ -521,6 +583,70 @@ class AICopilotTests(unittest.TestCase):
             self.assertNotIn(":", chunk["chunk_id"])
             self.assertTrue(chunk["chunk_id"].startswith("kb-2_"))
 
+    def test_azure_search_sdk_indexer_deletes_existing_chunks_for_source_doc_before_upload(self) -> None:
+        config = dataclasses.replace(
+            self.config,
+            retrieval_backend="azure_sdk",
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=3,
+        )
+        chunks = [
+            {
+                "chunk_id": "kb-2_paragraph_1",
+                "content": "Supplier submitted the EMC validation evidence package.",
+                "meta": {
+                    "source_doc_id": "kb-2",
+                    "source_doc_name": "knowledge.txt",
+                    "source_location": "Chunk 1",
+                },
+            }
+        ]
+        search_client = Mock()
+        search_client.search.return_value = [{"chunk_id": "kb-2_old"}, {"chunk_id": "kb-2_paragraph_1"}]
+        search_client.upload_documents.return_value = [SimpleNamespace(succeeded=True)]
+        documents_module = ModuleType("azure.search.documents")
+        documents_module.SearchClient = Mock(return_value=search_client)
+        indexes_module = ModuleType("azure.search.documents.indexes")
+        indexes_module.SearchIndexClient = Mock(return_value=Mock())
+
+        with patch.dict(
+            sys.modules,
+            {
+                "azure": ModuleType("azure"),
+                "azure.search": ModuleType("azure.search"),
+                "azure.search.documents": documents_module,
+                "azure.search.documents.indexes": indexes_module,
+            },
+        ), patch(
+            "app.services.ai_copilot._ensure_azure_search_index"
+        ), patch(
+            "app.services.ai_copilot._azure_search_credential",
+            return_value=sentinel.credential,
+        ), patch(
+            "app.services.ai_copilot._embed_texts",
+            return_value=[[0.1, 0.2, 0.3]],
+        ):
+            uploaded = AzureSearchSDKIndexer(config).upsert_chunks(chunks)
+
+        self.assertEqual(uploaded, 1)
+        search_client.search.assert_called_once_with(
+            search_text="*",
+            filter="source_doc_id eq 'kb-2'",
+            select=["chunk_id"],
+            top=1000,
+        )
+        search_client.delete_documents.assert_called_once_with(
+            documents=[{"chunk_id": "kb-2_old"}, {"chunk_id": "kb-2_paragraph_1"}],
+        )
+        search_client.upload_documents.assert_called_once()
+
+    def test_azure_decision_threshold_uses_azure_search_score_scale(self) -> None:
+        self.assertEqual(_decision_evidence_threshold_for_backend("azure_sdk"), 0.03)
+        self.assertEqual(_decision_evidence_threshold_for_backend("azure_haystack"), 0.03)
+
     def test_qdrant_point_id_is_stable_uuid_for_non_uuid_chunk_ids(self) -> None:
         point_id = _qdrant_point_id("kb-2_paragraph_1")
 
@@ -558,7 +684,7 @@ class AICopilotTests(unittest.TestCase):
             profile_id="aliyun",
             provider="aliyun",
             profile_label="Aliyun",
-            chat_model="qwen3.5-plus",
+            chat_model="qwen3.7-plus",
             embedding_model="text-embedding-v4",
             dashscope_api_key="aliyun-key",
             dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -602,7 +728,7 @@ class AICopilotTests(unittest.TestCase):
             profile_id="aliyun",
             provider="aliyun",
             profile_label="Aliyun",
-            chat_model="qwen3.5-plus",
+            chat_model="qwen3.7-plus",
             embedding_model="text-embedding-v4",
             dashscope_api_key="aliyun-key",
             dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -650,6 +776,87 @@ class AICopilotTests(unittest.TestCase):
 
         self.assertEqual(evidence["source_doc_id"], "kb-1")
         self.assertEqual(evidence["relevance"], 0.5)
+
+    def test_azure_search_item_to_evidence_exposes_chunk_identity_and_score_source(self) -> None:
+        evidence = _azure_search_item_to_evidence(
+            {
+                "chunk_id": "kb-1_paragraph_1",
+                "source_doc_id": "kb-1",
+                "source_doc_name": "knowledge.txt",
+                "source_doc_version": "2026.03",
+                "source_location": "Chunk 1",
+                "content": "Latency target is 150ms.",
+                "@search.reranker_score": 2.0,
+            }
+        )
+
+        self.assertIn("chunk_id", evidence)
+        self.assertIn("score_source", evidence)
+        self.assertEqual(evidence["chunk_id"], "kb-1_paragraph_1")
+        self.assertEqual(evidence["score_source"], "azure_reranker")
+        self.assertEqual(evidence["relevance"], 0.5)
+
+    def test_build_llm_messages_includes_evidence_slot_and_chunk_id(self) -> None:
+        context = {
+            "requirement_id": "req-1",
+            "normalized_requirement": "Supplier shall provide EMC validation evidence.",
+            "requirement_text": "Supplier shall provide EMC validation evidence.",
+        }
+        messages = build_llm_messages(
+            context,
+            [
+                {
+                    "chunk_id": "kb-1_paragraph_1",
+                    "source_doc_id": "kb-1",
+                    "source_doc_name": "knowledge.txt",
+                    "source_doc_version": "2026.03",
+                    "source_location": "Chunk 1",
+                    "excerpt": "Supplier submitted the EMC validation evidence package.",
+                    "relevance": 0.71,
+                    "score_source": "azure_reranker",
+                }
+            ],
+            retrieval_backend="azure_sdk",
+        )
+
+        payload = json.loads(messages[1]["content"])
+        evidence = payload["candidate_evidences"][0]
+        self.assertEqual(evidence["slot"], 1)
+        self.assertIn("evidence_slot", evidence)
+        self.assertIn("chunk_id", evidence)
+        self.assertIn("score_source", evidence)
+        self.assertEqual(evidence["evidence_slot"], 1)
+        self.assertEqual(evidence["chunk_id"], "kb-1_paragraph_1")
+        self.assertEqual(evidence["score_source"], "azure_reranker")
+        self.assertEqual(payload["decision_rules"]["no_effective_evidence_below"], 0.03)
+        self.assertEqual(payload["decision_rules"]["decision_requires_top_evidence_at_least"], 0.03)
+
+    def test_validate_evidence_references_allows_chunk_id_match_when_excerpt_is_rewritten(self) -> None:
+        self.assertIn("chunk_id", AssessmentEvidenceSchema.model_fields)
+        cited = [
+            AssessmentEvidenceSchema(
+                source_doc_id="kb-1",
+                source_doc_name="knowledge.txt",
+                source_location="Chunk 1",
+                excerpt="EMC evidence package was submitted by the supplier.",
+                relevance=0.71,
+                source_doc_version="2026.03",
+                chunk_id="kb-1_paragraph_1",
+            )
+        ]
+        retrieved = [
+            {
+                "chunk_id": "kb-1_paragraph_1",
+                "source_doc_id": "kb-1",
+                "source_doc_name": "knowledge.txt",
+                "source_location": "Chunk 1",
+                "excerpt": "Supplier submitted the EMC validation evidence package on 2026-05-01.",
+                "relevance": 0.71,
+                "source_doc_version": "2026.03",
+            }
+        ]
+
+        self.assertEqual(_validate_evidence_references(cited, retrieved), "")
 
     def test_validate_evidence_references_allows_excerpt_substrings_from_same_chunk(self) -> None:
         cited = [
@@ -984,6 +1191,152 @@ class AICopilotTests(unittest.TestCase):
         llm_run = next(run for run in result["runs"] if run["mode"] == "llm_shadow")
         self.assertEqual(llm_run["validation_status"], "failed")
 
+    def test_run_ai_copilot_assessment_llm_primary_fails_closed_when_screening_errors(self) -> None:
+        llm_primary_config = dataclasses.replace(
+            self.config,
+            assessment_mode="llm_primary",
+            retrieval_backend="azure_sdk",
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+        )
+        row = {
+            "id": "req-primary-failed-screening-1",
+            "req_code": "REQ-PRIMARY-FAILED-SCREENING-1",
+            "display_text": "Supplier shall provide cybersecurity validation evidence.",
+            "requirement_type": "REGULATION",
+            "parent_section_label": "5.1 Cybersecurity",
+        }
+        connection_error = ConnectionError("Connection error.")
+        connection_error.__cause__ = ssl.SSLError("UNEXPECTED_EOF_WHILE_READING")
+
+        with patch(
+            "app.services.ai_copilot.HeuristicRequirementScreeningEngine.screen",
+            side_effect=AssertionError("heuristic screening should not run in Azure llm_primary mode"),
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
+            side_effect=connection_error,
+        ), patch(
+            "app.services.ai_copilot.HeuristicEvidenceRetriever.retrieve",
+            side_effect=AssertionError("retrieval should not run after screening failure"),
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIAssessmentEngine.assess",
+            side_effect=AssertionError("assessment should not run after screening failure"),
+        ):
+            result = run_ai_copilot_assessment(row, [{"id": "kb-1"}], config=llm_primary_config)
+
+        assessment = result["assessment"]
+        self.assertEqual(assessment["assessment_mode"], "screening_failed")
+        self.assertEqual(assessment["analysis_label"], "REQUIREMENT")
+        self.assertEqual(assessment["ai_decision"], "")
+        self.assertEqual(result["evidences"], [])
+        self.assertIn("LLM screening failed; analysis stopped.", assessment["analysis_basis"])
+        self.assertEqual(len(result["runs"]), 1)
+        self.assertEqual(result["runs"][0]["mode"], "screening_llm_primary")
+        self.assertEqual(result["runs"][0]["validation_status"], "failed")
+        self.assertIn("SSLError: ('UNEXPECTED_EOF_WHILE_READING',)", result["runs"][0]["fallback_reason"])
+
+    def test_run_ai_copilot_assessment_llm_primary_fails_closed_when_assessment_errors(self) -> None:
+        llm_primary_config = dataclasses.replace(
+            self.config,
+            assessment_mode="llm_primary",
+            retrieval_backend="local",
+            azure_search_endpoint="https://search.example.search.windows.net",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="text-embedding-3-large",
+            azure_openai_embedding_dimensions=1536,
+        )
+        row = {
+            "id": "req-primary-failed-analysis-1",
+            "req_code": "REQ-PRIMARY-FAILED-ANALYSIS-1",
+            "display_text": "System shall support wake-up time less than 100ms.",
+            "requirement_type": "FUNCTIONAL",
+            "parent_section_label": "5.1 Startup",
+        }
+        retrieved_evidences = [
+            {
+                "source_doc_id": "kb-1",
+                "source_doc_name": "platform-spec.txt",
+                "source_location": "Chunk 1",
+                "excerpt": "System wake-up time is 80ms in validation runs.",
+                "relevance": 0.71,
+                "source_doc_version": "v1.0",
+            }
+        ]
+
+        with patch(
+            "app.services.ai_copilot.HeuristicRequirementScreeningEngine.screen",
+            side_effect=AssertionError("heuristic screening should not run in Azure llm_primary mode"),
+        ), patch(
+            "app.services.ai_copilot.HeuristicAssessmentEngine.assess",
+            side_effect=AssertionError("heuristic assessment should not run in Azure llm_primary mode"),
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
+            return_value={"analysis_label": "REQUIREMENT", "reason": "该条目表达了明确可验证义务。"},
+        ), patch(
+            "app.services.ai_copilot.HeuristicEvidenceRetriever.retrieve",
+            return_value=retrieved_evidences,
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIAssessmentEngine.assess",
+            side_effect=ConnectionError("Azure OpenAI assessment failed."),
+        ):
+            result = run_ai_copilot_assessment(row, [{"id": "kb-1"}], config=llm_primary_config)
+
+        assessment = result["assessment"]
+        self.assertEqual(assessment["assessment_mode"], "analysis_failed")
+        self.assertEqual(assessment["analysis_label"], "REQUIREMENT")
+        self.assertEqual(assessment["ai_decision"], "")
+        self.assertEqual(result["evidences"], [])
+        self.assertIn("LLM requirement analysis failed; analysis stopped.", assessment["analysis_basis"])
+        self.assertEqual({run["mode"] for run in result["runs"]}, {"screening_llm_primary", "llm_primary"})
+        llm_run = next(run for run in result["runs"] if run["mode"] == "llm_primary")
+        self.assertEqual(llm_run["validation_status"], "failed")
+
+    def test_run_ai_copilot_assessment_azure_retrieval_misconfig_does_not_use_heuristic_retrieval(self) -> None:
+        llm_shadow_config = dataclasses.replace(
+            self.config,
+            assessment_mode="llm_shadow",
+            retrieval_backend="azure_sdk",
+            azure_search_endpoint="",
+            azure_search_index_name="reqpilot-knowledge",
+            azure_openai_endpoint="https://openai.example.openai.azure.com",
+            azure_openai_chat_deployment="gpt-5.4",
+            azure_openai_embedding_deployment="",
+            azure_openai_embedding_dimensions=1536,
+        )
+        row = {
+            "id": "req-azure-retrieval-misconfig-1",
+            "req_code": "REQ-AZURE-RETRIEVAL-MISCONFIG-1",
+            "display_text": "Supplier shall provide EMC validation evidence.",
+            "requirement_type": "REGULATION",
+            "parent_section_label": "5.1 Compliance",
+        }
+
+        with patch(
+            "app.services.ai_copilot.AzureOpenAIScreeningEngine.screen",
+            return_value={"analysis_label": "REQUIREMENT", "reason": "该条目表达了明确可验证义务。"},
+        ), patch(
+            "app.services.ai_copilot.HeuristicEvidenceRetriever.retrieve",
+            side_effect=AssertionError("heuristic retrieval should not run for an Azure retrieval backend"),
+        ), patch(
+            "app.services.ai_copilot.AzureOpenAIAssessmentEngine.assess",
+            side_effect=AssertionError("assessment should not run when Azure retrieval is not configured"),
+        ):
+            result = run_ai_copilot_assessment(row, [{"id": "kb-1"}], config=llm_shadow_config)
+
+        assessment = result["assessment"]
+        self.assertEqual(assessment["assessment_mode"], "analysis_failed")
+        self.assertEqual(assessment["analysis_label"], "REQUIREMENT")
+        self.assertEqual(assessment["ai_decision"], "")
+        self.assertEqual(result["evidences"], [])
+        self.assertIn("Azure retrieval runtime is not configured", assessment["analysis_basis"])
+        self.assertEqual({run["mode"] for run in result["runs"]}, {"screening_llm_shadow"})
+
     def test_run_ai_copilot_assessment_propagates_cancelled_screening(self) -> None:
         llm_shadow_config = dataclasses.replace(
             self.config,
@@ -1155,7 +1508,7 @@ class AICopilotTests(unittest.TestCase):
             {
                 "REQPILOT_ALIYUN_API_KEY": "aliyun-key",
                 "REQPILOT_DASHSCOPE_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-                "REQPILOT_ALIYUN_CHAT_MODEL": "qwen3.5-plus",
+                "REQPILOT_ALIYUN_CHAT_MODEL": "qwen3.7-plus",
                 "REQPILOT_ALIYUN_EMBEDDING_MODEL": "text-embedding-v4",
             },
             clear=True,
@@ -1175,7 +1528,7 @@ class AICopilotTests(unittest.TestCase):
             {
                 "REQPILOT_ALIYUN_API_KEY": "aliyun-key",
                 "REQPILOT_DASHSCOPE_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-                "REQPILOT_ALIYUN_CHAT_MODEL": "qwen3.5-plus",
+                "REQPILOT_ALIYUN_CHAT_MODEL": "qwen3.7-plus",
                 "REQPILOT_ALIYUN_EMBEDDING_MODEL": "text-embedding-v4",
                 "REQPILOT_ALIYUN_RETRIEVAL_BACKEND": "qdrant",
                 "REQPILOT_ALIYUN_QDRANT_URL": "http://localhost:6333",
@@ -1194,7 +1547,7 @@ class AICopilotTests(unittest.TestCase):
         self.assertNotIn(ALIYUN_RETRIEVAL_DISABLED_REASON, get_ai_profile_missing_config(config))
         self.assertEqual(config.openai_max_retries, 0)
         self.assertEqual(config.embedding_batch_size, 10)
-        self.assertEqual(config.screening_model, "qwen3.5-flash")
+        self.assertEqual(config.screening_model, "qwen3.6-flash")
 
     def test_embed_texts_batches_aliyun_embedding_requests(self) -> None:
         config = AICopilotConfig(
@@ -1217,8 +1570,8 @@ class AICopilotTests(unittest.TestCase):
             llm_timeout_seconds=45.0,
             provider="aliyun",
             profile_id="aliyun",
-            chat_model="qwen3.5-plus",
-            screening_model="qwen3.5-flash",
+            chat_model="qwen3.7-plus",
+            screening_model="qwen3.6-flash",
             embedding_model="text-embedding-v4",
             dashscope_api_key="aliyun-key",
             dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -1263,7 +1616,7 @@ class AICopilotTests(unittest.TestCase):
             self.config,
             provider="aliyun",
             profile_id="aliyun",
-            chat_model="qwen3.5-plus",
+            chat_model="qwen3.7-plus",
             dashscope_api_key="aliyun-key",
             dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
@@ -1284,7 +1637,7 @@ class AICopilotTests(unittest.TestCase):
             self.config,
             provider="aliyun",
             profile_id="aliyun",
-            chat_model="qwen3.5-plus",
+            chat_model="qwen3.7-plus",
             dashscope_api_key="aliyun-key",
             dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
         )
@@ -1506,7 +1859,7 @@ class AICopilotTests(unittest.TestCase):
                 "AZURE_AI_SEARCH_INDEX_NAME": "reqpilot-knowledge",
                 "REQPILOT_ALIYUN_API_KEY": "aliyun-key",
                 "REQPILOT_DASHSCOPE_BASE_URL": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-                "REQPILOT_ALIYUN_CHAT_MODEL": "qwen3.5-plus",
+                "REQPILOT_ALIYUN_CHAT_MODEL": "qwen3.7-plus",
                 "REQPILOT_ALIYUN_EMBEDDING_MODEL": "text-embedding-v4",
                 "REQPILOT_ALIYUN_RETRIEVAL_BACKEND": "qdrant",
                 "REQPILOT_ALIYUN_QDRANT_URL": "http://localhost:6333",
@@ -1537,7 +1890,7 @@ class AICopilotTests(unittest.TestCase):
                     "aliyun": {
                         "api_key": "aliyun-key",
                         "base_url": "https://dashscope.aliyuncs.com/compatible-mode/v1",
-                        "chat_model": "qwen3.5-plus",
+                        "chat_model": "qwen3.7-plus",
                         "embedding_model": "text-embedding-v4",
                         "qdrant_url": "http://localhost:6333",
                         "qdrant_collection": "reqpilot-knowledge-aliyun-local",
@@ -1576,7 +1929,7 @@ class AICopilotTests(unittest.TestCase):
                 "default_profile_id": "aliyun",
                 "aliyun": {
                     "api_key": "aliyun-key",
-                    "chat_model": "qwen3.5-plus",
+                    "chat_model": "qwen3.7-plus",
                     "embedding_model": "text-embedding-v4",
                     "qdrant_url": "http://localhost:6333",
                     "qdrant_collection": "reqpilot-knowledge-aliyun-local",
@@ -1588,7 +1941,7 @@ class AICopilotTests(unittest.TestCase):
 
         self.assertEqual(payload["default_profile_id"], "aliyun")
         self.assertTrue(payload["aliyun"]["api_key_configured"])
-        self.assertEqual(payload["aliyun"]["chat_model"], "qwen3.5-plus")
+        self.assertEqual(payload["aliyun"]["chat_model"], "qwen3.7-plus")
         self.assertEqual(payload["aliyun"]["embedding_model"], "text-embedding-v4")
         self.assertEqual(payload["aliyun"]["qdrant_url"], "http://localhost:6333")
 
@@ -1614,7 +1967,7 @@ class AICopilotTests(unittest.TestCase):
             profile_id="aliyun",
             provider="aliyun",
             profile_label="Aliyun",
-            chat_model="qwen3.5-plus",
+            chat_model="qwen3.7-plus",
             embedding_model="text-embedding-v4",
             dashscope_api_key="sk-测试key",
             dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",
@@ -1652,7 +2005,7 @@ class AICopilotTests(unittest.TestCase):
             profile_id="aliyun",
             provider="aliyun",
             profile_label="Aliyun",
-            chat_model="qwen3.5-plus",
+            chat_model="qwen3.7-plus",
             embedding_model="text-embedding-v4",
             dashscope_api_key="aliyun-key",
         )
@@ -1702,7 +2055,7 @@ class AICopilotTests(unittest.TestCase):
             profile_id="aliyun",
             provider="aliyun",
             profile_label="Aliyun",
-            chat_model="qwen3.5-plus",
+            chat_model="qwen3.7-plus",
             embedding_model="text-embedding-v4",
             dashscope_api_key="aliyun-key",
             dashscope_base_url="https://dashscope.aliyuncs.com/compatible-mode/v1",

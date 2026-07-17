@@ -64,6 +64,7 @@ prototype/storage/smoke/
 prototype/storage/source_snapshots/
 prototype/storage/table_snapshots/
 prototype/eval/ai_smoke/latest/
+prototype/eval/irps_rag/latest/
 prototype/eval/aliyun_*/latest/
 prototype/eval/fidelity/
 prototype/eval/iterations/

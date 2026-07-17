@@ -244,7 +244,7 @@ azd up
 
 Aliyun 默认模型：
 
-- chat：`qwen3.5-plus`
+- chat：`qwen3.7-plus`
 - embedding：`text-embedding-v4`
 
 Aliyun 当前仅保留 LLM 基础配置：
@@ -252,7 +252,7 @@ Aliyun 当前仅保留 LLM 基础配置：
 ```bash
 REQPILOT_ALIYUN_API_KEY=<dashscope-api-key>
 REQPILOT_DASHSCOPE_BASE_URL=https://dashscope.aliyuncs.com/compatible-mode/v1
-REQPILOT_ALIYUN_CHAT_MODEL=qwen3.5-plus
+REQPILOT_ALIYUN_CHAT_MODEL=qwen3.7-plus
 REQPILOT_ALIYUN_EMBEDDING_MODEL=text-embedding-v4
 ```
 

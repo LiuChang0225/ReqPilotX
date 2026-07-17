@@ -1,7 +1,10 @@
 from __future__ import annotations
 
 import hashlib
+import logging
+import os
 import re
+import tempfile
 from contextlib import redirect_stderr, redirect_stdout
 from difflib import SequenceMatcher
 from io import BytesIO, StringIO
@@ -19,12 +22,27 @@ try:
 except ImportError:  # pragma: no cover - optional runtime dependency
     fitz = None
 
+_logger = logging.getLogger(__name__)
+
 
 _TABLE_FONT_CANDIDATES = (
+    # macOS
     "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
     "/System/Library/Fonts/Hiragino Sans GB.ttc",
     "/System/Library/Fonts/STHeiti Medium.ttc",
     "/System/Library/Fonts/Supplemental/Arial.ttf",
+    # Windows — CJK-capable fonts first, Latin-only last
+    "C:/Windows/Fonts/msyh.ttc",
+    "C:/Windows/Fonts/msyhbd.ttc",
+    "C:/Windows/Fonts/simhei.ttf",
+    "C:/Windows/Fonts/simsun.ttc",
+    "C:/Windows/Fonts/arial.ttf",
+    # Linux
+    "/usr/share/fonts/truetype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/opentype/noto/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/noto-cjk/NotoSansCJK-Regular.ttc",
+    "/usr/share/fonts/truetype/wqy/wqy-zenhei.ttc",
+    "/usr/share/fonts/truetype/dejavu/DejaVuSans.ttf",
 )
 _TABLE_FONT_SIZE = 13
 _TEXT_FONT_SIZE = 14
@@ -1163,10 +1181,20 @@ def _snapshot_file_is_usable(path: Path) -> bool:
 
 def _write_png_atomically(target: Path, image_bytes: bytes) -> Path:
     target.parent.mkdir(parents=True, exist_ok=True)
-    temp_target = target.with_name(f".{target.name}.tmp")
-    temp_target.write_bytes(image_bytes)
-    temp_target.replace(target)
-    return target
+    temp_fd, temp_name = tempfile.mkstemp(prefix=f".{target.name}.", suffix=".tmp", dir=target.parent)
+    temp_target = Path(temp_name)
+    try:
+        with os.fdopen(temp_fd, "wb") as handle:
+            handle.write(image_bytes)
+        temp_target.replace(target)
+        return target
+    except Exception:
+        try:
+            if temp_target.exists():
+                temp_target.unlink()
+        except OSError:
+            pass
+        raise
 
 
 def render_table_png(
@@ -4417,7 +4445,7 @@ def _render_table_image(
     header_row_count: int = 1,
 ) -> tuple[BytesIO, int, int]:
     normalized_rows = _normalize_table_rows(rows)
-    font = _load_font(_TABLE_FONT_SIZE)
+    font = load_table_font(_TABLE_FONT_SIZE)
     probe = ImageDraw.Draw(PILImage.new("RGB", (1, 1), "white"))
     column_units = _fit_table_column_units(normalized_rows, max_width_px=max_width_px)
     column_widths = [units * _TABLE_UNIT_PX + (_TABLE_CELL_PADDING_X * 2) for units in column_units]
@@ -4465,7 +4493,7 @@ def _render_table_image(
 
 
 def _render_text_snapshot(text: str, *, max_width_px: int) -> tuple[BytesIO, int, int]:
-    font = _load_font(_TEXT_FONT_SIZE)
+    font = load_table_font(_TEXT_FONT_SIZE)
     probe = ImageDraw.Draw(PILImage.new("RGB", (1, 1), "white"))
     max_units = max(48, (max_width_px - 48) // _TABLE_UNIT_PX)
     wrapped = _wrap_text_to_units(str(text or "").strip(), max_units)
@@ -7787,11 +7815,15 @@ def _measure_multiline_text(draw: ImageDraw.ImageDraw, text: str, font: ImageFon
     return max(1, int(bbox[2] - bbox[0])), max(1, int(bbox[3] - bbox[1]))
 
 
-def _load_font(size: int) -> ImageFont.ImageFont:
+def load_table_font(size: int) -> ImageFont.ImageFont:
     for font_path in _TABLE_FONT_CANDIDATES:
         try:
             if Path(font_path).exists():
                 return ImageFont.truetype(font_path, size=size)
         except OSError:
             continue
+    _logger.warning(
+        "No CJK-capable font found on this system; table images may render CJK text as unreadable boxes. "
+        "Install msyh.ttc (Windows), Noto Sans CJK (Linux), or Arial Unicode MS (macOS)."
+    )
     return ImageFont.load_default()

@@ -11,6 +11,28 @@ from app.services import extraction_preview
 
 
 class ExtractionPreviewFallbackTests(unittest.TestCase):
+    def test_sanitize_preview_payload_strips_surrogates_from_nested_table_rows(self) -> None:
+        payload = {
+            "complete_requirement_entries": [
+                {
+                    "table_refs": [
+                        {
+                            "slice_rows": [["回归线的斜率，\ud835"]],
+                        }
+                    ]
+                }
+            ],
+            "summary": {"title": "示例\ud835标题"},
+        }
+
+        sanitized = extraction_preview._sanitize_preview_payload(payload)
+
+        self.assertEqual(
+            sanitized["complete_requirement_entries"][0]["table_refs"][0]["slice_rows"][0][0],
+            "回归线的斜率，",
+        )
+        self.assertEqual(sanitized["summary"]["title"], "示例标题")
+
     def test_default_table_snapshot_root_prefers_staged_symlink_parent(self) -> None:
         from tempfile import TemporaryDirectory
 

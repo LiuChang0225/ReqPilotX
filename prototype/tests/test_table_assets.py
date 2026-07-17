@@ -54,6 +54,23 @@ _DAMPER_SAMPLE_PDF = next(
 
 
 class TableAssetsParsingTest(unittest.TestCase):
+    def test_write_png_atomically_ignores_stale_read_only_temp_file(self) -> None:
+        with tempfile.TemporaryDirectory() as tmpdir:
+            target = Path(tmpdir) / "snapshot.png"
+            stale_temp = target.with_name(f".{target.name}.tmp")
+            stale_temp.write_bytes(b"stale")
+            stale_temp.chmod(0o444)
+            image_bytes = render_text_snapshot_png("snapshot body")
+
+            try:
+                written = ta._write_png_atomically(target, image_bytes)
+            finally:
+                stale_temp.chmod(0o666)
+
+            self.assertEqual(written, target)
+            self.assertTrue(target.exists())
+            self.assertEqual(target.read_bytes(), image_bytes)
+
     def test_single_row_pipe_table_does_not_infer_fake_headers(self) -> None:
         headers, rows, mode = _extract_structured_table([
             "|1|外观检查|USCAR-2|按要求执行|PV|10|C Sample|",

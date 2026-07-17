@@ -1,6 +1,6 @@
 # Extraction Active Context
 
-更新时间：2026-04-24 13:26 CST
+更新时间：2026-07-14 CST
 分支：`codex/extraction-quality-loop`
 
 ## 分支目的
@@ -17,8 +17,29 @@
 - `SOR-N82KS-E01项目-T00007918-氮氧传感器-签批.pdf`
 - `产品设计规格说明书PDS-DE全主动减振器总成-V1.0-20251127.pdf`
 - `产品设计规格说明书PDS-DE前后油泵总成-V1.1-20251215.pdf`
+- `OHT5 征求意见稿_202606.pdf`
 
 ## 最近已修
+
+- `prototype/app/services/ai_copilot.py`
+  - Azure OpenAI 需求分析链路已进入 strict path：`llm_primary` screening 失败直接 `screening_failed`，assessment 失败直接 `analysis_failed`，不再自动转 heuristic screening/assessment。
+  - `azure_sdk` / `azure_haystack` retrieval backend 配置缺失时不再静默退回 `HeuristicEvidenceRetriever`，而是返回带明确原因的 `analysis_failed`。
+  - strict path v2 已补齐：Azure LLM 路径不再让关键词 hard rules 静默改判；Azure evidence/prompt 增加 `chunk_id`、`evidence_slot`、`score_source`；Azure SDK indexer 上传前按 `source_doc_id` 删除 stale chunks。
+- `prototype/tests/test_ai_copilot.py`
+  - 新增 3 个 TDD regression tests，覆盖 Azure `llm_primary` screening/assessment fail-closed 与 Azure retrieval misconfig no-heuristic 行为。
+  - 新增 strict v2 regression tests，覆盖 Azure LLM 不被 hard-rule override、evidence 身份/score source、chunk-id 引用校验和 Azure Search stale chunk 删除。
+- `prototype/scripts/ai_smoke_suite.py` / `prototype/tests/test_ai_smoke_suite.py`
+  - smoke harness 增加 `--profile azure` / `--allow-skip` / `--sync-knowledge`；最后一项为真实 Azure RAG 准备一次性隔离知识文档并在 finally 清理远端 chunks。
+  - 真实 Azure `llm_primary + azure_sdk` smoke 已达 `6/6`，无 heuristic run。
+- `prototype/app/services/ai_copilot.py`
+  - 修复 Azure Search `delete_documents` SDK 调用契约，stale chunk 删除与 smoke cleanup 真实生效。
+  - Azure `@search.score` 与 Qdrant 分数尺度不同；Azure 的 effective/decision prompt 与 guardrail 阈值校准为 `0.03`，避免直接命中文档被错误判为证据不足。
+
+- `prototype/app/services/extraction_preview.py`
+  - 对真实失败 PDF `OHT5 征求意见稿_202606.pdf` 复现后确认：parser 输出已经零 surrogate，但 preview payload 在 `root.complete_requirement_entries[667].table_refs[0].slice_rows[0][0]` 仍保留孤立 surrogate，导致 `preview_cache.persist_preview_cache()` 写 JSON 时触发 `UnicodeEncodeError`。
+  - 新增 `_sanitize_preview_payload()` 与 `_strip_surrogate_codepoints()`，在 `build_extraction_preview()` 返回边界递归清洗所有字符串字段，统一覆盖 `table_refs.slice_rows` 等深层嵌套文本，避免 preview cache 和 live API 响应再次带出 surrogate。
+- `prototype/tests/test_extraction_preview.py`
+  - 新增 `test_sanitize_preview_payload_strips_surrogates_from_nested_table_rows`，锁定这次深层表格单元格文本污染回归。
 
 - `prototype/scripts/extraction_diagnose.py`
   - baseline delta 增加 fidelity profile 容许范围判断。
@@ -45,6 +66,20 @@
 
 ## 验证状态
 
+- Focused AI tests:
+  - 新增 3 个 Azure no-heuristic tests 先确认红灯，再实现 strict path。
+  - `python -m unittest tests.test_ai_copilot.AICopilotTests.test_run_ai_copilot_assessment_llm_primary_fails_closed_when_screening_errors tests.test_ai_copilot.AICopilotTests.test_run_ai_copilot_assessment_llm_primary_fails_closed_when_assessment_errors tests.test_ai_copilot.AICopilotTests.test_run_ai_copilot_assessment_azure_retrieval_misconfig_does_not_use_heuristic_retrieval -v` -> `OK`
+  - strict v2 新增 5 个 focused tests 先确认红灯，再实现转绿。
+  - `python -m unittest tests.test_ai_copilot tests.test_ai_smoke_suite -v` -> `62 tests / OK`
+  - `python -m py_compile app\services\ai_copilot.py scripts\ai_smoke_suite.py` -> `OK`
+  - `python scripts\ai_smoke_suite.py --profile azure --mode llm_primary --sync-knowledge` -> `6/6`、无 heuristic run。
+
+- Focused tests:
+  - `python -m unittest tests.test_extraction_preview.ExtractionPreviewFallbackTests.test_sanitize_preview_payload_strips_surrogates_from_nested_table_rows -v` -> `OK`
+  - 使用真实失败 PDF 直调 `build_extraction_preview()`，递归扫描整份 preview payload -> `no surrogates in preview`
+  - `json.dumps(preview, ensure_ascii=False).encode("utf-8")` -> `OK`
+  - `python -m unittest tests.test_extraction_preview -q` -> 当前 Windows 环境仅因 `WinError 1314` 的 symlink 权限前提失败；排除该已知环境用例后其余 `45 tests / OK`
+
 - Focused tests:
   - `python3 -m unittest prototype.tests.test_extraction_diagnose -q` -> `8 tests / OK`
   - `python3 -m unittest prototype.tests.test_extraction_preview -q` -> `52 tests / OK`
@@ -58,6 +93,7 @@
 
 ## 当前已知问题
 
+- Azure strict v2 的 service-level 真环境 smoke 已完成；下一步应扩大到真实产品文档集并按 `score_source` 收集阈值分布，不能把当前小型 fixture 的 `0.03` 当作最终全域校准值。
 - `J02.311`：parser 风险页仍是 `1 / 11 / 12 / 13 / 70 / 89 / 105 / 108 / 112`。
 - `J02.311`：`1 范围`、`6.2.2`、`6.6.1` 的 alpha/numeric 嵌套层级仍不对；`1）/2）` 等内容被拆成独立数字行。
 - `J02.311`：`图1 / 图8 / 图9 / 图10` 等显式图 crop 错切，已抽查 `图1` 仅截 caption，`图9` 截到大量正文。
@@ -69,6 +105,10 @@
 
 ## 下一步
 
+- 用真实产品知识库扩大 Azure score calibration，核对 UI trace/badge 中 `chunk_id`、`score_source` 和无 heuristic fallback 的可见性。
+- 权限恢复后补跑 `codegraph sync . && codegraph status .` 与 touched files 的 `git diff --check`。
+- 在桌面便携版对 `OHT5 征求意见稿_202606.pdf` 做一次 live spot-check，确认 `preview_status` 从 `BUILDING` 正常进入 `READY`，不再回落到 UTF-8 surrogate 异常。
+- 如需再次对外分发测试包，重建便携版产物，确保这次 preview payload 清洗进入打包结果。
 - 先修 `J02.311` nested alpha/numeric hierarchy，避免只把 alpha 合并进父行却丢掉子数字项归属。
 - 再修显式 figure crop 选图逻辑，优先 `图1 / 图8 / 图9 / 图10`。
 - 然后修 `附录 A / 表A.1` 起始边界与 `7.5.2 / 7.5.6.1` 表格可见验收。

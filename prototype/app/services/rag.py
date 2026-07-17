@@ -28,11 +28,42 @@ STOPWORDS = {
     "规范",
 }
 SYNONYM_MAP = {
+    # Existing automotive terms
     "wake-up": ["startup", "start-up", "cold start"],
     "startup": ["wake-up", "cold start"],
-    "ecu": ["dut", "device under test"],
-    "can": ["can bus"],
+    "ecu": ["electronic control unit", "dut", "device under test"],
+    "can": ["can bus", "can fd"],
     "latency": ["response", "delay"],
+    # Throttle / ETC domain
+    "etc": ["electronic throttle control", "throttle body"],
+    "throttle": ["etc", "electronic throttle", "throttle body"],
+    "etc12": ["etc", "electronic throttle control"],
+    # Protection & safety
+    "emc": ["electromagnetic compatibility", "电磁兼容"],
+    "esd": ["electrostatic discharge", "静电放电"],
+    "ip67": ["ip6k9k", "protection class", "防护等级", "ingress protection"],
+    "asil": ["automotive safety integrity level", "功能安全", "iso 26262"],
+    # Electrical
+    "hv": ["high voltage", "高压"],
+    "lv": ["low voltage", "低压"],
+    "supply voltage": ["供电电压", "电源电压", "operating voltage"],
+    "current consumption": ["静态电流", "power consumption", "quiescent current"],
+    # Environmental
+    "temperature range": ["温度范围", "operating temperature", "工作温度"],
+    "thermal shock": ["温度冲击", "thermal cycling"],
+    "salt spray": ["盐雾", "salt fog", "corrosion test"],
+    # Document types
+    "sor": ["statement of requirements", "需求规格"],
+    "pds": ["product design specification", "产品设计规格"],
+    "cts": ["component technical specification", "零部件技术规范"],
+    # Sensor / iRPS domain
+    "irps": ["inductive rotor position sensor", "电感式转子位置传感器"],
+    "airgap": ["air gap", "气隙"],
+    "linearity": ["线性度", "linearity error"],
+    # Response / performance
+    "response time": ["响应时间", "reaction time", "step response"],
+    "hysteresis": ["迟滞", "hysteresis error"],
+    "vibration": ["振动", "vibration test", "sinusoidal vibration"],
 }
 
 

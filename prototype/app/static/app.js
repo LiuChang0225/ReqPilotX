@@ -569,6 +569,17 @@ function getSelectedAiProfileId() {
   const profiles = getAiProfiles();
   const selected = String(state.aiSelectedProfileId || "").trim();
   if (selected && profiles.some((profile) => String(profile.id || "") === selected)) {
+    // If the selected profile is not ready but a ready one exists,
+    // auto-switch to the configured default (or first ready profile)
+    // so users aren't stuck with a disabled "Run AI" button.
+    const selectedProfile = profiles.find((profile) => String(profile.id || "") === selected);
+    if (selectedProfile && !selectedProfile.ready) {
+      const readyFallback = getConfiguredDefaultProfile() || profiles.find((p) => p.ready);
+      if (readyFallback && readyFallback.ready) {
+        state.aiSelectedProfileId = String(readyFallback.id || "").trim();
+        return state.aiSelectedProfileId;
+      }
+    }
     return selected;
   }
   const fallback = resolveDefaultAiProfileId();
@@ -755,7 +766,7 @@ function renderAiProviderSetup(selectedProfileId = "") {
     el.setupAzureAllowInteractive.checked = Boolean(azureSetup.allow_interactive_login);
   }
   if (el.setupAliyunChatModel) {
-    el.setupAliyunChatModel.value = aliyunSetup.chat_model || "qwen3.5-plus";
+    el.setupAliyunChatModel.value = aliyunSetup.chat_model || "qwen3.7-plus";
   }
   if (el.setupAliyunEmbeddingModel) {
     el.setupAliyunEmbeddingModel.value = aliyunSetup.embedding_model || "text-embedding-v4";
@@ -1161,8 +1172,9 @@ async function onUploadSor(event) {
   const form = new FormData();
   form.append("file", file);
   showUploadProgress("sor");
+  let document;
   try {
-    const document = await uploadWithProgress(
+    document = await uploadWithProgress(
       `/api/projects/${state.projectId}/sor-documents`,
       form,
       (percent) => {
@@ -1174,13 +1186,21 @@ async function onUploadSor(event) {
       }
     );
     setUploadProcessing("sor", false);
-    await loadSorDocuments(document.id);
-    await loadWorkspace();
     el.sorUploadResult.textContent = `已上传: ${document.file_name}`;
+    el.sorUploadResult.className = "hint";
     el.sorFile.value = "";
   } catch (err) {
     setUploadProcessing("sor", false);
     el.sorUploadResult.textContent = `上传失败: ${err.message}`;
+    el.sorUploadResult.className = "hint is-error";
+    return;
+  }
+
+  try {
+    await loadSorDocuments(document.id);
+    await loadWorkspace();
+  } catch (err) {
+    el.sorUploadResult.textContent = `已上传: ${document.file_name}，但工作区刷新失败: ${err.message}`;
     el.sorUploadResult.className = "hint is-error";
   } finally {
     hideUploadProgress("sor");
@@ -1208,8 +1228,9 @@ async function onUploadKnowledge(event) {
   form.append("doc_type", "REFERENCE");
   form.append("status", "ACTIVE");
   showUploadProgress("kb");
+  let document;
   try {
-    const document = await uploadWithProgress(
+    document = await uploadWithProgress(
       `/api/projects/${state.projectId}/knowledge-documents`,
       form,
       (percent) => {
@@ -1222,17 +1243,25 @@ async function onUploadKnowledge(event) {
     );
     setUploadProcessing("kb", false);
     el.kbUploadResult.textContent = `已上传: ${document.file_name}，知识库版本 ${document.knowledge_base_version}`;
+    el.kbUploadResult.className = "hint";
     el.kbFile.value = "";
     if (el.kbDocVersion) el.kbDocVersion.value = "";
     if (el.kbEffectiveFrom) el.kbEffectiveFrom.value = "";
     if (el.kbEffectiveTo) el.kbEffectiveTo.value = "";
     if (el.kbDocType) el.kbDocType.value = "REFERENCE";
     if (el.kbDocStatus) el.kbDocStatus.value = "ACTIVE";
-    await loadKnowledgeDocuments();
-    await loadWorkspace();
   } catch (err) {
     setUploadProcessing("kb", false);
     el.kbUploadResult.textContent = `上传失败: ${err.message}`;
+    el.kbUploadResult.className = "hint is-error";
+    return;
+  }
+
+  try {
+    await loadKnowledgeDocuments();
+    await loadWorkspace();
+  } catch (err) {
+    el.kbUploadResult.textContent = `已上传: ${document.file_name}，但列表刷新失败: ${err.message}`;
     el.kbUploadResult.className = "hint is-error";
   } finally {
     hideUploadProgress("kb");

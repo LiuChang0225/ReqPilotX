@@ -112,6 +112,34 @@ TABLE_INLINE_WATERMARK_RE = re.compile(
     r")",
     re.I,
 )
+SURROGATE_CODEPOINT_RE = re.compile(r"[\ud800-\udfff]")
+
+
+def _strip_surrogate_codepoints(value: str) -> str:
+    return SURROGATE_CODEPOINT_RE.sub("", str(value or ""))
+
+
+def _sanitize_parsed_document(
+    *,
+    text: str,
+    segments: list[dict[str, Any]],
+    file_type: str,
+    diagnostics: dict[str, Any],
+) -> dict[str, Any]:
+    sanitized_segments: list[dict[str, Any]] = []
+    for segment in segments or []:
+        sanitized = dict(segment)
+        if "text" in sanitized:
+            sanitized["text"] = _strip_surrogate_codepoints(str(sanitized.get("text") or ""))
+        if "source_anchor" in sanitized:
+            sanitized["source_anchor"] = _strip_surrogate_codepoints(str(sanitized.get("source_anchor") or ""))
+        sanitized_segments.append(sanitized)
+    return {
+        "text": _strip_surrogate_codepoints(text),
+        "segments": sanitized_segments,
+        "file_type": file_type,
+        "diagnostics": diagnostics,
+    }
 
 
 def parse_document(file_path: str) -> tuple[str, list[dict[str, Any]], str]:
@@ -125,36 +153,36 @@ def parse_document_with_diagnostics(file_path: str) -> dict[str, Any]:
     try:
         if ext == ".pdf":
             text, segments, file_type, diagnostics = _parse_pdf(path)
-            return {
-                "text": text,
-                "segments": segments,
-                "file_type": file_type,
-                "diagnostics": diagnostics,
-            }
+            return _sanitize_parsed_document(
+                text=text,
+                segments=segments,
+                file_type=file_type,
+                diagnostics=diagnostics,
+            )
         if ext == ".docx":
             text, segments, file_type = _parse_docx(path)
-            return {
-                "text": text,
-                "segments": segments,
-                "file_type": file_type,
-                "diagnostics": {"mode": "docx_paragraph"},
-            }
+            return _sanitize_parsed_document(
+                text=text,
+                segments=segments,
+                file_type=file_type,
+                diagnostics={"mode": "docx_paragraph"},
+            )
         text, segments, file_type = _parse_text(path)
-        return {
-            "text": text,
-            "segments": segments,
-            "file_type": file_type,
-            "diagnostics": {"mode": "plain_text"},
-        }
+        return _sanitize_parsed_document(
+            text=text,
+            segments=segments,
+            file_type=file_type,
+            diagnostics={"mode": "plain_text"},
+        )
     except Exception as exc:
         # Keep workflow moving when a parser dependency fails.
         text, segments, file_type = _parse_text(path)
-        return {
-            "text": text,
-            "segments": segments,
-            "file_type": file_type,
-            "diagnostics": {"mode": "fallback_text", "error": str(exc)},
-        }
+        return _sanitize_parsed_document(
+            text=text,
+            segments=segments,
+            file_type=file_type,
+            diagnostics={"mode": "fallback_text", "error": str(exc)},
+        )
 
 
 def _parse_pdf(path: Path) -> tuple[str, list[dict[str, Any]], str, dict[str, Any]]:
@@ -1217,7 +1245,7 @@ def _extract_clean_lines(text: str) -> list[str]:
 
 
 def _normalize_line(line: str) -> str:
-    value = line.strip()
+    value = _strip_surrogate_codepoints(line).strip()
     if not value:
         return ""
     value = re.sub(r"^#+\s*", "", value)

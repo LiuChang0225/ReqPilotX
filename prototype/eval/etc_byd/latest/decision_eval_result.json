@@ -1,0 +1,182 @@
+{
+  "corpus_id": "etc-byd-472qc-v1",
+  "evaluated_at": "2026-07-16T18:26:44",
+  "metrics": {
+    "total": 15,
+    "correct": 15,
+    "decision_accuracy": 1.0,
+    "false_accept_rate": 0.0,
+    "false_reject_rate": 0.0,
+    "clarification_rate": 0.0667,
+    "per_category": {
+      "electrical_interface": {
+        "total": 4,
+        "correct": 4,
+        "accuracy": 1.0
+      },
+      "environment": {
+        "total": 2,
+        "correct": 2,
+        "accuracy": 1.0
+      },
+      "performance": {
+        "total": 9,
+        "correct": 9,
+        "accuracy": 1.0
+      }
+    }
+  },
+  "gate_pass": true,
+  "results": [
+    {
+      "case_id": "ETC-BYD-001",
+      "category": "environment",
+      "expected": "ACCEPT",
+      "actual": "ACCEPT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "Both specs match exactly: -40°C to +140°C."
+    },
+    {
+      "case_id": "ETC-BYD-002",
+      "category": "environment",
+      "expected": "ACCEPT",
+      "actual": "ACCEPT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "Both specify IP6K9K, VT additionally references DIN 40050-9 standard."
+    },
+    {
+      "case_id": "ETC-BYD-003",
+      "category": "electrical_interface",
+      "expected": "ACCEPT",
+      "actual": "ACCEPT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "Exact match: 5V ±0.5V."
+    },
+    {
+      "case_id": "ETC-BYD-004",
+      "category": "electrical_interface",
+      "expected": "DEVIATION_ACCEPT",
+      "actual": "DEVIATION_ACCEPT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "BYD requires 12mA which is LOWER than VT's 21mA. VT spec is less strict, so VT product may not meet BYD's tighter limit."
+    },
+    {
+      "case_id": "ETC-BYD-005",
+      "category": "performance",
+      "expected": "ACCEPT",
+      "actual": "ACCEPT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "VT ±1% is TIGHTER than BYD ±1.5%, so VT product exceeds BYD requirement."
+    },
+    {
+      "case_id": "ETC-BYD-006",
+      "category": "performance",
+      "expected": "REJECT",
+      "actual": "REJECT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "VT typical 1.8ms is significantly SLOWER than BYD's <1ms requirement."
+    },
+    {
+      "case_id": "ETC-BYD-007",
+      "category": "performance",
+      "expected": "REJECT",
+      "actual": "REJECT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "VT <0.2° is WIDER than BYD <0.1°. VT product may not meet BYD's tighter hysteresis limit."
+    },
+    {
+      "case_id": "ETC-BYD-008",
+      "category": "electrical_interface",
+      "expected": "ACCEPT",
+      "actual": "ACCEPT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "Exact match: 12V."
+    },
+    {
+      "case_id": "ETC-BYD-009",
+      "category": "electrical_interface",
+      "expected": "ACCEPT",
+      "actual": "ACCEPT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "VT max 1.5A is LOWER than BYD max 1.7A, so VT product meets the requirement with margin."
+    },
+    {
+      "case_id": "ETC-BYD-010",
+      "category": "performance",
+      "expected": "ACCEPT",
+      "actual": "ACCEPT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "VT range (360-10000Hz) fully covers BYD range (360-2000Hz)."
+    },
+    {
+      "case_id": "ETC-BYD-011",
+      "category": "performance",
+      "expected": "DEVIATION_ACCEPT",
+      "actual": "DEVIATION_ACCEPT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "VT uses 52mm diameter vs BYD 50mm. Different physical sizes may require manifold adaptation."
+    },
+    {
+      "case_id": "ETC-BYD-012",
+      "category": "performance",
+      "expected": "REJECT",
+      "actual": "REJECT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "VT ≤3.0 kg/h exceeds BYD ≤2.5 kg/h limit. However note different DK sizes (52mm vs 50mm)."
+    },
+    {
+      "case_id": "ETC-BYD-013",
+      "category": "performance",
+      "expected": "ACCEPT",
+      "actual": "ACCEPT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "Exact match: <100ms."
+    },
+    {
+      "case_id": "ETC-BYD-014",
+      "category": "performance",
+      "expected": "NEED_CLARIFICATION",
+      "actual": "NEED_CLARIFICATION",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "VT 1.2mH±20% (range 0.96-1.44mH) does not cover BYD 1.6mH. Significant difference requires engineering review."
+    },
+    {
+      "case_id": "ETC-BYD-015",
+      "category": "performance",
+      "expected": "ACCEPT",
+      "actual": "ACCEPT",
+      "is_correct": true,
+      "is_false_accept": false,
+      "is_false_reject": false,
+      "decision_rationale": "Exact match: 0.952% Us/°."
+    }
+  ]
+}

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import json
+import logging
 import math
 import os
 import re
@@ -11,7 +12,9 @@ from functools import lru_cache
 from pathlib import Path
 from typing import Any, Callable, Literal, Protocol
 
-from pydantic import BaseModel, ConfigDict
+from pydantic import BaseModel, ConfigDict, Field
+
+_logger = logging.getLogger(__name__)
 
 from app.runtime_paths import resolve_storage_dir
 from app.services.assessor import (
@@ -44,12 +47,12 @@ DEFAULT_AZURE_SEARCH_VECTOR_PROFILE = "reqpilot-vector-profile"
 DEFAULT_AZURE_SEARCH_VECTOR_ALGORITHM = "reqpilot-hnsw"
 DEFAULT_AZURE_SEARCH_SEMANTIC_CONFIGURATION = "reqpilot-semantic"
 DEFAULT_DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-DEFAULT_DASHSCOPE_CHAT_MODEL = "qwen3.5-plus"
-DEFAULT_DASHSCOPE_SCREENING_MODEL = "qwen3.5-flash"
+DEFAULT_DASHSCOPE_CHAT_MODEL = "qwen3.7-plus"
+DEFAULT_DASHSCOPE_SCREENING_MODEL = "qwen3.6-flash"
 DEFAULT_DASHSCOPE_EMBEDDING_MODEL = "text-embedding-v4"
 DEFAULT_AZURE_OPENAI_MAX_RETRIES = 2
 DEFAULT_ALIYUN_OPENAI_MAX_RETRIES = 0
-DEFAULT_AZURE_EMBEDDING_BATCH_SIZE = 1
+DEFAULT_AZURE_EMBEDDING_BATCH_SIZE = 16
 DEFAULT_ALIYUN_EMBEDDING_BATCH_SIZE = 10
 MAX_DASHSCOPE_EMBEDDING_BATCH_SIZE = 10
 DEFAULT_DASHVECTOR_COLLECTION_NAME = "reqpilot-knowledge"
@@ -70,9 +73,12 @@ QDRANT_HYBRID_DENSE_TOP_K = 24
 QDRANT_HYBRID_SPARSE_TOP_K = 24
 QDRANT_HYBRID_FUSED_TOP_K = 12
 QDRANT_HYBRID_RERANK_TOP_K = 8
-QDRANT_FINAL_EVIDENCE_LIMIT = 3
+QDRANT_FINAL_EVIDENCE_LIMIT = int(os.environ.get("REQPILOT_MAX_EVIDENCE", "5"))
 QDRANT_MIN_EFFECTIVE_EVIDENCE_SCORE = 0.20
 QDRANT_MIN_DECISION_EVIDENCE_SCORE = 0.35
+# Azure AI Search @search.score is a backend-native score, not the normalized Qdrant score.
+AZURE_MIN_EFFECTIVE_EVIDENCE_SCORE = 0.03
+AZURE_MIN_DECISION_EVIDENCE_SCORE = 0.03
 QDRANT_LOCAL_RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
 
 GENERIC_TABLE_FACET_LABELS = {
@@ -122,8 +128,12 @@ def _load_runtime_config_from_file() -> None:
             config_data = json.loads(config_path.read_text(encoding="utf-8"))
             for k, v in config_data.items():
                 if v:
-                    if not os.getenv(k):
-                        _RUNTIME_AI_ENV_OVERRIDES[k] = str(v)
+                    # Always load config.json values into overrides so that the
+                    # persisted user configuration takes precedence over
+                    # environment defaults set by app_desktop.py.  Without this,
+                    # _save_runtime_config_to_file could overwrite config.json
+                    # with stale os.environ values on the next UI save.
+                    _RUNTIME_AI_ENV_OVERRIDES[k] = str(v)
     except Exception as e:
         print(f"[ReqPilotX] Error loading config.json: {e}")
 
@@ -160,33 +170,35 @@ class AIAnalysisCancelledError(RuntimeError):
 
 
 class AssessmentEvidenceSchema(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
-    source_doc_id: str
-    source_doc_name: str
-    source_location: str
-    excerpt: str
-    relevance: float
-    source_doc_version: str
+    evidence_slot: int = 0
+    chunk_id: str = ""
+    source_doc_id: str = ""
+    source_doc_name: str = ""
+    source_location: str = ""
+    excerpt: str = ""
+    relevance: float = 0.0
+    source_doc_version: str = ""
 
 
 class ScreeningOutputSchema(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
     analysis_label: Literal["REQUIREMENT", "INFO"]
     reason: str
 
 
 class AssessmentOutputSchema(BaseModel):
-    model_config = ConfigDict(extra="forbid")
+    model_config = ConfigDict(extra="ignore")
 
-    normalized_requirement: str
-    proposed_decision: Literal["ACCEPT", "REJECT", "DEVIATION_ACCEPT", "NEED_CLARIFICATION"]
-    confidence: float
-    reason: str
-    risk_level: Literal["LOW", "MEDIUM", "HIGH"]
-    clarification_question: str
-    evidences: list[AssessmentEvidenceSchema]
+    normalized_requirement: str = ""
+    proposed_decision: Literal["ACCEPT", "REJECT", "DEVIATION_ACCEPT", "NEED_CLARIFICATION"] = "NEED_CLARIFICATION"
+    confidence: float = 0.0
+    reason: str = ""
+    risk_level: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM"
+    clarification_question: str = ""
+    evidences: list[AssessmentEvidenceSchema] = Field(default_factory=list)
 
 
 @dataclass(frozen=True)
@@ -654,6 +666,14 @@ def load_ai_copilot_config(profile_id: str | None = None) -> AICopilotConfig:
 
 
 def serialize_ai_profile(config: AICopilotConfig) -> dict[str, Any]:
+    # When Azure falls back to heuristic mode because no Azure infrastructure is
+    # configured, ``provider_ready`` is True (local path needs nothing) but the
+    # profile is misleading if reported as "ready" in the UI.  Surface a more
+    # honest signal: Azure is only "ready" when its LLM or retrieval services
+    # are actually reachable.
+    effective_ready = config.provider_ready
+    if effective_ready and config.provider == DEFAULT_AZURE_PROFILE_ID and not config.azure_ready:
+        effective_ready = False
     return {
         "id": config.profile_id,
         "provider": config.provider,
@@ -663,7 +683,7 @@ def serialize_ai_profile(config: AICopilotConfig) -> dict[str, Any]:
         "chat_model": config.chat_model,
         "embedding_model": config.embedding_model,
         "auth_mode": config.auth_mode,
-        "ready": config.provider_ready,
+        "ready": effective_ready,
         "llm_ready": config.llm_runtime_ready,
         "retrieval_ready": config.retrieval_runtime_ready,
     }
@@ -711,10 +731,17 @@ def build_runtime_ai_provider_setup() -> dict[str, Any]:
             "provider": DEFAULT_AZURE_PROFILE_ID,
             "auth_mode": azure_config.azure_auth_mode or "rbac",
             "allow_interactive_login": azure_config.azure_allow_interactive_login,
-            "ready": azure_config.provider_ready,
+            "ready": azure_config.provider_ready and azure_config.azure_ready,
             "missing": get_ai_profile_missing_config(azure_config),
             "recommended_auth": "azure_cli_rbac",
             "interactive_browser_supported": True,
+            "search_endpoint": _get_config_value("AZURE_AI_SEARCH_ENDPOINT"),
+            "search_index_name": _get_config_value("AZURE_AI_SEARCH_INDEX_NAME"),
+            "openai_endpoint": _get_config_value("AZURE_OPENAI_ENDPOINT"),
+            "chat_deployment": _get_config_value("AZURE_OPENAI_CHAT_DEPLOYMENT"),
+            "embedding_deployment": _get_config_value("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
+            "screening_deployment": _get_config_value("AZURE_OPENAI_SCREENING_DEPLOYMENT"),
+            "assessment_mode": azure_config.assessment_mode,
         },
         "aliyun": {
             "provider": DEFAULT_ALIYUN_PROFILE_ID,
@@ -738,8 +765,28 @@ def apply_runtime_ai_provider_setup(payload: dict[str, Any]) -> dict[str, Any]:
         _set_runtime_config_value("REQPILOT_AI_DEFAULT_PROFILE", default_profile_id)
 
     azure_payload = payload.get("azure") or {}
-    if default_profile_id == DEFAULT_AZURE_PROFILE_ID:
+    if default_profile_id == DEFAULT_AZURE_PROFILE_ID or azure_payload:
         _set_runtime_config_value("REQPILOT_AZURE_AUTH_MODE", str(azure_payload.get("auth_mode") or "rbac"))
+        # Persist Azure deployment infrastructure details
+        if str(azure_payload.get("search_endpoint") or "").strip():
+            _set_runtime_config_value("AZURE_AI_SEARCH_ENDPOINT", str(azure_payload["search_endpoint"]).strip())
+        if str(azure_payload.get("search_index_name") or "").strip():
+            _set_runtime_config_value("AZURE_AI_SEARCH_INDEX_NAME", str(azure_payload["search_index_name"]).strip())
+        if str(azure_payload.get("openai_endpoint") or "").strip():
+            _set_runtime_config_value("AZURE_OPENAI_ENDPOINT", str(azure_payload["openai_endpoint"]).strip())
+        if str(azure_payload.get("chat_deployment") or "").strip():
+            _set_runtime_config_value("AZURE_OPENAI_CHAT_DEPLOYMENT", str(azure_payload["chat_deployment"]).strip())
+        if str(azure_payload.get("embedding_deployment") or "").strip():
+            _set_runtime_config_value("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", str(azure_payload["embedding_deployment"]).strip())
+        if str(azure_payload.get("screening_deployment") or "").strip():
+            _set_runtime_config_value("AZURE_OPENAI_SCREENING_DEPLOYMENT", str(azure_payload["screening_deployment"]).strip())
+        # Auto-detect assessment mode: enable llm_shadow when all required infra vars are present
+        azure_search_ep = _get_config_value("AZURE_AI_SEARCH_ENDPOINT")
+        azure_openai_ep = _get_config_value("AZURE_OPENAI_ENDPOINT")
+        azure_chat_dep = _get_config_value("AZURE_OPENAI_CHAT_DEPLOYMENT")
+        azure_embed_dep = _get_config_value("AZURE_OPENAI_EMBEDDING_DEPLOYMENT")
+        if azure_search_ep and azure_openai_ep and azure_chat_dep and azure_embed_dep:
+            _set_runtime_config_value("REQPILOT_AI_ASSESSMENT_MODE", "llm_shadow")
     if "allow_interactive_login" in azure_payload:
         _set_runtime_config_value(
             "REQPILOT_AZURE_ALLOW_INTERACTIVE_LOGIN",
@@ -875,6 +922,15 @@ def run_ai_copilot_assessment(
             final_model_name=screening["model_name"],
             final_prompt_version=screening["prompt_version"],
         )
+    if _is_visual_only_requirement(context):
+        return _finalize_assessment_result(
+            build_visual_only_assessment_result(context=context, screening=screening),
+            [],
+            collector,
+            final_mode="visual_only_routing",
+            final_model_name=screening["model_name"],
+            final_prompt_version=screening["prompt_version"],
+        )
     if screening.get("screening_failed"):
         return _finalize_assessment_result(
             build_screening_failed_assessment_result(context=context, screening=screening),
@@ -894,7 +950,24 @@ def run_ai_copilot_assessment(
             final_prompt_version=screening["prompt_version"],
         )
 
-    retriever = _select_retriever(config)
+    try:
+        retriever = _select_retriever(config)
+    except RuntimeError as exc:
+        if config.assessment_mode != "heuristic":
+            return _finalize_assessment_result(
+                build_analysis_failed_assessment_result(
+                    context=context,
+                    screening=screening,
+                    retrieval_backend=str(config.retrieval_backend or ""),
+                    failure_reason=str(exc),
+                ),
+                [],
+                collector,
+                final_mode="analysis_failed",
+                final_model_name=screening["model_name"],
+                final_prompt_version=screening["prompt_version"],
+            )
+        raise
     _emit_progress_stage_update(
         progress_callback,
         stage="retrieval",
@@ -905,6 +978,7 @@ def run_ai_copilot_assessment(
     )
     collector.retrieval_backend = retriever.backend_name
     evidences = retriever.retrieve(context, knowledge_docs, top_k=config.top_k)
+    evidences = _extend_evidence_with_adjacent_chunks(evidences, knowledge_docs=knowledge_docs)
     heuristics = HeuristicAssessmentEngine()
 
     if config.assessment_mode == "heuristic":
@@ -973,6 +1047,8 @@ def run_ai_copilot_assessment(
                 candidate=llm_result,
                 retrieved_evidences=evidences,
                 fallback_reason="",
+                retrieval_backend=retriever.backend_name,
+                reconciliation_policy=_reconciliation_policy_for_config(config),
             )
             final_result["analysis_basis"] = _build_requirement_analysis_basis(
                 context=context,
@@ -1003,12 +1079,13 @@ def run_ai_copilot_assessment(
         except AIAnalysisCancelledError:
             raise
         except Exception as exc:  # pragma: no cover - network/provider dependent
+            failure_reason = _provider_failure_reason(exc)
             collector.record_failure(
                 mode="llm_shadow",
                 model_name=llm_engine.model_name,
                 prompt_version=llm_engine.prompt_version,
                 input_payload={"context": context, "evidences": evidences},
-                fallback_reason=str(exc),
+                fallback_reason=failure_reason,
                 retrieval_backend=retriever.backend_name,
             )
             return _finalize_assessment_result(
@@ -1016,7 +1093,7 @@ def run_ai_copilot_assessment(
                     context=context,
                     screening=screening,
                     retrieval_backend=retriever.backend_name,
-                    failure_reason=str(exc),
+                    failure_reason=failure_reason,
                 ),
                 [],
                 collector,
@@ -1032,6 +1109,8 @@ def run_ai_copilot_assessment(
             candidate=llm_result,
             retrieved_evidences=evidences,
             fallback_reason="",
+            retrieval_backend=retriever.backend_name,
+            reconciliation_policy=_reconciliation_policy_for_config(config),
         )
         final_result["analysis_basis"] = _build_requirement_analysis_basis(
             context=context,
@@ -1053,54 +1132,36 @@ def run_ai_copilot_assessment(
     except AIAnalysisCancelledError:
         raise
     except Exception as exc:  # pragma: no cover - network/provider dependent
-        heuristic_result = heuristics.assess(context, evidences)
-        final_result = reconcile_assessment_output(
-            context=context,
-            candidate=heuristic_result,
-            retrieved_evidences=evidences,
-            fallback_reason=f"llm_primary_failed: {exc}",
-        )
-        final_result["analysis_basis"] = _build_requirement_analysis_basis(
-            context=context,
-            screening=screening,
-            retrieval_backend=retriever.backend_name,
-            evidences=evidences,
-            selected_mode="heuristic_fallback",
-        )
+        failure_reason = _provider_failure_reason(exc)
         collector.record_failure(
             mode="llm_primary",
             model_name=llm_engine.model_name,
             prompt_version=llm_engine.prompt_version,
             input_payload={"context": context, "evidences": evidences},
-            fallback_reason=str(exc),
+            fallback_reason=failure_reason,
             retrieval_backend=retriever.backend_name,
         )
-        collector.record_result(
-            mode="heuristic_fallback",
-            model_name=heuristics.model_name,
-            prompt_version=heuristics.prompt_version,
-            input_payload={"context": context, "evidences": evidences},
-            output_payload=heuristic_result,
-            validation_status=final_result["validation_status"],
-            fallback_reason=final_result["fallback_reason"],
-            retrieval_backend=retriever.backend_name,
+        return _finalize_assessment_result(
+            build_analysis_failed_assessment_result(
+                context=context,
+                screening=screening,
+                retrieval_backend=retriever.backend_name,
+                failure_reason=failure_reason,
+            ),
+            [],
+            collector,
+            final_mode="analysis_failed",
+            final_model_name=llm_engine.model_name,
+            final_prompt_version=llm_engine.prompt_version,
         )
-
-    final_mode = "llm_primary"
-    final_model_name = llm_engine.model_name
-    final_prompt_version = llm_engine.prompt_version
-    if collector.runs and collector.runs[-1]["mode"] == "heuristic_fallback":
-        final_mode = "heuristic_fallback"
-        final_model_name = heuristics.model_name
-        final_prompt_version = heuristics.prompt_version
 
     return _finalize_assessment_result(
         final_result,
         evidences,
         collector,
-        final_mode=final_mode,
-        final_model_name=final_model_name,
-        final_prompt_version=final_prompt_version,
+        final_mode="llm_primary",
+        final_model_name=llm_engine.model_name,
+        final_prompt_version=llm_engine.prompt_version,
     )
 
 
@@ -1207,10 +1268,16 @@ def build_assessment_context(requirement_row: dict[str, Any]) -> dict[str, Any]:
     dense_query_parts: list[str] = []
     if requirement_text:
         dense_query_parts.append(requirement_text)
+    if normalized_requirement and normalized_requirement != requirement_text:
+        dense_query_parts.append(normalized_requirement)
     if normalization_facet_text:
         dense_query_parts.append(f"结构化要点：{normalization_facet_text}")
     if section_label:
         dense_query_parts.append(f"章节上下文：{section_label}")
+    if content_summary and content_summary != requirement_text:
+        dense_query_parts.append(f"内容摘要：{content_summary}")
+    if table_context:
+        dense_query_parts.append(f"表格上下文：{table_context}")
     dense_retrieval_query = "\n".join(part for part in dense_query_parts if part)
     sparse_retrieval_query = requirement_text
 
@@ -2038,6 +2105,22 @@ class QdrantEvidenceRetriever:
         if top_score < QDRANT_MIN_EFFECTIVE_EVIDENCE_SCORE:
             return []
 
+        # Score margin guard: if top-1 and top-2 are very close but from
+        # different documents, mark retrieval as low-confidence
+        if len(documents) >= 2:
+            second_score = float(getattr(documents[1], "score", 0.0) or 0.0)
+            top_meta = _normalize_chunk_meta(getattr(documents[0], "meta", {}) or {}, content="")
+            second_meta = _normalize_chunk_meta(getattr(documents[1], "meta", {}) or {}, content="")
+            top_doc = str(top_meta.get("source_doc_id") or "").strip()
+            second_doc = str(second_meta.get("source_doc_id") or "").strip()
+            if top_doc and second_doc and top_doc != second_doc:
+                margin = abs(top_score - second_score)
+                if margin < 0.005:
+                    _logger.info(
+                        "Low-confidence retrieval: top-1 (score=%.4f, doc=%s) vs top-2 (score=%.4f, doc=%s) margin=%.5f",
+                        top_score, top_doc, second_score, second_doc, margin,
+                    )
+
         supporting_docs_by_source: dict[str, list[Any]] = {}
         for document in documents:
             meta = _normalize_chunk_meta(getattr(document, "meta", {}) or {}, content=str(getattr(document, "content", "") or ""))
@@ -2162,7 +2245,7 @@ class AzureOpenAIAssessmentEngine:
             raise RuntimeError("Azure OpenAI is not configured.")
         return _azure_json_completion(
             effective_config,
-            build_llm_messages(context, evidences),
+            build_llm_messages(context, evidences, retrieval_backend=effective_config.retrieval_backend),
             model_name=effective_config.azure_openai_chat_deployment,
             response_format=AssessmentOutputSchema,
             progress_callback=progress_callback,
@@ -2212,7 +2295,7 @@ class AliyunDashScopeAssessmentEngine:
         if not effective_config.dashscope_chat_ready:
             raise RuntimeError("Aliyun DashScope chat runtime is not configured.")
         messages = _build_json_compatible_messages(
-            build_llm_messages(context, evidences),
+            build_llm_messages(context, evidences, retrieval_backend=effective_config.retrieval_backend),
             required_keys=[
                 "normalized_requirement",
                 "proposed_decision",
@@ -2374,18 +2457,19 @@ def _run_requirement_screening(
         except AIAnalysisCancelledError:
             raise
         except Exception as exc:  # pragma: no cover - network/provider dependent
+            failure_reason = _provider_failure_reason(exc)
             collector.record_failure(
                 mode="screening_llm_shadow",
                 model_name=llm_engine.model_name,
                 prompt_version=llm_engine.prompt_version,
                 input_payload={"context": context},
-                fallback_reason=str(exc),
+                fallback_reason=failure_reason,
             )
             return {
                 "analysis_label": "REQUIREMENT",
                 "reason": "LLM screening failed; analysis stopped",
                 "validation_status": "failed",
-                "fallback_reason": str(exc),
+                "fallback_reason": failure_reason,
                 "final_mode": "screening_failed",
                 "model_name": llm_engine.model_name,
                 "prompt_version": llm_engine.prompt_version,
@@ -2430,33 +2514,32 @@ def _run_requirement_screening(
     except AIAnalysisCancelledError:
         raise
     except Exception as exc:  # pragma: no cover - network/provider dependent
+        failure_reason = _provider_failure_reason(exc)
         collector.record_failure(
             mode="screening_llm_primary",
             model_name=llm_engine.model_name,
             prompt_version=llm_engine.prompt_version,
             input_payload={"context": context},
-            fallback_reason=str(exc),
-        )
-        heuristic_result = heuristic_engine.screen(context)
-        final_result = reconcile_screening_output(
-            candidate=heuristic_result,
-            fallback_reason=f"llm_primary_screening_failed: {exc}",
-        )
-        collector.record_result(
-            mode="screening_heuristic_fallback",
-            model_name=heuristic_engine.model_name,
-            prompt_version=heuristic_engine.prompt_version,
-            input_payload={"context": context},
-            output_payload=heuristic_result,
-            validation_status=final_result["validation_status"],
-            fallback_reason=final_result["fallback_reason"],
+            fallback_reason=failure_reason,
         )
         return {
-            **final_result,
-            "final_mode": "heuristic_fallback",
-            "model_name": heuristic_engine.model_name,
-            "prompt_version": heuristic_engine.prompt_version,
+            "analysis_label": "REQUIREMENT",
+            "reason": "LLM screening failed; analysis stopped",
+            "validation_status": "failed",
+            "fallback_reason": failure_reason,
+            "final_mode": "screening_failed",
+            "model_name": llm_engine.model_name,
+            "prompt_version": llm_engine.prompt_version,
+            "screening_failed": True,
         }
+
+
+def _provider_failure_reason(exc: Exception) -> str:
+    reason = f"{type(exc).__name__}: {exc}".strip()
+    cause = exc.__cause__ or exc.__context__
+    if cause is not None and cause is not exc:
+        reason = f"{reason}; caused by {type(cause).__name__}: {cause}"
+    return reason[:1000]
 
 
 def reconcile_screening_output(*, candidate: dict[str, Any], fallback_reason: str) -> dict[str, Any]:
@@ -2492,20 +2575,149 @@ def fallback_requirement_screening(*, fallback_reason: str) -> dict[str, Any]:
     }
 
 
+def _backfill_evidence_fields(candidate: dict[str, Any], retrieved_evidences: list[dict[str, Any]]) -> None:
+    """Fill in missing evidence metadata fields that LLMs commonly omit.
+
+    Handles three LLM output patterns:
+    1. Evidence as dicts with missing fields (Qwen 3.5 pattern) — backfill from retrieved
+    2. Evidence as plain UUID/chunk_id strings (Qwen 3.7 pattern) — reconstruct from retrieved
+    3. Evidence as dicts with slot references — match by slot index
+    """
+    raw_evidences = candidate.get("evidences")
+    if not isinstance(raw_evidences, list) or not retrieved_evidences:
+        return
+
+    # Build lookup maps from retrieved evidences
+    retrieved_by_slot: dict[int, dict[str, Any]] = {
+        i + 1: item for i, item in enumerate(retrieved_evidences) if isinstance(item, dict)
+    }
+    retrieved_by_chunk_id: dict[str, dict[str, Any]] = {}
+    for item in retrieved_evidences:
+        if isinstance(item, dict):
+            cid = str(item.get("chunk_id") or "").strip()
+            if cid:
+                retrieved_by_chunk_id[cid] = item
+
+    # Detect if evidence items are strings (UUID/chunk_id references)
+    has_string_evidence = any(isinstance(ev, str) for ev in raw_evidences)
+    if has_string_evidence:
+        # Build chunk_id lookup from retrieved evidences AND knowledge index files
+        chunk_id_lookup: dict[str, dict[str, Any]] = {}
+        for item in retrieved_evidences:
+            if isinstance(item, dict):
+                cid = str(item.get("chunk_id") or "").strip()
+                if cid:
+                    chunk_id_lookup[cid] = item
+
+        # If not enough matches from retrieved, load from knowledge index
+        string_ids = [ev.strip() for ev in raw_evidences if isinstance(ev, str)]
+        unmatched = [sid for sid in string_ids if sid not in chunk_id_lookup]
+        if unmatched:
+            try:
+                for idx_file in INDEX_PAYLOAD_DIR.glob("*.json"):
+                    with open(idx_file, encoding="utf-8") as f:
+                        payload = json.load(f)
+                    chunks = payload if isinstance(payload, list) else payload.get("chunks", [])
+                    doc_id_from_file = idx_file.stem
+                    for ci, chunk in enumerate(chunks):
+                        if isinstance(chunk, dict):
+                            cid = str(chunk.get("chunk_id") or "")
+                            if cid and cid not in chunk_id_lookup:
+                                chunk_id_lookup[cid] = {
+                                    "source_doc_id": doc_id_from_file,
+                                    "source_doc_name": str(chunk.get("source_doc_name") or ""),
+                                    "source_doc_version": str(chunk.get("source_doc_version") or ""),
+                                    "source_location": str(chunk.get("source_location") or f"Chunk {ci+1}"),
+                                    "excerpt": str(chunk.get("content") or "")[:800],
+                                    "relevance": 0.5,
+                                    "chunk_id": cid,
+                                }
+            except Exception:
+                pass
+
+        reconstructed: list[dict[str, Any]] = []
+        for idx, ev in enumerate(raw_evidences):
+            if isinstance(ev, str):
+                ev_str = ev.strip()
+                source = chunk_id_lookup.get(ev_str)
+                if source is None:
+                    for cid, item in chunk_id_lookup.items():
+                        if ev_str in cid or cid in ev_str:
+                            source = item
+                            break
+                if source is None:
+                    source = retrieved_by_slot.get(idx + 1)
+                if source is not None:
+                    reconstructed.append({
+                        "evidence_slot": idx + 1,
+                        "chunk_id": str(source.get("chunk_id") or ev_str),
+                        "source_doc_id": str(source.get("source_doc_id") or ""),
+                        "source_doc_name": str(source.get("source_doc_name") or ""),
+                        "source_doc_version": str(source.get("source_doc_version") or ""),
+                        "source_location": str(source.get("source_location") or ""),
+                        "excerpt": str(source.get("excerpt") or ""),
+                        "relevance": float(source.get("relevance") or 0.0),
+                    })
+            elif isinstance(ev, dict):
+                reconstructed.append(ev)
+        if reconstructed:
+            candidate["evidences"] = reconstructed
+        return
+
+    # Standard backfill for dict evidences with missing fields
+    for ev in raw_evidences:
+        if not isinstance(ev, dict):
+            continue
+        slot = int(ev.get("slot") or ev.get("evidence_slot") or 0)
+        source = retrieved_by_slot.get(slot)
+        if source is None:
+            # Try matching by chunk_id
+            ev_chunk_id = str(ev.get("chunk_id") or "").strip()
+            if ev_chunk_id:
+                source = retrieved_by_chunk_id.get(ev_chunk_id)
+        if source is None:
+            # Fallback: try matching by excerpt substring
+            ev_excerpt = normalize_requirement_text(str(ev.get("excerpt") or ""))
+            for item in retrieved_evidences:
+                item_excerpt = normalize_requirement_text(str(item.get("excerpt") or ""))
+                if ev_excerpt and item_excerpt and (ev_excerpt in item_excerpt or item_excerpt in ev_excerpt):
+                    source = item
+                    break
+        if source is None:
+            continue
+        for field in ("source_doc_id", "source_doc_name", "source_doc_version", "chunk_id"):
+            if not ev.get(field):
+                ev[field] = str(source.get(field) or "")
+        if not ev.get("relevance") and source.get("relevance"):
+            try:
+                ev["relevance"] = float(source["relevance"])
+            except (TypeError, ValueError):
+                pass
+
+
 def reconcile_assessment_output(
     *,
     context: dict[str, Any],
     candidate: dict[str, Any],
     retrieved_evidences: list[dict[str, Any]],
     fallback_reason: str,
+    retrieval_backend: str = "",
+    reconciliation_policy: Literal["heuristic", "llm_guarded"] = "heuristic",
 ) -> dict[str, Any]:
     normalized_requirement = str(candidate.get("normalized_requirement") or context.get("normalized_requirement") or "").strip()
     if not normalized_requirement:
         normalized_requirement = normalize_requirement_text(str(context.get("requirement_text") or ""))
 
+    # Backfill missing evidence fields from retrieved evidences (LLMs may omit required metadata)
+    _backfill_evidence_fields(candidate, retrieved_evidences)
+
     try:
         parsed = AssessmentOutputSchema.model_validate(candidate)
     except Exception as exc:
+        _logger.warning(
+            "Assessment schema validation failed for req %s: %s | candidate keys: %s",
+            context.get("req_code", "?"), exc, list(candidate.keys()) if isinstance(candidate, dict) else type(candidate).__name__,
+        )
         return fallback_need_clarification(
             context=context,
             evidences=retrieved_evidences,
@@ -2542,14 +2754,25 @@ def reconcile_assessment_output(
             fallback_reason=f"{fallback_reason}; conflicting_evidences".strip("; "),
         )
 
-    hard_rule_result = _apply_hard_assessment_rules(
-        context=context,
-        candidate=parsed,
-        retrieved_evidences=retrieved_evidences,
-        fallback_reason=fallback_reason,
-    )
-    if hard_rule_result is not None:
-        return hard_rule_result
+    if reconciliation_policy == "llm_guarded":
+        evidence_strength_result = _apply_evidence_strength_guardrail(
+            context=context,
+            candidate=parsed,
+            retrieved_evidences=retrieved_evidences,
+            fallback_reason=fallback_reason,
+            retrieval_backend=retrieval_backend,
+        )
+        if evidence_strength_result is not None:
+            return evidence_strength_result
+    else:
+        hard_rule_result = _apply_hard_assessment_rules(
+            context=context,
+            candidate=parsed,
+            retrieved_evidences=retrieved_evidences,
+            fallback_reason=fallback_reason,
+        )
+        if hard_rule_result is not None:
+            return hard_rule_result
 
     result = {
         "analysis_label": "REQUIREMENT",
@@ -2891,6 +3114,7 @@ class AzureSearchSDKIndexer:
             index_name=self.config.azure_search_index_name,
             credential=_azure_search_credential(self.config),
         )
+        _delete_existing_azure_chunks_for_source_docs(search_client, chunks)
         contents = [str(chunk.get("content") or "") for chunk in chunks]
         embeddings = _embed_texts(contents, config=self.config)
         documents = []
@@ -2905,6 +3129,54 @@ class AzureSearchSDKIndexer:
             )
         results = search_client.upload_documents(documents)
         return sum(1 for item in results if bool(getattr(item, "succeeded", False)))
+
+
+def _delete_existing_azure_chunks_for_source_docs(search_client: Any, chunks: list[dict[str, Any]]) -> None:
+    source_doc_ids = sorted(
+        {
+            str((chunk.get("meta") or {}).get("source_doc_id") or "").strip()
+            for chunk in chunks
+            if str((chunk.get("meta") or {}).get("source_doc_id") or "").strip()
+        }
+    )
+    for source_doc_id in source_doc_ids:
+        filter_text = _azure_filter_to_odata({"field": "source_doc_id", "operator": "==", "value": source_doc_id})
+        if not filter_text:
+            continue
+        existing = search_client.search(
+            search_text="*",
+            filter=filter_text,
+            select=["chunk_id"],
+            top=1000,
+        )
+        chunk_ids = [str(item.get("chunk_id") or "").strip() for item in existing if str(item.get("chunk_id") or "").strip()]
+        if chunk_ids:
+            search_client.delete_documents(documents=[{"chunk_id": chunk_id} for chunk_id in chunk_ids])
+
+
+def delete_azure_search_chunks_for_source_docs(
+    config: AICopilotConfig,
+    *,
+    source_doc_ids: list[str],
+) -> None:
+    if not config.azure_search_ready:
+        raise RuntimeError("Azure AI Search is not configured.")
+
+    from azure.search.documents import SearchClient
+
+    chunks = [
+        {"meta": {"source_doc_id": source_doc_id}}
+        for source_doc_id in source_doc_ids
+        if str(source_doc_id or "").strip()
+    ]
+    if not chunks:
+        return
+    search_client = SearchClient(
+        endpoint=config.azure_search_endpoint,
+        index_name=config.azure_search_index_name,
+        credential=_azure_search_credential(config),
+    )
+    _delete_existing_azure_chunks_for_source_docs(search_client, chunks)
 
 
 class DashVectorIndexer:
@@ -2983,25 +3255,50 @@ class QdrantIndexer:
         return len(points)
 
 
-def build_llm_messages(context: dict[str, Any], evidences: list[dict[str, Any]]) -> list[dict[str, str]]:
+def build_llm_messages(
+    context: dict[str, Any],
+    evidences: list[dict[str, Any]],
+    *,
+    retrieval_backend: str = "local",
+) -> list[dict[str, str]]:
     system_prompt = (
         "你是汽车行业合规评审助手。你的任务是基于给定需求和候选证据，自动输出结构化判定。"
+        "所有输出文字必须使用中文（包括 reason、clarification_question、normalized_requirement）。"
+        "引用证据原文时保留原始语言，但分析和判定理由必须用中文撰写。"
         "你只能引用候选证据，不得编造新文档。若证据不足、冲突或不够直接，必须输出 NEED_CLARIFICATION。"
-        "若候选证据为空、仅有弱相关证据、或只有章节摘要而没有段落/表格原文支撑，也必须输出 NEED_CLARIFICATION。"
-        "risk_level 只能是 LOW、MEDIUM、HIGH。"
+        "\n\n"
+        "重要判定原则：\n"
+        "1. 产品规格书（如 ETC12.pdf、Product Specification）本身就是权威合规证据。"
+        "规格书中声明的技术参数即为产品能力，不需要额外测试报告来佐证。\n"
+        "2. 当证据文本与需求文本表述一致或语义等价时，应判定为 ACCEPT。"
+        "不要因为证据'复述了需求'就拒绝——供应商规格书与客户 SOR 使用相同表述即证明合规。\n"
+        "3. 只有在证据完全缺失、证据与需求无关、或证据被截断导致关键信息丢失时，才输出 NEED_CLARIFICATION。\n"
+        "4. 参数存在数值差异时：供应商值优于客户需求 → ACCEPT；"
+        "供应商值劣于客户需求 → REJECT；存在部分偏差 → DEVIATION_ACCEPT。\n"
+        "5. risk_level 只能是 LOW、MEDIUM、HIGH。"
         "clarification_question 必须始终提供；如果无需澄清请返回空字符串。"
+        "\n\n"
+        "判定示例：\n"
+        "1. ACCEPT：需求'工作温度-40°C~+85°C'，规格书写有'Operating temperature: -40°C to +85°C'→ ACCEPT, LOW。\n"
+        "2. ACCEPT：需求'防护等级IP6K9K'，规格书写有'Protection class: IP6K9K DIN 40050-9'→ ACCEPT, LOW（规格书声明即权威证据）。\n"
+        "3. REJECT：需求'防护等级IP67'，证据写有'Protection class IP54 only'→ REJECT, HIGH。\n"
+        "4. DEVIATION_ACCEPT：需求'响应时间<1ms'，证据写有'Response time ≤1.5ms'→ DEVIATION_ACCEPT, MEDIUM。\n"
+        "5. NEED_CLARIFICATION：需求'满足EMC标准'，证据仅有章节标题而无任何具体参数值→ NEED_CLARIFICATION, MEDIUM。"
     )
     evidence_blocks = []
     for index, item in enumerate(evidences[:5], start=1):
         evidence_blocks.append(
             {
                 "slot": index,
+                "evidence_slot": index,
+                "chunk_id": str(item.get("chunk_id") or ""),
                 "source_doc_id": str(item.get("source_doc_id") or ""),
                 "source_doc_name": str(item.get("source_doc_name") or ""),
                 "source_doc_version": str(item.get("source_doc_version") or ""),
                 "source_location": str(item.get("source_location") or ""),
                 "excerpt": str(item.get("excerpt") or ""),
                 "relevance": round(float(item.get("relevance") or 0.0), 4),
+                "score_source": str(item.get("score_source") or ""),
             }
         )
     user_payload = {
@@ -3021,8 +3318,8 @@ def build_llm_messages(context: dict[str, Any], evidences: list[dict[str, Any]])
             "allowed_risk_levels": list(VALID_RISK_LEVELS),
             "must_not_accept_without_evidence": True,
             "must_not_invent_sources": True,
-            "no_effective_evidence_below": QDRANT_MIN_EFFECTIVE_EVIDENCE_SCORE,
-            "decision_requires_top_evidence_at_least": QDRANT_MIN_DECISION_EVIDENCE_SCORE,
+            "no_effective_evidence_below": _effective_evidence_threshold_for_backend(retrieval_backend),
+            "decision_requires_top_evidence_at_least": _decision_evidence_threshold_for_backend(retrieval_backend),
         },
     }
     return [
@@ -3032,13 +3329,27 @@ def build_llm_messages(context: dict[str, Any], evidences: list[dict[str, Any]])
 
 
 def build_screening_messages(context: dict[str, Any]) -> list[dict[str, str]]:
+    section_title = str(context.get("parent_section_title") or "").strip().lower()
+    has_table = bool(context.get("table_context"))
+    section_hint = ""
+    if any(kw in section_title for kw in ("test", "试验", "测试", "verification", "validation")):
+        section_hint = "注意：该条目位于测试/试验章节，通常属于可验证的测试要求，应判定为 REQUIREMENT。"
+    elif any(kw in section_title for kw in ("scope", "范围", "适用范围", "applicable")):
+        section_hint = "注意：该条目位于适用范围章节，可能仅为范围说明，请仔细判断是否包含具体约束。"
+    table_hint = "该条目包含表格数据，表格中的参数值通常是具体的技术要求。" if has_table else ""
     system_prompt = (
         "你是汽车需求审阅助手。"
+        "所有输出文字必须使用中文。"
         "请判断当前条目是否属于需要进入合规判定的真实需求。"
         "如果条目只是信息输入、背景说明、标题、上下文标签、适用范围说明或引用提示，请返回 INFO。"
         "只有在条目表达了明确约束、行为要求、性能边界、法规符合性或可验证义务时，才返回 REQUIREMENT。"
+        "注意：产品能力声明（如'designed to fulfill'、'is designed to'、'is resistant against'）也属于合规需求，应返回 REQUIREMENT。"
         "reason 只写一句简洁依据。"
     )
+    if section_hint:
+        system_prompt += f"\n{section_hint}"
+    if table_hint:
+        system_prompt += f"\n{table_hint}"
     user_payload = {
         "requirement_id": context.get("requirement_id"),
         "req_code": context.get("req_code"),
@@ -3148,6 +3459,39 @@ def build_info_assessment_result(*, context: dict[str, Any], screening: dict[str
     }
 
 
+_VISUAL_ONLY_PATTERNS = re.compile(
+    r"(图纸|工程图|设计图|装配图|外形图|尺寸图|drawing|blueprint|visual\s*inspection"
+    r"|外观|清洁度.*图|cleanliness.*drawing)",
+    re.IGNORECASE,
+)
+
+
+def _is_visual_only_requirement(context: dict[str, Any]) -> bool:
+    requirement_type = str(context.get("requirement_type") or "").strip().upper()
+    if requirement_type in {"VISUAL", "DRAWING"}:
+        return True
+    section_title = str(context.get("parent_section_title") or "").strip()
+    requirement_text = str(context.get("requirement_text") or "").strip()
+    combined = f"{section_title} {requirement_text}"
+    return bool(_VISUAL_ONLY_PATTERNS.search(combined))
+
+
+def build_visual_only_assessment_result(*, context: dict[str, Any], screening: dict[str, Any]) -> dict[str, Any]:
+    return {
+        "analysis_label": "REQUIREMENT",
+        "analysis_basis": "视觉/图纸类需求，权威证据为工程图纸，文本 RAG 无法提供可靠判定。",
+        "ai_decision": "NEED_CLARIFICATION",
+        "ai_reason": "该需求涉及图纸或视觉检查，需要人工评审工程图纸以确认合规性。",
+        "ai_confidence": 0.0,
+        "risk_level": "MEDIUM",
+        "clarification_question": "请提供相关工程图纸以确认该需求的合规性。",
+        "normalized_requirement": str(context.get("normalized_requirement") or ""),
+        "evidences": [],
+        "validation_status": "visual_only_routing",
+        "fallback_reason": "visual_only_requirement",
+    }
+
+
 def build_screening_only_requirement_result(*, context: dict[str, Any], screening: dict[str, Any]) -> dict[str, Any]:
     return {
         "analysis_label": "REQUIREMENT",
@@ -3234,19 +3578,44 @@ def _validate_evidence_references(
         cited_doc_id = evidence.source_doc_id.strip()
         cited_location = evidence.source_location.strip()
         cited_excerpt = normalize_requirement_text(evidence.excerpt)
-        if not cited_doc_id or not cited_location or not cited_excerpt:
+        cited_chunk_id = str(evidence.chunk_id or "").strip()
+        cited_slot = int(evidence.evidence_slot or 0)
+        if not cited_doc_id and not cited_chunk_id and not cited_slot:
             return "evidence_reference_out_of_scope"
         matched = False
-        for item in retrieved:
+        for index, item in enumerate(retrieved, start=1):
             item_doc_id = str(item.get("source_doc_id") or "").strip()
             item_location = str(item.get("source_location") or "").strip()
             item_excerpt = normalize_requirement_text(str(item.get("excerpt") or ""))
-            if item_doc_id != cited_doc_id or item_location != cited_location:
-                continue
-            if cited_excerpt in item_excerpt or item_excerpt in cited_excerpt:
+            item_chunk_id = str(item.get("chunk_id") or "").strip()
+            # Chunk-ID match: strongest signal, bypasses location/excerpt checks
+            if cited_chunk_id and item_chunk_id and cited_chunk_id == item_chunk_id:
                 matched = True
                 break
+            # Slot match: positional reference
+            if cited_slot and cited_slot == index:
+                matched = True
+                break
+            # Doc-id + location match (case-insensitive, normalized)
+            if cited_doc_id and item_doc_id and cited_doc_id != item_doc_id:
+                continue
+            if cited_location and item_location:
+                norm_cited = re.sub(r"\s+", " ", cited_location.lower())
+                norm_item = re.sub(r"\s+", " ", item_location.lower())
+                if norm_cited == norm_item:
+                    matched = True
+                    break
+            # Excerpt substring match within same doc
+            if cited_excerpt and item_excerpt:
+                if cited_excerpt in item_excerpt or item_excerpt in cited_excerpt:
+                    matched = True
+                    break
         if not matched:
+            _logger.warning(
+                "Evidence reference validation failed: cited_doc_id=%s cited_location=%s "
+                "cited_chunk_id=%s cited_slot=%s retrieved_count=%d",
+                cited_doc_id, cited_location, cited_chunk_id, cited_slot, len(retrieved),
+            )
             return "evidence_reference_out_of_scope"
     return ""
 
@@ -3262,6 +3631,48 @@ def _evidences_conflict(evidences: list[AssessmentEvidenceSchema]) -> bool:
         if _text_has_positive_signal(excerpt):
             has_positive = True
     return has_negative and has_positive
+
+
+def _reconciliation_policy_for_config(config: AICopilotConfig) -> Literal["heuristic", "llm_guarded"]:
+    if config.provider == DEFAULT_AZURE_PROFILE_ID and config.assessment_mode in {"llm_shadow", "llm_primary"}:
+        return "llm_guarded"
+    return "heuristic"
+
+
+def _effective_evidence_threshold_for_backend(retrieval_backend: str) -> float:
+    backend = str(retrieval_backend or "").strip().lower()
+    if backend in {"azure_sdk", "azure_haystack"}:
+        return AZURE_MIN_EFFECTIVE_EVIDENCE_SCORE
+    return QDRANT_MIN_EFFECTIVE_EVIDENCE_SCORE
+
+
+def _decision_evidence_threshold_for_backend(retrieval_backend: str) -> float:
+    backend = str(retrieval_backend or "").strip().lower()
+    if backend in {"azure_sdk", "azure_haystack"}:
+        return AZURE_MIN_DECISION_EVIDENCE_SCORE
+    return QDRANT_MIN_DECISION_EVIDENCE_SCORE
+
+
+def _apply_evidence_strength_guardrail(
+    *,
+    context: dict[str, Any],
+    candidate: AssessmentOutputSchema,
+    retrieved_evidences: list[dict[str, Any]],
+    fallback_reason: str,
+    retrieval_backend: str,
+) -> dict[str, Any] | None:
+    decision = str(candidate.proposed_decision or "NEED_CLARIFICATION").strip().upper()
+    if decision == "NEED_CLARIFICATION":
+        return None
+    cited_evidences = [item.model_dump() for item in candidate.evidences[:3]]
+    top_relevance = max((float(item.get("relevance") or 0.0) for item in cited_evidences), default=0.0)
+    if top_relevance < _decision_evidence_threshold_for_backend(retrieval_backend):
+        return fallback_need_clarification(
+            context=context,
+            evidences=retrieved_evidences,
+            fallback_reason=f"{fallback_reason}; decision_requires_stronger_evidence".strip("; "),
+        )
+    return None
 
 
 def _apply_hard_assessment_rules(
@@ -3321,11 +3732,13 @@ def _document_to_evidence(document: Any) -> dict[str, Any]:
     meta = _normalize_chunk_meta(getattr(document, "meta", {}) or {}, content=str(getattr(document, "content", "") or ""))
     score = getattr(document, "score", None)
     return {
+        "chunk_id": str(meta.get("chunk_id") or getattr(document, "id", "") or ""),
         "source_doc_id": str(meta.get("source_doc_id") or ""),
         "source_doc_name": str(meta.get("source_doc_name") or ""),
         "source_location": str(meta.get("source_location") or ""),
-        "excerpt": str(getattr(document, "content", "") or "")[:380],
+        "excerpt": str(getattr(document, "content", "") or "")[:800],
         "relevance": round(float(score if score is not None else meta.get("relevance") or 0.0), 4),
+        "score_source": "azure_haystack" if score is not None else str(meta.get("score_source") or ""),
         "source_doc_version": str(meta.get("source_doc_version") or ""),
         "content_kind": str(meta.get("content_kind") or ""),
         "doc_type": str(meta.get("doc_type") or ""),
@@ -3335,6 +3748,69 @@ def _document_to_evidence(document: Any) -> dict[str, Any]:
         "is_signature_block": bool(meta.get("is_signature_block")),
         "is_legal_disclaimer": bool(meta.get("is_legal_disclaimer")),
     }
+
+
+def _extend_evidence_with_adjacent_chunks(
+    evidences: list[dict[str, Any]],
+    *,
+    knowledge_docs: list[dict[str, Any]],
+    max_excerpt_chars: int = 1200,
+) -> list[dict[str, Any]]:
+    """Extend evidence excerpts by appending content from adjacent chunks.
+
+    When a chunk is truncated (e.g., table split across chunks or long paragraph),
+    the next chunk often contains the continuation. This function loads the
+    knowledge index and appends adjacent chunk content to the excerpt.
+    """
+    if not evidences or not knowledge_docs:
+        return evidences
+
+    # Build chunk lookup: source_doc_id -> {chunk_index -> content}
+    chunk_lookup: dict[str, dict[int, str]] = {}
+    for doc in knowledge_docs:
+        doc_id = str(doc.get("id") or "").strip()
+        if not doc_id:
+            continue
+        payload_file = INDEX_PAYLOAD_DIR / f"{doc_id}.json"
+        if not payload_file.exists():
+            continue
+        try:
+            with open(payload_file, encoding="utf-8") as f:
+                payload = json.load(f)
+            chunks = payload if isinstance(payload, list) else payload.get("chunks", [])
+            for idx, chunk in enumerate(chunks):
+                if isinstance(chunk, dict):
+                    chunk_lookup.setdefault(doc_id, {})[idx] = str(chunk.get("content") or "")
+        except Exception:
+            continue
+
+    if not chunk_lookup:
+        return evidences
+
+    for ev in evidences:
+        doc_id = ev.get("source_doc_id", "")
+        location = ev.get("source_location", "")
+        if not doc_id or doc_id not in chunk_lookup:
+            continue
+
+        match = re.search(r"Chunk\s+(\d+)", location, re.IGNORECASE)
+        if not match:
+            continue
+        chunk_idx = int(match.group(1)) - 1
+
+        doc_chunks = chunk_lookup[doc_id]
+        current_excerpt = ev.get("excerpt", "")
+        current_len = len(current_excerpt)
+        if current_len >= max_excerpt_chars - 100:
+            continue
+
+        next_idx = chunk_idx + 1
+        if next_idx in doc_chunks:
+            next_content = doc_chunks[next_idx][:max_excerpt_chars - current_len]
+            if next_content and next_content not in current_excerpt:
+                ev["excerpt"] = current_excerpt + "\n[...continued...]\n" + next_content
+
+    return evidences
 
 
 def _dashvector_doc_to_evidence(document: Any) -> dict[str, Any]:
@@ -3380,6 +3856,8 @@ def _select_retriever(config: AICopilotConfig) -> EvidenceRetriever:
         if config.uses_rbac_for_search:
             return AzureSearchSDKEvidenceRetriever(config)
         return AzureHaystackEvidenceRetriever(config)
+    if config.retrieval_backend in {"azure_sdk", "azure_haystack"}:
+        raise RuntimeError("Azure retrieval runtime is not configured")
     return HeuristicEvidenceRetriever()
 
 
@@ -4136,6 +4614,28 @@ def _ensure_qdrant_collection(
             collection_name=config.qdrant_collection_name,
             dimension=dimension,
         )
+    _ensure_qdrant_payload_indexes(client, config)
+
+
+def _ensure_qdrant_payload_indexes(client: Any, config: AICopilotConfig) -> None:
+    """Create payload indexes for frequently filtered fields to speed up filtered search."""
+    from qdrant_client.http import models as qdrant_models
+
+    index_fields = {
+        "project_id": qdrant_models.PayloadSchemaType.KEYWORD,
+        "source_doc_id": qdrant_models.PayloadSchemaType.KEYWORD,
+        "status": qdrant_models.PayloadSchemaType.KEYWORD,
+        "content_kind": qdrant_models.PayloadSchemaType.KEYWORD,
+    }
+    for field_name, schema_type in index_fields.items():
+        try:
+            client.create_payload_index(
+                collection_name=config.qdrant_collection_name,
+                field_name=field_name,
+                field_schema=schema_type,
+            )
+        except Exception:
+            pass  # Index may already exist or Qdrant may not support it
 
 
 def _is_qdrant_collection_exists_error(exc: Exception) -> bool:
@@ -4171,12 +4671,19 @@ def _azure_search_item_to_evidence(item: Any) -> dict[str, Any]:
     is_reranker_score = score is not None
     if score is None:
         score = payload.get("@search.score")
+    score_source = ""
+    if is_reranker_score:
+        score_source = "azure_reranker"
+    elif score is not None:
+        score_source = "azure_search_score"
     return {
+        "chunk_id": str(payload.get("chunk_id") or ""),
         "source_doc_id": str(payload.get("source_doc_id") or ""),
         "source_doc_name": str(payload.get("source_doc_name") or ""),
         "source_location": str(payload.get("source_location") or ""),
         "excerpt": str(payload.get("content") or "")[:380],
         "relevance": round(_normalize_azure_relevance_score(score, is_reranker_score=is_reranker_score), 4),
+        "score_source": score_source,
         "source_doc_version": str(payload.get("source_doc_version") or ""),
         "content_kind": str(payload.get("content_kind") or ""),
         "doc_type": str(payload.get("doc_type") or ""),
@@ -4567,7 +5074,155 @@ def _embed_text(text: str, *, config: AICopilotConfig) -> list[float]:
     return _embed_texts([text], config=config)[0]
 
 
-def _chunk_lines(lines: list[str], *, lines_per_chunk: int = 6, overlap: int = 2) -> list[list[str]]:
+def _estimate_token_count(text: str) -> int:
+    """Estimate token count without requiring tiktoken.
+
+    Heuristic: CJK chars ≈ 1.5 tokens each, Latin words ≈ 1.3 tokens each,
+    numbers/symbols ≈ 1 token each.
+    """
+    if not text:
+        return 0
+    tokens = 0
+    cjk_count = 0
+    latin_words = 0
+    other = 0
+    for ch in text:
+        cp = ord(ch)
+        if 0x4E00 <= cp <= 0x9FFF or 0x3400 <= cp <= 0x4DBF or 0xF900 <= cp <= 0xFAFF:
+            cjk_count += 1
+        elif ch.isalpha() and cp < 0x4E00:
+            latin_words += 1
+        elif ch.isspace():
+            continue
+        else:
+            other += 1
+    tokens = int(cjk_count * 1.5 + latin_words * 0.25 + other * 0.5)
+    return max(1, tokens)
+
+
+def _is_semantic_boundary(line: str) -> bool:
+    """Check if a line is a semantic boundary (paragraph break or section header)."""
+    stripped = line.strip()
+    if not stripped:
+        return True
+    if re.match(r"^(?:[A-Z]:(?:\d+(?:\.\d+)*)?|\d+(?:\.\d+){0,5})\s+", stripped):
+        return True
+    if stripped.startswith("#"):
+        return True
+    return False
+
+
+def _is_table_line(line: str) -> bool:
+    """Check if a line is part of a markdown-style table."""
+    stripped = line.strip()
+    return bool(stripped.startswith("|") and stripped.count("|") >= 2)
+
+
+def _find_table_end(lines: list[str], start: int) -> int:
+    """Find the end index of a contiguous table block starting at `start`."""
+    idx = start
+    while idx < len(lines) and _is_table_line(lines[idx]):
+        idx += 1
+    return idx
+
+
+_CHUNK_TARGET_TOKENS = int(os.environ.get("REQPILOT_CHUNK_TARGET_TOKENS", "768"))
+_CHUNK_OVERLAP_TOKENS = int(os.environ.get("REQPILOT_CHUNK_OVERLAP_TOKENS", "75"))
+_CHUNK_MIN_TOKENS = int(os.environ.get("REQPILOT_CHUNK_MIN_TOKENS", "50"))
+
+
+def _chunk_lines(
+    lines: list[str],
+    *,
+    target_tokens: int = _CHUNK_TARGET_TOKENS,
+    overlap_tokens: int = _CHUNK_OVERLAP_TOKENS,
+    min_tokens: int = _CHUNK_MIN_TOKENS,
+    lines_per_chunk: int = 6,
+    overlap: int = 2,
+) -> list[list[str]]:
+    """Token-aware chunking with semantic boundary preference.
+
+    Falls back to legacy line-based chunking if token estimation produces
+    no valid chunks (e.g., very short documents).
+    """
+    if not lines:
+        return []
+
+    line_tokens = [_estimate_token_count(line) for line in lines]
+    total_tokens = sum(line_tokens)
+
+    # For very short documents, use legacy line-based chunking
+    if total_tokens <= target_tokens * 1.5:
+        return _chunk_lines_legacy(lines, lines_per_chunk=lines_per_chunk, overlap=overlap)
+
+    chunks: list[list[str]] = []
+    start = 0
+    while start < len(lines):
+        # Accumulate lines up to target_tokens
+        current_tokens = 0
+        end = start
+        for idx in range(start, len(lines)):
+            next_tokens = current_tokens + line_tokens[idx]
+            if next_tokens > target_tokens and end > start:
+                break
+            current_tokens = next_tokens
+            end = idx + 1
+
+        # Try to break at a semantic boundary within the last 20% of the chunk
+        if end < len(lines):
+            boundary_zone_start = max(start + 1, end - max(1, (end - start) // 5))
+            for boundary_idx in range(end - 1, boundary_zone_start - 1, -1):
+                if _is_semantic_boundary(lines[boundary_idx]):
+                    end = boundary_idx
+                    break
+
+        # Never split in the middle of a table — extend to include full table
+        if end < len(lines) and end > start:
+            # Check if the line at `end` is a table line (meaning we cut mid-table)
+            if _is_table_line(lines[end]):
+                table_end = _find_table_end(lines, end)
+                # Only extend if the table isn't too large (< 2x target)
+                table_tokens = sum(line_tokens[i] for i in range(end, table_end))
+                if table_tokens < target_tokens:
+                    end = table_end
+            # Also check if line just before `end` is a table line (we started a table near the end)
+            elif end > 0 and _is_table_line(lines[end - 1]):
+                table_end = _find_table_end(lines, end - 1)
+                if table_end > end:
+                    table_tokens = sum(line_tokens[i] for i in range(end, table_end))
+                    if table_tokens < target_tokens:
+                        end = table_end
+
+        chunk = lines[start:end]
+        if not chunk:
+            break
+        chunk_text = " ".join(chunk)
+        if _estimate_token_count(chunk_text) >= min_tokens:
+            chunks.append(chunk)
+
+        # Advance with overlap
+        step_tokens = 0
+        overlap_start = end
+        for idx in range(end - 1, start - 1, -1):
+            step_tokens += line_tokens[idx]
+            if step_tokens >= overlap_tokens:
+                overlap_start = idx
+                break
+        if overlap_start >= end or overlap_start <= start:
+            overlap_start = max(start + 1, end - max(1, (end - start) // 8))
+
+        start = overlap_start
+        if start >= len(lines):
+            break
+
+    # Fallback: if token-aware chunking produced nothing, use legacy
+    if not chunks:
+        return _chunk_lines_legacy(lines, lines_per_chunk=lines_per_chunk, overlap=overlap)
+    return chunks
+
+
+def _chunk_lines_legacy(lines: list[str], *, lines_per_chunk: int = 6, overlap: int = 2) -> list[list[str]]:
+    """Legacy fixed-line chunking — kept as fallback."""
     if not lines:
         return []
     chunks: list[list[str]] = []

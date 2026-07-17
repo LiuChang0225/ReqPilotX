@@ -7,20 +7,15 @@ from functools import lru_cache
 from io import BytesIO
 from pathlib import Path
 import re
+import sys
 from typing import Any
 
 import xlsxwriter
 from PIL import Image as PILImage
 from PIL import ImageDraw, ImageFont
 
-from app.services.table_assets import load_snapshot_bytes
+from app.services.table_assets import load_snapshot_bytes, load_table_font
 
-_TABLE_FONT_CANDIDATES = (
-    "/System/Library/Fonts/Supplemental/Arial Unicode.ttf",
-    "/System/Library/Fonts/Hiragino Sans GB.ttc",
-    "/System/Library/Fonts/STHeiti Medium.ttc",
-    "/System/Library/Fonts/Supplemental/Arial.ttf",
-)
 _TABLE_FONT_SIZE = 13
 _TABLE_CELL_PADDING_X = 12
 _TABLE_CELL_PADDING_Y = 8
@@ -41,8 +36,9 @@ _CUSTOMER_REQUIREMENT_COLUMN_WIDTH = 130.0
 _REQUIREMENT_FIXED_COLUMN_WIDTHS = {
     "A": 14.0,
     "B": 24.0,
-    "D": 18.0,
-    "E": 40.0,
+    "D": 22.0,
+    "E": 18.0,
+    "F": 40.0,
 }
 _BRAND_PRIMARY = "#00893D"
 _BRAND_SECONDARY = "#005E46"
@@ -116,13 +112,14 @@ def export_compliance_matrix(
     ws = workbook.add_worksheet("ComplianceMatrix")
     ws.hide_gridlines(2)
     ws.freeze_panes(3, 0)
-    ws.autofilter(2, 0, 2, 4)
+    ws.autofilter(2, 0, 2, 5)
     requirement_area_total_width = _default_requirement_area_width()
     ws.set_column("A:A", _REQUIREMENT_FIXED_COLUMN_WIDTHS["A"])
     ws.set_column("B:B", _REQUIREMENT_FIXED_COLUMN_WIDTHS["B"])
     ws.set_column("C:C", requirement_area_total_width)
     ws.set_column("D:D", _REQUIREMENT_FIXED_COLUMN_WIDTHS["D"])
     ws.set_column("E:E", _REQUIREMENT_FIXED_COLUMN_WIDTHS["E"])
+    ws.set_column("F:F", _REQUIREMENT_FIXED_COLUMN_WIDTHS["F"])
     requirement_area_width_px = _excel_column_width_to_pixels(requirement_area_total_width)
     column_widths_px = {
         0: _excel_column_width_to_pixels(_REQUIREMENT_FIXED_COLUMN_WIDTHS["A"]),
@@ -130,6 +127,7 @@ def export_compliance_matrix(
         2: requirement_area_width_px,
         3: _excel_column_width_to_pixels(_REQUIREMENT_FIXED_COLUMN_WIDTHS["D"]),
         4: _excel_column_width_to_pixels(_REQUIREMENT_FIXED_COLUMN_WIDTHS["E"]),
+        5: _excel_column_width_to_pixels(_REQUIREMENT_FIXED_COLUMN_WIDTHS["F"]),
     }
 
     _write_brand_header(
@@ -144,6 +142,7 @@ def export_compliance_matrix(
         "Req-ID",
         "Section",
         "Customer Requirement",
+        "AI Assessment",
         "Final Decision",
         "Schaeffler Comments",
     ]
@@ -160,12 +159,14 @@ def export_compliance_matrix(
             row_index=current_row,
             item=item,
             requirement_col=2,
-            final_decision_col=3,
-            comments_col=4,
+            ai_assessment_col=3,
+            final_decision_col=4,
+            comments_col=5,
             requirement_area_width_px=requirement_area_width_px,
             column_widths_px=column_widths_px,
             row_formats=_block_row_formats(formats, block_index),
-            decision_format=_decision_format(formats, item.get("final_decision")),
+            ai_assessment_format=_decision_format(formats, _ai_decision_label(item)),
+            decision_format=_decision_format(formats, item.get("final_decision") or _ai_decision_label(item)),
         )
         table_image_count += block_table_images
         table_fallback_text_count += block_table_fallbacks
@@ -216,13 +217,22 @@ def export_compliance_matrix(
     return file_name, str(file_path)
 
 
+def _workbook_font_name() -> str:
+    """Return the best CJK-capable font name for the current platform."""
+    if sys.platform == "win32":
+        return "Microsoft YaHei"
+    if sys.platform == "darwin":
+        return "Arial Unicode MS"
+    return "Noto Sans CJK SC"
+
+
 def _build_formats(workbook: xlsxwriter.Workbook) -> _WorkbookFormats:
     base = {
         "border": 1,
         "border_color": _BRAND_BORDER,
         "text_wrap": True,
         "valign": "top",
-        "font_name": "Arial Unicode MS",
+        "font_name": _workbook_font_name(),
         "font_size": _WORKBOOK_FONT_SIZE,
         "font_color": _BRAND_TEXT,
     }
@@ -284,6 +294,7 @@ def _build_formats(workbook: xlsxwriter.Workbook) -> _WorkbookFormats:
             "REJECT": "#FFEBEE",
             "DEVIATION_ACCEPT": "#FFF3E0",
             "NEED_CLARIFICATION": "#E2EBF8",
+            "INFO": "#F3E5F5",
             "DEFAULT": "#FFFFFF",
         }.items()
     }
@@ -323,11 +334,13 @@ def _append_requirement_block(
     row_index: int,
     item: dict[str, Any],
     requirement_col: int,
+    ai_assessment_col: int,
     final_decision_col: int,
     comments_col: int,
     requirement_area_width_px: int,
     column_widths_px: dict[int, int],
     row_formats: dict[str, Any],
+    ai_assessment_format: Any,
     decision_format: Any,
 ) -> tuple[int, int, int, list[str]]:
     split = _split_requirement_blocks(_display_requirement_text(item))
@@ -343,6 +356,9 @@ def _append_requirement_block(
     start_row = row_index
     end_row = row_index + block_rows - 1
 
+    ai_decision_value = _ai_decision_label(item)
+    final_decision_value = item.get("final_decision") or ai_decision_value
+
     _ensure_required_block_height(
         prepared_rows,
         required_total_height=max(
@@ -352,7 +368,8 @@ def _append_requirement_block(
                 column_widths_px[0],
             ),
             _estimate_total_text_height(_display_parent_section_label(item), column_widths_px[1]),
-            _estimate_total_text_height(item.get("final_decision") or "", column_widths_px[final_decision_col]),
+            _estimate_total_text_height(ai_decision_value, column_widths_px[ai_assessment_col]),
+            _estimate_total_text_height(final_decision_value, column_widths_px[final_decision_col]),
             _estimate_total_text_height(item.get("engineer_reason") or "", column_widths_px[comments_col]),
         ),
     )
@@ -377,8 +394,16 @@ def _append_requirement_block(
         ws,
         start_row=start_row,
         end_row=end_row,
+        col=ai_assessment_col,
+        value=ai_decision_value,
+        cell_format=ai_assessment_format,
+    )
+    _write_vertical_block(
+        ws,
+        start_row=start_row,
+        end_row=end_row,
         col=final_decision_col,
-        value=item.get("final_decision") or "",
+        value=final_decision_value,
         cell_format=decision_format,
     )
     _write_vertical_block(
@@ -427,12 +452,12 @@ def _write_brand_header(
 ) -> None:
     for col in range(3):
         ws.write_blank(0, col, None, formats.meta_fill)
-    ws.merge_range(0, 3, 0, 4, "", formats.meta_fill)
+    ws.merge_range(0, 3, 0, 5, "", formats.meta_fill)
     ws.write(0, 0, f"Project: {project_name}", formats.meta_fill)
     ws.write(0, 1, f"Customer: {customer_name}", formats.meta_fill)
     if source_file_name:
         ws.write(0, 2, f"File: {source_file_name}", formats.meta_fill)
-    ws.merge_range(1, 0, 1, 4, "", formats.brand_bar)
+    ws.merge_range(1, 0, 1, 5, "", formats.brand_bar)
     ws.set_row(0, 34)
     ws.set_row(1, 7)
     _insert_brand_logo(ws)
@@ -989,6 +1014,22 @@ def _display_requirement_text(item: dict[str, Any]) -> str:
     return str(item.get("raw_text") or item.get("display_text") or item.get("requirement_text") or "").strip()
 
 
+def _ai_decision_label(item: dict[str, Any]) -> str:
+    """Resolve the AI assessment label for a requirement row."""
+    analysis_label = str(item.get("analysis_label") or "").strip().upper()
+    if analysis_label == "INFO":
+        return "INFO"
+    assessment_mode = str(item.get("assessment_mode") or "").strip().lower()
+    if assessment_mode in {"screening_failed", "analysis_failed"}:
+        return assessment_mode.upper()
+    ai_decision = str(item.get("ai_decision") or "").strip().upper()
+    if ai_decision and ai_decision != "REQUIREMENT":
+        return ai_decision
+    if ai_decision == "REQUIREMENT":
+        return "REQUIREMENT" if str(item.get("analysis_basis") or "").strip() else ""
+    return ""
+
+
 def _excel_column_width_to_pixels(width: float) -> int:
     return int(width * 7 + 5)
 
@@ -1016,17 +1057,6 @@ def _table_rows_to_text(rows: list[list[str]], *, include_header: bool = True) -
     return "\n".join("| " + " | ".join(str(cell or "") for cell in row) + " |" for row in rows).strip()
 
 
-@lru_cache(maxsize=8)
-def _load_table_font(size: int) -> ImageFont.ImageFont:
-    for font_path in _TABLE_FONT_CANDIDATES:
-        try:
-            if Path(font_path).exists():
-                return ImageFont.truetype(font_path, size=size)
-        except OSError:
-            continue
-    return ImageFont.load_default()
-
-
 def _render_table_image(
     rows: list[list[str]],
     *,
@@ -1034,7 +1064,7 @@ def _render_table_image(
     header_row_count: int = 1,
 ) -> tuple[BytesIO, int, int]:
     normalized_rows = _normalize_table_rows(rows)
-    font = _load_table_font(_TABLE_FONT_SIZE)
+    font = load_table_font(_TABLE_FONT_SIZE)
     probe = ImageDraw.Draw(PILImage.new("RGB", (1, 1), "white"))
     column_units = _fit_table_column_units(normalized_rows, max_width_px=max_width_px)
     column_widths = [units * _TABLE_UNIT_PX + (_TABLE_CELL_PADDING_X * 2) for units in column_units]
