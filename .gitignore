@@ -99,3 +99,8 @@ prototype/bin/
 # CodeGraph & Superpowers IDE settings
 .codegraph/
 .superpowers/
+
+# Sensitive customer documents — NEVER upload
+OEM spec comparison/
+plan/
+docs/superpowers/
