@@ -574,7 +574,13 @@ def _smoke_environment(storage_root: Path) -> dict[str, str]:
     environment.update(
         {
             "NO_PROXY": "127.0.0.1,localhost",
+            "REQPILOT_TEST_MODE": "1",
+            "REQPILOT_ENV": "test",
             "REQPILOT_STORAGE_DIR": str(storage_root.resolve()),
+            "REQPILOT_OBJECT_STORE": "local",
+            "REQPILOT_OBJECT_ROOT": str(storage_root.resolve()),
+            "REQPILOT_SCRATCH_ROOT": str((storage_root / "scratch").resolve()),
+            "REQPILOT_AGENT_RUNTIME": "none",
             "REQPILOT_AI_DEFAULT_PROFILE": "azure",
             "REQPILOT_AI_ASSESSMENT_MODE": "heuristic",
             "REQPILOT_RETRIEVAL_BACKEND": "local",

@@ -17,6 +17,13 @@ from unittest import mock
 
 from scripts import artifact_self_test
 from scripts.release_preflight import PreflightError, _REQUIRED_FRONTEND_FILES
+from app.infrastructure.runtime_settings import (
+    AgentRuntimeBackend,
+    DatabaseBackend,
+    DeploymentMode,
+    ObjectStoreBackend,
+    RuntimeSettings,
+)
 
 
 class ArtifactSelfTestTests(unittest.TestCase):
@@ -325,6 +332,48 @@ class ArtifactSelfTestTests(unittest.TestCase):
         port_closed.assert_called_once_with("127.0.0.1", 43123, timeout_seconds=5.0)
         lease_released.assert_called_once()
         force_stop.assert_not_called()
+
+    def test_artifact_smoke_environment_resolves_to_disposable_test_runtime(self) -> None:
+        storage_root = self.root / "artifact-smoke-storage"
+        inherited_runtime = {
+            "REQPILOT_ENV": "cloud",
+            "REQPILOT_DATABASE_URL": "postgresql://remote.example/production",
+            "REQPILOT_OBJECT_STORE": "oss",
+            "REQPILOT_OBJECT_ROOT": "/outside/objects",
+            "REQPILOT_SCRATCH_ROOT": "/outside/scratch",
+            "REQPILOT_ALLOWED_HOSTS": "remote.example",
+            "REQPILOT_ALLOWED_ORIGINS": "https://remote.example",
+            "REQPILOT_OSS_REGION": "outside-region",
+            "REQPILOT_OSS_BUCKET": "outside-bucket",
+            "REQPILOT_AGENT_RUNTIME": "codex-app-server",
+            "REQPILOT_CODEX_BIN": "/outside/codex",
+            "REQPILOT_CODEX_HOME": "/outside/codex-home",
+        }
+
+        with mock.patch.dict(os.environ, inherited_runtime, clear=False):
+            environment = artifact_self_test._smoke_environment(storage_root)
+
+        settings = RuntimeSettings.from_environment(
+            environment=environment,
+            prototype_dir=self.project_dir,
+        )
+        self.assertEqual(settings.deployment_mode, DeploymentMode.TEST)
+        self.assertEqual(settings.database_backend, DatabaseBackend.SQLITE_TEST)
+        self.assertEqual(settings.database_url, "")
+        self.assertEqual(settings.object_store_backend, ObjectStoreBackend.LOCAL)
+        self.assertEqual(settings.object_root, storage_root.resolve() / "objects")
+        self.assertEqual(settings.scratch_root, (storage_root / "scratch").resolve())
+        self.assertEqual(settings.agent_runtime_backend, AgentRuntimeBackend.NONE)
+        self.assertIn("127.0.0.1", settings.allowed_hosts)
+        self.assertIn("testserver", settings.allowed_hosts)
+        self.assertNotIn("remote.example", settings.allowed_hosts)
+        self.assertIn("http://127.0.0.1", settings.allowed_origins)
+        self.assertNotIn("https://remote.example", settings.allowed_origins)
+        self.assertNotIn("REQPILOT_DATABASE_URL", environment)
+        self.assertNotIn("REQPILOT_OSS_REGION", environment)
+        self.assertNotIn("REQPILOT_OSS_BUCKET", environment)
+        self.assertNotIn("REQPILOT_CODEX_BIN", environment)
+        self.assertNotIn("REQPILOT_CODEX_HOME", environment)
 
     def test_artifact_handshake_rejects_spoofed_identity_and_fields(self) -> None:
         nonce = "c" * 64
