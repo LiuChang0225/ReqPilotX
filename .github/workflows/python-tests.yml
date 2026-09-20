@@ -6,6 +6,9 @@ on:
 
 permissions:
   contents: read
+concurrency:
+  group: python-tests-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
 
 jobs:
   offline-tests:
@@ -36,8 +39,10 @@ jobs:
         run: |
           npm --prefix prototype/frontend ci
           npm --prefix prototype/frontend run build
-      - name: Backend and real MCP stdio tests
-        run: prototype/.venv/bin/python scripts/test_python.py all
+      - name: Backend isolated tests
+        run: prototype/.venv/bin/python scripts/test_python.py backend
+      - name: Portable plugin and real MCP stdio tests
+        run: prototype/.venv/bin/python scripts/test_python.py plugin
       - name: Disposable PostgreSQL and HTTP workbench recovery
         run: |
           sudo apt-get install -y postgresql

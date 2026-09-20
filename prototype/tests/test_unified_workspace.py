@@ -18,7 +18,7 @@ import sqlite3
 from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from pathlib import Path
-from threading import Barrier, Event
+from threading import Barrier, Event, Thread
 from types import SimpleNamespace
 from unittest.mock import patch
 
@@ -589,10 +589,15 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.exit_stack.enter_context(patch.object(db, "DB_PATH", self.tmp_path / "app.db"))
         self.exit_stack.enter_context(patch.object(db, "STORAGE_DIR", self.tmp_path))
         self.exit_stack.enter_context(patch.object(main, "EXPORTS_DIR", self.tmp_path / "exports"))
+        self.background_threads: list[Thread] = []
+        self.exit_stack.enter_context(patch.object(main, "Thread", self._tracked_thread))
         self._matrix_patch_installed = False
         db.init_db()
 
     def tearDown(self) -> None:
+        # Terminal job state can precede the worker's final event/projection
+        # writes. Keep this test's database and settings bound until it exits.
+        self._drain_background_threads()
         clear_runtime_ai_provider_overrides()
         self.exit_stack.close()
         db_file = self.tmp_path / "app.db"
@@ -607,6 +612,27 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             except OSError:
                 time.sleep(0.05)
         self.tmpdir.cleanup()
+
+    def _tracked_thread(self, *args, **kwargs) -> Thread:
+        thread = Thread(*args, **kwargs)
+        self.background_threads.append(thread)
+        return thread
+
+    def _drain_background_threads(self, release_provider: Event | None = None) -> None:
+        with main._AI_ANALYSIS_THREAD_LOCK:
+            owned_jobs = [
+                (document_id, runtime.get("job_id", ""))
+                for document_id, runtime in main._AI_ANALYSIS_THREADS.items()
+                if runtime.get("thread") in self.background_threads
+            ]
+        for document_id, job_id in owned_jobs:
+            main._request_ai_analysis_cancel(document_id, job_id)
+        if release_provider is not None:
+            release_provider.set()
+        for thread in self.background_threads:
+            if thread.ident is not None:
+                thread.join(timeout=10)
+                self.assertFalse(thread.is_alive(), f"Test worker did not finish: {thread.name}")
 
     def _create_project_with_document(self, suffix: str = "") -> tuple[dict, dict]:
         sample_path = self.tmp_path / f"sample{suffix}.txt"
@@ -7139,6 +7165,52 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(updated_row.get("assessment_mode"), "heuristic")
 
     def test_ai_analysis_job_can_be_stopped_from_api(self) -> None:
+        self._exercise_ai_analysis_stop()
+
+    def test_failed_stop_assertion_drains_worker_before_restoring_provider(self) -> None:
+        original_provider = main.run_ai_copilot_assessment
+        with self.assertRaisesRegex(AssertionError, "synthetic assertion while provider is running"):
+            self._exercise_ai_analysis_stop(abort_before_stop=True)
+        self.assertTrue(self.background_threads)
+        self.assertTrue(all(not thread.is_alive() for thread in self.background_threads))
+        self.assertIs(main.run_ai_copilot_assessment, original_provider)
+
+    def test_stop_waits_for_worker_cleanup_after_cancelled_status(self) -> None:
+        finalizing = Event()
+        release_cleanup = Event()
+        clearing: dict[str, object] = {}
+        original_clear = main._clear_ai_analysis_thread
+
+        def delayed_clear(document_id, **kwargs):
+            thread = main._get_ai_analysis_thread(document_id)
+            if thread in self.background_threads:
+                clearing.update(document_id=document_id, job_id=kwargs["job_id"], thread=thread)
+                finalizing.set()
+                if not release_cleanup.wait(timeout=10):
+                    raise AssertionError("Test did not release worker cleanup")
+            return original_clear(document_id, **kwargs)
+
+        def observe_terminal_worker() -> None:
+            try:
+                self.assertTrue(finalizing.wait(timeout=10), "Worker did not reach cleanup")
+                job = db.get_ai_analysis_job(str(clearing["job_id"])) or {}
+                self.assertEqual(job.get("status"), "CANCELLED")
+                self.assertTrue(clearing["thread"].is_alive())
+                self.assertEqual(db.DB_PATH, self.tmp_path / "app.db")
+            finally:
+                release_cleanup.set()
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            observer = executor.submit(observe_terminal_worker)
+            try:
+                with patch.object(main, "_clear_ai_analysis_thread", side_effect=delayed_clear):
+                    self._exercise_ai_analysis_stop()
+            finally:
+                release_cleanup.set()
+            observer.result(timeout=10)
+        self.assertTrue(all(not thread.is_alive() for thread in self.background_threads))
+
+    def _exercise_ai_analysis_stop(self, *, abort_before_stop: bool = False) -> None:
         project, document = self._create_project_with_document("-ai-stop")
         requirement = db.insert_requirement(
             project_id=project["id"],
@@ -7207,6 +7279,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         eligible_rows = db.list_requirements(project["id"], document["id"])
         prepared = (project, locked_document, eligible_rows, eligible_rows, [], ai_config)
         started = Event()
+        release_provider = Event()
 
         def fake_run_ai_copilot_assessment(
             requirement_row: dict[str, object],
@@ -7228,19 +7301,19 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                     }
                 )
                 started.set()
-                for index in range(200):
-                    progress_callback(
-                        {
-                            "type": "reasoning",
-                            "stage": "assessment",
-                            "mode": "llm_shadow",
-                            "model_name": "qwen3.7-plus",
-                            "delta": f"thinking-{index}-" + ("x" * 200),
-                            "content": f"thinking-{index}-" + ("x" * 200),
-                            "characters_emitted": (index + 1) * 210,
-                        }
-                    )
-                    time.sleep(0.02)
+                if not release_provider.wait(timeout=10):
+                    raise AssertionError("Test did not release the mock provider")
+                progress_callback(
+                    {
+                        "type": "reasoning",
+                        "stage": "assessment",
+                        "mode": "llm_shadow",
+                        "model_name": "qwen3.7-plus",
+                        "delta": "provider resumed after the stop request",
+                        "content": "provider resumed after the stop request",
+                        "characters_emitted": 40,
+                    }
+                )
             return {
                 "assessment": {
                     "profile_id": "aliyun",
@@ -7269,33 +7342,35 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             side_effect=fake_run_ai_copilot_assessment,
         ):
             with TestClient(main.app) as client:
-                start_response = client.post(
-                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
-                    json=self._ai_start_payload(
-                        document["id"],
-                        profile_id="aliyun",
-                    ),
-                )
-                self.assertEqual(start_response.status_code, 200)
-                self.assertTrue(started.wait(timeout=1.5))
-
-                stop_response = client.post(
-                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/stop"
-                )
-                self.assertEqual(stop_response.status_code, 200)
-                self.assertEqual(stop_response.json()["job"]["status"], "CANCEL_REQUESTED")
-
-                deadline = time.time() + 3.0
-                status_payload = stop_response.json()
-                while time.time() < deadline:
-                    status_response = client.get(
-                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
+                try:
+                    start_response = client.post(
+                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                        json=self._ai_start_payload(
+                            document["id"],
+                            profile_id="aliyun",
+                        ),
                     )
-                    self.assertEqual(status_response.status_code, 200)
-                    status_payload = status_response.json()
-                    if str(status_payload.get("job", {}).get("status") or "").upper() == "CANCELLED":
-                        break
-                    time.sleep(0.05)
+                    self.assertEqual(start_response.status_code, 200)
+                    self.assertTrue(started.wait(timeout=10), "Mock provider did not start")
+                    self.assertTrue(any(thread.is_alive() for thread in self.background_threads))
+                    if abort_before_stop:
+                        self.fail("synthetic assertion while provider is running")
+
+                    stop_response = client.post(
+                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/stop"
+                    )
+                    self.assertEqual(stop_response.status_code, 200)
+                    self.assertEqual(stop_response.json()["job"]["status"], "CANCEL_REQUESTED")
+                finally:
+                    # Also drain on an assertion failure, while both provider
+                    # patches and the database still belong to this test.
+                    self._drain_background_threads(release_provider)
+
+                status_response = client.get(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
+                )
+                self.assertEqual(status_response.status_code, 200)
+                status_payload = status_response.json()
 
         self.assertEqual(str(status_payload.get("job", {}).get("status") or "").upper(), "CANCELLED")
         self.assertEqual(str(status_payload.get("job", {}).get("current_stage") or "").lower(), "cancelled")

@@ -477,9 +477,12 @@ class XlsbSourceIRAdapterTests(unittest.TestCase):
         )
 
     def test_libreoffice_profile_command_and_environment_are_isolated(self) -> None:
+        sandbox = self.root / "synthetic-sandbox"
+        sandbox.write_bytes(b"synthetic executable; subprocess is mocked")
+        sandbox.chmod(0o700)
         converter = LibreOfficeXlsbConverter(
             executable="/bin/echo",
-            sandbox_executable="/usr/bin/sandbox-exec",
+            sandbox_executable=sandbox,
         )
         captured: dict[str, object] = {}
 
@@ -513,6 +516,7 @@ class XlsbSourceIRAdapterTests(unittest.TestCase):
             )
 
         with (
+            patch.object(xlsb_module.platform, "system", return_value="Darwin"),
             patch.object(
                 converter,
                 "_converter_identity",
@@ -528,7 +532,7 @@ class XlsbSourceIRAdapterTests(unittest.TestCase):
 
         command = captured["command"]
         assert isinstance(command, tuple)
-        self.assertEqual(command[0], "/usr/bin/sandbox-exec")
+        self.assertEqual(command[0], str(sandbox.resolve()))
         self.assertIn(xlsb_module._MACOS_NETWORK_SANDBOX_PROFILE, command)
         self.assertIn("--headless", command)
         self.assertIn("--norestore", command)
@@ -557,9 +561,12 @@ class XlsbSourceIRAdapterTests(unittest.TestCase):
         self.assertFalse(workspace.exists())
 
     def test_libreoffice_version_drift_fails_before_document_conversion(self) -> None:
+        sandbox = self.root / "synthetic-sandbox"
+        sandbox.write_bytes(b"synthetic executable; subprocess is mocked")
+        sandbox.chmod(0o700)
         converter = LibreOfficeXlsbConverter(
             executable="/bin/echo",
-            sandbox_executable="/usr/bin/sandbox-exec",
+            sandbox_executable=sandbox,
             expected_version="26.2.4.2",
         )
         completed = subprocess.CompletedProcess(
@@ -568,7 +575,10 @@ class XlsbSourceIRAdapterTests(unittest.TestCase):
             stdout=b"LibreOffice 26.2.5.0 abcdef1234567890\n",
         )
 
-        with patch.object(subprocess, "run", return_value=completed):
+        with (
+            patch.object(xlsb_module.platform, "system", return_value="Darwin"),
+            patch.object(subprocess, "run", return_value=completed),
+        ):
             with self.assertRaises(XlsbConversionRejected) as caught:
                 converter.convert(b"verified source")
 
