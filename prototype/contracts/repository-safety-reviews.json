@@ -42,7 +42,7 @@
     "reason": "Legacy document ID enum retained for backwards-compatible private manifest validation; no document content, path or source hash."
   },
   "prototype/tests/test_artifact_self_test.py": {
-    "sha256": "71df0c656f13abfad7a5a7a39ffe6d0627d8174fb004ad6af3870122377e226d",
+    "sha256": "38dc419b0097f4af7e214c6ecf8888f7ea6d7e6086e621131079b6aa4e64d3db",
     "rules": [
       "credential_pattern"
     ],
