@@ -1,0 +1,6 @@
+{
+  "name": "reqpilot-target-review-experiment",
+  "private": true,
+  "type": "module",
+  "scripts": {"test": "node --test test_review_core.mjs"}
+}

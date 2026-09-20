@@ -1,5 +1,0 @@
-interface:
-  display_name: "ReqPilot Product KB"
-  short_description: "Work the product knowledge-base track"
-  default_prompt: "Use $reqpilot-track-product-kb to build the product-package knowledge layer without drifting into Angular or parser scope."
-

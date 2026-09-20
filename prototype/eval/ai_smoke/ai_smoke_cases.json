@@ -1,4 +1,5 @@
 {
+  "data_classification": "synthetic_fixture",
   "cases": [
     {
       "id": "SMOKE-001",
@@ -15,6 +16,7 @@
           "id": "kb-info-1",
           "project_id": "project-smoke",
           "file_name": "status-reference.txt",
+          "doc_type": "REFERENCE",
           "status": "ACTIVE",
           "doc_version": "v1.0",
           "extracted_text": "Status naming reference only."
@@ -60,9 +62,10 @@
           "id": "kb-plain-1",
           "project_id": "project-smoke",
           "file_name": "platform-spec.txt",
+          "doc_type": "REFERENCE",
           "status": "ACTIVE",
           "doc_version": "v1.2",
-          "extracted_text": "5.1 Startup\nThe ECU shall support wake-up time less than 100ms.\nMeasured wake-up time is 80ms at -20C."
+        "extracted_text": "5.1 Startup\nThe ECU shall support wake-up time less than 100ms.\nMeasured ECU wake-up time is 80ms."
         }
       ],
       "expect": {
@@ -99,6 +102,7 @@
           "id": "kb-table-1",
           "project_id": "project-smoke",
           "file_name": "fluid-spec.txt",
+          "doc_type": "REFERENCE",
           "status": "ACTIVE",
           "doc_version": "v2.0",
           "extracted_text": "7.2 Fluid Test\n|Condition|Target|\n|Pressure drop|<10kPa|\nApplies at nominal flow condition."
@@ -125,6 +129,7 @@
           "id": "kb-reg-1",
           "project_id": "project-smoke",
           "file_name": "regulation-note.txt",
+          "doc_type": "REFERENCE",
           "status": "ACTIVE",
           "doc_version": "v1.0",
           "extracted_text": "Regulation X section 5 applies to this component.\nReference boundary and applicable scope are listed below."
@@ -152,6 +157,7 @@
           "id": "kb-conflict-1",
           "project_id": "project-smoke",
           "file_name": "positive.txt",
+          "doc_type": "REFERENCE",
           "status": "ACTIVE",
           "doc_version": "v1.0",
           "extracted_text": "Valve pressure drop is less than 10kPa and passed validation."
@@ -160,6 +166,7 @@
           "id": "kb-conflict-2",
           "project_id": "project-smoke",
           "file_name": "negative.txt",
+          "doc_type": "REFERENCE",
           "status": "ACTIVE",
           "doc_version": "v1.1",
           "extracted_text": "Valve does not meet pressure drop less than 10kPa and failed validation."

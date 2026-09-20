@@ -1,0 +1,234 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reqpilotx.local/schemas/pdf-visual-ai-pre-review.v1.json",
+  "title": "ReqPilotX PDF visual AI pre-review",
+  "description": "Text-free, non-Gold AI visual pre-review metadata cross-bound to one verified full-document review bundle and two independently pinned hashes. Bundle/page binding, contiguous ordering, summary equality, and artifact hashing are additionally enforced by the Python validator.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "location",
+    "is_human_gold",
+    "is_formal_approval",
+    "review_bundle_sha256",
+    "artifact_sha256",
+    "binding",
+    "reviewer",
+    "pages",
+    "summary"
+  ],
+  "properties": {
+    "schema_version": { "const": "pdf_visual_ai_pre_review.v1" },
+    "status": { "const": "AI_PRE_REVIEW" },
+    "location": { "const": "CONTROLLED_EXTERNAL" },
+    "is_human_gold": { "const": false },
+    "is_formal_approval": { "const": false },
+    "review_bundle_sha256": { "$ref": "#/$defs/sha256" },
+    "artifact_sha256": { "$ref": "#/$defs/sha256" },
+    "binding": { "$ref": "#/$defs/binding" },
+    "reviewer": { "$ref": "#/$defs/reviewer" },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/page" }
+    },
+    "summary": { "$ref": "#/$defs/summary" }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "safeIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-]{0,255}$"
+    },
+    "findingCode": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z][A-Za-z0-9._-]{0,127}$"
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["id", "version"],
+      "properties": {
+        "id": { "$ref": "#/$defs/safeIdentifier" },
+        "version": { "$ref": "#/$defs/safeIdentifier" }
+      }
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_id",
+        "source_sha256",
+        "page_start",
+        "page_end",
+        "pdf_adapter",
+        "structure_resolver",
+        "preview",
+        "page_presenter"
+      ],
+      "properties": {
+        "document_id": { "$ref": "#/$defs/safeIdentifier" },
+        "source_sha256": { "$ref": "#/$defs/sha256" },
+        "page_start": { "type": "integer", "minimum": 1 },
+        "page_end": { "type": "integer", "minimum": 1 },
+        "pdf_adapter": { "$ref": "#/$defs/component" },
+        "structure_resolver": { "$ref": "#/$defs/component" },
+        "preview": { "$ref": "#/$defs/component" },
+        "page_presenter": { "$ref": "#/$defs/component" }
+      }
+    },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "actor_type",
+        "model_id",
+        "model_version",
+        "tool_id",
+        "tool_version",
+        "reviewed_at_utc"
+      ],
+      "properties": {
+        "actor_type": { "const": "AI" },
+        "model_id": { "$ref": "#/$defs/safeIdentifier" },
+        "model_version": { "$ref": "#/$defs/safeIdentifier" },
+        "tool_id": { "$ref": "#/$defs/safeIdentifier" },
+        "tool_version": { "$ref": "#/$defs/safeIdentifier" },
+        "reviewed_at_utc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "^\\d{4}-\\d{2}-\\d{2}T\\d{2}:\\d{2}:\\d{2}(?:\\.\\d+)?Z$"
+        }
+      }
+    },
+    "decisions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "image", "table", "layout"],
+      "properties": {
+        "text": { "$ref": "#/$defs/decision" },
+        "image": { "$ref": "#/$defs/decision" },
+        "table": { "$ref": "#/$defs/decision" },
+        "layout": { "$ref": "#/$defs/decision" }
+      }
+    },
+    "decision": {
+      "enum": ["PASS", "ISSUE", "NOT_EVALUATED"]
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page_number",
+        "artifact_sha256",
+        "render_sha256",
+        "annotated_sha256",
+        "visited",
+        "review_level",
+        "decisions",
+        "finding_codes"
+      ],
+      "properties": {
+        "page_number": { "type": "integer", "minimum": 1 },
+        "artifact_sha256": { "$ref": "#/$defs/sha256" },
+        "render_sha256": { "$ref": "#/$defs/sha256" },
+        "annotated_sha256": { "$ref": "#/$defs/sha256" },
+        "visited": { "const": true },
+        "review_level": {
+          "enum": ["FULL_PAGE", "HIGH_RISK_DETAIL"]
+        },
+        "decisions": { "$ref": "#/$defs/decisions" },
+        "finding_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": { "$ref": "#/$defs/findingCode" }
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "decisions": {
+                "properties": {
+                  "text": { "const": "PASS" },
+                  "image": { "const": "PASS" },
+                  "table": { "const": "PASS" },
+                  "layout": { "const": "PASS" }
+                },
+                "required": ["text", "image", "table", "layout"]
+              }
+            }
+          },
+          "then": {
+            "properties": {
+              "finding_codes": { "maxItems": 0 }
+            }
+          },
+          "else": {
+            "properties": {
+              "finding_codes": { "minItems": 1 }
+            }
+          }
+        }
+      ]
+    },
+    "reviewLevelCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["FULL_PAGE", "HIGH_RISK_DETAIL"],
+      "properties": {
+        "FULL_PAGE": { "type": "integer", "minimum": 0 },
+        "HIGH_RISK_DETAIL": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "decisionValueCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["PASS", "ISSUE", "NOT_EVALUATED"],
+      "properties": {
+        "PASS": { "type": "integer", "minimum": 0 },
+        "ISSUE": { "type": "integer", "minimum": 0 },
+        "NOT_EVALUATED": { "type": "integer", "minimum": 0 }
+      }
+    },
+    "decisionCounts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "image", "table", "layout"],
+      "properties": {
+        "text": { "$ref": "#/$defs/decisionValueCounts" },
+        "image": { "$ref": "#/$defs/decisionValueCounts" },
+        "table": { "$ref": "#/$defs/decisionValueCounts" },
+        "layout": { "$ref": "#/$defs/decisionValueCounts" }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page_count",
+        "review_level_counts",
+        "decision_counts",
+        "pages_with_findings",
+        "finding_count"
+      ],
+      "properties": {
+        "page_count": { "type": "integer", "minimum": 0 },
+        "review_level_counts": {
+          "$ref": "#/$defs/reviewLevelCounts"
+        },
+        "decision_counts": { "$ref": "#/$defs/decisionCounts" },
+        "pages_with_findings": { "type": "integer", "minimum": 0 },
+        "finding_count": { "type": "integer", "minimum": 0 }
+      }
+    }
+  }
+}

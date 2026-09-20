@@ -1,0 +1,38 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "detail": {
+      "enum": [
+        "THUMBNAIL",
+        "HIGH",
+        "ORIGINAL"
+      ],
+      "title": "Detail",
+      "type": "string"
+    },
+    "page_number": {
+      "minimum": 1,
+      "title": "Page Number",
+      "type": "integer"
+    },
+    "source_handle": {
+      "anyOf": [
+        {
+          "pattern": "^source-handle-[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Handle"
+    }
+  },
+  "required": [
+    "page_number",
+    "detail"
+  ],
+  "title": "DocumentRenderPageInputV1",
+  "type": "object"
+}

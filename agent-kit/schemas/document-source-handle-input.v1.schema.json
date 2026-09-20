@@ -1,0 +1,20 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "source_handle": {
+      "anyOf": [
+        {
+          "pattern": "^source-handle-[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Handle"
+    }
+  },
+  "title": "DocumentSourceHandleInputV1",
+  "type": "object"
+}

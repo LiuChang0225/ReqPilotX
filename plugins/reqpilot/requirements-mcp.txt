@@ -1,0 +1,2 @@
+# Optional host adapter. Core CLI dependencies remain in requirements.txt.
+mcp==2.2.0

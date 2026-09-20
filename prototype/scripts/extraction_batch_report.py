@@ -16,7 +16,7 @@ from typing import Any
 
 PROTOTYPE_DIR = Path(__file__).resolve().parents[1]
 WORKTREE_ROOT = PROTOTYPE_DIR.parent
-DEFAULT_BATCH_CONFIG = PROTOTYPE_DIR / "eval" / "extraction_batches.json"
+DEFAULT_BATCH_CONFIG = PROTOTYPE_DIR / "eval" / "extraction_batches.example.json"
 DEFAULT_TAXONOMY_CONFIG = PROTOTYPE_DIR / "eval" / "extraction_issue_taxonomy.json"
 DEFAULT_PATTERN_LIBRARY_CONFIG = PROTOTYPE_DIR / "eval" / "extraction_patterns.json"
 UUID_PREFIX_RE = re.compile(r"^[0-9a-f]{32}_", re.I)
@@ -44,7 +44,7 @@ def parse_args() -> argparse.Namespace:
     )
     parser.add_argument(
         "--batch",
-        default="legacy_benchmark_core",
+        default="synthetic_example",
         help="Batch id from extraction_batches.json.",
     )
     parser.add_argument(

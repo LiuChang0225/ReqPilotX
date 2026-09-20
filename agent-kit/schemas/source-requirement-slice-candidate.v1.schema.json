@@ -1,0 +1,233 @@
+{
+  "$defs": {
+    "ContextRowRole": {
+      "enum": [
+        "FRONT_MATTER",
+        "HEADER",
+        "METADATA",
+        "CONTEXT",
+        "NOTE"
+      ],
+      "type": "string"
+    },
+    "NonRequirementRole": {
+      "enum": [
+        "HEADING",
+        "METADATA",
+        "REVISION_HISTORY",
+        "CONTEXT",
+        "DEFINITION",
+        "RATIONALE",
+        "EXAMPLE",
+        "NOTE",
+        "REFERENCE"
+      ],
+      "type": "string"
+    },
+    "RequirementKind": {
+      "enum": [
+        "FUNCTIONAL",
+        "QUALITY",
+        "CONSTRAINT",
+        "PROJECT",
+        "PROCESS"
+      ],
+      "type": "string"
+    },
+    "Requirementness": {
+      "enum": [
+        "REQUIREMENT",
+        "NON_REQUIREMENT"
+      ],
+      "type": "string"
+    },
+    "SourceRecordForm": {
+      "enum": [
+        "NUMBERED_CLAUSE",
+        "NATIVE_LIST",
+        "PARAGRAPH",
+        "TABLE_RECORD",
+        "TABLE_BRANCH",
+        "IMAGE"
+      ],
+      "type": "string"
+    },
+    "SourceRequirementBoundaryCandidateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "type": "number"
+        },
+        "decision_summary": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "non_requirement_role": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NonRequirementRole"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "record_key": {
+          "type": "string"
+        },
+        "requirement_kinds": {
+          "items": {
+            "$ref": "#/$defs/RequirementKind"
+          },
+          "type": "array"
+        },
+        "requirementness": {
+          "$ref": "#/$defs/Requirementness"
+        },
+        "row_groups": {
+          "items": {
+            "$ref": "#/$defs/SourceRequirementRowGroupV1"
+          },
+          "type": "array"
+        },
+        "shared_source_content_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source_form": {
+          "$ref": "#/$defs/SourceRecordForm"
+        }
+      },
+      "required": [
+        "record_key",
+        "label",
+        "source_form",
+        "row_groups",
+        "shared_source_content_ids",
+        "requirementness",
+        "requirement_kinds",
+        "non_requirement_role",
+        "confidence",
+        "decision_summary",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "SourceRequirementContextRowGroupV1": {
+      "additionalProperties": false,
+      "properties": {
+        "empty_template_reason": {
+          "type": "string"
+        },
+        "exact_placeholder_values": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "role": {
+          "$ref": "#/$defs/ContextRowRole"
+        },
+        "row_group": {
+          "$ref": "#/$defs/SourceRequirementRowGroupV1"
+        }
+      },
+      "required": [
+        "exact_placeholder_values",
+        "empty_template_reason",
+        "role",
+        "row_group",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "SourceRequirementRowGroupV1": {
+      "additionalProperties": false,
+      "properties": {
+        "fragment_id": {
+          "type": "string"
+        },
+        "row_end": {
+          "type": "integer"
+        },
+        "row_start": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fragment_id",
+        "row_start",
+        "row_end"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "context_row_groups": {
+      "items": {
+        "$ref": "#/$defs/SourceRequirementContextRowGroupV1"
+      },
+      "type": "array"
+    },
+    "diagnostic_codes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "document_map_artifact_id": {
+      "type": "string"
+    },
+    "document_map_artifact_sha256": {
+      "type": "string"
+    },
+    "logical_table_scope_id": {
+      "type": "string"
+    },
+    "records": {
+      "items": {
+        "$ref": "#/$defs/SourceRequirementBoundaryCandidateV1"
+      },
+      "type": "array"
+    },
+    "request_sha256": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "source-requirement-slice-candidate/v1",
+      "type": "string"
+    },
+    "source_sha256": {
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "source_sha256",
+    "document_map_artifact_id",
+    "document_map_artifact_sha256",
+    "request_sha256",
+    "logical_table_scope_id",
+    "records",
+    "context_row_groups",
+    "diagnostic_codes"
+  ],
+  "type": "object"
+}

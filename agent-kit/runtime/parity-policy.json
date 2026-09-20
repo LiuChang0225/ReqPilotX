@@ -1,0 +1,46 @@
+{
+  "schema_version": "reqpilotx-agent-runner-parity-policy/v1",
+  "reference_profile_id": "desktop-reference",
+  "product_profile_id": "app-server-product",
+  "required_equal_identity": [
+    "source_sha256",
+    "kit_id",
+    "kit_version",
+    "bundle_sha256",
+    "policy_id",
+    "policy_version",
+    "model_id",
+    "reasoning_effort",
+    "skill_ids",
+    "tool_registry_id",
+    "tool_registry_version",
+    "artifact_schema_ids"
+  ],
+  "allowed_runner_differences": [
+    "adapter_id",
+    "adapter_version",
+    "runtime_version",
+    "transport_events",
+    "thread_ids",
+    "turn_ids",
+    "timestamps",
+    "latency",
+    "token_usage",
+    "cancel_resume_metadata"
+  ],
+  "quality_comparison": [
+    "page_evidence_coverage",
+    "logical_container_and_record_coverage",
+    "parent_boundary_merge_split_errors",
+    "requirement_disposition",
+    "assertion_and_facet_fidelity",
+    "unresolved_scope_disclosure",
+    "cross_stage_lineage"
+  ],
+  "not_a_parity_gate": [
+    "byte_exact_model_json",
+    "requirement_count_only",
+    "legacy_structure_node_count",
+    "whole_document_output_fingerprint_majority"
+  ]
+}

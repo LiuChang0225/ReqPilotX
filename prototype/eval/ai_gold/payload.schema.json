@@ -1,0 +1,154 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reqpilotx.local/schemas/ai-gold-payload.v2.json",
+  "title": "ReqPilotX controlled external AI Gold payload",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "dataset_id", "version", "cases"],
+  "properties": {
+    "schema_version": {"const": "ai_gold_payload.v2"},
+    "dataset_id": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "minLength": 1},
+    "cases": {
+      "type": "array",
+      "items": {"$ref": "#/$defs/case"}
+    }
+  },
+  "$defs": {
+    "hmacId": {"type": "string", "pattern": "^[a-f0-9]{64}$"},
+    "complianceStatus": {
+      "enum": [
+        "COMPLIANT",
+        "PARTIALLY_COMPLIANT",
+        "NON_COMPLIANT",
+        "INSUFFICIENT_INFORMATION"
+      ]
+    },
+    "missingItem": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["missing_item_id", "item"],
+      "properties": {
+        "missing_item_id": {"$ref": "#/$defs/hmacId"},
+        "item": {"type": "string", "minLength": 1}
+      }
+    },
+    "expectedSubJudgment": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "gold_sub_judgment_id",
+        "statement",
+        "compliance_status"
+      ],
+      "properties": {
+        "gold_sub_judgment_id": {"$ref": "#/$defs/hmacId"},
+        "statement": {"type": "string", "minLength": 1},
+        "compliance_status": {"$ref": "#/$defs/complianceStatus"}
+      }
+    },
+    "case": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_id", "project_id", "document_id", "input", "gold", "reviews"],
+      "properties": {
+        "case_id": {"$ref": "#/$defs/hmacId"},
+        "project_id": {"$ref": "#/$defs/hmacId"},
+        "document_id": {"$ref": "#/$defs/hmacId"},
+        "input": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["requirement_row", "knowledge_docs"],
+          "properties": {
+            "requirement_row": {"type": "object"},
+            "knowledge_docs": {"type": "array", "items": {"type": "object"}}
+          }
+        },
+        "gold": {
+          "type": "object",
+          "additionalProperties": false,
+          "properties": {
+            "analysis_label": {"enum": ["REQUIREMENT", "INFO"]},
+            "final_decision": {
+              "enum": ["ACCEPT", "REJECT", "DEVIATION_ACCEPT", "NEED_CLARIFICATION"]
+            },
+            "compliance_status": {"$ref": "#/$defs/complianceStatus"},
+            "expected_evidence_ids": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {"type": "string", "minLength": 1}
+            },
+            "required_missing_items": {
+              "type": "array",
+              "uniqueItems": true,
+              "items": {"$ref": "#/$defs/missingItem"}
+            },
+            "expected_sub_judgments": {
+              "type": "array",
+              "minItems": 1,
+              "uniqueItems": true,
+              "items": {"$ref": "#/$defs/expectedSubJudgment"}
+            },
+            "assessment_contract_sha256": {"$ref": "#/$defs/hmacId"}
+          },
+          "minProperties": 1,
+          "allOf": [
+            {
+              "if": {"required": ["final_decision"]},
+              "then": {
+                "required": [
+                  "compliance_status",
+                  "expected_evidence_ids",
+                  "required_missing_items",
+                  "expected_sub_judgments",
+                  "assessment_contract_sha256"
+                ]
+              }
+            }
+          ]
+        },
+        "reviews": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/review"}
+        },
+        "adjudication": {"$ref": "#/$defs/adjudication"}
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["reviewer_id"],
+      "properties": {
+        "reviewer_id": {"$ref": "#/$defs/hmacId"},
+        "analysis_label": {"enum": ["REQUIREMENT", "INFO"]},
+        "final_decision": {
+          "enum": ["ACCEPT", "REJECT", "DEVIATION_ACCEPT", "NEED_CLARIFICATION"]
+        },
+        "compliance_status": {"$ref": "#/$defs/complianceStatus"}
+        ,"assessment_contract_sha256": {"$ref": "#/$defs/hmacId"}
+      },
+      "allOf": [
+        {
+          "if": {"required": ["final_decision"]},
+          "then": {"required": ["assessment_contract_sha256"]}
+        }
+      ]
+    },
+    "adjudication": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["status"],
+      "properties": {
+        "status": {"enum": ["NOT_REQUIRED", "COMPLETED"]},
+        "adjudicator_id": {"$ref": "#/$defs/hmacId"},
+        "analysis_label": {"enum": ["REQUIREMENT", "INFO"]},
+        "final_decision": {
+          "enum": ["ACCEPT", "REJECT", "DEVIATION_ACCEPT", "NEED_CLARIFICATION"]
+        },
+        "compliance_status": {"$ref": "#/$defs/complianceStatus"}
+        ,"assessment_contract_sha256": {"$ref": "#/$defs/hmacId"}
+      }
+    }
+  }
+}

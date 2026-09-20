@@ -1,5 +1,15 @@
 from __future__ import annotations
 
+# Test isolation intentionally runs before application imports.
+# ruff: noqa: E402
+
+if __package__:
+    from .runtime_isolation import activate_test_runtime
+else:
+    from runtime_isolation import activate_test_runtime
+
+activate_test_runtime()
+
 import json
 import sys
 import tempfile
@@ -154,7 +164,7 @@ class ExtractionBatchReportTests(unittest.TestCase):
         self.assertIn("oil-pump-benchmark", oil_row["gate_tags"])
 
     def test_manifest_is_valid_json(self) -> None:
-        manifest_path = Path(__file__).resolve().parents[1] / "eval" / "extraction_batches.json"
+        manifest_path = Path(__file__).resolve().parents[1] / "eval" / "extraction_batches.example.json"
         payload = json.loads(manifest_path.read_text(encoding="utf-8"))
         self.assertIn("candidate_roots", payload)
         self.assertIn("batches", payload)
@@ -162,15 +172,15 @@ class ExtractionBatchReportTests(unittest.TestCase):
     def test_resolve_candidate_roots_supports_home_root(self) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             home = Path(tmpdir)
-            (home / "Downloads/SERES MDA").mkdir(parents=True)
+            (home / "Downloads/Synthetic Corpus").mkdir(parents=True)
             with mock.patch("pathlib.Path.home", return_value=home):
                 roots = batch_report.resolve_candidate_roots(
                     {
                         "candidate_roots": [
                             {
-                                "name": "seres_downloads",
+                                "name": "synthetic_downloads",
                                 "root": "home",
-                                "path": "Downloads/SERES MDA",
+                                "path": "Downloads/Synthetic Corpus",
                             }
                         ]
                     },
@@ -178,8 +188,8 @@ class ExtractionBatchReportTests(unittest.TestCase):
                 )
 
         self.assertEqual(len(roots), 1)
-        self.assertEqual(roots[0]["name"], "seres_downloads")
-        self.assertEqual(roots[0]["path"], (home / "Downloads/SERES MDA").resolve())
+        self.assertEqual(roots[0]["name"], "synthetic_downloads")
+        self.assertEqual(roots[0]["path"], (home / "Downloads/Synthetic Corpus").resolve())
 
     def test_attach_diagnosis_rollup_enriches_document_rows(self) -> None:
         rows = [

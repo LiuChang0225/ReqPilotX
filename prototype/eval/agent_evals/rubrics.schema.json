@@ -1,0 +1,166 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "urn:reqpilotx:agent-evals:rubrics:v1",
+  "title": "ReqPilotX Agent Eval layered rubrics",
+  "description": "Evaluator-only checks, grounded in the current document model V1 and PDF granularity guidance. Program, source-semantic and trajectory results remain separate. Manual evidence is mandatory for manual PASS/FAIL/REVIEW/NOT_APPLICABLE decisions. Missing evidence is REVIEW, not a default PASS. Do not score exact item counts, fixed tool order, or fewer reads as correctness.",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "suite_id",
+    "rubrics"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "1.0.0"
+    },
+    "suite_id": {
+      "const": "reqpilotx-agent-evals-v1"
+    },
+    "rubrics": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "type": "object",
+        "additionalProperties": false,
+        "required": [
+          "rubric_id",
+          "title",
+          "checks"
+        ],
+        "properties": {
+          "rubric_id": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_-]*$"
+          },
+          "title": {
+            "type": "string",
+            "minLength": 1
+          },
+          "checks": {
+            "type": "array",
+            "minItems": 1,
+            "items": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "check_id",
+                "layer",
+                "applies_to",
+                "severity",
+                "pass",
+                "fail",
+                "review",
+                "not_applicable",
+                "evidence_required",
+                "acceptable_alternatives"
+              ],
+              "properties": {
+                "check_id": {
+                  "type": "string",
+                  "pattern": "^[a-z][a-z0-9_-]*$"
+                },
+                "layer": {
+                  "enum": [
+                    "program",
+                    "source_semantic",
+                    "trajectory"
+                  ]
+                },
+                "applies_to": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "enum": [
+                      "MAP_ONLY",
+                      "FULL_DOCUMENT",
+                      "SCOPED_REVISION",
+                      "SCOPED_EXTRACTION"
+                    ]
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "severity": {
+                  "enum": [
+                    "critical",
+                    "major",
+                    "minor"
+                  ]
+                },
+                "evaluator": {
+                  "enum": [
+                    "manual",
+                    "source_identity",
+                    "bundle_integrity",
+                    "artifact_integrity",
+                    "required_artifacts",
+                    "autonomous_completion"
+                  ]
+                },
+                "pass": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "fail": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "review": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "not_applicable": {
+                  "type": "string",
+                  "minLength": 1
+                },
+                "evidence_required": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                },
+                "acceptable_alternatives": {
+                  "type": "array",
+                  "items": {
+                    "type": "string",
+                    "minLength": 1
+                  },
+                  "minItems": 1,
+                  "uniqueItems": true
+                }
+              },
+              "allOf": [
+                {
+                  "if": {
+                    "properties": {
+                      "layer": {
+                        "enum": [
+                          "source_semantic",
+                          "trajectory"
+                        ]
+                      }
+                    },
+                    "required": [
+                      "layer"
+                    ]
+                  },
+                  "then": {
+                    "properties": {
+                      "evaluator": {
+                        "const": "manual"
+                      }
+                    }
+                  }
+                }
+              ]
+            }
+          }
+        }
+      }
+    }
+  }
+}

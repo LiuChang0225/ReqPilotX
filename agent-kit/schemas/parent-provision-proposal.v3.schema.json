@@ -1,0 +1,465 @@
+{
+  "$defs": {
+    "AgentKitIdentityV1": {
+      "additionalProperties": false,
+      "description": "Exact, runner-neutral identity of one Portable Agent Kit bundle.",
+      "properties": {
+        "bundle_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Bundle Sha256",
+          "type": "string"
+        },
+        "kit_id": {
+          "pattern": "^[a-z][a-z0-9-]{0,119}$",
+          "title": "Kit Id",
+          "type": "string"
+        },
+        "kit_version": {
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "title": "Kit Version",
+          "type": "string"
+        },
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Manifest Sha256",
+          "type": "string"
+        },
+        "policy_id": {
+          "pattern": "^[a-z][a-z0-9-]{0,119}$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_version": {
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "title": "Policy Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "reqpilotx-agent-kit-identity/v1",
+          "default": "reqpilotx-agent-kit-identity/v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "tool_registry_id": {
+          "pattern": "^[a-z][a-z0-9-]{0,119}$",
+          "title": "Tool Registry Id",
+          "type": "string"
+        },
+        "tool_registry_version": {
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "title": "Tool Registry Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kit_id",
+        "kit_version",
+        "manifest_sha256",
+        "bundle_sha256",
+        "policy_id",
+        "policy_version",
+        "tool_registry_id",
+        "tool_registry_version"
+      ],
+      "title": "AgentKitIdentityV1",
+      "type": "object"
+    },
+    "D3ProfessionalPolicyAttestationIdentityV1": {
+      "additionalProperties": false,
+      "description": "Content-free Host-pinned proof of the professional D3 execution context.",
+      "properties": {
+        "agent_id": {
+          "const": "reqpilotx-requirement-baseline-curator",
+          "default": "reqpilotx-requirement-baseline-curator",
+          "title": "Agent Id",
+          "type": "string"
+        },
+        "attestation_id": {
+          "pattern": "^d3-policy-attestation-[0-9a-f]{32}$",
+          "title": "Attestation Id",
+          "type": "string"
+        },
+        "attestation_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Attestation Sha256",
+          "type": "string"
+        },
+        "attested_decision_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Attested Decision Sha256",
+          "type": "string"
+        },
+        "d2_artifact_id": {
+          "pattern": "^agent-artifact-[0-9a-f]{32}$",
+          "title": "D2 Artifact Id",
+          "type": "string"
+        },
+        "d2_artifact_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "D2 Artifact Sha256",
+          "type": "string"
+        },
+        "execution_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Execution Receipt Sha256",
+          "type": "string"
+        },
+        "kit_bundle_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Kit Bundle Sha256",
+          "type": "string"
+        },
+        "parent_provision_attestation_id": {
+          "pattern": "^d3-policy-attestation-[0-9a-f]{32}$",
+          "title": "Parent Provision Attestation Id",
+          "type": "string"
+        },
+        "parent_provision_attestation_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Parent Provision Attestation Sha256",
+          "type": "string"
+        },
+        "parent_provision_policy_attested": {
+          "const": true,
+          "default": true,
+          "title": "Parent Provision Policy Attested",
+          "type": "boolean"
+        },
+        "policy_closure_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Policy Closure Sha256",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "d3-professional-policy-attestation-identity/v1",
+          "default": "d3-professional-policy-attestation-identity/v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "attestation_id",
+        "attestation_sha256",
+        "parent_provision_attestation_id",
+        "parent_provision_attestation_sha256",
+        "source_sha256",
+        "d2_artifact_id",
+        "d2_artifact_sha256",
+        "kit_bundle_sha256",
+        "policy_closure_sha256",
+        "execution_receipt_sha256",
+        "attested_decision_sha256"
+      ],
+      "title": "D3ProfessionalPolicyAttestationIdentityV1",
+      "type": "object"
+    },
+    "ParentProvisionEntryV3": {
+      "additionalProperties": false,
+      "properties": {
+        "ancestor_labels": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "title": "Ancestor Labels",
+          "type": "array"
+        },
+        "confidence": {
+          "maximum": 1.0,
+          "minimum": 0.0,
+          "title": "Confidence",
+          "type": "number"
+        },
+        "content_role": {
+          "$ref": "#/$defs/ProvisionContentRole"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 256,
+          "minItems": 1,
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "explicit_label": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Explicit Label"
+        },
+        "logical_object_ids": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Logical Object Ids",
+          "type": "array"
+        },
+        "parent_provision_id": {
+          "pattern": "^parent-provision-[0-9a-f]{32}$",
+          "title": "Parent Provision Id",
+          "type": "string"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 32,
+          "minItems": 1,
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "requirement_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequirementKind"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        },
+        "requirementness": {
+          "$ref": "#/$defs/Requirementness"
+        },
+        "source_order": {
+          "minimum": 0,
+          "title": "Source Order",
+          "type": "integer"
+        },
+        "source_ranges": {
+          "items": {
+            "$ref": "#/$defs/ParentProvisionSourceRangeV3"
+          },
+          "maxItems": 1024,
+          "minItems": 1,
+          "title": "Source Ranges",
+          "type": "array"
+        },
+        "technicality": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequirementTechnicality"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null
+        }
+      },
+      "required": [
+        "parent_provision_id",
+        "source_order",
+        "logical_object_ids",
+        "source_ranges",
+        "requirementness",
+        "content_role",
+        "confidence",
+        "reason_codes",
+        "evidence_refs"
+      ],
+      "title": "ParentProvisionEntryV3",
+      "type": "object"
+    },
+    "ParentProvisionSourceRangeV3": {
+      "additionalProperties": false,
+      "properties": {
+        "end_offset": {
+          "exclusiveMinimum": 0,
+          "title": "End Offset",
+          "type": "integer"
+        },
+        "segment_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "start_offset": {
+          "minimum": 0,
+          "title": "Start Offset",
+          "type": "integer"
+        },
+        "verbatim_text": {
+          "maxLength": 1000000,
+          "minLength": 1,
+          "title": "Verbatim Text",
+          "type": "string"
+        },
+        "verbatim_text_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Verbatim Text Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "segment_id",
+        "start_offset",
+        "end_offset",
+        "verbatim_text",
+        "verbatim_text_sha256"
+      ],
+      "title": "ParentProvisionSourceRangeV3",
+      "type": "object"
+    },
+    "ParentProvisionStatus": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL"
+      ],
+      "title": "ParentProvisionStatus",
+      "type": "string"
+    },
+    "ProvisionContentRole": {
+      "enum": [
+        "PROVISION",
+        "HEADING",
+        "METADATA",
+        "CONTEXT",
+        "RATIONALE",
+        "ASSUMPTION",
+        "EXAMPLE",
+        "DEFINITION",
+        "REFERENCE",
+        "NOTE",
+        "TABLE_RECORD",
+        "OTHER"
+      ],
+      "title": "ProvisionContentRole",
+      "type": "string"
+    },
+    "RequirementKind": {
+      "enum": [
+        "FUNCTIONAL",
+        "QUALITY",
+        "CONSTRAINT",
+        "OTHER_REQUIREMENT",
+        "UNRESOLVED"
+      ],
+      "title": "RequirementKind",
+      "type": "string"
+    },
+    "RequirementTechnicality": {
+      "enum": [
+        "TECHNICAL",
+        "NON_TECHNICAL",
+        "MIXED",
+        "UNRESOLVED"
+      ],
+      "title": "RequirementTechnicality",
+      "type": "string"
+    },
+    "Requirementness": {
+      "enum": [
+        "REQUIREMENT",
+        "NON_REQUIREMENT",
+        "UNRESOLVED"
+      ],
+      "title": "Requirementness",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Source-faithful D3 baseline; it intentionally contains no atomization.",
+  "properties": {
+    "declared_logical_object_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8192,
+      "title": "Declared Logical Object Ids",
+      "type": "array"
+    },
+    "diagnostic_codes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 256,
+      "title": "Diagnostic Codes",
+      "type": "array"
+    },
+    "entries": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/ParentProvisionEntryV3"
+      },
+      "maxItems": 65536,
+      "title": "Entries",
+      "type": "array"
+    },
+    "kit_identity": {
+      "$ref": "#/$defs/AgentKitIdentityV1"
+    },
+    "policy_attestation": {
+      "$ref": "#/$defs/D3ProfessionalPolicyAttestationIdentityV1"
+    },
+    "predecessor_d2_artifact_id": {
+      "pattern": "^agent-artifact-[0-9a-f]{32}$",
+      "title": "Predecessor D2 Artifact Id",
+      "type": "string"
+    },
+    "predecessor_d2_artifact_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Predecessor D2 Artifact Sha256",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^agent-run-[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "parent-provision-proposal/v3",
+      "default": "parent-provision-proposal/v3",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ParentProvisionStatus"
+    },
+    "unresolved_logical_object_ids": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "maxItems": 8192,
+      "title": "Unresolved Logical Object Ids",
+      "type": "array"
+    }
+  },
+  "required": [
+    "run_id",
+    "source_sha256",
+    "kit_identity",
+    "predecessor_d2_artifact_id",
+    "predecessor_d2_artifact_sha256",
+    "policy_attestation",
+    "status"
+  ],
+  "title": "ParentProvisionProposalV3",
+  "type": "object"
+}

@@ -1,0 +1,596 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reqpilotx.local/schemas/document-visual-review-bundle-v1.json",
+  "title": "ReqPilotX non-PDF whole-document visual review bundle v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "generated_at",
+    "bundle_kind",
+    "bundle_hash_contract",
+    "document",
+    "profile_pins",
+    "renderer",
+    "pipeline",
+    "coverage",
+    "pages",
+    "pipeline_artifacts",
+    "entrypoint",
+    "artifact_inventory",
+    "artifact_inventory_sha256",
+    "privacy",
+    "review_provenance",
+    "bundle_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "document-visual-review-bundle/v1"
+    },
+    "generated_at": {
+      "type": "string",
+      "format": "date-time"
+    },
+    "bundle_kind": {
+      "const": "WHOLE_DOCUMENT_VISUAL_REVIEW_INPUT"
+    },
+    "bundle_hash_contract": {
+      "const": "canonical-json-without-bundle-sha256/v1"
+    },
+    "document": {
+      "$ref": "#/$defs/document"
+    },
+    "profile_pins": {
+      "$ref": "#/$defs/profile_pins"
+    },
+    "renderer": {
+      "$ref": "#/$defs/renderer"
+    },
+    "pipeline": {
+      "$ref": "#/$defs/pipeline"
+    },
+    "coverage": {
+      "$ref": "#/$defs/coverage"
+    },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/page"
+      }
+    },
+    "pipeline_artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/pipeline_artifact"
+      }
+    },
+    "entrypoint": {
+      "$ref": "#/$defs/entrypoint"
+    },
+    "artifact_inventory": {
+      "type": "array",
+      "minItems": 2,
+      "items": {
+        "oneOf": [
+          {
+            "$ref": "#/$defs/page_inventory"
+          },
+          {
+            "$ref": "#/$defs/pipeline_artifact"
+          },
+          {
+            "$ref": "#/$defs/index_inventory"
+          }
+        ]
+      }
+    },
+    "artifact_inventory_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "privacy": {
+      "$ref": "#/$defs/privacy"
+    },
+    "review_provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "bundle_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+/-]*$"
+    },
+    "status": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL",
+        "BLOCKED",
+        "FAILED",
+        "NOT_RUN"
+      ]
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_id",
+        "source_sha256",
+        "format",
+        "page_count"
+      ],
+      "properties": {
+        "document_id": {
+          "$ref": "#/$defs/document_id"
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "format": {
+          "enum": [
+            "docx",
+            "xlsx",
+            "xlsb",
+            "tif"
+          ]
+        },
+        "page_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "document_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._@+-]*$"
+    },
+    "profile_pin": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "file_sha256",
+        "profile_sha256",
+        "schema_version"
+      ],
+      "properties": {
+        "file_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "profile_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "schema_version": {
+          "type": "string",
+          "minLength": 1
+        }
+      }
+    },
+    "profile_pins": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "render",
+        "pipeline"
+      ],
+      "properties": {
+        "render": {
+          "$ref": "#/$defs/profile_pin"
+        },
+        "pipeline": {
+          "$ref": "#/$defs/profile_pin"
+        }
+      }
+    },
+    "renderer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "config_sha256"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "version": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "config_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "status",
+        "snapshot_id",
+        "fingerprint_sha256"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "version": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "snapshot_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "fingerprint_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "pipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "adapter",
+        "resolver",
+        "classifier",
+        "projector",
+        "pipeline_fingerprint_sha256"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "adapter": {
+          "$ref": "#/$defs/component"
+        },
+        "resolver": {
+          "$ref": "#/$defs/component"
+        },
+        "classifier": {
+          "$ref": "#/$defs/component"
+        },
+        "projector": {
+          "$ref": "#/$defs/component"
+        },
+        "pipeline_fingerprint_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "full_document",
+        "page_numbers",
+        "page_count"
+      ],
+      "properties": {
+        "full_document": {
+          "const": true
+        },
+        "page_numbers": {
+          "type": "array",
+          "minItems": 1,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "page_count": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "locator": {
+      "oneOf": [
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind",
+            "frame_index"
+          ],
+          "properties": {
+            "kind": {
+              "const": "TIF_FRAME"
+            },
+            "frame_index": {
+              "type": "integer",
+              "minimum": 0
+            }
+          }
+        },
+        {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "kind"
+          ],
+          "dependentRequired": {
+            "sheet_locator": [
+              "sheet_page_number"
+            ],
+            "sheet_page_number": [
+              "sheet_locator"
+            ]
+          },
+          "properties": {
+            "kind": {
+              "const": "OFFICE_PAGE"
+            },
+            "sheet_locator": {
+              "$ref": "#/$defs/safe_id"
+            },
+            "sheet_page_number": {
+              "type": "integer",
+              "minimum": 1
+            }
+          }
+        }
+      ]
+    },
+    "render": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "media_type",
+        "width_px",
+        "height_px"
+      ],
+      "properties": {
+        "path": {
+          "type": "string",
+          "pattern": "^renders/page-[0-9]{4,}\\.png$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "media_type": {
+          "const": "image/png"
+        },
+        "width_px": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height_px": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page_number",
+        "locator",
+        "render"
+      ],
+      "properties": {
+        "page_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "locator": {
+          "$ref": "#/$defs/locator"
+        },
+        "render": {
+          "$ref": "#/$defs/render"
+        }
+      }
+    },
+    "pipeline_artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "artifact_number",
+        "kind",
+        "path",
+        "sha256",
+        "media_type",
+        "customer_sensitive"
+      ],
+      "properties": {
+        "artifact_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "kind": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^pipeline/artifact-[0-9]{4,}\\.(?:json|png|txt|bin)$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "media_type": {
+          "type": "string",
+          "minLength": 3
+        },
+        "customer_sensitive": {
+          "const": true
+        }
+      }
+    },
+    "entrypoint": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "path",
+        "sha256",
+        "media_type",
+        "offline",
+        "external_urls"
+      ],
+      "properties": {
+        "path": {
+          "const": "index.html"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "media_type": {
+          "const": "text/html"
+        },
+        "offline": {
+          "const": true
+        },
+        "external_urls": {
+          "const": false
+        }
+      }
+    },
+    "page_inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "page_number",
+        "path",
+        "sha256",
+        "media_type",
+        "width_px",
+        "height_px"
+      ],
+      "properties": {
+        "kind": {
+          "const": "PAGE_RENDER"
+        },
+        "page_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "path": {
+          "type": "string",
+          "pattern": "^renders/page-[0-9]{4,}\\.png$"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "media_type": {
+          "const": "image/png"
+        },
+        "width_px": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "height_px": {
+          "type": "integer",
+          "minimum": 1
+        }
+      }
+    },
+    "index_inventory": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "path",
+        "sha256",
+        "media_type"
+      ],
+      "properties": {
+        "kind": {
+          "const": "OFFLINE_INDEX"
+        },
+        "path": {
+          "const": "index.html"
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "media_type": {
+          "const": "text/html"
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classification",
+        "handling",
+        "contains_customer_content",
+        "contains_source_path",
+        "contains_source_filename",
+        "is_anonymized",
+        "source_hash_is_anonymization"
+      ],
+      "properties": {
+        "classification": {
+          "const": "CUSTOMER_SENSITIVE"
+        },
+        "handling": {
+          "const": "CONTROLLED_LOCAL_REVIEW_ONLY"
+        },
+        "contains_customer_content": {
+          "const": true
+        },
+        "contains_source_path": {
+          "const": false
+        },
+        "contains_source_filename": {
+          "const": false
+        },
+        "is_anonymized": {
+          "const": false
+        },
+        "source_hash_is_anonymization": {
+          "const": false
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "is_technical_draft",
+        "is_human_review",
+        "is_human_gold",
+        "is_gold",
+        "is_formal_approval",
+        "is_serving_activation_gate"
+      ],
+      "properties": {
+        "is_technical_draft": {
+          "const": false
+        },
+        "is_human_review": {
+          "const": false
+        },
+        "is_human_gold": {
+          "const": false
+        },
+        "is_gold": {
+          "const": false
+        },
+        "is_formal_approval": {
+          "const": false
+        },
+        "is_serving_activation_gate": {
+          "const": false
+        }
+      }
+    }
+  }
+}

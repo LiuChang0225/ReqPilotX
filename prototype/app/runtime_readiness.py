@@ -7,6 +7,7 @@ from pathlib import Path
 from typing import Any
 from urllib import error as urllib_error
 from urllib import request as urllib_request
+from urllib.parse import urlsplit
 
 from app.services.ai_copilot import (
     ALIYUN_API_KEY_NON_ASCII_REASON,
@@ -80,17 +81,26 @@ def build_readiness_report(
         if bool(check.get("runnable")):
             runnable_profiles.append(config.profile_id)
 
-    core_ready = all(checks[name].get("status") in {"ok", "not_applicable"} for name in ("startup", "storage", "sqlite"))
-    ready = core_ready and bool(runnable_profiles)
     default_profile_id = ai_profiles[0].profile_id if ai_profiles else ""
+    default_profile_ready = bool(
+        default_profile_id
+        and profile_checks.get(default_profile_id, {}).get("runnable")
+    )
+    core_ready = all(
+        checks[name].get("status") in {"ok", "not_applicable"}
+        for name in ("startup", "storage", "sqlite")
+    )
+    ready = core_ready and default_profile_ready
     return {
         "status": "ok" if ready else "not_ready",
         "ready": ready,
+        "runtime_ready": core_ready,
         "checked_at": datetime.now(timezone.utc).isoformat(),
-        "storage_root": str(storage_root),
-        "db_path": str(db_path),
+        "storage_root": "redacted",
+        "db_path": "redacted",
         "ai": {
             "default_profile_id": default_profile_id,
+            "default_profile_ready": default_profile_ready,
             "runnable_profiles": runnable_profiles,
             "profiles": [
                 {
@@ -134,7 +144,7 @@ def _build_startup_check(
         return {
             "status": "error",
             "checked_at": startup_checked_at,
-            "detail": f"Application startup initialization failed: {startup_error}",
+            "detail": "Application startup initialization failed.",
         }
     return {
         "status": "error",
@@ -173,7 +183,6 @@ def _probe_directory(path: Path) -> dict[str, Any]:
         probe_path.unlink(missing_ok=True)
         return {
             "status": "ok",
-            "path": str(path),
             "detail": "Directory is writable.",
         }
     except Exception as exc:
@@ -183,12 +192,13 @@ def _probe_directory(path: Path) -> dict[str, Any]:
             pass
         return {
             "status": "error",
-            "path": str(path),
-            "detail": f"Directory is not writable: {exc}",
+            "detail": "Directory is not writable.",
+            "error_type": type(exc).__name__,
         }
 
 
 def _build_sqlite_check(*, db_path: Path) -> dict[str, Any]:
+    missing_tables = list(_REQUIRED_DB_TABLES)
     try:
         db_path.parent.mkdir(parents=True, exist_ok=True)
         with sqlite3.connect(str(db_path), timeout=2.0) as conn:
@@ -202,25 +212,34 @@ def _build_sqlite_check(*, db_path: Path) -> dict[str, Any]:
                 ).fetchone()
                 is None
             ]
-        if missing_tables:
-            return {
-                "status": "error",
-                "path": str(db_path),
-                "detail": "SQLite schema is not initialized.",
-                "missing_tables": missing_tables,
-            }
+            if missing_tables:
+                return {
+                    "status": "error",
+                    "detail": "SQLite schema is not initialized.",
+                    "missing_tables": missing_tables,
+                }
+            probe_table = f"_reqpilotx_readiness_{uuid.uuid4().hex}"
+            try:
+                conn.execute("BEGIN IMMEDIATE")
+                conn.execute(
+                    f'CREATE TABLE "{probe_table}" (probe_value INTEGER NOT NULL)'
+                )
+                conn.execute(
+                    f'INSERT INTO "{probe_table}" (probe_value) VALUES (1)'
+                )
+            finally:
+                conn.rollback()
         return {
             "status": "ok",
-            "path": str(db_path),
-            "detail": "SQLite connection succeeded and required tables are present.",
+            "detail": "SQLite read/write probe succeeded and required tables are present.",
             "missing_tables": [],
         }
     except Exception as exc:
         return {
             "status": "error",
-            "path": str(db_path),
-            "detail": f"SQLite probe failed: {exc}",
-            "missing_tables": list(_REQUIRED_DB_TABLES),
+            "detail": "SQLite read/write probe failed.",
+            "error_type": type(exc).__name__,
+            "missing_tables": missing_tables,
         }
 
 
@@ -293,7 +312,7 @@ def _build_aliyun_check(config: AICopilotConfig) -> dict[str, Any]:
     qdrant_probe: dict[str, Any] = {
         "status": "not_configured",
         "detail": "Qdrant local POC is not enabled for the Aliyun profile.",
-        "url": str(config.qdrant_url or ""),
+        "url": _safe_endpoint_label(config.qdrant_url),
     }
 
     if llm_required:
@@ -375,6 +394,7 @@ def _dedupe_missing(missing: list[str]) -> list[str]:
 
 def _probe_qdrant_endpoint(config: AICopilotConfig) -> dict[str, Any]:
     url = str(config.qdrant_url or "").strip().rstrip("/")
+    safe_url = _safe_endpoint_label(url)
     if not url:
         return {
             "status": "not_configured",
@@ -392,25 +412,43 @@ def _probe_qdrant_endpoint(config: AICopilotConfig) -> dict[str, Any]:
             return {
                 "status": "ok",
                 "detail": "Qdrant local service responded successfully.",
-                "url": url,
+                "url": safe_url,
                 "http_status": status_code,
             }
         return {
             "status": "error",
             "detail": f"Qdrant local service returned HTTP {status_code}.",
-            "url": url,
+            "url": safe_url,
             "http_status": status_code,
         }
     except urllib_error.HTTPError as exc:
         return {
             "status": "error",
             "detail": f"Qdrant local service returned HTTP {exc.code}.",
-            "url": url,
+            "url": safe_url,
             "http_status": int(exc.code),
         }
     except Exception as exc:
         return {
             "status": "error",
-            "detail": f"Qdrant local service is unreachable: {exc}",
-            "url": url,
+            "detail": "Qdrant local service is unreachable.",
+            "url": safe_url,
+            "error_type": type(exc).__name__,
         }
+
+
+def _safe_endpoint_label(value: str) -> str:
+    raw_value = str(value or "").strip()
+    if not raw_value:
+        return ""
+    try:
+        parsed = urlsplit(raw_value)
+        if parsed.scheme not in {"http", "https"} or not parsed.hostname:
+            return "configured"
+        hostname = parsed.hostname
+        if ":" in hostname:
+            hostname = f"[{hostname}]"
+        port = f":{parsed.port}" if parsed.port else ""
+        return f"{parsed.scheme}://{hostname}{port}"
+    except ValueError:
+        return "configured"

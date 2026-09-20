@@ -1,0 +1,31 @@
+{
+  "schema_version": "reqpilotx-agent-profile/v1",
+  "agent_id": "reqpilotx-extraction-orchestrator",
+  "role": "PRIMARY",
+  "baseline_agent_id": "reqpilotx-requirement-baseline-curator",
+  "stage_order": [
+    "D0_SOURCE_PREFLIGHT",
+    "D1_DOCUMENT_UNDERSTANDING",
+    "D2_LOGICAL_STRUCTURE",
+    "D3_PARENT_PROVISION_RECOGNITION",
+    "D5_COMPLETENESS_VERIFICATION",
+    "D6_RESULT_ASSEMBLY"
+  ],
+  "optional_workflows": [
+    {
+      "workflow": "REQUIREMENT_ATOMIZATION",
+      "explicit_user_trigger_required": true,
+      "agent_id": "reqpilotx-requirement-atomizer",
+      "stage_order": [
+        "D4_REQUIREMENT_DECOMPOSITION",
+        "D5_COMPLETENESS_VERIFICATION",
+        "D6_RESULT_ASSEMBLY"
+      ]
+    }
+  ],
+  "authority": "PROPOSAL_ONLY",
+  "may_use_bounded_subagents": true,
+  "may_read_primary_reasoning": true,
+  "may_write_business_state": false,
+  "completion_source": "BASELINE_STAGE_VALIDATOR_RECEIPTS"
+}

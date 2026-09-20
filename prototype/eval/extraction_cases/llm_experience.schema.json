@@ -1,0 +1,509 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reqpilotx.local/schemas/llm-extraction-experience-v2.json",
+  "title": "ReqPilotX text-free LLM extraction experience registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "provenance",
+    "content_policy",
+    "is_human_gold",
+    "is_serving_activation_gate",
+    "records"
+  ],
+  "properties": {
+    "schema_version": {"const": "llm-extraction-experience/v2"},
+    "provenance": {"const": "AI_REVIEWED_EXPERIENCE"},
+    "content_policy": {"const": "TEXT_FREE"},
+    "is_human_gold": {"const": false},
+    "is_serving_activation_gate": {"const": false},
+    "records": {
+      "type": "array",
+      "minItems": 1,
+      "items": {"$ref": "#/$defs/record"}
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "stable_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 160,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/+;=\\-]{0,159}$"
+    },
+    "experience_code": {
+      "type": "string",
+      "minLength": 3,
+      "maxLength": 120,
+      "pattern": "^[A-Z][A-Z0-9_]{2,119}$"
+    },
+    "role_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["PRIMARY", "CHILD", "CONTENT", "PARAMETER", "REFERENCE"],
+      "properties": {
+        "PRIMARY": {"type": "integer", "minimum": 0},
+        "CHILD": {"type": "integer", "minimum": 0},
+        "CONTENT": {"type": "integer", "minimum": 0},
+        "PARAMETER": {"type": "integer", "minimum": 0},
+        "REFERENCE": {"type": "integer", "minimum": 0}
+      }
+    },
+    "decision_counts": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["DIRECT", "ROLLUP", "NONE"],
+      "properties": {
+        "DIRECT": {"type": "integer", "minimum": 0},
+        "ROLLUP": {"type": "integer", "minimum": 0},
+        "NONE": {"type": "integer", "minimum": 0}
+      }
+    },
+    "source_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_sha256",
+        "source_status",
+        "adapter_id",
+        "adapter_version",
+        "resolver_id",
+        "resolver_version",
+        "locator_version",
+        "locator_sha256"
+      ],
+      "properties": {
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "source_status": {"enum": ["COMPLETE", "PARTIAL"]},
+        "adapter_id": {"$ref": "#/$defs/stable_id"},
+        "adapter_version": {"$ref": "#/$defs/stable_id"},
+        "resolver_id": {"$ref": "#/$defs/stable_id"},
+        "resolver_version": {"$ref": "#/$defs/stable_id"},
+        "locator_version": {"$ref": "#/$defs/stable_id"},
+        "locator_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "provider_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_id",
+        "provider_version",
+        "model_id",
+        "classification_prompt_version",
+        "classification_schema_version",
+        "assembly_prompt_version",
+        "assembly_schema_version",
+        "classifier_version",
+        "assembler_version",
+        "projector_version",
+        "sampling_seed"
+      ],
+      "properties": {
+        "provider_id": {"$ref": "#/$defs/stable_id"},
+        "provider_version": {"$ref": "#/$defs/stable_id"},
+        "model_id": {"$ref": "#/$defs/stable_id"},
+        "classification_prompt_version": {"$ref": "#/$defs/stable_id"},
+        "classification_schema_version": {"$ref": "#/$defs/stable_id"},
+        "assembly_prompt_version": {"$ref": "#/$defs/stable_id"},
+        "assembly_schema_version": {"$ref": "#/$defs/stable_id"},
+        "classifier_version": {"$ref": "#/$defs/stable_id"},
+        "assembler_version": {"$ref": "#/$defs/stable_id"},
+        "projector_version": {"$ref": "#/$defs/stable_id"},
+        "sampling_seed": {"type": "integer", "minimum": 0, "maximum": 2147483647}
+      }
+    },
+    "invocation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "operation",
+        "request_sha256",
+        "response_sha256",
+        "status",
+        "request_count",
+        "retry_count"
+      ],
+      "properties": {
+        "operation": {"enum": ["classify_nodes", "assemble_requirements"]},
+        "request_sha256": {"$ref": "#/$defs/sha256"},
+        "response_sha256": {
+          "anyOf": [
+            {"$ref": "#/$defs/sha256"},
+            {"type": "null"}
+          ]
+        },
+        "status": {
+          "enum": [
+            "SUCCESS",
+            "PARTIAL",
+            "TIMEOUT",
+            "INVALID_OUTPUT",
+            "UNAVAILABLE",
+            "SKIPPED"
+          ]
+        },
+        "request_count": {"type": "integer", "minimum": 0},
+        "retry_count": {"type": "integer", "minimum": 0},
+        "error_code": {
+          "type": ["string", "null"],
+          "pattern": "^[a-z][a-z0-9_]{0,119}$"
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"status": {"const": "SUCCESS"}}, "required": ["status"]},
+          "then": {
+            "properties": {
+              "response_sha256": {"$ref": "#/$defs/sha256"},
+              "request_count": {"type": "integer", "minimum": 1},
+              "error_code": {"type": "null"}
+            }
+          }
+        },
+        {
+          "if": {"properties": {"status": {"const": "SKIPPED"}}, "required": ["status"]},
+          "then": {
+            "required": ["error_code"],
+            "properties": {
+              "response_sha256": {"type": "null"},
+              "request_count": {"const": 0},
+              "retry_count": {"const": 0}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "status": {
+                "enum": ["PARTIAL", "TIMEOUT", "INVALID_OUTPUT", "UNAVAILABLE"]
+              }
+            },
+            "required": ["status"]
+          },
+          "then": {
+            "required": ["error_code"],
+            "properties": {"request_count": {"type": "integer", "minimum": 1}}
+          }
+        }
+      ]
+    },
+    "observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "basis",
+        "semantic_target_count",
+        "unresolved_semantic_count",
+        "unresolved_assembly_count",
+        "requirement_view_node_count",
+        "role_counts",
+        "decision_counts"
+      ],
+      "properties": {
+        "basis": {"enum": ["SINGLE_RUN", "REPEATABILITY_BASELINE"]},
+        "semantic_target_count": {"type": "integer", "minimum": 0},
+        "unresolved_semantic_count": {"type": "integer", "minimum": 0},
+        "unresolved_assembly_count": {"type": "integer", "minimum": 0},
+        "requirement_view_node_count": {"type": "integer", "minimum": 0},
+        "role_counts": {"$ref": "#/$defs/role_counts"},
+        "decision_counts": {"$ref": "#/$defs/decision_counts"}
+      }
+    },
+    "remote_ocr": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_id",
+        "provider_version",
+        "allowed_page_numbers",
+        "actual_page_numbers"
+      ],
+      "properties": {
+        "provider_id": {"enum": ["aliyun-bailian-qwen-ocr", "azure-document-intelligence"]},
+        "provider_version": {"$ref": "#/$defs/stable_id"},
+        "allowed_page_numbers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 1}
+        },
+        "actual_page_numbers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 1}
+        }
+      }
+    },
+    "repeatability": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "report_schema_version",
+        "strict_status",
+        "repetition_count",
+        "all_runs_complete",
+        "provider_request_exact_match",
+        "classification_request_exact_match",
+        "assembly_request_exact_match",
+        "semantic_exact_match",
+        "assembly_exact_match",
+        "requirement_view_exact_match",
+        "decision_skeleton_exact_match",
+        "human_review_required",
+        "decision_review_required",
+        "non_decision_variance_only",
+        "mismatch_codes",
+        "unstable_semantic_decision_target_structure_node_ids",
+        "unstable_requirement_view_target_structure_node_ids",
+        "unstable_decision_target_structure_node_ids"
+      ],
+      "properties": {
+        "report_schema_version": {"$ref": "#/$defs/stable_id"},
+        "strict_status": {"enum": ["PASS", "FAIL"]},
+        "repetition_count": {"type": "integer", "minimum": 3, "maximum": 10},
+        "all_runs_complete": {"type": "boolean"},
+        "provider_request_exact_match": {"type": "boolean"},
+        "classification_request_exact_match": {"type": "boolean"},
+        "assembly_request_exact_match": {"type": "boolean"},
+        "semantic_exact_match": {"type": "boolean"},
+        "assembly_exact_match": {"type": "boolean"},
+        "requirement_view_exact_match": {"type": "boolean"},
+        "decision_skeleton_exact_match": {"type": "boolean"},
+        "human_review_required": {"type": "boolean"},
+        "decision_review_required": {"type": "boolean"},
+        "non_decision_variance_only": {"type": "boolean"},
+        "mismatch_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[a-z][a-z0-9_]{2,119}$"}
+        },
+        "unstable_semantic_decision_target_structure_node_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^structure-node-[0-9a-f]{32}$"}
+        },
+        "unstable_requirement_view_target_structure_node_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^structure-node-[0-9a-f]{32}$"}
+        },
+        "unstable_decision_target_structure_node_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^structure-node-[0-9a-f]{32}$"}
+        }
+      }
+    },
+    "review_validation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "prediction_schema_version",
+        "review_schema_version",
+        "provider_id",
+        "provider_version",
+        "model_id",
+        "classification_prompt_version",
+        "assembly_prompt_version",
+        "prediction_sha256",
+        "reviewed_result_sha256",
+        "delta_sha256",
+        "revision",
+        "status",
+        "model_target_count",
+        "review_node_count",
+        "source_span_count",
+        "split_target_count",
+        "exact_partition_valid",
+        "persisted_round_trip_valid",
+        "serving_impact",
+        "requirement_set_mutation"
+      ],
+      "properties": {
+        "prediction_schema_version": {"$ref": "#/$defs/stable_id"},
+        "review_schema_version": {"$ref": "#/$defs/stable_id"},
+        "provider_id": {"$ref": "#/$defs/stable_id"},
+        "provider_version": {"$ref": "#/$defs/stable_id"},
+        "model_id": {"$ref": "#/$defs/stable_id"},
+        "classification_prompt_version": {"$ref": "#/$defs/stable_id"},
+        "assembly_prompt_version": {"$ref": "#/$defs/stable_id"},
+        "prediction_sha256": {"$ref": "#/$defs/sha256"},
+        "reviewed_result_sha256": {"$ref": "#/$defs/sha256"},
+        "delta_sha256": {"$ref": "#/$defs/sha256"},
+        "revision": {"type": "integer", "minimum": 1},
+        "status": {"enum": ["DRAFT", "HUMAN_REVIEWED"]},
+        "model_target_count": {"type": "integer", "minimum": 1},
+        "review_node_count": {"type": "integer", "minimum": 1},
+        "source_span_count": {"type": "integer", "minimum": 1},
+        "split_target_count": {"type": "integer", "minimum": 1},
+        "exact_partition_valid": {"const": true},
+        "persisted_round_trip_valid": {"const": true},
+        "serving_impact": {"const": "NONE"},
+        "requirement_set_mutation": {"const": false}
+      }
+    },
+    "runtime_observation": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "scope_kind",
+        "transport_mode",
+        "configured_chunk_node_budget",
+        "semantic_target_count",
+        "semantic_chunk_count",
+        "successful_chunk_count",
+        "unresolved_chunk_count",
+        "blocked_chunk_count",
+        "unresolved_target_count",
+        "requirement_view_node_count",
+        "classification_status",
+        "assembly_status",
+        "error_target_counts"
+      ],
+      "properties": {
+        "scope_kind": {"enum": ["FULL_DOCUMENT", "SINGLE_CHUNK"]},
+        "transport_mode": {"enum": ["BUFFERED", "STREAMING"]},
+        "configured_chunk_node_budget": {
+          "type": "integer",
+          "minimum": 1,
+          "maximum": 80
+        },
+        "semantic_target_count": {"type": "integer", "minimum": 1},
+        "semantic_chunk_count": {"type": "integer", "minimum": 1},
+        "successful_chunk_count": {"type": "integer", "minimum": 0},
+        "unresolved_chunk_count": {"type": "integer", "minimum": 0},
+        "blocked_chunk_count": {"type": "integer", "minimum": 0},
+        "unresolved_target_count": {"type": "integer", "minimum": 0},
+        "requirement_view_node_count": {"type": "integer", "minimum": 0},
+        "classification_status": {
+          "enum": ["SUCCESS", "INVALID_OUTPUT", "UNAVAILABLE", "MIXED"]
+        },
+        "assembly_status": {
+          "enum": ["SUCCESS", "SKIPPED", "UNAVAILABLE", "MIXED"]
+        },
+        "error_target_counts": {
+          "type": "object",
+          "propertyNames": {"pattern": "^[a-z][a-z0-9_]{0,119}$"},
+          "additionalProperties": {"type": "integer", "minimum": 1}
+        },
+        "classification_input_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "classification_output_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "assembly_input_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "assembly_output_tokens": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "classification_latency_ms_rounded": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        },
+        "assembly_latency_ms_rounded": {
+          "type": ["integer", "null"],
+          "minimum": 0
+        }
+      }
+    },
+    "record": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "experience_id",
+        "recorded_on",
+        "case_kind",
+        "review_disposition",
+        "document_id",
+        "section_path",
+        "reference_standard_case_ids",
+        "source_binding",
+        "provider_binding",
+        "experience_codes"
+      ],
+      "properties": {
+        "experience_id": {"type": "string", "pattern": "^LLM-EXP-[A-Z0-9-]{3,80}$"},
+        "recorded_on": {"type": "string", "format": "date"},
+        "case_kind": {
+          "enum": [
+            "SINGLE_RUN",
+            "REPEATABILITY",
+            "DOCUMENT_RUN",
+            "CHUNK_PROBE"
+          ]
+        },
+        "review_disposition": {
+          "enum": [
+            "MATCHES_CONFIRMED_STANDARD",
+            "AI_REVIEWED_SILVER",
+            "OBSERVED_GAP",
+            "REPEATABILITY_OBSERVATION",
+            "RUNTIME_OBSERVATION"
+          ]
+        },
+        "document_id": {"type": "string", "pattern": "^DOC-[A-Z0-9-]{2,100}$"},
+        "section_path": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[0-9]+(?:\\.[0-9]+)*$"}
+        },
+        "reference_standard_case_ids": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {"type": "string", "pattern": "^[A-Z]+-[0-9]{3}$"}
+        },
+        "source_binding": {"$ref": "#/$defs/source_binding"},
+        "provider_binding": {"$ref": "#/$defs/provider_binding"},
+        "invocations": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/invocation"}
+        },
+        "observation": {"$ref": "#/$defs/observation"},
+        "runtime_observation": {"$ref": "#/$defs/runtime_observation"},
+        "remote_ocr": {"$ref": "#/$defs/remote_ocr"},
+        "repeatability": {"$ref": "#/$defs/repeatability"},
+        "review_validation": {"$ref": "#/$defs/review_validation"},
+        "experience_codes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/experience_code"}
+        }
+      },
+      "allOf": [
+        {
+          "if": {"properties": {"case_kind": {"const": "SINGLE_RUN"}}, "required": ["case_kind"]},
+          "then": {"required": ["invocations", "observation"]}
+        },
+        {
+          "if": {"properties": {"case_kind": {"const": "REPEATABILITY"}}, "required": ["case_kind"]},
+          "then": {"required": ["repeatability", "observation"]}
+        },
+        {
+          "if": {
+            "properties": {
+              "case_kind": {"enum": ["DOCUMENT_RUN", "CHUNK_PROBE"]}
+            },
+            "required": ["case_kind"]
+          },
+          "then": {"required": ["runtime_observation"]}
+        }
+      ]
+    }
+  }
+}

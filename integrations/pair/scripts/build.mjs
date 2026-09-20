@@ -1,0 +1,22 @@
+/** Build DSH lazy-CJS from the existing shared panel artifact, without copying editable UI sources. */
+import { readFile, writeFile, mkdir } from 'node:fs/promises';
+import { fileURLToPath } from 'node:url';
+import { resolve } from 'node:path';
+import { createHash } from 'node:crypto';
+import { loadSharedArtifacts } from './shared-artifacts.mjs';
+const root = fileURLToPath(new URL('..', import.meta.url));
+const args = process.argv.slice(2);
+if (args.length && (args.length !== 2 || args[0] !== '--shared-ui')) throw Error('Usage: node build.mjs [--shared-ui <built directory>]');
+const panelRoot = args[1] ? resolve(args[1]) : resolve(root, '../../prototype/frontend/dist-panel');
+const adapter = JSON.parse(await readFile(resolve(root, 'client/adapter-contract.json'), 'utf8'));
+const shared = await loadSharedArtifacts(panelRoot, adapter);
+const { panel, css, requests } = shared;
+const client = await readFile(resolve(root, 'client/src/client.cjs'), 'utf8') + '\n' + await readFile(resolve(root, 'client/src/catalog.cjs'), 'utf8');
+const wrapperCss = '.reqpilotx-pair-frame{height:100%;min-width:0;display:flex;flex-direction:column;overflow:hidden}.reqpilotx-pair-frame>.reqpilotx-panel-root{flex:1;min-height:0}.reqpilotx-pair-open{max-width:760px;padding:32px;display:grid;gap:16px}.reqpilotx-pair-open label{display:grid;gap:8px}.reqpilotx-pair-open input{padding:10px;border:1px solid #aaa;border-radius:6px;width:100%;box-sizing:border-box}.reqpilotx-pair-open button,.reqpilotx-pair-switch button{padding:8px 14px;border:1px solid #aaa;border-radius:6px;cursor:pointer}.reqpilotx-pair-switch{padding:8px 12px}';
+const homeCss = '.reqpilotx-pair-home{height:100%;box-sizing:border-box;padding:24px;overflow:auto;display:flex;flex-direction:column;gap:16px}.reqpilotx-pair-home h1,.reqpilotx-pair-home h2,.reqpilotx-pair-home p{margin:0}.reqpilotx-pair-home-header,.reqpilotx-pair-toolbar{display:flex;align-items:center;gap:16px;justify-content:space-between}.reqpilotx-pair-home label{display:flex;align-items:center;gap:10px}.reqpilotx-pair-home input,.reqpilotx-pair-home select,.reqpilotx-pair-home button{font:inherit;padding:9px 12px;border:1px solid #8888;border-radius:7px;background:transparent;color:inherit}.reqpilotx-pair-home button{cursor:pointer}.reqpilotx-pair-project-form{display:flex;gap:16px;flex-wrap:wrap}.reqpilotx-pair-document-area{display:flex;flex-direction:column;gap:16px;flex:1;min-height:0}.reqpilotx-pair-document{display:grid;grid-template-columns:260px minmax(0,1fr);gap:18px;flex:1;min-height:500px}.reqpilotx-pair-document iframe{border:1px solid #8885;width:100%;height:100%;min-height:500px;border-radius:8px;background:white}.reqpilotx-pair-document section{display:flex;flex-direction:column;gap:14px}.reqpilotx-pair-documents{list-style:none;margin:0;padding:0}.reqpilotx-pair-documents li{display:flex;align-items:center;justify-content:space-between;padding:16px 0;border-bottom:1px solid #8885}.reqpilotx-pair-document-area>.reqpilotx-panel-root{flex:1;min-height:500px}';
+const output = 'window.__ModuleLoader__.load({id:"@reqpilotx/dsh-pair-client",factory:function(require){\n"use strict";\nconst panelModule={exports:{}};\n(function(module,exports,require){\n' + panel + '\n})(panelModule,panelModule.exports,require);\nconst panelCss=' + JSON.stringify(css + '\n' + wrapperCss + '\n' + homeCss) + ';\nconst module={exports:{}};\n(function(module,exports){\n' + client + '\n})(module,module.exports);return module.exports;\n}});\n';
+await mkdir(resolve(root, 'client/lib'), { recursive: true });
+await writeFile(resolve(root, 'client/lib/client.js'), output);
+const sha = value => createHash('sha256').update(value).digest('hex');
+await writeFile(resolve(root, 'client/lib/build-receipt.json'), JSON.stringify({ kind: 'reqpilotx-dsh-client-build/v1', sharedArtifactIdentity: shared.identity, sharedContract: shared.contract, adapterContract: adapter, panelSha256: sha(panel), cssSha256: sha(css), wrapperSha256: sha(client), clientSha256: sha(output), externals: requests }, null, 2) + '\n');
+console.log(JSON.stringify({ clientBytes: Buffer.byteLength(output), externals: requests, clientSha256: sha(output) }));

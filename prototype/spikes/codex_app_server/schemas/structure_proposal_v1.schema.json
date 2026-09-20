@@ -1,0 +1,91 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "agent_claimed_status": {
+      "enum": ["READY_FOR_HOST_VALIDATION", "PARTIAL", "BLOCKED"],
+      "type": "string"
+    },
+    "canonical_nodes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "boundary_basis": {
+            "enum": ["EXPLICIT_NUMBER", "TABLE_SPAN", "TABLE_ROW"],
+            "type": "string"
+          },
+          "explicit_label": {"type": ["string", "null"]},
+          "node_kind": {
+            "enum": ["SECTION", "TABLE", "TABLE_ROW"],
+            "type": "string"
+          },
+          "parent_proposal_node_id": {"type": ["string", "null"]},
+          "proposal_node_id": {"type": "string"},
+          "source_order": {"minimum": 0, "type": "integer"},
+          "source_refs": {
+            "items": {"type": "string"},
+            "minItems": 1,
+            "type": "array"
+          }
+        },
+        "required": ["proposal_node_id", "node_kind", "parent_proposal_node_id", "source_order", "source_refs", "boundary_basis", "explicit_label"],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "coverage_receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "facts_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "enum": ["structure-proposal/v1"],
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "understanding_proposal_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "unresolved": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "code": {"type": "string"},
+          "source_refs": {
+            "items": {"type": "string"},
+            "type": "array"
+          }
+        },
+        "required": ["code", "source_refs"],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "visual_advisory_nodes": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "evidence_channel": {
+            "enum": ["VISUAL"],
+            "type": "string"
+          },
+          "explicit_label": {"type": "string"},
+          "heading_text": {"type": "string"},
+          "page_number": {"minimum": 1, "type": "integer"},
+          "parent_explicit_label": {"type": ["string", "null"]}
+        },
+        "required": ["explicit_label", "parent_explicit_label", "heading_text", "page_number", "evidence_channel"],
+        "type": "object"
+      },
+      "type": "array"
+    }
+  },
+  "required": ["schema_version", "source_sha256", "facts_sha256", "understanding_proposal_sha256", "coverage_receipt_sha256", "canonical_nodes", "visual_advisory_nodes", "unresolved", "agent_claimed_status"],
+  "type": "object"
+}

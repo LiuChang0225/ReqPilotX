@@ -1,0 +1,177 @@
+{
+  "$defs": {
+    "DocumentPageFactV1": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Asset Id"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "diagnostic_codes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Diagnostic Codes",
+          "type": "array"
+        },
+        "kind": {
+          "pattern": "^[a-z][a-z0-9_]{0,79}$",
+          "title": "Kind",
+          "type": "string"
+        },
+        "parent_source_handle": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Source Handle"
+        },
+        "raw_text_length": {
+          "minimum": 0,
+          "title": "Raw Text Length",
+          "type": "integer"
+        },
+        "raw_text_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Raw Text Sha256",
+          "type": "string"
+        },
+        "source_handle": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Source Handle",
+          "type": "string"
+        },
+        "source_order": {
+          "minimum": 0,
+          "title": "Source Order",
+          "type": "integer"
+        },
+        "table_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Table Id"
+        }
+      },
+      "required": [
+        "source_handle",
+        "source_order",
+        "kind",
+        "raw_text_length",
+        "raw_text_sha256"
+      ],
+      "title": "DocumentPageFactV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/DocumentPageFactV1"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "next_offset": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Next Offset"
+    },
+    "offset": {
+      "minimum": 0,
+      "title": "Offset",
+      "type": "integer"
+    },
+    "page_facts_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Page Facts Sha256",
+      "type": "string"
+    },
+    "page_number": {
+      "minimum": 1,
+      "title": "Page Number",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "document-page-facts/v1",
+      "default": "document-page-facts/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_sha256",
+    "page_number",
+    "page_facts_sha256",
+    "offset",
+    "items"
+  ],
+  "title": "DocumentPageFactsChunkV1",
+  "type": "object"
+}

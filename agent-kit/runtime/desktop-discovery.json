@@ -1,0 +1,27 @@
+{
+  "schema_version": "reqpilotx-agent-runner-profile/v1",
+  "runner_profile_id": "desktop-discovery",
+  "runner_kind": "DESKTOP_REFERENCE",
+  "adapter_id": "codex-desktop-discovery",
+  "adapter_version": "0.8.2",
+  "kit_id": "reqpilotx-document-extraction",
+  "kit_version": "0.15.2",
+  "model_id": "gpt-5.6-sol",
+  "reasoning_effort": "xhigh",
+  "skill_ids": [
+    "pdf",
+    "reqpilotx-document-understanding",
+    "reqpilotx-extraction-verification",
+    "reqpilotx-logical-structure-reconstruction",
+    "reqpilotx-parent-provision-recognition",
+    "reqpilotx-requirement-decomposition",
+    "reqpilotx-result-assembly"
+  ],
+  "tool_registry_id": "reqpilotx-document-evidence-tools",
+  "tool_registry_version": "1.3.0",
+  "domain_logic_source": "PORTABLE_AGENT_KIT",
+  "load_ambient_user_skills": true,
+  "load_conversation_history": true,
+  "allow_manual_intervention": true,
+  "quality_gate_eligible": false
+}

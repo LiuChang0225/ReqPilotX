@@ -1,139 +1,17 @@
-# Next Agent Handoff Prompt
+# ReqPilotX 接续提示
 
-更新时间：2026-04-09 19:10 CST
-
-把下面对应角色的提示词直接交给下一个窗口。
-
-## 1. 协调窗口 Prompt
+更新：2026-09-20。用于本仓库开发接续，生产文档 Agent 不加载完整开发历史。
 
 ```text
-You are taking over the ReqPilotX repository.
+你正在处理当前检出的 ReqPilotX 仓库。
+先读 AGENTS.md，查看 Git 状态，保留已有工作，遵守独立项目边界。
+读 PRODUCT.md、docs/项目.md、docs/active-context.md；唯一实施顺序见 docs/需求提取/开发计划.md。
+只围绕本次目标核对相关实现、合同与证据，不依赖历史安装号、PID、其他项目目录或旧答案。
+App Server 已有实际任务保存；原文、稳定身份、反馈、工作版本和导出能力应先核对再复用。
+Agent 负责自主调查和语义判断，程序负责确定性绑定、校验、版本、持久化和 Excel。
+源码基线与客户资料分开；真实输入必须明确授权，未验证范围诚实记录。
+涉及代码时同步直接受影响的文档，验证范围与风险相称。
+不覆盖客户原件、既有版本或有效人工意见；不提交私有数据或凭据。
 
-Workspace root:
-/Users/liuchang/Documents/ReqPilotX
-
-Use $reqpilot-control-tower.
-
-You are the coordination window. Your job is to keep the control tower aligned with the active plan, not to do long-running implementation in the main window.
-
-Read these files first:
-1. AGENTS.md
-2. docs/项目.md
-3. docs/开发执行清单.md
-4. docs/active-context.md
-5. prototype/eval/progress/track_registry.json
-
-Then:
-1. Refresh /project-progress or /api/progress/snapshot
-2. Check tracks, branches, gates, and drift alerts
-3. Keep at most 3 active tracks
-4. Generate or update worker task packages
-5. Do not let workers drift outside their allowed paths
-
-Current operating rules:
-- Long-lived work uses separate worktrees and branches, not sub-agents in one directory
-- Active tracks are:
-  - release-foundation
-  - extraction-quality-loop
-  - rag-quality-loop
-- Queued tracks are:
-  - product-kb
-  - angular-feasibility
-- Only open a queued track when an active track becomes DONE or BLOCKED_BY_DECISION
-
-Daily control loop:
-1. Decide which active track keeps moving
-2. Decide which risky track must be contained first
-3. Decide whether a queued track can be promoted
-
-Before ending the turn:
-- ensure docs/active-context.md is current if the project state changed
-- ensure the relevant track-local active-context is updated
-- keep the control tower as the execution truth
+本次目标：<填写目标、范围与验收条件>
 ```
-
-## 2. Worker Prompt Template
-
-把下面模板中的占位符替换后交给对应支线窗口。
-
-```text
-You are taking over the ReqPilotX repository.
-
-Workspace root:
-/Users/liuchang/Documents/ReqPilotX
-
-Use $<track-skill-name>.
-
-You are responsible only for track: <track_id>
-Worktree: <worktree_path>
-Branch: <branch_name>
-
-Read these files first:
-1. AGENTS.md
-2. docs/项目.md
-3. docs/开发执行清单.md
-4. docs/active-context.md
-5. prototype/eval/progress/track_registry.json
-6. <track-local-active-context>
-
-Goal:
-<current goal>
-
-Non-goals:
-<things you must not expand into>
-
-Keep green:
-<tests / smoke / benchmark list>
-
-Execution rules:
-1. Only edit allowed_paths for this track
-2. Start with: python prototype/scripts/trackctl.py start --track <track_id>
-3. Record checkpoints with: python prototype/scripts/trackctl.py checkpoint ...
-4. Record gates with: python prototype/scripts/trackctl.py gate ...
-5. Before handoff, update docs/active-context.md and <track-local-active-context>
-6. Before handoff, run: python prototype/scripts/trackctl.py handoff ...
-
-Do not re-plan the project from scratch. Continue from the current documented state and keep your work inside this track.
-```
-
-## 3. Track -> Context / Skill 映射
-
-- `release-foundation`
-  - skill: `reqpilot-track-release-foundation`
-  - local context: `prototype/docs/release-foundation-active-context.md`
-- `extraction-quality-loop`
-  - skill: `reqpilot-track-extraction-quality`
-  - local context: `prototype/docs/extraction-active-context.md`
-- `rag-quality-loop`
-  - skill: `reqpilot-track-rag-quality`
-  - local context: `prototype/docs/rag-quality-active-context.md`
-- `product-kb`
-  - skill: `reqpilot-track-product-kb`
-  - local context: `prototype/docs/product-kb-active-context.md`
-- `angular-feasibility`
-  - skill: `reqpilot-track-angular-feasibility`
-  - local context: `prototype/docs/angular-feasibility-active-context.md`
-
-## 4. Worktree Bootstrap
-
-```bash
-cd "/Users/liuchang/Documents/ReqPilotX"
-git checkout main
-git fetch origin
-git pull --ff-only origin main
-mkdir -p worktrees/_active
-git worktree add worktrees/_active/release-foundation -b codex/release-foundation main
-git worktree add worktrees/_active/extraction-quality-loop -b codex/extraction-quality-loop main
-git worktree add worktrees/_active/rag-quality-loop -b codex/rag-quality-loop main
-```
-
-## 5. Repo-Managed Skills
-
-If skills were changed in the repo, sync them before opening new worker windows:
-
-```bash
-cd "/Users/liuchang/Documents/ReqPilotX"
-python3 scripts/sync_codex_skills.py --overwrite
-```
-
-Then restart Codex so the synced skills are picked up.

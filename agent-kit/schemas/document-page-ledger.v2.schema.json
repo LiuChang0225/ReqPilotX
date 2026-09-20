@@ -1,0 +1,161 @@
+{
+  "$defs": {
+    "DocumentEvidenceRequirement": {
+      "enum": [
+        "NATIVE",
+        "VISUAL_REQUIRED",
+        "NATIVE_AND_VISUAL",
+        "INTENTIONAL_BLANK",
+        "UNRESOLVED"
+      ],
+      "title": "DocumentEvidenceRequirement",
+      "type": "string"
+    },
+    "DocumentPageLedgerEntryV2": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Asset Ids",
+          "type": "array"
+        },
+        "bounds": {
+          "maxItems": 4,
+          "minItems": 4,
+          "prefixItems": [
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            },
+            {
+              "type": "number"
+            }
+          ],
+          "title": "Bounds",
+          "type": "array"
+        },
+        "diagnostic_codes": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Diagnostic Codes",
+          "type": "array"
+        },
+        "evidence_requirement": {
+          "$ref": "#/$defs/DocumentEvidenceRequirement"
+        },
+        "native_node_count": {
+          "minimum": 0,
+          "title": "Native Node Count",
+          "type": "integer"
+        },
+        "native_text_char_count": {
+          "minimum": 0,
+          "title": "Native Text Char Count",
+          "type": "integer"
+        },
+        "page_facts_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Page Facts Sha256",
+          "type": "string"
+        },
+        "page_number": {
+          "minimum": 1,
+          "title": "Page Number",
+          "type": "integer"
+        },
+        "page_text_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Page Text Sha256",
+          "type": "string"
+        },
+        "rotation_cw_degrees": {
+          "enum": [
+            0,
+            90,
+            180,
+            270
+          ],
+          "title": "Rotation Cw Degrees",
+          "type": "integer"
+        },
+        "table_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Table Ids",
+          "type": "array"
+        },
+        "visual_review_reasons": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Visual Review Reasons",
+          "type": "array"
+        }
+      },
+      "required": [
+        "page_number",
+        "bounds",
+        "rotation_cw_degrees",
+        "evidence_requirement",
+        "native_node_count",
+        "native_text_char_count",
+        "page_facts_sha256",
+        "page_text_sha256"
+      ],
+      "title": "DocumentPageLedgerEntryV2",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "ledger_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Ledger Sha256",
+      "type": "string"
+    },
+    "page_count": {
+      "minimum": 1,
+      "title": "Page Count",
+      "type": "integer"
+    },
+    "pages": {
+      "items": {
+        "$ref": "#/$defs/DocumentPageLedgerEntryV2"
+      },
+      "title": "Pages",
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "document-page-ledger/v2",
+      "default": "document-page-ledger/v2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_sha256",
+    "page_count",
+    "pages",
+    "ledger_sha256"
+  ],
+  "title": "DocumentPageLedgerV2",
+  "type": "object"
+}

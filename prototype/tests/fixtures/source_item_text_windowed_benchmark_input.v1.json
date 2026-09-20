@@ -1,0 +1,56 @@
+{
+  "schema_version": "source-item-text-windowed-benchmark-input/v1",
+  "first_boundary_checkpoint_target_seconds": 120.0,
+  "subsequent_checkpoint_gap_target_seconds": 90.0,
+  "low_risk_regression_multiplier": 1.2,
+  "samples": [
+    {
+      "sample_id": "direct-text-191",
+      "baseline_seconds": 191.0,
+      "risk_class": "LOW",
+      "switch_threshold_seconds": null,
+      "observed_windowed_seconds": null,
+      "checkpoint_seconds": []
+    },
+    {
+      "sample_id": "direct-text-427",
+      "baseline_seconds": 427.0,
+      "risk_class": "LOW",
+      "switch_threshold_seconds": null,
+      "observed_windowed_seconds": null,
+      "checkpoint_seconds": []
+    },
+    {
+      "sample_id": "direct-text-466",
+      "baseline_seconds": 466.0,
+      "risk_class": "LOW",
+      "switch_threshold_seconds": null,
+      "observed_windowed_seconds": null,
+      "checkpoint_seconds": []
+    },
+    {
+      "sample_id": "direct-text-801",
+      "baseline_seconds": 801.0,
+      "risk_class": "HIGH",
+      "switch_threshold_seconds": 561.0,
+      "observed_windowed_seconds": null,
+      "checkpoint_seconds": []
+    },
+    {
+      "sample_id": "direct-text-184",
+      "baseline_seconds": 184.0,
+      "risk_class": "LOW",
+      "switch_threshold_seconds": null,
+      "observed_windowed_seconds": null,
+      "checkpoint_seconds": []
+    },
+    {
+      "sample_id": "direct-text-332",
+      "baseline_seconds": 332.0,
+      "risk_class": "LOW",
+      "switch_threshold_seconds": null,
+      "observed_windowed_seconds": null,
+      "checkpoint_seconds": []
+    }
+  ]
+}

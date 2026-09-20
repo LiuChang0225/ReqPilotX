@@ -1,0 +1,11 @@
+# Focused semantic self-check
+
+Check the candidate against original evidence, using [the relevant cases](reading-guide.md). Apply only the checks within this task's scope; a Map-only review does not require Items, Snn or Excel. Reuse verified same-version evidence and investigate changed/uncertain ranges; do not reread every reference or demand per-item user approval.
+
+1. **Source:** Is this the authorized role/version? Did scans, overlays, bilingual text, blank pages and attachments retain their actual evidence and gaps?
+2. **Structure:** Are body headings, direct/trailing prose, numbered peers, attachment ownership and continuations correct? Covers/contents are whole; substantive body is not hidden as structure. Preserve original numbering and report observed gaps/repeats with source endpoints; a saved-Map lead is not proof that the original omits content.
+3. **Items:** Does each complete business unit retain conditions, units, table headers, merges, notes and images? Can every source range be traced without omission or duplicate obligations?
+4. **Judgment:** Are classes based on governed meaning rather than headings/modal words? Test methods and conditions alone do not add an independent PROCESS obligation. Are definitions, applicability and exceptions elsewhere in the source actually linked/available to this item and its derived responses? Inspect context_review and linked_context when offered; candidates are not proven relationships. Are source children, engineering Snn and missing criteria distinct? Every normalized derivation preserves logic, bounds and exceptions.
+5. **Delivery:** Do current UI and program Excel agree on version, identity, order, relations, content and effective responses? Is skipped analysis distinguished from attempted-but-inconclusive analysis?
+
+Correct supported findings within the task scope, then recheck the affected source and dependent results; do not wait for users to discover them. If a reasonable source/tool investigation cannot resolve a gap, retain its source range, identity and impact while completing unaffected work. Separate source uncertainty, Agent error and rendering error. Integrity checks, self-review, independent model review and human acceptance remain different evidence; none supplies a universal accuracy claim.

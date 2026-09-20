@@ -1,0 +1,69 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "adapter": {
+      "additionalProperties": false,
+      "properties": {
+        "id": {"type": "string"},
+        "version": {"type": "string"}
+      },
+      "required": ["id", "version"],
+      "type": "object"
+    },
+    "capabilities": {
+      "additionalProperties": false,
+      "properties": {
+        "business_writes": {"enum": [false], "type": "boolean"},
+        "coverage_validation": {"enum": [true], "type": "boolean"},
+        "native_chunks": {"enum": [true], "type": "boolean"},
+        "scoped_page_render": {"enum": [true], "type": "boolean"}
+      },
+      "required": [
+        "native_chunks",
+        "scoped_page_render",
+        "coverage_validation",
+        "business_writes"
+      ],
+      "type": "object"
+    },
+    "document_role": {
+      "enum": ["CUSTOMER_TECHNICAL_SPECIFICATION"],
+      "type": "string"
+    },
+    "facts_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "fixture_id": {"type": "string"},
+    "page_count": {"minimum": 1, "type": "integer"},
+    "page_ledger_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "enum": ["document-agent-facts/v1"],
+      "type": "string"
+    },
+    "source_ir_status": {
+      "enum": ["COMPLETE", "PARTIAL", "ATTACHMENT_ONLY", "FAILED"],
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "fixture_id",
+    "document_role",
+    "source_sha256",
+    "page_count",
+    "source_ir_status",
+    "adapter",
+    "facts_sha256",
+    "page_ledger_sha256",
+    "capabilities"
+  ],
+  "type": "object"
+}

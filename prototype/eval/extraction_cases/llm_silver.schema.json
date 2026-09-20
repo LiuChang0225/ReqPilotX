@@ -1,0 +1,396 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reqpilotx.local/schemas/llm-requirement-silver-v1.json",
+  "title": "ReqPilotX accepted LLM requirement Silver registry",
+  "type": "object",
+  "additionalProperties": false,
+  "required": ["schema_version", "provenance", "documents"],
+  "properties": {
+    "schema_version": {"const": "llm-requirement-silver/v1"},
+    "provenance": {"$ref": "#/$defs/provenance"},
+    "documents": {
+      "type": "object",
+      "minProperties": 1,
+      "propertyNames": {"pattern": "^DOC-[A-Z0-9-]+$"},
+      "additionalProperties": {"$ref": "#/$defs/document"}
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "target_id": {
+      "type": "string",
+      "pattern": "^structure-node-[0-9a-f]{32}$"
+    },
+    "span_id": {
+      "type": "string",
+      "pattern": "^semantic-span-[0-9a-f]{32}$"
+    },
+    "component_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["component_id", "component_version"],
+      "properties": {
+        "component_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/+\\-;=]{0,159}$"},
+        "component_version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/+\\-;=]{0,159}$"}
+      }
+    },
+    "classification_run_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["request_sha256", "target_structure_node_ids"],
+      "properties": {
+        "request_sha256": {"$ref": "#/$defs/sha256"},
+        "target_structure_node_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/target_id"}
+        }
+      }
+    },
+    "semantic_provider_binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "provider_id",
+        "provider_version",
+        "model_id",
+        "classification_prompt_version",
+        "classification_response_schema_version",
+        "classification_run_count",
+        "classification_runs",
+        "assembly_prompt_version",
+        "assembly_response_schema_version",
+        "assembly_run_count",
+        "assembly_request_sha256"
+      ],
+      "properties": {
+        "provider_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/+\\-;=]{0,159}$"},
+        "provider_version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/+\\-;=]{0,159}$"},
+        "model_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/+\\-;=]{0,159}$"},
+        "classification_prompt_version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/+\\-;=]{0,159}$"},
+        "classification_response_schema_version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/+\\-;=]{0,159}$"},
+        "classification_run_count": {"type": "integer", "minimum": 1},
+        "classification_runs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/classification_run_binding"}
+        },
+        "assembly_prompt_version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/+\\-;=]{0,159}$"},
+        "assembly_response_schema_version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/+\\-;=]{0,159}$"},
+        "assembly_run_count": {"const": 1},
+        "assembly_request_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "bbox": {
+      "type": "array",
+      "minItems": 4,
+      "maxItems": 4,
+      "items": {"type": "number"}
+    },
+    "pdf_native_locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["locator_kind", "page_number"],
+      "properties": {
+        "locator_kind": {"const": "PDF_NATIVE"},
+        "page_number": {"type": "integer", "minimum": 1},
+        "block_index": {"type": "integer", "minimum": 0},
+        "bbox": {"$ref": "#/$defs/bbox"},
+        "table_index": {"type": "integer", "minimum": 0},
+        "row_index": {"type": "integer", "minimum": 0},
+        "column_index": {"type": "integer", "minimum": 0}
+      },
+      "allOf": [
+        {
+          "anyOf": [
+            {"required": ["block_index"]},
+            {"required": ["bbox"]},
+            {"required": ["table_index"]}
+          ]
+        },
+        {
+          "not": {"required": ["block_index", "table_index"]}
+        },
+        {
+          "if": {
+            "anyOf": [
+              {"required": ["row_index"]},
+              {"required": ["column_index"]}
+            ]
+          },
+          "then": {"required": ["table_index", "row_index", "column_index"]}
+        }
+      ]
+    },
+    "pdf_ocr_locator": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "locator_kind",
+        "page_number",
+        "bbox",
+        "provider_id",
+        "provider_version",
+        "page_image_sha256"
+      ],
+      "properties": {
+        "locator_kind": {"const": "PDF_OCR"},
+        "page_number": {"type": "integer", "minimum": 1},
+        "bbox": {"$ref": "#/$defs/bbox"},
+        "provider_id": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/+\\-;=]{0,159}$"},
+        "provider_version": {"type": "string", "pattern": "^[A-Za-z0-9][A-Za-z0-9_.:/+\\-;=]{0,159}$"},
+        "page_image_sha256": {"$ref": "#/$defs/sha256"}
+      }
+    },
+    "bound_source_ref": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["kind", "source_id", "locator"],
+      "properties": {
+        "kind": {
+          "enum": ["source_node", "table_cell", "visual_text_observation"]
+        },
+        "source_id": {"type": "string", "minLength": 1, "maxLength": 160},
+        "locator": {
+          "oneOf": [
+            {"$ref": "#/$defs/pdf_native_locator"},
+            {"$ref": "#/$defs/pdf_ocr_locator"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {"kind": {"const": "source_node"}},
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "source_id": {"pattern": "^node-[0-9a-f]{32}$"},
+              "locator": {"$ref": "#/$defs/pdf_native_locator"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"kind": {"const": "table_cell"}},
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "source_id": {"pattern": "^cell-[0-9a-f]{32}$"},
+              "locator": {"$ref": "#/$defs/pdf_native_locator"}
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {"kind": {"const": "visual_text_observation"}},
+            "required": ["kind"]
+          },
+          "then": {
+            "properties": {
+              "source_id": {"pattern": "^vto-[0-9a-f]{32}$"},
+              "locator": {"$ref": "#/$defs/pdf_ocr_locator"}
+            }
+          }
+        }
+      ]
+    },
+    "semantic_class": {
+      "enum": [
+        "HEADING",
+        "REQUIREMENT",
+        "BACKGROUND",
+        "TECHNICAL_INFORMATION",
+        "SCHEDULE",
+        "REFERENCE",
+        "PROJECT_RISK",
+        "VERSION_METADATA",
+        "ATTACHMENT",
+        "NOISE"
+      ]
+    },
+    "requirement_subtype": {
+      "type": ["string", "null"],
+      "enum": [
+        "PRODUCT_REQUIREMENT",
+        "PERFORMANCE_PARAMETER_REQUIREMENT",
+        "TEST_METHOD_REQUIREMENT",
+        "TEST_EQUIPMENT_REQUIREMENT",
+        "TEST_OBJECTIVE_REQUIREMENT",
+        "ACCEPTANCE_CRITERION",
+        "REGULATION_REQUIREMENT",
+        "INTERFACE_REQUIREMENT",
+        null
+      ]
+    },
+    "item": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "target_structure_node_id",
+        "target_kind",
+        "source_order",
+        "semantic_class",
+        "requirement_subtype",
+        "semantic_reason_codes",
+        "is_continuation_fragment",
+        "include_in_view",
+        "role",
+        "parent_target_structure_node_id",
+        "decision_mode",
+        "source_span_ids",
+        "selected_evidence_source_refs",
+        "source_refs",
+        "full_context_source_refs"
+      ],
+      "properties": {
+        "target_structure_node_id": {"$ref": "#/$defs/target_id"},
+        "target_kind": {
+          "enum": [
+            "section",
+            "clause",
+            "content",
+            "table",
+            "table_row",
+            "list_group",
+            "group",
+            "continuation"
+          ]
+        },
+        "source_order": {"type": "integer", "minimum": 0},
+        "semantic_class": {"$ref": "#/$defs/semantic_class"},
+        "requirement_subtype": {"$ref": "#/$defs/requirement_subtype"},
+        "semantic_reason_codes": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^[a-z][a-z0-9_]{0,119}$"
+          }
+        },
+        "is_continuation_fragment": {"type": "boolean"},
+        "include_in_view": {"type": "boolean"},
+        "role": {
+          "type": ["string", "null"],
+          "enum": ["PRIMARY", "CHILD", "CONTENT", "PARAMETER", "REFERENCE", null]
+        },
+        "parent_target_structure_node_id": {
+          "anyOf": [
+            {"$ref": "#/$defs/target_id"},
+            {"type": "null"}
+          ]
+        },
+        "decision_mode": {
+          "type": ["string", "null"],
+          "enum": ["DIRECT", "ROLLUP", "NONE", null]
+        },
+        "source_span_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/span_id"}
+        },
+        "selected_evidence_source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/bound_source_ref"}
+        },
+        "source_refs": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/bound_source_ref"}
+        },
+        "full_context_source_refs": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/bound_source_ref"}
+        }
+      }
+    },
+    "document": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_sha256",
+        "reviewed_source_content_sha256",
+        "source_adapter",
+        "structure_resolver",
+        "semantic_provider",
+        "semantic_classifier",
+        "requirement_assembler",
+        "requirement_projector",
+        "semantic_scope_structure_node_ids",
+        "assembly_scope_structure_node_ids",
+        "items"
+      ],
+      "properties": {
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "reviewed_source_content_sha256": {"$ref": "#/$defs/sha256"},
+        "source_adapter": {"$ref": "#/$defs/component_binding"},
+        "structure_resolver": {"$ref": "#/$defs/component_binding"},
+        "semantic_provider": {"$ref": "#/$defs/semantic_provider_binding"},
+        "semantic_classifier": {"$ref": "#/$defs/component_binding"},
+        "requirement_assembler": {"$ref": "#/$defs/component_binding"},
+        "requirement_projector": {"$ref": "#/$defs/component_binding"},
+        "semantic_scope_structure_node_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/target_id"}
+        },
+        "assembly_scope_structure_node_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"$ref": "#/$defs/target_id"}
+        },
+        "items": {
+          "type": "object",
+          "minProperties": 1,
+          "propertyNames": {"pattern": "^structure-node-[0-9a-f]{32}$"},
+          "additionalProperties": {"$ref": "#/$defs/item"}
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "label",
+        "reviewed_by",
+        "reviewed_at_utc",
+        "is_human_gold",
+        "is_serving_activation_gate",
+        "limitations"
+      ],
+      "properties": {
+        "label": {"const": "AI_REVIEWED_SILVER"},
+        "reviewed_by": {"const": "ai_assistant"},
+        "reviewed_at_utc": {"type": "string", "format": "date-time"},
+        "is_human_gold": {"const": false},
+        "is_serving_activation_gate": {"const": false},
+        "limitations": {
+          "type": "array",
+          "minItems": 4,
+          "maxItems": 4,
+          "uniqueItems": true,
+          "items": {
+            "enum": [
+              "not_human_gold",
+              "not_a_serving_activation_gate",
+              "source_hash_and_pipeline_version_bound",
+              "text_free_locator_registry"
+            ]
+          }
+        }
+      }
+    }
+  }
+}

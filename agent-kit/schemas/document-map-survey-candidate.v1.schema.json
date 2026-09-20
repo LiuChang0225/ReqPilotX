@@ -1,0 +1,184 @@
+{
+  "$defs": {
+    "AgentKitIdentityV1": {
+      "additionalProperties": false,
+      "properties": {
+        "bundle_sha256": {
+          "type": "string"
+        },
+        "kit_id": {
+          "type": "string"
+        },
+        "kit_version": {
+          "type": "string"
+        },
+        "manifest_sha256": {
+          "type": "string"
+        },
+        "policy_id": {
+          "type": "string"
+        },
+        "policy_version": {
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "reqpilotx-agent-kit-identity/v1",
+          "type": "string"
+        },
+        "tool_registry_id": {
+          "type": "string"
+        },
+        "tool_registry_version": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "schema_version",
+        "kit_id",
+        "kit_version",
+        "manifest_sha256",
+        "bundle_sha256",
+        "policy_id",
+        "policy_version",
+        "tool_registry_id",
+        "tool_registry_version"
+      ],
+      "type": "object"
+    },
+    "DocumentMapSurveyFindingV1": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "finding_code": {
+          "type": "string"
+        },
+        "page_numbers": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "public_summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_code",
+        "page_numbers",
+        "evidence_refs",
+        "public_summary"
+      ],
+      "type": "object"
+    },
+    "DocumentMapSurveyRangeCandidateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "kind": {
+          "$ref": "#/$defs/DocumentMapSurveyRangeKind"
+        },
+        "label": {
+          "type": "string"
+        },
+        "page_numbers": {
+          "items": {
+            "type": "integer"
+          },
+          "type": "array"
+        },
+        "proposal_key": {
+          "type": "string"
+        },
+        "public_summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "proposal_key",
+        "kind",
+        "label",
+        "page_numbers",
+        "evidence_refs",
+        "public_summary"
+      ],
+      "type": "object"
+    },
+    "DocumentMapSurveyRangeKind": {
+      "enum": [
+        "FRONT_MATTER",
+        "MAIN_DOCUMENT",
+        "ATTACHMENT",
+        "TABLE_PACKAGE",
+        "REFERENCE_MATERIAL",
+        "UNRESOLVED"
+      ],
+      "type": "string"
+    },
+    "DocumentMapSurveyStatus": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL"
+      ],
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "document_summary": {
+      "type": "string"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/DocumentMapSurveyFindingV1"
+      },
+      "type": "array"
+    },
+    "kit_identity": {
+      "$ref": "#/$defs/AgentKitIdentityV1"
+    },
+    "page_count": {
+      "type": "integer"
+    },
+    "ranges": {
+      "items": {
+        "$ref": "#/$defs/DocumentMapSurveyRangeCandidateV1"
+      },
+      "type": "array"
+    },
+    "run_id": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "document-map-survey-candidate/v1",
+      "type": "string"
+    },
+    "source_sha256": {
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/DocumentMapSurveyStatus"
+    }
+  },
+  "required": [
+    "schema_version",
+    "run_id",
+    "source_sha256",
+    "kit_identity",
+    "page_count",
+    "status",
+    "document_summary",
+    "ranges",
+    "findings"
+  ],
+  "type": "object"
+}

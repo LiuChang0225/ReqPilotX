@@ -1,0 +1,177 @@
+{
+  "DESIGN.md": {
+    "sha256": "825fc74cf5cfa5fb6cb965f378663935acfd5207d8a339c4785b8d697ead6276",
+    "rules": [
+      "blocked_identifier"
+    ],
+    "reason": "Public corporate design-system name or bundled brand logo filename, required by existing visual/export contract; no customer source text."
+  },
+  "agent-kit/provenance/openai-primary-runtime-pdf.plugin.json": {
+    "sha256": "5c496ff869eb92b321265b1d3bb08357fd55631dd860a8dbf5b7dd4fa5d00767",
+    "rules": [
+      "personal_email"
+    ],
+    "reason": "Unmodified upstream plugin author attribution."
+  },
+  "design-system/reqpilotx/MASTER.md": {
+    "sha256": "08ac25eb96ab1039fc2a67172e79360ebea545b6a12e3acc3fab0c5897492a02",
+    "rules": [
+      "blocked_identifier"
+    ],
+    "reason": "Public corporate design-system name or bundled brand logo filename, required by existing visual/export contract; no customer source text."
+  },
+  "plugins/reqpilot/capabilities/pdf/provenance/openai-primary-runtime-pdf.plugin.json": {
+    "sha256": "8cf6f5d8067c166fa4000e9b3a0ad3f600f453d7d2f8601ac48c8f6be7c4f97b",
+    "rules": [
+      "personal_email"
+    ],
+    "reason": "Unmodified upstream plugin author attribution."
+  },
+  "prototype/frontend/src/features/pdf/PdfViewerPage.test.ts": {
+    "sha256": "7fe3023be90285ea8fe9e412753b90e65c3a6cf2a8ebc69909b9aa456671c6b3",
+    "rules": [
+      "personal_email"
+    ],
+    "reason": "Synthetic rejected URL with userinfo; regex sees the password/host fragment as an email, not a person address."
+  },
+  "prototype/scripts/extraction_case_runner.py": {
+    "sha256": "361cb3d2f82a1609faae13a22503ba565f3b2d8cbf70362ef41b2fd0473afe8f",
+    "rules": [
+      "blocked_identifier"
+    ],
+    "reason": "Legacy document ID enum retained for backwards-compatible private manifest validation; no document content, path or source hash."
+  },
+  "prototype/tests/test_artifact_self_test.py": {
+    "sha256": "71df0c656f13abfad7a5a7a39ffe6d0627d8174fb004ad6af3870122377e226d",
+    "rules": [
+      "credential_pattern"
+    ],
+    "reason": "Deliberately invalid fixed token used in mocked configuration or a credential-rejection regression; no real account secret."
+  },
+  "prototype/tests/test_azure_document_intelligence_visual_text_provider.py": {
+    "sha256": "20c8320e600628fd09e47710e854a4b7e59b0ae94fb785e874a8b0ba323e991c",
+    "rules": [
+      "personal_email"
+    ],
+    "reason": "Synthetic rejected URL with userinfo; regex sees the password/host fragment as an email, not a person address."
+  },
+  "prototype/tests/test_bailian_ocr_document_structure_provider.py": {
+    "sha256": "bde68de8fbc41f1d7d323a882851f42dde913fb6d7cc7d4097ea7440c8de69b7",
+    "rules": [
+      "credential_pattern"
+    ],
+    "reason": "Deliberately invalid fixed token used in mocked configuration or a credential-rejection regression; no real account secret."
+  },
+  "prototype/tests/test_bailian_page_layout_provider.py": {
+    "sha256": "b25a8524b0e2d5d22c93c875a35ff8d6d4c45c1455cf9af468cb39e634292c7e",
+    "rules": [
+      "personal_email"
+    ],
+    "reason": "Synthetic rejected URL with userinfo; regex sees the password/host fragment as an email, not a person address."
+  },
+  "prototype/tests/test_bailian_pdf_page_parsing_provider.py": {
+    "sha256": "03796bce344086bef71532a08118638b4c70ea41dbf050c535e8dd6bd9048a1b",
+    "rules": [
+      "credential_pattern"
+    ],
+    "reason": "Deliberately invalid fixed token used in mocked configuration or a credential-rejection regression; no real account secret."
+  },
+  "prototype/tests/test_bailian_semantic_provider.py": {
+    "sha256": "6442afd6f518437deb370b027bb346a2f710956bb160ae84436679c254a79d32",
+    "rules": [
+      "personal_email"
+    ],
+    "reason": "Synthetic rejected URL with userinfo; regex sees the password/host fragment as an email, not a person address."
+  },
+  "prototype/tests/test_bailian_visual_table_provider.py": {
+    "sha256": "a49d36c60864d12565a25b270acb4ca6d88bb4372f116b8e142565104136c4ba",
+    "rules": [
+      "personal_email"
+    ],
+    "reason": "Synthetic rejected URL with userinfo; regex sees the password/host fragment as an email, not a person address."
+  },
+  "prototype/tests/test_exporter_table_layers.py": {
+    "sha256": "727a7e170f3e635a5130c92992d39766b7df87f8e2ea649007f88e34256bd0ab",
+    "rules": [
+      "blocked_identifier"
+    ],
+    "reason": "Public corporate design-system name or bundled brand logo filename, required by existing visual/export contract; no customer source text."
+  },
+  "prototype/tests/test_reading_visual_configuration.py": {
+    "sha256": "56129534dad30be326b3b2e04209bc4c929da49cbd0b587f81707d975ed408fd",
+    "rules": [
+      "credential_pattern"
+    ],
+    "reason": "Deliberately invalid fixed token used in mocked configuration or a credential-rejection regression; no real account secret."
+  },
+  "prototype/tests/test_release_preflight.py": {
+    "sha256": "d2680529148eb2007ecfdf24b9fd4dd5375989c9269f9ca2b8550fa0e62738ab",
+    "rules": [
+      "credential_pattern"
+    ],
+    "reason": "Deliberately invalid fixed token used in mocked configuration or a credential-rejection regression; no real account secret."
+  },
+  "prototype/tests/test_structure_failure_patterns.py": {
+    "sha256": "6d8fcb0a1903a62d27e9500de10785d3508748995db713e6923c7ce05a239b41",
+    "rules": [
+      "blocked_identifier"
+    ],
+    "reason": "Negative assertion that customer-specific tokens must not appear in the shared abstract catalogue."
+  },
+  "prototype/app/services/exporter.py": {
+    "sha256": "518306cb043879de3100708c18651bab210dc89804a53da373148fec7dcc9480",
+    "rules": [
+      "blocked_identifier"
+    ],
+    "reason": "Public corporate design-system name or bundled brand logo filename, required by existing visual/export contract; no customer source text."
+  },
+  "prototype/app/services/extractor.py": {
+    "sha256": "badc3687efa58885b9880954f03aed2ebe9e751e295e8843118aaa0e6aea14fa",
+    "rules": [
+      "blocked_identifier"
+    ],
+    "reason": "Public connector manufacturer names used as optional parsing hints; no account or customer document binding."
+  },
+  "prototype/scripts/decision_eval.py": {
+    "sha256": "9eb4b25d83062eaa07c5aff95f1a62ff011cc1006afe8a0fb767305cf24946c0",
+    "rules": [
+      "blocked_identifier"
+    ],
+    "reason": "Legacy input field alias retained for old private manifests; public examples use generic requirement_value."
+  },
+  "prototype/tests/test_ai_copilot.py": {
+    "sha256": "25497c75f000b69cd11b17c39956249843fafebea56337477d277767792c7174",
+    "rules": [
+      "personal_email"
+    ],
+    "reason": "Synthetic rejected URL with userinfo; regex sees the password/host fragment as an email, not a person address."
+  },
+  "prototype/frontend/src/features/extraction/RequirementTreePanel.tsx": {
+    "sha256": "d14f97f9a76f4bcec7db98f1a5de35c05019fa164b2baff192e1b9f51ccd0fe5",
+    "rules": [
+      "blocked_identifier"
+    ],
+    "reason": "Existing public design-system brand named in a design comment; no customer source content."
+  },
+  "prototype/frontend/src/features/reading/ReadingWorkspacePage.test.tsx": {
+    "sha256": "00ec93a7f52a7d104dba22ee3d3e4e2bf44540f7a504d87d1259f88d3a9e9e42",
+    "rules": [
+      "blocked_identifier"
+    ],
+    "reason": "Negative UI assertion for the public product brand in embedded reading; no customer source content."
+  },
+  "prototype/frontend/src/shared/ui/Brand.tsx": {
+    "sha256": "e73a4443d8d6854dfeb7d94b7430342f93234f3997536c66c3aa9de5dc8ed82a",
+    "rules": [
+      "blocked_identifier"
+    ],
+    "reason": "Public brand logo and accessible name required by the existing design system."
+  },
+  "prototype/eval/ai_smoke/ai_smoke_cases.json": {
+    "sha256": "f9567e0521667038105b54607f3797cf9f2aaccb167087822866df1f19e36562",
+    "rules": [
+      "unclassified_customer_fields"
+    ],
+    "reason": "Reviewed synthetic ECU examples and invented reference documents; values are mocked fixtures, not customer evidence."
+  }
+}

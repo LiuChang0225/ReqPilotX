@@ -1,5 +1,0 @@
-interface:
-  display_name: "ReqPilot RAG Quality"
-  short_description: "Work the rag-quality loop"
-  default_prompt: "Use $reqpilot-track-rag-quality to improve evidence retrieval and judgment quality without drifting into extraction or auth scope."
-

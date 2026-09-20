@@ -1,0 +1,189 @@
+{
+  "$defs": {
+    "D3CandidateSourceSpanV2": {
+      "additionalProperties": false,
+      "properties": {
+        "end_offset": {
+          "type": "integer"
+        },
+        "end_segment_ordinal": {
+          "type": "integer"
+        },
+        "start_offset": {
+          "type": "integer"
+        },
+        "start_segment_ordinal": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_segment_ordinal",
+        "start_offset",
+        "end_segment_ordinal",
+        "end_offset"
+      ],
+      "type": "object"
+    },
+    "D3ParentBoundaryClassificationEntryV2": {
+      "additionalProperties": false,
+      "properties": {
+        "ancestor_labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "content_role": {
+          "$ref": "#/$defs/ProvisionContentRole"
+        },
+        "explicit_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "requirement_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequirementKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requirementness": {
+          "$ref": "#/$defs/Requirementness"
+        },
+        "source_spans": {
+          "items": {
+            "$ref": "#/$defs/D3CandidateSourceSpanV2"
+          },
+          "type": "array"
+        },
+        "technicality": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequirementTechnicality"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source_spans",
+        "explicit_label",
+        "ancestor_labels",
+        "requirementness",
+        "requirement_kind",
+        "technicality",
+        "content_role",
+        "confidence",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "ParentProvisionObjectReconciliationStatus": {
+      "enum": [
+        "RESOLVED_WITHIN_GROUP",
+        "UNRESOLVED"
+      ],
+      "type": "string"
+    },
+    "ProvisionContentRole": {
+      "enum": [
+        "PROVISION",
+        "HEADING",
+        "METADATA",
+        "CONTEXT",
+        "RATIONALE",
+        "ASSUMPTION",
+        "EXAMPLE",
+        "DEFINITION",
+        "REFERENCE",
+        "NOTE",
+        "TABLE_RECORD",
+        "OTHER"
+      ],
+      "type": "string"
+    },
+    "RequirementKind": {
+      "enum": [
+        "FUNCTIONAL",
+        "QUALITY",
+        "CONSTRAINT",
+        "OTHER_REQUIREMENT",
+        "UNRESOLVED"
+      ],
+      "type": "string"
+    },
+    "RequirementTechnicality": {
+      "enum": [
+        "TECHNICAL",
+        "NON_TECHNICAL",
+        "MIXED",
+        "UNRESOLVED"
+      ],
+      "type": "string"
+    },
+    "Requirementness": {
+      "enum": [
+        "REQUIREMENT",
+        "NON_REQUIREMENT",
+        "UNRESOLVED"
+      ],
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "diagnostic_codes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "entries": {
+      "items": {
+        "$ref": "#/$defs/D3ParentBoundaryClassificationEntryV2"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "parent-provision-object-reconciliation-candidate/v1",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ParentProvisionObjectReconciliationStatus"
+    },
+    "unresolved_logical_object_ids": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "status",
+    "entries",
+    "unresolved_logical_object_ids",
+    "diagnostic_codes"
+  ],
+  "type": "object"
+}

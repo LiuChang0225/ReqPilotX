@@ -1,0 +1,92 @@
+{
+  "$defs": {
+    "DocumentUnderstandingStatus": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL",
+        "BLOCKED"
+      ],
+      "title": "DocumentUnderstandingStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "evidence_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Evidence Sha256",
+      "type": "string"
+    },
+    "kit_bundle_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Kit Bundle Sha256",
+      "type": "string"
+    },
+    "page_count": {
+      "minimum": 1,
+      "title": "Page Count",
+      "type": "integer"
+    },
+    "proposal_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Proposal Sha256",
+      "type": "string"
+    },
+    "receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Receipt Sha256",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^agent-run-[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "document-understanding-validation-receipt/v2",
+      "default": "document-understanding-validation-receipt/v2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/DocumentUnderstandingStatus"
+    },
+    "unresolved_pages": {
+      "items": {
+        "type": "integer"
+      },
+      "title": "Unresolved Pages",
+      "type": "array"
+    },
+    "validator_id": {
+      "const": "reqpilotx-document-understanding-validator",
+      "default": "reqpilotx-document-understanding-validator",
+      "title": "Validator Id",
+      "type": "string"
+    },
+    "validator_version": {
+      "const": "1.1.0",
+      "default": "1.1.0",
+      "title": "Validator Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "source_sha256",
+    "kit_bundle_sha256",
+    "status",
+    "page_count",
+    "unresolved_pages",
+    "proposal_sha256",
+    "evidence_sha256",
+    "receipt_sha256"
+  ],
+  "title": "DocumentUnderstandingValidationReceiptV2",
+  "type": "object"
+}

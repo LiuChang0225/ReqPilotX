@@ -1,0 +1,23 @@
+{
+  "name": "reqpilot",
+  "version": "0.3.0+codex.20260914054809",
+  "description": "Source-faithful automotive requirements extraction, explicit decomposition, evidence review, and draft Matrix delivery.",
+  "author": {
+    "name": "ReqPilotX contributors"
+  },
+  "skills": "./skills/",
+  "interface": {
+    "displayName": "ReqPilotX",
+    "shortDescription": "Read customer documents and build traceable requirement drafts.",
+    "longDescription": "Portable Agent skills and tools for document maps, stable SRC/REQ source items, authorized decomposition, evidence-linked review, and Excel drafts. Uses the same ReqPilotX domain contracts in an empty workspace or the existing workbench.",
+    "developerName": "ReqPilotX contributors",
+    "category": "Productivity",
+    "capabilities": [
+      "Read",
+      "Write"
+    ],
+    "defaultPrompt": [
+      "Read this customer document, preserve its structure and source items, and prepare a reviewable Matrix draft."
+    ]
+  }
+}

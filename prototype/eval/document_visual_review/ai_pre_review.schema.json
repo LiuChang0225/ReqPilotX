@@ -1,0 +1,323 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reqpilotx.local/schemas/document-visual-ai-pre-review-v1.json",
+  "title": "ReqPilotX non-PDF whole-document AI pre-review ledger v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "artifact_hash_contract",
+    "status",
+    "location",
+    "review_bundle_sha256",
+    "artifact_inventory_sha256",
+    "binding",
+    "reviewer",
+    "pages",
+    "summary",
+    "privacy",
+    "review_provenance",
+    "artifact_sha256"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "document-visual-ai-pre-review/v1"
+    },
+    "artifact_hash_contract": {
+      "const": "canonical-json-without-artifact-sha256/v1"
+    },
+    "status": {
+      "const": "AI_PRE_REVIEW"
+    },
+    "location": {
+      "const": "CONTROLLED_EXTERNAL"
+    },
+    "review_bundle_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "artifact_inventory_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "binding": {
+      "$ref": "#/$defs/binding"
+    },
+    "reviewer": {
+      "$ref": "#/$defs/reviewer"
+    },
+    "pages": {
+      "type": "array",
+      "minItems": 1,
+      "items": {
+        "$ref": "#/$defs/page"
+      }
+    },
+    "summary": {
+      "$ref": "#/$defs/summary"
+    },
+    "privacy": {
+      "$ref": "#/$defs/privacy"
+    },
+    "review_provenance": {
+      "$ref": "#/$defs/provenance"
+    },
+    "artifact_sha256": {
+      "$ref": "#/$defs/sha256"
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+/-]*$"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "document_id",
+        "source_sha256",
+        "format",
+        "page_count",
+        "render_profile_file_sha256",
+        "render_profile_sha256",
+        "renderer_id",
+        "renderer_version",
+        "renderer_config_sha256",
+        "pipeline_profile_file_sha256",
+        "pipeline_profile_sha256",
+        "pipeline_fingerprint_sha256"
+      ],
+      "properties": {
+        "document_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "format": {
+          "enum": [
+            "docx",
+            "xlsx",
+            "xlsb",
+            "tif"
+          ]
+        },
+        "page_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "render_profile_file_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "render_profile_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "renderer_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "renderer_version": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "renderer_config_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "pipeline_profile_file_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "pipeline_profile_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "pipeline_fingerprint_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "reviewer": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "reviewer_id",
+        "model_id",
+        "model_version",
+        "reviewed_at"
+      ],
+      "properties": {
+        "kind": {
+          "const": "AI"
+        },
+        "reviewer_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "model_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "model_version": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "reviewed_at": {
+          "type": "string",
+          "format": "date-time"
+        }
+      }
+    },
+    "page": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page_number",
+        "verdict",
+        "issue_codes"
+      ],
+      "properties": {
+        "page_number": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "verdict": {
+          "enum": [
+            "PASS",
+            "ISSUE",
+            "NOT_EVALUATED"
+          ]
+        },
+        "issue_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "enum": [
+              "SOURCE_RENDER_CLIPPED",
+              "SOURCE_RENDER_MISSING",
+              "SOURCE_RENDER_UNREADABLE",
+              "SOURCE_RENDER_LAYOUT_SHIFT",
+              "PIPELINE_TEXT_OMISSION",
+              "PIPELINE_TABLE_TOPOLOGY_MISMATCH",
+              "PIPELINE_IMAGE_OMISSION",
+              "PIPELINE_ORDER_MISMATCH",
+              "PIPELINE_DUPLICATE_REQUIREMENT",
+              "PIPELINE_FALSE_REQUIREMENT",
+              "PIPELINE_NOT_RUN",
+              "REMOTE_VISUAL_REQUIRED"
+            ]
+          }
+        }
+      }
+    },
+    "summary": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "page_count",
+        "pass_count",
+        "issue_count",
+        "not_evaluated_count",
+        "pages_with_issue_codes",
+        "issue_code_count",
+        "verdict"
+      ],
+      "properties": {
+        "page_count": {
+          "type": "integer",
+          "minimum": 1
+        },
+        "pass_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "issue_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "not_evaluated_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "pages_with_issue_codes": {
+          "type": "array",
+          "uniqueItems": true,
+          "items": {
+            "type": "integer",
+            "minimum": 1
+          }
+        },
+        "issue_code_count": {
+          "type": "integer",
+          "minimum": 0
+        },
+        "verdict": {
+          "enum": [
+            "PASS",
+            "ISSUE",
+            "NOT_EVALUATED"
+          ]
+        }
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "classification",
+        "handling",
+        "contains_customer_text",
+        "contains_source_path",
+        "contains_source_filename"
+      ],
+      "properties": {
+        "classification": {
+          "const": "CUSTOMER_SENSITIVE"
+        },
+        "handling": {
+          "const": "CONTROLLED_LOCAL_REVIEW_ONLY"
+        },
+        "contains_customer_text": {
+          "const": false
+        },
+        "contains_source_path": {
+          "const": false
+        },
+        "contains_source_filename": {
+          "const": false
+        }
+      }
+    },
+    "provenance": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "is_technical_draft",
+        "is_human_review",
+        "is_human_gold",
+        "is_gold",
+        "is_formal_approval",
+        "is_serving_activation_gate"
+      ],
+      "properties": {
+        "is_technical_draft": {
+          "const": false
+        },
+        "is_human_review": {
+          "const": false
+        },
+        "is_human_gold": {
+          "const": false
+        },
+        "is_gold": {
+          "const": false
+        },
+        "is_formal_approval": {
+          "const": false
+        },
+        "is_serving_activation_gate": {
+          "const": false
+        }
+      }
+    }
+  }
+}

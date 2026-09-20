@@ -1,0 +1,19 @@
+{
+  "version": "0.1.0",
+  "private": true,
+  "type": "module",
+  "license": "UNLICENSED",
+  "name": "@reqpilotx/dsh-pair",
+  "exports": {
+    "./cordis.patch.yml": "./cordis.patch.yml"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    }
+  },
+  "dependencies": {
+    "@reqpilotx/dsh-pair-host": "file:../host",
+    "@reqpilotx/dsh-pair-client": "file:../client"
+  }
+}

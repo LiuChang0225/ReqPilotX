@@ -1,0 +1,123 @@
+{
+  "$defs": {
+    "DocumentPageTextItemV1": {
+      "additionalProperties": false,
+      "properties": {
+        "bbox": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "kind": {
+          "pattern": "^[a-z][a-z0-9_]{0,79}$",
+          "title": "Kind",
+          "type": "string"
+        },
+        "source_handle": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Source Handle",
+          "type": "string"
+        },
+        "text": {
+          "title": "Text",
+          "type": "string"
+        },
+        "text_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Text Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_handle",
+        "kind",
+        "text",
+        "text_sha256"
+      ],
+      "title": "DocumentPageTextItemV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/DocumentPageTextItemV1"
+      },
+      "title": "Items",
+      "type": "array"
+    },
+    "next_offset": {
+      "anyOf": [
+        {
+          "minimum": 0,
+          "type": "integer"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Next Offset"
+    },
+    "offset": {
+      "minimum": 0,
+      "title": "Offset",
+      "type": "integer"
+    },
+    "page_number": {
+      "minimum": 1,
+      "title": "Page Number",
+      "type": "integer"
+    },
+    "page_text_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Page Text Sha256",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "document-page-text/v1",
+      "default": "document-page-text/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_sha256",
+    "page_number",
+    "page_text_sha256",
+    "offset",
+    "items"
+  ],
+  "title": "DocumentPageTextChunkV1",
+  "type": "object"
+}

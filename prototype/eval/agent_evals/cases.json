@@ -1,0 +1,282 @@
+{
+  "schema_version": "1.0.0",
+  "suite_id": "reqpilotx-agent-evals-v1",
+  "cases": [
+    {
+      "case_id": "synthetic-five-page-map",
+      "title": "五页合成开发样例：结构理解",
+      "source_key": "synthetic-five-page-v1",
+      "source_sha256": "01388279403d8ce789695b91679bcd2e5935293099338cc53f6bc93e7d2682f9",
+      "partition": "development",
+      "status": "READY_WITH_PRIVATE_BINDING",
+      "scope": "MAP_ONLY",
+      "task_goal": "请使用所提供的原始 PDF 和 ReqPilotX 能力，自主完成并保存全文 Document Map，在工作台提供可回查的结构成果。本次只做结构理解，不继续生成原文条目清单或 Excel。请自行检查和修正，最后说明保存成果的入口、版本和仍未解决的具体范围；无需等待逐阶段人工确认。",
+      "tags": [
+        "synthetic",
+        "known-development-source",
+        "structure",
+        "navigation",
+        "logical-tables",
+        "source-numbering"
+      ],
+      "rubric_ids": [
+        "source_identity",
+        "document_map",
+        "visual_content",
+        "evidence_discipline",
+        "autonomous_revision",
+        "delivery_consistency"
+      ],
+      "capability_focus": [
+        "document_map",
+        "visual_content",
+        "evidence_discipline",
+        "autonomous_revision",
+        "delivery_consistency"
+      ],
+      "agent_visible_fields": [
+        "task_goal"
+      ]
+    },
+    {
+      "case_id": "synthetic-five-page-full",
+      "title": "五页合成开发样例：完整自主交付",
+      "source_key": "synthetic-five-page-v1",
+      "source_sha256": "01388279403d8ce789695b91679bcd2e5935293099338cc53f6bc93e7d2682f9",
+      "partition": "development",
+      "status": "READY_WITH_PRIVATE_BINDING",
+      "scope": "FULL_DOCUMENT",
+      "task_goal": "请使用所提供的原始 PDF 和 ReqPilotX 能力，自主完成全文结构、原文条目、需求与非需求分类、自查修订，并交付工作台成果及同版本 Excel。本次授权对确有独立响应需要的原文需求建立必要的派生分析子项，保留完整原文父项与来源依据。本次未提供内部知识依据，不进行产品符合性判断。请持续完成可用范围，最后说明成果入口、版本和未解决事项；无需等待逐阶段人工确认。",
+      "tags": [
+        "synthetic",
+        "known-development-source",
+        "ordinary-prose",
+        "whole-bom",
+        "parent-preserving-derivation",
+        "no-internal-knowledge",
+        "same-revision-export"
+      ],
+      "rubric_ids": [
+        "source_identity",
+        "document_map",
+        "source_items",
+        "derivation",
+        "visual_content",
+        "evidence_discipline",
+        "autonomous_revision",
+        "delivery_consistency"
+      ],
+      "capability_focus": [
+        "source_identity",
+        "document_map",
+        "source_items",
+        "derivation",
+        "visual_content",
+        "evidence_discipline",
+        "autonomous_revision",
+        "delivery_consistency"
+      ],
+      "agent_visible_fields": [
+        "task_goal"
+      ]
+    },
+    {
+      "case_id": "real-complex-held-out",
+      "title": "真实复杂 PDF 留出样例：原件与独立留出资格待准备",
+      "source_key": "real-complex-held-out-v1",
+      "source_sha256": null,
+      "partition": "held_out",
+      "status": "PENDING_INPUT",
+      "scope": "FULL_DOCUMENT",
+      "task_goal": "请使用所提供的原始 PDF 和 ReqPilotX 能力，自主完成全文结构、原文条目、需求与非需求分类、自查修订，并交付工作台成果及同版本 Excel。本次授权对确有独立响应需要的原文需求建立必要的派生分析子项，保留完整原文父项与来源依据。本次未提供内部知识依据，不进行产品符合性判断。请持续完成可用范围，最后说明成果入口、版本和未解决事项；无需等待逐阶段人工确认。",
+      "tags": [
+        "real-document",
+        "pending-authorized-source",
+        "pending-holdout-provenance",
+        "unmeasured"
+      ],
+      "rubric_ids": [
+        "source_identity",
+        "document_map",
+        "source_items",
+        "derivation",
+        "visual_content",
+        "evidence_discipline",
+        "autonomous_revision",
+        "delivery_consistency"
+      ],
+      "capability_focus": [
+        "source_identity",
+        "document_map",
+        "source_items",
+        "derivation",
+        "visual_content",
+        "evidence_discipline",
+        "autonomous_revision",
+        "delivery_consistency"
+      ],
+      "agent_visible_fields": [
+        "task_goal"
+      ]
+    },
+    {
+      "case_id": "stage-context-definition",
+      "title": "A17 control specification：现有条目关联复核",
+      "source_key": "stage-context-definition",
+      "source_sha256": "74d0dbd163765aebd60530f3a2117eebec26fbf5d97ead63528863722ee22298",
+      "partition": "development",
+      "status": "RETIRED",
+      "scope": "SCOPED_REVISION",
+      "preparation": "STAGE_FIXTURE",
+      "fixture_key": "stage-context-definition",
+      "fixture_sha256": "bf1366176edee44e493b939e7887e3cffaf0e48ee145f65fcb1b044311edda73",
+      "oracle_sha256": "d578ea895607ece018a24fbd0a6dcf05a0ca2b75aa15d54d97e75f0d67885489",
+      "task_goal": "请复核并完善当前任务已保存的原文条目，重点核对各条目独立阅读时所需的原文定义、条件和适用范围是否准确关联。对有原文依据的问题直接修订，保留正确内容和原文次序，交付当前工作台成果及同版Excel，说明实际改动和仍未解决的范围。本次不建立派生子项，未提供内部知识依据，不进行产品符合性判断；无需等待人工逐项确认。",
+      "tags": [
+        "synthetic",
+        "stage-fixture",
+        "context-links",
+        "superseded-preparation-v1"
+      ],
+      "rubric_ids": [
+        "source_items",
+        "delivery_consistency",
+        "evidence_discipline"
+      ],
+      "capability_focus": [
+        "source_items",
+        "delivery_consistency"
+      ],
+      "agent_visible_fields": [
+        "task_goal"
+      ]
+    },
+    {
+      "case_id": "stage-context-bounded-scope",
+      "title": "B29 module specification：现有条目关联复核",
+      "source_key": "stage-context-bounded-scope",
+      "source_sha256": "83945de18cea762f6c2e8f2420a168948b52d0a49aaee7d0dbb26fd97a832587",
+      "partition": "development",
+      "status": "RETIRED",
+      "scope": "SCOPED_REVISION",
+      "preparation": "STAGE_FIXTURE",
+      "fixture_key": "stage-context-bounded-scope",
+      "fixture_sha256": "00f54552821ab2445c8f4467c1d7ac06d023ec400aa170230cac6cf93e2b4f75",
+      "oracle_sha256": "39c98abdc150f42a639b10451e89b637c817c3e727dc0a2512122ea30cf32126",
+      "task_goal": "请复核并完善当前任务已保存的原文条目，重点核对各条目独立阅读时所需的原文定义、条件和适用范围是否准确关联。对有原文依据的问题直接修订，保留正确内容和原文次序，交付当前工作台成果及同版Excel，说明实际改动和仍未解决的范围。本次不建立派生子项，未提供内部知识依据，不进行产品符合性判断；无需等待人工逐项确认。",
+      "tags": [
+        "synthetic",
+        "stage-fixture",
+        "context-links",
+        "superseded-preparation-v1"
+      ],
+      "rubric_ids": [
+        "source_items",
+        "delivery_consistency",
+        "evidence_discipline"
+      ],
+      "capability_focus": [
+        "source_items",
+        "delivery_consistency"
+      ],
+      "agent_visible_fields": [
+        "task_goal"
+      ]
+    },
+    {
+      "case_id": "stage-context-definition-v2",
+      "title": "A17 control specification：现有条目关联复核",
+      "source_key": "stage-context-definition-v2",
+      "source_sha256": "74d0dbd163765aebd60530f3a2117eebec26fbf5d97ead63528863722ee22298",
+      "partition": "development",
+      "status": "READY_WITH_PRIVATE_BINDING",
+      "scope": "SCOPED_REVISION",
+      "preparation": "STAGE_FIXTURE",
+      "fixture_key": "stage-context-definition-v2",
+      "fixture_sha256": "5349062791b8a563fd30d8318d29cf950bcdf1e2ead5c43fd03e364adfa03ba9",
+      "oracle_sha256": "d578ea895607ece018a24fbd0a6dcf05a0ca2b75aa15d54d97e75f0d67885489",
+      "task_goal": "请复核并完善当前任务已保存的原文条目，重点核对各条目独立阅读时所需的原文定义、条件和适用范围是否准确关联。对有原文依据的问题直接修订，保留正确内容和原文次序，交付当前工作台成果及同版Excel，说明实际改动和仍未解决的范围。本次不建立派生子项，未提供内部知识依据，不进行产品符合性判断；无需等待人工逐项确认。",
+      "tags": [
+        "synthetic",
+        "stage-fixture",
+        "context-links"
+      ],
+      "rubric_ids": [
+        "source_items",
+        "delivery_consistency",
+        "evidence_discipline"
+      ],
+      "capability_focus": [
+        "source_items",
+        "delivery_consistency"
+      ],
+      "agent_visible_fields": [
+        "task_goal"
+      ]
+    },
+    {
+      "case_id": "stage-context-bounded-scope-v2",
+      "title": "B29 module specification：现有条目关联复核",
+      "source_key": "stage-context-bounded-scope-v2",
+      "source_sha256": "83945de18cea762f6c2e8f2420a168948b52d0a49aaee7d0dbb26fd97a832587",
+      "partition": "development",
+      "status": "READY_WITH_PRIVATE_BINDING",
+      "scope": "SCOPED_REVISION",
+      "preparation": "STAGE_FIXTURE",
+      "fixture_key": "stage-context-bounded-scope-v2",
+      "fixture_sha256": "8918a9bd654cdaaed0785e7bca3ec3fc3a49854bba5f741ca6b4d830744c177a",
+      "oracle_sha256": "39c98abdc150f42a639b10451e89b637c817c3e727dc0a2512122ea30cf32126",
+      "task_goal": "请复核并完善当前任务已保存的原文条目，重点核对各条目独立阅读时所需的原文定义、条件和适用范围是否准确关联。对有原文依据的问题直接修订，保留正确内容和原文次序，交付当前工作台成果及同版Excel，说明实际改动和仍未解决的范围。本次不建立派生子项，未提供内部知识依据，不进行产品符合性判断；无需等待人工逐项确认。",
+      "tags": [
+        "synthetic",
+        "stage-fixture",
+        "context-links"
+      ],
+      "rubric_ids": [
+        "source_items",
+        "delivery_consistency",
+        "evidence_discipline"
+      ],
+      "capability_focus": [
+        "source_items",
+        "delivery_consistency"
+      ],
+      "agent_visible_fields": [
+        "task_goal"
+      ]
+    },
+    {
+      "case_id": "synthetic-scoped-extraction",
+      "title": "合成文档：限定范围原文提取",
+      "source_key": "synthetic-five-page-v1",
+      "source_sha256": "01388279403d8ce789695b91679bcd2e5935293099338cc53f6bc93e7d2682f9",
+      "partition": "development",
+      "status": "READY_WITH_PRIVATE_BINDING",
+      "scope": "SCOPED_EXTRACTION",
+      "preparation": "SOURCE_ONLY",
+      "task_goal": "请整理所提供合成文档第一节的原文条目，保留上级结构、原文顺序、表头与说明，完成分类并交付工作台和同版Excel。不新增派生需求。",
+      "tags": [
+        "synthetic",
+        "bounded-extraction",
+        "source-transcription"
+      ],
+      "rubric_ids": [
+        "source_identity",
+        "document_map",
+        "source_items",
+        "visual_content",
+        "evidence_discipline",
+        "autonomous_revision",
+        "delivery_consistency"
+      ],
+      "capability_focus": [
+        "source_items",
+        "visual_content",
+        "delivery_consistency"
+      ],
+      "agent_visible_fields": [
+        "task_goal"
+      ]
+    }
+  ]
+}

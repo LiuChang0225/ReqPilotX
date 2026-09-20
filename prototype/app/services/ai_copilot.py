@@ -1,41 +1,93 @@
 from __future__ import annotations
 
+import hashlib
 import json
 import logging
 import math
 import os
 import re
+import tempfile
+import threading
+import time
 import uuid
 from datetime import date
 from dataclasses import dataclass, replace
 from functools import lru_cache
+from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable, Literal, Protocol
+from urllib.parse import urlsplit, urlunsplit
 
+import httpx
+from PIL import Image as PILImage
 from pydantic import BaseModel, ConfigDict, Field
 
-_logger = logging.getLogger(__name__)
-
+from app.adapters.documents.bailian_visual_text_provider import (
+    DEFAULT_BAILIAN_OCR_MODEL,
+    BailianVisualTextProvider,
+)
+from app.domain.source_visual_text import VisualTextPageInput
+from app.ports.visual_text_provider import (
+    VisualTextProviderRejected,
+    VisualTextProviderRejectionCode,
+)
+from app.domain.assessment.numeric_constraints import (
+    validate_numeric_decision_support,
+    validate_numeric_requirement_projection,
+)
+from app.domain.knowledge import (
+    ACTIVE_KNOWLEDGE_STATUS,
+    EVIDENCE_INDEX_CONTRACT_VERSION,
+    EvidenceRef,
+    compute_evidence_content_hash,
+    evaluate_knowledge_evidence_eligibility,
+    has_current_evidence_contract,
+)
 from app.runtime_paths import resolve_storage_dir
 from app.services.assessor import (
     COMPLIANCE_HINTS,
     MANDATORY_HINTS,
     MODEL_NAME as HEURISTIC_MODEL_NAME,
     NEGATIVE_PATTERNS,
+    PARTIAL_COMPLIANCE_HINTS,
     PROMPT_VERSION as HEURISTIC_PROMPT_VERSION,
     assess_requirement,
 )
 from app.services.rag import score_candidate_evidences
+from app.services.visual_text_snapshot_cache import VisualTextProviderTelemetryV1
+
+_logger = logging.getLogger(__name__)
 
 
 VALID_DECISIONS = ("ACCEPT", "REJECT", "DEVIATION_ACCEPT", "NEED_CLARIFICATION")
+VALID_COMPLIANCE_STATUSES = (
+    "COMPLIANT",
+    "PARTIALLY_COMPLIANT",
+    "NON_COMPLIANT",
+    "INSUFFICIENT_INFORMATION",
+)
+DECISION_TO_COMPLIANCE_STATUS = {
+    "ACCEPT": "COMPLIANT",
+    "DEVIATION_ACCEPT": "PARTIALLY_COMPLIANT",
+    "REJECT": "NON_COMPLIANT",
+    "NEED_CLARIFICATION": "INSUFFICIENT_INFORMATION",
+}
 VALID_RISK_LEVELS = ("LOW", "MEDIUM", "HIGH")
 VALID_ANALYSIS_LABELS = ("REQUIREMENT", "INFO")
-PREFERRED_FINAL_VALIDATION_STATUSES = {"accepted", "hard_rule_override"}
-DEFAULT_PROMPT_VERSION = "v2.0-azure-rag-copilot"
+DEFAULT_PROMPT_VERSION = "v3.1-compliance-proof-context"
 DEFAULT_SCREENING_PROMPT_VERSION = "v2.1-requirement-screening"
 DEFAULT_HEURISTIC_MODEL = HEURISTIC_MODEL_NAME
 DEFAULT_TOP_K = 5
+MAX_MODEL_PRIMARY_EVIDENCES = 5
+MAX_MODEL_ADJACENT_EVIDENCES = 3
+MAX_PERSISTED_EVIDENCES = (
+    MAX_MODEL_PRIMARY_EVIDENCES + MAX_MODEL_ADJACENT_EVIDENCES
+)
+REMOTE_INDEX_OPERATION_BATCH_SIZE = 1000
+REMOTE_INDEX_VERIFY_ATTEMPTS = 4
+REMOTE_INDEX_VERIFY_DELAY_SECONDS = 0.25
+DASHVECTOR_MATCH_BATCH_SIZE = 100
+DASHVECTOR_MAX_DELETE_BATCHES = 100
 DEFAULT_SCREENING_TIMEOUT_SECONDS = 18.0
 DEFAULT_ASSESSMENT_TIMEOUT_SECONDS = 45.0
 DEFAULT_AZURE_PROFILE_ID = "azure"
@@ -47,9 +99,15 @@ DEFAULT_AZURE_SEARCH_VECTOR_PROFILE = "reqpilot-vector-profile"
 DEFAULT_AZURE_SEARCH_VECTOR_ALGORITHM = "reqpilot-hnsw"
 DEFAULT_AZURE_SEARCH_SEMANTIC_CONFIGURATION = "reqpilot-semantic"
 DEFAULT_DASHSCOPE_BASE_URL = "https://dashscope.aliyuncs.com/compatible-mode/v1"
-DEFAULT_DASHSCOPE_CHAT_MODEL = "qwen3.7-plus"
-DEFAULT_DASHSCOPE_SCREENING_MODEL = "qwen3.6-flash"
+DEFAULT_DASHSCOPE_CHAT_MODEL = "qwen3.8-max"
+DEFAULT_DASHSCOPE_SCREENING_MODEL = "qwen3.7-flash"
 DEFAULT_DASHSCOPE_EMBEDDING_MODEL = "text-embedding-v4"
+_DASHSCOPE_PUBLIC_HOSTS = frozenset(
+    {"dashscope.aliyuncs.com", "dashscope-intl.aliyuncs.com"}
+)
+_DASHSCOPE_WORKSPACE_HOST_PATTERN = re.compile(
+    r"^[a-z0-9](?:[a-z0-9-]{0,61}[a-z0-9])?\.maas\.aliyuncs\.com$"
+)
 DEFAULT_AZURE_OPENAI_MAX_RETRIES = 2
 DEFAULT_ALIYUN_OPENAI_MAX_RETRIES = 0
 DEFAULT_AZURE_EMBEDDING_BATCH_SIZE = 16
@@ -80,6 +138,19 @@ QDRANT_MIN_DECISION_EVIDENCE_SCORE = 0.35
 AZURE_MIN_EFFECTIVE_EVIDENCE_SCORE = 0.03
 AZURE_MIN_DECISION_EVIDENCE_SCORE = 0.03
 QDRANT_LOCAL_RERANKER_MODEL = "BAAI/bge-reranker-v2-m3"
+NO_ELIGIBLE_EVIDENCE_ID = "__reqpilot_no_eligible_evidence__"
+EVIDENCE_INDEX_RESYNC_ACTION = "RESYNC_KNOWLEDGE_INDEX"
+EVIDENCE_INDEX_RESYNC_REQUIRED_REASON = (
+    "EVIDENCE_INDEX_RESYNC_REQUIRED：知识索引缺少当前 evidence identity/content hash contract，请重新同步知识文档。"
+)
+DASHVECTOR_INDEX_MIGRATION_ACTION = "CREATE_VERSIONED_DASHVECTOR_COLLECTION_AND_RESYNC"
+DECISION_PROOF_CLAIM_ROLES = {
+    "VALIDATION_RESULT",
+    "TEST_RESULT",
+    "CERTIFICATION",
+    "COMPLIANCE_RECORD",
+    "RELEASED_DESIGN_EVIDENCE",
+}
 
 GENERIC_TABLE_FACET_LABELS = {
     "table",
@@ -120,34 +191,95 @@ DEFAULT_LOCAL_QDRANT_URL = "http://localhost:6333"
 QDRANT_POINT_ID_NAMESPACE = uuid.UUID("3f49040f-6402-4100-a18e-368ded2f08c0")
 
 _RUNTIME_AI_ENV_OVERRIDES: dict[str, str] = {}
+_RUNTIME_AI_CONFIG_LOCK = threading.RLock()
+
+
+def _runtime_config_snapshot_from_file() -> dict[str, str]:
+    config_path = STORAGE_DIR / "config.json"
+    if not config_path.exists():
+        return {}
+    loaded = json.loads(config_path.read_text(encoding="utf-8"))
+    if not isinstance(loaded, dict):
+        raise ValueError("runtime config root must be a JSON object")
+    return {
+        str(key): str(value)
+        for key, value in loaded.items()
+        if value is not None and str(value) != ""
+    }
+
 
 def _load_runtime_config_from_file() -> None:
     try:
-        config_path = STORAGE_DIR / "config.json"
-        if config_path.exists():
-            config_data = json.loads(config_path.read_text(encoding="utf-8"))
-            for k, v in config_data.items():
-                if v:
-                    # Always load config.json values into overrides so that the
-                    # persisted user configuration takes precedence over
-                    # environment defaults set by app_desktop.py.  Without this,
-                    # _save_runtime_config_to_file could overwrite config.json
-                    # with stale os.environ values on the next UI save.
-                    _RUNTIME_AI_ENV_OVERRIDES[k] = str(v)
+        config_data = _runtime_config_snapshot_from_file()
+        # Always load config.json values into overrides so that the persisted
+        # user configuration takes precedence over environment defaults set by
+        # app_desktop.py.
+        _RUNTIME_AI_ENV_OVERRIDES.update(config_data)
     except Exception as e:
         print(f"[ReqPilotX] Error loading config.json: {e}")
 
+
 _load_runtime_config_from_file()
 
-def _save_runtime_config_to_file() -> None:
+
+def _clear_runtime_connection_caches() -> None:
+    for name in (
+        "_default_azure_credential",
+        "_azure_openai_token_provider",
+        "_azure_openai_client",
+        "_aliyun_openai_client",
+        "_dashvector_client",
+        "_qdrant_client",
+    ):
+        cache_clear = getattr(globals().get(name), "cache_clear", None)
+        if callable(cache_clear):
+            cache_clear()
+
+
+def reload_runtime_ai_config_from_file() -> int:
+    """Atomically replace one idle worker's effective persisted AI snapshot."""
+
+    global _RUNTIME_AI_ENV_OVERRIDES
+
     try:
-        config_path = STORAGE_DIR / "config.json"
-        existing_config = {}
+        snapshot = _runtime_config_snapshot_from_file()
+    except Exception as exc:
+        raise RuntimeError("Runtime provider configuration could not be reloaded.") from exc
+    raw_revision = snapshot.get(
+        "REQPILOT_RUNTIME_CONNECTION_REVISION",
+        os.getenv("REQPILOT_RUNTIME_CONNECTION_REVISION") or "0",
+    )
+    try:
+        revision = int(raw_revision)
+    except (TypeError, ValueError) as exc:
+        raise RuntimeError(
+            "Runtime provider configuration has an invalid connection revision."
+        ) from exc
+    if revision < 0:
+        raise RuntimeError(
+            "Runtime provider configuration has an invalid connection revision."
+        )
+    with _RUNTIME_AI_CONFIG_LOCK:
+        # Readers that do not take the mutation lock see either the complete
+        # previous mapping or the complete new mapping, never a clear/update
+        # intermediate state.
+        _RUNTIME_AI_ENV_OVERRIDES = dict(snapshot)
+        _clear_runtime_connection_caches()
+    return revision
+
+
+def _save_runtime_config_to_file() -> None:
+    config_path = STORAGE_DIR / "config.json"
+    temporary_path: Path | None = None
+    try:
+        STORAGE_DIR.mkdir(parents=True, exist_ok=True, mode=0o700)
+        os.chmod(STORAGE_DIR, 0o700)
+        existing_config: dict[str, Any] = {}
         if config_path.exists():
-            try:
-                existing_config = json.loads(config_path.read_text(encoding="utf-8"))
-            except Exception:
-                pass
+            loaded_config = json.loads(config_path.read_text(encoding="utf-8"))
+            if not isinstance(loaded_config, dict):
+                raise ValueError("runtime config root must be a JSON object")
+            existing_config = loaded_config
         for k, v in _RUNTIME_AI_ENV_OVERRIDES.items():
             if v is not None:
                 if v == "":
@@ -160,9 +292,51 @@ def _save_runtime_config_to_file() -> None:
         else:
             existing_config.pop("REQPILOT_DASHSCOPE_API_KEY", None)
             existing_config.pop("DASHSCOPE_API_KEY", None)
-        config_path.write_text(json.dumps(existing_config, indent=2, ensure_ascii=False), encoding="utf-8")
-    except Exception as e:
-        print(f"[ReqPilotX] Error saving config.json: {e}")
+        serialized = (
+            json.dumps(existing_config, indent=2, ensure_ascii=False) + "\n"
+        ).encode("utf-8")
+        descriptor, temporary_name = tempfile.mkstemp(
+            prefix=".config.json.",
+            suffix=".tmp",
+            dir=STORAGE_DIR,
+        )
+        temporary_path = Path(temporary_name)
+        with os.fdopen(descriptor, "wb") as handle:
+            if hasattr(os, "fchmod"):
+                os.fchmod(handle.fileno(), 0o600)
+            handle.write(serialized)
+            handle.flush()
+            os.fsync(handle.fileno())
+        os.chmod(temporary_path, 0o600)
+        os.replace(temporary_path, config_path)
+        temporary_path = None
+        _fsync_directory(STORAGE_DIR)
+    except Exception as exc:
+        if temporary_path is not None:
+            try:
+                temporary_path.unlink()
+            except FileNotFoundError:
+                pass
+        raise RuntimeError(
+            "Runtime provider configuration could not be persisted safely."
+        ) from exc
+
+
+def _fsync_directory(directory: Path) -> None:
+    if os.name == "nt":
+        return
+    flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    try:
+        descriptor = os.open(directory, flags)
+        try:
+            os.fsync(descriptor)
+        finally:
+            os.close(descriptor)
+    except OSError:
+        # The file itself has already been flushed and atomically replaced.
+        # A filesystem without directory fsync must not turn that successful
+        # swap into a false API failure after the old file is gone.
+        _logger.warning("Runtime config directory fsync is unavailable.")
 
 
 class AIAnalysisCancelledError(RuntimeError):
@@ -170,7 +344,7 @@ class AIAnalysisCancelledError(RuntimeError):
 
 
 class AssessmentEvidenceSchema(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid")
 
     evidence_slot: int = 0
     chunk_id: str = ""
@@ -180,6 +354,9 @@ class AssessmentEvidenceSchema(BaseModel):
     excerpt: str = ""
     relevance: float = 0.0
     source_doc_version: str = ""
+    evidence_id: str = ""
+    content_hash: str = ""
+    evidence_contract_version: str = ""
 
 
 class ScreeningOutputSchema(BaseModel):
@@ -189,16 +366,93 @@ class ScreeningOutputSchema(BaseModel):
     reason: str
 
 
+class AssessmentGapEvidenceSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    retrieval_evidence_id: str = ""
+    proves: str = ""
+
+
+class AssessmentMissingItemSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    item: str = ""
+    blocking_reason: str = ""
+    required_input: str = ""
+
+
+class AssessmentEvidenceConflictSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    retrieval_evidence_ids: list[str] = Field(default_factory=list)
+    description: str = ""
+
+
+class AssessmentInformationGapSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    schema_version: str = "assessment-information-gap/v1"
+    found_evidence: list[AssessmentGapEvidenceSchema] = Field(default_factory=list)
+    missing_items: list[AssessmentMissingItemSchema] = Field(default_factory=list)
+    conflicts: list[AssessmentEvidenceConflictSchema] = Field(default_factory=list)
+    clarification_questions: list[str] = Field(default_factory=list)
+
+
+class AssessmentEvidenceFindingSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    retrieval_evidence_id: str = ""
+    finding: Literal[
+        "SUPPORTS",
+        "PARTIALLY_SUPPORTS",
+        "CONTRADICTS",
+        "CONTEXT_ONLY",
+    ] = "CONTEXT_ONLY"
+    supported_claims: list[str] = Field(default_factory=list)
+    unsupported_claims: list[str] = Field(default_factory=list)
+    rationale: str = ""
+
+
+class AssessmentSubJudgmentSchema(BaseModel):
+    model_config = ConfigDict(extra="forbid")
+
+    sub_judgment_id: str = ""
+    source_ranges: list[str] = Field(default_factory=list)
+    statement: str = ""
+    compliance_status: Literal[
+        "COMPLIANT",
+        "PARTIALLY_COMPLIANT",
+        "NON_COMPLIANT",
+        "INSUFFICIENT_INFORMATION",
+    ] = "INSUFFICIENT_INFORMATION"
+    reason: str = ""
+    retrieval_evidence_ids: list[str] = Field(default_factory=list)
+    structured_information_gap: AssessmentInformationGapSchema = Field(
+        default_factory=AssessmentInformationGapSchema
+    )
+
+
 class AssessmentOutputSchema(BaseModel):
-    model_config = ConfigDict(extra="ignore")
+    model_config = ConfigDict(extra="forbid")
 
     normalized_requirement: str = ""
     proposed_decision: Literal["ACCEPT", "REJECT", "DEVIATION_ACCEPT", "NEED_CLARIFICATION"] = "NEED_CLARIFICATION"
+    compliance_status: Literal[
+        "COMPLIANT",
+        "PARTIALLY_COMPLIANT",
+        "NON_COMPLIANT",
+        "INSUFFICIENT_INFORMATION",
+    ] | None = None
     confidence: float = 0.0
     reason: str = ""
     risk_level: Literal["LOW", "MEDIUM", "HIGH"] = "MEDIUM"
     clarification_question: str = ""
     evidences: list[AssessmentEvidenceSchema] = Field(default_factory=list)
+    evidence_findings: list[AssessmentEvidenceFindingSchema] = Field(default_factory=list)
+    sub_judgments: list[AssessmentSubJudgmentSchema] = Field(default_factory=list)
+    structured_information_gap: AssessmentInformationGapSchema = Field(
+        default_factory=AssessmentInformationGapSchema
+    )
 
 
 @dataclass(frozen=True)
@@ -239,6 +493,7 @@ class AICopilotConfig:
     qdrant_url: str = ""
     qdrant_api_key: str = ""
     qdrant_collection_name: str = DEFAULT_QDRANT_COLLECTION_NAME
+    visual_text_model: str = DEFAULT_BAILIAN_OCR_MODEL
 
     @property
     def llm_enabled(self) -> bool:
@@ -411,6 +666,20 @@ def _get_config_value(name: str, default: str = "") -> str:
     return str(os.getenv(name) or default).strip()
 
 
+def get_runtime_ai_config_value(name: str, default: str = "") -> str:
+    """Read one effective runtime setting without exposing the override store."""
+
+    return _get_config_value(name, default)
+
+
+def get_runtime_connection_revision() -> int:
+    value = _get_config_value("REQPILOT_RUNTIME_CONNECTION_REVISION", "0")
+    try:
+        return max(int(value), 0)
+    except (TypeError, ValueError):
+        return 0
+
+
 def _first_nonempty_env(*names: str) -> str:
     for name in names:
         value = _get_config_value(name)
@@ -548,6 +817,13 @@ def load_ai_profiles() -> dict[str, AICopilotConfig]:
         or DEFAULT_DASHSCOPE_SCREENING_MODEL
     )
     aliyun_embedding_model = _get_config_value("REQPILOT_ALIYUN_EMBEDDING_MODEL", DEFAULT_DASHSCOPE_EMBEDDING_MODEL) or DEFAULT_DASHSCOPE_EMBEDDING_MODEL
+    aliyun_visual_text_model = (
+        _get_config_value(
+            "REQPILOT_ALIYUN_VISUAL_TEXT_MODEL",
+            DEFAULT_BAILIAN_OCR_MODEL,
+        )
+        or DEFAULT_BAILIAN_OCR_MODEL
+    )
     requested_aliyun_backend = _get_config_value("REQPILOT_ALIYUN_RETRIEVAL_BACKEND").lower()
     aliyun_backend = "qdrant" if requested_aliyun_backend == "qdrant" else DISABLED_RETRIEVAL_BACKEND
     aliyun_qdrant_url = _normalize_qdrant_url(
@@ -631,6 +907,7 @@ def load_ai_profiles() -> dict[str, AICopilotConfig]:
             qdrant_url=aliyun_qdrant_url,
             qdrant_api_key=aliyun_qdrant_api_key,
             qdrant_collection_name=aliyun_qdrant_collection,
+            visual_text_model=aliyun_visual_text_model,
         ),
     }
     return profiles
@@ -696,15 +973,58 @@ def _set_runtime_config_value(name: str, value: str | None) -> None:
     _RUNTIME_AI_ENV_OVERRIDES[name] = text
 
 
+def _material_runtime_override_snapshot() -> dict[str, str]:
+    return {
+        key: value
+        for key, value in _RUNTIME_AI_ENV_OVERRIDES.items()
+        if key != "REQPILOT_RUNTIME_CONNECTION_REVISION"
+    }
+
+
 def clear_runtime_ai_provider_overrides() -> None:
     _RUNTIME_AI_ENV_OVERRIDES.clear()
-    _default_azure_credential.cache_clear()
-    _azure_openai_token_provider.cache_clear()
+    _clear_runtime_connection_caches()
 
 
 def is_ascii_runtime_secret(value: str) -> bool:
     text = str(value or "")
     return not text or text.isascii()
+
+
+def validate_dashscope_compatible_base_url(value: str) -> str:
+    """Return a canonical, allowlisted DashScope OpenAI-compatible base URL."""
+
+    raw_value = str(value or "").strip()
+    try:
+        parsed = urlsplit(raw_value)
+        port = parsed.port
+        hostname = str(parsed.hostname or "").lower()
+    except ValueError as exc:
+        raise ValueError(
+            "Aliyun base URL must use an approved DashScope compatible endpoint."
+        ) from exc
+    host_allowed = hostname in _DASHSCOPE_PUBLIC_HOSTS or bool(
+        _DASHSCOPE_WORKSPACE_HOST_PATTERN.fullmatch(hostname)
+    )
+    if (
+        parsed.scheme.lower() != "https"
+        or not parsed.netloc
+        or parsed.username is not None
+        or parsed.password is not None
+        or port not in {None, 443}
+        or not host_allowed
+        or parsed.path.rstrip("/") != "/compatible-mode/v1"
+        or parsed.query
+        or parsed.fragment
+        or "?" in raw_value
+        or "#" in raw_value
+    ):
+        raise ValueError(
+            "Aliyun base URL must use an approved DashScope compatible endpoint."
+        )
+    return urlunsplit(
+        ("https", hostname, "/compatible-mode/v1", "", "")
+    )
 
 
 def _dedupe_preserving_order(values: list[str]) -> list[str]:
@@ -735,12 +1055,30 @@ def build_runtime_ai_provider_setup() -> dict[str, Any]:
             "missing": get_ai_profile_missing_config(azure_config),
             "recommended_auth": "azure_cli_rbac",
             "interactive_browser_supported": True,
+            "document_intelligence_endpoint": _get_config_value(
+                "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT"
+            ),
+            "document_intelligence_api_key_configured": bool(
+                _get_config_value("AZURE_DOCUMENT_INTELLIGENCE_API_KEY")
+            ),
             "search_endpoint": _get_config_value("AZURE_AI_SEARCH_ENDPOINT"),
             "search_index_name": _get_config_value("AZURE_AI_SEARCH_INDEX_NAME"),
             "openai_endpoint": _get_config_value("AZURE_OPENAI_ENDPOINT"),
             "chat_deployment": _get_config_value("AZURE_OPENAI_CHAT_DEPLOYMENT"),
-            "embedding_deployment": _get_config_value("AZURE_OPENAI_EMBEDDING_DEPLOYMENT"),
-            "screening_deployment": _get_config_value("AZURE_OPENAI_SCREENING_DEPLOYMENT"),
+            "sol_deployment": _get_config_value(
+                "AZURE_OPENAI_SOL_DEPLOYMENT",
+                _get_config_value("AZURE_OPENAI_CHAT_DEPLOYMENT"),
+            ),
+            "terra_deployment": _get_config_value(
+                "AZURE_OPENAI_TERRA_DEPLOYMENT",
+                _get_config_value("AZURE_OPENAI_CHAT_DEPLOYMENT"),
+            ),
+            "embedding_deployment": _get_config_value(
+                "AZURE_OPENAI_EMBEDDING_DEPLOYMENT"
+            ),
+            "screening_deployment": _get_config_value(
+                "AZURE_OPENAI_SCREENING_DEPLOYMENT"
+            ),
             "assessment_mode": azure_config.assessment_mode,
         },
         "aliyun": {
@@ -750,36 +1088,105 @@ def build_runtime_ai_provider_setup() -> dict[str, Any]:
             "missing": get_ai_profile_missing_config(aliyun_config),
             "base_url": aliyun_config.dashscope_base_url or DEFAULT_DASHSCOPE_BASE_URL,
             "chat_model": aliyun_config.chat_model or DEFAULT_DASHSCOPE_CHAT_MODEL,
-            "embedding_model": aliyun_config.embedding_model or DEFAULT_DASHSCOPE_EMBEDDING_MODEL,
+            "screening_model": aliyun_config.screening_model
+            or DEFAULT_DASHSCOPE_SCREENING_MODEL,
+            "embedding_model": aliyun_config.embedding_model
+            or DEFAULT_DASHSCOPE_EMBEDDING_MODEL,
             "qdrant_url": aliyun_config.qdrant_url or DEFAULT_LOCAL_QDRANT_URL,
-            "qdrant_collection": aliyun_config.qdrant_collection_name or DEFAULT_ALIYUN_LOCAL_QDRANT_COLLECTION_NAME,
+            "qdrant_collection": aliyun_config.qdrant_collection_name
+            or DEFAULT_ALIYUN_LOCAL_QDRANT_COLLECTION_NAME,
             "api_key_configured": bool(aliyun_config.dashscope_api_key),
             "qdrant_api_key_configured": bool(aliyun_config.qdrant_api_key),
         },
+        "connection_revision": get_runtime_connection_revision(),
     }
 
 
 def apply_runtime_ai_provider_setup(payload: dict[str, Any]) -> dict[str, Any]:
+    with _RUNTIME_AI_CONFIG_LOCK:
+        previous_overrides = dict(_RUNTIME_AI_ENV_OVERRIDES)
+        try:
+            return _apply_runtime_ai_provider_setup_mutating(payload)
+        except Exception:
+            _RUNTIME_AI_ENV_OVERRIDES.clear()
+            _RUNTIME_AI_ENV_OVERRIDES.update(previous_overrides)
+            raise
+
+
+def _apply_runtime_ai_provider_setup_mutating(
+    payload: dict[str, Any],
+) -> dict[str, Any]:
+    previous_material_snapshot = _material_runtime_override_snapshot()
     default_profile_id = str(payload.get("default_profile_id") or "").strip().lower()
+    aliyun_payload = payload.get("aliyun") or {}
+    reading_visual_payload = aliyun_payload.get("reading_visual")
+    validated_aliyun_base_url: str | None = None
+    if default_profile_id == DEFAULT_ALIYUN_PROFILE_ID or aliyun_payload:
+        validated_aliyun_base_url = validate_dashscope_compatible_base_url(
+            str(
+                aliyun_payload.get("base_url")
+                or _get_config_value("REQPILOT_DASHSCOPE_BASE_URL")
+                or DEFAULT_DASHSCOPE_BASE_URL
+            )
+        )
     if default_profile_id in {DEFAULT_AZURE_PROFILE_ID, DEFAULT_ALIYUN_PROFILE_ID}:
         _set_runtime_config_value("REQPILOT_AI_DEFAULT_PROFILE", default_profile_id)
 
     azure_payload = payload.get("azure") or {}
     if default_profile_id == DEFAULT_AZURE_PROFILE_ID or azure_payload:
-        _set_runtime_config_value("REQPILOT_AZURE_AUTH_MODE", str(azure_payload.get("auth_mode") or "rbac"))
+        _set_runtime_config_value(
+            "REQPILOT_AZURE_AUTH_MODE", str(azure_payload.get("auth_mode") or "rbac")
+        )
         # Persist Azure deployment infrastructure details
+        if str(azure_payload.get("document_intelligence_endpoint") or "").strip():
+            _set_runtime_config_value(
+                "AZURE_DOCUMENT_INTELLIGENCE_ENDPOINT",
+                str(azure_payload["document_intelligence_endpoint"]).strip(),
+            )
+        if str(azure_payload.get("document_intelligence_api_key") or "").strip():
+            _set_runtime_config_value(
+                "AZURE_DOCUMENT_INTELLIGENCE_API_KEY",
+                str(azure_payload["document_intelligence_api_key"]).strip(),
+            )
         if str(azure_payload.get("search_endpoint") or "").strip():
-            _set_runtime_config_value("AZURE_AI_SEARCH_ENDPOINT", str(azure_payload["search_endpoint"]).strip())
+            _set_runtime_config_value(
+                "AZURE_AI_SEARCH_ENDPOINT",
+                str(azure_payload["search_endpoint"]).strip(),
+            )
         if str(azure_payload.get("search_index_name") or "").strip():
-            _set_runtime_config_value("AZURE_AI_SEARCH_INDEX_NAME", str(azure_payload["search_index_name"]).strip())
+            _set_runtime_config_value(
+                "AZURE_AI_SEARCH_INDEX_NAME",
+                str(azure_payload["search_index_name"]).strip(),
+            )
         if str(azure_payload.get("openai_endpoint") or "").strip():
-            _set_runtime_config_value("AZURE_OPENAI_ENDPOINT", str(azure_payload["openai_endpoint"]).strip())
+            _set_runtime_config_value(
+                "AZURE_OPENAI_ENDPOINT", str(azure_payload["openai_endpoint"]).strip()
+            )
         if str(azure_payload.get("chat_deployment") or "").strip():
-            _set_runtime_config_value("AZURE_OPENAI_CHAT_DEPLOYMENT", str(azure_payload["chat_deployment"]).strip())
+            _set_runtime_config_value(
+                "AZURE_OPENAI_CHAT_DEPLOYMENT",
+                str(azure_payload["chat_deployment"]).strip(),
+            )
+        if str(azure_payload.get("sol_deployment") or "").strip():
+            _set_runtime_config_value(
+                "AZURE_OPENAI_SOL_DEPLOYMENT",
+                str(azure_payload["sol_deployment"]).strip(),
+            )
+        if str(azure_payload.get("terra_deployment") or "").strip():
+            _set_runtime_config_value(
+                "AZURE_OPENAI_TERRA_DEPLOYMENT",
+                str(azure_payload["terra_deployment"]).strip(),
+            )
         if str(azure_payload.get("embedding_deployment") or "").strip():
-            _set_runtime_config_value("AZURE_OPENAI_EMBEDDING_DEPLOYMENT", str(azure_payload["embedding_deployment"]).strip())
+            _set_runtime_config_value(
+                "AZURE_OPENAI_EMBEDDING_DEPLOYMENT",
+                str(azure_payload["embedding_deployment"]).strip(),
+            )
         if str(azure_payload.get("screening_deployment") or "").strip():
-            _set_runtime_config_value("AZURE_OPENAI_SCREENING_DEPLOYMENT", str(azure_payload["screening_deployment"]).strip())
+            _set_runtime_config_value(
+                "AZURE_OPENAI_SCREENING_DEPLOYMENT",
+                str(azure_payload["screening_deployment"]).strip(),
+            )
         # Auto-detect assessment mode: enable llm_shadow when all required infra vars are present
         azure_search_ep = _get_config_value("AZURE_AI_SEARCH_ENDPOINT")
         azure_openai_ep = _get_config_value("AZURE_OPENAI_ENDPOINT")
@@ -793,7 +1200,6 @@ def apply_runtime_ai_provider_setup(payload: dict[str, Any]) -> dict[str, Any]:
             "true" if bool(azure_payload.get("allow_interactive_login")) else "",
         )
 
-    aliyun_payload = payload.get("aliyun") or {}
     if default_profile_id == DEFAULT_ALIYUN_PROFILE_ID or aliyun_payload:
         _set_runtime_config_value(
             "REQPILOT_ALIYUN_RETRIEVAL_BACKEND",
@@ -802,11 +1208,23 @@ def apply_runtime_ai_provider_setup(payload: dict[str, Any]) -> dict[str, Any]:
         _set_runtime_config_value("REQPILOT_ALIYUN_ASSESSMENT_MODE", "llm_shadow")
         _set_runtime_config_value(
             "REQPILOT_DASHSCOPE_BASE_URL",
-            str(aliyun_payload.get("base_url") or _get_config_value("REQPILOT_DASHSCOPE_BASE_URL") or DEFAULT_DASHSCOPE_BASE_URL),
+            validated_aliyun_base_url,
         )
         _set_runtime_config_value(
             "REQPILOT_ALIYUN_CHAT_MODEL",
-            str(aliyun_payload.get("chat_model") or _get_config_value("REQPILOT_ALIYUN_CHAT_MODEL") or DEFAULT_DASHSCOPE_CHAT_MODEL),
+            str(
+                aliyun_payload.get("chat_model")
+                or _get_config_value("REQPILOT_ALIYUN_CHAT_MODEL")
+                or DEFAULT_DASHSCOPE_CHAT_MODEL
+            ),
+        )
+        _set_runtime_config_value(
+            "REQPILOT_ALIYUN_SCREENING_CHAT_MODEL",
+            str(
+                aliyun_payload.get("screening_model")
+                or _get_config_value("REQPILOT_ALIYUN_SCREENING_CHAT_MODEL")
+                or DEFAULT_DASHSCOPE_SCREENING_MODEL
+            ),
         )
         _set_runtime_config_value(
             "REQPILOT_ALIYUN_EMBEDDING_MODEL",
@@ -818,7 +1236,11 @@ def apply_runtime_ai_provider_setup(payload: dict[str, Any]) -> dict[str, Any]:
         )
         _set_runtime_config_value(
             "REQPILOT_ALIYUN_QDRANT_URL",
-            str(aliyun_payload.get("qdrant_url") or _get_config_value("REQPILOT_ALIYUN_QDRANT_URL") or DEFAULT_LOCAL_QDRANT_URL),
+            str(
+                aliyun_payload.get("qdrant_url")
+                or _get_config_value("REQPILOT_ALIYUN_QDRANT_URL")
+                or DEFAULT_LOCAL_QDRANT_URL
+            ),
         )
         _set_runtime_config_value(
             "REQPILOT_ALIYUN_QDRANT_COLLECTION",
@@ -829,11 +1251,35 @@ def apply_runtime_ai_provider_setup(payload: dict[str, Any]) -> dict[str, Any]:
             ),
         )
     if str(aliyun_payload.get("api_key") or "").strip():
-        _set_runtime_config_value("REQPILOT_ALIYUN_API_KEY", str(aliyun_payload.get("api_key") or ""))
+        _set_runtime_config_value(
+            "REQPILOT_ALIYUN_API_KEY", str(aliyun_payload.get("api_key") or "")
+        )
     if str(aliyun_payload.get("qdrant_api_key") or "").strip():
-        _set_runtime_config_value("REQPILOT_ALIYUN_QDRANT_API_KEY", str(aliyun_payload.get("qdrant_api_key") or ""))
+        _set_runtime_config_value(
+            "REQPILOT_ALIYUN_QDRANT_API_KEY",
+            str(aliyun_payload.get("qdrant_api_key") or ""),
+        )
+    if reading_visual_payload is not None:
+        from app.application.reading_visual_configuration import (
+            reading_visual_persisted_values,
+            validate_reading_visual_setup_payload,
+        )
+
+        validate_reading_visual_setup_payload(reading_visual_payload)
+        for key, value in reading_visual_persisted_values().items():
+            _set_runtime_config_value(key, value)
+    material_changed = (
+        _material_runtime_override_snapshot() != previous_material_snapshot
+    )
+    if not material_changed:
+        return build_runtime_ai_provider_setup()
+    _set_runtime_config_value(
+        "REQPILOT_RUNTIME_CONNECTION_REVISION",
+        str(get_runtime_connection_revision() + 1),
+    )
+    response = build_runtime_ai_provider_setup()
     _save_runtime_config_to_file()
-    return build_runtime_ai_provider_setup()
+    return response
 
 
 def get_ai_profile_missing_config(config: AICopilotConfig) -> list[str]:
@@ -841,12 +1287,16 @@ def get_ai_profile_missing_config(config: AICopilotConfig) -> list[str]:
     if config.provider == DEFAULT_ALIYUN_PROFILE_ID:
         if config.llm_enabled and not config.dashscope_api_key:
             missing.append("DASHSCOPE_API_KEY")
-        elif config.llm_enabled and not is_ascii_runtime_secret(config.dashscope_api_key):
+        elif config.llm_enabled and not is_ascii_runtime_secret(
+            config.dashscope_api_key
+        ):
             missing.append(ALIYUN_API_KEY_NON_ASCII_REASON)
         if config.llm_enabled and not config.dashscope_base_url:
             missing.append("REQPILOT_DASHSCOPE_BASE_URL")
         if config.llm_enabled and not config.chat_model:
             missing.append("REQPILOT_ALIYUN_CHAT_MODEL")
+        if config.llm_enabled and not config.screening_model:
+            missing.append("REQPILOT_ALIYUN_SCREENING_CHAT_MODEL")
         if config.retrieval_backend == DISABLED_RETRIEVAL_BACKEND:
             missing.append(ALIYUN_RETRIEVAL_DISABLED_REASON)
         elif config.retrieval_backend == "qdrant":
@@ -862,7 +1312,9 @@ def get_ai_profile_missing_config(config: AICopilotConfig) -> list[str]:
                 missing.append("REQPILOT_ALIYUN_QDRANT_URL")
             if not config.qdrant_collection_name:
                 missing.append("REQPILOT_ALIYUN_QDRANT_COLLECTION")
-            if config.qdrant_api_key and not is_ascii_runtime_secret(config.qdrant_api_key):
+            if config.qdrant_api_key and not is_ascii_runtime_secret(
+                config.qdrant_api_key
+            ):
                 missing.append(ALIYUN_QDRANT_API_KEY_NON_ASCII_REASON)
         else:
             missing.append("REQPILOT_ALIYUN_RETRIEVAL_BACKEND=qdrant")
@@ -981,7 +1433,7 @@ def run_ai_copilot_assessment(
     evidences = _extend_evidence_with_adjacent_chunks(evidences, knowledge_docs=knowledge_docs)
     heuristics = HeuristicAssessmentEngine()
 
-    if config.assessment_mode == "heuristic":
+    if config.assessment_mode in {"heuristic", "llm_shadow"}:
         _emit_progress_stage_update(
             progress_callback,
             stage="assessment",
@@ -1014,14 +1466,15 @@ def run_ai_copilot_assessment(
             fallback_reason=final_result["fallback_reason"],
             retrieval_backend=retriever.backend_name,
         )
-        return _finalize_assessment_result(
-            final_result,
-            evidences,
-            collector,
-            final_mode="heuristic",
-            final_model_name=heuristics.model_name,
-            final_prompt_version=heuristics.prompt_version,
-        )
+        if config.assessment_mode == "heuristic":
+            return _finalize_assessment_result(
+                final_result,
+                evidences,
+                collector,
+                final_mode="heuristic",
+                final_model_name=heuristics.model_name,
+                final_prompt_version=heuristics.prompt_version,
+            )
 
     llm_engine = _select_assessment_engine(config)
     assessment_progress_callback = _progress_callback_with_metadata(
@@ -1040,9 +1493,11 @@ def run_ai_copilot_assessment(
         message="候选证据已就绪，正在生成结构化结论。",
     )
     if config.assessment_mode == "llm_shadow":
+        # The heuristic result above is the serving result. Reconciliation here
+        # validates shadow telemetry only and must never replace final_result.
         try:
             llm_result = llm_engine.assess(context, evidences, progress_callback=assessment_progress_callback)
-            final_result = reconcile_assessment_output(
+            llm_final = reconcile_assessment_output(
                 context=context,
                 candidate=llm_result,
                 retrieved_evidences=evidences,
@@ -1050,31 +1505,15 @@ def run_ai_copilot_assessment(
                 retrieval_backend=retriever.backend_name,
                 reconciliation_policy=_reconciliation_policy_for_config(config),
             )
-            final_result["analysis_basis"] = _build_requirement_analysis_basis(
-                context=context,
-                screening=screening,
-                retrieval_backend=retriever.backend_name,
-                evidences=evidences,
-                selected_mode="llm_shadow",
-                llm_final=final_result,
-            )
             collector.record_result(
                 mode="llm_shadow",
                 model_name=llm_engine.model_name,
                 prompt_version=llm_engine.prompt_version,
                 input_payload={"context": context, "evidences": evidences},
                 output_payload=llm_result,
-                validation_status=final_result["validation_status"],
-                fallback_reason=final_result["fallback_reason"],
+                validation_status=llm_final["validation_status"],
+                fallback_reason=llm_final["fallback_reason"],
                 retrieval_backend=retriever.backend_name,
-            )
-            return _finalize_assessment_result(
-                final_result,
-                evidences,
-                collector,
-                final_mode="llm_shadow",
-                final_model_name=llm_engine.model_name,
-                final_prompt_version=llm_engine.prompt_version,
             )
         except AIAnalysisCancelledError:
             raise
@@ -1088,19 +1527,14 @@ def run_ai_copilot_assessment(
                 fallback_reason=failure_reason,
                 retrieval_backend=retriever.backend_name,
             )
-            return _finalize_assessment_result(
-                build_analysis_failed_assessment_result(
-                    context=context,
-                    screening=screening,
-                    retrieval_backend=retriever.backend_name,
-                    failure_reason=failure_reason,
-                ),
-                [],
-                collector,
-                final_mode="analysis_failed",
-                final_model_name=llm_engine.model_name,
-                final_prompt_version=llm_engine.prompt_version,
-            )
+        return _finalize_assessment_result(
+            final_result,
+            evidences,
+            collector,
+            final_mode="heuristic",
+            final_model_name=heuristics.model_name,
+            final_prompt_version=heuristics.prompt_version,
+        )
 
     try:
         llm_result = llm_engine.assess(context, evidences, progress_callback=assessment_progress_callback)
@@ -1171,8 +1605,17 @@ def sync_knowledge_document_index(
     *,
     config: AICopilotConfig | None = None,
     profile_ids: list[str] | None = None,
+    payload_dir: Path | None = None,
 ) -> dict[str, Any]:
-    chunks = build_knowledge_chunks(project_id, knowledge_doc)
+    lifecycle = evaluate_knowledge_evidence_eligibility(knowledge_doc)
+    chunks = build_knowledge_chunks(project_id, knowledge_doc) if lifecycle.allowed else []
+    indexing_precondition_error = ""
+    if not lifecycle.allowed:
+        indexing_precondition_error = (
+            f"knowledge_document_not_eligible: {lifecycle.reason}"
+        )
+    elif not chunks:
+        indexing_precondition_error = "knowledge_document_has_no_chunks"
     selected_profiles: list[AICopilotConfig]
     if config is not None:
         selected_profiles = [config]
@@ -1186,33 +1629,58 @@ def sync_knowledge_document_index(
         selected_profiles = [all_profiles[item] for item in requested_ids if item in all_profiles]
         if not selected_profiles:
             selected_profiles = list_ai_copilot_profiles()
+    # Persist the current canonical payload before touching a remote provider,
+    # but do not claim any profile was synced until its upsert succeeds.
     payload_path = write_knowledge_index_payload(
         knowledge_doc,
         chunks,
-        profile_ids=[item.profile_id for item in selected_profiles],
+        profile_ids=[],
+        payload_dir=payload_dir,
     )
     synced_at = _now_iso_utc()
 
     targets: dict[str, dict[str, Any]] = {}
+    synced_profile_ids: list[str] = []
     for selected in selected_profiles:
         status = "READY"
         error = ""
-        if not chunks:
-            status = "READY"
+        written_chunk_count = 0
+        try:
+            evidence_index_resource = _evidence_index_resource(selected)
+        except ValueError as exc:
+            evidence_index_resource = str(selected.dashvector_collection_name or "")
+            status = "ERROR"
+            error = str(exc)
+        if indexing_precondition_error:
+            status = "ERROR"
+            error = indexing_precondition_error
+        elif status == "ERROR":
+            pass
         elif selected.provider == DEFAULT_ALIYUN_PROFILE_ID and selected.retrieval_backend == DISABLED_RETRIEVAL_BACKEND:
             status = "ERROR"
             error = ALIYUN_RETRIEVAL_DISABLED_MESSAGE
         elif selected.retrieval_backend == "local":
             status = "READY"
+            written_chunk_count = len(chunks)
         elif not selected.retrieval_runtime_ready:
             status = "ERROR"
             error = f"{selected.display_name} retrieval runtime is not configured."
         else:
             try:
-                _select_indexer(selected).upsert_chunks(chunks)
+                written_chunk_count = int(
+                    _select_indexer(selected).replace_chunks(chunks) or 0
+                )
+                if written_chunk_count != len(chunks):
+                    status = "ERROR"
+                    error = (
+                        "knowledge_index_write_count_mismatch:"
+                        f"{written_chunk_count}/{len(chunks)}"
+                    )
             except Exception as exc:  # pragma: no cover - network/provider dependent
                 status = "ERROR"
                 error = str(exc)
+        if status == "READY":
+            synced_profile_ids.append(selected.profile_id)
         targets[selected.profile_id] = {
             "profile_id": selected.profile_id,
             "provider": selected.provider,
@@ -1221,23 +1689,48 @@ def sync_knowledge_document_index(
             "status": status,
             "error": error,
             "synced_at": synced_at,
-            "chunk_count": len(chunks),
+            "chunk_count": written_chunk_count,
+            "planned_chunk_count": len(chunks),
             "payload_path": str(payload_path),
+            "evidence_contract_version": EVIDENCE_INDEX_CONTRACT_VERSION,
+            "evidence_index_resync_action": "" if status == "READY" else EVIDENCE_INDEX_RESYNC_ACTION,
+            "evidence_index_resource": evidence_index_resource,
         }
+    payload_path = write_knowledge_index_payload(
+        knowledge_doc,
+        chunks,
+        profile_ids=synced_profile_ids,
+        payload_dir=payload_dir,
+    )
     target_states = list(targets.values())
     ready_count = sum(1 for item in target_states if str(item.get("status") or "") == "READY")
-    overall_status = "READY" if ready_count == len(target_states) else ("PARTIAL" if ready_count else "ERROR")
+    overall_status = (
+        "ERROR"
+        if not target_states
+        else "READY"
+        if ready_count == len(target_states)
+        else "PARTIAL"
+        if ready_count
+        else "ERROR"
+    )
     overall_error = "; ".join(
         str(item.get("error") or "").strip()
         for item in target_states
         if str(item.get("error") or "").strip()
     )
+    overall_chunk_count = min(
+        (int(item.get("chunk_count") or 0) for item in target_states),
+        default=0,
+    )
     return {
         "status": overall_status,
         "error": overall_error,
         "synced_at": synced_at,
-        "chunk_count": len(chunks),
+        "chunk_count": overall_chunk_count,
+        "planned_chunk_count": len(chunks),
         "payload_path": str(payload_path),
+        "evidence_contract_version": EVIDENCE_INDEX_CONTRACT_VERSION,
+        "evidence_index_resync_action": "" if overall_status == "READY" else EVIDENCE_INDEX_RESYNC_ACTION,
         "targets": targets,
         **(target_states[0] if len(target_states) == 1 else {}),
     }
@@ -1263,6 +1756,12 @@ def build_assessment_context(requirement_row: dict[str, Any]) -> dict[str, Any]:
     ).strip()
     content_summary = summarize_content_blocks(requirement_row.get("content_blocks"))
     table_context = summarize_table_refs(requirement_row.get("table_refs"))
+    source_context = build_requirement_source_context(
+        requirement_row,
+        atomic_source_text=requirement_text,
+        parent_section_code=str(requirement_row.get("parent_section_code") or "").strip(),
+        parent_section_title=str(requirement_row.get("parent_section_title") or "").strip(),
+    )
     retrieval_requirement = str(normalization.get("retrieval_text") or normalized_requirement).strip()
     normalization_facet_text = str(normalization.get("facet_text") or "").strip()
     dense_query_parts: list[str] = []
@@ -1287,6 +1786,7 @@ def build_assessment_context(requirement_row: dict[str, Any]) -> dict[str, Any]:
         "entry_kind": str(requirement_row.get("entry_kind") or "REQUIREMENT").strip().upper() or "REQUIREMENT",
         "requirement_type": str(requirement_row.get("requirement_type") or "FUNCTIONAL").strip() or "FUNCTIONAL",
         "requirement_text": requirement_text,
+        "atomic_source_text": requirement_text,
         "normalized_requirement": normalized_requirement,
         "retrieval_requirement": retrieval_requirement,
         "normalization_facets": list(normalization.get("facets") or []),
@@ -1299,11 +1799,264 @@ def build_assessment_context(requirement_row: dict[str, Any]) -> dict[str, Any]:
         "table_refs": list(requirement_row.get("table_refs") or []),
         "content_summary": content_summary,
         "table_context": table_context,
+        "source_context": source_context,
+        "context_warnings": list(source_context.get("context_warnings") or []),
+        "context_completeness": dict(source_context.get("context_completeness") or {}),
+        "context_completeness_status": dict(
+            source_context.get("context_completeness_status") or {}
+        ),
         "retrieval_query": dense_retrieval_query,
         "dense_retrieval_query": dense_retrieval_query,
         "sparse_retrieval_query": sparse_retrieval_query,
         "retrieval_gate_reason": "",
     }
+
+
+def build_requirement_source_context(
+    requirement_row: dict[str, Any],
+    *,
+    atomic_source_text: str,
+    parent_section_code: str,
+    parent_section_title: str,
+) -> dict[str, Any]:
+    """Build a bounded, explicit context contract for one assessment item.
+
+    Optional hierarchy fields are passed through only when the caller actually
+    owns them. Missing hierarchy is surfaced as a warning instead of being
+    reconstructed from model assumptions.
+    """
+
+    full_parent_clause = _first_context_text(
+        requirement_row,
+        "full_parent_clause",
+        "parent_clause_text",
+        "parent_context_statement",
+        "parent_requirement_text",
+    )
+    direct_parent = _first_context_value(
+        requirement_row,
+        "direct_parent",
+        "parent_requirement",
+        "parent_entry",
+    )
+    direct_children = _first_context_value(
+        requirement_row,
+        "direct_children",
+        "child_requirements",
+        "children",
+    )
+    adjacent_context = _first_context_value(
+        requirement_row,
+        "adjacent_context",
+        "adjacent_entries",
+        "sibling_context",
+        "neighboring_requirements",
+    )
+    explicit_ancestor_path = _first_context_value(
+        requirement_row,
+        "ancestor_path",
+        "ancestor_sections",
+        "section_path",
+    )
+    explicit_ancestor_items = _bounded_context_items(
+        explicit_ancestor_path,
+        max_items=12,
+        max_chars=5000,
+    )
+    ancestor_path = list(explicit_ancestor_items)
+    declared_ancestor_status = str(
+        requirement_row.get("ancestor_path_status") or ""
+    ).strip().upper()
+    ancestor_path_is_partial = bool(
+        ancestor_path and declared_ancestor_status == "PARTIAL"
+    )
+    if not ancestor_path and (parent_section_code or parent_section_title):
+        ancestor_path = [
+            {
+                "section_code": parent_section_code,
+                "section_title": parent_section_title,
+                "path_source": "current_parent_section",
+            }
+        ]
+        ancestor_path_is_partial = True
+
+    content_blocks, content_blocks_truncated = _project_content_blocks(
+        requirement_row.get("content_blocks")
+    )
+    table_refs, table_refs_truncated = _project_table_context(
+        requirement_row.get("table_refs")
+    )
+    direct_parent_items = _bounded_context_items(direct_parent, max_items=1, max_chars=3000)
+    direct_children_items = _bounded_context_items(direct_children, max_items=8, max_chars=5000)
+    adjacent_items = _bounded_context_items(adjacent_context, max_items=8, max_chars=5000)
+
+    warnings: list[str] = []
+    if not full_parent_clause:
+        warnings.append("full_parent_clause_unavailable")
+    if not ancestor_path:
+        warnings.append("ancestor_path_unavailable")
+    elif ancestor_path_is_partial:
+        warnings.append("ancestor_path_partial")
+    if not direct_parent_items:
+        warnings.append("direct_parent_unavailable")
+    if not direct_children_items:
+        warnings.append("direct_children_unavailable")
+    if not adjacent_items:
+        warnings.append("adjacent_context_unavailable")
+    if content_blocks_truncated:
+        warnings.append("content_blocks_truncated")
+    if table_refs_truncated:
+        warnings.append("table_context_truncated")
+
+    context_completeness = {
+        "atomic_source_text": bool(atomic_source_text),
+        "full_parent_clause": bool(full_parent_clause),
+        "ancestor_path": bool(explicit_ancestor_items),
+        "direct_parent": bool(direct_parent_items),
+        "direct_children": bool(direct_children_items),
+        "adjacent_context": bool(adjacent_items),
+        "content_blocks": bool(content_blocks),
+        "table_context": bool(table_refs),
+    }
+    context_completeness_status = {
+        key: ("FULL" if available else "MISSING")
+        for key, available in context_completeness.items()
+    }
+    if ancestor_path_is_partial:
+        context_completeness_status["ancestor_path"] = "PARTIAL"
+
+    return {
+        "atomic_source_text": atomic_source_text,
+        "full_parent_clause": full_parent_clause,
+        "parent_clause_source": "explicit" if full_parent_clause else "unavailable",
+        "ancestor_path": ancestor_path,
+        "direct_parent": direct_parent_items[0] if direct_parent_items else None,
+        "direct_children": direct_children_items,
+        "adjacent_context": adjacent_items,
+        "content_blocks": content_blocks,
+        "table_context": table_refs,
+        "context_completeness": context_completeness,
+        "context_completeness_status": context_completeness_status,
+        "context_warnings": warnings,
+    }
+
+
+def _first_context_text(requirement_row: dict[str, Any], *keys: str) -> str:
+    for key in keys:
+        value = requirement_row.get(key)
+        if isinstance(value, str) and value.strip():
+            return value.strip()[:12_000]
+    return ""
+
+
+def _first_context_value(requirement_row: dict[str, Any], *keys: str) -> Any:
+    for key in keys:
+        value = requirement_row.get(key)
+        if value not in (None, "", [], {}):
+            return value
+    return None
+
+
+def _bounded_context_items(value: Any, *, max_items: int, max_chars: int) -> list[Any]:
+    if value in (None, "", [], {}):
+        return []
+    source = value if isinstance(value, list) else [value]
+    output: list[Any] = []
+    consumed = 0
+    for item in source[:max_items]:
+        if not isinstance(item, (str, dict)):
+            continue
+        normalized: Any
+        if isinstance(item, str):
+            normalized = item.strip()
+        else:
+            normalized = {
+                str(key): nested
+                for key, nested in item.items()
+                if nested not in (None, "", [], {})
+            }
+        if not normalized:
+            continue
+        encoded = json.dumps(normalized, ensure_ascii=False)
+        if consumed + len(encoded) > max_chars:
+            break
+        output.append(normalized)
+        consumed += len(encoded)
+    return output
+
+
+def _project_content_blocks(value: Any) -> tuple[list[dict[str, Any]], bool]:
+    if not isinstance(value, list):
+        return [], False
+    allowed_keys = (
+        "kind",
+        "text",
+        "table_id",
+        "source_location",
+        "page",
+        "page_index",
+        "section_code",
+        "section_title",
+    )
+    projected: list[dict[str, Any]] = []
+    consumed = 0
+    truncated = False
+    for raw in value:
+        if not isinstance(raw, dict):
+            continue
+        item = {
+            key: raw.get(key)
+            for key in allowed_keys
+            if raw.get(key) not in (None, "", [], {})
+        }
+        if not item:
+            continue
+        encoded = json.dumps(item, ensure_ascii=False)
+        if len(projected) >= 30 or consumed + len(encoded) > 12_000:
+            truncated = True
+            break
+        projected.append(item)
+        consumed += len(encoded)
+    return projected, truncated
+
+
+def _project_table_context(value: Any) -> tuple[list[dict[str, Any]], bool]:
+    if not isinstance(value, list):
+        return [], False
+    allowed_keys = (
+        "table_id",
+        "table_title",
+        "title",
+        "source_location",
+        "page",
+        "page_index",
+        "slice_ai_projection",
+        "slice_rows",
+        "headers",
+        "units",
+        "merged_cells",
+        "notes",
+    )
+    projected: list[dict[str, Any]] = []
+    consumed = 0
+    truncated = False
+    for raw in value:
+        if not isinstance(raw, dict):
+            continue
+        item = {
+            key: raw.get(key)
+            for key in allowed_keys
+            if raw.get(key) not in (None, "", [], {})
+        }
+        if not item:
+            continue
+        encoded = json.dumps(item, ensure_ascii=False)
+        if len(projected) >= 12 or consumed + len(encoded) > 16_000:
+            truncated = True
+            break
+        projected.append(item)
+        consumed += len(encoded)
+    return projected, truncated
 
 
 def summarize_content_blocks(value: object) -> str:
@@ -1748,29 +2501,242 @@ class HeuristicRequirementScreeningEngine:
             return {"analysis_label": "INFO", "reason": "条目缺少明确约束或动作要求，更像信息标签/输入描述。"}
         return {"analysis_label": "REQUIREMENT", "reason": "条目包含可判定的约束或行为要求，应进入需求分析。"}
 
+def _eligible_knowledge_documents(
+    knowledge_docs: list[dict[str, Any]],
+    *,
+    as_of: date | None = None,
+) -> list[dict[str, Any]]:
+    return [
+        doc
+        for doc in knowledge_docs
+        if evaluate_knowledge_evidence_eligibility(doc, as_of=as_of).allowed
+        and str(doc.get("id") or "").strip()
+    ]
 
-def _context_has_explicit_requirement_signal(context: dict[str, Any]) -> bool:
-    candidates = (
-        context.get("normalized_requirement"),
-        context.get("requirement_text"),
-        context.get("content_summary"),
-    )
-    for raw_candidate in candidates:
-        candidate = normalize_requirement_text(str(raw_candidate or ""))
-        if not candidate:
+
+def _filter_retrieved_evidence_candidates(
+    evidences: list[dict[str, Any]],
+    knowledge_docs: list[dict[str, Any]],
+    *,
+    as_of: date | None = None,
+    context: dict[str, Any] | None = None,
+) -> list[dict[str, Any]]:
+    eligible_docs = {
+        str(doc.get("id") or "").strip(): doc
+        for doc in _eligible_knowledge_documents(knowledge_docs, as_of=as_of)
+    }
+    canonical_candidates = _canonical_evidence_candidate_map(list(eligible_docs.values()))
+    filtered: list[dict[str, Any]] = []
+    contract_rejected = False
+    for evidence in evidences:
+        if not has_current_evidence_contract(evidence) or not bool(evidence.get("evidence_contract_verified")):
+            contract_rejected = True
             continue
-        lowered = candidate.lower()
-        if any(token in candidate for token in ("应", "必须", "应当", "不得", "需")):
-            return True
-        if re.search(r"\b(shall|must|required(?:\s+to)?|needs?\s+to)\b", lowered):
-            return True
-        if re.search(r"\b(tmin|tmax|ubmin|usmin|umin|umax|ueff)\b", lowered) and re.search(
-            r"(连续|持续|运行|工作|full functionality|continuous|operate|operation)",
-            candidate,
-            re.I,
+        evidence_id = str(evidence.get("evidence_id") or "").strip()
+        content_hash = str(evidence.get("content_hash") or "").strip().lower()
+        canonical_candidate = canonical_candidates.get(evidence_id)
+        if canonical_candidate is None or canonical_candidate["content_hash"] != content_hash:
+            contract_rejected = True
+            continue
+        source_doc_id = str(evidence.get("source_doc_id") or "").strip()
+        if source_doc_id != canonical_candidate["source_doc_id"]:
+            contract_rejected = True
+            continue
+        knowledge_doc = eligible_docs.get(source_doc_id)
+        if knowledge_doc is None:
+            contract_rejected = True
+            continue
+        candidate_lifecycle = {
+            "status": evidence.get("status"),
+            "doc_type": evidence.get("doc_type"),
+            "effective_from": evidence.get("effective_from"),
+            "effective_to": evidence.get("effective_to"),
+        }
+        if not evaluate_knowledge_evidence_eligibility(candidate_lifecycle, as_of=as_of).allowed:
+            contract_rejected = True
+            continue
+        if not _lifecycle_metadata_matches(candidate_lifecycle, knowledge_doc):
+            contract_rejected = True
+            continue
+        canonicalized = dict(evidence)
+        for field in (
+            "source_doc_id",
+            "source_doc_name",
+            "source_doc_version",
+            "source_location",
+            "excerpt",
+            "doc_type",
+            "status",
+            "effective_from",
+            "effective_to",
+            "authority",
+            "claim_role",
+            "applicability",
+            "table_id",
+            "native_locator",
+            "native_format",
+            "native_page",
+            "native_table_index",
+            "native_body_element_index",
+            "native_workbook",
+            "native_sheet",
+            "native_range",
         ):
-            return True
-    return False
+            canonicalized[field] = canonical_candidate[field]
+        if "content_kind" in canonicalized:
+            canonicalized["content_kind"] = canonical_candidate["content_kind"]
+        filtered.append(canonicalized)
+    if contract_rejected and not filtered and context is not None:
+        _mark_evidence_index_resync_required(context)
+    return filtered
+
+
+def _mark_evidence_index_resync_required(
+    context: dict[str, Any],
+    *,
+    detail: str = "",
+) -> None:
+    context["retrieval_gate_reason"] = EVIDENCE_INDEX_RESYNC_REQUIRED_REASON
+    context["retrieval_migration_action"] = EVIDENCE_INDEX_RESYNC_ACTION
+    if detail:
+        context["retrieval_migration_detail"] = detail
+
+
+def _is_evidence_contract_schema_error(exc: Exception) -> bool:
+    detail = str(exc or "").strip().lower()
+    contract_field_mentioned = any(
+        field in detail
+        for field in ("evidence_id", "content_hash", "evidence_contract_version")
+    )
+    schema_failure_mentioned = any(
+        token in detail
+        for token in (
+            "unknown field",
+            "field not found",
+            "does not exist",
+            "invalid field",
+            "invalid expression",
+            "could not find",
+        )
+    )
+    return contract_field_mentioned and schema_failure_mentioned
+
+
+def _canonical_evidence_candidate_map(
+    knowledge_docs: list[dict[str, Any]],
+) -> dict[str, dict[str, str]]:
+    candidates: dict[str, dict[str, str]] = {}
+    conflicts: set[str] = set()
+    for knowledge_doc in knowledge_docs:
+        project_id = str(knowledge_doc.get("project_id") or "").strip()
+        for chunk in build_knowledge_chunks(project_id, knowledge_doc):
+            evidence_id = str(chunk.get("evidence_id") or "").strip()
+            content_hash = str(chunk.get("content_hash") or "").strip().lower()
+            if not evidence_id or not content_hash:
+                continue
+            meta = dict(chunk.get("meta") or {})
+            candidate = {
+                "evidence_id": evidence_id,
+                "content_hash": content_hash,
+                "source_doc_id": str(meta.get("source_doc_id") or "").strip(),
+                "source_doc_name": str(meta.get("source_doc_name") or "").strip(),
+                "source_doc_version": str(meta.get("source_doc_version") or "").strip(),
+                "source_location": str(meta.get("source_location") or "").strip(),
+                "excerpt": str(chunk.get("content") or "")[:380].strip(),
+                "content_kind": str(meta.get("content_kind") or "").strip(),
+                "doc_type": str(meta.get("doc_type") or "").strip(),
+                "status": str(meta.get("status") or "").strip(),
+                "effective_from": str(meta.get("effective_from") or "").strip(),
+                "effective_to": str(meta.get("effective_to") or "").strip(),
+                "authority": str(meta.get("authority") or "UNKNOWN").strip(),
+                "claim_role": str(meta.get("claim_role") or "UNKNOWN").strip(),
+                "applicability": str(meta.get("applicability") or "UNKNOWN").strip(),
+                "table_id": str(meta.get("table_id") or "").strip(),
+                "native_locator": str(meta.get("native_locator") or "").strip(),
+                "native_format": str(meta.get("native_format") or "").strip(),
+                "native_page": str(meta.get("native_page") or "").strip(),
+                "native_table_index": str(
+                    meta.get("native_table_index") or ""
+                ).strip(),
+                "native_body_element_index": str(
+                    meta.get("native_body_element_index") or ""
+                ).strip(),
+                "native_workbook": str(
+                    meta.get("native_workbook") or ""
+                ).strip(),
+                "native_sheet": str(meta.get("native_sheet") or "").strip(),
+                "native_range": str(meta.get("native_range") or "").strip(),
+            }
+            previous_candidate = candidates.get(evidence_id)
+            if previous_candidate is not None and previous_candidate != candidate:
+                conflicts.add(evidence_id)
+                continue
+            candidates[evidence_id] = candidate
+    for evidence_id in conflicts:
+        candidates.pop(evidence_id, None)
+    return candidates
+
+
+def _canonical_evidence_contract_map(knowledge_docs: list[dict[str, Any]]) -> dict[str, str]:
+    return {
+        evidence_id: candidate["content_hash"]
+        for evidence_id, candidate in _canonical_evidence_candidate_map(knowledge_docs).items()
+    }
+
+
+def _remote_evidence_index_contract_ready(
+    knowledge_docs: list[dict[str, Any]],
+    *,
+    profile_id: str,
+    context: dict[str, Any],
+) -> bool:
+    for knowledge_doc in knowledge_docs:
+        document_id = str(knowledge_doc.get("id") or "").strip()
+        payload = _knowledge_index_payload(knowledge_doc)
+        if payload is None:
+            _mark_evidence_index_resync_required(context, detail=f"Missing current index payload for {document_id}.")
+            return False
+        if str(payload.get("evidence_contract_version") or "").strip() != EVIDENCE_INDEX_CONTRACT_VERSION:
+            _mark_evidence_index_resync_required(context, detail=f"Stale index contract for {document_id}.")
+            return False
+        payload_profiles = {str(item or "").strip().lower() for item in payload.get("profile_ids") or []}
+        if str(profile_id or "").strip().lower() not in payload_profiles:
+            _mark_evidence_index_resync_required(context, detail=f"Index payload for {document_id} is not synced to {profile_id}.")
+            return False
+        payload_chunks = payload.get("chunks")
+        if not isinstance(payload_chunks, list):
+            _mark_evidence_index_resync_required(context, detail=f"Index payload chunks are invalid for {document_id}.")
+            return False
+        payload_contracts: dict[str, str] = {}
+        try:
+            for chunk in payload_chunks:
+                if not isinstance(chunk, dict):
+                    raise ValueError("Invalid chunk payload.")
+                evidence_id = _require_chunk_evidence_contract(chunk)
+                content_hash = str(chunk.get("content_hash") or "").strip().lower()
+                if evidence_id in payload_contracts and payload_contracts[evidence_id] != content_hash:
+                    raise ValueError("Conflicting evidence identity in index payload.")
+                payload_contracts[evidence_id] = content_hash
+        except ValueError as exc:
+            _mark_evidence_index_resync_required(context, detail=f"{document_id}: {exc}")
+            return False
+        if payload_contracts != _canonical_evidence_contract_map([knowledge_doc]):
+            _mark_evidence_index_resync_required(context, detail=f"Index payload is stale for {document_id}.")
+            return False
+    return True
+
+
+def _lifecycle_metadata_matches(left: dict[str, Any], right: dict[str, Any]) -> bool:
+    return (
+        str(left.get("status") or "").strip().upper()
+        == str(right.get("status") or "").strip().upper()
+        and str(left.get("doc_type") or "").strip().upper()
+        == str(right.get("doc_type") or "").strip().upper()
+        and str(left.get("effective_from") or "").strip()
+        == str(right.get("effective_from") or "").strip()
+        and str(left.get("effective_to") or "").strip()
+        == str(right.get("effective_to") or "").strip()
+    )
 
 
 class HeuristicEvidenceRetriever:
@@ -1779,13 +2745,13 @@ class HeuristicEvidenceRetriever:
     def retrieve(self, context: dict[str, Any], knowledge_docs: list[dict[str, Any]], top_k: int) -> list[dict[str, Any]]:
         query = str(context.get("retrieval_query") or context.get("normalized_requirement") or "").strip()
         candidates: list[dict[str, Any]] = []
-        for doc in knowledge_docs:
+        eligible_docs = _eligible_knowledge_documents(knowledge_docs)
+        for doc in eligible_docs:
             project_id = str(doc.get("project_id") or "").strip()
-            doc_boost = _knowledge_doc_relevance_boost(doc)
             for chunk in build_knowledge_chunks(project_id, doc):
                 meta = dict(chunk.get("meta") or {})
                 content_kind = str(meta.get("content_kind") or "").strip().lower()
-                relevance_boost = doc_boost * _content_kind_relevance_boost(content_kind, context=context, doc=doc)
+                relevance_boost = _content_kind_relevance_boost(content_kind, context=context, doc=doc)
                 candidates.append(
                     {
                         "source_doc_id": str(meta.get("source_doc_id") or doc.get("id") or ""),
@@ -1795,10 +2761,17 @@ class HeuristicEvidenceRetriever:
                         "excerpt": str(chunk.get("content") or "")[:380],
                         "content": str(chunk.get("content") or ""),
                         "content_kind": content_kind,
+                        "doc_type": str(meta.get("doc_type") or ""),
+                        "status": str(meta.get("status") or ""),
+                        "effective_from": str(meta.get("effective_from") or ""),
+                        "effective_to": str(meta.get("effective_to") or ""),
+                        **_evidence_contract_fields(meta, content=str(chunk.get("content") or "")),
+                        **_evidence_lifecycle_fields(meta),
                         "relevance_boost": relevance_boost,
                     }
                 )
-        return score_candidate_evidences(query, candidates, top_k=top_k)
+        evidences = score_candidate_evidences(query, candidates, top_k=top_k)
+        return _filter_retrieved_evidence_candidates(evidences, eligible_docs, context=context)
 
 
 class AzureHaystackEvidenceRetriever:
@@ -1808,44 +2781,16 @@ class AzureHaystackEvidenceRetriever:
         self.config = config
 
     def retrieve(self, context: dict[str, Any], knowledge_docs: list[dict[str, Any]], top_k: int) -> list[dict[str, Any]]:
-        if not self.config.azure_search_ready or not self.config.azure_openai_embedding_ready:
-            raise RuntimeError("Azure AI retrieval is not configured.")
-
-        from haystack.utils.auth import Secret
-        from haystack_integrations.components.retrievers.azure_ai_search import AzureAISearchHybridRetriever
-        from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
-
-        query = str(context.get("retrieval_query") or context.get("normalized_requirement") or "").strip()
-        filters = build_azure_filter(
-            project_id=_single_value(knowledge_docs, "project_id"),
-            knowledge_docs=knowledge_docs,
+        # The public profile name is retained for compatibility, but current
+        # evidence-v2 indexes use the explicit Azure SDK schema/key contract.
+        # Routing both Azure profiles through the same adapter prevents the
+        # Haystack-required `id` key from diverging from the canonical
+        # `chunk_id` key used by synchronization and cleanup.
+        return AzureSearchSDKEvidenceRetriever(self.config).retrieve(
+            context,
+            knowledge_docs,
+            top_k,
         )
-        query_embedding = _embed_text(query, config=self.config)
-        document_store = AzureAISearchDocumentStore(
-            index_name=self.config.azure_search_index_name,
-            azure_endpoint=Secret.from_token(self.config.azure_search_endpoint),
-            api_key=Secret.from_token(self.config.azure_search_api_key)
-            if self.config.azure_search_api_key
-            else Secret.from_env_var("AZURE_AI_SEARCH_API_KEY", strict=False),
-            embedding_dimension=self.config.azure_openai_embedding_dimensions,
-            metadata_fields=_azure_metadata_fields(),
-            include_search_metadata=True,
-        )
-        kwargs: dict[str, Any] = {}
-        if self.config.azure_search_semantic_configuration:
-            kwargs["semantic_configuration_name"] = self.config.azure_search_semantic_configuration
-        retriever = AzureAISearchHybridRetriever(document_store=document_store, top_k=top_k, **kwargs)
-        result = retriever.run(
-            query=query,
-            query_embedding=query_embedding,
-            filters=filters,
-            top_k=top_k,
-        )
-        return [
-            _document_to_evidence(doc)
-            for doc in result.get("documents") or []
-            if _document_to_evidence(doc).get("source_doc_id")
-        ]
 
 
 class AzureSearchSDKEvidenceRetriever:
@@ -1858,14 +2803,24 @@ class AzureSearchSDKEvidenceRetriever:
         if not self.config.azure_search_ready or not self.config.azure_openai_embedding_ready:
             raise RuntimeError("Azure AI retrieval is not configured.")
 
+        eligible_docs = _eligible_knowledge_documents(knowledge_docs)
+        if not eligible_docs:
+            return []
+        if not _remote_evidence_index_contract_ready(
+            eligible_docs,
+            profile_id=self.config.profile_id,
+            context=context,
+        ):
+            return []
+
         from azure.search.documents import SearchClient
         from azure.search.documents.models import VectorizedQuery
 
         query = str(context.get("retrieval_query") or context.get("normalized_requirement") or "").strip()
         query_embedding = _embed_text(query, config=self.config)
         filter_payload = build_azure_filter(
-            project_id=_single_value(knowledge_docs, "project_id"),
-            knowledge_docs=knowledge_docs,
+            project_id=_single_value(eligible_docs, "project_id"),
+            knowledge_docs=eligible_docs,
         )
         filter_text = _azure_filter_to_odata(filter_payload)
         client = SearchClient(
@@ -1877,6 +2832,9 @@ class AzureSearchSDKEvidenceRetriever:
             "top": top_k,
             "select": [
                 "chunk_id",
+                "evidence_id",
+                "content_hash",
+                "evidence_contract_version",
                 "content",
                 "project_id",
                 "source_doc_id",
@@ -1886,11 +2844,22 @@ class AzureSearchSDKEvidenceRetriever:
                 "status",
                 "effective_from",
                 "effective_to",
+                "authority",
+                "claim_role",
+                "applicability",
                 "section_code",
                 "section_title",
                 "source_location",
                 "content_kind",
                 "table_id",
+                "native_locator",
+                "native_format",
+                "native_page",
+                "native_table_index",
+                "native_body_element_index",
+                "native_workbook",
+                "native_sheet",
+                "native_range",
                 "slice_ai_projection",
             ],
             "vector_queries": [
@@ -1907,11 +2876,21 @@ class AzureSearchSDKEvidenceRetriever:
             search_kwargs["query_type"] = "semantic"
             search_kwargs["semantic_configuration_name"] = self.config.azure_search_semantic_configuration
             search_kwargs["semantic_query"] = query
-        results = client.search(search_text=query, **search_kwargs)
         evidences: list[dict[str, Any]] = []
-        for item in results:
-            evidences.append(_azure_search_item_to_evidence(item))
-        return [item for item in evidences if item.get("source_doc_id")]
+        try:
+            results = client.search(search_text=query, **search_kwargs)
+            for item in results:
+                evidences.append(_azure_search_item_to_evidence(item))
+        except Exception as exc:
+            if _is_evidence_contract_schema_error(exc):
+                _mark_evidence_index_resync_required(context, detail=str(exc))
+                return []
+            raise
+        return _filter_retrieved_evidence_candidates(
+            [item for item in evidences if item.get("source_doc_id")],
+            eligible_docs,
+            context=context,
+        )
 
 
 class DashVectorEvidenceRetriever:
@@ -1924,15 +2903,40 @@ class DashVectorEvidenceRetriever:
         if not self.config.dashvector_ready or not self.config.dashscope_embedding_ready:
             raise RuntimeError("Aliyun DashVector retrieval is not configured.")
 
+        eligible_docs = _eligible_knowledge_documents(knowledge_docs)
+        if not eligible_docs:
+            return []
+        if not _remote_evidence_index_contract_ready(
+            eligible_docs,
+            profile_id=self.config.profile_id,
+            context=context,
+        ):
+            return []
+
         query = str(context.get("retrieval_query") or context.get("normalized_requirement") or "").strip()
         query_embedding = _embed_text(query, config=self.config)
-        collection = _dashvector_collection(self.config, create_if_missing=False)
+        try:
+            contract_config = _dashvector_contract_config(self.config)
+            collection = _dashvector_collection(contract_config, create_if_missing=False)
+        except (RuntimeError, ValueError) as exc:
+            target_collection = str(self.config.dashvector_collection_name or "")
+            try:
+                target_collection = _dashvector_contract_collection_name(target_collection)
+            except ValueError:
+                pass
+            context["retrieval_gate_reason"] = (
+                f"DASHVECTOR_EVIDENCE_INDEX_MIGRATION_REQUIRED：当前 evidence contract 使用独立集合 "
+                f"{target_collection}，请修正集合配置并重新同步知识文档。"
+            )
+            context["retrieval_migration_action"] = DASHVECTOR_INDEX_MIGRATION_ACTION
+            context["retrieval_migration_detail"] = str(exc)
+            return []
         query_response = collection.query(
             query_embedding,
             topk=top_k,
             filter=_build_dashvector_filter(
-                project_id=_single_value(knowledge_docs, "project_id"),
-                knowledge_docs=knowledge_docs,
+                project_id=_single_value(eligible_docs, "project_id"),
+                knowledge_docs=eligible_docs,
             ),
             output_fields=list(_dashvector_metadata_fields().keys()),
             partition=self.config.dashvector_partition_name or None,
@@ -1944,7 +2948,7 @@ class DashVectorEvidenceRetriever:
             evidence = _dashvector_doc_to_evidence(item)
             if evidence.get("source_doc_id"):
                 evidences.append(evidence)
-        return evidences
+        return _filter_retrieved_evidence_candidates(evidences, eligible_docs, context=context)
 
 
 class QdrantEvidenceRetriever:
@@ -1956,6 +2960,7 @@ class QdrantEvidenceRetriever:
     def retrieve(self, context: dict[str, Any], knowledge_docs: list[dict[str, Any]], top_k: int) -> list[dict[str, Any]]:
         if not self.config.qdrant_ready or not self.config.dashscope_embedding_ready:
             raise RuntimeError("Aliyun Qdrant retrieval is not configured.")
+        eligible_docs = _eligible_knowledge_documents(knowledge_docs)
         dense_query = str(
             context.get("dense_retrieval_query")
             or context.get("retrieval_query")
@@ -1967,8 +2972,17 @@ class QdrantEvidenceRetriever:
         if not dense_query and not sparse_query:
             context["retrieval_gate_reason"] = "检索查询为空，当前无法生成有效证据。"
             return []
-        if self._missing_authoritative_regulation_docs(context=context, knowledge_docs=knowledge_docs):
+        if not eligible_docs:
+            context["retrieval_gate_reason"] = "当前没有处于有效生命周期内的知识文档。"
+            return []
+        if self._missing_authoritative_regulation_docs(context=context, knowledge_docs=eligible_docs):
             context["retrieval_gate_reason"] = "缺少法规类知识文档，当前无法为该法规条目提供直接证据。"
+            return []
+        if not _remote_evidence_index_contract_ready(
+            eligible_docs,
+            profile_id=self.config.profile_id,
+            context=context,
+        ):
             return []
 
         allow_noise = self._query_targets_noise_chunks(dense_query or sparse_query)
@@ -1991,20 +3005,21 @@ class QdrantEvidenceRetriever:
             "with_payload": True,
         }
         query_filter = _build_qdrant_filter(
-            project_id=_single_value(knowledge_docs, "project_id"),
-            knowledge_docs=knowledge_docs,
+            project_id=_single_value(eligible_docs, "project_id"),
+            knowledge_docs=eligible_docs,
         )
         if query_filter is not None:
             search_kwargs["query_filter"] = query_filter
         points = client.search(**search_kwargs)
         dense_documents = self._dense_documents(points or [], allow_noise=allow_noise)
-        sparse_documents = self._sparse_documents(knowledge_docs, query=sparse_query, allow_noise=allow_noise)
+        sparse_documents = self._sparse_documents(eligible_docs, query=sparse_query, allow_noise=allow_noise)
         fused_documents = self._fuse_documents(dense_documents=dense_documents, sparse_documents=sparse_documents)
         reranked_documents = self._rerank_documents(query=dense_query or sparse_query, documents=fused_documents)
         final_documents = self._select_final_documents(reranked_documents, allow_noise=allow_noise)
         if not final_documents and not str(context.get("retrieval_gate_reason") or "").strip():
             context["retrieval_gate_reason"] = "未检索到可直接采用的有效证据。"
-        return [_document_to_evidence(document) for document in final_documents]
+        evidences = [_document_to_evidence(document) for document in final_documents]
+        return _filter_retrieved_evidence_candidates(evidences, eligible_docs, context=context)
 
     def _dense_documents(self, points: list[Any], *, allow_noise: bool) -> list[Any]:
         from haystack import Document
@@ -2049,7 +3064,7 @@ class QdrantEvidenceRetriever:
                     continue
                 chunk_documents.append(
                     Document(
-                        id=str(chunk.get("chunk_id") or uuid.uuid4().hex),
+                        id=str(chunk.get("evidence_id") or chunk.get("chunk_id") or ""),
                         content=content,
                         meta=meta,
                     )
@@ -2198,6 +3213,9 @@ class HeuristicAssessmentEngine:
             "clarification_question": clarification_question,
             "evidences": [
                 {
+                    "evidence_id": str(item.get("evidence_id") or ""),
+                    "content_hash": str(item.get("content_hash") or ""),
+                    "evidence_contract_version": str(item.get("evidence_contract_version") or ""),
                     "source_doc_id": str(item.get("source_doc_id") or ""),
                     "source_doc_name": str(item.get("source_doc_name") or ""),
                     "source_location": str(item.get("source_location") or ""),
@@ -2278,7 +3296,7 @@ class AzureOpenAIScreeningEngine:
 
 
 class AliyunDashScopeAssessmentEngine:
-    prompt_version = "v2.0-aliyun-rag-copilot"
+    prompt_version = DEFAULT_PROMPT_VERSION
 
     def __init__(self, config: AICopilotConfig) -> None:
         self.config = config
@@ -2299,11 +3317,15 @@ class AliyunDashScopeAssessmentEngine:
             required_keys=[
                 "normalized_requirement",
                 "proposed_decision",
+                "compliance_status",
                 "confidence",
                 "reason",
                 "risk_level",
                 "clarification_question",
                 "evidences",
+                "evidence_findings",
+                "sub_judgments",
+                "structured_information_gap",
             ],
         )
         return _dashscope_json_completion(
@@ -2391,7 +3413,7 @@ def _run_requirement_screening(
             "prompt_version": MANUAL_OVERRIDE_PROMPT_VERSION,
         }
 
-    if config.assessment_mode == "heuristic":
+    if config.assessment_mode in {"heuristic", "llm_shadow"}:
         _emit_progress_stage_update(
             progress_callback,
             stage="screening",
@@ -2411,14 +3433,18 @@ def _run_requirement_screening(
             validation_status=final_result["validation_status"],
             fallback_reason=final_result["fallback_reason"],
         )
-        return {
+        serving_result = {
             **final_result,
             "final_mode": "heuristic",
             "model_name": heuristic_engine.model_name,
             "prompt_version": heuristic_engine.prompt_version,
         }
+        if config.assessment_mode == "heuristic":
+            return serving_result
 
     if config.assessment_mode == "llm_shadow":
+        # Screening shadow output is observable through runs, but routing stays
+        # bound to the heuristic serving_result even when the provider fails.
         try:
             _emit_progress_stage_update(
                 progress_callback,
@@ -2448,12 +3474,6 @@ def _run_requirement_screening(
                 validation_status=llm_final["validation_status"],
                 fallback_reason=llm_final["fallback_reason"],
             )
-            return {
-                **llm_final,
-                "final_mode": "llm_shadow",
-                "model_name": llm_engine.model_name,
-                "prompt_version": llm_engine.prompt_version,
-            }
         except AIAnalysisCancelledError:
             raise
         except Exception as exc:  # pragma: no cover - network/provider dependent
@@ -2465,16 +3485,7 @@ def _run_requirement_screening(
                 input_payload={"context": context},
                 fallback_reason=failure_reason,
             )
-            return {
-                "analysis_label": "REQUIREMENT",
-                "reason": "LLM screening failed; analysis stopped",
-                "validation_status": "failed",
-                "fallback_reason": failure_reason,
-                "final_mode": "screening_failed",
-                "model_name": llm_engine.model_name,
-                "prompt_version": llm_engine.prompt_version,
-                "screening_failed": True,
-            }
+        return serving_result
 
     try:
         _emit_progress_stage_update(
@@ -2704,9 +3715,24 @@ def reconcile_assessment_output(
     retrieval_backend: str = "",
     reconciliation_policy: Literal["heuristic", "llm_guarded"] = "heuristic",
 ) -> dict[str, Any]:
-    normalized_requirement = str(candidate.get("normalized_requirement") or context.get("normalized_requirement") or "").strip()
+    normalized_requirement = str(context.get("normalized_requirement") or "").strip()
     if not normalized_requirement:
         normalized_requirement = normalize_requirement_text(str(context.get("requirement_text") or ""))
+
+    if not isinstance(candidate, dict):
+        candidate = {}
+    else:
+        candidate = dict(candidate)
+    if (
+        "structured_information_gap" not in candidate
+        and isinstance(candidate.get("information_gap"), dict)
+    ):
+        candidate["structured_information_gap"] = candidate.pop(
+            "information_gap"
+        )
+    candidate_declares_compliance_contract = bool(
+        str(candidate.get("compliance_status") or "").strip()
+    )
 
     # Backfill missing evidence fields from retrieved evidences (LLMs may omit required metadata)
     _backfill_evidence_fields(candidate, retrieved_evidences)
@@ -2724,6 +3750,19 @@ def reconcile_assessment_output(
             fallback_reason=f"{fallback_reason}; schema_validation_failed: {exc}".strip("; "),
         )
 
+    expected_compliance_status = DECISION_TO_COMPLIANCE_STATUS[parsed.proposed_decision]
+    compliance_status = str(
+        parsed.compliance_status or expected_compliance_status
+    ).strip()
+    if compliance_status != expected_compliance_status:
+        return fallback_need_clarification(
+            context=context,
+            evidences=retrieved_evidences,
+            fallback_reason=(
+                f"{fallback_reason}; compliance_decision_conflict"
+            ).strip("; "),
+        )
+
     validation_error = _validate_candidate_ranges(parsed)
     if validation_error:
         return fallback_need_clarification(
@@ -2732,34 +3771,143 @@ def reconcile_assessment_output(
             fallback_reason=f"{fallback_reason}; {validation_error}".strip("; "),
         )
 
-    evidence_validation = _validate_evidence_references(parsed.evidences, retrieved_evidences)
+    canonical_evidences, evidence_validation, used_legacy_evidence_selector = _resolve_evidence_references(
+        parsed.evidences,
+        retrieved_evidences,
+    )
     if evidence_validation:
         return fallback_need_clarification(
             context=context,
             evidences=retrieved_evidences,
             fallback_reason=f"{fallback_reason}; {evidence_validation}".strip("; "),
         )
+    if reconciliation_policy == "llm_guarded":
+        primary_visible, adjacent_visible = (
+            _select_model_evidence_candidates(retrieved_evidences)
+        )
+        visible_evidence_ids = {
+            str(
+                item.get("evidence_id") or item.get("chunk_id") or ""
+            ).strip()
+            for item in (*primary_visible, *adjacent_visible)
+            if str(
+                item.get("evidence_id") or item.get("chunk_id") or ""
+            ).strip()
+        }
+        if any(
+            item.evidence_id not in visible_evidence_ids
+            for item in canonical_evidences
+        ):
+            return fallback_need_clarification(
+                context=context,
+                evidences=retrieved_evidences,
+                fallback_reason=(
+                    f"{fallback_reason}; "
+                    "evidence_reference_not_in_model_input"
+                ).strip("; "),
+            )
+
+    structured_validation = _validate_structured_assessment_contract(
+        parsed,
+        selected_evidence_ids={item.evidence_id for item in canonical_evidences},
+        require_complete=(
+            reconciliation_policy == "llm_guarded"
+            or candidate_declares_compliance_contract
+        ),
+    )
+    if structured_validation:
+        return fallback_need_clarification(
+            context=context,
+            evidences=retrieved_evidences,
+            fallback_reason=f"{fallback_reason}; {structured_validation}".strip("; "),
+        )
+
+    reconciled_fallback_reason = fallback_reason.strip()
+    if used_legacy_evidence_selector:
+        reconciled_fallback_reason = f"{reconciled_fallback_reason}; legacy_evidence_selector".strip("; ")
 
     if parsed.proposed_decision != "NEED_CLARIFICATION" and not parsed.evidences:
         return fallback_need_clarification(
             context=context,
             evidences=retrieved_evidences,
-            fallback_reason=f"{fallback_reason}; missing_evidence".strip("; "),
+            fallback_reason=f"{reconciled_fallback_reason}; missing_evidence".strip("; "),
         )
 
-    if _evidences_conflict(parsed.evidences) and parsed.proposed_decision != "NEED_CLARIFICATION":
+    if _evidences_conflict(canonical_evidences):
         return fallback_need_clarification(
             context=context,
             evidences=retrieved_evidences,
-            fallback_reason=f"{fallback_reason}; conflicting_evidences".strip("; "),
+            fallback_reason=f"{reconciled_fallback_reason}; conflicting_evidences".strip("; "),
         )
 
+    if parsed.proposed_decision != "NEED_CLARIFICATION":
+        candidate_requirement = str(parsed.normalized_requirement or normalized_requirement).strip()
+        numeric_requirement_error = validate_numeric_requirement_projection(
+            raw_requirement=str(context.get("requirement_text") or ""),
+            normalized_requirement=normalized_requirement,
+            candidate_requirement=candidate_requirement,
+        )
+        if numeric_requirement_error:
+            return fallback_need_clarification(
+                context=context,
+                evidences=retrieved_evidences,
+                fallback_reason=f"{reconciled_fallback_reason}; {numeric_requirement_error}".strip("; "),
+            )
+        if normalize_requirement_text(candidate_requirement) != normalize_requirement_text(normalized_requirement):
+            return fallback_need_clarification(
+                context=context,
+                evidences=retrieved_evidences,
+                fallback_reason=f"{reconciled_fallback_reason}; requirement_projection_out_of_scope".strip("; "),
+            )
+
+    candidate_serving_decision = str(parsed.proposed_decision or "").strip()
+    if candidate_serving_decision in {
+        "ACCEPT",
+        "REJECT",
+        "DEVIATION_ACCEPT",
+    }:
+        cited_numeric_error = validate_numeric_decision_support(
+            decision=candidate_serving_decision,
+            raw_requirement=str(context.get("requirement_text") or ""),
+            normalized_requirement=str(
+                context.get("normalized_requirement") or ""
+            ),
+            evidence_texts=[item.excerpt for item in canonical_evidences],
+        )
+        if cited_numeric_error:
+            return fallback_need_clarification(
+                context=context,
+                evidences=retrieved_evidences,
+                fallback_reason=(
+                    f"{reconciled_fallback_reason}; {cited_numeric_error}"
+                ).strip("; "),
+            )
+        server_evidences = _server_evidence_refs(retrieved_evidences)
+        numeric_evidence_error = validate_numeric_decision_support(
+            decision=candidate_serving_decision,
+            raw_requirement=str(context.get("requirement_text") or ""),
+            normalized_requirement=str(
+                context.get("normalized_requirement") or ""
+            ),
+            evidence_texts=[item.excerpt for item in server_evidences],
+        )
+        if numeric_evidence_error:
+            return fallback_need_clarification(
+                context=context,
+                evidences=retrieved_evidences,
+                fallback_reason=(
+                    f"{reconciled_fallback_reason}; {numeric_evidence_error}"
+                ).strip("; "),
+            )
+
+    hard_rule_result: dict[str, Any] | None = None
     if reconciliation_policy == "llm_guarded":
         evidence_strength_result = _apply_evidence_strength_guardrail(
             context=context,
             candidate=parsed,
+            canonical_evidences=canonical_evidences,
             retrieved_evidences=retrieved_evidences,
-            fallback_reason=fallback_reason,
+            fallback_reason=reconciled_fallback_reason,
             retrieval_backend=retrieval_backend,
         )
         if evidence_strength_result is not None:
@@ -2768,28 +3916,482 @@ def reconcile_assessment_output(
         hard_rule_result = _apply_hard_assessment_rules(
             context=context,
             candidate=parsed,
+            canonical_evidences=canonical_evidences,
             retrieved_evidences=retrieved_evidences,
-            fallback_reason=fallback_reason,
+            fallback_reason=reconciled_fallback_reason,
         )
-        if hard_rule_result is not None:
-            return hard_rule_result
+    serving_decision = str(
+        (hard_rule_result or {}).get("ai_decision") or parsed.proposed_decision
+    ).strip()
+    if serving_decision in {"ACCEPT", "REJECT", "DEVIATION_ACCEPT"}:
+        cited_numeric_error = validate_numeric_decision_support(
+            decision=serving_decision,
+            raw_requirement=str(context.get("requirement_text") or ""),
+            normalized_requirement=str(context.get("normalized_requirement") or ""),
+            evidence_texts=[item.excerpt for item in canonical_evidences],
+        )
+        if cited_numeric_error:
+            return fallback_need_clarification(
+                context=context,
+                evidences=retrieved_evidences,
+                fallback_reason=f"{reconciled_fallback_reason}; {cited_numeric_error}".strip("; "),
+            )
+        server_evidences = _server_evidence_refs(retrieved_evidences)
+        numeric_evidence_error = validate_numeric_decision_support(
+            decision=serving_decision,
+            raw_requirement=str(context.get("requirement_text") or ""),
+            normalized_requirement=str(context.get("normalized_requirement") or ""),
+            evidence_texts=[item.excerpt for item in server_evidences],
+        )
+        if numeric_evidence_error:
+            return fallback_need_clarification(
+                context=context,
+                evidences=retrieved_evidences,
+                fallback_reason=f"{reconciled_fallback_reason}; {numeric_evidence_error}".strip("; "),
+            )
+    if hard_rule_result is not None:
+        return _with_assessment_semantics(
+            hard_rule_result,
+            context=context,
+            canonical_evidences=canonical_evidences,
+            retrieved_evidences=retrieved_evidences,
+        )
 
+    canonical_evidence_mappings = _canonical_evidence_mappings(
+        canonical_evidences,
+        retrieved_evidences,
+        limit=MAX_PERSISTED_EVIDENCES,
+    )
+    structured_gap = parsed.structured_information_gap.model_dump()
+    if (
+        compliance_status == "INSUFFICIENT_INFORMATION"
+        and not _structured_information_gap_has_content(structured_gap)
+    ):
+        structured_gap = _build_structured_information_gap(
+            context,
+            canonical_evidence_mappings,
+        )
     result = {
         "analysis_label": "REQUIREMENT",
         "analysis_basis": "",
         "ai_decision": parsed.proposed_decision,
+        "compliance_status": compliance_status,
         "ai_reason": parsed.reason.strip(),
         "ai_confidence": round(max(0.0, min(1.0, float(parsed.confidence))), 4),
         "risk_level": parsed.risk_level,
         "clarification_question": parsed.clarification_question.strip(),
         "normalized_requirement": normalized_requirement,
-        "evidences": [item.model_dump() for item in parsed.evidences[:3]],
+        "evidences": canonical_evidence_mappings,
+        "evidence_findings": [
+            item.model_dump() for item in parsed.evidence_findings
+        ]
+        or _build_default_evidence_findings(
+            compliance_status,
+            canonical_evidence_mappings,
+            reason=parsed.reason.strip(),
+        ),
+        "sub_judgments": [item.model_dump() for item in parsed.sub_judgments]
+        or _build_default_sub_judgments(
+            context=context,
+            compliance_status=compliance_status,
+            reason=parsed.reason.strip(),
+            evidences=canonical_evidence_mappings,
+            structured_information_gap=structured_gap,
+        ),
+        "structured_information_gap": structured_gap,
         "validation_status": "accepted",
-        "fallback_reason": fallback_reason.strip(),
+        "fallback_reason": reconciled_fallback_reason,
     }
     if result["ai_decision"] == "NEED_CLARIFICATION" and not result["clarification_question"]:
         result["clarification_question"] = default_clarification_question(context, retrieved_evidences)
     return result
+
+
+def _validate_structured_assessment_contract(
+    candidate: AssessmentOutputSchema,
+    *,
+    selected_evidence_ids: set[str],
+    require_complete: bool,
+) -> str:
+    if len(selected_evidence_ids) > MAX_PERSISTED_EVIDENCES:
+        return "too_many_selected_evidences"
+    referenced_ids: list[str] = []
+    for finding in candidate.evidence_findings:
+        evidence_id = finding.retrieval_evidence_id.strip()
+        if not evidence_id or not finding.rationale.strip():
+            return "evidence_finding_incomplete"
+        referenced_ids.append(evidence_id)
+    for judgment in candidate.sub_judgments:
+        if (
+            not judgment.sub_judgment_id.strip()
+            or not judgment.statement.strip()
+            or not judgment.reason.strip()
+        ):
+            return "sub_judgment_incomplete"
+        judgment_evidence_ids = [
+            item.strip()
+            for item in judgment.retrieval_evidence_ids
+            if item.strip()
+        ]
+        if (
+            require_complete
+            and judgment.compliance_status != "INSUFFICIENT_INFORMATION"
+            and not judgment_evidence_ids
+        ):
+            return "sub_judgment_evidence_missing"
+        referenced_ids.extend(judgment_evidence_ids)
+        nested_gap = judgment.structured_information_gap
+        if (
+            require_complete
+            and judgment.compliance_status == "INSUFFICIENT_INFORMATION"
+            and (
+                not nested_gap.missing_items
+                or not nested_gap.clarification_questions
+            )
+        ):
+            return "sub_judgment_information_gap_incomplete"
+        referenced_ids.extend(
+            item.retrieval_evidence_id.strip()
+            for item in nested_gap.found_evidence
+            if item.retrieval_evidence_id.strip()
+        )
+        for conflict in nested_gap.conflicts:
+            referenced_ids.extend(
+                item.strip()
+                for item in conflict.retrieval_evidence_ids
+                if item.strip()
+            )
+    gap = candidate.structured_information_gap
+    referenced_ids.extend(
+        item.retrieval_evidence_id.strip()
+        for item in gap.found_evidence
+        if item.retrieval_evidence_id.strip()
+    )
+    for conflict in gap.conflicts:
+        referenced_ids.extend(
+            item.strip()
+            for item in conflict.retrieval_evidence_ids
+            if item.strip()
+        )
+    if any(item not in selected_evidence_ids for item in referenced_ids):
+        return "structured_evidence_reference_out_of_scope"
+
+    if not require_complete:
+        return ""
+    status = str(
+        candidate.compliance_status
+        or DECISION_TO_COMPLIANCE_STATUS[candidate.proposed_decision]
+    )
+    if not candidate.sub_judgments:
+        return "sub_judgments_missing"
+    sub_statuses = {
+        item.compliance_status for item in candidate.sub_judgments
+    }
+    if "NON_COMPLIANT" in sub_statuses:
+        aggregated_status = "NON_COMPLIANT"
+    elif "INSUFFICIENT_INFORMATION" in sub_statuses:
+        aggregated_status = "INSUFFICIENT_INFORMATION"
+    elif "PARTIALLY_COMPLIANT" in sub_statuses:
+        aggregated_status = "PARTIALLY_COMPLIANT"
+    else:
+        aggregated_status = "COMPLIANT"
+    if status != aggregated_status:
+        return "sub_judgment_status_conflict"
+
+    finding_types = {item.finding for item in candidate.evidence_findings}
+    if (
+        status == "COMPLIANT"
+        and (
+            "SUPPORTS" not in finding_types
+            or "CONTRADICTS" in finding_types
+        )
+    ):
+        return "evidence_finding_status_conflict"
+    if status == "NON_COMPLIANT" and "CONTRADICTS" not in finding_types:
+        return "evidence_finding_status_conflict"
+    if (
+        status == "PARTIALLY_COMPLIANT"
+        and "PARTIALLY_SUPPORTS" not in finding_types
+    ):
+        return "evidence_finding_status_conflict"
+    if status == "INSUFFICIENT_INFORMATION":
+        if not gap.missing_items or not gap.clarification_questions:
+            return "structured_information_gap_incomplete"
+    elif not candidate.evidence_findings:
+        return "evidence_findings_missing"
+    return ""
+
+
+def _canonical_evidence_mappings(
+    canonical_evidences: list[EvidenceRef],
+    retrieved_evidences: list[dict[str, Any]],
+    *,
+    limit: int,
+) -> list[dict[str, Any]]:
+    by_id = {
+        str(item.get("evidence_id") or "").strip(): item
+        for item in retrieved_evidences
+        if str(item.get("evidence_id") or "").strip()
+    }
+    output: list[dict[str, Any]] = []
+    for evidence in canonical_evidences[:limit]:
+        server = by_id.get(evidence.evidence_id, {})
+        output.append(
+            {
+                **evidence.to_mapping(),
+                "evidence_id": evidence.evidence_id,
+                "retrieval_evidence_id": evidence.evidence_id,
+                "content_hash": evidence.content_hash,
+                "chunk_content_hash": evidence.content_hash,
+                "excerpt_hash": compute_evidence_content_hash(evidence.excerpt),
+                "evidence_contract_version": evidence.evidence_contract_version,
+                "chunk_id": str(server.get("chunk_id") or ""),
+                "score_source": str(server.get("score_source") or ""),
+                "retrieval_parent_evidence_id": str(
+                    server.get("retrieval_parent_evidence_id") or ""
+                ),
+                "retrieval_parent_relevance": (
+                    float(server.get("retrieval_parent_relevance") or 0.0)
+                    if str(server.get("score_source") or "")
+                    == "adjacent_context"
+                    else None
+                ),
+                "doc_type": str(server.get("doc_type") or ""),
+                "status": str(server.get("status") or ""),
+                "effective_from": str(server.get("effective_from") or ""),
+                "effective_to": str(server.get("effective_to") or ""),
+                "content_kind": str(server.get("content_kind") or ""),
+                "authority": str(server.get("authority") or "UNKNOWN"),
+                "claim_role": str(server.get("claim_role") or "UNKNOWN"),
+                "applicability": str(server.get("applicability") or "UNKNOWN"),
+                "table_id": str(server.get("table_id") or ""),
+                "native_locator": str(server.get("native_locator") or ""),
+                "native_format": str(server.get("native_format") or ""),
+                "native_page": str(server.get("native_page") or ""),
+                "native_table_index": str(
+                    server.get("native_table_index") or ""
+                ),
+                "native_body_element_index": str(
+                    server.get("native_body_element_index") or ""
+                ),
+                "native_workbook": str(server.get("native_workbook") or ""),
+                "native_sheet": str(server.get("native_sheet") or ""),
+                "native_range": str(server.get("native_range") or ""),
+                "section_code": str(server.get("section_code") or ""),
+                "section_title": str(server.get("section_title") or ""),
+            }
+        )
+    return output
+
+
+def _structured_information_gap_has_content(value: dict[str, Any]) -> bool:
+    return any(
+        value.get(key)
+        for key in (
+            "found_evidence",
+            "missing_items",
+            "conflicts",
+            "clarification_questions",
+        )
+    )
+
+
+def _build_structured_information_gap(
+    context: dict[str, Any],
+    evidences: list[dict[str, Any]],
+) -> dict[str, Any]:
+    question = default_clarification_question(context, evidences)
+    retrieval_gate_reason = str(context.get("retrieval_gate_reason") or "").strip()
+    blocking_reason = (
+        retrieval_gate_reason
+        or "当前证据无法直接、完整地证明需求中的全部约束。"
+    )
+    requirement = str(
+        context.get("normalized_requirement")
+        or context.get("requirement_text")
+        or "当前需求"
+    ).strip()
+    positive_ids = [
+        str(
+            item.get("retrieval_evidence_id")
+            or item.get("evidence_id")
+            or ""
+        )
+        for item in evidences
+        if _text_has_positive_signal(str(item.get("excerpt") or ""))
+    ]
+    negative_ids = [
+        str(
+            item.get("retrieval_evidence_id")
+            or item.get("evidence_id")
+            or ""
+        )
+        for item in evidences
+        if _text_has_negative_signal(str(item.get("excerpt") or ""))
+    ]
+    conflict_ids = list(
+        dict.fromkeys(
+            item for item in [*positive_ids, *negative_ids] if item
+        )
+    )
+    return {
+        "schema_version": "assessment-information-gap/v1",
+        "found_evidence": [
+            {
+                "retrieval_evidence_id": str(
+                    item.get("retrieval_evidence_id")
+                    or item.get("evidence_id")
+                    or ""
+                ),
+                "proves": "存在与当前需求相关且可追溯的候选内容。",
+            }
+            for item in evidences
+            if str(
+                item.get("retrieval_evidence_id")
+                or item.get("evidence_id")
+                or ""
+            ).strip()
+        ],
+        "missing_items": [
+            {
+                "item": requirement,
+                "blocking_reason": blocking_reason,
+                "required_input": question,
+            }
+        ],
+        "conflicts": (
+            [
+                {
+                    "retrieval_evidence_ids": conflict_ids,
+                    "description": "候选证据同时出现支持与否定信号，无法安全合并为单一结论。",
+                }
+            ]
+            if positive_ids and negative_ids
+            else []
+        ),
+        "clarification_questions": [question] if question else [],
+    }
+
+
+def _build_default_evidence_findings(
+    compliance_status: str,
+    evidences: list[dict[str, Any]],
+    *,
+    reason: str,
+) -> list[dict[str, Any]]:
+    finding = {
+        "COMPLIANT": "SUPPORTS",
+        "PARTIALLY_COMPLIANT": "PARTIALLY_SUPPORTS",
+        "NON_COMPLIANT": "CONTRADICTS",
+        "INSUFFICIENT_INFORMATION": "CONTEXT_ONLY",
+    }.get(compliance_status, "CONTEXT_ONLY")
+    return [
+        {
+            "retrieval_evidence_id": str(
+                item.get("retrieval_evidence_id")
+                or item.get("evidence_id")
+                or ""
+            ),
+            "finding": finding,
+            "supported_claims": [],
+            "unsupported_claims": [],
+            "rationale": reason,
+        }
+        for item in evidences
+        if str(
+            item.get("retrieval_evidence_id")
+            or item.get("evidence_id")
+            or ""
+        ).strip()
+    ]
+
+
+def _build_default_sub_judgments(
+    *,
+    context: dict[str, Any],
+    compliance_status: str,
+    reason: str,
+    evidences: list[dict[str, Any]],
+    structured_information_gap: dict[str, Any],
+) -> list[dict[str, Any]]:
+    statement = str(
+        context.get("normalized_requirement")
+        or context.get("requirement_text")
+        or ""
+    ).strip()
+    if not statement:
+        return []
+    return [
+        {
+            "sub_judgment_id": "overall",
+            "source_ranges": ["atomic_source_text"],
+            "statement": statement,
+            "compliance_status": compliance_status,
+            "reason": reason,
+            "retrieval_evidence_ids": [
+                str(
+                    item.get("retrieval_evidence_id")
+                    or item.get("evidence_id")
+                    or ""
+                )
+                for item in evidences
+                if str(
+                    item.get("retrieval_evidence_id")
+                    or item.get("evidence_id")
+                    or ""
+                ).strip()
+            ],
+            "structured_information_gap": (
+                structured_information_gap
+                if compliance_status == "INSUFFICIENT_INFORMATION"
+                else {}
+            ),
+        }
+    ]
+
+
+def _with_assessment_semantics(
+    result: dict[str, Any],
+    *,
+    context: dict[str, Any],
+    canonical_evidences: list[EvidenceRef],
+    retrieved_evidences: list[dict[str, Any]],
+) -> dict[str, Any]:
+    enriched = dict(result)
+    compliance_status = DECISION_TO_COMPLIANCE_STATUS.get(
+        str(enriched.get("ai_decision") or "").strip(),
+        "",
+    )
+    evidences = _canonical_evidence_mappings(
+        canonical_evidences,
+        retrieved_evidences,
+        limit=MAX_PERSISTED_EVIDENCES,
+    )
+    gap = (
+        _build_structured_information_gap(context, evidences)
+        if compliance_status == "INSUFFICIENT_INFORMATION"
+        else {}
+    )
+    enriched.update(
+        {
+            "compliance_status": compliance_status,
+            "evidences": evidences,
+            "evidence_findings": _build_default_evidence_findings(
+                compliance_status,
+                evidences,
+                reason=str(enriched.get("ai_reason") or ""),
+            ),
+            "sub_judgments": _build_default_sub_judgments(
+                context=context,
+                compliance_status=compliance_status,
+                reason=str(enriched.get("ai_reason") or ""),
+                evidences=evidences,
+                structured_information_gap=gap,
+            ),
+            "structured_information_gap": gap,
+        }
+    )
+    return enriched
 
 
 def fallback_need_clarification(
@@ -2798,34 +4400,45 @@ def fallback_need_clarification(
     evidences: list[dict[str, Any]],
     fallback_reason: str,
 ) -> dict[str, Any]:
-    top_evidences = [
-        {
-            "source_doc_id": str(item.get("source_doc_id") or ""),
-            "source_doc_name": str(item.get("source_doc_name") or ""),
-            "source_location": str(item.get("source_location") or ""),
-            "excerpt": str(item.get("excerpt") or ""),
-            "relevance": round(float(item.get("relevance") or 0.0), 4),
-            "source_doc_version": str(item.get("source_doc_version") or ""),
-        }
-        for item in evidences[:3]
-    ]
+    canonical_evidences = _server_evidence_refs(evidences)[:3]
+    top_evidences = _canonical_evidence_mappings(
+        canonical_evidences,
+        evidences,
+        limit=3,
+    )
     retrieval_gate_reason = str(context.get("retrieval_gate_reason") or "").strip()
     ai_reason = "缺少可直接采用的有效证据，当前只能保留为待澄清。"
     if retrieval_gate_reason:
         ai_reason = f"{retrieval_gate_reason}，当前只能保留为待澄清。"
-    return {
+    structured_gap = _build_structured_information_gap(context, top_evidences)
+    result = {
         "analysis_label": "REQUIREMENT",
         "analysis_basis": "",
         "ai_decision": "NEED_CLARIFICATION",
+        "compliance_status": "INSUFFICIENT_INFORMATION",
         "ai_reason": ai_reason,
         "ai_confidence": 0.22,
         "risk_level": "HIGH",
         "clarification_question": default_clarification_question(context, evidences),
         "normalized_requirement": str(context.get("normalized_requirement") or ""),
         "evidences": top_evidences,
+        "evidence_findings": _build_default_evidence_findings(
+            "INSUFFICIENT_INFORMATION",
+            top_evidences,
+            reason=ai_reason,
+        ),
+        "structured_information_gap": structured_gap,
         "validation_status": "fallback",
         "fallback_reason": fallback_reason.strip() or "fallback",
     }
+    result["sub_judgments"] = _build_default_sub_judgments(
+        context=context,
+        compliance_status="INSUFFICIENT_INFORMATION",
+        reason=ai_reason,
+        evidences=top_evidences,
+        structured_information_gap=structured_gap,
+    )
+    return result
 
 
 def default_clarification_question(context: dict[str, Any], evidences: list[dict[str, Any]]) -> str:
@@ -2835,31 +4448,6 @@ def default_clarification_question(context: dict[str, Any], evidences: list[dict
     if evidences:
         return "请确认上述证据是否覆盖当前需求的适用工况、版本边界和平台范围。"
     return "请补充可直接覆盖该需求的内部规范、测试结果或历史项目证据。"
-
-
-def _prefer_shadow_final_result(candidate: dict[str, Any] | None) -> bool:
-    if not isinstance(candidate, dict):
-        return False
-    return str(candidate.get("validation_status") or "").strip() in PREFERRED_FINAL_VALIDATION_STATUSES
-
-
-def _prefer_shadow_screening_result(
-    *,
-    context: dict[str, Any],
-    heuristic_final: dict[str, Any] | None,
-    llm_final: dict[str, Any] | None,
-) -> bool:
-    if not _prefer_shadow_final_result(llm_final):
-        return False
-    heuristic_label = str((heuristic_final or {}).get("analysis_label") or "").strip().upper()
-    llm_label = str((llm_final or {}).get("analysis_label") or "").strip().upper()
-    if (
-        heuristic_label == "REQUIREMENT"
-        and llm_label == "INFO"
-        and _context_has_explicit_requirement_signal(context)
-    ):
-        return False
-    return True
 
 
 def _format_analysis_mode_label(mode: str) -> str:
@@ -2990,8 +4578,10 @@ def build_knowledge_chunks(project_id: str, knowledge_doc: dict[str, Any]) -> li
         return []
 
     sections = _extract_sections(lines)
+    tables = _extract_markdown_tables(lines)
+    paragraph_lines = _without_markdown_table_blocks(lines)
     chunks: list[dict[str, Any]] = []
-    for index, chunk in enumerate(_chunk_lines(lines), start=1):
+    for index, chunk in enumerate(_chunk_lines(paragraph_lines), start=1):
         section = _section_for_chunk(chunk, sections)
         chunks.append(
             _build_chunk_record(
@@ -3005,8 +4595,10 @@ def build_knowledge_chunks(project_id: str, knowledge_doc: dict[str, Any]) -> li
             )
         )
 
-    for index, table_lines in enumerate(_extract_markdown_tables(lines), start=1):
+    for index, table_lines in enumerate(tables, start=1):
         section = _section_for_chunk(table_lines, sections)
+        locator_metadata = _parse_source_locator_metadata(table_lines)
+        native_locator = str(locator_metadata.get("native_locator") or "")
         chunks.append(
             _build_chunk_record(
                 project_id=project_id,
@@ -3014,9 +4606,11 @@ def build_knowledge_chunks(project_id: str, knowledge_doc: dict[str, Any]) -> li
                 chunk_id=_knowledge_chunk_id(str(knowledge_doc["id"]), "table", index),
                 content="\n".join(table_lines).strip(),
                 content_kind="table_slice",
-                source_location=f"Table {index}",
+                source_location=native_locator or f"Table {index}",
                 section=section,
                 slice_ai_projection=" ".join(table_lines).strip(),
+                table_id=str(locator_metadata.get("table_id") or ""),
+                native_locator_metadata=locator_metadata,
             )
         )
 
@@ -3043,115 +4637,291 @@ def write_knowledge_index_payload(
     chunks: list[dict[str, Any]],
     *,
     profile_ids: list[str] | None = None,
+    payload_dir: Path | None = None,
 ) -> Path:
-    INDEX_PAYLOAD_DIR.mkdir(parents=True, exist_ok=True)
-    payload_path = INDEX_PAYLOAD_DIR / f"{knowledge_doc['id']}.json"
+    target_dir = Path(payload_dir) if payload_dir is not None else INDEX_PAYLOAD_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    payload_path = target_dir / f"{knowledge_doc['id']}.json"
+    merged_profile_ids = {str(item or "").strip().lower() for item in profile_ids or [] if str(item or "").strip()}
+    if payload_path.exists():
+        try:
+            existing_payload = json.loads(payload_path.read_text(encoding="utf-8"))
+        except (OSError, json.JSONDecodeError):
+            existing_payload = {}
+        if (
+            str(existing_payload.get("evidence_contract_version") or "").strip()
+            == EVIDENCE_INDEX_CONTRACT_VERSION
+            and _chunk_payload_contract_map(existing_payload.get("chunks")) == _chunk_payload_contract_map(chunks)
+        ):
+            merged_profile_ids.update(
+                str(item or "").strip().lower()
+                for item in existing_payload.get("profile_ids") or []
+                if str(item or "").strip()
+            )
     payload = {
         "document_id": knowledge_doc["id"],
         "file_name": knowledge_doc.get("file_name"),
         "generated_at": _now_iso_utc(),
-        "profile_ids": list(profile_ids or []),
+        "evidence_contract_version": EVIDENCE_INDEX_CONTRACT_VERSION,
+        "profile_ids": sorted(merged_profile_ids),
         "chunks": chunks,
     }
     payload_path.write_text(json.dumps(payload, ensure_ascii=False, indent=2), encoding="utf-8")
     return payload_path
 
 
+def _chunk_payload_contract_map(value: Any) -> dict[str, str]:
+    if not isinstance(value, list):
+        return {}
+    contracts: dict[str, str] = {}
+    for chunk in value:
+        if not isinstance(chunk, dict):
+            return {}
+        evidence_id = str(chunk.get("evidence_id") or "").strip()
+        content_hash = str(chunk.get("content_hash") or "").strip().lower()
+        if not evidence_id or not content_hash:
+            return {}
+        if evidence_id in contracts and contracts[evidence_id] != content_hash:
+            return {}
+        contracts[evidence_id] = content_hash
+    return contracts
+
+
+def _require_chunk_evidence_contract(chunk: dict[str, Any]) -> str:
+    evidence_id = str(chunk.get("evidence_id") or "").strip()
+    chunk_id = str(chunk.get("chunk_id") or "").strip()
+    content_hash = str(chunk.get("content_hash") or "").strip().lower()
+    contract_version = str(chunk.get("evidence_contract_version") or "").strip()
+    if not evidence_id or evidence_id != chunk_id:
+        raise ValueError("Knowledge chunk has no stable evidence identity.")
+    if contract_version != EVIDENCE_INDEX_CONTRACT_VERSION:
+        raise ValueError("Knowledge chunk evidence contract version is stale.")
+    if content_hash != compute_evidence_content_hash(chunk.get("content")):
+        raise ValueError("Knowledge chunk content hash does not match canonical content.")
+    meta = dict(chunk.get("meta") or {})
+    if (
+        str(meta.get("evidence_id") or "").strip() != evidence_id
+        or str(meta.get("content_hash") or "").strip().lower() != content_hash
+        or str(meta.get("evidence_contract_version") or "").strip() != contract_version
+    ):
+        raise ValueError("Knowledge chunk metadata does not match its evidence contract.")
+    return evidence_id
+
+
+def _chunk_source_doc_id(chunk: dict[str, Any]) -> str:
+    source_doc_id = str((chunk.get("meta") or {}).get("source_doc_id") or "").strip()
+    if not source_doc_id:
+        raise ValueError("Knowledge chunk has no source document identity.")
+    return source_doc_id
+
+
+def _expected_chunk_ids_by_source_doc(
+    chunks: list[dict[str, Any]],
+) -> dict[str, set[str]]:
+    expected: dict[str, set[str]] = {}
+    for chunk in chunks:
+        evidence_id = _require_chunk_evidence_contract(chunk)
+        source_doc_id = _chunk_source_doc_id(chunk)
+        source_ids = expected.setdefault(source_doc_id, set())
+        if evidence_id in source_ids:
+            raise ValueError("Knowledge chunk evidence identity is duplicated.")
+        source_ids.add(evidence_id)
+    if not expected:
+        raise ValueError("Knowledge index replacement requires at least one source document.")
+    return expected
+
+
+def _source_doc_ids_from_chunks(chunks: list[dict[str, Any]]) -> list[str]:
+    source_doc_ids = sorted({_chunk_source_doc_id(chunk) for chunk in chunks})
+    if not source_doc_ids:
+        raise ValueError("Knowledge index replacement requires a source document.")
+    return source_doc_ids
+
+
+def _batched(values: list[str], size: int) -> list[list[str]]:
+    return [values[index : index + size] for index in range(0, len(values), size)]
+
+
+def _azure_search_client(config: AICopilotConfig) -> Any:
+    from azure.search.documents import SearchClient
+
+    return SearchClient(
+        endpoint=config.azure_search_endpoint,
+        index_name=config.azure_search_index_name,
+        credential=_azure_search_credential(config),
+    )
+
+
+def _azure_source_doc_chunk_ids(search_client: Any, source_doc_id: str) -> set[str]:
+    filter_text = _azure_filter_to_odata(
+        {
+            "field": "source_doc_id",
+            "operator": "==",
+            "value": source_doc_id,
+        }
+    )
+    if not filter_text:
+        raise RuntimeError("Azure source document filter could not be constructed.")
+    results = search_client.search(
+        search_text="*",
+        filter=filter_text,
+        select=["chunk_id"],
+    )
+    return {
+        str(item.get("chunk_id") or "").strip()
+        for item in results
+        if str(item.get("chunk_id") or "").strip()
+    }
+
+
+def _require_azure_indexing_results(
+    results: Any,
+    *,
+    expected_count: int,
+    operation: str,
+) -> None:
+    try:
+        items = list(results)
+    except TypeError as exc:
+        raise RuntimeError(
+            f"Azure {operation} did not return per-document results."
+        ) from exc
+    succeeded = sum(
+        bool(
+            item.get("succeeded")
+            if isinstance(item, dict)
+            else getattr(item, "succeeded", False)
+        )
+        for item in items
+    )
+    if len(items) != expected_count or succeeded != expected_count:
+        raise RuntimeError(
+            f"Azure {operation} result mismatch:"
+            f"{succeeded}/{expected_count} succeeded."
+        )
+
+
+def _wait_for_azure_source_doc_ids(
+    search_client: Any,
+    *,
+    source_doc_id: str,
+    expected_ids: set[str],
+) -> bool:
+    for attempt in range(REMOTE_INDEX_VERIFY_ATTEMPTS):
+        if _azure_source_doc_chunk_ids(search_client, source_doc_id) == expected_ids:
+            return True
+        if attempt + 1 < REMOTE_INDEX_VERIFY_ATTEMPTS:
+            time.sleep(REMOTE_INDEX_VERIFY_DELAY_SECONDS)
+    return False
+
+
+def _delete_existing_azure_chunks_for_source_docs(
+    search_client: Any,
+    chunks: list[dict[str, Any]],
+) -> None:
+    source_doc_ids = _source_doc_ids_from_chunks(chunks)
+    for source_doc_id in source_doc_ids:
+        existing_ids = sorted(
+            _azure_source_doc_chunk_ids(search_client, source_doc_id)
+        )
+        for chunk_ids in _batched(
+            existing_ids,
+            REMOTE_INDEX_OPERATION_BATCH_SIZE,
+        ):
+            results = search_client.delete_documents(
+                documents=[
+                    {"chunk_id": chunk_id}
+                    for chunk_id in chunk_ids
+                ]
+            )
+            _require_azure_indexing_results(
+                results,
+                expected_count=len(chunk_ids),
+                operation="delete",
+            )
+        if not _wait_for_azure_source_doc_ids(
+            search_client,
+            source_doc_id=source_doc_id,
+            expected_ids=set(),
+        ):
+            raise RuntimeError(
+                "Azure source-document replacement could not verify old chunk deletion."
+            )
+
+
+def _verify_azure_replacement(
+    search_client: Any,
+    *,
+    expected_by_source_doc: dict[str, set[str]],
+) -> None:
+    for source_doc_id, expected_ids in expected_by_source_doc.items():
+        if not _wait_for_azure_source_doc_ids(
+            search_client,
+            source_doc_id=source_doc_id,
+            expected_ids=expected_ids,
+        ):
+            raise RuntimeError(
+                "Azure source-document replacement verification failed:"
+                f" expected {len(expected_ids)} current chunks."
+            )
+
+
 class AzureHaystackIndexer:
     def __init__(self, config: AICopilotConfig) -> None:
         self.config = config
 
+    def replace_chunks(self, chunks: list[dict[str, Any]]) -> int:
+        return AzureSearchSDKIndexer(self.config).replace_chunks(chunks)
+
     def upsert_chunks(self, chunks: list[dict[str, Any]]) -> int:
-        if not chunks:
-            return 0
-
-        from haystack import Document
-        from haystack.document_stores.types import DuplicatePolicy
-        from haystack.utils.auth import Secret
-        from haystack_integrations.document_stores.azure_ai_search import AzureAISearchDocumentStore
-
-        document_store = AzureAISearchDocumentStore(
-            index_name=self.config.azure_search_index_name,
-            azure_endpoint=Secret.from_token(self.config.azure_search_endpoint),
-            api_key=Secret.from_token(self.config.azure_search_api_key) if self.config.azure_search_api_key else Secret.from_env_var("AZURE_AI_SEARCH_API_KEY", strict=False),
-            embedding_dimension=self.config.azure_openai_embedding_dimensions,
-            metadata_fields=_azure_metadata_fields(),
-            include_search_metadata=True,
-        )
-        contents = [str(chunk.get("content") or "") for chunk in chunks]
-        embeddings = _embed_texts(contents, config=self.config)
-        documents = []
-        for chunk, embedding in zip(chunks, embeddings, strict=False):
-            documents.append(
-                Document(
-                    id=str(chunk.get("chunk_id") or uuid.uuid4().hex),
-                    content=str(chunk.get("content") or ""),
-                    embedding=embedding,
-                    meta=dict(chunk.get("meta") or {}),
-                )
-            )
-        return document_store.write_documents(documents, policy=DuplicatePolicy.OVERWRITE)
+        return self.replace_chunks(chunks)
 
 
 class AzureSearchSDKIndexer:
     def __init__(self, config: AICopilotConfig) -> None:
         self.config = config
 
-    def upsert_chunks(self, chunks: list[dict[str, Any]]) -> int:
+    def replace_chunks(self, chunks: list[dict[str, Any]]) -> int:
         if not chunks:
             return 0
 
-        from azure.search.documents import SearchClient
-        from azure.search.documents.indexes import SearchIndexClient
-
-        index_client = SearchIndexClient(
-            endpoint=self.config.azure_search_endpoint,
-            credential=_azure_search_credential(self.config),
-        )
-        _ensure_azure_search_index(index_client, self.config)
-        search_client = SearchClient(
-            endpoint=self.config.azure_search_endpoint,
-            index_name=self.config.azure_search_index_name,
-            credential=_azure_search_credential(self.config),
-        )
+        _ensure_azure_index_contract(self.config)
+        expected_by_source_doc = _expected_chunk_ids_by_source_doc(chunks)
+        search_client = _azure_search_client(self.config)
         _delete_existing_azure_chunks_for_source_docs(search_client, chunks)
         contents = [str(chunk.get("content") or "") for chunk in chunks]
         embeddings = _embed_texts(contents, config=self.config)
         documents = []
         for chunk, embedding in zip(chunks, embeddings, strict=False):
+            evidence_id = _require_chunk_evidence_contract(chunk)
             documents.append(
                 {
-                    "chunk_id": str(chunk.get("chunk_id") or uuid.uuid4().hex),
+                    "chunk_id": evidence_id,
                     "content": str(chunk.get("content") or ""),
                     "embedding": embedding,
                     **_flatten_azure_chunk_meta(dict(chunk.get("meta") or {})),
                 }
             )
-        results = search_client.upload_documents(documents)
-        return sum(1 for item in results if bool(getattr(item, "succeeded", False)))
-
-
-def _delete_existing_azure_chunks_for_source_docs(search_client: Any, chunks: list[dict[str, Any]]) -> None:
-    source_doc_ids = sorted(
-        {
-            str((chunk.get("meta") or {}).get("source_doc_id") or "").strip()
-            for chunk in chunks
-            if str((chunk.get("meta") or {}).get("source_doc_id") or "").strip()
-        }
-    )
-    for source_doc_id in source_doc_ids:
-        filter_text = _azure_filter_to_odata({"field": "source_doc_id", "operator": "==", "value": source_doc_id})
-        if not filter_text:
-            continue
-        existing = search_client.search(
-            search_text="*",
-            filter=filter_text,
-            select=["chunk_id"],
-            top=1000,
+        written = 0
+        for document_batch in [
+            documents[index : index + REMOTE_INDEX_OPERATION_BATCH_SIZE]
+            for index in range(0, len(documents), REMOTE_INDEX_OPERATION_BATCH_SIZE)
+        ]:
+            results = search_client.upload_documents(document_batch)
+            _require_azure_indexing_results(
+                results,
+                expected_count=len(document_batch),
+                operation="upload",
+            )
+            written += len(document_batch)
+        _verify_azure_replacement(
+            search_client,
+            expected_by_source_doc=expected_by_source_doc,
         )
-        chunk_ids = [str(item.get("chunk_id") or "").strip() for item in existing if str(item.get("chunk_id") or "").strip()]
-        if chunk_ids:
-            search_client.delete_documents(documents=[{"chunk_id": chunk_id} for chunk_id in chunk_ids])
+        return written
+
+    def upsert_chunks(self, chunks: list[dict[str, Any]]) -> int:
+        return self.replace_chunks(chunks)
 
 
 def delete_azure_search_chunks_for_source_docs(
@@ -3183,25 +4953,34 @@ class DashVectorIndexer:
     def __init__(self, config: AICopilotConfig) -> None:
         self.config = config
 
-    def upsert_chunks(self, chunks: list[dict[str, Any]]) -> int:
+    def replace_chunks(self, chunks: list[dict[str, Any]]) -> int:
         if not chunks:
             return 0
 
         from dashvector import Doc
 
+        expected_by_source_doc = _expected_chunk_ids_by_source_doc(chunks)
         contents = [str(chunk.get("content") or "") for chunk in chunks]
         embeddings = _embed_texts(contents, config=self.config)
         first_embedding = embeddings[0]
         collection = _dashvector_collection(
-            self.config,
+            _dashvector_contract_config(self.config),
             create_if_missing=True,
             dimension=len(first_embedding),
         )
+        partition = self.config.dashvector_partition_name or None
+        for source_doc_id in expected_by_source_doc:
+            _delete_dashvector_source_doc_chunks(
+                collection,
+                source_doc_id=source_doc_id,
+                partition=partition,
+            )
         docs = []
         for chunk, embedding in zip(chunks, embeddings, strict=False):
+            evidence_id = _require_chunk_evidence_contract(chunk)
             docs.append(
                 Doc(
-                    id=str(chunk.get("chunk_id") or uuid.uuid4().hex),
+                    id=evidence_id,
                     vector=embedding,
                     fields=_flatten_dashvector_chunk_meta(
                         dict(chunk.get("meta") or {}),
@@ -3209,22 +4988,52 @@ class DashVectorIndexer:
                     ),
                 )
             )
-        response = collection.upsert(docs, partition=self.config.dashvector_partition_name or None)
-        if not response:
-            raise RuntimeError(f"DashVector upsert failed: {response.message}")
-        return len(response.output or [])
+        written = 0
+        for document_batch in [
+            docs[index : index + DASHVECTOR_MATCH_BATCH_SIZE]
+            for index in range(0, len(docs), DASHVECTOR_MATCH_BATCH_SIZE)
+        ]:
+            response = collection.upsert(document_batch, partition=partition)
+            if not response:
+                raise RuntimeError(f"DashVector upsert failed: {response.message}")
+            batch_written = len(response.output or [])
+            if batch_written != len(document_batch):
+                raise RuntimeError(
+                    "DashVector write result mismatch:"
+                    f"{batch_written}/{len(document_batch)} succeeded."
+                )
+            written += batch_written
+        if written != len(docs):
+            raise RuntimeError(
+                "DashVector write result mismatch:"
+                f"{written}/{len(docs)} succeeded."
+            )
+        _verify_dashvector_expected_ids(
+            collection,
+            expected_ids={
+                evidence_id
+                for ids in expected_by_source_doc.values()
+                for evidence_id in ids
+            },
+            partition=partition,
+        )
+        return written
+
+    def upsert_chunks(self, chunks: list[dict[str, Any]]) -> int:
+        return self.replace_chunks(chunks)
 
 
 class QdrantIndexer:
     def __init__(self, config: AICopilotConfig) -> None:
         self.config = config
 
-    def upsert_chunks(self, chunks: list[dict[str, Any]]) -> int:
+    def replace_chunks(self, chunks: list[dict[str, Any]]) -> int:
         if not chunks:
             return 0
 
         from qdrant_client.http import models as qdrant_models
 
+        expected_by_source_doc = _expected_chunk_ids_by_source_doc(chunks)
         contents = [str(chunk.get("content") or "") for chunk in chunks]
         embeddings = _embed_texts(contents, config=self.config)
         first_embedding = embeddings[0]
@@ -3239,11 +5048,30 @@ class QdrantIndexer:
             dimension=len(first_embedding),
             create_if_missing=True,
         )
+        for source_doc_id in expected_by_source_doc:
+            source_filter = _qdrant_source_doc_filter(
+                qdrant_models,
+                source_doc_id,
+            )
+            client.delete(
+                collection_name=self.config.qdrant_collection_name,
+                points_selector=source_filter,
+                wait=True,
+            )
+            if _qdrant_source_doc_count(
+                client,
+                collection_name=self.config.qdrant_collection_name,
+                source_filter=source_filter,
+            ) != 0:
+                raise RuntimeError(
+                    "Qdrant source-document replacement could not verify old chunk deletion."
+                )
         points = []
         for chunk, embedding in zip(chunks, embeddings, strict=False):
+            evidence_id = _require_chunk_evidence_contract(chunk)
             points.append(
                 qdrant_models.PointStruct(
-                    id=_qdrant_point_id(chunk.get("chunk_id")),
+                    id=_qdrant_point_id(evidence_id),
                     vector=embedding,
                     payload=_flatten_qdrant_chunk_meta(
                         dict(chunk.get("meta") or {}),
@@ -3252,7 +5080,181 @@ class QdrantIndexer:
                 )
             )
         client.upsert(collection_name=self.config.qdrant_collection_name, points=points, wait=True)
+        for source_doc_id, expected_ids in expected_by_source_doc.items():
+            _verify_qdrant_source_doc_ids(
+                client,
+                collection_name=self.config.qdrant_collection_name,
+                source_doc_id=source_doc_id,
+                expected_ids=expected_ids,
+                qdrant_models=qdrant_models,
+            )
         return len(points)
+
+    def upsert_chunks(self, chunks: list[dict[str, Any]]) -> int:
+        return self.replace_chunks(chunks)
+
+
+def _dashvector_source_doc_filter(source_doc_id: str) -> str:
+    return f"source_doc_id = '{source_doc_id.replace("'", "''")}'"
+
+
+def _delete_dashvector_source_doc_chunks(
+    collection: Any,
+    *,
+    source_doc_id: str,
+    partition: str | None,
+) -> None:
+    for _ in range(DASHVECTOR_MAX_DELETE_BATCHES):
+        response = collection.query(
+            topk=DASHVECTOR_MATCH_BATCH_SIZE,
+            filter=_dashvector_source_doc_filter(source_doc_id),
+            output_fields=["evidence_id"],
+            partition=partition,
+        )
+        if not response:
+            raise RuntimeError(
+                f"DashVector replacement query failed: {response.message}"
+            )
+        existing_ids = [
+            str(getattr(item, "id", "") or "").strip()
+            for item in response.output or []
+            if str(getattr(item, "id", "") or "").strip()
+        ]
+        if not existing_ids:
+            return
+        delete_response = collection.delete(
+            ids=existing_ids,
+            partition=partition,
+        )
+        if not delete_response:
+            raise RuntimeError(
+                f"DashVector replacement delete failed: {delete_response.message}"
+            )
+        time.sleep(REMOTE_INDEX_VERIFY_DELAY_SECONDS)
+    raise RuntimeError(
+        "DashVector source-document replacement exceeded the bounded delete budget."
+    )
+
+
+def _verify_dashvector_expected_ids(
+    collection: Any,
+    *,
+    expected_ids: set[str],
+    partition: str | None,
+) -> None:
+    found_ids: set[str] = set()
+    for attempt in range(REMOTE_INDEX_VERIFY_ATTEMPTS):
+        found_ids = set()
+        for ids in _batched(sorted(expected_ids), DASHVECTOR_MATCH_BATCH_SIZE):
+            response = collection.fetch(ids=ids, partition=partition)
+            if not response:
+                raise RuntimeError(
+                    f"DashVector replacement verification failed: {response.message}"
+                )
+            output = response.output or {}
+            if isinstance(output, dict):
+                found_ids.update(
+                    str(item).strip()
+                    for item in output
+                    if str(item).strip()
+                )
+            else:
+                found_ids.update(
+                    str(getattr(item, "id", "") or "").strip()
+                    for item in output
+                    if str(getattr(item, "id", "") or "").strip()
+                )
+        if found_ids == expected_ids:
+            return
+        if attempt + 1 < REMOTE_INDEX_VERIFY_ATTEMPTS:
+            time.sleep(REMOTE_INDEX_VERIFY_DELAY_SECONDS)
+    raise RuntimeError(
+        "DashVector source-document replacement verification failed:"
+        f" found {len(found_ids)}/{len(expected_ids)} expected chunks."
+    )
+
+
+def _qdrant_source_doc_filter(qdrant_models: Any, source_doc_id: str) -> Any:
+    return qdrant_models.Filter(
+        must=[
+            qdrant_models.FieldCondition(
+                key="source_doc_id",
+                match=qdrant_models.MatchValue(value=source_doc_id),
+            )
+        ]
+    )
+
+
+def _qdrant_source_doc_count(
+    client: Any,
+    *,
+    collection_name: str,
+    source_filter: Any,
+) -> int:
+    result = client.count(
+        collection_name=collection_name,
+        count_filter=source_filter,
+        exact=True,
+    )
+    return int(getattr(result, "count", 0) or 0)
+
+
+def _verify_qdrant_source_doc_ids(
+    client: Any,
+    *,
+    collection_name: str,
+    source_doc_id: str,
+    expected_ids: set[str],
+    qdrant_models: Any,
+) -> None:
+    source_filter = _qdrant_source_doc_filter(qdrant_models, source_doc_id)
+    found_ids: set[str] = set()
+    offset: Any = None
+    seen_offsets: set[str] = set()
+    while True:
+        records, next_offset = client.scroll(
+            collection_name=collection_name,
+            scroll_filter=source_filter,
+            limit=256,
+            offset=offset,
+            with_payload=["evidence_id"],
+            with_vectors=False,
+        )
+        for record in records:
+            payload = getattr(record, "payload", None) or {}
+            evidence_id = str(payload.get("evidence_id") or "").strip()
+            if evidence_id:
+                found_ids.add(evidence_id)
+        if next_offset is None:
+            break
+        offset_key = str(next_offset)
+        if offset_key in seen_offsets:
+            raise RuntimeError(
+                "Qdrant replacement verification returned a repeated scroll offset."
+            )
+        seen_offsets.add(offset_key)
+        offset = next_offset
+    if found_ids != expected_ids:
+        raise RuntimeError(
+            "Qdrant source-document replacement verification failed:"
+            f" found {len(found_ids)}/{len(expected_ids)} expected chunks."
+        )
+
+
+def _select_model_evidence_candidates(
+    evidences: list[dict[str, Any]],
+) -> tuple[list[dict[str, Any]], list[dict[str, Any]]]:
+    primary = [
+        item
+        for item in evidences
+        if str(item.get("score_source") or "") != "adjacent_context"
+    ][:MAX_MODEL_PRIMARY_EVIDENCES]
+    adjacent = [
+        item
+        for item in evidences
+        if str(item.get("score_source") or "") == "adjacent_context"
+    ][:MAX_MODEL_ADJACENT_EVIDENCES]
+    return primary, adjacent
 
 
 def build_llm_messages(
@@ -3262,62 +5264,122 @@ def build_llm_messages(
     retrieval_backend: str = "local",
 ) -> list[dict[str, str]]:
     system_prompt = (
-        "你是汽车行业合规评审助手。你的任务是基于给定需求和候选证据，自动输出结构化判定。"
-        "所有输出文字必须使用中文（包括 reason、clarification_question、normalized_requirement）。"
-        "引用证据原文时保留原始语言，但分析和判定理由必须用中文撰写。"
-        "你只能引用候选证据，不得编造新文档。若证据不足、冲突或不够直接，必须输出 NEED_CLARIFICATION。"
-        "\n\n"
-        "重要判定原则：\n"
-        "1. 产品规格书（如 ETC12.pdf、Product Specification）本身就是权威合规证据。"
-        "规格书中声明的技术参数即为产品能力，不需要额外测试报告来佐证。\n"
-        "2. 当证据文本与需求文本表述一致或语义等价时，应判定为 ACCEPT。"
-        "不要因为证据'复述了需求'就拒绝——供应商规格书与客户 SOR 使用相同表述即证明合规。\n"
-        "3. 只有在证据完全缺失、证据与需求无关、或证据被截断导致关键信息丢失时，才输出 NEED_CLARIFICATION。\n"
-        "4. 参数存在数值差异时：供应商值优于客户需求 → ACCEPT；"
-        "供应商值劣于客户需求 → REJECT；存在部分偏差 → DEVIATION_ACCEPT。\n"
-        "5. risk_level 只能是 LOW、MEDIUM、HIGH。"
-        "clarification_question 必须始终提供；如果无需澄清请返回空字符串。"
-        "\n\n"
-        "判定示例：\n"
-        "1. ACCEPT：需求'工作温度-40°C~+85°C'，规格书写有'Operating temperature: -40°C to +85°C'→ ACCEPT, LOW。\n"
-        "2. ACCEPT：需求'防护等级IP6K9K'，规格书写有'Protection class: IP6K9K DIN 40050-9'→ ACCEPT, LOW（规格书声明即权威证据）。\n"
-        "3. REJECT：需求'防护等级IP67'，证据写有'Protection class IP54 only'→ REJECT, HIGH。\n"
-        "4. DEVIATION_ACCEPT：需求'响应时间<1ms'，证据写有'Response time ≤1.5ms'→ DEVIATION_ACCEPT, MEDIUM。\n"
-        "5. NEED_CLARIFICATION：需求'满足EMC标准'，证据仅有章节标题而无任何具体参数值→ NEED_CLARIFICATION, MEDIUM。"
+        "你是汽车行业需求符合性分析助手。你只依据输入中的需求上下文和候选证据判断，"
+        "不得使用未提供的常识补全事实，不得根据文件名、文档类型或相似措辞自行推断权威性、"
+        "适用性、有效性或产品能力。authority 为 UNKNOWN 时必须按未知处理。"
+        "所有分析字段使用中文；证据原文保持原语言。"
+        "\n\n输出合同："
+        "\n1. compliance_status 是符合性事实，只能为 COMPLIANT、PARTIALLY_COMPLIANT、"
+        "NON_COMPLIANT、INSUFFICIENT_INFORMATION；它不是人工业务处置结论。"
+        "\n2. proposed_decision 仅为旧接口兼容投影，必须严格对应："
+        "COMPLIANT→ACCEPT，PARTIALLY_COMPLIANT→DEVIATION_ACCEPT，"
+        "NON_COMPLIANT→REJECT，INSUFFICIENT_INFORMATION→NEED_CLARIFICATION。"
+        "\n3. 逐个拆解需求中的独立约束并写入 sub_judgments；总体状态必须与子判断一致。"
+        "\n4. 每条被采用证据都要在 evidences 中原样引用 evidence_id，"
+        "并在 evidence_findings 中说明它支持、部分支持、反驳或仅提供上下文。"
+        "不得改写 evidence_id、content_hash、出处、原文或相关性分数。"
+        "\n5. 若证据缺失、冲突、生命周期/适用范围不明、上下文被截断，或不能直接覆盖全部约束，"
+        "输出 INSUFFICIENT_INFORMATION，并完整填写 structured_information_gap："
+        "已找到什么、缺什么、为何阻断、需要什么输入以及澄清问题。"
+        "\n6. normalized_requirement 必须逐字返回输入中的同名字段。"
+        "\n7. clarification_question 在无需澄清时为空；信息不足时必须非空。"
+        "\n8. 仅有检索相关度不能证明符合、部分符合或不符合；结论必须由证据原文中的可核查事实支撑。"
+        "\n9. adjacent_evidence_context 是与已检索 chunk 相邻的未打分上下文；"
+        "不得把相邻关系或父 chunk 的分数当成该文本的符合性证明。"
+        "\n10. 每个非 INSUFFICIENT_INFORMATION 的 sub_judgment 必须引用至少一条证据；"
+        "规范性要求文本、目标、计划或模板不是产品已经符合/不符合的事实记录。"
     )
-    evidence_blocks = []
-    for index, item in enumerate(evidences[:5], start=1):
-        evidence_blocks.append(
-            {
-                "slot": index,
-                "evidence_slot": index,
+    primary_evidences, adjacent_evidences = (
+        _select_model_evidence_candidates(evidences)
+    )
+
+    def _prompt_evidence_block(
+        item: dict[str, Any],
+        *,
+        slot: int,
+        is_adjacent_context: bool,
+    ) -> dict[str, Any]:
+        return {
+                "slot": slot,
+                "evidence_slot": slot,
+                "is_adjacent_context": is_adjacent_context,
+                "retrieval_parent_evidence_id": str(
+                    item.get("retrieval_parent_evidence_id") or ""
+                ),
                 "chunk_id": str(item.get("chunk_id") or ""),
+                "evidence_id": str(item.get("evidence_id") or ""),
+                "content_hash": str(item.get("content_hash") or ""),
+                "evidence_contract_version": str(item.get("evidence_contract_version") or ""),
                 "source_doc_id": str(item.get("source_doc_id") or ""),
                 "source_doc_name": str(item.get("source_doc_name") or ""),
                 "source_doc_version": str(item.get("source_doc_version") or ""),
                 "source_location": str(item.get("source_location") or ""),
+                "doc_type": str(item.get("doc_type") or ""),
+                "status": str(item.get("status") or ""),
+                "effective_from": str(item.get("effective_from") or ""),
+                "effective_to": str(item.get("effective_to") or ""),
+                "content_kind": str(item.get("content_kind") or ""),
+                "section_code": str(item.get("section_code") or ""),
+                "section_title": str(item.get("section_title") or ""),
+                "authority": str(item.get("authority") or "UNKNOWN"),
+                "claim_role": str(item.get("claim_role") or "UNKNOWN"),
+                "applicability": str(item.get("applicability") or "UNKNOWN"),
                 "excerpt": str(item.get("excerpt") or ""),
-                "relevance": round(float(item.get("relevance") or 0.0), 4),
+                "relevance": (
+                    None
+                    if is_adjacent_context
+                    else round(float(item.get("relevance") or 0.0), 4)
+                ),
                 "score_source": str(item.get("score_source") or ""),
             }
+
+    evidence_blocks = [
+        _prompt_evidence_block(
+            item,
+            slot=index,
+            is_adjacent_context=False,
         )
+        for index, item in enumerate(primary_evidences, start=1)
+    ]
+    adjacent_evidence_blocks = [
+        _prompt_evidence_block(
+            item,
+            slot=len(evidence_blocks) + index,
+            is_adjacent_context=True,
+        )
+        for index, item in enumerate(adjacent_evidences, start=1)
+    ]
     user_payload = {
         "requirement_id": context.get("requirement_id"),
         "req_code": context.get("req_code"),
         "requirement_type": context.get("requirement_type"),
         "normalized_requirement": context.get("normalized_requirement"),
         "raw_requirement_text": context.get("requirement_text"),
+        "source_context": context.get("source_context"),
+        "context_warnings": context.get("context_warnings"),
+        "context_completeness": context.get("context_completeness"),
+        "context_completeness_status": context.get(
+            "context_completeness_status"
+        ),
         "parent_section_code": context.get("parent_section_code"),
         "parent_section_title": context.get("parent_section_title"),
         "content_summary": context.get("content_summary"),
         "table_context": context.get("table_context"),
         "retrieval_gate_reason": context.get("retrieval_gate_reason"),
         "candidate_evidences": evidence_blocks,
+        "adjacent_evidence_context": adjacent_evidence_blocks,
         "decision_rules": {
             "allowed_decisions": list(VALID_DECISIONS),
+            "allowed_compliance_statuses": list(VALID_COMPLIANCE_STATUSES),
+            "decision_to_compliance_status": dict(
+                DECISION_TO_COMPLIANCE_STATUS
+            ),
             "allowed_risk_levels": list(VALID_RISK_LEVELS),
             "must_not_accept_without_evidence": True,
             "must_not_invent_sources": True,
+            "must_analyze_each_independent_constraint": True,
+            "must_explain_information_gap_when_insufficient": True,
+            "relevance_is_not_compliance_proof": True,
             "no_effective_evidence_below": _effective_evidence_threshold_for_backend(retrieval_backend),
             "decision_requires_top_evidence_at_least": _decision_evidence_threshold_for_backend(retrieval_backend),
         },
@@ -3369,22 +5431,37 @@ def build_screening_messages(context: dict[str, Any]) -> list[dict[str, str]]:
     ]
 
 
-def build_azure_filter(*, project_id: str, knowledge_docs: list[dict[str, Any]]) -> dict[str, Any] | None:
+def build_azure_filter(
+    *,
+    project_id: str,
+    knowledge_docs: list[dict[str, Any]],
+    as_of: date | None = None,
+) -> dict[str, Any] | None:
+    eligible_docs = _eligible_knowledge_documents(knowledge_docs, as_of=as_of)
     conditions: list[dict[str, Any]] = []
     if project_id:
         conditions.append({"field": "project_id", "operator": "==", "value": project_id})
-    doc_ids = [str(doc.get("id") or "").strip() for doc in knowledge_docs if str(doc.get("id") or "").strip()]
+    doc_ids = [str(doc.get("id") or "").strip() for doc in eligible_docs]
     if doc_ids:
         conditions.append({"field": "source_doc_id", "operator": "in", "value": doc_ids})
-    statuses = sorted(
-        {
-            str(doc.get("status") or "").strip()
-            for doc in knowledge_docs
-            if str(doc.get("status") or "").strip()
-        }
-    )
-    if statuses:
-        conditions.append({"field": "status", "operator": "in", "value": statuses})
+        conditions.append({"field": "status", "operator": "==", "value": ACTIVE_KNOWLEDGE_STATUS})
+        conditions.append(
+            {
+                "field": "evidence_contract_version",
+                "operator": "==",
+                "value": EVIDENCE_INDEX_CONTRACT_VERSION,
+            }
+        )
+        doc_types = sorted({str(doc.get("doc_type") or "").strip().upper() for doc in eligible_docs})
+        conditions.append({"field": "doc_type", "operator": "in", "value": doc_types})
+    else:
+        conditions.append(
+            {
+                "field": "source_doc_id",
+                "operator": "==",
+                "value": NO_ELIGIBLE_EVIDENCE_ID,
+            }
+        )
     if not conditions:
         return None
     if len(conditions) == 1:
@@ -3406,6 +5483,10 @@ def _finalize_assessment_result(
     final_model_name: str,
     final_prompt_version: str,
 ) -> dict[str, Any]:
+    final_result = _ensure_final_assessment_semantics(
+        final_result,
+        context=collector.context,
+    )
     trace_id = str(uuid.uuid4())
     trace_path = collector.config.trace_dir / f"{trace_id}.json"
     collector.config.trace_dir.mkdir(parents=True, exist_ok=True)
@@ -3427,11 +5508,17 @@ def _finalize_assessment_result(
             "analysis_label": final_result["analysis_label"],
             "analysis_basis": final_result["analysis_basis"],
             "ai_decision": final_result["ai_decision"],
+            "compliance_status": final_result["compliance_status"],
             "ai_reason": final_result["ai_reason"],
             "ai_confidence": final_result["ai_confidence"],
             "risk_level": final_result["risk_level"],
             "clarification_question": final_result["clarification_question"],
             "normalized_requirement": final_result["normalized_requirement"],
+            "evidence_findings": final_result["evidence_findings"],
+            "sub_judgments": final_result["sub_judgments"],
+            "structured_information_gap": final_result[
+                "structured_information_gap"
+            ],
             "assessment_mode": final_mode,
             "retrieval_backend": collector.retrieval_backend,
             "model_name": final_model_name,
@@ -3441,6 +5528,53 @@ def _finalize_assessment_result(
         "runs": collector.runs,
         "trace_path": str(trace_path),
     }
+
+
+def _ensure_final_assessment_semantics(
+    final_result: dict[str, Any],
+    *,
+    context: dict[str, Any],
+) -> dict[str, Any]:
+    normalized = dict(final_result)
+    decision = str(normalized.get("ai_decision") or "").strip()
+    compliance_status = str(normalized.get("compliance_status") or "").strip()
+    if not compliance_status and decision:
+        compliance_status = DECISION_TO_COMPLIANCE_STATUS.get(decision, "")
+    normalized["compliance_status"] = compliance_status
+    normalized.setdefault("evidence_findings", [])
+    normalized.setdefault("sub_judgments", [])
+    normalized.setdefault("structured_information_gap", {})
+    evidences = [
+        dict(item)
+        for item in normalized.get("evidences") or []
+        if isinstance(item, dict)
+    ]
+    if (
+        compliance_status == "INSUFFICIENT_INFORMATION"
+        and not _structured_information_gap_has_content(
+            normalized["structured_information_gap"]
+            if isinstance(normalized["structured_information_gap"], dict)
+            else {}
+        )
+    ):
+        normalized["structured_information_gap"] = (
+            _build_structured_information_gap(context, evidences)
+        )
+    if not normalized["evidence_findings"] and evidences and compliance_status:
+        normalized["evidence_findings"] = _build_default_evidence_findings(
+            compliance_status,
+            evidences,
+            reason=str(normalized.get("ai_reason") or ""),
+        )
+    if not normalized["sub_judgments"] and compliance_status:
+        normalized["sub_judgments"] = _build_default_sub_judgments(
+            context=context,
+            compliance_status=compliance_status,
+            reason=str(normalized.get("ai_reason") or ""),
+            evidences=evidences,
+            structured_information_gap=normalized["structured_information_gap"],
+        )
+    return normalized
 
 
 def build_info_assessment_result(*, context: dict[str, Any], screening: dict[str, Any]) -> dict[str, Any]:
@@ -3574,53 +5708,96 @@ def _validate_evidence_references(
     cited: list[AssessmentEvidenceSchema],
     retrieved: list[dict[str, Any]],
 ) -> str:
+    _, validation_error, _ = _resolve_evidence_references(cited, retrieved)
+    return validation_error
+
+
+def _resolve_evidence_references(
+    cited: list[AssessmentEvidenceSchema],
+    retrieved: list[dict[str, Any]],
+) -> tuple[list[EvidenceRef], str, bool]:
+    server_candidates = _server_evidence_refs(retrieved)
+    if cited and retrieved and not server_candidates:
+        return [], "evidence_index_contract_invalid", False
+    selected: list[EvidenceRef] = []
+    selected_values: set[EvidenceRef] = set()
+    used_legacy_selector = False
     for evidence in cited:
+        cited_evidence_id = evidence.evidence_id.strip()
+        if cited_evidence_id:
+            identity_matches = [item for item in server_candidates if item.evidence_id == cited_evidence_id]
+            if not identity_matches:
+                return [], "evidence_reference_out_of_scope", False
+            if len(identity_matches) > 1:
+                return [], "evidence_identity_conflict", False
+            matched = identity_matches[0]
+            if matched not in selected_values:
+                selected.append(matched)
+                selected_values.add(matched)
+            continue
+
+        used_legacy_selector = True
         cited_doc_id = evidence.source_doc_id.strip()
         cited_location = evidence.source_location.strip()
         cited_excerpt = normalize_requirement_text(evidence.excerpt)
         cited_chunk_id = str(evidence.chunk_id or "").strip()
         cited_slot = int(evidence.evidence_slot or 0)
-        if not cited_doc_id and not cited_chunk_id and not cited_slot:
-            return "evidence_reference_out_of_scope"
-        matched = False
-        for index, item in enumerate(retrieved, start=1):
-            item_doc_id = str(item.get("source_doc_id") or "").strip()
-            item_location = str(item.get("source_location") or "").strip()
-            item_excerpt = normalize_requirement_text(str(item.get("excerpt") or ""))
-            item_chunk_id = str(item.get("chunk_id") or "").strip()
-            # Chunk-ID match: strongest signal, bypasses location/excerpt checks
-            if cited_chunk_id and item_chunk_id and cited_chunk_id == item_chunk_id:
-                matched = True
-                break
-            # Slot match: positional reference
-            if cited_slot and cited_slot == index:
-                matched = True
-                break
-            # Doc-id + location match (case-insensitive, normalized)
-            if cited_doc_id and item_doc_id and cited_doc_id != item_doc_id:
-                continue
-            if cited_location and item_location:
-                norm_cited = re.sub(r"\s+", " ", cited_location.lower())
-                norm_item = re.sub(r"\s+", " ", item_location.lower())
-                if norm_cited == norm_item:
-                    matched = True
-                    break
-            # Excerpt substring match within same doc
-            if cited_excerpt and item_excerpt:
+        matches: list[EvidenceRef] = []
+        if cited_chunk_id:
+            for raw_item in retrieved:
+                if str(raw_item.get("chunk_id") or "").strip() != cited_chunk_id:
+                    continue
+                candidate = EvidenceRef.from_server_candidate(raw_item)
+                if candidate in server_candidates:
+                    matches.append(candidate)
+        elif cited_slot and 1 <= cited_slot <= len(retrieved):
+            candidate = EvidenceRef.from_server_candidate(retrieved[cited_slot - 1])
+            if candidate in server_candidates:
+                matches.append(candidate)
+
+        if not matches and (not cited_doc_id or not cited_location or not cited_excerpt):
+            return [], "evidence_reference_out_of_scope", True
+        exact_matches: list[EvidenceRef] = []
+        compatible_matches: list[EvidenceRef] = []
+        if not matches:
+            for item in server_candidates:
+                if item.source_doc_id != cited_doc_id or item.source_location != cited_location:
+                    continue
+                item_excerpt = normalize_requirement_text(item.excerpt)
+                if cited_excerpt == item_excerpt:
+                    exact_matches.append(item)
+                    continue
                 if cited_excerpt in item_excerpt or item_excerpt in cited_excerpt:
-                    matched = True
-                    break
-        if not matched:
-            _logger.warning(
-                "Evidence reference validation failed: cited_doc_id=%s cited_location=%s "
-                "cited_chunk_id=%s cited_slot=%s retrieved_count=%d",
-                cited_doc_id, cited_location, cited_chunk_id, cited_slot, len(retrieved),
-            )
-            return "evidence_reference_out_of_scope"
-    return ""
+                    compatible_matches.append(item)
+            matches = exact_matches or compatible_matches
+        if not matches:
+            return [], "evidence_reference_out_of_scope", True
+        if len(matches) > 1:
+            return [], "evidence_reference_ambiguous", True
+        matched = matches[0]
+        if matched not in selected_values:
+            selected.append(matched)
+            selected_values.add(matched)
+    return selected, "", used_legacy_selector
 
 
-def _evidences_conflict(evidences: list[AssessmentEvidenceSchema]) -> bool:
+def _server_evidence_refs(retrieved: list[dict[str, Any]]) -> list[EvidenceRef]:
+    candidates: list[EvidenceRef] = []
+    seen: set[EvidenceRef] = set()
+    for item in retrieved:
+        candidate = EvidenceRef.from_server_candidate(item)
+        if not candidate.source_doc_id or not candidate.source_location or not candidate.excerpt:
+            continue
+        if not candidate.has_current_contract or not bool(item.get("evidence_contract_verified")):
+            continue
+        if candidate in seen:
+            continue
+        candidates.append(candidate)
+        seen.add(candidate)
+    return candidates
+
+
+def _evidences_conflict(evidences: list[EvidenceRef]) -> bool:
     has_negative = False
     has_positive = False
     for evidence in evidences:
@@ -3634,7 +5811,7 @@ def _evidences_conflict(evidences: list[AssessmentEvidenceSchema]) -> bool:
 
 
 def _reconciliation_policy_for_config(config: AICopilotConfig) -> Literal["heuristic", "llm_guarded"]:
-    if config.provider == DEFAULT_AZURE_PROFILE_ID and config.assessment_mode in {"llm_shadow", "llm_primary"}:
+    if config.assessment_mode in {"llm_shadow", "llm_primary"}:
         return "llm_guarded"
     return "heuristic"
 
@@ -3657,6 +5834,7 @@ def _apply_evidence_strength_guardrail(
     *,
     context: dict[str, Any],
     candidate: AssessmentOutputSchema,
+    canonical_evidences: list[EvidenceRef],
     retrieved_evidences: list[dict[str, Any]],
     fallback_reason: str,
     retrieval_backend: str,
@@ -3664,13 +5842,71 @@ def _apply_evidence_strength_guardrail(
     decision = str(candidate.proposed_decision or "NEED_CLARIFICATION").strip().upper()
     if decision == "NEED_CLARIFICATION":
         return None
-    cited_evidences = [item.model_dump() for item in candidate.evidences[:3]]
-    top_relevance = max((float(item.get("relevance") or 0.0) for item in cited_evidences), default=0.0)
+    selected_ids = {
+        item.evidence_id
+        for item in canonical_evidences[:MAX_PERSISTED_EVIDENCES]
+    }
+    cited_evidences = [
+        item
+        for item in retrieved_evidences
+        if str(item.get("evidence_id") or item.get("chunk_id") or "").strip()
+        in selected_ids
+    ]
+    top_relevance = max(
+        (
+            float(
+                item.get("retrieval_parent_relevance")
+                if str(item.get("score_source") or "") == "adjacent_context"
+                else item.get("relevance")
+                or 0.0
+            )
+            for item in cited_evidences
+        ),
+        default=0.0,
+    )
     if top_relevance < _decision_evidence_threshold_for_backend(retrieval_backend):
         return fallback_need_clarification(
             context=context,
             evidences=retrieved_evidences,
             fallback_reason=f"{fallback_reason}; decision_requires_stronger_evidence".strip("; "),
+        )
+    proof_evidences = [
+        item for item in cited_evidences if _evidence_has_decision_proof(item)
+    ]
+    if not proof_evidences:
+        return fallback_need_clarification(
+            context=context,
+            evidences=retrieved_evidences,
+            fallback_reason=(
+                f"{fallback_reason}; decision_requires_outcome_proof"
+            ).strip("; "),
+        )
+    if decision == "ACCEPT" and not any(
+        _evidence_has_positive_outcome(item)
+        for item in proof_evidences
+    ):
+        return fallback_need_clarification(
+            context=context,
+            evidences=retrieved_evidences,
+            fallback_reason=f"{fallback_reason}; accept_without_positive_proof".strip("; "),
+        )
+    if decision == "REJECT" and not any(
+        _text_has_negative_signal(str(item.get("excerpt") or ""))
+        for item in proof_evidences
+    ):
+        return fallback_need_clarification(
+            context=context,
+            evidences=retrieved_evidences,
+            fallback_reason=f"{fallback_reason}; reject_without_negative_proof".strip("; "),
+        )
+    if decision == "DEVIATION_ACCEPT" and not any(
+        _text_has_partial_compliance_signal(str(item.get("excerpt") or ""))
+        for item in proof_evidences
+    ):
+        return fallback_need_clarification(
+            context=context,
+            evidences=retrieved_evidences,
+            fallback_reason=f"{fallback_reason}; deviation_without_partial_proof".strip("; "),
         )
     return None
 
@@ -3679,22 +5915,66 @@ def _apply_hard_assessment_rules(
     *,
     context: dict[str, Any],
     candidate: AssessmentOutputSchema,
+    canonical_evidences: list[EvidenceRef],
     retrieved_evidences: list[dict[str, Any]],
     fallback_reason: str,
 ) -> dict[str, Any] | None:
     requirement_type = str(context.get("requirement_type") or "FUNCTIONAL").strip().upper()
-    cited_evidences = [item.model_dump() for item in candidate.evidences[:3]]
-    top_relevance = max((float(item.get("relevance") or 0.0) for item in cited_evidences), default=0.0)
+    cited_evidences = _canonical_evidence_mappings(
+        canonical_evidences,
+        retrieved_evidences,
+        limit=MAX_PERSISTED_EVIDENCES,
+    )
+    top_relevance = max(
+        (
+            float(
+                item.get("retrieval_parent_relevance")
+                if str(item.get("score_source") or "") == "adjacent_context"
+                else item.get("relevance")
+                or 0.0
+            )
+            for item in cited_evidences
+        ),
+        default=0.0,
+    )
     has_negative = any(_text_has_negative_signal(str(item.get("excerpt") or "")) for item in cited_evidences)
-    has_positive = any(_text_has_positive_signal(str(item.get("excerpt") or "")) for item in cited_evidences)
+    has_positive = any(
+        _evidence_has_positive_outcome(item) for item in cited_evidences
+    )
     has_compliance = any(_text_has_compliance_signal(str(item.get("excerpt") or "")) for item in cited_evidences)
+    has_decision_proof = any(
+        _evidence_has_decision_proof(item) for item in cited_evidences
+    )
     decision = str(candidate.proposed_decision or "NEED_CLARIFICATION").strip().upper()
+
+    if decision != "NEED_CLARIFICATION" and not has_decision_proof:
+        return fallback_need_clarification(
+            context=context,
+            evidences=retrieved_evidences,
+            fallback_reason=f"{fallback_reason}; decision_requires_outcome_proof".strip("; "),
+        )
 
     if decision == "REJECT" and not has_negative:
         return fallback_need_clarification(
             context=context,
             evidences=retrieved_evidences,
             fallback_reason=f"{fallback_reason}; reject_without_negative_signal".strip("; "),
+        )
+    if decision == "ACCEPT" and not has_positive:
+        return fallback_need_clarification(
+            context=context,
+            evidences=retrieved_evidences,
+            fallback_reason=f"{fallback_reason}; accept_without_positive_proof".strip("; "),
+        )
+    if decision == "DEVIATION_ACCEPT" and not any(
+        _text_has_partial_compliance_signal(str(item.get("excerpt") or ""))
+        for item in cited_evidences
+        if _evidence_has_decision_proof(item)
+    ):
+        return fallback_need_clarification(
+            context=context,
+            evidences=retrieved_evidences,
+            fallback_reason=f"{fallback_reason}; deviation_without_partial_proof".strip("; "),
         )
 
     if decision != "NEED_CLARIFICATION" and top_relevance < QDRANT_MIN_DECISION_EVIDENCE_SCORE:
@@ -3720,7 +6000,7 @@ def _apply_hard_assessment_rules(
             "ai_confidence": max(0.55, round(min(0.98, top_relevance), 4)),
             "risk_level": "HIGH",
             "clarification_question": "",
-            "normalized_requirement": str(candidate.normalized_requirement or context.get("normalized_requirement") or ""),
+            "normalized_requirement": str(context.get("normalized_requirement") or ""),
             "evidences": cited_evidences,
             "validation_status": "hard_rule_override",
             "fallback_reason": f"{fallback_reason}; hard_rule_negative_reject".strip("; "),
@@ -3729,19 +6009,21 @@ def _apply_hard_assessment_rules(
 
 
 def _document_to_evidence(document: Any) -> dict[str, Any]:
-    meta = _normalize_chunk_meta(getattr(document, "meta", {}) or {}, content=str(getattr(document, "content", "") or ""))
+    content = str(getattr(document, "content", "") or "")
+    meta = _normalize_chunk_meta(getattr(document, "meta", {}) or {}, content=content)
     score = getattr(document, "score", None)
     return {
         "chunk_id": str(meta.get("chunk_id") or getattr(document, "id", "") or ""),
         "source_doc_id": str(meta.get("source_doc_id") or ""),
         "source_doc_name": str(meta.get("source_doc_name") or ""),
         "source_location": str(meta.get("source_location") or ""),
-        "excerpt": str(getattr(document, "content", "") or "")[:800],
+        "excerpt": content[:800],
         "relevance": round(float(score if score is not None else meta.get("relevance") or 0.0), 4),
         "score_source": "azure_haystack" if score is not None else str(meta.get("score_source") or ""),
         "source_doc_version": str(meta.get("source_doc_version") or ""),
         "content_kind": str(meta.get("content_kind") or ""),
-        "doc_type": str(meta.get("doc_type") or ""),
+        **_evidence_contract_fields(meta, content=content),
+        **_evidence_lifecycle_fields(meta),
         "is_cover_like": bool(meta.get("is_cover_like")),
         "is_glossary_like": bool(meta.get("is_glossary_like")),
         "is_revision_history": bool(meta.get("is_revision_history")),
@@ -3756,90 +6038,195 @@ def _extend_evidence_with_adjacent_chunks(
     knowledge_docs: list[dict[str, Any]],
     max_excerpt_chars: int = 1200,
 ) -> list[dict[str, Any]]:
-    """Extend evidence excerpts by appending content from adjacent chunks.
+    """Add adjacent chunks as separate canonical evidence candidates.
 
-    When a chunk is truncated (e.g., table split across chunks or long paragraph),
-    the next chunk often contains the continuation. This function loads the
-    knowledge index and appends adjacent chunk content to the excerpt.
+    A previous implementation appended adjacent text to the retrieved excerpt
+    while retaining the first chunk's evidence ID and content hash. That broke
+    citation binding. Here every adjacent excerpt keeps its own server-owned
+    identity, hash, provenance, and lifecycle metadata.
     """
     if not evidences or not knowledge_docs:
         return evidences
 
-    # Build chunk lookup: source_doc_id -> {chunk_index -> content}
-    chunk_lookup: dict[str, dict[int, str]] = {}
+    chunk_lookup: dict[str, list[dict[str, Any]]] = {}
     for doc in knowledge_docs:
         doc_id = str(doc.get("id") or "").strip()
-        if not doc_id:
+        if not doc_id or not evaluate_knowledge_evidence_eligibility(doc).allowed:
             continue
-        payload_file = INDEX_PAYLOAD_DIR / f"{doc_id}.json"
-        if not payload_file.exists():
+        payload = _knowledge_index_payload(doc)
+        if payload is None:
             continue
-        try:
-            with open(payload_file, encoding="utf-8") as f:
-                payload = json.load(f)
-            chunks = payload if isinstance(payload, list) else payload.get("chunks", [])
-            for idx, chunk in enumerate(chunks):
-                if isinstance(chunk, dict):
-                    chunk_lookup.setdefault(doc_id, {})[idx] = str(chunk.get("content") or "")
-        except Exception:
+        chunks = payload.get("chunks")
+        if not isinstance(chunks, list):
             continue
+        chunk_lookup[doc_id] = [item for item in chunks if isinstance(item, dict)]
 
     if not chunk_lookup:
         return evidences
 
+    extended = [dict(item) for item in evidences]
+    seen_evidence_ids = {
+        str(item.get("evidence_id") or item.get("chunk_id") or "").strip()
+        for item in extended
+    }
     for ev in evidences:
-        doc_id = ev.get("source_doc_id", "")
+        doc_id = str(ev.get("source_doc_id") or "").strip()
         location = ev.get("source_location", "")
         if not doc_id or doc_id not in chunk_lookup:
             continue
-
-        match = re.search(r"Chunk\s+(\d+)", location, re.IGNORECASE)
-        if not match:
-            continue
-        chunk_idx = int(match.group(1)) - 1
-
         doc_chunks = chunk_lookup[doc_id]
-        current_excerpt = ev.get("excerpt", "")
-        current_len = len(current_excerpt)
-        if current_len >= max_excerpt_chars - 100:
+        current_evidence_id = str(ev.get("evidence_id") or ev.get("chunk_id") or "").strip()
+        current_index = next(
+            (
+                index
+                for index, chunk in enumerate(doc_chunks)
+                if str(chunk.get("evidence_id") or chunk.get("chunk_id") or "").strip()
+                == current_evidence_id
+            ),
+            -1,
+        )
+        if current_index < 0:
+            current_index = next(
+                (
+                    index
+                    for index, chunk in enumerate(doc_chunks)
+                    if str((chunk.get("meta") or {}).get("source_location") or "").strip()
+                    == str(location or "").strip()
+                ),
+                -1,
+            )
+        if current_index < 0 or current_index + 1 >= len(doc_chunks):
             continue
 
-        next_idx = chunk_idx + 1
-        if next_idx in doc_chunks:
-            next_content = doc_chunks[next_idx][:max_excerpt_chars - current_len]
-            if next_content and next_content not in current_excerpt:
-                ev["excerpt"] = current_excerpt + "\n[...continued...]\n" + next_content
+        current_chunk = doc_chunks[current_index]
+        adjacent_chunk = doc_chunks[current_index + 1]
+        current_kind = str(
+            current_chunk.get("content_kind")
+            or (current_chunk.get("meta") or {}).get("content_kind")
+            or ""
+        ).strip()
+        adjacent_kind = str(
+            adjacent_chunk.get("content_kind")
+            or (adjacent_chunk.get("meta") or {}).get("content_kind")
+            or ""
+        ).strip()
+        if current_kind != adjacent_kind:
+            continue
+        adjacent_id = str(
+            adjacent_chunk.get("evidence_id") or adjacent_chunk.get("chunk_id") or ""
+        ).strip()
+        adjacent_content = str(adjacent_chunk.get("content") or "")
+        adjacent_meta = _normalize_chunk_meta(
+            dict(adjacent_chunk.get("meta") or {}),
+            content=adjacent_content,
+        )
+        if (
+            not adjacent_id
+            or adjacent_id in seen_evidence_ids
+            or not adjacent_content.strip()
+            or str(adjacent_chunk.get("content_hash") or "").strip().lower()
+            != compute_evidence_content_hash(adjacent_content)
+        ):
+            continue
+        try:
+            source_relevance = float(ev.get("relevance") or 0.0)
+        except (TypeError, ValueError):
+            source_relevance = 0.0
+        adjacent_evidence = {
+            "chunk_id": str(adjacent_chunk.get("chunk_id") or adjacent_id),
+            "source_doc_id": str(adjacent_meta.get("source_doc_id") or doc_id),
+            "source_doc_name": str(adjacent_meta.get("source_doc_name") or ""),
+            "source_location": str(adjacent_meta.get("source_location") or ""),
+            "excerpt": adjacent_content[:max_excerpt_chars],
+            "relevance": 0.0,
+            "score_source": "adjacent_context",
+            "retrieval_parent_evidence_id": current_evidence_id,
+            "retrieval_parent_relevance": round(
+                max(0.0, min(1.0, source_relevance)),
+                4,
+            ),
+            "source_doc_version": str(adjacent_meta.get("source_doc_version") or ""),
+            "content_kind": adjacent_kind,
+            **_evidence_contract_fields(adjacent_meta, content=adjacent_content),
+            **_evidence_lifecycle_fields(adjacent_meta),
+            "section_code": str(adjacent_meta.get("section_code") or ""),
+            "section_title": str(adjacent_meta.get("section_title") or ""),
+        }
+        if not adjacent_evidence["evidence_contract_verified"]:
+            continue
+        extended.append(adjacent_evidence)
+        seen_evidence_ids.add(adjacent_id)
 
-    return evidences
+    return extended
 
 
 def _dashvector_doc_to_evidence(document: Any) -> dict[str, Any]:
-    fields = _normalize_chunk_meta(getattr(document, "fields", {}) or {}, content=str((getattr(document, "fields", {}) or {}).get("content") or ""))
+    content = str((getattr(document, "fields", {}) or {}).get("content") or "")
+    fields = _normalize_chunk_meta(getattr(document, "fields", {}) or {}, content=content)
     score = getattr(document, "score", None)
     return {
         "source_doc_id": str(fields.get("source_doc_id") or ""),
         "source_doc_name": str(fields.get("source_doc_name") or ""),
         "source_location": str(fields.get("source_location") or ""),
-        "excerpt": str(fields.get("content") or "")[:380],
+        "excerpt": content[:380],
         "relevance": round(_normalize_dashvector_relevance_score(score), 4),
         "source_doc_version": str(fields.get("source_doc_version") or ""),
         "content_kind": str(fields.get("content_kind") or ""),
-        "doc_type": str(fields.get("doc_type") or ""),
+        **_evidence_contract_fields(fields, content=content),
+        **_evidence_lifecycle_fields(fields),
     }
 
 
 def _qdrant_point_to_evidence(point: Any) -> dict[str, Any]:
-    payload = _normalize_chunk_meta(getattr(point, "payload", {}) or {}, content=str((getattr(point, "payload", {}) or {}).get("content") or ""))
+    content = str((getattr(point, "payload", {}) or {}).get("content") or "")
+    payload = _normalize_chunk_meta(getattr(point, "payload", {}) or {}, content=content)
     score = getattr(point, "score", None)
     return {
         "source_doc_id": str(payload.get("source_doc_id") or ""),
         "source_doc_name": str(payload.get("source_doc_name") or ""),
         "source_location": str(payload.get("source_location") or ""),
-        "excerpt": str(payload.get("content") or "")[:380],
+        "excerpt": content[:380],
         "relevance": round(_normalize_qdrant_relevance_score(score), 4),
         "source_doc_version": str(payload.get("source_doc_version") or ""),
         "content_kind": str(payload.get("content_kind") or ""),
-        "doc_type": str(payload.get("doc_type") or ""),
+        **_evidence_contract_fields(payload, content=content),
+        **_evidence_lifecycle_fields(payload),
+    }
+
+
+def _evidence_contract_fields(value: dict[str, Any], *, content: str) -> dict[str, Any]:
+    fields = {
+        "evidence_id": str(value.get("evidence_id") or "").strip(),
+        "content_hash": str(value.get("content_hash") or "").strip().lower(),
+        "evidence_contract_version": str(value.get("evidence_contract_version") or "").strip(),
+    }
+    fields["evidence_contract_verified"] = bool(
+        has_current_evidence_contract(fields)
+        and fields["content_hash"] == compute_evidence_content_hash(content)
+    )
+    return fields
+
+
+def _evidence_lifecycle_fields(value: dict[str, Any]) -> dict[str, str]:
+    return {
+        "doc_type": str(value.get("doc_type") or ""),
+        "status": str(value.get("status") or ""),
+        "effective_from": str(value.get("effective_from") or ""),
+        "effective_to": str(value.get("effective_to") or ""),
+        "authority": str(value.get("authority") or "UNKNOWN"),
+        "claim_role": str(value.get("claim_role") or "UNKNOWN"),
+        "applicability": str(value.get("applicability") or "UNKNOWN"),
+        "table_id": str(value.get("table_id") or ""),
+        "native_locator": str(value.get("native_locator") or ""),
+        "native_format": str(value.get("native_format") or ""),
+        "native_page": str(value.get("native_page") or ""),
+        "native_table_index": str(value.get("native_table_index") or ""),
+        "native_body_element_index": str(
+            value.get("native_body_element_index") or ""
+        ),
+        "native_workbook": str(value.get("native_workbook") or ""),
+        "native_sheet": str(value.get("native_sheet") or ""),
+        "native_range": str(value.get("native_range") or ""),
     }
 
 
@@ -3877,6 +6264,40 @@ def _select_indexer(config: AICopilotConfig) -> AzureHaystackIndexer | AzureSear
     return _select_azure_indexer(config)
 
 
+def _dashvector_contract_collection_name(collection_name: str) -> str:
+    base_name = str(collection_name or "").strip()
+    if not re.fullmatch(r"[A-Za-z][A-Za-z0-9_-]{2,31}", base_name):
+        raise ValueError(
+            "DashVector collection name must start with a letter, contain only letters, digits, '_' or '-', "
+            "and be 3-32 characters long."
+        )
+    suffix = f"-{EVIDENCE_INDEX_CONTRACT_VERSION}"
+    if base_name.endswith(suffix):
+        return base_name
+    versioned_name = f"{base_name}{suffix}"
+    if len(versioned_name) > 32:
+        raise ValueError(
+            f"DashVector collection base name must be at most {32 - len(suffix)} characters "
+            f"when using the {EVIDENCE_INDEX_CONTRACT_VERSION} contract."
+        )
+    return versioned_name
+
+
+def _dashvector_contract_config(config: AICopilotConfig) -> AICopilotConfig:
+    return replace(
+        config,
+        dashvector_collection_name=_dashvector_contract_collection_name(config.dashvector_collection_name),
+    )
+
+
+def _evidence_index_resource(config: AICopilotConfig) -> str:
+    if config.retrieval_backend == "dashvector":
+        return _dashvector_contract_collection_name(config.dashvector_collection_name)
+    if config.retrieval_backend == "qdrant":
+        return str(config.qdrant_collection_name or "")
+    return str(config.azure_search_index_name or "")
+
+
 def _select_assessment_engine(config: AICopilotConfig) -> AssessmentEngine:
     if config.provider == DEFAULT_ALIYUN_PROFILE_ID:
         return AliyunDashScopeAssessmentEngine(config)
@@ -3893,6 +6314,9 @@ def _azure_metadata_fields() -> dict[str, type]:
     return {
         "project_id": str,
         "chunk_id": str,
+        "evidence_id": str,
+        "content_hash": str,
+        "evidence_contract_version": str,
         "source_doc_id": str,
         "source_doc_name": str,
         "source_doc_version": str,
@@ -3900,11 +6324,22 @@ def _azure_metadata_fields() -> dict[str, type]:
         "status": str,
         "effective_from": str,
         "effective_to": str,
+        "authority": str,
+        "claim_role": str,
+        "applicability": str,
         "section_code": str,
         "section_title": str,
         "source_location": str,
         "content_kind": str,
         "table_id": str,
+        "native_locator": str,
+        "native_format": str,
+        "native_page": str,
+        "native_table_index": str,
+        "native_body_element_index": str,
+        "native_workbook": str,
+        "native_sheet": str,
+        "native_range": str,
         "slice_ai_projection": str,
     }
 
@@ -3985,13 +6420,19 @@ def probe_runtime_azure_rbac() -> dict[str, Any]:
         try:
             token = credential.get_token(scope)
             expires_at = (
-                datetime.fromtimestamp(int(token.expires_on or 0), timezone.utc).isoformat()
+                datetime.fromtimestamp(
+                    int(token.expires_on or 0), timezone.utc
+                ).isoformat()
                 if getattr(token, "expires_on", None)
                 else ""
             )
-            checks.append({"name": name, "scope": scope, "status": "ok", "expires_at": expires_at})
+            checks.append(
+                {"name": name, "scope": scope, "status": "ok", "expires_at": expires_at}
+            )
         except Exception as exc:  # pragma: no cover - provider interaction
-            checks.append({"name": name, "scope": scope, "status": "error", "detail": str(exc)})
+            checks.append(
+                {"name": name, "scope": scope, "status": "error", "detail": str(exc)}
+            )
     return {
         "provider": DEFAULT_AZURE_PROFILE_ID,
         "auth_mode": config.azure_auth_mode or "rbac",
@@ -4015,7 +6456,9 @@ def _azure_openai_client(config: AICopilotConfig):
     from openai import AzureOpenAI
 
     kwargs: dict[str, Any] = {
-        "azure_endpoint": _normalize_azure_openai_endpoint(config.azure_openai_endpoint),
+        "azure_endpoint": _normalize_azure_openai_endpoint(
+            config.azure_openai_endpoint
+        ),
         "api_version": config.azure_openai_api_version,
         "timeout": config.llm_timeout_seconds,
         "max_retries": max(int(config.openai_max_retries or 0), 0),
@@ -4023,25 +6466,469 @@ def _azure_openai_client(config: AICopilotConfig):
     if config.uses_api_key_for_openai:
         kwargs["api_key"] = config.azure_openai_api_key
     else:
-        kwargs["azure_ad_token_provider"] = _azure_openai_token_provider(config.azure_allow_interactive_login)
+        kwargs["azure_ad_token_provider"] = _azure_openai_token_provider(
+            config.azure_allow_interactive_login
+        )
     return AzureOpenAI(**kwargs)
 
 
 @lru_cache(maxsize=6)
 def _aliyun_openai_client(config: AICopilotConfig):
-    from openai import OpenAI
-
     if not config.dashscope_api_key:
         raise RuntimeError("Aliyun DashScope API key is not configured.")
     if not is_ascii_runtime_secret(config.dashscope_api_key):
         raise RuntimeError(
             "Aliyun DashScope API key contains non-ASCII characters. Re-enter the raw key without Chinese punctuation or full-width characters."
         )
+    safe_base_url = validate_dashscope_compatible_base_url(
+        config.dashscope_base_url
+    )
+
+    from openai import OpenAI
+
     return OpenAI(
         api_key=config.dashscope_api_key,
-        base_url=config.dashscope_base_url,
+        base_url=safe_base_url,
         timeout=config.llm_timeout_seconds,
         max_retries=max(int(config.openai_max_retries or 0), 0),
+    )
+
+
+def probe_runtime_aliyun_models(
+    config: AICopilotConfig | None = None,
+) -> dict[str, dict[str, Any]]:
+    """Run one synthetic request against each configured DashScope capability.
+
+    The probe never receives customer text and never returns provider output,
+    credentials, endpoints, exception text, or request payloads.  Each check
+    performs at most one provider request so an administrator click has a
+    predictable cost and cannot trigger hidden retry traffic.
+    """
+
+    runtime_config = config or load_ai_copilot_config(DEFAULT_ALIYUN_PROFILE_ID)
+    return {
+        "screening": _probe_runtime_aliyun_chat(
+            runtime_config,
+            model_name=runtime_config.screening_model,
+            role="screening",
+        ),
+        "assessment": _probe_runtime_aliyun_chat(
+            runtime_config,
+            model_name=runtime_config.chat_model,
+            role="assessment",
+        ),
+        "ocr": _probe_runtime_aliyun_ocr(runtime_config),
+        "embedding": _probe_runtime_aliyun_embedding(runtime_config),
+    }
+
+
+def _probe_runtime_aliyun_chat(
+    config: AICopilotConfig,
+    *,
+    model_name: str,
+    role: str,
+) -> dict[str, Any]:
+    configured = bool(
+        config.dashscope_api_key and config.dashscope_base_url and model_name
+    )
+    if not configured:
+        return _aliyun_probe_result(
+            state="NOT_CONFIGURED",
+            reason_code="aliyun_chat_not_configured",
+            message="DashScope chat connection is not fully configured.",
+            model=model_name,
+            role=role,
+        )
+    probe_config = replace(
+        config,
+        llm_timeout_seconds=min(max(float(config.llm_timeout_seconds), 1.0), 15.0),
+        openai_max_retries=0,
+    )
+    messages = [
+        {
+            "role": "system",
+            "content": (
+                "This is a ReqPilotX synthetic connection probe. No customer "
+                "document or requirement text is included. Reply only OK."
+            ),
+        },
+        {
+            "role": "user",
+            "content": (
+                "Confirm the synthetic screening model connection."
+                if role == "screening"
+                else "Confirm the synthetic assessment model connection."
+            ),
+        },
+    ]
+    try:
+        response = _aliyun_openai_client(probe_config).chat.completions.create(
+            model=model_name,
+            messages=messages,
+            temperature=0,
+            max_tokens=16,
+            extra_body={"enable_thinking": False},
+        )
+        choices = list(getattr(response, "choices", []) or [])
+        if not choices:
+            raise RuntimeError("synthetic probe returned no choices")
+    except Exception as exc:  # provider SDK boundary
+        return _map_aliyun_probe_error(exc, model=model_name, role=role)
+    return _aliyun_probe_result(
+        state="READY",
+        model=model_name,
+        role=role,
+    )
+
+
+def _probe_runtime_aliyun_embedding(config: AICopilotConfig) -> dict[str, Any]:
+    model_name = config.embedding_model
+    configured = bool(
+        config.dashscope_api_key and config.dashscope_base_url and model_name
+    )
+    if not configured:
+        return _aliyun_probe_result(
+            state="NOT_CONFIGURED",
+            reason_code="aliyun_embedding_not_configured",
+            message="DashScope embedding connection is not fully configured.",
+            model=model_name,
+            role="embedding",
+        )
+    probe_config = replace(
+        config,
+        llm_timeout_seconds=min(max(float(config.llm_timeout_seconds), 1.0), 15.0),
+        openai_max_retries=0,
+    )
+    try:
+        response = _aliyun_openai_client(probe_config).embeddings.create(
+            model=model_name,
+            input="ReqPilotX synthetic connection probe.",
+        )
+        vectors = _response_embeddings(response)
+        dimensions = len(vectors[0]) if vectors and vectors[0] else 0
+        if dimensions <= 0:
+            raise RuntimeError("synthetic probe returned no embedding")
+    except Exception as exc:  # provider SDK boundary
+        return _map_aliyun_probe_error(
+            exc,
+            model=model_name,
+            role="embedding",
+        )
+    return _aliyun_probe_result(
+        state="READY",
+        model=model_name,
+        role="embedding",
+        dimensions=dimensions,
+    )
+
+
+def _probe_runtime_aliyun_ocr(config: AICopilotConfig) -> dict[str, Any]:
+    """Run one bounded OCR request with a synthetic in-memory page only."""
+
+    model_name = config.visual_text_model
+    if not config.dashscope_api_key or not config.dashscope_base_url or not model_name:
+        return _aliyun_probe_result(
+            state="NOT_CONFIGURED",
+            reason_code="aliyun_ocr_not_configured",
+            message="DashScope OCR connection is not fully configured.",
+            model=model_name,
+            role="ocr",
+            request_count=0,
+        )
+    timeout_seconds = min(max(float(config.llm_timeout_seconds), 1.0), 15.0)
+    page_input = _synthetic_aliyun_ocr_probe_page()
+    telemetry: list[VisualTextProviderTelemetryV1] = []
+    response_facts: dict[str, object] = {}
+
+    def capture_safe_response_facts(response: httpx.Response) -> None:
+        response_facts["status_code"] = int(response.status_code)
+        if response.status_code < 400:
+            return
+        try:
+            response.read()
+            payload = response.json()
+        except Exception:
+            return
+        if not isinstance(payload, dict):
+            return
+        nested = payload.get("error") if isinstance(payload.get("error"), dict) else payload
+        code = nested.get("code")
+        if isinstance(code, str) and re.fullmatch(r"[A-Za-z0-9_.:-]{1,160}", code):
+            response_facts["code"] = code
+
+    http_client = httpx.Client(
+        follow_redirects=False,
+        event_hooks={"response": [capture_safe_response_facts]},
+    )
+    started_at = time.monotonic()
+    try:
+        try:
+            provider = BailianVisualTextProvider(
+                api_key=config.dashscope_api_key,
+                base_url=config.dashscope_base_url,
+                model=model_name,
+                enable_rotate=False,
+                timeout_seconds=timeout_seconds,
+                max_retries=0,
+                http_client=http_client,
+                telemetry_callback=telemetry.append,
+            )
+        except (TypeError, ValueError):
+            return _aliyun_probe_result(
+                state="NOT_CONFIGURED",
+                reason_code="aliyun_ocr_configuration_invalid",
+                message="The DashScope OCR connection configuration is invalid.",
+                model=model_name,
+                role="ocr",
+                request_count=0,
+                latency_ms=_ocr_probe_latency_ms(
+                    telemetry,
+                    started_at=started_at,
+                ),
+            )
+        provider.recognize_page(page_input)
+    except VisualTextProviderRejected as exc:
+        latency_ms = _ocr_probe_latency_ms(telemetry, started_at=started_at)
+        if int(response_facts.get("status_code") or 0) >= 400:
+            safe_error = _AliyunOcrProbeHttpError(
+                status_code=int(response_facts.get("status_code") or 0),
+                code=str(response_facts.get("code") or ""),
+            )
+            result = _map_aliyun_probe_error(
+                safe_error,
+                model=model_name,
+                role="ocr",
+            )
+            result["request_count"] = 1
+            result["latency_ms"] = latency_ms
+            return result
+        return _map_aliyun_ocr_probe_error(
+            exc,
+            model=model_name,
+            latency_ms=latency_ms,
+        )
+    except Exception:
+        return _aliyun_probe_result(
+            state="UNREACHABLE",
+            reason_code="aliyun_ocr_probe_failed",
+            message="The DashScope OCR connection probe failed.",
+            model=model_name,
+            role="ocr",
+            request_count=1,
+            latency_ms=_ocr_probe_latency_ms(telemetry, started_at=started_at),
+        )
+    else:
+        return _aliyun_probe_result(
+            state="READY",
+            message="Qwen OCR 文字定位探测成功",
+            model=model_name,
+            role="ocr",
+            request_count=1,
+            latency_ms=_ocr_probe_latency_ms(telemetry, started_at=started_at),
+        )
+    finally:
+        http_client.close()
+
+
+class _AliyunOcrProbeHttpError(RuntimeError):
+    """Carry only bounded status/code facts into the shared safe mapper."""
+
+    def __init__(self, *, status_code: int, code: str) -> None:
+        self.status_code = int(status_code)
+        self.code = str(code or "")
+        super().__init__(self.code or f"HTTP_{self.status_code}")
+
+
+def _synthetic_aliyun_ocr_probe_page() -> VisualTextPageInput:
+    source_bytes = b"ReqPilotX synthetic OCR connection probe v1"
+    image = PILImage.new("L", (128, 64), color=255)
+    # Deterministic high-contrast marks exercise the OCR image path without
+    # embedding customer text, a filesystem path, a credential, or an endpoint.
+    image.paste(0, (18, 14, 26, 50))
+    image.paste(0, (26, 14, 48, 22))
+    image.paste(0, (26, 42, 48, 50))
+    image.paste(0, (76, 14, 84, 50))
+    image.paste(0, (56, 14, 76, 22))
+    image.paste(0, (56, 42, 76, 50))
+    buffer = BytesIO()
+    image.save(buffer, format="PNG", optimize=False)
+    image_bytes = buffer.getvalue()
+    return VisualTextPageInput(
+        source_bytes=source_bytes,
+        source_sha256=hashlib.sha256(source_bytes).hexdigest(),
+        page_number=1,
+        page_bbox=(0.0, 0.0, 128.0, 64.0),
+        page_image_bytes=image_bytes,
+        page_image_sha256=hashlib.sha256(image_bytes).hexdigest(),
+        page_image_media_type="image/png",
+        page_image_width_px=128,
+        page_image_height_px=64,
+    )
+
+
+def _ocr_probe_latency_ms(
+    events: list[VisualTextProviderTelemetryV1],
+    *,
+    started_at: float,
+) -> int:
+    if events:
+        return max(0, int(events[-1].latency_ms))
+    return max(0, round((time.monotonic() - started_at) * 1_000))
+
+
+def _map_aliyun_ocr_probe_error(
+    exc: VisualTextProviderRejected,
+    *,
+    model: str,
+    latency_ms: int,
+) -> dict[str, Any]:
+    if exc.code in {
+        VisualTextProviderRejectionCode.UNAVAILABLE,
+        VisualTextProviderRejectionCode.AUTHENTICATION_FAILED,
+        VisualTextProviderRejectionCode.ACCESS_DENIED,
+    }:
+        state = "AUTH_FAILED"
+        reason_code = "aliyun_ocr_auth_failed"
+        message = "DashScope rejected the configured OCR credentials."
+    elif exc.code in {
+        VisualTextProviderRejectionCode.QUOTA_EXHAUSTED,
+    }:
+        state = "DEPENDENCY_UNAVAILABLE"
+        reason_code = "aliyun_quota_unavailable"
+        message = "The DashScope OCR account has no usable quota."
+    elif exc.code is VisualTextProviderRejectionCode.RATE_LIMITED:
+        state = "UNREACHABLE"
+        reason_code = "aliyun_ocr_rate_limited"
+        message = "DashScope temporarily rate-limited the OCR probe."
+    elif exc.code is VisualTextProviderRejectionCode.PROVIDER_OUTPUT_INVALID:
+        state = "UNREACHABLE"
+        reason_code = "aliyun_ocr_invalid_response"
+        message = "DashScope OCR returned an invalid synthetic probe response."
+    else:
+        state = "UNREACHABLE"
+        reason_code = "aliyun_ocr_unreachable"
+        message = "The DashScope OCR probe could not reach a usable service."
+    return _aliyun_probe_result(
+        state=state,
+        reason_code=reason_code,
+        message=message,
+        model=model,
+        role="ocr",
+        request_count=1,
+        latency_ms=latency_ms,
+    )
+
+
+def _aliyun_probe_result(
+    *,
+    state: str,
+    model: str,
+    role: str,
+    reason_code: str = "",
+    message: str = "",
+    dimensions: int | None = None,
+    request_count: int | None = None,
+    latency_ms: int | None = None,
+) -> dict[str, Any]:
+    result: dict[str, Any] = {
+        "state": state,
+        "ready": state == "READY",
+        "reason_code": reason_code,
+        "message": message,
+        "model": str(model or ""),
+        "role": role,
+    }
+    if dimensions is not None:
+        result["dimensions"] = dimensions
+    if request_count is not None:
+        result["request_count"] = max(0, int(request_count))
+    if latency_ms is not None:
+        result["latency_ms"] = max(0, int(latency_ms))
+    return result
+
+
+def _map_aliyun_probe_error(
+    exc: Exception,
+    *,
+    model: str,
+    role: str,
+) -> dict[str, Any]:
+    status_code = getattr(exc, "status_code", None)
+    response = getattr(exc, "response", None)
+    if status_code is None and response is not None:
+        status_code = getattr(response, "status_code", None)
+    body = getattr(exc, "body", None)
+    error_code = str(getattr(exc, "code", "") or "")
+    if isinstance(body, dict):
+        nested = body.get("error") if isinstance(body.get("error"), dict) else body
+        error_code = str(nested.get("code") or error_code)
+    fingerprint = f"{error_code} {type(exc).__name__} {exc}".lower()
+
+    if (
+        any(
+            token in fingerprint
+            for token in (
+                "modelnotfound",
+                "model_not_found",
+                "model_not_exist",
+                "modelaccessdenied",
+                "model_not_deployed",
+                "invalidparametermodel",
+            )
+        )
+        or status_code == 404
+    ):
+        state = "MODEL_NOT_DEPLOYED"
+        reason_code = "aliyun_model_not_deployed"
+        message = "The configured DashScope model is unavailable to this account."
+    elif any(
+        token in fingerprint
+        for token in (
+            "arrearage",
+            "allocationquota",
+            "free_tier",
+            "freetier",
+            "quotaexhausted",
+            "quota_exhausted",
+            "insufficient_balance",
+            "insufficientbalance",
+            "billing",
+        )
+    ):
+        state = "DEPENDENCY_UNAVAILABLE"
+        reason_code = "aliyun_quota_unavailable"
+        message = "The DashScope account has no usable quota or is billing-restricted."
+    elif status_code in {401, 403} or any(
+        token in fingerprint
+        for token in (
+            "authenticationerror",
+            "invalidapikey",
+            "invalid_api_key",
+            "unauthorized",
+            "permissiondenied",
+        )
+    ):
+        state = "AUTH_FAILED"
+        reason_code = "aliyun_auth_failed"
+        message = "DashScope rejected the configured API key."
+    elif status_code == 429 or "ratelimit" in fingerprint or "rate_limit" in fingerprint:
+        state = "UNREACHABLE"
+        reason_code = "aliyun_rate_limited"
+        message = "DashScope temporarily rate-limited the connection probe."
+    elif "timeout" in fingerprint:
+        state = "UNREACHABLE"
+        reason_code = "aliyun_request_timeout"
+        message = "The DashScope connection probe timed out."
+    else:
+        state = "UNREACHABLE"
+        reason_code = "aliyun_network_unreachable"
+        message = "The DashScope connection probe could not reach a usable service."
+    return _aliyun_probe_result(
+        state=state,
+        reason_code=reason_code,
+        message=message,
+        model=model,
+        role=role,
     )
 
 
@@ -4365,30 +7252,39 @@ def _normalize_qdrant_relevance_score(score: Any) -> float:
     return numeric_score / (1.0 + math.fabs(numeric_score))
 
 
-def _build_dashvector_filter(*, project_id: str, knowledge_docs: list[dict[str, Any]]) -> str | None:
+def _build_dashvector_filter(
+    *,
+    project_id: str,
+    knowledge_docs: list[dict[str, Any]],
+    as_of: date | None = None,
+) -> str | None:
+    eligible_docs = _eligible_knowledge_documents(knowledge_docs, as_of=as_of)
     filters: list[str] = []
     if project_id:
         filters.append(f"project_id = '{str(project_id).replace("'", "''")}'")
-    doc_ids = [str(doc.get("id") or "").strip() for doc in knowledge_docs if str(doc.get("id") or "").strip()]
+    doc_ids = [str(doc.get("id") or "").strip() for doc in eligible_docs]
     if doc_ids:
         quoted = ", ".join(f"'{item.replace("'", "''")}'" for item in doc_ids)
         filters.append(f"source_doc_id in ({quoted})")
-    statuses = sorted(
-        {
-            str(doc.get("status") or "").strip()
-            for doc in knowledge_docs
-            if str(doc.get("status") or "").strip()
-        }
-    )
-    if statuses:
-        quoted_statuses = ", ".join(f"'{item.replace("'", "''")}'" for item in statuses)
-        filters.append(f"status in ({quoted_statuses})")
+        filters.append(f"status = '{ACTIVE_KNOWLEDGE_STATUS}'")
+        filters.append(f"evidence_contract_version = '{EVIDENCE_INDEX_CONTRACT_VERSION}'")
+        doc_types = sorted({str(doc.get("doc_type") or "").strip().upper() for doc in eligible_docs})
+        quoted_doc_types = ", ".join(f"'{item.replace("'", "''")}'" for item in doc_types)
+        filters.append(f"doc_type in ({quoted_doc_types})")
+    else:
+        filters.append(f"source_doc_id = '{NO_ELIGIBLE_EVIDENCE_ID}'")
     return " and ".join(filters) if filters else None
 
 
-def _build_qdrant_filter(*, project_id: str, knowledge_docs: list[dict[str, Any]]):
+def _build_qdrant_filter(
+    *,
+    project_id: str,
+    knowledge_docs: list[dict[str, Any]],
+    as_of: date | None = None,
+):
     from qdrant_client.http import models as qdrant_models
 
+    eligible_docs = _eligible_knowledge_documents(knowledge_docs, as_of=as_of)
     must: list[Any] = []
     if project_id:
         must.append(
@@ -4397,20 +7293,26 @@ def _build_qdrant_filter(*, project_id: str, knowledge_docs: list[dict[str, Any]
                 match=qdrant_models.MatchValue(value=project_id),
             )
         )
-    doc_ids = [str(doc.get("id") or "").strip() for doc in knowledge_docs if str(doc.get("id") or "").strip()]
+    doc_ids = [str(doc.get("id") or "").strip() for doc in eligible_docs]
+    if not doc_ids:
+        doc_ids = [NO_ELIGIBLE_EVIDENCE_ID]
     doc_condition = _build_qdrant_multi_value_condition("source_doc_id", doc_ids)
     if doc_condition is not None:
         must.append(doc_condition)
-    statuses = sorted(
-        {
-            str(doc.get("status") or "").strip()
-            for doc in knowledge_docs
-            if str(doc.get("status") or "").strip()
-        }
-    )
-    status_condition = _build_qdrant_multi_value_condition("status", statuses)
-    if status_condition is not None:
-        must.append(status_condition)
+    if eligible_docs:
+        status_condition = _build_qdrant_multi_value_condition("status", [ACTIVE_KNOWLEDGE_STATUS])
+        if status_condition is not None:
+            must.append(status_condition)
+        contract_condition = _build_qdrant_multi_value_condition(
+            "evidence_contract_version",
+            [EVIDENCE_INDEX_CONTRACT_VERSION],
+        )
+        if contract_condition is not None:
+            must.append(contract_condition)
+        doc_types = sorted({str(doc.get("doc_type") or "").strip().upper() for doc in eligible_docs})
+        doc_type_condition = _build_qdrant_multi_value_condition("doc_type", doc_types)
+        if doc_type_condition is not None:
+            must.append(doc_type_condition)
     if not must:
         return None
     return qdrant_models.Filter(must=must)
@@ -4665,8 +7567,19 @@ def _azure_search_credential(config: AICopilotConfig):
     return _default_azure_credential(config.azure_allow_interactive_login)
 
 
+def _ensure_azure_index_contract(config: AICopilotConfig) -> None:
+    from azure.search.documents.indexes import SearchIndexClient
+
+    index_client = SearchIndexClient(
+        endpoint=config.azure_search_endpoint,
+        credential=_azure_search_credential(config),
+    )
+    _ensure_azure_search_index(index_client, config)
+
+
 def _azure_search_item_to_evidence(item: Any) -> dict[str, Any]:
-    payload = _normalize_chunk_meta(dict(item), content=str(dict(item).get("content") or ""))
+    content = str(dict(item).get("content") or "")
+    payload = _normalize_chunk_meta(dict(item), content=content)
     score = payload.get("@search.reranker_score")
     is_reranker_score = score is not None
     if score is None:
@@ -4681,12 +7594,13 @@ def _azure_search_item_to_evidence(item: Any) -> dict[str, Any]:
         "source_doc_id": str(payload.get("source_doc_id") or ""),
         "source_doc_name": str(payload.get("source_doc_name") or ""),
         "source_location": str(payload.get("source_location") or ""),
-        "excerpt": str(payload.get("content") or "")[:380],
+        "excerpt": content[:380],
         "relevance": round(_normalize_azure_relevance_score(score, is_reranker_score=is_reranker_score), 4),
         "score_source": score_source,
         "source_doc_version": str(payload.get("source_doc_version") or ""),
         "content_kind": str(payload.get("content_kind") or ""),
-        "doc_type": str(payload.get("doc_type") or ""),
+        **_evidence_contract_fields(payload, content=content),
+        **_evidence_lifecycle_fields(payload),
     }
 
 
@@ -4739,6 +7653,9 @@ def _azure_filter_to_odata(value: dict[str, Any] | None) -> str | None:
 def _flatten_azure_chunk_meta(meta: dict[str, Any]) -> dict[str, Any]:
     return {
         "project_id": str(meta.get("project_id") or ""),
+        "evidence_id": str(meta.get("evidence_id") or ""),
+        "content_hash": str(meta.get("content_hash") or ""),
+        "evidence_contract_version": str(meta.get("evidence_contract_version") or ""),
         "source_doc_id": str(meta.get("source_doc_id") or ""),
         "source_doc_name": str(meta.get("source_doc_name") or ""),
         "source_doc_version": str(meta.get("source_doc_version") or ""),
@@ -4746,11 +7663,24 @@ def _flatten_azure_chunk_meta(meta: dict[str, Any]) -> dict[str, Any]:
         "status": str(meta.get("status") or ""),
         "effective_from": str(meta.get("effective_from") or ""),
         "effective_to": str(meta.get("effective_to") or ""),
+        "authority": str(meta.get("authority") or "UNKNOWN"),
+        "claim_role": str(meta.get("claim_role") or "UNKNOWN"),
+        "applicability": str(meta.get("applicability") or "UNKNOWN"),
         "section_code": str(meta.get("section_code") or ""),
         "section_title": str(meta.get("section_title") or ""),
         "source_location": str(meta.get("source_location") or ""),
         "content_kind": str(meta.get("content_kind") or ""),
         "table_id": str(meta.get("table_id") or ""),
+        "native_locator": str(meta.get("native_locator") or ""),
+        "native_format": str(meta.get("native_format") or ""),
+        "native_page": str(meta.get("native_page") or ""),
+        "native_table_index": str(meta.get("native_table_index") or ""),
+        "native_body_element_index": str(
+            meta.get("native_body_element_index") or ""
+        ),
+        "native_workbook": str(meta.get("native_workbook") or ""),
+        "native_sheet": str(meta.get("native_sheet") or ""),
+        "native_range": str(meta.get("native_range") or ""),
         "slice_ai_projection": str(meta.get("slice_ai_projection") or ""),
     }
 
@@ -4825,16 +7755,29 @@ def _chunk_meta_is_noise_like(meta: dict[str, Any]) -> bool:
 
 
 def _load_knowledge_chunk_records(knowledge_doc: dict[str, Any]) -> list[dict[str, Any]]:
-    payload_path = INDEX_PAYLOAD_DIR / f"{knowledge_doc['id']}.json"
-    if payload_path.exists():
-        try:
-            payload = json.loads(payload_path.read_text(encoding="utf-8"))
-            chunks = payload.get("chunks")
-            if isinstance(chunks, list):
-                return [item for item in chunks if isinstance(item, dict)]
-        except (OSError, json.JSONDecodeError):
-            pass
+    payload = _knowledge_index_payload(knowledge_doc)
+    if payload is not None:
+        chunks = payload.get("chunks")
+        if isinstance(chunks, list):
+            return [item for item in chunks if isinstance(item, dict)]
     return build_knowledge_chunks(str(knowledge_doc.get("project_id") or ""), knowledge_doc)
+
+
+def _knowledge_index_payload(
+    knowledge_doc: dict[str, Any],
+) -> dict[str, Any] | None:
+    embedded = knowledge_doc.get("_index_payload")
+    if isinstance(embedded, dict):
+        return embedded
+    document_id = str(knowledge_doc.get("id") or "").strip()
+    if not document_id:
+        return None
+    payload_path = INDEX_PAYLOAD_DIR / f"{document_id}.json"
+    try:
+        payload = json.loads(payload_path.read_text(encoding="utf-8"))
+    except (OSError, json.JSONDecodeError):
+        return None
+    return payload if isinstance(payload, dict) else None
 
 
 def _normalize_bm25_relevance_score(score: Any) -> float:
@@ -4845,24 +7788,6 @@ def _normalize_bm25_relevance_score(score: Any) -> float:
     if numeric_score <= 0.0:
         return 0.0
     return min(numeric_score / (1.0 + math.fabs(numeric_score)), 1.0)
-
-
-def _knowledge_doc_relevance_boost(knowledge_doc: dict[str, Any]) -> float:
-    status = str(knowledge_doc.get("status") or "ACTIVE").strip().upper()
-    boost = {
-        "ACTIVE": 1.0,
-        "DRAFT": 0.9,
-        "SUPERSEDED": 0.45,
-        "ARCHIVED": 0.2,
-    }.get(status, 0.9)
-    today = date.today().isoformat()
-    effective_from = str(knowledge_doc.get("effective_from") or "").strip()
-    effective_to = str(knowledge_doc.get("effective_to") or "").strip()
-    if effective_from and today < effective_from:
-        boost *= 0.75
-    if effective_to and today > effective_to:
-        boost *= 0.7
-    return max(0.1, min(1.2, boost))
 
 
 def _content_kind_relevance_boost(content_kind: str, *, context: dict[str, Any], doc: dict[str, Any]) -> float:
@@ -4902,6 +7827,64 @@ def _text_has_compliance_signal(text: str) -> bool:
     return any(hint in lowered for hint in (*COMPLIANCE_HINTS, "pass", "passed", "approved", "合规", "通过", "批准"))
 
 
+def _text_has_partial_compliance_signal(text: str) -> bool:
+    lowered = str(text or "").lower()
+    return any(hint in lowered for hint in PARTIAL_COMPLIANCE_HINTS)
+
+
+def _text_has_decision_proof_signal(text: str) -> bool:
+    """Identify an outcome record, not merely a normative requirement."""
+
+    value = normalize_requirement_text(str(text or ""))
+    lowered = value.lower()
+    return bool(
+        re.search(
+            r"\b(?:passed|failed|verified|validated|certified|approved|"
+            r"measured|observed|demonstrated|recorded)\b",
+            lowered,
+        )
+        or re.search(
+            r"\b(?:test|validation|inspection|verification|measurement)"
+            r"\s+(?:result|record|report|evidence)s?\b",
+            lowered,
+        )
+        or re.search(
+            r"(?:测试|试验|验证|检验|检测|测量)(?:结果|记录|报告|证明)"
+            r"|(?:报告|记录|结果)(?:显示|表明|确认)"
+            r"|(?:已|经)(?:完成)?(?:测试|试验|验证|检验|检测)"
+            r"|(?:已|未)(?:通过|批准|认证)"
+            r"|(?:实测|测得|验证通过|测试通过|试验通过|验证失败|测试失败|试验失败)",
+            value,
+        )
+    )
+
+
+def _evidence_has_decision_proof(item: dict[str, Any]) -> bool:
+    authority = str(item.get("authority") or "UNKNOWN").strip().upper()
+    if authority in {"", "UNKNOWN", "UNVERIFIED"}:
+        return False
+    claim_role = str(item.get("claim_role") or "UNKNOWN").strip().upper()
+    applicability = str(item.get("applicability") or "UNKNOWN").strip().upper()
+    if applicability in {"NOT_APPLICABLE", "OUT_OF_SCOPE"}:
+        return False
+    if claim_role in DECISION_PROOF_CLAIM_ROLES:
+        return True
+    return _text_has_decision_proof_signal(str(item.get("excerpt") or ""))
+
+
+def _evidence_has_positive_outcome(item: dict[str, Any]) -> bool:
+    if not _evidence_has_decision_proof(item):
+        return False
+    text = str(item.get("excerpt") or "")
+    if _text_has_negative_signal(text):
+        return False
+    claim_role = str(item.get("claim_role") or "UNKNOWN").strip().upper()
+    return (
+        claim_role in DECISION_PROOF_CLAIM_ROLES
+        or _text_has_positive_signal(text)
+    )
+
+
 def _text_has_mandatory_signal(text: str) -> bool:
     lowered = str(text or "").lower()
     return any(token in lowered for token in MANDATORY_HINTS)
@@ -4926,6 +7909,9 @@ def _ensure_azure_search_index(index_client: Any, config: AICopilotConfig) -> No
     semantic_name = config.azure_search_semantic_configuration or DEFAULT_AZURE_SEARCH_SEMANTIC_CONFIGURATION
     fields = [
         SimpleField(name="chunk_id", type=SearchFieldDataType.String, key=True, filterable=True),
+        SimpleField(name="evidence_id", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="content_hash", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="evidence_contract_version", type=SearchFieldDataType.String, filterable=True),
         SearchableField(name="content", type=SearchFieldDataType.String),
         SearchField(
             name="embedding",
@@ -4942,11 +7928,26 @@ def _ensure_azure_search_index(index_client: Any, config: AICopilotConfig) -> No
         SimpleField(name="status", type=SearchFieldDataType.String, filterable=True),
         SimpleField(name="effective_from", type=SearchFieldDataType.String, filterable=True),
         SimpleField(name="effective_to", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="authority", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="claim_role", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="applicability", type=SearchFieldDataType.String, filterable=True),
         SimpleField(name="section_code", type=SearchFieldDataType.String, filterable=True),
         SearchableField(name="section_title", type=SearchFieldDataType.String),
         SimpleField(name="source_location", type=SearchFieldDataType.String, filterable=True),
         SimpleField(name="content_kind", type=SearchFieldDataType.String, filterable=True),
         SimpleField(name="table_id", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="native_locator", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="native_format", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="native_page", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="native_table_index", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(
+            name="native_body_element_index",
+            type=SearchFieldDataType.String,
+            filterable=True,
+        ),
+        SimpleField(name="native_workbook", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="native_sheet", type=SearchFieldDataType.String, filterable=True),
+        SimpleField(name="native_range", type=SearchFieldDataType.String, filterable=True),
         SearchableField(name="slice_ai_projection", type=SearchFieldDataType.String),
     ]
     vector_search = VectorSearch(
@@ -5253,6 +8254,59 @@ def _extract_markdown_tables(lines: list[str]) -> list[list[str]]:
     return tables
 
 
+def _without_markdown_table_blocks(lines: list[str]) -> list[str]:
+    """Keep table facts out of paragraph chunks so they have one identity."""
+
+    output: list[str] = []
+    current: list[str] = []
+    for line in lines:
+        if line.startswith("|") and line.count("|") >= 2:
+            current.append(line)
+            continue
+        if current and len(current) < 2:
+            output.extend(current)
+        current = []
+        output.append(line)
+    if current and len(current) < 2:
+        output.extend(current)
+    return output
+
+
+def _parse_source_locator_metadata(table_lines: list[str]) -> dict[str, str]:
+    if not table_lines:
+        return {}
+    match = re.search(r"\[source_locator\s+(.+?)\]", table_lines[0])
+    if not match:
+        return {}
+    locator_text = f"[source_locator {match.group(1)}]"
+    fields: dict[str, str] = {"native_locator": locator_text}
+    for key, raw_value in re.findall(
+        r"([A-Za-z_]+)=(\"(?:\\.|[^\"])*\"|[^\s\]]+)",
+        match.group(1),
+    ):
+        value = raw_value
+        if raw_value.startswith('"') and raw_value.endswith('"'):
+            try:
+                value = str(json.loads(raw_value))
+            except json.JSONDecodeError:
+                value = raw_value[1:-1]
+        fields[key] = value.replace(r"\|", "|")
+    native_format = fields.pop("format", "")
+    if native_format:
+        fields["native_format"] = native_format
+    for key in (
+        "page",
+        "table_index",
+        "body_element_index",
+        "workbook",
+        "sheet",
+        "range",
+    ):
+        if key in fields:
+            fields[f"native_{key}"] = fields.pop(key)
+    return fields
+
+
 def _extract_sections(lines: list[str]) -> list[dict[str, str]]:
     sections: list[dict[str, str]] = []
     pattern = re.compile(r"^(?:([A-Z]:(?:\d+(?:\.\d+)*)?)|(\d+(?:\.\d+){0,5}))\s+(.{1,120})$")
@@ -5296,7 +8350,13 @@ def _build_chunk_record(
     source_location: str,
     section: dict[str, str],
     slice_ai_projection: str = "",
+    table_id: str = "",
+    native_locator_metadata: dict[str, str] | None = None,
 ) -> dict[str, Any]:
+    evidence_id = str(chunk_id or "").strip()
+    if not evidence_id:
+        raise ValueError("Knowledge chunk evidence_id is required.")
+    content_hash = compute_evidence_content_hash(content)
     noise_meta = _normalize_chunk_meta(
         {
             "source_doc_name": str(knowledge_doc.get("file_name") or ""),
@@ -5305,8 +8365,12 @@ def _build_chunk_record(
         },
         content=content,
     )
+    locator_metadata = dict(native_locator_metadata or {})
     meta = {
         "project_id": project_id,
+        "evidence_id": evidence_id,
+        "content_hash": content_hash,
+        "evidence_contract_version": EVIDENCE_INDEX_CONTRACT_VERSION,
         "source_doc_id": str(knowledge_doc.get("id") or ""),
         "source_doc_name": str(knowledge_doc.get("file_name") or ""),
         "source_doc_version": str(knowledge_doc.get("doc_version") or ""),
@@ -5314,11 +8378,26 @@ def _build_chunk_record(
         "status": str(knowledge_doc.get("status") or "ACTIVE"),
         "effective_from": str(knowledge_doc.get("effective_from") or ""),
         "effective_to": str(knowledge_doc.get("effective_to") or ""),
+        "authority": str(knowledge_doc.get("authority") or "UNKNOWN").strip().upper(),
+        "claim_role": str(knowledge_doc.get("claim_role") or "UNKNOWN").strip().upper(),
+        "applicability": str(knowledge_doc.get("applicability") or "UNKNOWN").strip(),
         "section_code": str(section.get("section_code") or ""),
         "section_title": str(section.get("section_title") or ""),
         "source_location": source_location,
         "content_kind": content_kind,
-        "table_id": "",
+        "table_id": str(table_id or locator_metadata.get("table_id") or ""),
+        "native_locator": str(locator_metadata.get("native_locator") or ""),
+        "native_format": str(locator_metadata.get("native_format") or ""),
+        "native_page": str(locator_metadata.get("native_page") or ""),
+        "native_table_index": str(
+            locator_metadata.get("native_table_index") or ""
+        ),
+        "native_body_element_index": str(
+            locator_metadata.get("native_body_element_index") or ""
+        ),
+        "native_workbook": str(locator_metadata.get("native_workbook") or ""),
+        "native_sheet": str(locator_metadata.get("native_sheet") or ""),
+        "native_range": str(locator_metadata.get("native_range") or ""),
         "slice_ai_projection": slice_ai_projection,
         "is_cover_like": bool(noise_meta.get("is_cover_like")),
         "is_glossary_like": bool(noise_meta.get("is_glossary_like")),
@@ -5327,7 +8406,10 @@ def _build_chunk_record(
         "is_legal_disclaimer": bool(noise_meta.get("is_legal_disclaimer")),
     }
     return {
-        "chunk_id": chunk_id,
+        "chunk_id": evidence_id,
+        "evidence_id": evidence_id,
+        "content_hash": content_hash,
+        "evidence_contract_version": EVIDENCE_INDEX_CONTRACT_VERSION,
         "content": content,
         "content_kind": content_kind,
         "meta": meta,

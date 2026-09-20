@@ -1,0 +1,16 @@
+{
+  "schema_version": "reqpilotx-agent-profile/v1",
+  "agent_id": "reqpilotx-requirement-atomizer",
+  "role": "EXPLICIT_SCOPE_ATOMIZER",
+  "stage_order": [
+    "D4_REQUIREMENT_DECOMPOSITION",
+    "D5_COMPLETENESS_VERIFICATION",
+    "D6_RESULT_ASSEMBLY"
+  ],
+  "authority": "DERIVED_PROPOSAL_ONLY",
+  "explicit_user_trigger_required": true,
+  "accepted_baseline_required": true,
+  "preserves_parent": true,
+  "may_write_business_state": false,
+  "completion_source": "ATOMIZATION_VERIFICATION_RECEIPT"
+}

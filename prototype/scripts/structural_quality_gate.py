@@ -15,7 +15,7 @@ PROJECT_DIR = Path(__file__).resolve().parents[1]
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
-from app.services.extraction_preview import build_extraction_preview
+from scripts.preview_snapshot_scope import build_preview_in_isolated_workspace
 
 
 ITEM_CSV_NAME = "phase0_item_annotation_template.csv"
@@ -109,7 +109,10 @@ def main() -> None:
 
     for pdf_path in pdf_paths:
         profile = _match_profile(profiles, pdf_path.name)
-        preview = build_extraction_preview(str(pdf_path))
+        preview = build_preview_in_isolated_workspace(
+            pdf_path,
+            working_dir=out_dir,
+        )
         outline = preview.get("section_outline", []) or []
         requirements = preview.get("complete_requirement_entries", []) or []
         parser_diagnostics = preview.get("parser_diagnostics", {}) or {}

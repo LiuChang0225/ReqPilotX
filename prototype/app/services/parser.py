@@ -2,6 +2,7 @@ from __future__ import annotations
 
 import re
 import io
+import importlib
 from collections import Counter
 from contextlib import redirect_stderr, redirect_stdout
 from pathlib import Path
@@ -10,21 +11,45 @@ from typing import Any
 from docx import Document
 from pypdf import PdfReader
 
+from app.domain.extraction.text import decode_plain_text_strict
+
 try:
     import pdfplumber  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
     pdfplumber = None
 
 try:
-    with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
-        import pymupdf4llm  # type: ignore
-except Exception:  # pragma: no cover - optional dependency
-    pymupdf4llm = None
-
-try:
     import pymupdf  # type: ignore
 except Exception:  # pragma: no cover - optional dependency
     pymupdf = None
+
+
+def _import_pymupdf4llm_preserving_runtime() -> Any | None:
+    """Load the optional legacy engine without changing native PDF geometry.
+
+    Importing ``pymupdf4llm`` globally disables PyMuPDF quad corrections.
+    That process-wide switch changes later native table text ordering, even
+    when the legacy engine is never called.  Preserve the incoming setting so
+    importing this compatibility parser cannot mutate the SourceIR adapter's
+    geometry runtime.
+    """
+
+    quad_corrections_unset: bool | None = None
+    tools = getattr(pymupdf, "TOOLS", None) if pymupdf is not None else None
+    get_or_set_quad_corrections = getattr(tools, "unset_quad_corrections", None)
+    if callable(get_or_set_quad_corrections):
+        quad_corrections_unset = bool(get_or_set_quad_corrections())
+    try:
+        with redirect_stdout(io.StringIO()), redirect_stderr(io.StringIO()):
+            return importlib.import_module("pymupdf4llm")
+    except Exception:  # pragma: no cover - optional dependency
+        return None
+    finally:
+        if quad_corrections_unset is not None and callable(get_or_set_quad_corrections):
+            get_or_set_quad_corrections(quad_corrections_unset)
+
+
+pymupdf4llm = _import_pymupdf4llm_preserving_runtime()
 
 
 REPEATED_LINE_THRESHOLD = 0.35
@@ -39,17 +64,25 @@ SECTION_HINT_RE = re.compile(r"^\d+(?:\.\d+){1,6}\s+\S+")
 SECTION_CODE_LINE_RE = re.compile(r"^\s*(\d+(?:\.\d+){0,6})\b")
 SECTION_CANDIDATE_RE = re.compile(r"^\s*(\d+(?:\.\d+){1,6})\s*[\)\]:：.\-]?\s*(.*)$")
 ENUM_SUBHEADING_RE = re.compile(r"^\s*(\d{1,2}(?:\.\d{1,2}){0,2})\s*[）)、)]\s*(.+)$")
-ENUM_IMPORTANT_TITLE_RE = re.compile(r"(?:要求|说明|支持|风险|布置|试验|验证|校验|评估|参数|满足|标识|连接器|优化)", re.I)
+ENUM_IMPORTANT_TITLE_RE = re.compile(
+    r"(?:要求|说明|支持|风险|布置|试验|验证|校验|评估|参数|满足|标识|连接器|优化)", re.I
+)
 ENUM_SIGNAL_RE = re.compile(r"^\s*(\d{1,2}(?:\.\d{1,2}){0,3})\s*[）)、)]")
 ENUM_DETAIL_HINT_RE = re.compile(
     r"(?:m/s|阻尼力|线性变化|暂定力值|蓄能器|工作环境|载荷输入|dvp|emc|注油压力|功耗|法规|寿命)",
     re.I,
 )
 PLAIN_TABLE_HEADER_RE = re.compile(r"^\s*序号\s*项目\s*要求\s*$")
-TABLE_FIG_HINT_RE = re.compile(r"(?:\btable\s*\d+|\bfig(?:ure)?\.?\s*\d+|表\s*\d+|图\s*\d+)", re.I)
+TABLE_FIG_HINT_RE = re.compile(
+    r"(?:\btable\s*\d+|\bfig(?:ure)?\.?\s*\d+|表\s*\d+|图\s*\d+)", re.I
+)
 MARKDOWN_TABLE_RULE_RE = re.compile(r"^\|?(?:\s*:?-{2,}:?\s*\|)+\s*$")
-DOC_CODE_YEAR_RE = re.compile(r"^[A-Z]{1,6}\s*[/\-]?\s*[A-Z]?\s*T?\s*\d{2,6}(?:\.\d+)?(?:\s*[—\-~/]?\s*\d{2,6})?.*20\d{2}$")
-DOC_STD_YEAR_RE = re.compile(r"^[A-Za-z]{1,6}\s*/\s*[A-Za-z]{0,3}\s*\d{2,6}(?:[\.\-_\s]\d{1,4})?.*?(?:19|20)\d{2}\b")
+DOC_CODE_YEAR_RE = re.compile(
+    r"^[A-Z]{1,6}\s*[/\-]?\s*[A-Z]?\s*T?\s*\d{2,6}(?:\.\d+)?(?:\s*[—\-~/]?\s*\d{2,6})?.*20\d{2}$"
+)
+DOC_STD_YEAR_RE = re.compile(
+    r"^[A-Za-z]{1,6}\s*/\s*[A-Za-z]{0,3}\s*\d{2,6}(?:[\.\-_\s]\d{1,4})?.*?(?:19|20)\d{2}\b"
+)
 METADATA_HINT_WORDS = {
     "version",
     "revision",
@@ -101,14 +134,19 @@ WATERMARK_PATTERNS = [
         r"^\s*批准[:：_]",
     ]
 ]
-WATERMARK_CONTACT_RE = re.compile(r"(?:to[:：]\s*others|vitesco\.com|@[\w.\-]+)", re.I)
-WATERMARK_FRAGMENT_RE = re.compile(r"(?:jun-|\bliang\.l\b|vitesco|tesco\.)", re.I)
+WATERMARK_CONTACT_RE = re.compile(
+    r"(?:\b(?:to|by|from)[:：]\s*others\b|@[\w.\-]+|\b[\w.\-]+\.(?:com|co|cn)\b)",
+    re.I,
+)
+WATERMARK_FRAGMENT_RE = re.compile(
+    r"(?:\b(?:confidential|internal|watermark)\b|\b[\w.\-]+\.(?:com|co|cn)\b)",
+    re.I,
+)
 TABLE_INLINE_WATERMARK_RE = re.compile(
-    r"(?:\b(?:ju|jun|un)\s*-\s*(?:l|li|lia|lian|liang(?:\.?li(?:u)?)?)\b|\bn\s*-\s*liang\.?li\b|"
-    r"\bliang\.?li(?:u)?\b|\b(?:vitesco|tesco)\.?(?:co|com)?\b|"
-    r"电子（\s*om|子（长春|长春）|春）有限(?:公)?|\bom\b(?=\s*\|)|\b-li\b|\bers\s+jun(?:-|)\w*\b|"
-    r"(?:@geely|geely\.co|@vitesc|vitesc(?:o)?\.co|zhu@\s*\d{1,2}:\d{2}|liu@\s*限公司)|"
-    r"(?:\b(?:to|of|by|f|y|o|at)\s*[:：]\s*[^\|\n]{0,16}(?:纬|湃汽|geely|zhu|dec|an))"
+    r"(?:\b[\w.+\-]{2,}\s*@\s*(?:[\w.\-]+|\d{1,2}:\d{2})?\b|"
+    r"\b[\w.\-]+\.(?:com|co|cn)\b|"
+    r"\b(?:confidential|internal\s+use\s+only|do\s+not\s+distribute)\b|"
+    r"\b(?:to|of|by|at)\s*[:：]\s*[^\|\n]{0,24}"
     r")",
     re.I,
 )
@@ -130,9 +168,13 @@ def _sanitize_parsed_document(
     for segment in segments or []:
         sanitized = dict(segment)
         if "text" in sanitized:
-            sanitized["text"] = _strip_surrogate_codepoints(str(sanitized.get("text") or ""))
+            sanitized["text"] = _strip_surrogate_codepoints(
+                str(sanitized.get("text") or "")
+            )
         if "source_anchor" in sanitized:
-            sanitized["source_anchor"] = _strip_surrogate_codepoints(str(sanitized.get("source_anchor") or ""))
+            sanitized["source_anchor"] = _strip_surrogate_codepoints(
+                str(sanitized.get("source_anchor") or "")
+            )
         sanitized_segments.append(sanitized)
     return {
         "text": _strip_surrogate_codepoints(text),
@@ -195,13 +237,19 @@ def _parse_pdf(path: Path) -> tuple[str, list[dict[str, Any]], str, dict[str, An
         watermark_model = _detect_watermark_model_with_pymupdf(path, total_pages)
     engine_pages["pypdf"] = _parse_pdf_pages_with_pypdf(reader)
     if pymupdf is not None:
-        engine_pages["pymupdf_raw"] = _parse_pdf_pages_with_pymupdf_raw(path, total_pages)
+        engine_pages["pymupdf_raw"] = _parse_pdf_pages_with_pymupdf_raw(
+            path, total_pages
+        )
     if pdfplumber is not None:
         engine_pages["pdfplumber"] = _parse_pdf_pages_with_pdfplumber(path)
     if pymupdf4llm is not None:
-        engine_pages["pymupdf4llm"] = _parse_pdf_pages_with_pymupdf4llm(path, total_pages)
+        engine_pages["pymupdf4llm"] = _parse_pdf_pages_with_pymupdf4llm(
+            path, total_pages
+        )
 
-    merged_pages, diagnostics = _merge_pdf_engine_pages(engine_pages, total_pages, watermark_model)
+    merged_pages, diagnostics = _merge_pdf_engine_pages(
+        engine_pages, total_pages, watermark_model
+    )
     segments = _build_segments_from_pages(merged_pages)
     full_text = "\n".join(seg["text"] for seg in segments if seg.get("text"))
 
@@ -234,7 +282,9 @@ def _parse_pdf_pages_with_pdfplumber(path: Path) -> list[dict[str, Any]]:
     return _finalize_pages_lines(pages_lines)
 
 
-def _parse_pdf_pages_with_pymupdf_raw(path: Path, total_pages: int) -> list[dict[str, Any]]:
+def _parse_pdf_pages_with_pymupdf_raw(
+    path: Path, total_pages: int
+) -> list[dict[str, Any]]:
     doc = pymupdf.open(str(path))  # type: ignore[union-attr]
     page_payloads: list[dict[str, Any]] = []
     signatures_by_page: list[list[str]] = []
@@ -269,8 +319,16 @@ def _parse_pdf_pages_with_pymupdf_raw(path: Path, total_pages: int) -> list[dict
                         continue
 
                     line_dir = line.get("dir") or (1.0, 0.0)
-                    dir_x = float(line_dir[0]) if isinstance(line_dir, (list, tuple)) and len(line_dir) >= 1 else 1.0
-                    dir_y = float(line_dir[1]) if isinstance(line_dir, (list, tuple)) and len(line_dir) >= 2 else 0.0
+                    dir_x = (
+                        float(line_dir[0])
+                        if isinstance(line_dir, (list, tuple)) and len(line_dir) >= 1
+                        else 1.0
+                    )
+                    dir_y = (
+                        float(line_dir[1])
+                        if isinstance(line_dir, (list, tuple)) and len(line_dir) >= 2
+                        else 0.0
+                    )
                     bbox = line.get("bbox")
                     cx_ratio, cy_ratio = _bbox_center_ratio(bbox, page_w, page_h)
 
@@ -325,8 +383,12 @@ def _parse_pdf_pages_with_pymupdf_raw(path: Path, total_pages: int) -> list[dict
     finalized: list[dict[str, Any]] = []
     for idx, payload in enumerate(page_payloads):
         lines, noise_stats = _filter_noise_lines(cleaned_pages_lines[idx], repeat_model)
-        watermark_removed = int(pre_removed_watermark[idx]) + int(noise_stats.get("watermark", 0))
-        total_removed = int(pre_removed_watermark[idx]) + int(noise_stats.get("total", 0))
+        watermark_removed = int(pre_removed_watermark[idx]) + int(
+            noise_stats.get("watermark", 0)
+        )
+        total_removed = int(pre_removed_watermark[idx]) + int(
+            noise_stats.get("total", 0)
+        )
         finalized.append(
             {
                 "lines": lines,
@@ -371,10 +433,12 @@ def _watermark_line_signature(record: dict[str, Any]) -> str:
     cx = float(record.get("cx_ratio", 0.0))
     cy = float(record.get("cy_ratio", 0.0))
     dy = float(record.get("dir_y", 0.0))
-    return f"{normalized}|{round(cx,2)}|{round(cy,2)}|{round(dy,1)}"
+    return f"{normalized}|{round(cx, 2)}|{round(cy, 2)}|{round(dy, 1)}"
 
 
-def _is_pymupdf_watermark_line(record: dict[str, Any], repeat_count: int, repeat_threshold: int) -> bool:
+def _is_pymupdf_watermark_line(
+    record: dict[str, Any], repeat_count: int, repeat_threshold: int
+) -> bool:
     text = str(record.get("text", "")).strip()
     if not text:
         return True
@@ -399,7 +463,9 @@ def _is_pymupdf_watermark_line(record: dict[str, Any], repeat_count: int, repeat
     return False
 
 
-def _parse_pdf_pages_with_pymupdf4llm(path: Path, total_pages: int) -> list[dict[str, Any]]:
+def _parse_pdf_pages_with_pymupdf4llm(
+    path: Path, total_pages: int
+) -> list[dict[str, Any]]:
     page_payloads: list[dict[str, Any]] = [
         {"lines": [], "table_count": 0, "image_count": 0, "graphics_count": 0}
         for _ in range(total_pages)
@@ -416,9 +482,15 @@ def _parse_pdf_pages_with_pymupdf4llm(path: Path, total_pages: int) -> list[dict
         text = str(chunk.get("text", "")) if isinstance(chunk, dict) else ""
         page_payloads[page_no - 1] = {
             "lines": _extract_clean_lines(text),
-            "table_count": len(chunk.get("tables") or []) if isinstance(chunk, dict) else 0,
-            "image_count": len(chunk.get("images") or []) if isinstance(chunk, dict) else 0,
-            "graphics_count": len(chunk.get("graphics") or []) if isinstance(chunk, dict) else 0,
+            "table_count": len(chunk.get("tables") or [])
+            if isinstance(chunk, dict)
+            else 0,
+            "image_count": len(chunk.get("images") or [])
+            if isinstance(chunk, dict)
+            else 0,
+            "graphics_count": len(chunk.get("graphics") or [])
+            if isinstance(chunk, dict)
+            else 0,
         }
 
     repeat_model = _build_repeat_noise_model([p["lines"] for p in page_payloads])
@@ -478,7 +550,9 @@ def _merge_pdf_engine_pages(
             fragment_ratio = _fragment_line_ratio(lines)
             mega_table_rows = _mega_table_row_count(lines)
             enum_signal = _enumeration_signal_count(lines)
-            max_line_length = max((len(_normalize_line(str(line or ""))) for line in lines), default=0)
+            max_line_length = max(
+                (len(_normalize_line(str(line or ""))) for line in lines), default=0
+            )
             candidates.append(
                 {
                     "engine": engine_name,
@@ -493,12 +567,18 @@ def _merge_pdf_engine_pages(
                     "graphics_count": int(payload.get("graphics_count", 0)),
                     "removed_noise_count": int(payload.get("removed_noise_count", 0)),
                     "removed_repeat_count": int(payload.get("removed_repeat_count", 0)),
-                    "removed_watermark_count": int(payload.get("removed_watermark_count", 0)),
+                    "removed_watermark_count": int(
+                        payload.get("removed_watermark_count", 0)
+                    ),
                 }
             )
 
         candidates.sort(key=lambda c: c["score"], reverse=True)
-        chosen = candidates[0] if candidates else {"engine": "none", "lines": [], "score": -999.0}
+        chosen = (
+            candidates[0]
+            if candidates
+            else {"engine": "none", "lines": [], "score": -999.0}
+        )
 
         # Strict single-engine fallback:
         # avoid over-trusting compact markdown-table pages that may drop trailing clauses.
@@ -516,7 +596,10 @@ def _merge_pdf_engine_pages(
                 if (
                     int(chosen.get("table_count", 0)) > 0
                     and int(alt.get("table_count", 0)) <= 0
-                    and _table_run_neighbor_count(engine_pages, str(chosen.get("engine") or ""), page_index) >= 2
+                    and _table_run_neighbor_count(
+                        engine_pages, str(chosen.get("engine") or ""), page_index
+                    )
+                    >= 2
                     and not _has_mixed_table_clause_signal(chosen.get("lines") or [])
                 ):
                     continue
@@ -524,13 +607,16 @@ def _merge_pdf_engine_pages(
                     continue
                 if int(alt.get("enum_signal", 0)) < 3:
                     continue
-                if float(alt.get("score", -999.0)) + 0.6 < float(chosen.get("score", -999.0)):
+                if float(alt.get("score", -999.0)) + 0.6 < float(
+                    chosen.get("score", -999.0)
+                ):
                     continue
                 if (
                     int(chosen.get("table_count", 0)) > 0
                     and int(chosen.get("max_line_length", 0)) >= 1800
                     and len(alt["lines"]) >= max(24, int(len(chosen["lines"]) * 1.4))
-                    and float(alt.get("score", -999.0)) + 0.8 >= float(chosen.get("score", -999.0))
+                    and float(alt.get("score", -999.0)) + 0.8
+                    >= float(chosen.get("score", -999.0))
                     and float(alt.get("fragment_ratio", 0.0)) <= 0.52
                 ):
                     chosen = alt
@@ -550,21 +636,27 @@ def _merge_pdf_engine_pages(
             if (
                 int(chosen.get("table_count", 0)) > 0
                 and int(alt.get("table_count", 0)) <= 0
-                and _should_preserve_structured_table_page(chosen.get("lines") or [], alt.get("lines") or [])
+                and _should_preserve_structured_table_page(
+                    chosen.get("lines") or [], alt.get("lines") or []
+                )
             ):
                 continue
             if (
-                int(chosen.get("mega_table_rows", 0)) > int(alt.get("mega_table_rows", 0))
+                int(chosen.get("mega_table_rows", 0))
+                > int(alt.get("mega_table_rows", 0))
                 and int(alt.get("mega_table_rows", 0)) == 0
-                and float(alt.get("score", -999.0)) + 0.16 >= float(chosen.get("score", -999.0))
+                and float(alt.get("score", -999.0)) + 0.16
+                >= float(chosen.get("score", -999.0))
                 and len(alt["lines"]) >= max(12, int(len(chosen["lines"]) * 0.7))
             ):
                 chosen = alt
                 break
             if (
                 int(alt.get("enum_signal", 0)) >= int(chosen.get("enum_signal", 0)) + 4
-                and float(alt.get("score", -999.0)) + 0.14 >= float(chosen.get("score", -999.0))
-                and int(alt.get("max_line_length", 0)) <= max(1200, int(chosen.get("max_line_length", 0)) + 240)
+                and float(alt.get("score", -999.0)) + 0.14
+                >= float(chosen.get("score", -999.0))
+                and int(alt.get("max_line_length", 0))
+                <= max(1200, int(chosen.get("max_line_length", 0)) + 240)
             ):
                 chosen = alt
                 break
@@ -602,9 +694,13 @@ def _merge_pdf_engine_pages(
         supplemental_heading_count = 0
         injected_table_blocks = 0
         table_block_quality = 0.0
-        enriched_lines, dropped_mega_rows = _drop_mega_duplicate_table_rows(enriched_lines)
+        enriched_lines, dropped_mega_rows = _drop_mega_duplicate_table_rows(
+            enriched_lines
+        )
         if watermark_model:
-            enriched_lines = _apply_detected_watermark_cleanup(enriched_lines, watermark_model)
+            enriched_lines = _apply_detected_watermark_cleanup(
+                enriched_lines, watermark_model
+            )
         if _has_line_order_inversion(chosen_raw_lines, enriched_lines):
             line_order_violation_pages.append(page_index + 1)
         if _is_low_confidence_page(chosen, candidates):
@@ -627,13 +723,21 @@ def _merge_pdf_engine_pages(
                 "image_count": int(chosen.get("image_count", 0)),
                 "graphics_count": int(chosen.get("graphics_count", 0)),
                 "quality_score": float(chosen.get("score", -999.0)),
-                "supplemental_heading_count": int(chosen.get("supplemental_heading_count", 0)),
-                "injected_table_block_count": int(chosen.get("injected_table_block_count", 0)),
+                "supplemental_heading_count": int(
+                    chosen.get("supplemental_heading_count", 0)
+                ),
+                "injected_table_block_count": int(
+                    chosen.get("injected_table_block_count", 0)
+                ),
                 "table_block_quality": float(chosen.get("table_block_quality", 0.0)),
-                "dropped_mega_table_rows": int(chosen.get("dropped_mega_table_rows", 0)),
+                "dropped_mega_table_rows": int(
+                    chosen.get("dropped_mega_table_rows", 0)
+                ),
                 "removed_noise_count": int(chosen.get("removed_noise_count", 0)),
                 "removed_repeat_count": int(chosen.get("removed_repeat_count", 0)),
-                "removed_watermark_count": int(chosen.get("removed_watermark_count", 0)),
+                "removed_watermark_count": int(
+                    chosen.get("removed_watermark_count", 0)
+                ),
                 "low_confidence": bool((page_index + 1) in low_confidence_pages),
             }
         )
@@ -648,40 +752,70 @@ def _merge_pdf_engine_pages(
                 "mega_table_rows": int(chosen.get("mega_table_rows", 0)),
                 "enum_signal": int(chosen.get("enum_signal", 0)),
                 "max_line_length": int(chosen.get("max_line_length", 0)),
-                "engine_scores": {c["engine"]: round(float(c["score"]), 4) for c in candidates},
+                "engine_scores": {
+                    c["engine"]: round(float(c["score"]), 4) for c in candidates
+                },
                 "table_count": int(chosen.get("table_count", 0)),
                 "image_count": int(chosen.get("image_count", 0)),
                 "graphics_count": int(chosen.get("graphics_count", 0)),
-                "supplemental_heading_count": int(chosen.get("supplemental_heading_count", 0)),
-                "injected_table_block_count": int(chosen.get("injected_table_block_count", 0)),
-                "table_block_quality": round(float(chosen.get("table_block_quality", 0.0)), 4),
-                "dropped_mega_table_rows": int(chosen.get("dropped_mega_table_rows", 0)),
+                "supplemental_heading_count": int(
+                    chosen.get("supplemental_heading_count", 0)
+                ),
+                "injected_table_block_count": int(
+                    chosen.get("injected_table_block_count", 0)
+                ),
+                "table_block_quality": round(
+                    float(chosen.get("table_block_quality", 0.0)), 4
+                ),
+                "dropped_mega_table_rows": int(
+                    chosen.get("dropped_mega_table_rows", 0)
+                ),
                 "removed_noise_count": int(chosen.get("removed_noise_count", 0)),
                 "removed_repeat_count": int(chosen.get("removed_repeat_count", 0)),
-                "removed_watermark_count": int(chosen.get("removed_watermark_count", 0)),
+                "removed_watermark_count": int(
+                    chosen.get("removed_watermark_count", 0)
+                ),
             }
         )
 
     table_pages = sum(1 for page in merged_pages if int(page.get("table_count", 0)) > 0)
     image_pages = sum(
-        1 for page in merged_pages if int(page.get("image_count", 0)) + int(page.get("graphics_count", 0)) > 0
+        1
+        for page in merged_pages
+        if int(page.get("image_count", 0)) + int(page.get("graphics_count", 0)) > 0
     )
     non_empty_pages = sum(1 for page in merged_pages if page.get("lines"))
-    supplemental_heading_pages = sum(1 for page in merged_pages if int(page.get("supplemental_heading_count", 0)) > 0)
-    supplemental_heading_total = sum(int(page.get("supplemental_heading_count", 0)) for page in merged_pages)
-    table_block_injected_total = sum(int(page.get("injected_table_block_count", 0)) for page in merged_pages)
-    dropped_mega_table_rows_total = sum(int(page.get("dropped_mega_table_rows", 0)) for page in merged_pages)
+    supplemental_heading_pages = sum(
+        1 for page in merged_pages if int(page.get("supplemental_heading_count", 0)) > 0
+    )
+    supplemental_heading_total = sum(
+        int(page.get("supplemental_heading_count", 0)) for page in merged_pages
+    )
+    table_block_injected_total = sum(
+        int(page.get("injected_table_block_count", 0)) for page in merged_pages
+    )
+    dropped_mega_table_rows_total = sum(
+        int(page.get("dropped_mega_table_rows", 0)) for page in merged_pages
+    )
     table_quality_values = [
         float(page.get("table_block_quality", 0.0))
         for page in merged_pages
         if float(page.get("table_block_quality", 0.0)) > 0
     ]
     avg_table_block_quality = (
-        round(sum(table_quality_values) / len(table_quality_values), 4) if table_quality_values else 0.0
+        round(sum(table_quality_values) / len(table_quality_values), 4)
+        if table_quality_values
+        else 0.0
     )
-    removed_noise_total = sum(int(page.get("removed_noise_count", 0)) for page in merged_pages)
-    removed_repeat_total = sum(int(page.get("removed_repeat_count", 0)) for page in merged_pages)
-    removed_watermark_total = sum(int(page.get("removed_watermark_count", 0)) for page in merged_pages)
+    removed_noise_total = sum(
+        int(page.get("removed_noise_count", 0)) for page in merged_pages
+    )
+    removed_repeat_total = sum(
+        int(page.get("removed_repeat_count", 0)) for page in merged_pages
+    )
+    removed_watermark_total = sum(
+        int(page.get("removed_watermark_count", 0)) for page in merged_pages
+    )
 
     diagnostics = {
         "merge_mode": "strict_single_engine",
@@ -713,12 +847,10 @@ def _has_line_order_inversion(source_lines: list[str], final_lines: list[str]) -
     # Strict mode only applies monotonic, in-order transforms (drop/clean).
     # We detect true inversions via unique anchor lines shared by source/final.
     source_keys = [
-        _line_merge_key(_normalize_line(str(line or "")))
-        for line in source_lines
+        _line_merge_key(_normalize_line(str(line or ""))) for line in source_lines
     ]
     final_keys = [
-        _line_merge_key(_normalize_line(str(line or "")))
-        for line in final_lines
+        _line_merge_key(_normalize_line(str(line or ""))) for line in final_lines
     ]
     source_keys = [key for key in source_keys if key]
     final_keys = [key for key in final_keys if key]
@@ -729,7 +861,9 @@ def _has_line_order_inversion(source_lines: list[str], final_lines: list[str]) -
     unique_positions = {
         key: idx for idx, key in enumerate(source_keys) if key_counts.get(key, 0) == 1
     }
-    projected_positions = [unique_positions[key] for key in final_keys if key in unique_positions]
+    projected_positions = [
+        unique_positions[key] for key in final_keys if key in unique_positions
+    ]
     if len(projected_positions) < 2:
         return False
 
@@ -759,17 +893,23 @@ def _table_run_neighbor_count(
             count += 1
             continue
         lines = payload.get("lines") or []
-        markdown_rows = sum(1 for line in lines if str(line or "").strip().count("|") >= 2)
+        markdown_rows = sum(
+            1 for line in lines if str(line or "").strip().count("|") >= 2
+        )
         if markdown_rows >= 4:
             count += 1
     return count
 
 
-def _is_low_confidence_page(chosen: dict[str, Any], candidates: list[dict[str, Any]]) -> bool:
+def _is_low_confidence_page(
+    chosen: dict[str, Any], candidates: list[dict[str, Any]]
+) -> bool:
     score = float(chosen.get("score", -999.0))
     selected_lines = len(chosen.get("lines") or [])
     fragment_ratio = float(chosen.get("fragment_ratio", 0.0))
-    second_best = float(candidates[1].get("score", -999.0)) if len(candidates) > 1 else -999.0
+    second_best = (
+        float(candidates[1].get("score", -999.0)) if len(candidates) > 1 else -999.0
+    )
     score_gap = score - second_best if second_best > -900 else score
 
     if selected_lines <= 0:
@@ -814,7 +954,9 @@ def _has_mixed_table_clause_signal(lines: list[str]) -> bool:
     return table_clause_hits >= 1 or plain_clause_hits >= 2
 
 
-def _should_preserve_structured_table_page(chosen_lines: list[str], alt_lines: list[str]) -> bool:
+def _should_preserve_structured_table_page(
+    chosen_lines: list[str], alt_lines: list[str]
+) -> bool:
     if _count_markdown_table_rows(chosen_lines) < 2:
         return False
     has_stage_band = _has_table_stage_band_signal(chosen_lines)
@@ -830,7 +972,11 @@ def _has_table_stage_band_signal(lines: list[str]) -> bool:
         text = _normalize_line(str(raw or ""))
         if not _is_markdown_table_row_like(text):
             continue
-        cells = [_normalize_line(cell) for cell in _parse_markdown_cells(text) if _normalize_line(cell)]
+        cells = [
+            _normalize_line(cell)
+            for cell in _parse_markdown_cells(text)
+            if _normalize_line(cell)
+        ]
         if len(cells) < 2:
             continue
         meaningful = [cell for cell in cells if not re.fullmatch(r"col\d+", cell, re.I)]
@@ -884,7 +1030,9 @@ def _attachment_band_label_metrics(lines: list[str]) -> tuple[int, int]:
     return count, quality_score
 
 
-def _should_prefer_attachment_band_candidate(chosen: dict[str, Any], alt: dict[str, Any]) -> bool:
+def _should_prefer_attachment_band_candidate(
+    chosen: dict[str, Any], alt: dict[str, Any]
+) -> bool:
     chosen_labels = _attachment_band_label_count(chosen.get("lines") or [])
     alt_labels = _attachment_band_label_count(alt.get("lines") or [])
     chosen_quality = _attachment_band_label_quality_score(chosen.get("lines") or [])
@@ -918,7 +1066,9 @@ def _table_row_contains_clause_heading(cells: list[str]) -> bool:
         match = ENUM_SUBHEADING_RE.match(value)
         if match and _looks_like_clause_heading_text(_normalize_line(match.group(2))):
             return True
-        if re.match(r"^\d{1,2}\s*[）)、)]", value) and _looks_like_clause_heading_text(value):
+        if re.match(r"^\d{1,2}\s*[）)、)]", value) and _looks_like_clause_heading_text(
+            value
+        ):
             return True
     return False
 
@@ -940,7 +1090,9 @@ def _is_markdown_table_row_like(line: str) -> bool:
     return len(cells) >= 2
 
 
-def _detect_watermark_model_with_pymupdf(path: Path, total_pages: int) -> dict[str, Any]:
+def _detect_watermark_model_with_pymupdf(
+    path: Path, total_pages: int
+) -> dict[str, Any]:
     phrases: list[str] = []
     token_groups: list[list[str]] = []
     try:
@@ -967,13 +1119,20 @@ def _detect_watermark_model_with_pymupdf(path: Path, total_pages: int) -> dict[s
                         bbox_h_ratio = 0.0
                         if isinstance(bbox, (list, tuple)) and len(bbox) >= 4:
                             try:
-                                bbox_h_ratio = max(0.0, (float(bbox[3]) - float(bbox[1])) / page_h)
+                                bbox_h_ratio = max(
+                                    0.0, (float(bbox[3]) - float(bbox[1])) / page_h
+                                )
                             except Exception:
                                 bbox_h_ratio = 0.0
                         size = float(span.get("size", 0.0) or 0.0)
                         state = span_stat.setdefault(
                             normalized,
-                            {"pages": set(), "size_sum": 0.0, "count": 0, "bbox_h_ratio_sum": 0.0},
+                            {
+                                "pages": set(),
+                                "size_sum": 0.0,
+                                "count": 0,
+                                "bbox_h_ratio_sum": 0.0,
+                            },
                         )
                         state["pages"].add(page_index + 1)
                         state["size_sum"] += size
@@ -1026,9 +1185,17 @@ def _normalize_watermark_phrase(text: str) -> str:
     return value
 
 
-def _apply_detected_watermark_cleanup(lines: list[str], watermark_model: dict[str, Any]) -> list[str]:
-    phrases = [str(item) for item in watermark_model.get("phrases", []) if str(item).strip()]
-    token_groups = [group for group in watermark_model.get("token_groups", []) if isinstance(group, list)]
+def _apply_detected_watermark_cleanup(
+    lines: list[str], watermark_model: dict[str, Any]
+) -> list[str]:
+    phrases = [
+        str(item) for item in watermark_model.get("phrases", []) if str(item).strip()
+    ]
+    token_groups = [
+        group
+        for group in watermark_model.get("token_groups", [])
+        if isinstance(group, list)
+    ]
     if not phrases and not token_groups:
         return lines
 
@@ -1068,7 +1235,9 @@ def _apply_detected_watermark_cleanup(lines: list[str], watermark_model: dict[st
     return cleaned_lines
 
 
-def _build_segments_from_pages(merged_pages: list[dict[str, Any]]) -> list[dict[str, Any]]:
+def _build_segments_from_pages(
+    merged_pages: list[dict[str, Any]],
+) -> list[dict[str, Any]]:
     segments: list[dict[str, Any]] = []
     for page in merged_pages:
         lines = page.get("lines") or []
@@ -1085,7 +1254,9 @@ def _build_segments_from_pages(merged_pages: list[dict[str, Any]]) -> list[dict[
                 "image_count": int(page.get("image_count", 0)),
                 "graphics_count": int(page.get("graphics_count", 0)),
                 "quality_score": float(page.get("quality_score", 0.0)),
-                "supplemental_heading_count": int(page.get("supplemental_heading_count", 0)),
+                "supplemental_heading_count": int(
+                    page.get("supplemental_heading_count", 0)
+                ),
                 "removed_noise_count": int(page.get("removed_noise_count", 0)),
                 "removed_repeat_count": int(page.get("removed_repeat_count", 0)),
                 "removed_watermark_count": int(page.get("removed_watermark_count", 0)),
@@ -1218,7 +1389,7 @@ def _parse_docx(path: Path) -> tuple[str, list[dict[str, Any]], str]:
 
 
 def _parse_text(path: Path) -> tuple[str, list[dict[str, Any]], str]:
-    content = path.read_text(encoding="utf-8", errors="ignore")
+    content = decode_plain_text_strict(path.read_bytes())
     cleaned = _clean_text(content)
     segments = [
         {
@@ -1277,7 +1448,9 @@ def _split_inline_attachment_band_line(line: str) -> list[str]:
         return [value]
     label = _normalize_line(str(match.group(1) or ""))
     tail = _normalize_line(str(match.group(2) or ""))
-    if not _looks_like_attachment_band_label(label) or not _looks_like_inline_attachment_tail(tail):
+    if not _looks_like_attachment_band_label(
+        label
+    ) or not _looks_like_inline_attachment_tail(tail):
         return [value]
     return [label, tail]
 
@@ -1352,7 +1525,9 @@ def _strip_inline_watermark_fragments(text: str) -> str:
         cleaned_parts.append(part)
 
     normalized = " ".join(cleaned_parts)
-    normalized = re.sub(r"\b([A-Za-z]{2,})\s+[A-Za-z]\s+([A-Za-z]{2,})\b", r"\1 \2", normalized)
+    normalized = re.sub(
+        r"\b([A-Za-z]{2,})\s+[A-Za-z]\s+([A-Za-z]{2,})\b", r"\1 \2", normalized
+    )
     normalized = re.sub(r"\s+", " ", normalized).strip()
     return normalized
 
@@ -1407,44 +1582,26 @@ def _is_suspicious_table_token(token: str) -> bool:
     if re.fullmatch(r"\d{1,2}\)", value):
         return True
     if value in {
-        "jun",
-        "ju",
-        "un",
         "om",
         "m",
         "ers",
         "hers",
-        "tesco",
-        "vitesco",
-        "liang",
-        "liangl",
-        "liangli",
-        "geely",
-        "vitesc",
-        "zhu",
-        "liu",
-        "decan",
         "by",
         "others",
         "thers",
         "company",
+        "confidential",
+        "internal",
         "公司",
         "有限公",
-        "车电",
-        "湃汽",
-        "纬",
-        "an",
+        "限公司",
     }:
         return True
-    if value.startswith("jun") and len(value) <= 10:
-        return True
-    if "liang" in value and len(value) <= 12:
-        return True
-    if any(key in value for key in {"geely", "eely", "vitesc", "zhu", "liu", "liang", "tesco", "decan"}):
+    if re.fullmatch(r"[\w.+\-]{2,}@(?:[\w.\-]+)?", value):
         return True
     if len(value) <= 2 and re.search(r"[a-z]", value):
         return True
-    if value.endswith("co") and value.startswith(("geely", "vitesc")):
+    if re.search(r"[\w.\-]+\.(?:com|co|cn)$", value, re.I):
         return True
     if re.fullmatch(r"(?:to|of|by|at|f|y|o)\W*", value):
         return True
@@ -1457,14 +1614,12 @@ def _strip_table_watermark_chunks(text: str) -> str:
         return ""
     cleaned = TABLE_INLINE_WATERMARK_RE.sub(" ", value)
     cleaned = re.sub(r"(?:\b(?:to|of|by|at|f|y|o)\s*[:：]\s*[^\|\n]{0,20})", " ", cleaned, flags=re.I)
-    cleaned = re.sub(r"(?:\b(?:zhu|liu)\s*@\s*\d{1,2}:\d{2}\b)", " ", cleaned, flags=re.I)
-    cleaned = re.sub(r"(?:@(?:geely|vitesc\w*)\b)", " ", cleaned, flags=re.I)
-    cleaned = re.sub(r"(?:\b(?:geely|eely|vitesc\w*|zhu|liu)\S*)", " ", cleaned, flags=re.I)
+    cleaned = re.sub(r"(?:\b[\w.+\-]{2,}\s*@\s*(?:[\w.\-]+|\d{1,2}:\d{2})?)", " ", cleaned, flags=re.I)
+    cleaned = re.sub(r"(?:\b[\w.\-]+\.(?:com|co|cn)\b)", " ", cleaned, flags=re.I)
     cleaned = re.sub(r"(?:\b\d{1,2}:\d{2}\b)", " ", cleaned, flags=re.I)
     cleaned = re.sub(r"(?:\b\d{1,2}-\d{1,2}\b)", " ", cleaned, flags=re.I)
-    cleaned = re.sub(r"(?:\b(?:company|others|thers|decan)\b)", " ", cleaned, flags=re.I)
-    cleaned = re.sub(r"(?:有限公|限公司|公司|车电|湃汽|纬\s*an)", " ", cleaned)
-    cleaned = re.sub(r"(?:电子（长)", " ", cleaned)
+    cleaned = re.sub(r"(?:\b(?:company|others|thers|confidential|internal)\b)", " ", cleaned, flags=re.I)
+    cleaned = re.sub(r"(?:有限公|限公司|公司)", " ", cleaned)
     cleaned = re.sub(r"\s+", " ", cleaned).strip()
     return cleaned
 
@@ -1485,7 +1640,7 @@ def _trim_table_cell_tail_noise(text: str) -> str:
     value = str(text or "").strip()
     if not value:
         return ""
-    value = re.sub(r"(?:电子（长|-\s*）|-\s*）有限公)\s*$", "", value).strip()
+    value = re.sub(r"(?:电子（|-\s*）(?:有限公)?)\s*$", "", value).strip()
     value = re.sub(r"(?:\s+[.\-])$", "", value).strip()
     if len(value) >= 24:
         value = re.sub(r"\s+[0-9]{1,2}$", "", value).strip()
@@ -1534,10 +1689,16 @@ def _build_repeat_noise_model(pages_lines: list[list[str]]) -> dict[str, set[str
             seen_in_page.add(exact_key)
 
     border_threshold = max(3, int(len(pages_lines) * REPEATED_LINE_THRESHOLD))
-    global_threshold = max(GLOBAL_REPEAT_MIN_PAGES, int(len(pages_lines) * GLOBAL_REPEAT_THRESHOLD))
+    global_threshold = max(
+        GLOBAL_REPEAT_MIN_PAGES, int(len(pages_lines) * GLOBAL_REPEAT_THRESHOLD)
+    )
 
-    border_exact_keys = {key for key, count in border_exact_counter.items() if count >= border_threshold}
-    border_loose_keys = {key for key, count in border_loose_counter.items() if count >= border_threshold}
+    border_exact_keys = {
+        key for key, count in border_exact_counter.items() if count >= border_threshold
+    }
+    border_loose_keys = {
+        key for key, count in border_loose_counter.items() if count >= border_threshold
+    }
 
     global_repeat_meta_keys: set[str] = set()
     for key, count in global_exact_counter.items():
@@ -1583,7 +1744,11 @@ def _is_global_header_footer_candidate(line: str) -> bool:
     if DOC_STD_YEAR_RE.match(value):
         return True
 
-    metadata_hits = sum(1 for token in METADATA_HINT_WORDS if re.search(rf"\b{re.escape(token)}\b", lower))
+    metadata_hits = sum(
+        1
+        for token in METADATA_HINT_WORDS
+        if re.search(rf"\b{re.escape(token)}\b", lower)
+    )
     if metadata_hits >= 2:
         return True
 
@@ -1592,7 +1757,9 @@ def _is_global_header_footer_candidate(line: str) -> bool:
     if cjk_hits >= 2:
         return True
 
-    if len(value) <= 40 and re.search(r"[A-Za-z]{1,4}\s*/\s*[A-Za-z]?\s*T?\s*\d{2,6}", value):
+    if len(value) <= 40 and re.search(
+        r"[A-Za-z]{1,4}\s*/\s*[A-Za-z]?\s*T?\s*\d{2,6}", value
+    ):
         return True
     return False
 
@@ -1611,7 +1778,9 @@ def _is_repeated_noise_line(line: str, repeat_model: dict[str, set[str]]) -> boo
     return False
 
 
-def _filter_noise_lines(lines: list[str], repeat_model: dict[str, set[str]]) -> tuple[list[str], dict[str, int]]:
+def _filter_noise_lines(
+    lines: list[str], repeat_model: dict[str, set[str]]
+) -> tuple[list[str], dict[str, int]]:
     filtered: list[str] = []
     removed_total = 0
     removed_repeat = 0
@@ -1670,8 +1839,12 @@ def _noise_reason(line: str) -> str:
         return "isolated_letters"
     tokens = re.findall(r"[A-Za-z\u4e00-\u9fff0-9]+", value)
     if len(tokens) >= 6:
-        single_letter_tokens = sum(1 for token in tokens if re.fullmatch(r"[A-Za-z]", token))
-        short_cjk_tokens = sum(1 for token in tokens if re.fullmatch(r"[\u4e00-\u9fff]", token))
+        single_letter_tokens = sum(
+            1 for token in tokens if re.fullmatch(r"[A-Za-z]", token)
+        )
+        short_cjk_tokens = sum(
+            1 for token in tokens if re.fullmatch(r"[\u4e00-\u9fff]", token)
+        )
         if single_letter_tokens + short_cjk_tokens >= int(len(tokens) * 0.7):
             return "token_fragmentation"
     digit_count = sum(ch.isdigit() for ch in value)
@@ -1742,11 +1915,17 @@ def _count_body_lines_after_heading(lines: list[str], code: str) -> int:
     return body_count
 
 
-def _should_prefer_trailing_body_candidate(chosen: dict[str, Any], alt: dict[str, Any]) -> bool:
+def _should_prefer_trailing_body_candidate(
+    chosen: dict[str, Any], alt: dict[str, Any]
+) -> bool:
     if str(chosen.get("engine") or "") == str(alt.get("engine") or ""):
         return False
-    chosen_lines = [str(line or "") for line in chosen.get("lines") or [] if str(line or "").strip()]
-    alt_lines = [str(line or "") for line in alt.get("lines") or [] if str(line or "").strip()]
+    chosen_lines = [
+        str(line or "") for line in chosen.get("lines") or [] if str(line or "").strip()
+    ]
+    alt_lines = [
+        str(line or "") for line in alt.get("lines") or [] if str(line or "").strip()
+    ]
     if not chosen_lines or not alt_lines:
         return False
     if int(chosen.get("table_count", 0) or 0) > 1:
@@ -1795,7 +1974,9 @@ def _inject_missing_section_headings(
     injected_count = 0
 
     if supplemental:
-        supplemental_sorted = sorted(supplemental, key=lambda item: _section_code_sort_key(item[0]))
+        supplemental_sorted = sorted(
+            supplemental, key=lambda item: _section_code_sort_key(item[0])
+        )
         insert_at = _first_section_header_index(chosen_lines)
         for _, heading_line in supplemental_sorted:
             merged_lines.insert(insert_at, heading_line)
@@ -1834,7 +2015,9 @@ def _inject_missing_table_blocks(
     for candidate in candidates:
         if str(candidate.get("engine")) == str(chosen_engine):
             continue
-        cand_lines = [_normalize_line(str(line or "")) for line in candidate.get("lines") or []]
+        cand_lines = [
+            _normalize_line(str(line or "")) for line in candidate.get("lines") or []
+        ]
         cand_lines = [line for line in cand_lines if line]
         if not cand_lines:
             continue
@@ -1877,7 +2060,9 @@ def _inject_missing_table_blocks(
         block_lines = [
             line
             for line in list(block.get("lines", []))
-            if line and not _is_mega_duplicate_table_row(line) and not _is_suspicious_injected_table_line(line)
+            if line
+            and not _is_mega_duplicate_table_row(line)
+            and not _is_suspicious_injected_table_line(line)
         ]
         if len(block_lines) < 2:
             continue
@@ -1984,11 +2169,16 @@ def _score_table_block(lines: list[str]) -> float:
         return 0.0
     rows_count = len(rows)
     header_bonus = 0.2 if _is_header_like_cells(rows[0]) else 0.0
-    consistency = sum(1 for count in col_counts if abs(count - median_cols) <= 1) / rows_count
+    consistency = (
+        sum(1 for count in col_counts if abs(count - median_cols) <= 1) / rows_count
+    )
     long_cell_count = sum(1 for cells in rows for cell in cells if len(cell) >= 260)
     total_cells = sum(len(cells) for cells in rows)
     long_cell_ratio = long_cell_count / max(1, total_cells)
-    duplicate_row_ratio = 1.0 - (len({_line_merge_key("|" + "|".join(cells) + "|") for cells in rows}) / rows_count)
+    duplicate_row_ratio = 1.0 - (
+        len({_line_merge_key("|" + "|".join(cells) + "|") for cells in rows})
+        / rows_count
+    )
     score = (
         0.35 * min(1.0, rows_count / 8.0)
         + 0.35 * consistency
@@ -2093,7 +2283,9 @@ def _is_suspicious_injected_table_line(line: str) -> bool:
     section_code_hits = len(re.findall(r"\b\d+(?:\.\d+){1,3}\b", text))
     if section_code_hits >= 3:
         return True
-    if text.count("|") >= 8 and re.search(r"(?:车型信息|产品技术要求及说明|产品详细描述)", text):
+    if text.count("|") >= 8 and re.search(
+        r"(?:车型信息|产品技术要求及说明|产品详细描述)", text
+    ):
         return True
     return False
 
@@ -2124,13 +2316,17 @@ def _inject_missing_enum_subheading_blocks(
 
     merged = list(merged_lines)
     existing_keys = {_line_merge_key(line) for line in merged if _line_merge_key(line)}
-    existing_enum_keys = {_enum_heading_key(line) for line in merged if _enum_heading_key(line)}
+    existing_enum_keys = {
+        _enum_heading_key(line) for line in merged if _enum_heading_key(line)
+    }
     pending_insertions: list[tuple[int, list[str]]] = []
 
     for candidate in candidates:
         if str(candidate.get("engine")) == str(chosen_engine):
             continue
-        cand_lines = [_normalize_line(str(line or "")) for line in candidate.get("lines") or []]
+        cand_lines = [
+            _normalize_line(str(line or "")) for line in candidate.get("lines") or []
+        ]
         cand_lines = [line for line in cand_lines if line]
         if not cand_lines:
             continue
@@ -2213,7 +2409,9 @@ def _inject_missing_section_detail_blocks(
 
     merged = list(merged_lines)
     existing_keys = {_line_merge_key(line) for line in merged if _line_merge_key(line)}
-    heading_indices = [idx for idx, line in enumerate(merged) if _section_code_from_line(line)]
+    heading_indices = [
+        idx for idx, line in enumerate(merged) if _section_code_from_line(line)
+    ]
     if not heading_indices:
         return merged_lines, 0
 
@@ -2230,7 +2428,10 @@ def _inject_missing_section_detail_blocks(
         for candidate in candidates:
             if str(candidate.get("engine")) == str(chosen_engine):
                 continue
-            cand_lines = [_normalize_line(str(item or "")) for item in candidate.get("lines") or []]
+            cand_lines = [
+                _normalize_line(str(item or ""))
+                for item in candidate.get("lines") or []
+            ]
             cand_lines = [item for item in cand_lines if item]
             if not cand_lines:
                 continue
@@ -2284,7 +2485,9 @@ def _has_local_section_detail(lines: list[str], heading_index: int) -> bool:
     return False
 
 
-def _extract_section_detail_block_from_candidate(candidate_lines: list[str], section_code: str) -> list[str]:
+def _extract_section_detail_block_from_candidate(
+    candidate_lines: list[str], section_code: str
+) -> list[str]:
     match_index = -1
     for idx, line in enumerate(candidate_lines):
         if _section_code_from_line(line) == section_code:
@@ -2370,7 +2573,9 @@ def _looks_like_enum_detail_line(line: str) -> bool:
         return True
     if re.match(r"^\s*(?:[（(]?\d+[）)]|[-•])\s*", value):
         return True
-    if re.match(r"^\s*\d+(?:\.\d+)?\s*(?:A|V|kN|N|mm|cm|bar|℃|°C|m/s|h)\b", value, re.I):
+    if re.match(
+        r"^\s*\d+(?:\.\d+)?\s*(?:A|V|kN|N|mm|cm|bar|℃|°C|m/s|h)\b", value, re.I
+    ):
         return True
     return False
 
@@ -2383,7 +2588,9 @@ def _line_merge_key(line: str) -> str:
     return value[:280]
 
 
-def _locate_enum_block_insert_index(merged_lines: list[str], candidate_lines: list[str], enum_index: int) -> int:
+def _locate_enum_block_insert_index(
+    merged_lines: list[str], candidate_lines: list[str], enum_index: int
+) -> int:
     for back in range(enum_index - 1, max(-1, enum_index - 10), -1):
         if not _is_enum_anchor_candidate(candidate_lines[back]):
             continue

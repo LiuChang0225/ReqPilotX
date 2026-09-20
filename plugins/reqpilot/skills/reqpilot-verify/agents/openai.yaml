@@ -1,0 +1,3 @@
+interface:
+  display_name: "ReqPilot verification"
+  short_description: "Check originals, provenance and exported draft content"

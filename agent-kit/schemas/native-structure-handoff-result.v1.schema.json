@@ -1,0 +1,37 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "reason_code",
+    "public_summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "native-structure-handoff-result/v1"
+    },
+    "status": {
+      "type": "string",
+      "description": "PUBLISHED only after the Host publisher succeeds, including a first Host-valid reversible default for an ambiguous item; NO_CHANGE when source already satisfies the handoff or no grounded change exists; UNRESOLVED only when no Host-valid proposal can be formed. UNRESOLVED keeps the current structure and is non-blocking.",
+      "enum": ["PUBLISHED", "NO_CHANGE", "UNRESOLVED"]
+    },
+    "reason_code": {
+      "type": "string",
+      "description": "Use revision_published for PUBLISHED; source_already_satisfies_handoff or no_grounded_change for NO_CHANGE; evidence_insufficient or operation_not_supported for non-blocking UNRESOLVED with current structure retained.",
+      "enum": [
+        "revision_published",
+        "source_already_satisfies_handoff",
+        "no_grounded_change",
+        "evidence_insufficient",
+        "operation_not_supported"
+      ]
+    },
+    "public_summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    }
+  }
+}

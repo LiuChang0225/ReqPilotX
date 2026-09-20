@@ -1,0 +1,14 @@
+{
+  "schema_version": "reqpilotx-agent-profile/v1",
+  "agent_id": "reqpilotx-extraction-cold-verifier",
+  "role": "COLD_VERIFIER",
+  "stage_order": [
+    "D5_COMPLETENESS_VERIFICATION"
+  ],
+  "authority": "REPORT_ONLY",
+  "may_use_bounded_subagents": false,
+  "may_read_primary_reasoning": false,
+  "may_write_business_state": false,
+  "may_replace_primary_proposal": false,
+  "completion_source": "VERIFICATION_VALIDATOR_RECEIPT"
+}

@@ -1,16 +1,57 @@
 # -*- mode: python ; coding: utf-8 -*-
 
+import argparse
+import platform
+import sys
+from pathlib import Path
+
+
+_project_dir = Path(SPECPATH).resolve()
+if str(_project_dir) not in sys.path:
+    sys.path.insert(0, str(_project_dir))
+
+from scripts.release_preflight import validate_qdrant_artifact
+
+
+_parser = argparse.ArgumentParser(add_help=False)
+_parser.add_argument("--with-qdrant", action="store_true")
+_parser.add_argument("--qdrant-manifest")
+_options = _parser.parse_args()
+
+_binaries = []
+if _options.with_qdrant:
+    _manifest = (
+        Path(_options.qdrant_manifest).expanduser().resolve()
+        if _options.qdrant_manifest
+        else (_project_dir / "release" / "qdrant-artifacts.json").resolve()
+    )
+    _qdrant = validate_qdrant_artifact(
+        _project_dir,
+        _manifest,
+        target_platform=sys.platform,
+        target_arch=platform.machine(),
+    )
+    _binaries.append((str(_qdrant.path), _qdrant.bundle_destination))
+
 
 a = Analysis(
-    ['app_desktop.py'],
-    pathex=[],
-    binaries=[],
-    datas=[('app/static', 'app/static'), ('bin', 'bin')],
+    [str(_project_dir / "app_desktop.py")],
+    pathex=[str(_project_dir)],
+    binaries=_binaries,
+    datas=[(str(_project_dir / "frontend" / "dist"), "frontend/dist")],
     hiddenimports=[],
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
-    excludes=['torch', 'sentence_transformers', 'transformers', 'tokenizers', 'safetensors', 'scipy', 'sklearn'],
+    excludes=[
+        "torch",
+        "sentence_transformers",
+        "transformers",
+        "tokenizers",
+        "safetensors",
+        "scipy",
+        "sklearn",
+    ],
     noarchive=False,
     optimize=0,
 )
@@ -21,11 +62,11 @@ exe = EXE(
     a.scripts,
     [],
     exclude_binaries=True,
-    name='ReqPilotX',
+    name="ReqPilotX",
     debug=False,
     bootloader_ignore_signals=False,
     strip=False,
-    upx=True,
+    upx=False,
     console=False,
     disable_windowed_traceback=False,
     argv_emulation=False,
@@ -38,13 +79,15 @@ coll = COLLECT(
     a.binaries,
     a.datas,
     strip=False,
-    upx=True,
+    upx=False,
     upx_exclude=[],
-    name='ReqPilotX',
+    name="ReqPilotX",
 )
-app = BUNDLE(
-    coll,
-    name='ReqPilotX.app',
-    icon=None,
-    bundle_identifier=None,
-)
+
+if sys.platform == "darwin":
+    app = BUNDLE(
+        coll,
+        name="ReqPilotX.app",
+        icon=None,
+        bundle_identifier=None,
+    )

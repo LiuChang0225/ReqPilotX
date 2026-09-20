@@ -1,0 +1,119 @@
+{
+  "$defs": {
+    "DocumentAssetFactV1": {
+      "additionalProperties": false,
+      "properties": {
+        "asset_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Asset Id",
+          "type": "string"
+        },
+        "bbox": {
+          "anyOf": [
+            {
+              "maxItems": 4,
+              "minItems": 4,
+              "prefixItems": [
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                },
+                {
+                  "type": "number"
+                }
+              ],
+              "type": "array"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Bbox"
+        },
+        "content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Content Sha256",
+          "type": "string"
+        },
+        "kind": {
+          "pattern": "^[a-z][a-z0-9_]{0,79}$",
+          "title": "Kind",
+          "type": "string"
+        },
+        "media_type": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Media Type",
+          "type": "string"
+        },
+        "page_number": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Page Number"
+        }
+      },
+      "required": [
+        "asset_id",
+        "kind",
+        "content_sha256",
+        "media_type"
+      ],
+      "title": "DocumentAssetFactV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "assets": {
+      "items": {
+        "$ref": "#/$defs/DocumentAssetFactV1"
+      },
+      "title": "Assets",
+      "type": "array"
+    },
+    "assets_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Assets Sha256",
+      "type": "string"
+    },
+    "page_number": {
+      "minimum": 1,
+      "title": "Page Number",
+      "type": "integer"
+    },
+    "schema_version": {
+      "const": "document-asset-ledger/v1",
+      "default": "document-asset-ledger/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "source_sha256",
+    "page_number",
+    "assets",
+    "assets_sha256"
+  ],
+  "title": "DocumentAssetLedgerV1",
+  "type": "object"
+}

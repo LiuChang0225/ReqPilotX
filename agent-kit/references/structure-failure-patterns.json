@@ -1,0 +1,180 @@
+{
+  "schema_version": "reqpilotx-structure-failure-pattern-catalog/v1",
+  "catalog_version": "1.0.0",
+  "max_selected_patterns": 3,
+  "patterns": [
+    {
+      "pattern_id": "confirmed_proposal_not_verified",
+      "priority": 10,
+      "trigger_signals": [
+        "accepted_action_has_no_materialization_receipt",
+        "confirmed_status_without_postcondition_receipt",
+        "rendered_output_not_reopened",
+        "required_host_check_not_executed"
+      ],
+      "decision_reminder": "User confirmation accepts a direction; it does not prove that the Host materialized or verified the result.",
+      "evidence_queries": [
+        "Compare the accepted action with the materialization receipt.",
+        "Inspect the final rendered scope, not only the proposal.",
+        "Require every declared postcondition to have a receipt."
+      ],
+      "required_host_checks": [
+        "materialization_receipt_present",
+        "postcondition_receipt_present",
+        "rendered_scope_reopened"
+      ],
+      "tool_intents": [
+        "validate_materialization",
+        "render_changed_scope"
+      ],
+      "forbidden_shortcut": "Do not map CONFIRMED directly to VERIFIED or CONSUMED."
+    },
+    {
+      "pattern_id": "visual_subcell_scope_leakage",
+      "priority": 20,
+      "trigger_signals": [
+        "accepted_visual_subcell_proposal_without_materialization",
+        "cell_bbox_exceeds_visual_scope",
+        "cell_text_contains_following_heading",
+        "physical_cell_contains_multiple_logical_regions"
+      ],
+      "decision_reminder": "A visual subcell proposal is incomplete until output cells are clipped to the visual scope and exclude adjacent headings.",
+      "evidence_queries": [
+        "Compare every output cell bbox with the visual scope bbox.",
+        "Search output cell text for following heading evidence.",
+        "Inspect a rendered crop of the proposed logical region."
+      ],
+      "required_host_checks": [
+        "all_cells_contained_by_visual_scope",
+        "following_heading_text_absent",
+        "visual_region_materialized_or_unresolved"
+      ],
+      "tool_intents": [
+        "inspect_logical_table",
+        "render_region",
+        "validate_materialization"
+      ],
+      "forbidden_shortcut": "Do not reuse one mixed physical cell as the materialized visual table."
+    },
+    {
+      "pattern_id": "parent_child_evidence_duplication",
+      "priority": 30,
+      "trigger_signals": [
+        "child_table_region_overlaps_parent_direct_content",
+        "duplicate_source_handle_across_visible_owners",
+        "parent_direct_content_repeats_child_content"
+      ],
+      "decision_reminder": "Visible direct content must have one nearest structural owner; parents do not repeat evidence already owned by children.",
+      "evidence_queries": [
+        "Compare parent direct refs with descendant-owned refs and regions.",
+        "Check bbox overlap between parent text and child tables.",
+        "Inspect the final parent and child views together."
+      ],
+      "required_host_checks": [
+        "visible_source_ownership_exact_once",
+        "parent_direct_content_excludes_descendants"
+      ],
+      "tool_intents": [
+        "validate_content_ownership",
+        "render_changed_scope"
+      ],
+      "forbidden_shortcut": "Do not preserve duplicate text merely because it came from a different extraction channel."
+    },
+    {
+      "pattern_id": "repeated_title_extraction",
+      "priority": 40,
+      "trigger_signals": [
+        "rotated_page_repeats_title",
+        "title_only_block_repeated",
+        "visible_title_duplicate_lines"
+      ],
+      "decision_reminder": "Repeated native title lines are extraction duplicates unless distinct source geometry proves separate visible occurrences.",
+      "evidence_queries": [
+        "Normalize and count identical title-only lines.",
+        "Compare duplicate title bboxes and rotation transforms.",
+        "Check whether the table or document node already owns the title."
+      ],
+      "required_host_checks": [
+        "title_only_duplicates_collapsed",
+        "distinct_occurrences_require_distinct_geometry"
+      ],
+      "tool_intents": [
+        "validate_content_ownership"
+      ],
+      "forbidden_shortcut": "Do not expose repeated title text as direct body content."
+    },
+    {
+      "pattern_id": "continuation_column_topology_drift",
+      "priority": 50,
+      "trigger_signals": [
+        "continuation_column_count_changes",
+        "continuation_header_contract_changes",
+        "per_fragment_column_inference"
+      ],
+      "decision_reminder": "One logical table needs one canonical column contract; physical continuation fragments cannot define independent visible schemas.",
+      "evidence_queries": [
+        "Derive canonical columns from the owning header contract.",
+        "Map every fragment cell to canonical column roles.",
+        "Compare continuation headers, axes, and applicability before publishing."
+      ],
+      "required_host_checks": [
+        "canonical_column_contract_present",
+        "every_segment_maps_to_canonical_columns",
+        "visible_column_count_stable"
+      ],
+      "tool_intents": [
+        "inspect_logical_table",
+        "validate_materialization"
+      ],
+      "forbidden_shortcut": "Do not infer visible columns independently for each physical fragment."
+    },
+    {
+      "pattern_id": "cross_cell_visual_placement_drop",
+      "priority": 60,
+      "trigger_signals": [
+        "image_crosses_row_or_column_boundary",
+        "image_not_dispositioned",
+        "placement_best_cell_overlap_below_threshold"
+      ],
+      "decision_reminder": "Every visual placement must be shown in a cell, shown as a floating table placement, or remain explicitly unresolved.",
+      "evidence_queries": [
+        "Compare every expected placement with rendered cell and floating placements.",
+        "Inspect row and column ranges crossed by each image bbox.",
+        "Report placements that cannot be assigned to one cell."
+      ],
+      "required_host_checks": [
+        "visual_placement_disposition_exact_once",
+        "cross_cell_placement_not_silently_dropped"
+      ],
+      "tool_intents": [
+        "inspect_logical_table",
+        "render_region",
+        "validate_materialization"
+      ],
+      "forbidden_shortcut": "Do not discard an image because no single cell exceeds an overlap threshold."
+    },
+    {
+      "pattern_id": "minor_list_navigation_oversegmentation",
+      "priority": 70,
+      "trigger_signals": [
+        "inline_list_items_promoted_to_tree_nodes",
+        "list_items_not_independently_navigable",
+        "user_requests_compact_parent_item"
+      ],
+      "decision_reminder": "Source membership does not require a navigation node for every minor list line; preserve compact direct content when items are not independently navigable.",
+      "evidence_queries": [
+        "Check whether each child has an independent heading or stable scoped role.",
+        "Compare navigation value with the parent direct-content view.",
+        "Preview the before-and-after tree granularity."
+      ],
+      "required_host_checks": [
+        "navigation_children_are_independently_navigable",
+        "inline_list_content_preserved_under_parent"
+      ],
+      "tool_intents": [
+        "validate_structure_granularity"
+      ],
+      "forbidden_shortcut": "Do not equate every numbered or bulleted source line with a tree node."
+    }
+  ]
+}

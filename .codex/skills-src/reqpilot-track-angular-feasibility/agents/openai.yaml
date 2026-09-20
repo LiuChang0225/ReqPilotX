@@ -1,5 +1,0 @@
-interface:
-  display_name: "ReqPilot Angular Feasibility"
-  short_description: "Work the Angular feasibility spike"
-  default_prompt: "Use $reqpilot-track-angular-feasibility to evaluate an Angular shell and auth path without replacing the current workspace UI."
-

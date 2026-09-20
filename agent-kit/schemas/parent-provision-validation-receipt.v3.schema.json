@@ -1,0 +1,137 @@
+{
+  "$defs": {
+    "ParentProvisionStatus": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL"
+      ],
+      "title": "ParentProvisionStatus",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "artifact_id": {
+      "pattern": "^agent-artifact-[0-9a-f]{32}$",
+      "title": "Artifact Id",
+      "type": "string"
+    },
+    "artifact_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Artifact Sha256",
+      "type": "string"
+    },
+    "declared_scope_count": {
+      "minimum": 0,
+      "title": "Declared Scope Count",
+      "type": "integer"
+    },
+    "evidence_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Evidence Sha256",
+      "type": "string"
+    },
+    "kit_bundle_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Kit Bundle Sha256",
+      "type": "string"
+    },
+    "parent_provision_count": {
+      "minimum": 0,
+      "title": "Parent Provision Count",
+      "type": "integer"
+    },
+    "policy_attestation_id": {
+      "pattern": "^d3-policy-attestation-[0-9a-f]{32}$",
+      "title": "Policy Attestation Id",
+      "type": "string"
+    },
+    "policy_attestation_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Policy Attestation Sha256",
+      "type": "string"
+    },
+    "predecessor_d2_artifact_id": {
+      "pattern": "^agent-artifact-[0-9a-f]{32}$",
+      "title": "Predecessor D2 Artifact Id",
+      "type": "string"
+    },
+    "predecessor_d2_artifact_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Predecessor D2 Artifact Sha256",
+      "type": "string"
+    },
+    "receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Receipt Sha256",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^agent-run-[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "parent-provision-validation-receipt/v3",
+      "default": "parent-provision-validation-receipt/v3",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_segment_count": {
+      "minimum": 0,
+      "title": "Source Segment Count",
+      "type": "integer"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/ParentProvisionStatus"
+    },
+    "unresolved_entry_count": {
+      "minimum": 0,
+      "title": "Unresolved Entry Count",
+      "type": "integer"
+    },
+    "unresolved_scope_count": {
+      "minimum": 0,
+      "title": "Unresolved Scope Count",
+      "type": "integer"
+    },
+    "validator_id": {
+      "const": "reqpilotx-parent-provision-validator",
+      "default": "reqpilotx-parent-provision-validator",
+      "title": "Validator Id",
+      "type": "string"
+    },
+    "validator_version": {
+      "const": "1.0.0",
+      "default": "1.0.0",
+      "title": "Validator Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "artifact_id",
+    "artifact_sha256",
+    "run_id",
+    "source_sha256",
+    "kit_bundle_sha256",
+    "predecessor_d2_artifact_id",
+    "predecessor_d2_artifact_sha256",
+    "policy_attestation_id",
+    "policy_attestation_sha256",
+    "status",
+    "declared_scope_count",
+    "unresolved_scope_count",
+    "unresolved_entry_count",
+    "parent_provision_count",
+    "source_segment_count",
+    "evidence_sha256",
+    "receipt_sha256"
+  ],
+  "title": "ParentProvisionValidationReceiptV3",
+  "type": "object"
+}

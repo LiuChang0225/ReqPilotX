@@ -1,0 +1,72 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "agent_claimed_status": {"enum": ["PARTIAL"], "type": "string"},
+    "apply_eligible": {"enum": [false], "type": "boolean"},
+    "base_structure_identity": {
+      "additionalProperties": false,
+      "properties": {
+        "revision": {"enum": [0], "type": "integer"},
+        "schema_version": {
+          "enum": ["structure-base-identity/v1"],
+          "type": "string"
+        },
+        "structure_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        "structure_snapshot_id": {"type": "string"}
+      },
+      "required": [
+        "schema_version",
+        "structure_snapshot_id",
+        "structure_sha256",
+        "revision"
+      ],
+      "type": "object"
+    },
+    "coverage_receipt_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "expires_at_utc": {"format": "date-time", "type": "string"},
+    "facts_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "issued_at_utc": {"format": "date-time", "type": "string"},
+    "page_ledger_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "proposal_id": {
+      "pattern": "^shadow-structure-proposal-[0-9a-f]{32}$",
+      "type": "string"
+    },
+    "schema_version": {
+      "enum": ["shadow-structure-proposal/v1"],
+      "type": "string"
+    },
+    "serving_impact": {"enum": ["NONE"], "type": "string"},
+    "source_sha256": {"pattern": "^[0-9a-f]{64}$", "type": "string"},
+    "structure_proposal": {"type": "object"},
+    "understanding_proposal_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "proposal_id",
+    "source_sha256",
+    "facts_sha256",
+    "page_ledger_sha256",
+    "understanding_proposal_sha256",
+    "coverage_receipt_sha256",
+    "base_structure_identity",
+    "issued_at_utc",
+    "expires_at_utc",
+    "structure_proposal",
+    "agent_claimed_status",
+    "apply_eligible",
+    "serving_impact"
+  ],
+  "type": "object"
+}

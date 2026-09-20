@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+# Install the repository import root before application imports.
+# ruff: noqa: E402
+
 import argparse
 import csv
 import json
@@ -12,27 +15,9 @@ PROJECT_DIR = Path(__file__).resolve().parents[1]
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
-from app.services.extraction_preview import build_extraction_preview
+from scripts.preview_snapshot_scope import build_preview_in_isolated_workspace
 
 
-DEFAULT_REQUIRED_CODES = [
-    "3.1",
-    "3.2",
-    "3.3",
-    "3.4",
-    "3.5",
-    "3.6",
-    "3.7",
-    "3.8",
-    "3.9",
-    "4.6.2",
-    "4.6.4",
-    "4.6.5",
-    "4.6.6",
-    "4.6.7",
-    "4.6.8",
-]
-DEFAULT_GUARD_SECTIONS = ["5.1.12.2", "5.1.14.2", "5.3.9.4.3"]
 SUSPICIOUS_TITLE_PATTERNS = [
     re.compile(r"个循环"),
     re.compile(r"engine/motor", re.I),
@@ -42,14 +27,22 @@ SUSPICIOUS_TITLE_PATTERNS = [
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Section split regression checks for Q-JLY style PDFs.")
+    parser = argparse.ArgumentParser(description="Section split regression checks with explicit document expectations.")
     parser.add_argument("pdf_path", type=Path, help="Target PDF path.")
     parser.add_argument("--json-out", type=Path, default=None, help="Optional JSON output path.")
     parser.add_argument("--csv-out", type=Path, default=None, help="Optional CSV output path.")
+    parser.add_argument("--profile-config", type=Path, help="Private JSON containing required_codes and guard_sections; omitted means generic structure checks only.")
     args = parser.parse_args()
 
-    preview = build_extraction_preview(str(args.pdf_path.expanduser().resolve()))
-    report = evaluate_preview(preview, pdf_path=str(args.pdf_path))
+    preview = build_preview_in_isolated_workspace(
+        args.pdf_path.expanduser().resolve(),
+    )
+    profile = json.loads(args.profile_config.read_text()) if args.profile_config else {}
+    report = evaluate_preview(
+        preview, pdf_path=str(args.pdf_path),
+        required_codes=profile.get("required_codes", []),
+        guard_sections=profile.get("guard_sections", []),
+    )
     summary = report["summary"]
     detail = report["detail"]
     score_pct = float(summary["score_pct"])
@@ -128,16 +121,21 @@ def _find_suspicious_rows(outline: list[dict[str, Any]]) -> list[dict[str, Any]]
     return out
 
 
-def evaluate_preview(preview: dict[str, Any], *, pdf_path: str = "") -> dict[str, Any]:
+def evaluate_preview(
+    preview: dict[str, Any], *, pdf_path: str = "",
+    required_codes: list[str] | None = None,
+    guard_sections: list[str] | None = None,
+) -> dict[str, Any]:
     outline = preview.get("section_outline", []) or []
     by_code = {str(row.get("section_code") or ""): row for row in outline}
 
-    missing_required = [code for code in DEFAULT_REQUIRED_CODES if code not in by_code]
+    missing_required = [code for code in (required_codes or []) if code not in by_code]
     suspicious_global = _find_suspicious_rows(outline)
-    suspicious_near_guards = _find_suspicious_near_sections(outline, DEFAULT_GUARD_SECTIONS)
+    suspicious_near_guards = _find_suspicious_near_sections(outline, guard_sections or [])
     default_candidate_violations = sum(1 for row in outline if not bool(row.get("requirement_like", False)))
 
     checks: list[dict[str, Any]] = [
+        {"name": "outline_is_present", "passed": bool(outline), "detail": {}},
         {
             "name": "required_codes_present",
             "passed": len(missing_required) == 0,
@@ -160,6 +158,10 @@ def evaluate_preview(preview: dict[str, Any], *, pdf_path: str = "") -> dict[str
         },
     ]
 
+    if not required_codes:
+        checks = [item for item in checks if item["name"] != "required_codes_present"]
+    if not guard_sections:
+        checks = [item for item in checks if item["name"] != "no_suspicious_rows_near_guard_sections"]
     passed_count = sum(1 for item in checks if item["passed"])
     total_count = len(checks)
     score_pct = round((passed_count / total_count) * 100, 2) if total_count else 0.0
@@ -167,6 +169,7 @@ def evaluate_preview(preview: dict[str, Any], *, pdf_path: str = "") -> dict[str
     return {
         "pdf_path": pdf_path,
         "summary": {
+            "evaluation_scope": "document_profile" if required_codes or guard_sections else "generic_structure_only",
             "passed_checks": passed_count,
             "total_checks": total_count,
             "score_pct": score_pct,

@@ -1,5 +1,0 @@
-interface:
-  display_name: "ReqPilot Extraction Quality"
-  short_description: "Work the extraction-quality loop"
-  default_prompt: "Use $reqpilot-track-extraction-quality to improve extraction quality through batch regression, taxonomy, and benchmark-safe changes only."
-

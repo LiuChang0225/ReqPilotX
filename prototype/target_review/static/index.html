@@ -1,0 +1,56 @@
+<!doctype html>
+<!--
+THESIS: 让工程师沿原文核对每一项判断；不是展示模型总结的报告页。
+OWN-WORLD: 延续ReqPilotX绿色主动作、浅灰连续工作面、系统中文字与参数等宽字。
+STORY: 找到原条款，读完整表格/条件，核对原页，留下绑定版本的修改。
+FIRST VIEWPORT: 左原文树、中条款及拆分、右原页；首次展示共享表注案例。反馈紧邻当前条目。
+FORM: 现有需求核对工作面的隔离实现；用户已指定核对目标与工程软件世界，不另换视觉身份。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReqPilotX · 原文核对</title>
+  <link rel="icon" href="data:,">
+  <link rel="stylesheet" href="/app.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#detail">跳到条款内容</a>
+  <div id="app" class="application" aria-busy="true">
+    <header class="app-header">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">R</span><strong>ReqPilotX</strong><span class="brand-divider"></span><span>原文核对</span></div>
+      <div class="header-actions"><span id="run-status" class="draft-tag">正在载入本地结果</span><a href="/api/export" download class="quiet-button">导出核对记录</a></div>
+    </header>
+    <section class="document-bar" aria-label="当前文档">
+      <div class="document-identity"><h1 id="document-title">读取文档身份…</h1><p id="document-meta">原文证据与分析草稿正在载入</p></div>
+      <details class="run-explanation"><summary>这份结果怎么看</summary><div id="run-explanation"></div></details>
+    </section>
+    <nav id="spotlights" class="spotlights" aria-label="典型核对入口"></nav>
+    <div id="global-error" class="global-error" role="alert" hidden></div>
+    <main class="workbench">
+      <aside class="outline-pane" aria-label="原文层级与条目">
+        <div class="outline-toolbar"><h2>原文条目</h2><button type="button" id="locate-selection" class="text-button">定位当前</button></div>
+        <label class="search-label"><span class="sr-only">搜索原文、判断或派生需求</span><input id="search" type="search" placeholder="搜索条款、参数或原文…" autocomplete="off" spellcheck="false"></label>
+        <div class="filter-row"><label class="sr-only" for="filter">条目范围</label><select id="filter"><option value="all">全部内容</option><option value="proxy">本轮代理复核</option><option value="requirements">仅需求</option><option value="issues">需关注</option><option value="reviewed">人工已核对</option></select><button type="button" id="collapse-all" class="text-button">收起</button></div>
+        <p class="tree-count" id="tree-count"></p>
+        <div id="tree" class="source-tree" role="tree" aria-label="来源结构" tabindex="0"></div>
+        <div class="outline-foot"><span class="status-dot" aria-hidden="true"></span><span id="review-count">未有人工核对</span></div>
+      </aside>
+      <section class="content-pane" aria-label="条款详情">
+        <div class="compact-view-switch" aria-label="窄屏工作面"><button id="show-content" type="button" aria-pressed="true">条款与判断</button><button id="show-evidence" type="button" aria-pressed="false">原页证据</button></div>
+        <div id="detail" class="detail-scroll" tabindex="-1"></div>
+        <div id="review-panel" class="review-panel"></div>
+      </section>
+      <aside id="evidence-pane" class="evidence-pane" aria-label="原 PDF 页面证据">
+        <div class="evidence-title"><h2>原页证据</h2><a href="/source.pdf" target="_blank" rel="noopener" class="text-button">打开 PDF ↗</a></div>
+        <div class="evidence-toolbar"><button id="previous-page" class="square-button" type="button" aria-label="上一页">‹</button><label class="page-input-label"><span>PDF</span><input id="page-input" type="number" min="1" max="1" value="1" aria-label="跳转PDF页码"><span id="page-total">/ …</span></label><button id="next-page" class="square-button" type="button" aria-label="下一页">›</button><label class="sr-only" for="zoom">原页缩放</label><select id="zoom"><option value="fit">适宽</option><option value="1.25">125%</option><option value="1.6">160%</option><option value="2">200%</option></select></div>
+        <p id="evidence-caption" class="evidence-caption">原文像素 · 来源定位不代表人工确认</p>
+        <div id="page-scroller" class="page-scroller"><div id="page-paper" class="page-paper" hidden><svg id="page-overlay" class="page-overlay" aria-label="原文定位区域"></svg></div><p id="page-error" class="page-error" role="alert" hidden></p></div>
+        <div id="evidence-source-note" class="evidence-foot">点击条款、表格单元格或原页标注查看对应证据</div>
+      </aside>
+    </main>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </div>
+</body>
+</html>

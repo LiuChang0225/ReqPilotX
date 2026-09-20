@@ -1,0 +1,48 @@
+{
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "reason_code",
+    "evidence_state",
+    "decision_policy",
+    "public_summary"
+  ],
+  "properties": {
+    "schema_version": {
+      "type": "string",
+      "const": "native-structure-handoff-result/v2"
+    },
+    "status": {
+      "type": "string",
+      "description": "Every handoff is decided. PUBLISHED means the first Host-valid reversible proposal was persisted; NO_CHANGE means the current structure was explicitly selected as the working decision.",
+      "enum": ["PUBLISHED", "NO_CHANGE"]
+    },
+    "reason_code": {
+      "type": "string",
+      "description": "Use revision_published for PUBLISHED; source_already_satisfies_handoff, no_grounded_change, or current_structure_selected for NO_CHANGE.",
+      "enum": [
+        "revision_published",
+        "source_already_satisfies_handoff",
+        "no_grounded_change",
+        "current_structure_selected"
+      ]
+    },
+    "evidence_state": {
+      "type": "string",
+      "description": "Evidence quality is independent from the mandatory working decision and never becomes a per-item workflow blocker.",
+      "enum": ["SUFFICIENT", "CONFLICTING", "INSUFFICIENT"]
+    },
+    "decision_policy": {
+      "type": "string",
+      "description": "PUBLISHED uses FIRST_HOST_VALIDATED_PROPOSAL; NO_CHANGE uses KEEP_CURRENT_STRUCTURE.",
+      "enum": ["FIRST_HOST_VALIDATED_PROPOSAL", "KEEP_CURRENT_STRUCTURE"]
+    },
+    "public_summary": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 1000
+    }
+  }
+}

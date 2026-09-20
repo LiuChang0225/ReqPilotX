@@ -10,6 +10,7 @@ from difflib import SequenceMatcher
 from io import BytesIO, StringIO
 from pathlib import Path
 from typing import Any
+from urllib.parse import quote
 
 from PIL import Image as PILImage
 from PIL import ImageChops, ImageDraw, ImageFont
@@ -557,22 +558,25 @@ def prepare_table_ref_urls(
     document_id: str,
 ) -> dict[str, Any]:
     copied = dict(row)
+    requirement_set_id = str(copied.get("requirement_set_id") or "").strip()
+    set_query = f"requirement_set_id={quote(requirement_set_id)}" if requirement_set_id else ""
     refs = []
     for item in _normalize_table_refs(copied.get("table_refs")):
         ref = dict(item)
         table_id = str(ref.get("table_id") or "").strip()
         if table_id:
-            ref["table_asset_url"] = (
-                f"/api/projects/{project_id}/sor-documents/{document_id}/table-assets/{table_id}"
-            )
+            base_url = f"/api/projects/{project_id}/sor-documents/{document_id}/table-assets/{table_id}"
+            ref["table_asset_url"] = f"{base_url}?{set_query}" if set_query else base_url
             slice_version = _snapshot_version_token(ref.get("slice_snapshot_path"))
+            slice_query = f"{set_query}&v={slice_version}" if set_query else f"v={slice_version}"
             ref["slice_snapshot_url"] = (
-                f"/api/projects/{project_id}/sor-documents/{document_id}/table-assets/{table_id}/snapshot?v={slice_version}"
+                f"{base_url}/snapshot?{slice_query}"
             )
             if str(ref.get("source_snapshot_path") or "").strip():
                 source_version = _snapshot_version_token(ref.get("source_snapshot_path"))
+                source_query = f"{set_query}&v={source_version}" if set_query else f"v={source_version}"
                 ref["source_snapshot_url"] = (
-                    f"/api/projects/{project_id}/sor-documents/{document_id}/table-assets/{table_id}/source-snapshot?v={source_version}"
+                    f"{base_url}/source-snapshot?{source_query}"
                 )
         refs.append(ref)
     copied["table_refs"] = refs
@@ -1115,15 +1119,20 @@ def prepare_table_asset_urls(
     copied = dict(asset)
     table_id = str(copied.get("table_id") or "").strip()
     if table_id:
-        copied["asset_url"] = f"/api/projects/{project_id}/sor-documents/{document_id}/table-assets/{table_id}"
+        requirement_set_id = str(copied.get("requirement_set_id") or "").strip()
+        set_query = f"requirement_set_id={quote(requirement_set_id)}" if requirement_set_id else ""
+        base_url = f"/api/projects/{project_id}/sor-documents/{document_id}/table-assets/{table_id}"
+        copied["asset_url"] = f"{base_url}?{set_query}" if set_query else base_url
         snapshot_version = _snapshot_version_token(copied.get("snapshot_path"))
+        snapshot_query = f"{set_query}&v={snapshot_version}" if set_query else f"v={snapshot_version}"
         copied["snapshot_url"] = (
-            f"/api/projects/{project_id}/sor-documents/{document_id}/table-assets/{table_id}/snapshot?v={snapshot_version}"
+            f"{base_url}/snapshot?{snapshot_query}"
         )
         if str(copied.get("source_snapshot_path") or "").strip():
             source_version = _snapshot_version_token(copied.get("source_snapshot_path"))
+            source_query = f"{set_query}&v={source_version}" if set_query else f"v={source_version}"
             copied["source_snapshot_url"] = (
-                f"/api/projects/{project_id}/sor-documents/{document_id}/table-assets/{table_id}/source-snapshot?v={source_version}"
+                f"{base_url}/source-snapshot?{source_query}"
             )
     return copied
 

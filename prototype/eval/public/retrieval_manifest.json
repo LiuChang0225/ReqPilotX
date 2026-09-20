@@ -1,0 +1,12 @@
+{
+  "corpus_id": "synthetic-retrieval-contract-v1",
+  "data_classification": "synthetic_contract",
+  "documents": [
+    {"id": "product-reference", "relative_path": "reference/product.docx", "ingestion": "searchable_knowledge"},
+    {"id": "product-pdf", "relative_path": "reference/product.pdf", "ingestion": "do_not_index"},
+    {"id": "product-copy", "relative_path": "reference/product-copy.pdf", "ingestion": "do_not_index", "duplicate_of": "product-pdf"}
+  ],
+  "cases": [
+    {"id": "voltage", "query": "What operating voltage is specified?", "gold_source_doc_ids": ["product-reference"], "forbidden_source_doc_ids": [], "expected_retrieval_grade": "direct"}
+  ]
+}

@@ -1,0 +1,1262 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reqpilotx.local/schemas/source-ir-oracle-registry.schema.json",
+  "title": "ReqPilotX hash-only SourceIR oracle registry",
+  "type": "object",
+  "required": ["schema_version", "fingerprint_algorithm", "oracles"],
+  "properties": {
+    "schema_version": {"const": "source-ir-oracle-registry/v1"},
+    "fingerprint_algorithm": {"const": "sha256-canonical-json-source-ir-v2"},
+    "oracles": {
+      "type": "object",
+      "minProperties": 1,
+      "patternProperties": {
+        "^ORACLE-(ROLE|STR|TAB|SEM|FMT)-[0-9]{3}-A[0-9]+$": {
+          "$ref": "#/$defs/oracle"
+        }
+      },
+      "additionalProperties": false
+    }
+  },
+  "additionalProperties": false,
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "a1_cell": {
+      "type": "string",
+      "pattern": "^[A-Z]{1,3}[1-9][0-9]*$"
+    },
+    "a1_range": {
+      "type": "string",
+      "pattern": "^[A-Z]{1,3}[1-9][0-9]*(?::[A-Z]{1,3}[1-9][0-9]*)?$"
+    },
+    "xlsx_locator": {
+      "type": "object",
+      "required": ["format", "workbook", "sheet", "cell_range"],
+      "properties": {
+        "format": {"const": "xlsx"},
+        "workbook": {"const": "xl/workbook.xml"},
+        "sheet": {"type": "string", "minLength": 1, "maxLength": 31},
+        "cell_range": {"$ref": "#/$defs/a1_range"}
+      },
+      "additionalProperties": false
+    },
+    "docx_table_locator": {
+      "type": "object",
+      "required": ["format", "body_element_index", "table_index"],
+      "properties": {
+        "format": {"const": "docx"},
+        "body_element_index": {"type": "integer", "minimum": 0},
+        "table_index": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "docx_table_row_locator": {
+      "type": "object",
+      "required": [
+        "format",
+        "body_element_index",
+        "table_index",
+        "row_index"
+      ],
+      "properties": {
+        "format": {"const": "docx"},
+        "body_element_index": {"type": "integer", "minimum": 0},
+        "table_index": {"type": "integer", "minimum": 0},
+        "row_index": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "pdf_table_locator": {
+      "type": "object",
+      "required": ["format", "page_number", "table_index"],
+      "properties": {
+        "format": {"const": "pdf"},
+        "page_number": {"type": "integer", "minimum": 1},
+        "table_index": {"type": "integer", "minimum": 0}
+      },
+      "additionalProperties": false
+    },
+    "xlsx_cell_record": {
+      "type": "object",
+      "required": ["cell_range", "row_span", "column_span", "raw_sha256"],
+      "properties": {
+        "cell_range": {"$ref": "#/$defs/a1_cell"},
+        "row_span": {"type": "integer", "minimum": 1},
+        "column_span": {"type": "integer", "minimum": 1},
+        "raw_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "xlsx_cell_range_fact": {
+      "type": "object",
+      "required": ["kind", "locator", "expected_cell_count", "cells", "range_fingerprint"],
+      "properties": {
+        "kind": {"const": "xlsx_cell_range"},
+        "locator": {"$ref": "#/$defs/xlsx_locator"},
+        "expected_cell_count": {"type": "integer", "minimum": 1},
+        "cells": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/xlsx_cell_record"}
+        },
+        "range_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "docx_table_record": {
+      "type": "object",
+      "required": [
+        "locator",
+        "row_count",
+        "column_count",
+        "cell_count",
+        "data_row_count",
+        "grid_sha256"
+      ],
+      "properties": {
+        "locator": {"$ref": "#/$defs/docx_table_locator"},
+        "row_count": {"type": "integer", "minimum": 1},
+        "column_count": {"type": "integer", "minimum": 1},
+        "cell_count": {"type": "integer", "minimum": 1},
+        "data_row_count": {"type": "integer", "minimum": 0},
+        "grid_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "docx_table_group_fact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "expected_table_count",
+        "expected_data_row_count",
+        "expected_cell_count",
+        "tables",
+        "group_fingerprint"
+      ],
+      "properties": {
+        "kind": {"const": "docx_table_group"},
+        "expected_table_count": {"type": "integer", "minimum": 1},
+        "expected_data_row_count": {"type": "integer", "minimum": 1},
+        "expected_cell_count": {"type": "integer", "minimum": 1},
+        "tables": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/docx_table_record"}
+        },
+        "group_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "docx_table_row_cell_record": {
+      "type": "object",
+      "required": [
+        "column",
+        "row_span",
+        "column_span",
+        "raw_sha256"
+      ],
+      "properties": {
+        "column": {"type": "integer", "minimum": 0},
+        "row_span": {"const": 1},
+        "column_span": {"type": "integer", "minimum": 1},
+        "raw_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "docx_table_row_scope_fact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "locator",
+        "anchor_cell_count",
+        "logical_slot_count",
+        "cells",
+        "row_fingerprint",
+        "scope_fingerprint"
+      ],
+      "properties": {
+        "kind": {"const": "docx_table_row_scope"},
+        "locator": {"$ref": "#/$defs/docx_table_row_locator"},
+        "anchor_cell_count": {"type": "integer", "minimum": 1},
+        "logical_slot_count": {"type": "integer", "minimum": 1},
+        "cells": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/docx_table_row_cell_record"}
+        },
+        "row_fingerprint": {"$ref": "#/$defs/sha256"},
+        "scope_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "docx_narrative_record": {
+      "type": "object",
+      "required": ["locator", "kind", "raw_sha256"],
+      "properties": {
+        "locator": {
+          "type": "object",
+          "required": ["format", "body_element_index"],
+          "properties": {
+            "format": {"const": "docx"},
+            "body_element_index": {"type": "integer", "minimum": 0}
+          },
+          "additionalProperties": false
+        },
+        "kind": {"enum": ["paragraph", "list_item"]},
+        "raw_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "docx_mixed_content_group_fact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "expected_narrative_count",
+        "narratives",
+        "parameter_table_oracle_id",
+        "expected_parameter_table_count",
+        "parameter_table_group_fingerprint",
+        "mixed_fingerprint"
+      ],
+      "properties": {
+        "kind": {"const": "docx_mixed_content_group"},
+        "expected_narrative_count": {"type": "integer", "minimum": 1},
+        "narratives": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/docx_narrative_record"}
+        },
+        "parameter_table_oracle_id": {
+          "type": "string",
+          "pattern": "^ORACLE-[A-Z0-9-]+$"
+        },
+        "expected_parameter_table_count": {"type": "integer", "minimum": 1},
+        "parameter_table_group_fingerprint": {"$ref": "#/$defs/sha256"},
+        "mixed_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "ai_reviewed_scope_provenance": {
+      "type": "object",
+      "required": [
+        "label",
+        "reviewer_role",
+        "review_method",
+        "reviewed_page_numbers",
+        "renderer_id",
+        "renderer_version",
+        "render_dpi",
+        "rendered_pdf_sha256",
+        "page_image_sha256_by_page",
+        "is_human_gold",
+        "is_serving_activation_gate"
+      ],
+      "properties": {
+        "label": {"const": "AI_REVIEWED_SILVER"},
+        "reviewer_role": {"const": "AI_REVIEWER"},
+        "review_method": {
+          "enum": [
+            "DOCX_RENDER_AND_OOXML_CROSS_CHECK",
+            "XLSX_LIBREOFFICE_RENDER_AND_OPENXML_CROSS_CHECK"
+          ]
+        },
+        "reviewed_page_numbers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 1}
+        },
+        "target_page_number": {"type": "integer", "minimum": 1},
+        "renderer_id": {"const": "libreoffice"},
+        "renderer_version": {"type": "string", "minLength": 1},
+        "render_dpi": {"type": "integer", "minimum": 72, "maximum": 600},
+        "rendered_pdf_sha256": {"$ref": "#/$defs/sha256"},
+        "reviewed_source_sha256": {"$ref": "#/$defs/sha256"},
+        "reviewed_sheet_part": {
+          "type": "string",
+          "pattern": "^xl/worksheets/sheet[1-9][0-9]*\\.xml$"
+        },
+        "reviewed_sheet_part_sha256": {"$ref": "#/$defs/sha256"},
+        "page_image_sha256_by_page": {
+          "type": "object",
+          "minProperties": 1,
+          "patternProperties": {
+            "^[1-9][0-9]*$": {"$ref": "#/$defs/sha256"}
+          },
+          "additionalProperties": false
+        },
+        "is_human_gold": {"const": false},
+        "is_serving_activation_gate": {"const": false}
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "review_method": {
+                "const": "DOCX_RENDER_AND_OOXML_CROSS_CHECK"
+              }
+            },
+            "required": ["review_method"]
+          },
+          "then": {
+            "required": ["target_page_number"],
+            "not": {
+              "anyOf": [
+                {"required": ["reviewed_source_sha256"]},
+                {"required": ["reviewed_sheet_part"]},
+                {"required": ["reviewed_sheet_part_sha256"]}
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "reviewed_source_sha256",
+              "reviewed_sheet_part",
+              "reviewed_sheet_part_sha256"
+            ],
+            "not": {"required": ["target_page_number"]}
+          }
+        }
+      ],
+      "additionalProperties": false
+    },
+    "pdf_table_row_record": {
+      "type": "object",
+      "required": ["row_index", "cell_count", "row_fingerprint"],
+      "properties": {
+        "row_index": {"type": "integer", "minimum": 0},
+        "cell_count": {"type": "integer", "minimum": 1},
+        "row_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "pdf_logical_grid_row_record": {
+      "type": "object",
+      "required": ["row_index", "logical_slot_count", "row_fingerprint"],
+      "properties": {
+        "row_index": {"type": "integer", "minimum": 0},
+        "logical_slot_count": {"type": "integer", "minimum": 1},
+        "row_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "pdf_merge_region_record": {
+      "type": "object",
+      "required": ["row", "column", "row_span", "column_span"],
+      "properties": {
+        "row": {"type": "integer", "minimum": 0},
+        "column": {"type": "integer", "minimum": 0},
+        "row_span": {"type": "integer", "minimum": 1},
+        "column_span": {"type": "integer", "minimum": 1}
+      },
+      "additionalProperties": false
+    },
+    "pdf_table_segment_record": {
+      "type": "object",
+      "required": [
+        "locator",
+        "row_count",
+        "column_count",
+        "cell_count",
+        "merged_region_count",
+        "rows"
+      ],
+      "properties": {
+        "locator": {"$ref": "#/$defs/pdf_table_locator"},
+        "row_count": {"type": "integer", "minimum": 1},
+        "column_count": {"type": "integer", "minimum": 1},
+        "cell_count": {"type": "integer", "minimum": 1},
+        "merged_region_count": {"type": "integer", "minimum": 0},
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/pdf_table_row_record"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "pdf_table_continuation_group_fact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "expected_segment_count",
+        "expected_physical_row_count",
+        "expected_cell_count",
+        "continuation_from_page",
+        "continuation_to_page",
+        "segments",
+        "group_fingerprint"
+      ],
+      "properties": {
+        "kind": {"const": "pdf_table_continuation_group"},
+        "expected_segment_count": {"type": "integer", "minimum": 2},
+        "expected_physical_row_count": {"type": "integer", "minimum": 2},
+        "expected_cell_count": {"type": "integer", "minimum": 2},
+        "continuation_from_page": {"type": "integer", "minimum": 1},
+        "continuation_to_page": {"type": "integer", "minimum": 2},
+        "segments": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/pdf_table_segment_record"}
+        },
+        "group_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "pdf_logical_grid_segment_record": {
+      "type": "object",
+      "required": [
+        "locator",
+        "row_count",
+        "column_count",
+        "logical_slot_count",
+        "merged_regions",
+        "rows"
+      ],
+      "properties": {
+        "locator": {"$ref": "#/$defs/pdf_table_locator"},
+        "row_count": {"type": "integer", "minimum": 1},
+        "column_count": {"type": "integer", "minimum": 1},
+        "logical_slot_count": {"type": "integer", "minimum": 1},
+        "merged_regions": {
+          "type": "array",
+          "items": {"$ref": "#/$defs/pdf_merge_region_record"}
+        },
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/pdf_logical_grid_row_record"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "pdf_table_continuation_logical_grid_fact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "expected_segment_count",
+        "expected_row_count",
+        "expected_logical_slot_count",
+        "continuation_from_page",
+        "continuation_to_page",
+        "segments",
+        "group_fingerprint"
+      ],
+      "properties": {
+        "kind": {"const": "pdf_table_continuation_logical_grid"},
+        "expected_segment_count": {"type": "integer", "minimum": 2},
+        "expected_row_count": {"type": "integer", "minimum": 2},
+        "expected_logical_slot_count": {"type": "integer", "minimum": 2},
+        "continuation_from_page": {"type": "integer", "minimum": 1},
+        "continuation_to_page": {"type": "integer", "minimum": 2},
+        "segments": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/pdf_logical_grid_segment_record"}
+        },
+        "group_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "pdf_source_node_hash_record": {
+      "type": "object",
+      "required": ["kind", "locator", "raw_sha256"],
+      "properties": {
+        "kind": {"const": "source_node"},
+        "locator": {
+          "type": "object",
+          "required": [
+            "format",
+            "page_number",
+            "block_index",
+            "source_node_kind"
+          ],
+          "properties": {
+            "format": {"const": "pdf"},
+            "page_number": {"type": "integer", "minimum": 1},
+            "block_index": {"type": "integer", "minimum": 0},
+            "source_node_kind": {"enum": ["paragraph", "figure", "image"]}
+          },
+          "additionalProperties": false
+        },
+        "raw_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "pdf_table_cell_hash_record": {
+      "type": "object",
+      "required": ["kind", "locator", "raw_sha256"],
+      "properties": {
+        "kind": {"const": "table_cell"},
+        "locator": {
+          "type": "object",
+          "required": [
+            "format",
+            "page_number",
+            "table_index",
+            "row_index",
+            "column_index",
+            "row_span",
+            "column_span"
+          ],
+          "properties": {
+            "format": {"const": "pdf"},
+            "page_number": {"type": "integer", "minimum": 1},
+            "table_index": {"type": "integer", "minimum": 0},
+            "row_index": {"type": "integer", "minimum": 0},
+            "column_index": {"type": "integer", "minimum": 0},
+            "row_span": {"type": "integer", "minimum": 1},
+            "column_span": {"type": "integer", "minimum": 1}
+          },
+          "additionalProperties": false
+        },
+        "raw_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "pdf_text_locator_hash_record": {
+      "oneOf": [
+        {"$ref": "#/$defs/pdf_source_node_hash_record"},
+        {"$ref": "#/$defs/pdf_table_cell_hash_record"}
+      ]
+    },
+    "pdf_table_note_label_group_fact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "section_label",
+        "table",
+        "note_row_index",
+        "parameter_row_indices",
+        "expected_label_record_count",
+        "label_records",
+        "label_fingerprint",
+        "duplicate_caption_records",
+        "child_assertion",
+        "group_fingerprint"
+      ],
+      "properties": {
+        "kind": {"const": "pdf_table_note_label_group"},
+        "section_label": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,2}(?:\\.(?:0|[1-9][0-9]{0,2})){0,7}$"
+        },
+        "table": {"$ref": "#/$defs/pdf_table_segment_record"},
+        "note_row_index": {"type": "integer", "minimum": 1},
+      "parameter_row_indices": {
+        "type": "array",
+        "minItems": 2,
+        "maxItems": 2,
+        "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 1}
+        },
+        "expected_label_record_count": {"type": "integer", "minimum": 2},
+        "label_records": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/pdf_text_locator_hash_record"}
+        },
+        "label_fingerprint": {"$ref": "#/$defs/sha256"},
+        "duplicate_caption_records": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/pdf_source_node_hash_record"}
+        },
+        "child_assertion": {"$ref": "#/$defs/pdf_source_node_hash_record"},
+        "group_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "pdf_option_state_locator": {
+      "type": "object",
+      "required": [
+        "format",
+        "page_number",
+        "block_index",
+        "source_node_kind"
+      ],
+      "properties": {
+        "format": {"const": "pdf"},
+        "page_number": {"type": "integer", "minimum": 1},
+        "block_index": {"type": "integer", "minimum": 0},
+        "source_node_kind": {"const": "paragraph"}
+      },
+      "additionalProperties": false
+    },
+    "pdf_option_state_record": {
+      "type": "object",
+      "required": ["locator", "raw_sha256", "state"],
+      "properties": {
+        "locator": {"$ref": "#/$defs/pdf_option_state_locator"},
+        "raw_sha256": {"$ref": "#/$defs/sha256"},
+        "state": {"enum": ["checked", "unchecked", "uncertain"]}
+      },
+      "additionalProperties": false
+    },
+    "pdf_option_state_section": {
+      "type": "object",
+      "required": [
+        "section_label",
+        "expected_option_count",
+        "options",
+        "option_fingerprint"
+      ],
+      "properties": {
+        "section_label": {
+          "type": "string",
+          "pattern": "^[1-9][0-9]{0,2}(?:\\.(?:0|[1-9][0-9]{0,2})){0,7}$"
+        },
+        "expected_option_count": {"type": "integer", "minimum": 2},
+        "options": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/pdf_option_state_record"}
+        },
+        "option_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "pdf_option_state_group_fact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "page_number",
+        "expected_section_count",
+        "expected_option_count",
+        "sections",
+        "group_fingerprint"
+      ],
+      "properties": {
+        "kind": {"const": "pdf_option_state_group"},
+        "page_number": {"type": "integer", "minimum": 1},
+        "expected_section_count": {"type": "integer", "minimum": 1},
+        "expected_option_count": {"type": "integer", "minimum": 2},
+        "sections": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/pdf_option_state_section"}
+        },
+        "group_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "pdf_revision_history_table": {
+      "type": "object",
+      "required": [
+        "locator",
+        "row_count",
+        "column_count",
+        "logical_slot_count",
+        "rows"
+      ],
+      "properties": {
+        "locator": {"$ref": "#/$defs/pdf_table_locator"},
+        "row_count": {"type": "integer", "minimum": 1},
+        "column_count": {"type": "integer", "minimum": 1},
+        "logical_slot_count": {"type": "integer", "minimum": 1},
+        "rows": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/pdf_logical_grid_row_record"}
+        }
+      },
+      "additionalProperties": false
+    },
+    "pdf_revision_history_document": {
+      "type": "object",
+      "required": [
+        "document_id",
+        "table",
+        "revision_row_indices",
+        "table_fingerprint"
+      ],
+      "properties": {
+        "document_id": {
+          "type": "string",
+          "pattern": "^DOC-[A-Z0-9-]+$"
+        },
+        "table": {"$ref": "#/$defs/pdf_revision_history_table"},
+        "revision_row_indices": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 0}
+        },
+        "table_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "pdf_revision_history_group_fact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "expected_document_count",
+        "expected_revision_row_count",
+        "documents",
+        "group_fingerprint"
+      ],
+      "properties": {
+        "kind": {"const": "pdf_revision_history_group"},
+        "expected_document_count": {"type": "integer", "minimum": 2},
+        "expected_revision_row_count": {"type": "integer", "minimum": 2},
+        "documents": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/pdf_revision_history_document"}
+        },
+        "group_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "source_scope_pdf_selector": {
+      "type": "object",
+      "required": ["format", "channel_mode", "page_numbers"],
+      "properties": {
+        "format": {"const": "pdf"},
+        "channel_mode": {"enum": ["NATIVE", "VISUAL", "COMBINED"]},
+        "page_numbers": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 1}
+        }
+      },
+      "additionalProperties": false
+    },
+    "source_scope_xlsx_range": {
+      "type": "object",
+      "required": ["sheet", "cell_range"],
+      "properties": {
+        "sheet": {"type": "string", "minLength": 1, "maxLength": 31},
+        "cell_range": {"$ref": "#/$defs/a1_range"}
+      },
+      "additionalProperties": false
+    },
+    "source_scope_xlsx_selector": {
+      "oneOf": [
+        {
+          "type": "object",
+          "required": ["format", "mode"],
+          "properties": {
+            "format": {"const": "xlsx"},
+            "mode": {"const": "WORKBOOK"}
+          },
+          "additionalProperties": false
+        },
+        {
+          "type": "object",
+          "required": ["format", "mode", "ranges"],
+          "properties": {
+            "format": {"const": "xlsx"},
+            "mode": {"const": "RANGES"},
+            "ranges": {
+              "type": "array",
+              "minItems": 1,
+              "items": {"$ref": "#/$defs/source_scope_xlsx_range"}
+            }
+          },
+          "additionalProperties": false
+        }
+      ]
+    },
+    "source_scope_selector": {
+      "oneOf": [
+        {"$ref": "#/$defs/source_scope_pdf_selector"},
+        {"$ref": "#/$defs/source_scope_xlsx_selector"}
+      ]
+    },
+    "source_scope_record": {
+      "type": "object",
+      "required": [
+        "document_id",
+        "selector",
+        "expected_native_node_count",
+        "expected_native_table_count",
+        "expected_asset_count",
+        "expected_visual_observation_count",
+        "expected_visual_table_count",
+        "expected_cell_count",
+        "scope_fingerprint"
+      ],
+      "properties": {
+        "document_id": {
+          "type": "string",
+          "pattern": "^DOC-[A-Z0-9-]+$"
+        },
+        "selector": {"$ref": "#/$defs/source_scope_selector"},
+        "expected_native_node_count": {"type": "integer", "minimum": 0},
+        "expected_native_table_count": {"type": "integer", "minimum": 0},
+        "expected_asset_count": {"type": "integer", "minimum": 0},
+        "expected_visual_observation_count": {"type": "integer", "minimum": 0},
+        "expected_visual_table_count": {"type": "integer", "minimum": 0},
+        "expected_cell_count": {"type": "integer", "minimum": 0},
+        "scope_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "source_scope_group_fact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "expected_document_count",
+        "scopes",
+        "group_fingerprint"
+      ],
+      "properties": {
+        "kind": {"const": "source_scope_group"},
+        "expected_document_count": {"type": "integer", "minimum": 1},
+        "scopes": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/source_scope_record"}
+        },
+        "group_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "xlsx_merge_record": {
+      "type": "object",
+      "required": ["anchor", "row_span", "column_span", "anchor_raw_sha256"],
+      "properties": {
+        "anchor": {"$ref": "#/$defs/a1_cell"},
+        "row_span": {"type": "integer", "minimum": 2},
+        "column_span": {"type": "integer", "minimum": 1},
+        "anchor_raw_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "xlsx_identity_record": {
+      "type": "object",
+      "required": ["cell_range", "raw_sha256"],
+      "properties": {
+        "cell_range": {"$ref": "#/$defs/a1_cell"},
+        "raw_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "xlsx_row_identity": {
+      "type": "object",
+      "required": ["cell_range", "expected_cell_count", "cells", "fingerprint"],
+      "properties": {
+        "cell_range": {"$ref": "#/$defs/a1_range"},
+        "expected_cell_count": {"type": "integer", "minimum": 1},
+        "cells": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/xlsx_identity_record"}
+        },
+        "fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "xlsx_merge_group_fact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "table_locator",
+        "scope_range",
+        "covered_row_count",
+        "expected_merge_count",
+        "merges",
+        "merge_fingerprint",
+        "row_identity",
+        "group_fingerprint"
+      ],
+      "properties": {
+        "kind": {"const": "xlsx_merge_group"},
+        "table_locator": {"$ref": "#/$defs/xlsx_locator"},
+        "scope_range": {"$ref": "#/$defs/a1_range"},
+        "covered_row_count": {"type": "integer", "minimum": 2},
+        "expected_merge_count": {"type": "integer", "minimum": 1},
+        "merges": {
+          "type": "array",
+          "minItems": 1,
+          "items": {"$ref": "#/$defs/xlsx_merge_record"}
+        },
+        "merge_fingerprint": {"$ref": "#/$defs/sha256"},
+        "row_identity": {"$ref": "#/$defs/xlsx_row_identity"},
+        "group_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "xlsx_material_row_expectation": {
+      "type": "object",
+      "required": ["identity_cell_range", "identity_raw_sha256"],
+      "properties": {
+        "identity_cell_range": {"$ref": "#/$defs/a1_cell"},
+        "identity_raw_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "xlsx_material_role_binding": {
+      "type": "object",
+      "required": [
+        "role",
+        "header_cell_range",
+        "header_raw_sha256",
+        "anchor_cell_range",
+        "anchor_raw_sha256",
+        "merge_range",
+        "expected_applies_to_count",
+        "rendered_page_number",
+        "binding_fingerprint"
+      ],
+      "properties": {
+        "role": {
+          "enum": ["STANDARD", "ACCEPTANCE_CRITERIA"]
+        },
+        "header_cell_range": {"$ref": "#/$defs/a1_cell"},
+        "header_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "anchor_cell_range": {"$ref": "#/$defs/a1_cell"},
+        "anchor_raw_sha256": {"$ref": "#/$defs/sha256"},
+        "merge_range": {"$ref": "#/$defs/a1_range"},
+        "expected_applies_to_count": {"type": "integer", "minimum": 2},
+        "rendered_page_number": {"type": "integer", "minimum": 1},
+        "binding_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "xlsx_material_requirement_scope_fact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "source_oracle_id",
+        "source_merge_group_fingerprint",
+        "table_locator",
+        "full_row_scope",
+        "identity_rendered_page_number",
+        "expected_requirement_count",
+        "expected_role_applies_to_count",
+        "row_expectations",
+        "role_bindings",
+        "scope_fingerprint"
+      ],
+      "properties": {
+        "kind": {"const": "xlsx_material_requirement_scope"},
+        "source_oracle_id": {
+          "type": "string",
+          "pattern": "^ORACLE-(ROLE|STR|TAB|SEM|FMT)-[0-9]{3}-A[0-9]+$"
+        },
+        "source_merge_group_fingerprint": {"$ref": "#/$defs/sha256"},
+        "table_locator": {"$ref": "#/$defs/xlsx_locator"},
+        "full_row_scope": {"$ref": "#/$defs/a1_range"},
+        "identity_rendered_page_number": {"type": "integer", "minimum": 1},
+        "expected_requirement_count": {"type": "integer", "minimum": 2},
+        "expected_role_applies_to_count": {"type": "integer", "minimum": 4},
+        "row_expectations": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/xlsx_material_row_expectation"}
+        },
+        "role_bindings": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/xlsx_material_role_binding"}
+        },
+        "scope_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "xlsx_explicit_peer_item": {
+      "type": "object",
+      "required": [
+        "ordinal",
+        "start_offset",
+        "end_offset",
+        "raw_sha256"
+      ],
+      "properties": {
+        "ordinal": {"type": "integer", "minimum": 1, "maximum": 10000},
+        "start_offset": {"type": "integer", "minimum": 0},
+        "end_offset": {"type": "integer", "minimum": 1},
+        "raw_sha256": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "xlsx_explicit_peer_scope": {
+      "type": "object",
+      "required": [
+        "table_locator",
+        "table_source_node_id",
+        "cell_range",
+        "cell_id",
+        "raw_sha256",
+        "raw_text_length",
+        "rendered_page_number",
+        "reviewed_sheet_part",
+        "reviewed_sheet_part_sha256",
+        "items",
+        "scope_fingerprint"
+      ],
+      "properties": {
+        "table_locator": {"$ref": "#/$defs/xlsx_locator"},
+        "table_source_node_id": {
+          "type": "string",
+          "pattern": "^node-[0-9a-f]{32}$"
+        },
+        "cell_range": {"$ref": "#/$defs/a1_cell"},
+        "cell_id": {
+          "type": "string",
+          "pattern": "^cell-[0-9a-f]{32}$"
+        },
+        "raw_sha256": {"$ref": "#/$defs/sha256"},
+        "raw_text_length": {"type": "integer", "minimum": 1},
+        "rendered_page_number": {"type": "integer", "minimum": 1},
+        "reviewed_sheet_part": {
+          "type": "string",
+          "pattern": "^xl/worksheets/sheet[1-9][0-9]*\\.xml$"
+        },
+        "reviewed_sheet_part_sha256": {"$ref": "#/$defs/sha256"},
+        "items": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "items": {"$ref": "#/$defs/xlsx_explicit_peer_item"}
+        },
+        "scope_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "xlsx_explicit_peer_scope_group_fact": {
+      "type": "object",
+      "required": [
+        "kind",
+        "expected_scope_count",
+        "expected_items_per_scope",
+        "expected_total_item_count",
+        "expected_peer_ordinals",
+        "scopes",
+        "group_fingerprint"
+      ],
+      "properties": {
+        "kind": {"const": "xlsx_explicit_peer_scope_group"},
+        "expected_scope_count": {"type": "integer", "minimum": 2},
+        "expected_items_per_scope": {"const": 2},
+        "expected_total_item_count": {"type": "integer", "minimum": 4},
+        "expected_peer_ordinals": {
+          "type": "array",
+          "minItems": 2,
+          "maxItems": 2,
+          "uniqueItems": true,
+          "items": {"type": "integer", "minimum": 1, "maximum": 10000}
+        },
+        "scopes": {
+          "type": "array",
+          "minItems": 2,
+          "items": {"$ref": "#/$defs/xlsx_explicit_peer_scope"}
+        },
+        "group_fingerprint": {"$ref": "#/$defs/sha256"}
+      },
+      "additionalProperties": false
+    },
+    "oracle": {
+      "type": "object",
+      "required": [
+        "oracle_id",
+        "assertion_id",
+        "assertion_contract_sha256",
+        "evaluator_id",
+        "fact"
+      ],
+      "properties": {
+        "oracle_id": {
+          "type": "string",
+          "pattern": "^ORACLE-(ROLE|STR|TAB|SEM|FMT)-[0-9]{3}-A[0-9]+$"
+        },
+        "assertion_id": {
+          "type": "string",
+          "pattern": "^(ROLE|STR|TAB|SEM|FMT)-[0-9]{3}-A[0-9]+$"
+        },
+        "assertion_contract_sha256": {"$ref": "#/$defs/sha256"},
+        "evaluator_id": {
+          "enum": [
+            "source_ir.oracle_fidelity/v1",
+            "source_ir.oracle_fidelity/v2",
+            "structure.docx_single_table_row_boundary/v1",
+            "projection.material_shared_values/v1"
+          ]
+        },
+        "document_id": {
+          "type": "string",
+          "pattern": "^DOC-[A-Z0-9-]+$"
+        },
+        "source_sha256": {"$ref": "#/$defs/sha256"},
+        "document_ids": {
+          "type": "array",
+          "minItems": 1,
+          "uniqueItems": true,
+          "items": {
+            "type": "string",
+            "pattern": "^DOC-[A-Z0-9-]+$"
+          }
+        },
+        "source_sha256_by_document": {
+          "type": "object",
+          "minProperties": 1,
+          "patternProperties": {
+            "^DOC-[A-Z0-9-]+$": {"$ref": "#/$defs/sha256"}
+          },
+          "additionalProperties": false
+        },
+        "review_provenance": {
+          "$ref": "#/$defs/ai_reviewed_scope_provenance"
+        },
+        "fact": {
+          "oneOf": [
+            {"$ref": "#/$defs/xlsx_cell_range_fact"},
+            {"$ref": "#/$defs/docx_table_group_fact"},
+            {"$ref": "#/$defs/docx_table_row_scope_fact"},
+            {"$ref": "#/$defs/docx_mixed_content_group_fact"},
+            {"$ref": "#/$defs/xlsx_merge_group_fact"},
+            {"$ref": "#/$defs/xlsx_material_requirement_scope_fact"},
+            {"$ref": "#/$defs/xlsx_explicit_peer_scope_group_fact"},
+            {"$ref": "#/$defs/pdf_table_continuation_group_fact"},
+            {"$ref": "#/$defs/pdf_table_continuation_logical_grid_fact"},
+            {"$ref": "#/$defs/pdf_table_note_label_group_fact"},
+            {"$ref": "#/$defs/pdf_option_state_group_fact"},
+            {"$ref": "#/$defs/pdf_revision_history_group_fact"},
+            {"$ref": "#/$defs/source_scope_group_fact"}
+          ]
+        }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": {
+              "evaluator_id": {
+                "const": "structure.docx_single_table_row_boundary/v1"
+              }
+            },
+            "required": ["evaluator_id"]
+          },
+          "then": {
+            "required": ["review_provenance"],
+            "properties": {
+              "fact": {
+                "$ref": "#/$defs/docx_table_row_scope_fact"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "evaluator_id": {
+                "const": "projection.material_shared_values/v1"
+              }
+            },
+            "required": ["evaluator_id"]
+          },
+          "then": {
+            "required": ["review_provenance"],
+            "properties": {
+              "fact": {
+                "$ref": "#/$defs/xlsx_material_requirement_scope_fact"
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "fact": {
+                "properties": {
+                  "kind": {"const": "docx_mixed_content_group"}
+                },
+                "required": ["kind"]
+              }
+            },
+            "required": ["fact"]
+          },
+          "then": {
+            "required": ["review_provenance"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "fact": {
+                "properties": {
+                  "kind": {
+                    "const": "xlsx_explicit_peer_scope_group"
+                  }
+                },
+                "required": ["kind"]
+              }
+            },
+            "required": ["fact"]
+          },
+          "then": {
+            "required": ["review_provenance"]
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "evaluator_id": {"const": "source_ir.oracle_fidelity/v2"}
+            },
+            "required": ["evaluator_id"]
+          },
+          "then": {
+            "properties": {
+              "fact": {
+                "$ref": "#/$defs/pdf_table_continuation_logical_grid_fact"
+              }
+            }
+          },
+          "else": {
+            "properties": {
+              "fact": {
+                "not": {
+                  "$ref": "#/$defs/pdf_table_continuation_logical_grid_fact"
+                }
+              }
+            }
+          }
+        },
+        {
+          "if": {
+            "properties": {
+              "fact": {
+                "properties": {
+                  "kind": {
+                    "enum": [
+                      "pdf_revision_history_group",
+                      "source_scope_group"
+                    ]
+                  }
+                },
+                "required": ["kind"]
+              }
+            },
+            "required": ["fact"]
+          },
+          "then": {
+            "required": ["document_ids", "source_sha256_by_document"],
+            "not": {
+              "anyOf": [
+                {"required": ["document_id"]},
+                {"required": ["source_sha256"]}
+              ]
+            }
+          },
+          "else": {
+            "required": ["document_id", "source_sha256"],
+            "not": {
+              "anyOf": [
+                {"required": ["document_ids"]},
+                {"required": ["source_sha256_by_document"]}
+              ]
+            }
+          }
+        }
+      ],
+      "additionalProperties": false
+    }
+  }
+}

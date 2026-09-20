@@ -1,0 +1,44 @@
+name: Python isolated tests
+
+on:
+  push:
+  pull_request:
+
+permissions:
+  contents: read
+
+jobs:
+  offline-tests:
+    runs-on: ubuntu-latest
+    timeout-minutes: 30
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: prototype/frontend/package-lock.json
+      - uses: astral-sh/setup-uv@v6
+        with:
+          enable-cache: true
+          cache-dependency-glob: prototype/requirements-test-linux-py313.lock
+      - name: Install local OCR binary and OpenCV system libraries
+        run: sudo apt-get update && sudo apt-get install -y tesseract-ocr libgl1 libglib2.0-0
+      - name: Install locked Python dependencies
+        run: |
+          uv venv --python python3.13 prototype/.venv
+          uv pip sync --python prototype/.venv/bin/python prototype/requirements-test-linux-py313.lock
+          uv pip check --python prototype/.venv/bin/python
+      - name: Build frontend consumed by API composition tests
+        run: |
+          npm --prefix prototype/frontend ci
+          npm --prefix prototype/frontend run build
+      - name: Backend and real MCP stdio tests
+        run: prototype/.venv/bin/python scripts/test_python.py all
+      - name: Disposable PostgreSQL and HTTP workbench recovery
+        run: |
+          sudo apt-get install -y postgresql
+          prototype/.venv/bin/python scripts/smoke_workbench.py --postgres-bin "$(pg_config --bindir)" --output output/ci-smoke

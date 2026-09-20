@@ -1,0 +1,108 @@
+{
+  "schema_version": "source-item-text-batch-candidate/v1",
+  "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+  "document_map_artifact_id": "document-map-964e8c473f1b886b21f323b53f5a3957",
+  "document_map_artifact_sha256": "964e8c473f1b886b21f323b53f5a395758c4c5555c85a9c4a29546388e59e68e",
+  "candidates": [
+    {
+      "schema_version": "source-item-text-slice-candidate/v1",
+      "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "document_map_artifact_id": "document-map-964e8c473f1b886b21f323b53f5a3957",
+      "document_map_artifact_sha256": "964e8c473f1b886b21f323b53f5a395758c4c5555c85a9c4a29546388e59e68e",
+      "request_sha256": "5decaa935990db80b06edfbcde0b5e21feb67ef5bfb291972921698d45cd92bb",
+      "scope_id": "text:clause-1",
+      "items": [
+        {
+          "item_key": "legacy-clause-1-1",
+          "label": "2.1 验证范围 1 · 1",
+          "source_form": "NUMBERED_CLAUSE",
+          "text_spans": [
+            {
+              "content_id": "content-1-1",
+              "start_offset": 0,
+              "end_offset": 16
+            }
+          ],
+          "shared_source_content_ids": [],
+          "requirementness": "REQUIREMENT",
+          "requirement_kinds": ["CONSTRAINT"],
+          "non_requirement_role": null,
+          "confidence": 0.98,
+          "decision_summary": "完整条款规定供应商提交验证报告。",
+          "reason_codes": ["supplier_deliverable_constraint"]
+        },
+        {
+          "item_key": "legacy-clause-1-2",
+          "label": "2.1 验证范围 1 · 2",
+          "source_form": "NUMBERED_CLAUSE",
+          "text_spans": [
+            {
+              "content_id": "content-1-2",
+              "start_offset": 0,
+              "end_offset": 16
+            }
+          ],
+          "shared_source_content_ids": [],
+          "requirementness": "REQUIREMENT",
+          "requirement_kinds": ["CONSTRAINT"],
+          "non_requirement_role": null,
+          "confidence": 0.98,
+          "decision_summary": "完整条款规定供应商提交验证报告。",
+          "reason_codes": ["supplier_deliverable_constraint"]
+        }
+      ],
+      "structure_only_spans": [],
+      "diagnostic_codes": []
+    },
+    {
+      "schema_version": "source-item-text-slice-candidate/v1",
+      "source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa",
+      "document_map_artifact_id": "document-map-964e8c473f1b886b21f323b53f5a3957",
+      "document_map_artifact_sha256": "964e8c473f1b886b21f323b53f5a395758c4c5555c85a9c4a29546388e59e68e",
+      "request_sha256": "513a867c187d71b304f00d5792b40dafeafe28b08862f5d09097ce388d32f403",
+      "scope_id": "text:clause-2",
+      "items": [
+        {
+          "item_key": "legacy-clause-2-1",
+          "label": "2.2 验证范围 2 · 1",
+          "source_form": "NUMBERED_CLAUSE",
+          "text_spans": [
+            {
+              "content_id": "content-2-1",
+              "start_offset": 0,
+              "end_offset": 16
+            }
+          ],
+          "shared_source_content_ids": [],
+          "requirementness": "REQUIREMENT",
+          "requirement_kinds": ["CONSTRAINT"],
+          "non_requirement_role": null,
+          "confidence": 0.98,
+          "decision_summary": "完整条款规定供应商提交验证报告。",
+          "reason_codes": ["supplier_deliverable_constraint"]
+        },
+        {
+          "item_key": "legacy-clause-2-2",
+          "label": "2.2 验证范围 2 · 2",
+          "source_form": "NUMBERED_CLAUSE",
+          "text_spans": [
+            {
+              "content_id": "content-2-2",
+              "start_offset": 0,
+              "end_offset": 16
+            }
+          ],
+          "shared_source_content_ids": [],
+          "requirementness": "REQUIREMENT",
+          "requirement_kinds": ["CONSTRAINT"],
+          "non_requirement_role": null,
+          "confidence": 0.98,
+          "decision_summary": "完整条款规定供应商提交验证报告。",
+          "reason_codes": ["supplier_deliverable_constraint"]
+        }
+      ],
+      "structure_only_spans": [],
+      "diagnostic_codes": []
+    }
+  ]
+}

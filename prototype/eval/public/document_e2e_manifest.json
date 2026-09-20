@@ -1,0 +1,8 @@
+{
+  "data_classification": "synthetic_contract",
+  "description": "Invented source bindings for the stateful fake transport; logical IDs exercise the existing runner contract and do not identify customer bytes.",
+  "documents": {
+    "DOC-PDS-OIL-PUMP": {"source_sha256": "aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa", "resolution_status": "resolved"},
+    "DOC-F06-ACTIVE-SUSPENSION": {"source_sha256": "bbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbbb", "resolution_status": "resolved"}
+  }
+}

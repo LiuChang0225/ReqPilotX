@@ -1,0 +1,208 @@
+{
+  "$defs": {
+    "NonRequirementRole": {
+      "enum": [
+        "HEADING",
+        "METADATA",
+        "REVISION_HISTORY",
+        "CONTEXT",
+        "DEFINITION",
+        "RATIONALE",
+        "EXAMPLE",
+        "NOTE",
+        "REFERENCE"
+      ],
+      "type": "string"
+    },
+    "RequirementKind": {
+      "enum": [
+        "FUNCTIONAL",
+        "QUALITY",
+        "CONSTRAINT",
+        "PROJECT",
+        "PROCESS"
+      ],
+      "type": "string"
+    },
+    "Requirementness": {
+      "enum": [
+        "REQUIREMENT",
+        "NON_REQUIREMENT"
+      ],
+      "type": "string"
+    },
+    "SourceItemStructureOnlySpanV1": {
+      "additionalProperties": false,
+      "properties": {
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "text_span": {
+          "$ref": "#/$defs/SourceItemTextSpanV1"
+        }
+      },
+      "required": [
+        "text_span",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "SourceItemTextBoundaryCandidateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "type": "number"
+        },
+        "decision_summary": {
+          "type": "string"
+        },
+        "item_key": {
+          "type": "string"
+        },
+        "label": {
+          "type": "string"
+        },
+        "non_requirement_role": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NonRequirementRole"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "requirement_kinds": {
+          "items": {
+            "$ref": "#/$defs/RequirementKind"
+          },
+          "type": "array"
+        },
+        "requirementness": {
+          "$ref": "#/$defs/Requirementness"
+        },
+        "shared_source_content_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source_form": {
+          "$ref": "#/$defs/SourceRecordForm"
+        },
+        "text_spans": {
+          "items": {
+            "$ref": "#/$defs/SourceItemTextSpanV1"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "item_key",
+        "label",
+        "source_form",
+        "text_spans",
+        "shared_source_content_ids",
+        "requirementness",
+        "requirement_kinds",
+        "non_requirement_role",
+        "confidence",
+        "decision_summary",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "SourceItemTextSpanV1": {
+      "additionalProperties": false,
+      "properties": {
+        "content_id": {
+          "type": "string"
+        },
+        "end_offset": {
+          "type": "integer"
+        },
+        "start_offset": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "content_id",
+        "start_offset",
+        "end_offset"
+      ],
+      "type": "object"
+    },
+    "SourceRecordForm": {
+      "enum": [
+        "NUMBERED_CLAUSE",
+        "NATIVE_LIST",
+        "PARAGRAPH",
+        "TABLE_RECORD",
+        "TABLE_BRANCH",
+        "IMAGE"
+      ],
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "diagnostic_codes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "document_map_artifact_id": {
+      "type": "string"
+    },
+    "document_map_artifact_sha256": {
+      "type": "string"
+    },
+    "items": {
+      "items": {
+        "$ref": "#/$defs/SourceItemTextBoundaryCandidateV1"
+      },
+      "type": "array"
+    },
+    "request_sha256": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "source-item-text-slice-candidate/v1",
+      "type": "string"
+    },
+    "scope_id": {
+      "type": "string"
+    },
+    "source_sha256": {
+      "type": "string"
+    },
+    "structure_only_spans": {
+      "items": {
+        "$ref": "#/$defs/SourceItemStructureOnlySpanV1"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "source_sha256",
+    "document_map_artifact_id",
+    "document_map_artifact_sha256",
+    "request_sha256",
+    "scope_id",
+    "items",
+    "structure_only_spans",
+    "diagnostic_codes"
+  ],
+  "type": "object"
+}

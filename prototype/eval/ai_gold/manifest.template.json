@@ -1,0 +1,80 @@
+{
+  "schema_version": "ai_gold_manifest.v2",
+  "dataset_id": "reqpilotx-ai-gold",
+  "version": "v0-proposed",
+  "status": "PROPOSED",
+  "payload": {
+    "location_class": "CONTROLLED_EXTERNAL",
+    "sha256": ""
+  },
+  "label_policy": {
+    "version": "v0-proposed",
+    "approval_status": "PROPOSED",
+    "reviewers_per_case": 2,
+    "adjudication_required": true
+  },
+  "evaluation_policy": {
+    "version": "v0-proposed",
+    "approval_status": "PROPOSED",
+    "explicit_requirement": {
+      "min_recall": 1.0,
+      "min_info_specificity": 0.8
+    },
+    "decision_safety": {
+      "min_macro_recall": 0.7,
+      "min_per_class_recall": 0.5,
+      "max_unsafe_accepts": 0
+    },
+    "assessment_contract": {
+      "min_compliance_macro_recall": 0.7,
+      "min_citation_precision": 0.8,
+      "min_citation_recall": 0.8,
+      "min_information_gap_completeness": 0.9,
+      "min_sub_judgment_exact_match": 0.75
+    }
+  },
+  "coverage": {
+    "case_count": 0,
+    "explicit_requirement": {
+      "labeled": 0,
+      "document_count": 0,
+      "project_count": 0,
+      "label_counts": {
+        "REQUIREMENT": 0,
+        "INFO": 0
+      }
+    },
+    "decision": {
+      "labeled": 0,
+      "document_count": 0,
+      "project_count": 0,
+      "class_counts": {
+        "ACCEPT": 0,
+        "REJECT": 0,
+        "DEVIATION_ACCEPT": 0,
+        "NEED_CLARIFICATION": 0
+      }
+    },
+    "assessment_contract": {
+      "labeled": 0,
+      "class_counts": {
+        "COMPLIANT": 0,
+        "PARTIALLY_COMPLIANT": 0,
+        "NON_COMPLIANT": 0,
+        "INSUFFICIENT_INFORMATION": 0
+      }
+    }
+  },
+  "split_strategy": "PROJECT_DOCUMENT_GROUP",
+  "revisions": {
+    "code_sha": "",
+    "prompt_versions": [],
+    "model_versions": [],
+    "config_sha256": ""
+  },
+  "privacy": {
+    "contains_customer_data": true,
+    "hmac_pseudonymized_ids": true,
+    "text_committed_to_repo": false
+  }
+}
