@@ -120,6 +120,14 @@ def score_candidate_evidences(
                 "excerpt": str(candidate.get("excerpt") or content[:380]),
                 "relevance": round(final_score, 4),
                 "content_kind": str(candidate.get("content_kind") or ""),
+                "doc_type": str(candidate.get("doc_type") or ""),
+                "status": str(candidate.get("status") or ""),
+                "effective_from": str(candidate.get("effective_from") or ""),
+                "effective_to": str(candidate.get("effective_to") or ""),
+                "evidence_id": str(candidate.get("evidence_id") or ""),
+                "content_hash": str(candidate.get("content_hash") or ""),
+                "evidence_contract_version": str(candidate.get("evidence_contract_version") or ""),
+                "evidence_contract_verified": bool(candidate.get("evidence_contract_verified")),
             }
         )
 

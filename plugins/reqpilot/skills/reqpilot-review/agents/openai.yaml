@@ -1,0 +1,3 @@
+interface:
+  display_name: "ReqPilot review"
+  short_description: "Derive authorized children and evidence-linked review"

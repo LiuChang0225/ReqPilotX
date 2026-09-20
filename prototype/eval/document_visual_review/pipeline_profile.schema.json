@@ -1,0 +1,170 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reqpilotx.local/schemas/document-visual-pipeline-profile-v1.json",
+  "title": "ReqPilotX controlled document visual pipeline profile v1",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "profile_hash_contract",
+    "profile_sha256",
+    "source",
+    "pipeline",
+    "artifacts"
+  ],
+  "properties": {
+    "schema_version": {
+      "const": "document-visual-pipeline-profile/v1"
+    },
+    "profile_hash_contract": {
+      "const": "canonical-json-without-profile-sha256/v1"
+    },
+    "profile_sha256": {
+      "$ref": "#/$defs/sha256"
+    },
+    "source": {
+      "$ref": "#/$defs/source"
+    },
+    "pipeline": {
+      "$ref": "#/$defs/pipeline"
+    },
+    "artifacts": {
+      "type": "array",
+      "items": {
+        "$ref": "#/$defs/artifact"
+      }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[0-9a-f]{64}$"
+    },
+    "safe_id": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 256,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@+/-]*$"
+    },
+    "status": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL",
+        "BLOCKED",
+        "FAILED",
+        "NOT_RUN"
+      ]
+    },
+    "source": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "source_sha256",
+        "format"
+      ],
+      "properties": {
+        "source_sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "format": {
+          "enum": [
+            "docx",
+            "xlsx",
+            "xlsb",
+            "tif"
+          ]
+        }
+      }
+    },
+    "component": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "id",
+        "version",
+        "status",
+        "snapshot_id",
+        "fingerprint_sha256"
+      ],
+      "properties": {
+        "id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "version": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "snapshot_id": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "fingerprint_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "pipeline": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "status",
+        "adapter",
+        "resolver",
+        "classifier",
+        "projector",
+        "pipeline_fingerprint_sha256"
+      ],
+      "properties": {
+        "status": {
+          "$ref": "#/$defs/status"
+        },
+        "adapter": {
+          "$ref": "#/$defs/component"
+        },
+        "resolver": {
+          "$ref": "#/$defs/component"
+        },
+        "classifier": {
+          "$ref": "#/$defs/component"
+        },
+        "projector": {
+          "$ref": "#/$defs/component"
+        },
+        "pipeline_fingerprint_sha256": {
+          "$ref": "#/$defs/sha256"
+        }
+      }
+    },
+    "artifact": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "kind",
+        "path",
+        "sha256",
+        "media_type",
+        "customer_sensitive"
+      ],
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/safe_id"
+        },
+        "path": {
+          "type": "string",
+          "minLength": 1
+        },
+        "sha256": {
+          "$ref": "#/$defs/sha256"
+        },
+        "media_type": {
+          "type": "string",
+          "pattern": "^[a-z0-9][a-z0-9!#$&^_.+-]{0,63}/[a-z0-9][a-z0-9!#$&^_.+-]{0,127}$"
+        },
+        "customer_sensitive": {
+          "const": true
+        }
+      }
+    }
+  }
+}

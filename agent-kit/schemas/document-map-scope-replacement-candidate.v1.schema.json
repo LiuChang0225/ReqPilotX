@@ -1,0 +1,280 @@
+{
+  "$defs": {
+    "DocumentMapAssetOwnershipDecisionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "display_heading_node_id": {
+          "type": "string"
+        },
+        "disposition": {
+          "$ref": "#/$defs/DocumentMapContentDisposition"
+        },
+        "placement_source_node_id": {
+          "type": "string"
+        },
+        "public_summary": {
+          "type": "string"
+        },
+        "role": {
+          "$ref": "#/$defs/DocumentMapAssetRole"
+        }
+      },
+      "required": [
+        "placement_source_node_id",
+        "display_heading_node_id",
+        "disposition",
+        "role",
+        "public_summary"
+      ],
+      "type": "object"
+    },
+    "DocumentMapAssetRole": {
+      "enum": [
+        "FIGURE",
+        "INLINE_IMAGE",
+        "EMBEDDED_ATTACHMENT",
+        "OTHER_ASSET"
+      ],
+      "type": "string"
+    },
+    "DocumentMapContentDisposition": {
+      "enum": [
+        "OWNED_BY_HEADING",
+        "NON_BUSINESS",
+        "UNRESOLVED"
+      ],
+      "type": "string"
+    },
+    "DocumentMapHeadingScopeFindingV1": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "finding_code": {
+          "type": "string"
+        },
+        "public_summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_code",
+        "evidence_refs",
+        "public_summary"
+      ],
+      "type": "object"
+    },
+    "DocumentMapLogicalTableDecisionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "fragments": {
+          "items": {
+            "$ref": "#/$defs/DocumentMapTableFragmentDecisionV1"
+          },
+          "type": "array"
+        },
+        "logical_table_key": {
+          "type": "string"
+        },
+        "owner_heading_node_id": {
+          "type": "string"
+        },
+        "public_summary": {
+          "type": "string"
+        },
+        "title": {
+          "type": "string"
+        },
+        "title_authority": {
+          "$ref": "#/$defs/DocumentMapTableTitleAuthority"
+        }
+      },
+      "required": [
+        "logical_table_key",
+        "owner_heading_node_id",
+        "title",
+        "title_authority",
+        "fragments",
+        "public_summary"
+      ],
+      "type": "object"
+    },
+    "DocumentMapScopeReplacementAction": {
+      "enum": [
+        "ACCEPT_SCOPE",
+        "COORDINATE_WITH_PREVIOUS",
+        "COORDINATE_WITH_NEXT"
+      ],
+      "type": "string"
+    },
+    "DocumentMapTableFragmentDecisionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "end_row": {
+          "type": "integer"
+        },
+        "physical_table_id": {
+          "type": "string"
+        },
+        "start_row": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "physical_table_id",
+        "start_row",
+        "end_row"
+      ],
+      "type": "object"
+    },
+    "DocumentMapTableRemainderDecisionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "display_heading_node_id": {
+          "type": "string"
+        },
+        "disposition": {
+          "enum": [
+            "NON_BUSINESS",
+            "UNRESOLVED"
+          ],
+          "type": "string"
+        },
+        "fragment": {
+          "$ref": "#/$defs/DocumentMapTableFragmentDecisionV1"
+        },
+        "public_summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "fragment",
+        "disposition",
+        "display_heading_node_id",
+        "public_summary"
+      ],
+      "type": "object"
+    },
+    "DocumentMapTableTitleAuthority": {
+      "enum": [
+        "SOURCE_VISIBLE",
+        "AGENT_LABEL"
+      ],
+      "type": "string"
+    },
+    "DocumentMapTextOwnershipOverrideV1": {
+      "additionalProperties": false,
+      "properties": {
+        "display_heading_node_id": {
+          "type": "string"
+        },
+        "disposition": {
+          "$ref": "#/$defs/DocumentMapContentDisposition"
+        },
+        "public_summary": {
+          "type": "string"
+        },
+        "source_node_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "source_node_ids",
+        "disposition",
+        "display_heading_node_id",
+        "public_summary"
+      ],
+      "type": "object"
+    },
+    "DocumentMapTextOwnershipPolicy": {
+      "enum": [
+        "NEAREST_PRECEDING_ACCEPTED_HEADING"
+      ],
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "action": {
+      "$ref": "#/$defs/DocumentMapScopeReplacementAction"
+    },
+    "asset_ownership": {
+      "items": {
+        "$ref": "#/$defs/DocumentMapAssetOwnershipDecisionV1"
+      },
+      "type": "array"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/DocumentMapHeadingScopeFindingV1"
+      },
+      "type": "array"
+    },
+    "heading_compilation_sha256": {
+      "type": "string"
+    },
+    "logical_tables": {
+      "items": {
+        "$ref": "#/$defs/DocumentMapLogicalTableDecisionV1"
+      },
+      "type": "array"
+    },
+    "public_summary": {
+      "type": "string"
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "request_sha256": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "document-map-scope-replacement-candidate/v1",
+      "type": "string"
+    },
+    "table_remainders": {
+      "items": {
+        "$ref": "#/$defs/DocumentMapTableRemainderDecisionV1"
+      },
+      "type": "array"
+    },
+    "text_ownership_overrides": {
+      "items": {
+        "$ref": "#/$defs/DocumentMapTextOwnershipOverrideV1"
+      },
+      "type": "array"
+    },
+    "text_ownership_policy": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/DocumentMapTextOwnershipPolicy"
+        },
+        {
+          "type": "null"
+        }
+      ]
+    }
+  },
+  "required": [
+    "action",
+    "text_ownership_policy",
+    "text_ownership_overrides",
+    "logical_tables",
+    "table_remainders",
+    "asset_ownership",
+    "findings",
+    "public_summary",
+    "schema_version",
+    "request_id",
+    "request_sha256",
+    "heading_compilation_sha256"
+  ],
+  "type": "object"
+}

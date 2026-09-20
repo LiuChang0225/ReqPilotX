@@ -1,3 +1,10 @@
+if __package__:
+    from .runtime_isolation import activate_test_runtime
+else:
+    from runtime_isolation import activate_test_runtime
+
+activate_test_runtime()
+
 import tempfile
 import sys
 import unittest
@@ -33,7 +40,6 @@ from app.services.table_assets import render_text_snapshot_png
 
 _UPLOAD_DIR_CANDIDATES = [
     Path(__file__).resolve().parents[1] / "storage" / "uploads",
-    Path("/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-optimization/prototype/storage/uploads"),
 ]
 _OIL_PUMP_SAMPLE_PDF = next(
     (
@@ -3346,50 +3352,27 @@ class TableAssetsParsingTest(unittest.TestCase):
 
     @unittest.skipUnless(_DAMPER_SAMPLE_PDF and _DAMPER_SAMPLE_PDF.exists(), "damper sample pdf not available")
     def test_source_recovery_keeps_numbered_test_outline_row_when_context_is_heading_only(self) -> None:
-        row = {
-            "entry_id": "REQ-SUB1-3",
-            "req_code": "REQ-SUB1-3",
-            "entry_kind": "REQUIREMENT",
-            "appendix_scope": "SUB1",
-            "appendix_title": "主动前减振器试验大纲",
-            "section_code": "3",
-            "section_key": "SUB1:3",
-            "section_instance_key": "SUB1:3",
-            "section_title": "减振器的阻尼力与气体反弹力",
-            "source_page": 10,
-            "source_page_end": 10,
-            "source_anchor": "Page 10 | Appendix SUB1 | Section 3 减振器的阻尼力与气体反弹力 | 主动前减振器试验大纲",
-            "requirement_text": (
-                "|3|减振器的阻尼力与气体反弹力|-|试验行程：±50mm（若行程不足，则可减少行程进行检测，如 ±40mm、±25mm） "
-                "环境温度：在（23±3）℃的恒温箱保持不少于6h； 检测速度：0.05m/s, 0.1m/s, 0.2m/s, 0.3m/s, 0.6m/s, "
-                "1.0m/s,1.5m/s 电流加载：0.3A/1.0A/1.6A（两电磁阀同时） 试验方向：垂向预行程：在测量相应电流前，"
-                "进行±50mm，0.3m/s，5个循环 （0A）对充气式减振器，按以下条件先测量气体反弹力： 测量位置：Ldesign "
-                "振幅：±5mm 活塞速度：0.4mm/s 同时记录F-V和F-S曲线。 电流：0.3A|气反力公差±29N; 0.3A，1.0A，"
-                "1.6A电流下阻尼力公差为下表所示，或35N，两者取大值； 1.0m/s以上的速度点，在0.3A电流下，"
-                "可能会切换至失效模式，此时阻尼力上限需基于结果调整速度（m 0.05 0.1 0.2 0.3 0.6 1 1.5 公差 "
-                "±17.5% ±15% ±10% ±10% ±10% ±10% ±7.5% 阻尼力公差气反力公差|DV/PV|供应商|6件/OTS|1天|"
-                "JAC：阻尼力、阻尼力公差、气返力、气返力公差根据调校结果更新、确定|"
-            ),
-            "display_text": "",
-            "raw_text": "",
-        }
-        enriched, _ = enrich_entry_with_table_assets(
-            row,
-            document_id="damper-doc",
-            snapshot_root=Path(tempfile.mkdtemp()),
-            source_file_path=str(_DAMPER_SAMPLE_PDF),
-            source_snapshot_cache={},
-            source_table_detection_cache={},
-            source_line_detection_cache={},
-            previous_entry_text="减振器的阻尼力与气体反弹力",
-            next_entry_text="滑动摩擦力",
-            inherited_header=None,
-        )
+        from app.private_eval import private_eval_path
+        fixture_path = private_eval_path("table_assets/recovery_case.json")
+        if not fixture_path.is_file():
+            self.skipTest("private source-table recovery fixture not configured")
+        fixture = json.loads(fixture_path.read_text(encoding="utf-8"))
+        row = fixture["row"]
+        with tempfile.TemporaryDirectory() as temporary:
+            enriched, _ = enrich_entry_with_table_assets(
+                row, document_id="private-table-recovery",
+                snapshot_root=Path(temporary),
+                source_file_path=str(_DAMPER_SAMPLE_PDF),
+                source_snapshot_cache={}, source_table_detection_cache={},
+                source_line_detection_cache={},
+                previous_entry_text=fixture["previous_entry_text"],
+                next_entry_text=fixture["next_entry_text"], inherited_header=None,
+            )
         ref = (enriched.get("table_refs") or [None])[0]
         self.assertIsNotNone(ref)
         self.assertGreaterEqual(len(ref.get("inherited_headers") or []), 9)
-        self.assertEqual((ref.get("slice_rows") or [[]])[0][0], "3")
-        self.assertIn("减振器的阻尼力与气体反弹力", (ref.get("slice_rows") or [[]])[0][1])
+        self.assertEqual((ref.get("slice_rows") or [[]])[0][0], fixture["expected_first_cell"])
+        self.assertIn(row["section_title"], (ref.get("slice_rows") or [[]])[0][1])
 
     @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
     def test_source_recovery_uses_current_clause_anchor_for_small_local_table(self) -> None:

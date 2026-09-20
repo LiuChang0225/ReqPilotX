@@ -1,0 +1,98 @@
+# Typed task tools: the same business capability through CLI or MCP
+
+Use this guide only when this package exposes `task` or the host actually offers the ReqPilot task tools. Existing task packages keep their recorded capability. A newer installed skill does not upgrade an older task's runtime.
+
+## Begin with the actual task
+
+`task_open` directly accepts `mode:"create"`, actual `source`, exact `goal`, and a short stable `creation_key` for this new delegation. Optional project/document keys group files; a real `workbench_url` binds the selected application document. Repeating that same creation returns the same task; a different delegation uses another creation key. `mode:"resume"` takes the existing `task_id` and preserves its policies. MCP uses the same flat object as the typed CLI; the first preview's extra `request` envelope remains compatible but is unnecessary.
+
+The response contains the source, goal, confirmation policy, task brief, revision and actual workbench URL. Use the returned `workbench_url` verbatim: a saved result fixes both `pluginSessionId` and `resultRevision`. `workbench_link` states whether this is a saved remote result and whether its local-content match is known; a cached link does not verify the current server. Do not reconstruct a generic project/document URL or replace a pinned historical revision with latest. **Open that URL with the available host browser and check the document and saved stage.** A returned URL is not evidence that the interface opened. Continue authorized work autonomously; explicit existing Map confirmation still applies. Internal evidence and analysis intent remain governed by the main skill.
+
+## Read and compile judgments
+
+| Tool | Use |
+|---|---|
+| `task_describe` | Read the real action catalog, field types/enums, nested definitions and request shapes. Use `action:"items"` with the current `task_id/scope_id` for text or table input. Follow returned part pointers and continuations |
+| `task_inspect` | Read authoritative task state and the current `revision`; optional bounded history retains a complete index reference |
+| `source_prepare` | `capture` captures native evidence; `pages` produces shared full-document Markdown/HD views (optional requested `pages` are validated and included); `ocr` with explicit `pages` saves local Tesseract observations and ordinary authoring refs. `profile:"numbers"` adds unapplied numeric alternatives; `tables` uses `table_regions` |
+| `source_transcription_revise` | After comparing original pixels, submit corrected text or addressed cells with a source-review reason. `refs` can group lines on one exact page image. Raw OCR and old results remain; the returned reading revision supplies new refs for Map/Items |
+| `source_read` | Read original pages/refs/query or complete parts; missing page Markdown/HD images are prepared and registered once on demand. `view:"items"` lists SRCs; `item` gives original wording, context, numbering, image relations and decomposition packet. `image_scope` reads images before a SRC exists; `feedback` reads actual findings. `image/item_image/image_scope_image` return original pixels. Follow returned `tool`/`request` continuations |
+| `map_apply` | Submit `decisions` using the established incremental Map editor; source IDs, offsets and paths are bound by the program |
+| `items_apply` | Set `decisions.retain_map_structure:true` to keep Map-declared titles/whole front matter; submit body and table scope judgments; source/Map/request hashes and final SRC/REQ are supplied by the program |
+| `image_items_apply` | Recognize standalone image items from actual Map image scopes before preparing a review. Table-embedded images stay with their table item |
+| `annotations_apply` | Submit image interpretation, source numbering or topic/context annotations; preserve original text and source form |
+| `decomposition_apply` | Submit authorized `SPLIT/KEEP/UNDO` judgments using exact parent-packet quotations or ranges; the program issues and preserves Snn |
+| `review_apply` | Correct existing classification or explicitly replace affected item scopes. The program compiles, exports, verifies and advances one recoverable review command |
+| `review_prepare` | Materialize selected items/overlays in the existing portable review; do not recreate an existing review. When the task explicitly has no internal evidence, `analysis_policy:"skip_no_internal_evidence"` records the existing SKIPPED policy; the default preserves supplied state |
+| `task_check` | Check actual source/dependencies and any registered review delivery; program checks are not semantic acceptance |
+| `task_deliver` | Program export, current-review attachment and verification; report local readiness, workbench content and rendering separately |
+| `workbench_sync` | Pull actual feedback, retry an eligible recorded publication, or `publish_current_review` with its current `expected_revision` after a saved review/Excel awaits synchronization |
+| `task_recover` | Reconcile already saved receipts; never reexecute an unknown in-flight process |
+
+Every task call carries `task_id`. Page/image reads may prepare reading evidence; use their returned `revision` for subsequent writes. Preparation uses the existing reading-workspace and never alters Map/Items/review content. Content/evidence writes also carry the `expected_revision` returned by the relevant read/status call. Copy this token; do not calculate hashes. A conflict preserves the old result and requires reading the affected current state, not silently substituting a new token.
+
+Successful Map and Items writes return `scope_read` and `source_items_read` respectively, with the actual version bound. Follow these to inspect scopes/templates or the current ledger instead of listing compiler directories and guessing internal field names. These are read affordances, not instructions to expand the user's task scope.
+
+Map `heading/content/numbered_body`, table boundaries, ownership and source dispositions retain the [existing editor semantics](tools-map-edit.md). Omitted fields retain existing values; explicit empty arrays/nulls have their actual field-specific effects. `retain_map_structure:true` removes the need to repeat Map title/frontmatter spans or empty structural scopes. It only fills proven structural content, skips already-covered scopes, and leaves unsubmitted ordinary body pending. Explicit selections remain authoritative and must pass the existing coverage/overlap rules. A non-title figure caption still needs a source-grounded content decision; do not hide it as structure. The response links the deterministic structure-retention binding receipt. Items retain short `item_key/record_key` values because they participate in persistent identity. Text selections may use exact scope-relative quotes; the program resolves offsets against that scope's content, not an unrelated SourceIR block.
+
+Source indexes keep short integer `ref` for Map authoring and return an opaque `handle` plus ready `read` requests for reading. Copy these requests rather than assembling hashes. An integer part ref without a capture hash is accepted only when this task has exactly one registered capture identity; multiple captures require a returned handle or explicit hash. Explicit stale versions and conflicting image/page locations are rejected. For original pixels use a page number, source ref/handle, or exact capture image occurrence; later Map/item image anchors retain their dedicated image views.
+
+Source indexes mark partial previews and provide complete-part reads. A requested text budget above 24000 is capped and reported; partial content always retains its continuation. The reader budget limits the reading payload; task routing/version metadata adds a small envelope. Images arrive as real MCP image content when the host supports it; verify visual content rather than treating a path as a read. No business stage restricts which source pages may be investigated.
+
+Ordinary scope reads include an `authoring` template beside the actual source. If a large scope omits it, request `view:"scope", scope_id, part:"template"`. It retains the table role/title, a blank decision envelope and local selectors; it does not decide grouping or cover an empty scope. Already-declared front matter exposes structure-only authoring with zero SRC. Use `content_ref` for text and `fragment_ref` plus local row ranges for tables; these are scope-local, not global page row numbers. Read complete text once; follow continuation when marked partial. For a specific field question, follow `task_describe`'s ready `read` request, which carries the correct action and definition together. Deeper compiler references remain available when needed.
+
+For example, one selected text range has the shape `{"content_ref":1,"quote":"<exact unique source words>"}`. A selected table row group has the shape `{"fragment_ref":0,"row_start":1,"row_end":3}`; decide the correct grouping from that original table. Initial `item_key`/`record_key` may be omitted or null: the program derives stable local keys after resolving these ranges, independently of labels and classifications. Existing-scope revisions preserve the returned keys. A supplied table `item_key` is accepted as the same identity key when no conflicting `record_key` exists. Lowercase hyphenated `reason_codes` normalize to underscore codes and are sorted/deduplicated. Canonical decimal strings in table row coordinates normalize losslessly; booleans, fractions, ambiguous leading zeros, conflicting keys and invalid source ranges are rejected.
+
+The shared business projection can recover an unambiguous original number from an owned NUMBERED_CLAUSE text prefix and validate its exact source reference. Check the returned original number instead of manually calculating its offsets. Explicit number overrides/clears and multi-number evidence remain authoritative; table row numbers and physical measurements are not promoted into original clause numbers. Previously saved snapshots keep their recorded numbers.
+
+An item read also offers `context_review`: a small preview and reads for existing DEFINITION/CONTEXT source items and any explicitly linked context. `part:"context_candidates"` pages through that source-role inventory; it does not infer applicability or claim every needed definition has been recognized. Read the candidates' original source and decide what actually governs this item. `annotations_apply` with `changes.annotation_updates[].context_source_ids` uses the existing relationship contract; provide the complete intended set and preserve valid prior links. Ordinary source numbers need no extra annotation solely because compilation finished.
+
+`part:"linked_context"` returns the originals behind the explicitly selected links. The decomposition packet exposes those same external source items as `linked_source_context`, separately from the parent's `segments`; external definitions are not valid parent segment_index offsets. The parent evidence hash retains its original meaning. Returned context reads pin the context-link set in `part`; follow those requests verbatim. If the links change, reload the item rather than mixing old and new context chunks. These readers do not save any relation or change source/classification/derived results on behalf of the Agent.
+
+## Replay and completion
+
+An optional `command_id` identifies one logical mutation. Otherwise a deterministic request fingerprint is used. Repeat the same request after a lost response; do not invent a replacement ID. Same key with different input is rejected. An existing `STARTED` operation returns `UNKNOWN`, not a second execution. `SAVED_PENDING_RECOVERY` refers to an existing receipt that can be reconciled with `task_recover`.
+
+Local `COMMITTED`, workbench synchronization, registered Excel and source-semantic review are distinct. `task_deliver` can verify same-version workbench data, but it does not verify browser rendering or make an engineer's acceptance decision. An unattached export remains saved; use the established exact `review-attach-delivery` CLI if attachment recovery is needed. Failed/unavailable synchronization does not justify redoing reading or replacing the whole task.
+
+## Revise through one command
+
+Use `items_apply` for new/uncovered scopes. After `review_prepare`, use `review_apply` to correct existing items. Supply `changes.model_id` only when classifying, with the actual executing model. A scope replacement must contain the complete affected scopes and preserve the returned stable `item_key/record_key`; read `item` with `part:"scope"` for the exact replacement template. Never regenerate the whole ledger to change one scope.
+
+When correcting a finding you identified yourself, submit `self_review_finding:{text,source_item_ids,rationale}` alongside `changes.scope_revision`. The program records an actual `AGENT_SELF_REVIEW` finding and supplies its identifier to the revision. No separate mechanical feedback-file creation is needed. For real user feedback, first `workbench_sync` with `direction:"pull"`, then read `view:"feedback"`; cite its actual identifier in `changes.addressed_feedback_ids`, and submit explicit `resolutions` with `ADDRESSED` or `UNRESOLVED` and a reason. Never label an Agent finding `USER`.
+
+`annotations_apply` and `decomposition_apply` compile selected overlays before a review exists. Once review-owned, the same calls compile, export and close a revision automatically. A lost reply is recovered by repeating the original command and payload; a later review does not change the route of an earlier command. Report the returned current/historical status accurately. Synchronization failure preserves the saved review and Excel.
+
+Ordinary initial image interpretation uses `changes.visual_readings` without a finding/resolution envelope. If you explicitly need to record a finding before review exists, the rejected call returns a ready `next_action` for `review_prepare`; it has not written the change. After preparing the review, submit that change using the returned revision. Keep real finding text and real user-feedback identity; do not invent either to satisfy a field.
+
+Check `pending_decomposition` after a revision. A parent classification or source change may correctly invalidate its old split; the response lists affected parents with direct reads. Re-read and decide `SPLIT/KEEP/UNDO` against the current parent. The program retains Snn identity history. A saved Excel with known unfinished decomposition is not `handoff_ready`; never silently treat the previous split as current or declare completion from export alone.
+
+Visual interpretation is an annotation, never verbatim source text or a reason to turn a table into an image item. Decomposition reads the parent's actual packet; exact `quote` selectors save offset calculations but still require complete source coverage. Explicit unresolved ranges remain partial. `KEEP` needs a source-grounded reason, and `UNDO` retires the split while retaining identity history. Pure image parents have no native text spans; do not invent spans from an interpretation. Interpretation supports add/update; withdrawal is not a supported empty-text operation.
+
+Older tasks retain their fixed package: unsupported actions return `UNSUPPORTED_CAPABILITY`; use that task's established CLI tools without replacing its package. Evidence-bearing assessments and engineer opinions still lack complete workbench transport; do not drop them to force synchronization.
+
+## CLI and host setup
+
+The typed CLI consumes the identical request object:
+
+```text
+<python> <plugin>/scripts/reqpilot.py task <action> --working-root <root> --input <request.json>
+```
+
+Actions are `describe/open/inspect/prepare/read/map/items/images/annotations/decomposition/revise/visual_revise/review/check/deliver/sync/recover`. `--input -` reads the same JSON from standard input. MCP supplies the flat request directly, so the Agent does not create the transport JSON file. Since `source_read` may register missing reading evidence, it is accurately advertised as potentially writing; configure any host permission only for the authorized task, without changing global approval settings. Ordinary compiler/CLI commands continue to work.
+
+For an explicitly configured local MCP host, install the core `requirements.txt` and optional `requirements-mcp.txt` in its chosen Python environment, then launch:
+
+```text
+<python> <plugin>/scripts/mcp_server.py --working-root <root> --source-root <authorized-source-root>
+```
+
+The source root defaults to the working root; repeat `--source-root` for additional host-authorized input locations. This is a local stdio process, not a new database, queue or model runtime. It is an optional preview adapter; it is not automatically enabled by the plugin manifest. Host cancellation may arrive after business effects occur: inspect/replay the original request, never assume rollback. Protocol timeouts stop the process group and report `UNKNOWN`.
+
+For several pages of captured source text, use `view:"source", pages:[1,2]`. Page Markdown and pixels are single-page views: `view:"page", page:1` or `view:"image", page:1` (or a returned located source ref). Do not send `pages` with a page/image view; it is not a batch selector for those views.
+
+For image detail, add `bbox:[x0,y0,x1,y1]` in visible PDF page coordinates and optional `scale` up to 4. The native crop keeps the source hash, page, bbox and image hash; it does not advance the task revision or rebuild all Markdown/HD pages. Other views reject these image-only fields. Fixed older packages without `pdf_region_images` report unsupported capability rather than substituting a new runtime.
+
+The typed service tolerates one JSON-encoded array for `pages`, OCR `table_regions` and transcription `changes/refs/cells`, and one JSON-encoded object for `self_review_finding`, then validates their members normally. Send real arrays/objects in new calls; this compatibility handling never renames fields, fills decisions or accepts duplicate-key/invalid JSON. Description and source-read text budgets are capped with continuation, preserving access to the remaining content.
+
+Local OCR uses the system `tesseract` executable. Ruled-table reading additionally needs this package's optional `requirements-ocr.txt`; `doctor.local_ocr` reports availability. An optional `REQPILOT_TESSDATA_DIR` selects language files; actual engine/model hashes are recorded. Missing table dependencies produce an explicit reading gap, not an empty complete table.

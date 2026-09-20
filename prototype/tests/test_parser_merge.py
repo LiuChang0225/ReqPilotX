@@ -1,3 +1,13 @@
+# Test runtime isolation must be activated before importing application modules.
+# ruff: noqa: E402
+
+if __package__:
+    from .runtime_isolation import activate_test_runtime
+else:
+    from runtime_isolation import activate_test_runtime
+
+activate_test_runtime()
+
 import sys
 import unittest
 from unittest.mock import patch
@@ -12,15 +22,99 @@ from app.services.parser import _extract_clean_lines
 from app.services.parser import _should_preserve_structured_table_page
 from app.services.parser import _should_prefer_attachment_band_candidate
 from app.services.parser import parse_document_with_diagnostics
+from app.services import parser as parser_module
 
 
 class ParserMergeHeuristicsTests(unittest.TestCase):
+    def test_optional_legacy_import_restores_pymupdf_quad_state(self) -> None:
+        class FakeTools:
+            def __init__(self, initial: bool) -> None:
+                self.value = initial
+
+            def unset_quad_corrections(self, value: bool | None = None) -> bool:
+                previous = self.value
+                if value is not None:
+                    self.value = bool(value)
+                return previous
+
+        sentinel = object()
+        for initial in (False, True):
+            with self.subTest(initial=initial):
+                tools = FakeTools(initial)
+
+                def import_legacy_engine(name: str) -> object:
+                    self.assertEqual(name, "pymupdf4llm")
+                    tools.unset_quad_corrections(True)
+                    return sentinel
+
+                with (
+                    patch.object(
+                        parser_module,
+                        "pymupdf",
+                        type("FakePymupdf", (), {"TOOLS": tools})(),
+                    ),
+                    patch.object(
+                        parser_module.importlib,
+                        "import_module",
+                        side_effect=import_legacy_engine,
+                    ),
+                ):
+                    loaded = parser_module._import_pymupdf4llm_preserving_runtime()
+
+                self.assertIs(loaded, sentinel)
+                self.assertEqual(tools.value, initial)
+
+    def test_optional_legacy_import_restores_quad_state_after_import_failure(
+        self,
+    ) -> None:
+        class FakeTools:
+            def __init__(self, initial: bool) -> None:
+                self.value = initial
+
+            def unset_quad_corrections(self, value: bool | None = None) -> bool:
+                previous = self.value
+                if value is not None:
+                    self.value = bool(value)
+                return previous
+
+        for initial in (False, True):
+            with self.subTest(initial=initial):
+                tools = FakeTools(initial)
+
+                def reject_legacy_engine(name: str) -> object:
+                    self.assertEqual(name, "pymupdf4llm")
+                    tools.unset_quad_corrections(True)
+                    raise RuntimeError("synthetic optional import failure")
+
+                with (
+                    patch.object(
+                        parser_module,
+                        "pymupdf",
+                        type("FakePymupdf", (), {"TOOLS": tools})(),
+                    ),
+                    patch.object(
+                        parser_module.importlib,
+                        "import_module",
+                        side_effect=reject_legacy_engine,
+                    ),
+                ):
+                    loaded = parser_module._import_pymupdf4llm_preserving_runtime()
+
+                self.assertIsNone(loaded)
+                self.assertEqual(tools.value, initial)
+
     def test_parse_document_with_diagnostics_strips_surrogate_codepoints(self) -> None:
         with patch(
             "app.services.parser._parse_pdf",
             return_value=(
                 "before\ud835\ud835after",
-                [{"source_page": 1, "source_anchor": "P\ud8351", "text": "line\ud835text"}],
+                [
+                    {
+                        "source_page": 1,
+                        "source_anchor": "P\ud8351",
+                        "text": "line\ud835text",
+                    }
+                ],
                 "PDF",
                 {"mode": "pdf_multi_engine_merge"},
             ),
@@ -41,14 +135,16 @@ class ParserMergeHeuristicsTests(unittest.TestCase):
         alt_lines = [
             "供应商应在协议有效期内对所提供的零部件/系统/功能持续提供升级更新（如有）服务，当供应商计划对本项目产品",
             "analysis result in 15 days.",
-            "Maintenance of Product product(if applicable) and inform JAC, jointly discussing and deciding management measures and invloving maintenance of product",
+            "Maintenance of the product (if applicable) and inform the OEM to agree on lifecycle measures.",
             "parties of cybersecurity requirements in this phase.",
             "6 产品网络安全生命周期-报废/终止支持阶段 Product Cybersecurity Lifecycle-Decommissioning/End of Support",
         ]
 
         self.assertTrue(_should_preserve_structured_table_page(chosen_lines, alt_lines))
 
-    def test_plain_table_without_stage_band_can_still_yield_to_more_complete_text(self) -> None:
+    def test_plain_table_without_stage_band_can_still_yield_to_more_complete_text(
+        self,
+    ) -> None:
         chosen_lines = [
             "|Item|Requirement|",
             "|A|满足要求|",
@@ -63,29 +159,31 @@ class ParserMergeHeuristicsTests(unittest.TestCase):
             "供应商应按期交付。",
         ]
 
-        self.assertFalse(_should_preserve_structured_table_page(chosen_lines, alt_lines))
+        self.assertFalse(
+            _should_preserve_structured_table_page(chosen_lines, alt_lines)
+        )
 
     def test_preserves_repeated_stage_band_matrix_page_over_much_longer_plain_text_page(self) -> None:
         chosen_lines = [
             "|序号 No.|网络安全活动 Cybersecurity Activity|活动主要内容描述 Activity Description|是否适用于本项目？ Applicable for this Project?|工作产出 Work Product(WP)|工作产出保密性级别 Confidentiality Level|主责 R|批准 A|支持 S|通知 I|咨询 C|",
             "|1 总体要求 General Requirements|1 总体要求 General Requirements|1 总体要求 General Requirements|1 总体要求 General Requirements|1 总体要求 General Requirements|1 总体要求 General Requirements|1 总体要求 General Requirements|1 总体要求 General Requirements|1 总体要求 General Requirements|1 总体要求 General Requirements|1 总体要求 General Requirements|",
-            "|-1|签署本协议 Signing this Agreement|在开展本项目前，供应商需与江汽集团签署本协议|适用 Applicable|本网络安全接口协议签署版|机密confidential|●|●|",
-            "|-2|供应商的网络安全能力证明|在开展本项目前，供应商应向江汽集团提供能证明其网络安全能力的材料|适用 Applicable|供应商网络安全能力证明材料|机密confidential|●|●|",
+            "|-1|签署本协议 Signing this Agreement|在开展本项目前，供应商需与示例主机厂签署本协议|适用 Applicable|本网络安全接口协议签署版|内部 Internal|●|●|",
+            "|-2|供应商的网络安全能力证明|在开展本项目前，供应商应向示例主机厂提供能证明其网络安全能力的材料|适用 Applicable|供应商网络安全能力证明材料|内部 Internal|●|●|",
             "|-3|设置供应商网络安全联络点|供应商需对本项目设定一名网络安全联络人|适用 Applicable|供应商网络安全联络人信息|机密confidential|●|●|",
-            "|-4|设置江汽集团网络安全联络点|江汽集团需对本项目设定一名网络安全联络人|适用 Applicable|江汽集团网络安全联络人信息|机密confidential|●|●|",
+            "|-4|设置主机厂网络安全联络点|示例主机厂需对本项目设定一名网络安全联络人|适用 Applicable|主机厂网络安全联络人信息|内部 Internal|●|●|",
             "|项目产品生命周期中的总体要求 General Requirements the Project Product Lifecycle|项目产品生命周期中的总体要求 General Requirements the Project Product Lifecycle|项目产品生命周期中的总体要求 General Requirements the Project Product Lifecycle|项目产品生命周期中的总体要求 General Requirements the Project Product Lifecycle|",
-            "|-1|江汽集团对供应商的网络安全审计/审核|江汽集团可能委托第三方机构对本协议商定网络安全活动的完成情况进行审核评估|适用 Applicable|本协议商定的供应商工作产出材料|机密confidential|●|●|",
-            "|-2|信息共享机制|供应商与江汽集团之间需就本项目的信息共享机制达成一致意见|适用 Applicable|信息共享机制|机密confidential|●|●|",
-            "|-3|江汽集团网络安全测试权利|江汽集团保留对本项目的产品进行网络安全测试的权利|适用 Applicable|N/A|机密confidential|●|●|",
+            "|-1|主机厂对供应商的网络安全审计/审核|示例主机厂可能委托第三方机构对约定活动进行审核评估|适用 Applicable|供应商工作产出材料|内部 Internal|●|●|",
+            "|-2|信息共享机制|供应商与示例主机厂之间需就本项目的信息共享机制达成一致意见|适用 Applicable|信息共享机制|内部 Internal|●|●|",
+            "|-3|主机厂网络安全测试权利|示例主机厂保留对本项目产品进行网络安全测试的权利|适用 Applicable|N/A|内部 Internal|●|●|",
             "|-4|网络安全漏洞共享|供应商应持续监控本项目产品相关的网络安全漏洞|适用 Applicable|漏洞共享证明|机密confidential|●|●|",
             "|-5|网络安全漏洞处置|如发现本项目产品相关的网络安全漏洞，供应商需制定漏洞处置修复方案|适用 Applicable|漏洞处置修复方案和报告|机密confidential|●|●|",
             "|2 产品网络安全生命周期-概念设计阶段 Product Cybersecurity Lifecycle -Concept Phase|2 产品网络安全生命周期-概念设计阶段 Product Cybersecurity Lifecycle -Concept Phase|2 产品网络安全生命周期-概念设计阶段 Product Cybersecurity Lifecycle -Concept Phase|2 产品网络安全生命周期-概念设计阶段 Product Cybersecurity Lifecycle -Concept Phase|",
         ]
         alt_lines = [
-            "供应商-xxxxxx 主机厂-江汽集团活动预期时间供应商对该活动意见反馈江汽集团对该活动意见反馈",
+            "供应商-示例主机厂活动预期时间供应商意见反馈主机厂意见反馈",
             "1 总体要求 General Requirements time",
             "1-1 项目开展前总体要求 General Requirements before the Project Launches",
-            "在开展本项目前，供应商需与江汽集团签署本协议",
+            "在开展本项目前，供应商需与示例主机厂签署本协议",
             "required based on the actual conditions of the project",
             "2.产品网络安全生命周期-概念设计阶段 Product Cybersecurity Lifecycle -Concept Phase",
             "2-1-1 制定总体网络安全计划",
@@ -96,7 +194,9 @@ class ParserMergeHeuristicsTests(unittest.TestCase):
 
         self.assertTrue(_should_preserve_structured_table_page(chosen_lines, alt_lines))
 
-    def test_attachment_band_candidate_is_preferred_when_quality_is_similar(self) -> None:
+    def test_attachment_band_candidate_is_preferred_when_quality_is_similar(
+        self,
+    ) -> None:
         chosen = {
             "lines": [
                 "4 OTA设计要求",
@@ -120,8 +220,12 @@ class ParserMergeHeuristicsTests(unittest.TestCase):
         self.assertTrue(_should_prefer_attachment_band_candidate(chosen, alt))
 
     def test_extract_clean_lines_splits_inline_attachment_band_line(self) -> None:
-        lines = _extract_clean_lines("附件4 --诊断要求 （9）部件带执行器，需支持0x2F服务。")
-        self.assertEqual(lines, ["附件4 --诊断要求", "（9）部件带执行器，需支持0x2F服务。"])
+        lines = _extract_clean_lines(
+            "附件4 --诊断要求 （9）部件带执行器，需支持0x2F服务。"
+        )
+        self.assertEqual(
+            lines, ["附件4 --诊断要求", "（9）部件带执行器，需支持0x2F服务。"]
+        )
 
     def test_attachment_band_candidate_prefers_cleaner_short_labels(self) -> None:
         chosen = {

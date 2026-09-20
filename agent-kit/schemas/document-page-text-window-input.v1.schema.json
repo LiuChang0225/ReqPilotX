@@ -1,0 +1,41 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "limit": {
+      "default": 64,
+      "maximum": 512,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "offset": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Offset",
+      "type": "integer"
+    },
+    "page_number": {
+      "minimum": 1,
+      "title": "Page Number",
+      "type": "integer"
+    },
+    "source_handle": {
+      "anyOf": [
+        {
+          "pattern": "^source-handle-[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Handle"
+    }
+  },
+  "required": [
+    "page_number"
+  ],
+  "title": "DocumentPageTextWindowInputV1",
+  "type": "object"
+}

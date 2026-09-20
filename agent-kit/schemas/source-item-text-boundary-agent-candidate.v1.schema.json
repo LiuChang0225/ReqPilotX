@@ -1,0 +1,106 @@
+{
+  "$defs": {
+    "SourceItemTextBoundaryAgentRecordV1": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "shared_source_content_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source_form": {
+          "$ref": "#/$defs/SourceRecordForm"
+        },
+        "text_spans": {
+          "items": {
+            "$ref": "#/$defs/SourceItemTextSpanV1"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "label",
+        "source_form",
+        "text_spans",
+        "shared_source_content_ids"
+      ],
+      "type": "object"
+    },
+    "SourceItemTextBoundaryAgentStructureOnlySpanV1": {
+      "additionalProperties": false,
+      "properties": {
+        "text_span": {
+          "$ref": "#/$defs/SourceItemTextSpanV1"
+        }
+      },
+      "required": [
+        "text_span"
+      ],
+      "type": "object"
+    },
+    "SourceItemTextSpanV1": {
+      "additionalProperties": false,
+      "properties": {
+        "content_id": {
+          "type": "string"
+        },
+        "end_offset": {
+          "type": "integer"
+        },
+        "start_offset": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "content_id",
+        "start_offset",
+        "end_offset"
+      ],
+      "type": "object"
+    },
+    "SourceRecordForm": {
+      "enum": [
+        "NUMBERED_CLAUSE",
+        "NATIVE_LIST",
+        "PARAGRAPH",
+        "TABLE_RECORD",
+        "TABLE_BRANCH",
+        "IMAGE"
+      ],
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "records": {
+      "items": {
+        "$ref": "#/$defs/SourceItemTextBoundaryAgentRecordV1"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "source-item-text-boundary-agent-candidate/v1",
+      "type": "string"
+    },
+    "scope_id": {
+      "type": "string"
+    },
+    "structure_only_spans": {
+      "items": {
+        "$ref": "#/$defs/SourceItemTextBoundaryAgentStructureOnlySpanV1"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "scope_id",
+    "records",
+    "structure_only_spans"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,558 @@
+<!doctype html>
+<html lang="zh-CN">
+<head>
+  <meta charset="utf-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <meta name="color-scheme" content="light dark">
+  <title>ReqPilotX · 历史路线图（2026-09-05）</title>
+  <style>
+    :root { color-scheme:light; --brand:#00893d; --strong:#006d31; --soft:#e5f3ea; --ink:#18211c; --muted:#56635b; --line:#d9dfda; --paper:#fff; --canvas:#f3f5f2; --warning:#805000; --warn-bg:#fff3d9; --info:#176a8a; --font:-apple-system,BlinkMacSystemFont,"Segoe UI","PingFang SC","Microsoft YaHei",sans-serif; }
+    @media(prefers-color-scheme:dark) { :root { color-scheme:dark; --brand:#78d99c; --strong:#a1e6b9; --soft:#233c2d; --ink:#e8eee9; --muted:#afbeb3; --line:#435147; --paper:#202b24; --canvas:#17211c; --warning:#f3cb7c; --warn-bg:#3e3320; --info:#9cd5e9; } }
+    :root[data-theme="dark"] { color-scheme:dark; --brand:#78d99c; --strong:#a1e6b9; --soft:#233c2d; --ink:#e8eee9; --muted:#afbeb3; --line:#435147; --paper:#202b24; --canvas:#17211c; --warning:#f3cb7c; --warn-bg:#3e3320; --info:#9cd5e9; }
+    :root[data-theme="light"] { color-scheme:light; --brand:#00893d; --strong:#006d31; --soft:#e5f3ea; --ink:#18211c; --muted:#56635b; --line:#d9dfda; --paper:#fff; --canvas:#f3f5f2; --warning:#805000; --warn-bg:#fff3d9; --info:#176a8a; }
+    * { box-sizing:border-box; }
+    body { margin:0; background:var(--canvas); color:var(--ink); font:15px/1.65 var(--font); }
+    button,select { font:inherit; }
+    button,a,select,summary { touch-action:manipulation; }
+    button { cursor:pointer; color:inherit; }
+    a { color:var(--strong); text-underline-offset:3px; overflow-wrap:anywhere; }
+    button:focus-visible,a:focus-visible,summary:focus-visible,select:focus-visible { outline:3px solid var(--info); outline-offset:4px; }
+    p,h1,h2,h3,dl,dd { margin:0; }
+    h1 { font-size:28px; line-height:1.3; font-weight:650; text-wrap:balance; }
+    h2 { font-size:21px; line-height:1.45; font-weight:650; }
+    h3 { font-size:17px; font-weight:600; }
+    .page { max-width:1400px; margin:auto; padding:28px 40px 40px; display:grid; gap:24px; }
+    .top { display:flex; justify-content:space-between; gap:20px; align-items:center; }
+    .brand { font-weight:650; letter-spacing:.04em; }
+    .tools { display:flex; align-items:center; gap:20px; flex-wrap:wrap; font-size:13px; }
+    .tools select { padding:5px; border:1px solid var(--line); border-radius:4px; background:var(--paper); color:var(--ink); }
+    .hero { display:grid; gap:12px; }
+    .position { display:flex; gap:24px; justify-content:space-between; align-items:center; padding:22px 24px; background:var(--soft); }
+    .position-copy { display:grid; gap:5px; }
+    .eyebrow { color:var(--strong); font-size:13px; font-weight:600; }
+    .position strong { font-size:18px; font-weight:650; }
+    .quiet { color:var(--muted); }
+    .reset { flex:none; padding:8px 12px; border:1px solid var(--strong); border-radius:4px; background:transparent; color:var(--strong); }
+    .nav { display:flex; gap:8px; flex-wrap:wrap; border-bottom:1px solid var(--line); }
+    .tab { border:0; border-bottom:3px solid transparent; background:transparent; padding:10px 18px; font-weight:600; }
+    .tab[aria-selected="true"] { border-bottom-color:var(--brand); color:var(--strong); }
+    .view { display:grid; gap:18px; }
+    .intro { max-width:82ch; }
+    .workbench { display:grid; grid-template-columns:minmax(270px,30%) minmax(0,1fr); gap:30px; align-items:start; }
+    .rail { display:grid; gap:0; }
+    .rail-label { color:var(--muted); font-size:13px; padding:0 0 12px; }
+    .node { width:100%; display:grid; gap:3px; text-align:left; padding:14px 16px; border:1px solid var(--line); border-radius:4px; background:var(--paper); }
+    .node-title { font-size:16px; font-weight:600; }
+    .node-meta { font-size:13px; color:var(--muted); }
+    .node[aria-pressed="true"] { background:var(--soft); border-color:var(--brand); }
+    .node-current { color:var(--strong); font-size:13px; font-weight:600; }
+    .connector { padding:4px 16px; color:var(--muted); font-size:13px; }
+    .branch { margin:8px 0 8px 20px; padding-left:12px; border-left:1px solid var(--line); display:grid; gap:6px; }
+    .branch .node { background:transparent; }
+    .branch .node[aria-pressed="true"] { background:var(--soft); }
+    .detail { padding:24px 28px; background:var(--paper); border:1px solid var(--line); border-radius:4px; display:grid; gap:20px; min-width:0; }
+    .detail-head { display:grid; gap:5px; }
+    .status { color:var(--warning); font-size:13px; }
+    .detail dl { display:grid; gap:16px; }
+    .detail dl > div { display:grid; grid-template-columns:76px minmax(0,1fr); gap:18px; }
+    dt { color:var(--muted); font-size:13px; padding-top:2px; }
+    dd { max-width:68ch; overflow-wrap:anywhere; }
+    .detail dl > div.action { padding-top:16px; border-top:1px solid var(--line); }
+    .action dd { font-weight:600; }
+    .browse-note { padding-top:8px; color:var(--muted); font-size:13px; }
+    .model-diagram { margin:0 0 12px; overflow:auto; font:13px/1.75 ui-monospace,SFMono-Regular,Consolas,monospace; }
+    .evidence { border-top:1px solid var(--line); padding-top:18px; }
+    summary { cursor:pointer; font-weight:600; }
+    .evidence-body { display:grid; gap:18px; padding-top:20px; }
+    .table-wrap { overflow-x:auto; }
+    table { width:100%; border-collapse:collapse; font-size:14px; font-variant-numeric:tabular-nums; }
+    th,td { padding:10px; border-bottom:1px solid var(--line); text-align:left; }
+    th { font-weight:600; }
+    .notice { color:var(--warning); background:var(--warn-bg); padding:12px 16px; }
+    .footer { color:var(--muted); font-size:13px; display:grid; gap:8px; }
+    .footer-links { display:flex; gap:18px; flex-wrap:wrap; }
+    code { font-family:"SFMono-Regular",Consolas,monospace; font-size:.9em; overflow-wrap:anywhere; }
+    [hidden] { display:none!important; }
+    @media(max-width:800px) { .page { padding:20px; gap:20px; } .workbench { grid-template-columns:minmax(0,1fr); gap:20px; } .rail { grid-template-columns:minmax(0,1fr); gap:8px; } .connector { padding:0; } .branch { margin:0 0 0 16px; } .top { align-items:start; } .detail { padding:20px; } }
+    @media(max-width:480px) { .page { padding:16px; } .top,.position { flex-direction:column; align-items:start; gap:12px; } .tools { gap:10px; } .position { padding:16px; } h1 { font-size:24px; } .tab { padding:10px; } .rail { grid-template-columns:minmax(0,1fr); } .detail { padding:16px; } .detail dl > div { grid-template-columns:minmax(0,1fr); gap:3px; } }
+    @media(prefers-reduced-motion:reduce) { *,*::before,*::after { scroll-behavior:auto!important; transition:none!important; } }
+    @media print { .tools,.reset,.browse-note { display:none; } .page { max-width:none; padding:0; } .workbench { grid-template-columns:30% 1fr; } }
+  </style>
+</head>
+<body>
+  <main class="page" id="reqpilotx-roadmap">
+    <p class="notice">历史路线图（2026-09-05）：以下阶段、数量与“当前位置”是当时快照。当前实施顺序请阅读<a href="开发计划.md">开发计划</a>，当前能力请阅读<a href="../项目.md">项目状态</a>。</p>
+    <header class="top">
+      <a class="brand" href="../../README.md">ReqPilotX</a>
+      <div class="tools">
+        <a href="开发计划.md">权威开发计划</a>
+        <label>外观 <select id="theme" aria-label="路线图外观"><option value="auto">跟随系统</option><option value="light">浅色</option><option value="dark">深色</option></select></label>
+      </div>
+    </header>
+    <section class="hero" aria-labelledby="title">
+      <h1 id="title">从客户原文到逐条响应</h1>
+      <p class="quiet">Agent+Skills+现有工作台为主线，快速代码拆解为辅线。自动技术结论待证据，人工业务链先贯通。</p>
+      <div class="position" id="actual-position">
+        <div class="position-copy">
+          <span class="eyebrow">你在这里 · Agent业务闭环主线</span>
+          <strong>原文基线保留 → 语义后继修订 → 全链路验收</strong>
+          <span>结构与条目模型V1已固化。PDS原26版449条保留，v27语义候选独立审阅；具体语义与全链路质量分别验收。</span>
+        </div>
+        <div class="tools"><a href="http://127.0.0.1:8000/workspace?task=extraction&amp;mode=organize&amp;checkpoint=list&amp;projectId=c8314f8f-49d2-4769-b080-2c4d3288e33e&amp;documentId=8f178efa-2b6f-4d73-abfb-2e3aa4b80475">原工作台 · PDS 449条</a><a href="全局交付与验收计划.md">全局目标与验收</a><a href="PDS旧结果召回与来源合同.md">来源合同</a><a href="分类与验证关联规则V1.md">规则V1</a><button type="button" class="reset" id="back-current">返回当前步骤</button></div>
+      </div>
+    </section>
+    <nav class="nav" role="tablist" aria-label="路线图视角">
+      <button type="button" class="tab" role="tab" id="tab-development" aria-controls="view" aria-selected="true" data-view="development">开发路线</button>
+      <button type="button" class="tab" role="tab" id="tab-business" aria-controls="view" aria-selected="false" data-view="business">产品业务链</button>
+      <button type="button" class="tab" role="tab" id="tab-architecture" aria-controls="view" aria-selected="false" data-view="architecture">架构与能力边界</button>
+    </nav>
+    <section class="view" id="view" role="tabpanel" aria-labelledby="tab-development">
+      <p class="intro" id="intro"></p>
+      <div class="workbench">
+        <nav class="rail" id="rail" aria-label="选择步骤查看详情"></nav>
+        <article class="detail" aria-labelledby="detail-title">
+          <header class="detail-head">
+            <p class="status" id="detail-status"></p>
+            <h2 id="detail-title"></h2>
+          </header>
+          <dl id="detail-fields" aria-live="polite" aria-atomic="true"></dl>
+          <div id="detail-model" hidden><pre class="model-diagram" id="detail-model-tree"></pre><a href="文档结构与原文条目模型V1.md">阅读已采用的完整模型 V1</a></div>
+          <p class="browse-note">这里只改变查看的内容。项目真实位置始终以上方「你在这里」为准。</p>
+        </article>
+      </div>
+    </section>
+    <details class="evidence" id="evidence">
+      <summary>已有证据与限制 · 六份候选 ≠ 业务验收</summary>
+      <div class="evidence-body">
+        <p>以下B1/B1.1仅保留为历史实验，因层级、表格、身份与导出退化已撤回基线推荐。当前PDS召回原应用449条，其中历史分类399需求、50非需求；近期分类反馈仍保存，尚未混写到旧版。</p>
+        <div class="table-wrap">
+          <table>
+            <caption>历史B1实验规模 · 已撤回基线推荐</caption>
+            <thead><tr><th scope="col">案例</th><th scope="col">页</th><th scope="col">原文条目</th><th scope="col">派生</th><th scope="col">逻辑表</th><th scope="col">本轮处置原文</th></tr></thead>
+            <tbody>
+              <tr><th scope="row"><a href="http://127.0.0.1:8800/workspace?task=extraction&amp;mode=review&amp;reviewCase=pds-b1-20260906">PDS · B1</a></th><td>29</td><td>377</td><td>39</td><td>15</td><td>10</td></tr>
+              <tr><th scope="row"><a href="http://127.0.0.1:8802/workspace?task=extraction&amp;mode=review&amp;reviewCase=qct-b1-20260906">QC/T · B1</a></th><td>60</td><td>166</td><td>80</td><td>32</td><td>25</td></tr>
+              <tr><th scope="row"><a href="http://127.0.0.1:8803/workspace?task=extraction&amp;mode=review&amp;reviewCase=pef-b1-20260906">PEF · B1</a></th><td>30</td><td>278</td><td>146</td><td>19</td><td>84</td></tr>
+              <tr><th scope="row"><a href="http://127.0.0.1:8804/workspace?task=extraction&amp;mode=review&amp;reviewCase=e01-b1-20260906">E01 · B1</a></th><td>35</td><td>315</td><td>80</td><td>29</td><td>158</td></tr>
+              <tr><th scope="row"><a href="http://127.0.0.1:8805/workspace?task=extraction&amp;mode=review&amp;reviewCase=qjly-b1-20260906">QJLY · B1</a></th><td>137</td><td>455</td><td>214</td><td>62</td><td>21</td></tr>
+              <tr><th scope="row"><a href="http://127.0.0.1:8801/workspace?task=extraction&amp;mode=review&amp;reviewCase=f06-b1-20260906">F06 · B1</a></th><td>60</td><td>423</td><td>593</td><td>37</td><td>62</td></tr>
+              <tr><th scope="row">六份合计</th><td>351</td><td>2,014</td><td>1,152</td><td>194</td><td>360</td></tr>
+            </tbody>
+          </table>
+        </div>
+        <p>仍有1,554条原文与1,106条派生保留旧语义状态，由Agent继续处理；不要求用户逐条标注。缺失附件、待定参数及源冲突保持明确，完整PDF和输入快照保留。</p>
+        <p>2026-09-06：六份来源/版本/引用/原文保留检查、87项Python测试及六份全文顺序检查通过；PDS通过主UI实际导出并逐行核对次序。这些检查不代表OCR及全文业务语义都正确。</p>
+        <p>当前已恢复原Document Map/SourceItem工作面和SRC/REQ身份。本轮恢复一张有序分层的Matrix，长表逐项标题与判断链接原表；真实PDS沿用原26版。<a href="Matrix统一主表与长表呈现.md">查看本轮决定、验证与交付</a>。六案例整体语义验收仍未完成。</p>
+        <p class="notice">Wiki 审核属于实验／待修：默认 COMPLIANT，检索正文不参与判定，“not acceptable / 不可接受”也可能被判接受，合成空证据仍能得到 100% 一致率。它不能作为可信自动分析能力。</p>
+        <p>源顺序回归：<a href="B1源顺序回归与修复.md">直接原因、修复与验证更正</a>。旧B1身份/单项检查不足以证明全文顺序。</p>
+        <p>证据入口：<a href="active-context.md">模块当前上下文</a> · <a href="六份典型案例阶段审计与复盘.md">六份案例阶段审计</a> · <a href="../../prototype/target_review/README.md">target_review 边界</a></p>
+      </div>
+    </details>
+    <footer class="footer">
+      <p>领域模型更新至2026-09-07；业务运行状态见当前接续与专属回执。唯一开发顺序由开发计划定义；地图是导航投影，不是执行门禁。</p>
+      <p>维护方式：开始工作说明对应节点与预期产出；结束凭实际证据更新状态与下一动作。仅状态或决定变化时改图，浏览选择不算推进。</p>
+      <div class="footer-links"><a href="开发计划.md">开发计划与切换条件</a><a href="../../PRODUCT.md">产品决定</a><a href="../active-context.md">当前接续</a><a href="roadmap-verification.md">本次地图验证记录</a></div>
+    </footer>
+    <noscript>交互需要JavaScript。真实位置：Agent业务闭环主线；结构与条目模型V1已固化，PDS原26版保留，v27后继候选独立审阅。请打开上方开发计划和模型定义查看完整内容。</noscript>
+  </main>
+  <script>
+    (() => {
+      "use strict";
+      // 本文件是开发计划的手工投影；点击、hash 与外观仅保存查看状态，不保存业务进度。
+      const root = document.getElementById("reqpilotx-roadmap");
+      const currentNode = "integrate";
+      const labels = ["目的", "输入", "产出", "已有证据", "剩余工作", "完成条件", "下一动作"];
+      const nodes = {
+  "documentModel": {
+    "title": "文档结构与原文条目模型",
+    "meta": "V1已采用 · 所有工作面共同定义",
+    "status": "定义已固化；普通段落/混合来源形式的显式实现仍需完善",
+    "fields": [
+      "让来源保真、可用分析粒度与清楚交付建立在同一模型上。",
+      "客户实际文档组织、原编号、正文、表格、图片及明确引用。",
+      "四个独立维度：组织位置、内容形式、内容判定、来源与关联。",
+      "文档/章节有序递归且可以直接有内容；1:1条款或整表共用一行，1:N才展开。",
+      "普通无编号段落、混合内容和双重身份需在共享模型中明确，不靠加壳层适配。",
+      "原文包含、需求派生、引用/上下文分别保存；阅读树中的子项不一律表示原文子章节。",
+      "提取、UI和导出沿用此模型；案例修订验证具体粒度，不重建另一套分类或层级。"
+    ],
+    "diagram": "原文组织（保留顺序，可递归）\n文档\n├─ 文档级内容\n└─ 章节\n   ├─ 子章节 …\n   ├─ 原文条目（可含文字＋表格＋图片）\n   └─ 原表\n      ├─ 表格条目 A\n      └─ 表格条目 B\n\n需求派生（另外标明关系）\n原文需求 SRC / REQ\n├─〔派生〕REQ-S01\n└─〔派生〕REQ-S02\n\n引用／共享上下文：连接相关内容，不改变原文父级。"
+  },
+  "calibrate": {
+    "title": "粒度原则与持续校准",
+    "meta": "原则已可用于第一版",
+    "status": "V1与真实反馈已具备",
+    "fields": [
+      "形成能清楚判断、不掩盖差异的分析单元。",
+      "原文、V1和已有真实反馈。",
+      "完整父项、必要派生、有限分类与上下文原则。",
+      "PDS多个范围已获得具体维度认可；不等于全文验收。",
+      "Agent继续处理新范围和反例，用户关注关键分歧。",
+      "原则能够支撑第一版开发，不以无限细分或全文逐条认可为目标。",
+      "直接用于闭环实现与回归，不再串行等待全部标注。"
+    ]
+  },
+  "sor": {
+    "title": "PDS旧结果召回",
+    "meta": "已有候选与认可范围",
+    "status": "449原文 · 399需求／50非需求",
+    "fields": [
+      "为真实失败、回归和工程师关键决策提供输入。",
+      "原PDF、全文候选、审阅工作版和原版本反馈。",
+      "局部修订、反例与需用户判断的少数问题。",
+      "四表、跨页表头、原图及性能范围已加入；旧版本与认可保持。",
+      "其余总则/供应商条款/BOM和DVP按目标推进。",
+      "无关键遗漏、原文可追溯；不以条目计数替代质量。",
+      "Agent按已有反馈自查，避免继续把每条候选交给用户标注。"
+    ]
+  },
+  "reproduce": {
+    "title": "回归与独立复现",
+    "meta": "贯穿开发 · 持续验证",
+    "status": "严格新会话已运行；修复后cold继续",
+    "fields": [
+      "判断能力是否离开当前聊天仍然有效。",
+      "工作Skill、声明工具、真实反馈及新范围/新文档。",
+      "错误、修正量、耗时、核对负担与复现证据。",
+      "新会话实际创建3个子Agent并生成Excel；独立检查发现图像SRC、原图导出和未知结论问题，旧运行未通过质量验收。",
+      "冻结新包后从原PDF重新运行；新包不含旧候选/答案。六案例全量语义复核仍继续。",
+      "来源和业务结果满足同一口径，Agent自评不等于正确率。",
+      "随闭环迭代执行，不等待全文完美才开始接入。"
+    ]
+  },
+  "integrate": {
+    "title": "全链路联调与语义验收 · 当前",
+    "meta": "成熟工作台 · 多Agent插件 · 纯算法后备",
+    "status": "三条路径并行，尚未完成全目标",
+    "fields": [
+      "让新文件经过同一来源图进入可核对的分析与交付，同时修正六案例暴露的问题。",
+      "已召回PDS来源基线、规则V1、六份原PDF、已有用户反馈和真实生产任务。",
+      "主应用的源条目/必要Snn/证据与澄清/Matrix，以及同源插件和快速后备。",
+      "新合成文件经真实上传、AppServer生成原文与分析；原UI已下载Matrix。E01全315原文/85派生/35页已复核。",
+      "其余案例语义审计、试验上下文分类修复、图像生产、新cold质量检查、快速后备入口和主导航。",
+      "G01–G15均有实际证据；软件运行、语义准确、人工接受分别报告。",
+      "逐项修问题并复验当前工作台；保留既有来源/稳定身份，不用绿色计数替代原文核查。"
+    ]
+  },
+  "sources": {
+    "title": "来源与角色",
+    "meta": "业务主链 · 明确权威与范围",
+    "status": "实际双入口上传与身份校验已运行",
+    "fields": [
+      "先分清客户写了什么、内部用什么来说明和响应。",
+      "授权文件、项目上下文及来源角色；PDF/DOCX/XLSX 等格式可以属于任一入口。",
+      "客户需求文档与内部知识两个入口，各自稳定身份、版本、授权范围和明确缺口。",
+      "隔离合成项目的客户PDF与内部PDF均经主API上传；5个真实注册知识事实被分析引用。实际客户项目未虚构内部库。",
+      "逐案例核对来源角色、附件可用性和实际读取范围；不按文件名或扩展名推定权威。",
+      "每份输入的身份、角色和处理范围可解释；内部知识不会反向制造客户原文需求。",
+      "继续验证材料可读、生命周期/适用范围和引用定位；检索服务未同步不阻止读取已保存原文件。"
+    ]
+  },
+  "baseline": {
+    "title": "原文结构与条目基线",
+    "meta": "来源合同 · 先保真再派生",
+    "status": "PDS旧第26版已召回",
+    "fields": [
+      "保持客户实际内容、文档单元、真实章节和稳定条目身份。",
+      "已接受91节点Document Map、449条SourceItem及完整原PDF。",
+      "PDS 1–6章在PDS下，附件平级；3.1/3.2.1原表直接承载。",
+      "SRC/REQ及需求/非需求状态仍可读；未重新提取。",
+      "将近期反馈按同源证据落回稳定SRC；复核旧判断，不重编号。",
+      "文档结构、表格内容、来源条目及派生四者不能混淆。",
+      "沿召回版本自查真实差异；不继续补虚构结构。"
+    ]
+  },
+  "granularity": {
+    "title": "可用分析粒度",
+    "meta": "已可支撑第一版",
+    "status": "关键原则采用，难例持续校准",
+    "fields": [
+      "每个单元能产生清楚而不隐藏差异的判断。",
+      "完整父项、条件、设备/方法、判据、引用与责任。",
+      "必要派生与可直接判断的原文项。",
+      "已有V1与多个典型例真实反馈。",
+      "处理新的实质分歧，避免机械按行、句或参数拆。",
+      "保留条件和完整原文，不增义；合并不掩盖重要差异。",
+      "用于Agent自查和第一版链路，不再逐条重复确认。"
+    ]
+  },
+  "split": {
+    "title": "按需显式拆分 ↔ 回看粒度",
+    "meta": "可选分支/回路 · 不逐项强制",
+    "status": "共享Snn/Undo已实现；生产任务与工作台联调",
+    "fields": [
+      "只有合并表达会隐藏差异时，才把相关判断分开，仍保留完整原文父项。",
+      "用户显式授权的原文范围和已识别的响应差异；条件、单位、阈值、例外和共享内容。",
+      "可反查父项的派生要求及双向追踪；必要时回看上下文并修订分析粒度。",
+      "PDS既有父项真实隔离任务产生两个Snn；源父项未变。加入≥被改成>、或被改成AND、篡改后重签的反例校验。",
+      "用原文提取样例判断拆分是否必要，保证父项可见，避免条件散落与同一义务重复计算。",
+      "无遗漏、无条件漂移、无未经授权的扩展；Analyzer 内没有隐藏的临时改写规则。",
+      "仅在样例需要分开表达时提出明确拆分范围，并展示父项与子判断的对应。"
+    ]
+  },
+  "evidence": {
+    "title": "适用性、待澄清与待证据",
+    "meta": "当前业务链中段",
+    "status": "合成资料链路已运行；真实客户仍待内证",
+    "fields": [
+      "把可判断、待补输入和必须澄清的内容区分开。",
+      "完整客户要求、上下文、引用与已提供的资料。",
+      "问题清单、证据缺口与后续判断入口。",
+      "合成10REQ得到3符合、3不符合、2待证据、2澄清；实测电流超限/连接器针数差异被发现，TBD未被测值替换。",
+      "修正完整试验上下文不足导致的分类错误；继续无KB、局部更新与过期资料回归。",
+      "未知不等于符合，不把报价承诺写成试验已通过。",
+      "先贯通人工业务链，内部知识能力后续补强。"
+    ]
+  },
+  "knowledge": {
+    "title": "内部知识 · 后置输入",
+    "meta": "后续业务链 · 当前尚未建立",
+    "status": "当前没有内部知识库",
+    "fields": [
+      "未来为分析提供可追溯内部依据，不反向制造客户需求。",
+      "未来经用户确认的资料与授权范围；当前尚无知识库。",
+      "未来的独立证据输入及可追溯派生阅读视图。",
+      "混合检索有源码资产，不等于已有知识库；Wiki审核仍是待修实验。",
+      "本轮不建知识库或搜寻能力基线；Markdown/Wiki/RLM不作为提取前置。",
+      "后续须有真实授权来源、适用性与验证，检索命中不等于支持结论。",
+      "先完成客户原文提取样例核对。"
+    ]
+  },
+  "review": {
+    "title": "工程师关键判断与响应",
+    "meta": "人在回路 · 聚焦重要决定",
+    "status": "反馈可保存；下游响应连接待完成",
+    "fields": [
+      "降低核对负担，同时保留正式承诺的人工决定。",
+      "Agent自查后的结果、差异、关键歧义与待证据事项。",
+      "接受/条件/偏离/澄清等逐条响应和责任归属。",
+      "当前主UI反馈与历史认可已保留。",
+      "接通可保存的人工响应和版本追踪。",
+      "可解释、可修订；没有证据不自动判符合。",
+      "把新候选接到人工响应，避免要求每个未核对项都确认。"
+    ]
+  },
+  "matrix": {
+    "title": "Compliance Matrix / Excel",
+    "meta": "当前主线交付端",
+    "status": "结构标识/范围摘要/同表分析已验证；语义后继版由额外任务修订",
+    "fields": [
+      "形成SOR评审、报价和技术澄清时的可追溯交付。",
+      "同一来源、分析单元、人工响应及未解决事项。",
+      "一张按原文顺序保留标题、正文、非需求与派生关系的主表；原表按逻辑表独立还原。",
+      "一张主表保留逐项标题、结构类型、SRC/REQ及判断；原表右侧同源分析区已接入，独立显示提取理由与响应分析。",
+      "本次处于来源/需求图到Excel的呈现环节，保留PDS原26版，未重新抽取或改写旧分类。",
+      "所有内容保留但共享信息不重复打印；63项完整试验仍是63个SRC/REQ，不因导出生成派生需求。",
+      "下一步用统一工作簿做阅读验收；语义与分类修订继续在原工作台按同源范围处理。"
+    ]
+  },
+  "agent": {
+    "title": "Agent 协调与语义判断",
+    "meta": "职责边界 · 按任务选择工具",
+    "status": "目标方式已确认 · 通用能力待复现",
+    "fields": [
+      "围绕业务目标调查来源、理解语义并形成可核对建议。",
+      "授权来源、任务目标、验收口径、工具证据与真实用户反馈。",
+      "当前提供语义边界、分类、按需派生与公开行动/来源证据记录；知识判断与响应建议后置。",
+      "六份案例已有真实Agent候选；当前不是零代码起点，但独立新会话复现尚未证明。",
+      "把已有反馈直接用于自查、受影响修订和回归，用户处理关键分歧。",
+      "结果来源忠实且能接受人工修订，不受固定流水线限制，也不绕过授权、身份与版本约束。",
+      "加载当前工作Skill与共享反馈上下文，推进通用发布和业务连接。"
+    ]
+  },
+  "tools": {
+    "title": "按需工具箱",
+    "meta": "原生捕获 · 快速候选 · OCR/表格 · 检索 · 校验/组装",
+    "status": "有效逻辑保留 · 可选能力按需使用",
+    "fields": [
+      "让确定性处理和专用读取减轻Agent负担，同时不主导全部业务流程。",
+      "Agent提出的有范围子任务、原生文件、页面/表格与授权证据。",
+      "原生事实、OCR/表格证据、快速候选、检索结果、身份/覆盖检查和组装工件。",
+      "PDF/DOCX/XLSX捕获、来源坐标、表格/图像、校验与混合检索已有实现；旧流水线逻辑可择需复用。",
+      "快速代码拆解明确为辅线；测基础耗时和缺口后封装现有能力，不另建应用。",
+      "工具返回事实/候选/校验，不把关键词或parser边界冒充最终语义；算法路线与Agent路线共用来源、条目、版本及核对面。",
+      "复用已有来源与表格工具，公共反馈读取已新增。"
+    ]
+  },
+  "artifacts": {
+    "title": "稳定来源、业务工件与版本",
+    "meta": "公共承载 · 串联工具、Agent与应用",
+    "status": "已召回Document Map／SourceItem权威身份",
+    "fields": [
+      "让结果可以换工具、换会话、局部修订和进入应用，同时保持身份与证据。",
+      "原PDF → 已接受Document Map → 原SourceItem基线 → 显式decomposition／后续响应。",
+      "可定位、可回溯、能区分原文/AI/人工的稳定业务工件；受保护私有存储中的客户内容。",
+      "原地图第1版、原文清单第26版、SRC/REQ、来源SHA和旧反馈仍在。B1/B1.1仅历史实验。",
+      "六份私有工件已在当前路径归集；继续接应用内历史版本选择、人工响应和导出，不复制业务数据库。",
+      "不覆盖客户原文、锁定版本或无关人工决定；旧结论不静默继承，原文项与派生双向追踪。",
+      "从原身份与精确范围映射近期反馈，再接同一账本的导出。"
+    ]
+  },
+  "reviewSurface": {
+    "title": "工程师核对面",
+    "meta": "同一来源与反馈 · 不独占业务真相",
+    "status": "原工作台新增拆分/分析/导出，实测中",
+    "fields": [
+      "让工程师看全原文与条件、定位问题、提出反馈并检查局部差异。",
+      "固定候选、正确原页/表格、原文父子关系与版本绑定的反馈对象。",
+      "可检查的来源对照、反馈、修订差异、未决项与恢复后的同一工作位置。",
+      "原NativeDock/SourceItemLens仍承载树、完整原文和PDF；1440/1024浏览器检查及实际下载已执行。",
+      "本地通用修订工具已用；补应用内版本切换、接人工响应；整体UI样式后置。",
+      "内容准确且能看清、能纠错，反馈对象/版本明确；展示状态不把局部候选冒充业务完成。",
+      "围绕业务闭环修必要断点，不继续做第二套核对页。"
+    ]
+  },
+  "application": {
+    "title": "应用分析与交付",
+    "meta": "统一工作台 · 消费同一能力核心",
+    "status": "新文件到分析/Excel已实跑；整体尚待验收",
+    "fields": [
+      "把经过验证的语义能力放进工程师可持续使用的工作流。",
+      "同一能力核心与稳定工件，现有React/FastAPI/PostgreSQL、对象存储和持久任务。",
+      "项目/来源、任务、版本、人工决定、证据分析与Matrix/Excel一致交付。",
+      "新合成项目生产Map、原文台账和真实知识分析已持久化；新源条目映射到成熟typed Matrix和旧原表/图导出器。",
+      "继续图像生产、主导航、版本/局部保持、真实案例与完整导出可读性验证。",
+      "无第二套语义规则；来源/条件/偏离/反馈/版本与导出业务等价，既有数据不被重置。",
+      "复用现有工作台完成纵向闭环，再移植App Server宿主。"
+    ]
+  },
+  "fast": {
+    "title": "纯代码快速拆解 · 辅线",
+    "meta": "与主线共享来源、对象与UI",
+    "status": "六案捕获123.53→61.25秒；UI入口待接",
+    "fields": [
+      "快速产生可用的初步结构，减少等待和成本。",
+      "客户原文件、原生文本/布局/编号/表格捕获。",
+      "定位可靠的快速候选与明确复杂范围缺口。",
+      "351页真实原文件前后计时，SourceIR除时间戳外一致。反复按单元格全页扫描是主要可消除成本。",
+      "把无AI捕获入口接入同一应用；保留扫描/矢量文字等缺口，不把快的物理骨架当语义基线。",
+      "不调用Agent的路径可独立使用，候选不伪装成高保真语义结果。",
+      "不新建第二套UI；也作为Agent可选工具，不阻塞主线。"
+    ]
+  },
+  "appserver": {
+    "title": "Codex App Server · 最终宿主",
+    "meta": "迁移会话与调度，复用业务核心",
+    "status": "生产Map/原文/分析已运行，语义和恢复继续验",
+    "fields": [
+      "把同一Agent能力变成可持续使用的原生应用。",
+      "相同Skill、工具、业务工件和已验证的纵向任务。",
+      "流式活动、反馈进入任务、打断/恢复和稳定版本。",
+      "实际协议/凭据存储/canary、崩溃恢复、新文件生产和带内部资料分析均有回执；首次源清单失败复用checkpoint恢复。",
+      "完整试验上下文补入分类窗口并真实重评；图像生产接同一publisher，marker worker只领新入口任务。",
+      "换宿主不丢原文、人工决定和响应/导出含义。",
+      "先完成可用业务闭环再迁移；任务持续可接续，模型不需空转。"
+    ]
+  }
+};
+      const views = {
+  "development": {
+    "intro": "当前主线连接Agent反馈修订、人工响应与Matrix。纯代码快速拆解为辅线；案例自查和复现持续进行。",
+    "default": "integrate",
+    "label": "点击步骤查看详情 · 顺序由开发计划定义",
+    "items": [
+      "calibrate",
+      "integrate",
+      "reproduce",
+      "appserver"
+    ]
+  },
+  "business": {
+    "intro": "完整交付链同步推进。没有内部知识库时自动技术结论待评估，人工响应和Matrix草稿仍可贯通。",
+    "default": "baseline",
+    "label": "主链向下阅读 · 支路按需进入",
+    "items": [
+      "sources",
+      "baseline",
+      "granularity",
+      "evidence",
+      "review",
+      "matrix"
+    ]
+  },
+  "architecture": {
+    "intro": "两种候选生产方式共享同一来源、对象、工具、UI、反馈和交付；App Server承载任务与会话，不重写需求语义。",
+    "default": "agent",
+    "label": "职责关系 · 不代表运行顺序",
+    "items": [
+      "agent",
+      "tools",
+      "documentModel",
+      "artifacts",
+      "reviewSurface",
+      "application"
+    ]
+  }
+};
+      let activeView = "development";
+      let activeNode = currentNode;
+      const rail = root.querySelector("#rail");
+      const tabs = [...root.querySelectorAll("[data-view]")];
+      function buttonFor(id) {
+        const n = nodes[id];
+        const b = document.createElement("button"); b.type = "button"; b.className = "node"; b.dataset.node = id;
+        b.setAttribute("aria-pressed", String(id === activeNode)); b.setAttribute("aria-controls", "detail-fields");
+        const title = document.createElement("span"); title.className = "node-title"; title.textContent = n.title;
+        const meta = document.createElement("span"); meta.className = "node-meta"; meta.textContent = n.meta; b.append(title, meta);
+        if (id === currentNode) { const c = document.createElement("span"); c.className = "node-current"; c.textContent = "● 项目实际所在"; b.append(c); }
+        b.addEventListener("click", () => { selectNode(id); if (window.matchMedia("(max-width:800px)").matches) root.querySelector(".detail").scrollIntoView({block:"start"}); }); return b;
+      }
+      function branch(id, label) {
+        const div = document.createElement("div"); div.className = "branch";
+        const p = document.createElement("p"); p.className = "node-meta"; p.textContent = label;
+        div.append(p, buttonFor(id)); rail.append(div);
+      }
+      function selectNode(id, writeHash = true) {
+        activeNode = id; const n = nodes[id];
+        root.querySelector("#detail-title").textContent = n.title;
+        root.querySelector("#detail-status").textContent = n.status;
+        root.querySelector("#detail-fields").replaceChildren(...labels.map((label, i) => {
+          const row = document.createElement("div"); if (i === 6) row.className = "action";
+          const dt = document.createElement("dt"); dt.textContent = label;
+          const dd = document.createElement("dd"); dd.textContent = n.fields[i]; row.append(dt, dd); return row;
+        }));
+        root.querySelector("#detail-model").hidden = !n.diagram;
+        root.querySelector("#detail-model-tree").textContent = n.diagram || "";
+        rail.querySelectorAll("[data-node]").forEach(b => b.setAttribute("aria-pressed", String(b.dataset.node === id)));
+        if (writeHash) { try { history.replaceState(null, "", "#" + activeView + "/" + id); } catch (_) { /* file预览宿主可能限制history；不影响浏览 */ } }
+      }
+      function showView(view, id, writeHash = true) {
+        activeView = view; activeNode = id || views[view].default;
+        tabs.forEach(t => t.setAttribute("aria-selected", String(t.dataset.view === view)));
+        root.querySelector("#view").setAttribute("aria-labelledby", "tab-" + view);
+        root.querySelector("#intro").textContent = views[view].intro;
+        const label = document.createElement("p"); label.className = "rail-label"; label.textContent = views[view].label; rail.replaceChildren(label);
+        views[view].items.forEach((node, i, all) => {
+          rail.append(buttonFor(node));
+          if (view === "development" && node === "calibrate") branch("sor", "持续输入：案例自查与真实反馈");
+          if (view === "development" && node === "integrate") branch("fast", "辅线：共享底座，不阻塞主线");
+          if (view === "business" && node === "granularity") branch("split", "↳ 需要分开表达时进入，再回看粒度；无拆分需要直接分析 ↓");
+          if (view === "business" && node === "evidence") branch("knowledge", "内部证据 → 上方分析节点；不进入客户原文基线");
+          if (i < all.length - 1) { const p = document.createElement("p"); p.className = "connector";
+            p.textContent = view === "development" ? ["↓ 原则直接用于第一版", "↕ 持续回归与复现", "↓ 同一能力迁移宿主"][i] : view === "business" ? "↓" : ["按任务调用 ↓", "共同对象定义 ↓", "有序工件与身份 ↓", "可定位、可修订 ↕", "人工决定与同一版本 →"][i]; rail.append(p); }
+        });
+        selectNode(activeNode, writeHash);
+      }
+      tabs.forEach((t, index) => {
+        t.addEventListener("click", () => showView(t.dataset.view));
+        t.addEventListener("keydown", e => {
+          let next;
+          if (e.key === "ArrowRight") next = (index + 1) % tabs.length;
+          if (e.key === "ArrowLeft") next = (index + tabs.length - 1) % tabs.length;
+          if (e.key === "Home") next = 0;
+          if (e.key === "End") next = tabs.length - 1;
+          if (next !== undefined) { e.preventDefault(); tabs[next].focus(); showView(tabs[next].dataset.view); }
+        });
+      });
+      root.querySelector("#back-current").addEventListener("click", () => showView("development", currentNode));
+      root.querySelector("#theme").addEventListener("change", e => { if (e.target.value === "auto") delete document.documentElement.dataset.theme; else document.documentElement.dataset.theme = e.target.value; });
+      function fromHash() {
+        const [v, n] = location.hash.slice(1).split("/");
+        const allowed = views[v] && [...views[v].items, ...(v === "business" ? ["split", "knowledge"] : v === "development" ? ["sor", "fast"] : [])];
+        showView(allowed ? v : "development", allowed && allowed.includes(n) ? n : undefined, false);
+      }
+      window.addEventListener("hashchange", fromHash); fromHash();
+    })();
+  </script>
+</body>
+</html>

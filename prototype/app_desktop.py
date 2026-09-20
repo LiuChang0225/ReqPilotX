@@ -7,8 +7,10 @@ import threading
 import time
 import subprocess
 import atexit
+import json
+import re
+import uuid
 from pathlib import Path
-
 
 def _prefer_bundled_runtime_packages() -> None:
     base_dir = Path(__file__).resolve().parent
@@ -66,6 +68,24 @@ def _prefer_bundled_runtime_packages() -> None:
 _prefer_bundled_runtime_packages()
 os.environ["REQPILOT_DESKTOP_EMBEDDED"] = "1"
 
+from app.infrastructure.local_runtime import (
+    LOOPBACK_HOST,
+    QDRANT_HTTP_PORT,
+    loopback_url,
+    probe_local_runtime_readiness,
+    prepare_artifact_smoke_storage,
+    qdrant_loopback_environment,
+    shutdown_runtime_in_order,
+    uvicorn_loopback_kwargs,
+    wait_for_local_readiness,
+)
+from app.runtime_paths import resolve_storage_dir
+
+ARTIFACT_SMOKE_SERVER_FLAG = "--artifact-smoke-server"
+ARTIFACT_SMOKE_HANDSHAKE_FLAG = "--artifact-smoke-handshake"
+ARTIFACT_SMOKE_NONCE_FLAG = "--artifact-smoke-nonce"
+_artifact_smoke_server = ARTIFACT_SMOKE_SERVER_FLAG in sys.argv
+
 
 def _default_user_storage_dir() -> Path:
     if sys.platform == 'win32':
@@ -80,14 +100,23 @@ def _default_user_storage_dir() -> Path:
 # main.py resolve to the same persistent path. Packaged and portable builds use
 # per-user local storage to avoid file-lock conflicts in synced folders.
 configured_storage_dir = os.environ.get("REQPILOT_STORAGE_DIR")
-if configured_storage_dir:
+if _artifact_smoke_server:
+    raw_storage_dir = str(configured_storage_dir or "").strip()
+    try:
+        storage_dir = prepare_artifact_smoke_storage(
+            Path(raw_storage_dir),
+            frozen=bool(getattr(sys, "frozen", False)),
+        )
+    except ValueError as exc:
+        raise SystemExit(str(exc)) from exc
+elif configured_storage_dir:
     storage_dir = Path(configured_storage_dir).expanduser()
 elif getattr(sys, 'frozen', False) or os.environ.get("REQPILOT_PORTABLE_MODE") == "1":
     storage_dir = _default_user_storage_dir()
 else:
     # Development mode uses the local prototype/storage directory
     prototype_dir = Path(__file__).resolve().parent
-    storage_dir = prototype_dir / "storage"
+    storage_dir = resolve_storage_dir(prototype_dir)
 
 storage_dir.mkdir(parents=True, exist_ok=True)
 os.environ["REQPILOT_STORAGE_DIR"] = str(storage_dir)
@@ -120,7 +149,7 @@ class DesktopLogger:
         return getattr(self.log_file, name)
 
 log_file_path = storage_dir / "app_desktop.log"
-if getattr(sys, 'frozen', False):
+if getattr(sys, 'frozen', False) and not _artifact_smoke_server:
     # In packaged mode, discard terminal output and write only to log file
     sys.stdout = DesktopLogger(log_file_path, None)
     sys.stderr = DesktopLogger(log_file_path, None)
@@ -137,40 +166,7 @@ elif getattr(sys, 'frozen', False):
 else:
     print(f"[ReqPilotX] Running in development mode. Storage: {storage_dir}")
 
-import datetime as dt
-class SafeDatetime(dt.datetime):
-    @classmethod
-    def now(cls, tz=None):
-        t = dt.datetime.now(tz)
-        return cls(t.year, t.month, t.day, t.hour, t.minute, t.second, t.microsecond, t.tzinfo)
-    def __sub__(self, other):
-        if isinstance(other, dt.datetime):
-            self_aware = (self.tzinfo is not None)
-            other_aware = (other.tzinfo is not None)
-            if self_aware != other_aware:
-                if self_aware:
-                    other = other.replace(tzinfo=self.tzinfo)
-                else:
-                    self_dt = dt.datetime(self.year, self.month, self.day, self.hour, self.minute, self.second, self.microsecond, tzinfo=other.tzinfo)
-                    return self_dt - other
-        return super().__sub__(other)
-
-import app.services.progress_tracker
-app.services.progress_tracker.datetime = SafeDatetime
-
-# Obfuscated configuration loading
-def deobfuscate_secret(cipher_text: str) -> str:
-    try:
-        import base64
-        decoded = base64.b64decode(cipher_text.encode('utf-8'))
-        return bytes([b ^ 42 for b in decoded]).decode('utf-8')
-    except Exception:
-        return ""
-
-# Put obfuscated key here. If empty, fallback to system environment variables.
-OB_DASHSCOPE_API_KEY = ""
-
-# Load API key and other settings: environment first, then config.json, then obfuscated key fallback.
+# Load API settings from the environment or the user-owned runtime config.
 has_key = False
 if os.environ.get("REQPILOT_DASHSCOPE_API_KEY") or os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("REQPILOT_ALIYUN_API_KEY"):
     has_key = True
@@ -186,16 +182,12 @@ if config_file.exists():
                     os.environ[key] = str(val)
         if os.environ.get("REQPILOT_DASHSCOPE_API_KEY") or os.environ.get("DASHSCOPE_API_KEY") or os.environ.get("REQPILOT_ALIYUN_API_KEY"):
             has_key = True
-            print(f"[ReqPilotX] Configurations and API key loaded from {config_file}")
+            print("[ReqPilotX] Runtime configuration loaded.")
     except Exception as e:
-        print(f"[ReqPilotX] Warning: Failed to load config.json: {e}")
-
-if not has_key and OB_DASHSCOPE_API_KEY:
-    api_key = deobfuscate_secret(OB_DASHSCOPE_API_KEY)
-    if api_key:
-        os.environ["REQPILOT_DASHSCOPE_API_KEY"] = api_key
-        has_key = True
-        print("[ReqPilotX] Obfuscated DashScope API key loaded successfully.")
+        print(
+            "[ReqPilotX] Warning: Failed to load runtime configuration. "
+            f"error_type={type(e).__name__}"
+        )
 
 # If we have a key (from any source), default to enabling local Qdrant retrieval for Aliyun POC
 if has_key:
@@ -205,28 +197,67 @@ if has_key:
 
 import uvicorn
 import webview
+from app.application.runtime import (
+    acquire_runtime_storage_lease,
+    manage_runtime_storage_lease_from_launcher,
+    register_artifact_smoke_shutdown,
+    release_runtime_storage_lease,
+)
+from app.infrastructure.storage_lock import StorageLockError
 from app.main import app
 
 # Qdrant process reference for cleanup
 qdrant_process = None
+backend_server = None
+backend_thread = None
 
-def find_free_port(start_port: int = 8543) -> int:
-    port = start_port
-    while True:
-        with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
-            try:
-                s.bind(('127.0.0.1', port))
-                return port
-            except OSError:
-                port += 1
 
-def start_backend(port: int) -> None:
-    uvicorn.run(app, host="127.0.0.1", port=port, log_level="warning")
+def bind_loopback_socket() -> socket.socket:
+    listener = socket.socket(socket.AF_INET, socket.SOCK_STREAM)
+    try:
+        listener.setsockopt(socket.SOL_SOCKET, socket.SO_REUSEADDR, 1)
+        listener.bind((LOOPBACK_HOST, 0))
+        listener.listen(socket.SOMAXCONN)
+        listener.setblocking(False)
+        return listener
+    except Exception:
+        listener.close()
+        raise
+
+
+def request_backend_shutdown() -> None:
+    if backend_server is not None:
+        backend_server.should_exit = True
+
+
+def start_backend(listener: socket.socket) -> bool:
+    global backend_server
+    host, port = listener.getsockname()[:2]
+    if host != LOOPBACK_HOST:
+        listener.close()
+        raise RuntimeError("ReqPilotX backend listener is not loopback-bound.")
+    config = uvicorn.Config(app, **uvicorn_loopback_kwargs(port))
+    backend_server = uvicorn.Server(config)
+    register_artifact_smoke_shutdown(request_backend_shutdown)
+    try:
+        backend_server.run(sockets=[listener])
+        return bool(backend_server.started)
+    finally:
+        register_artifact_smoke_shutdown(None)
+        listener.close()
+
+
+def stop_backend(thread: threading.Thread | None = None) -> None:
+    request_backend_shutdown()
+    if thread is not None and thread.is_alive():
+        thread.join(timeout=5.0)
+        if thread.is_alive():
+            raise RuntimeError("ReqPilotX backend did not stop within 5 seconds.")
 
 def is_port_in_use(port: int) -> bool:
     with socket.socket(socket.AF_INET, socket.SOCK_STREAM) as s:
         try:
-            s.connect(('127.0.0.1', port))
+            s.connect((LOOPBACK_HOST, port))
             return True
         except OSError:
             return False
@@ -235,7 +266,7 @@ def check_qdrant_service() -> bool:
     import urllib.request
     import json
     try:
-        req = urllib.request.Request("http://127.0.0.1:6333/")
+        req = urllib.request.Request(loopback_url(QDRANT_HTTP_PORT, "/"))
         with urllib.request.urlopen(req, timeout=1.0) as response:
             if response.status == 200:
                 data = json.loads(response.read().decode('utf-8'))
@@ -244,26 +275,28 @@ def check_qdrant_service() -> bool:
         pass
     return False
 
-def is_server_ready(port: int, timeout: float = 5.0) -> bool:
-    start_time = time.time()
-    while time.time() - start_time < timeout:
-        if is_port_in_use(port):
-            return True
-        time.sleep(0.1)
-    return False
+def is_server_ready(port: int, timeout: float = 10.0) -> bool:
+    return wait_for_local_readiness(
+        port,
+        timeout_seconds=timeout,
+        probe=probe_local_runtime_readiness,
+    )
 
 def start_qdrant_if_needed() -> None:
     global qdrant_process
     
     # Check if Qdrant is already running and healthy
     if check_qdrant_service():
-        print("[ReqPilotX] Qdrant is already running and healthy on port 6333.")
-        os.environ["REQPILOT_QDRANT_URL"] = "http://localhost:6333"
+        print(f"[ReqPilotX] Qdrant is already running and healthy on port {QDRANT_HTTP_PORT}.")
+        os.environ["REQPILOT_QDRANT_URL"] = loopback_url(QDRANT_HTTP_PORT)
         return
         
-    # Check if port 6333 is occupied by another service
-    if is_port_in_use(6333):
-        print("[ReqPilotX] Warning: Port 6333 is active but not responding as a healthy Qdrant service. Skipping background launch.")
+    # Check if the local Qdrant port is occupied by another service.
+    if is_port_in_use(QDRANT_HTTP_PORT):
+        print(
+            f"[ReqPilotX] Warning: Port {QDRANT_HTTP_PORT} is active but not "
+            "responding as a healthy Qdrant service. Skipping background launch."
+        )
         return
         
     # Resolve Qdrant binary path based on runtime context
@@ -294,7 +327,10 @@ def start_qdrant_if_needed() -> None:
         try:
             os.chmod(qdrant_binary, 0o755)
         except Exception as e:
-            print(f"[ReqPilotX] Warning: Failed to set executable permissions on Qdrant: {e}")
+            print(
+                "[ReqPilotX] Warning: Failed to set executable permissions on Qdrant. "
+                f"error_type={type(e).__name__}"
+            )
             
     print(f"[ReqPilotX] Starting background Qdrant process at {qdrant_binary}...")
     
@@ -309,7 +345,8 @@ def start_qdrant_if_needed() -> None:
             cwd=str(qdrant_db_dir),
             stdout=subprocess.DEVNULL,
             stderr=subprocess.DEVNULL,
-            creationflags=creationflags
+            creationflags=creationflags,
+            env=qdrant_loopback_environment(),
         )
         print("[ReqPilotX] Qdrant process spawned. Waiting for it to become ready...")
         
@@ -323,14 +360,20 @@ def start_qdrant_if_needed() -> None:
             time.sleep(0.2)
             
         if ready:
-            print("[ReqPilotX] Qdrant service is ready and listening on port 6333.")
-            os.environ["REQPILOT_QDRANT_URL"] = "http://localhost:6333"
+            print(
+                f"[ReqPilotX] Qdrant service is ready and listening on "
+                f"port {QDRANT_HTTP_PORT}."
+            )
+            os.environ["REQPILOT_QDRANT_URL"] = loopback_url(QDRANT_HTTP_PORT)
         else:
             print("[ReqPilotX] Warning: Qdrant service did not become healthy within timeout.")
     except Exception as e:
-        print(f"[ReqPilotX] Error launching Qdrant process: {e}")
+        print(
+            "[ReqPilotX] Error launching Qdrant process. "
+            f"error_type={type(e).__name__}"
+        )
 
-def cleanup_processes() -> None:
+def stop_qdrant() -> None:
     global qdrant_process
     if qdrant_process and qdrant_process.poll() is None:
         print("[ReqPilotX] Terminating background Qdrant database...")
@@ -341,25 +384,122 @@ def cleanup_processes() -> None:
             print("[ReqPilotX] Force killing Qdrant database...")
             qdrant_process.kill()
             qdrant_process.wait()
+
+
+def shutdown_owned_runtime(thread: threading.Thread | None) -> None:
+    shutdown_runtime_in_order(
+        stop_qdrant=stop_qdrant,
+        stop_backend=lambda: stop_backend(thread),
+        release_storage=release_runtime_storage_lease,
+    )
+
+
+def cleanup_processes() -> None:
+    try:
+        shutdown_owned_runtime(backend_thread)
+    except Exception as exc:
+        print(
+            "[ReqPilotX] Runtime cleanup did not complete; storage lease remains held. "
+            f"error_type={type(exc).__name__}"
+        )
             
 # Register exit handler to clean up Qdrant process on normal exit
 atexit.register(cleanup_processes)
 
-def main() -> None:
+def _required_argument(flag: str) -> str:
+    try:
+        return str(sys.argv[sys.argv.index(flag) + 1])
+    except (ValueError, IndexError) as exc:
+        raise ValueError(f"{flag} requires a value.") from exc
+
+
+def _write_artifact_smoke_handshake(
+    path: Path,
+    *,
+    nonce: str,
+    host: str,
+    port: int,
+) -> None:
+    if not path.is_absolute() or path.parent.is_symlink() or not path.parent.is_dir():
+        raise ValueError("Artifact smoke handshake path must use an existing absolute directory.")
+    if os.path.lexists(path):
+        raise ValueError("Artifact smoke handshake path already exists.")
+    payload = {
+        "pid": os.getpid(),
+        "port": int(port),
+        "nonce": nonce,
+        "host": host,
+    }
+    temporary = path.with_name(f".{path.name}.{uuid.uuid4().hex}.tmp")
+    descriptor = os.open(temporary, os.O_CREAT | os.O_EXCL | os.O_WRONLY, 0o600)
+    try:
+        with os.fdopen(descriptor, "w", encoding="utf-8") as stream:
+            json.dump(payload, stream, ensure_ascii=False, sort_keys=True)
+            stream.flush()
+            os.fsync(stream.fileno())
+        os.replace(temporary, path)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
+def main() -> int:
+    global backend_thread
+    if _artifact_smoke_server:
+        try:
+            nonce = _required_argument(ARTIFACT_SMOKE_NONCE_FLAG)
+            handshake_path = Path(
+                _required_argument(ARTIFACT_SMOKE_HANDSHAKE_FLAG)
+            )
+            if not re.fullmatch(r"[0-9a-f]{64}", nonce):
+                raise ValueError("Artifact smoke nonce must be 64 lowercase hex characters.")
+            listener = bind_loopback_socket()
+            host, port = listener.getsockname()[:2]
+            os.environ["REQPILOT_ARTIFACT_SMOKE_NONCE"] = nonce
+            os.environ["REQPILOT_ARTIFACT_SMOKE_HOST"] = str(host)
+            os.environ["REQPILOT_ARTIFACT_SMOKE_PORT"] = str(port)
+            _write_artifact_smoke_handshake(
+                handshake_path,
+                nonce=nonce,
+                host=str(host),
+                port=int(port),
+            )
+            manage_runtime_storage_lease_from_launcher(True)
+            started = start_backend(listener)
+        except ValueError as exc:
+            print(f"[ReqPilotX] Artifact smoke server rejected: {exc}")
+            return 2
+        if not started:
+            return 1
+        release_runtime_storage_lease()
+        return 0
+
+    manage_runtime_storage_lease_from_launcher(True)
+    try:
+        acquire_runtime_storage_lease()
+    except StorageLockError as exc:
+        print(f"[ReqPilotX] Startup blocked: {exc}")
+        return 2
+
     # 1. Start Qdrant backend if available
     start_qdrant_if_needed()
     
     # 2. Start FastAPI backend
-    port = find_free_port()
-    t = threading.Thread(target=start_backend, args=(port,), daemon=True)
+    listener = bind_loopback_socket()
+    _host, port = listener.getsockname()[:2]
+    t = threading.Thread(target=start_backend, args=(listener,), daemon=True)
+    backend_thread = t
     t.start()
     
     # Wait for backend server to be ready
     if not is_server_ready(port):
         print(f"[Error] Backend server failed to start on port {port} within timeout.")
-        sys.exit(1)
+        try:
+            shutdown_owned_runtime(t)
+        except RuntimeError:
+            return 1
+        return 1
         
-    url = f"http://127.0.0.1:{port}"
+    url = loopback_url(port)
     
     # Create the pywebview native window
     window = webview.create_window(
@@ -407,7 +547,11 @@ def main() -> None:
     window.events.loaded += remove_target_blank
     
     # Start the native window event loop (this blocks until window is closed)
-    webview.start()
+    try:
+        webview.start()
+    finally:
+        shutdown_owned_runtime(t)
+    return 0
 
 if __name__ == '__main__':
-    main()
+    raise SystemExit(main())

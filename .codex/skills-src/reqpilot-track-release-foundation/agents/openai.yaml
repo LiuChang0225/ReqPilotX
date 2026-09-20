@@ -1,5 +1,0 @@
-interface:
-  display_name: "ReqPilot Release Foundation"
-  short_description: "Work the release-foundation track"
-  default_prompt: "Use $reqpilot-track-release-foundation to work only on P0 stability, Entra auth, feedback skeleton, and trial-run readiness, with explicit gates and handoff notes."
-

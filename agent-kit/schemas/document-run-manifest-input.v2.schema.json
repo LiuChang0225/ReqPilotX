@@ -1,0 +1,59 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "kit_bundle_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Kit Bundle Sha256"
+    },
+    "source_handle": {
+      "anyOf": [
+        {
+          "pattern": "^source-handle-[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Handle"
+    },
+    "stage": {
+      "anyOf": [
+        {
+          "const": "D1_DOCUMENT_UNDERSTANDING",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stage"
+    },
+    "stage_context_sha256": {
+      "anyOf": [
+        {
+          "pattern": "^[0-9a-f]{64}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Stage Context Sha256"
+    }
+  },
+  "title": "DocumentRunManifestInputV2",
+  "type": "object"
+}

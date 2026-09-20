@@ -1,0 +1,125 @@
+{
+  "$defs": {
+    "NonRequirementRole": {
+      "enum": [
+        "HEADING",
+        "METADATA",
+        "REVISION_HISTORY",
+        "CONTEXT",
+        "DEFINITION",
+        "RATIONALE",
+        "EXAMPLE",
+        "NOTE",
+        "REFERENCE"
+      ],
+      "type": "string"
+    },
+    "RequirementKind": {
+      "enum": [
+        "FUNCTIONAL",
+        "QUALITY",
+        "CONSTRAINT",
+        "PROJECT",
+        "PROCESS"
+      ],
+      "type": "string"
+    },
+    "Requirementness": {
+      "enum": [
+        "REQUIREMENT",
+        "NON_REQUIREMENT"
+      ],
+      "type": "string"
+    },
+    "SourceItemImageDecisionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "type": "number"
+        },
+        "decision_summary": {
+          "type": "string"
+        },
+        "display_label": {
+          "type": "string"
+        },
+        "image_anchor_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "item_key": {
+          "type": "string"
+        },
+        "non_requirement_role": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NonRequirementRole"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "requirement_kinds": {
+          "items": {
+            "$ref": "#/$defs/RequirementKind"
+          },
+          "type": "array"
+        },
+        "requirementness": {
+          "$ref": "#/$defs/Requirementness"
+        },
+        "visual_interpretation": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "item_key",
+        "display_label",
+        "image_anchor_ids",
+        "requirementness",
+        "requirement_kinds",
+        "non_requirement_role",
+        "confidence",
+        "decision_summary",
+        "reason_codes",
+        "visual_interpretation"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/SourceItemImageDecisionV1"
+      },
+      "type": "array"
+    },
+    "node_id": {
+      "type": "string"
+    },
+    "packet_sha256": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "source-item-image-scope-candidate/v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "node_id",
+    "packet_sha256",
+    "items"
+  ],
+  "type": "object"
+}

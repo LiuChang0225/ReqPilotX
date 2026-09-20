@@ -1,0 +1,690 @@
+{
+  "schema_version": "1.0.0",
+  "suite_id": "reqpilotx-agent-evals-v1",
+  "rubrics": [
+    {
+      "rubric_id": "source_identity",
+      "title": "原件、冻结能力包与工件身份",
+      "checks": [
+        {
+          "check_id": "source-sha256",
+          "layer": "program",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "critical",
+          "evaluator": "source_identity",
+          "pass": "私有绑定解析到的原件字节 SHA-256 与案例冻结值一致，运行记录引用同一来源。",
+          "fail": "实际原件哈希不匹配，或以同名替代文件、派生图片及 OCR 文本冒充被冻结原件。",
+          "review": "缺少可读取原件或可靠哈希证据，不能判断来源一致；不计为通过。",
+          "not_applicable": "不适用仅限案例仍为 PENDING_INPUT 且未开始运行；该状态不能形成已执行成绩。",
+          "evidence_required": [
+            "冻结案例 source_sha256",
+            "私有绑定对应文件的实际 SHA-256",
+            "本次运行来源身份"
+          ],
+          "acceptable_alternatives": [
+            "可以采用不同阅读或捕获方法，前提是均回溯到相同原件字节。"
+          ]
+        },
+        {
+          "check_id": "frozen-bundle",
+          "layer": "program",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "critical",
+          "evaluator": "bundle_integrity",
+          "pass": "运行实际使用的能力包可与启动前冻结哈希核验一致，后续工程修复另存而未替换运行输入。",
+          "fail": "实际使用的包与冻结输入不符，或运行中改包却仍作为同条件原运行计分。",
+          "review": "能力包实际位置、文件清单或哈希缺失，尚不能判断冻结条件。",
+          "not_applicable": "未运行的 PENDING_INPUT 案例没有能力包成绩；已运行案例不可仅以版本名代替核验。",
+          "evidence_required": [
+            "启动前冻结包哈希或文件清单",
+            "本次实际使用包的哈希核验"
+          ],
+          "acceptable_alternatives": [
+            "CLI、MCP 或其他宿主适配均可，差异须在运行配置中如实记录。"
+          ]
+        },
+        {
+          "check_id": "artifact-hashes",
+          "layer": "program",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "critical",
+          "evaluator": "artifact_integrity",
+          "pass": "纳入成绩的已保存工件可按冻结清单逐一校验，观察点与后续版本分别保留。",
+          "fail": "成果字节不匹配、串用其他运行产物，或用后续 head 覆盖较早观察点成绩。",
+          "review": "工件不存在、未冻结或无法读取，不能核验其完整性。",
+          "not_applicable": "该运行尚未生成任何成果时不形成成果完整性通过；任务完成性仍单独判断。",
+          "evidence_required": [
+            "成果相对引用和哈希清单",
+            "实际工件字节",
+            "对应运行、版本与观察点身份"
+          ],
+          "acceptable_alternatives": [
+            "允许保存多个真实版本，评分须明确选择哪个冻结版本。"
+          ]
+        }
+      ]
+    },
+    {
+      "rubric_id": "document_map",
+      "title": "真实结构、正文、编号与来源顺序",
+      "checks": [
+        {
+          "check_id": "hierarchy-and-body",
+          "layer": "source_semantic",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "按原件真实组织保留文档单元、章节、子章节及直接正文；父级自身正文保留，引用不改变所属父级。",
+          "fail": "将解析外框、物理页或读取容器当作虚构章节，丢失父正文，或把后代全文重复当作父级正文。",
+          "review": "标题边界、附件归属或父子关系存在来源支持的两种解释，需定位后复核。",
+          "not_applicable": "没有某种层级不构成不适用；无章节文档同样应表达其直接内容。",
+          "evidence_required": [
+            "原页或原文范围",
+            "已保存 Map 节点、父级、顺序及正文绑定"
+          ],
+          "acceptable_alternatives": [
+            "结构深度和节点数量可不同，只要来源组织及业务范围等价。",
+            "原文没有中间层时允许直接挂在文档或章节下。"
+          ]
+        },
+        {
+          "check_id": "navigation-blocks",
+          "layer": "source_semantic",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "封面、目录与文控按完整可读来源块保留，不把字段、页码或导航条款号制造成正文 SRC/REQ；同页真实义务仍独立判断。",
+          "fail": "逐封面字段或目录行生成业务条目，直接丢弃导航块，或按整页排除而漏掉独立义务。",
+          "review": "导航区域与正文交叠或识别不明，需回源划定真实范围。",
+          "not_applicable": "原件确无导航或文控内容，且已回源确认。",
+          "evidence_required": [
+            "封面、目录、文控及相邻正文的来源范围",
+            "对应 Map 块",
+            "FULL_DOCUMENT 或 SCOPED_REVISION 时的关联条目身份"
+          ],
+          "acceptable_alternatives": [
+            "连续文控内容可合并或分成多个完整块，前提是来源完整、角色明确且不虚增业务条目。"
+          ]
+        },
+        {
+          "check_id": "numbering-and-source-order",
+          "layer": "source_semantic",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "正文原编号及真实阅读顺序保留，缺号、重号、倒序照录；系统身份与客户编号分开，真实子编号归属正确。",
+          "fail": "自动补齐或重排客户编号，按编号去重丢内容，或仅按词法编号排序打乱原件顺序。",
+          "review": "疑似编号可能是 OCR 噪声、小数、页码或真实条款号，尚需回源核对。",
+          "not_applicable": "无原编号时编号保真子条件不适用，来源顺序仍须验证。",
+          "evidence_required": [
+            "相关连续来源范围",
+            "Map 原编号、稳定身份、父级和顺序",
+            "存在条目时其对应来源顺序"
+          ],
+          "acceptable_alternatives": [
+            "稳定 SRC/REQ 具体号码可不同，不以旧运行号码或总项数为答案。",
+            "显示标签可辅助阅读，但必须与客户原编号区分。"
+          ]
+        },
+        {
+          "check_id": "logical-table-ownership",
+          "layer": "source_semantic",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "逻辑表、来源片段、跨页续接、共享表头与表注的归属依据原件成立；来源证据引用与业务所有权分别表达。",
+          "fail": "将页面边框作为整份业务表、按页切断同表、无依据合并相邻表，或因来源重叠删除真实业务表。",
+          "review": "续表、表头适用范围或片段角色存在实质歧义，需按原件列义与上下文复核。",
+          "not_applicable": "原件确无表格内容或表格来源片段。",
+          "evidence_required": [
+            "原表及前后页来源",
+            "Map 逻辑表、片段和包含或引用关系",
+            "共享及合并单元格适用范围"
+          ],
+          "acceptable_alternatives": [
+            "自由文本表角色标签可不同，只要实际包含、续接与上下文语义一致。"
+          ]
+        }
+      ]
+    },
+    {
+      "rubric_id": "source_items",
+      "title": "来源忠实的原文条目与分类",
+      "checks": [
+        {
+          "check_id": "source-item-fidelity",
+          "layer": "source_semantic",
+          "applies_to": [
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "critical",
+          "evaluator": "manual",
+          "pass": "原文条目的语言、完整义务、数值、单位、否定、条件、例外与引用可回源核对，没有无来源增删。",
+          "fail": "以摘要或翻译替代原文，改变关键条件及数值，补造客户义务，或将未知内容声称为已覆盖。",
+          "review": "原件无法读清或来源绑定不足，需定位缺口并保留待核对状态。",
+          "not_applicable": "MAP_ONLY 不评原文条目提取；完整任务不能因尚未产出条目而标不适用。",
+          "evidence_required": [
+            "实际原件范围",
+            "冻结原文条目正文及来源绑定",
+            "共享上下文与引用的可读内容"
+          ],
+          "acceptable_alternatives": [
+            "可采用不同条目边界，只要满足当前模型V1的完整语义与原编号边界要求。"
+          ]
+        },
+        {
+          "check_id": "ordinary-prose",
+          "layer": "source_semantic",
+          "applies_to": [
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "有意义的无编号普通正文可形成原文条目；章节直接正文保留，纯标题只作结构，1:1 条款或整表不造同名壳层。",
+          "fail": "无编号正文被漏掉或强制当列表，纯标题重复制造条目，或把一个完整条款复制成同名父子条目。",
+          "review": "标题兼正文或列表边界存在来源歧义，需查看实际原文和版式。",
+          "not_applicable": "原件确无对应的普通正文或1:1对象时，相关子条件不适用。",
+          "evidence_required": [
+            "无编号正文、标题及相邻原文",
+            "Map 与原文条目对应关系"
+          ],
+          "acceptable_alternatives": [
+            "标题加正文可共用一个可阅读业务行，后台不同身份可以保留。"
+          ]
+        },
+        {
+          "check_id": "classification-context",
+          "layer": "source_semantic",
+          "applies_to": [
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "需求与非需求及分类依据全文语境和当前分类V1；结构、内容形式、业务判定和来源关系分别表达，有意义非需求可读。",
+          "fail": "靠 shall、数字、表格或图片等词形直接决定需求性，将非需求删除，或用表格等显示类型替代业务分类。",
+          "review": "义务性、适用范围或分类可有来源支持的不同解释，需给出具体依据及待审范围。",
+          "not_applicable": "MAP_ONLY 不评条目分类；完整任务缺少分类是未完成，不能标不适用。",
+          "evidence_required": [
+            "原文条目及章节上下文",
+            "冻结分类字段与判定依据",
+            "非需求的可读来源"
+          ],
+          "acceptable_alternatives": [
+            "具体分类允许有依据的合理分歧，但不能改写来源义务或混淆四个维度。"
+          ]
+        },
+        {
+          "check_id": "whole-unit-granularity",
+          "layer": "source_semantic",
+          "applies_to": [
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "完整 BOM、一次完整试验步骤或完整规格参数按共同分析事项保留，内部编号与组成完整；多个独立编号事项按来源分别识别。",
+          "fail": "按 BOM 零件行或试验步骤机械逐条需求化，丢内部组成，或以同页同表为由合并多个独立完整事项。",
+          "review": "独立分支或完整事项边界有两种来源解释，需说明共同目标和组合范围。",
+          "not_applicable": "原件确无可成组的组成集合、试验步骤或多个独立表内事项。",
+          "evidence_required": [
+            "完整原表或原文编号集合",
+            "条目覆盖范围、内部结构与成组理由"
+          ],
+          "acceptable_alternatives": [
+            "完整独立 BOM 分支可以分别成项；不以旧答案总条目数或每表项数计正确性。"
+          ]
+        }
+      ]
+    },
+    {
+      "rubric_id": "derivation",
+      "title": "保留父项的合法派生与完整分析上下文",
+      "checks": [
+        {
+          "check_id": "parent-preserving-derivation",
+          "layer": "source_semantic",
+          "applies_to": [
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "在任务明确授权的范围内，必要派生项有完整原文父项、独立身份、准确依据和显式派生关系；无须拆分时保留整体并说明判断。",
+          "fail": "拆分后删除或改写原文父项，无授权范围建立派生，缺少直接依据，或将工程推断写成客户原文。",
+          "review": "独立响应必要性、授权范围或派生依据无法确认，需复核具体父项。",
+          "not_applicable": "任务明确不授权派生时，只验证未越权；没有实际派生不自动等于失败或通过。",
+          "evidence_required": [
+            "任务授权范围",
+            "父项完整原文",
+            "派生或保留整体处置及理由",
+            "父子双向追溯"
+          ],
+          "acceptable_alternatives": [
+            "零个或多个 Snn 均可能合理，具体数量不作为正确答案。",
+            "可采用不同有效派生边界，只要独立响应必要性和来源完整。"
+          ]
+        },
+        {
+          "check_id": "numbered-children-vs-derived",
+          "layer": "source_semantic",
+          "applies_to": [
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "原文实际编号子项归入来源包含关系，默认识别到最低有意义层；工程派生 Snn 与原文编号分别保存。",
+          "fail": "将真实原编号叶项改成 Snn，凭派生伪造客户原编号，或无完整事项理由合并独立编号正文。",
+          "review": "原编号含义或整体例外证据不足，需回看相关来源范围。",
+          "not_applicable": "原件无原编号层级且无派生项时，此区分不适用。",
+          "evidence_required": [
+            "原文父子编号及正文",
+            "来源包含关系",
+            "显式派生关系和系统身份"
+          ],
+          "acceptable_alternatives": [
+            "完整 BOM 或完整试验内部步骤可成组，但必须保留内部编号和成组理由。"
+          ]
+        },
+        {
+          "check_id": "derivation-context",
+          "layer": "source_semantic",
+          "applies_to": [
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "critical",
+          "evaluator": "manual",
+          "pass": "每个实际派生项可读取其直接依据和全部适用条件、方法、阈值、单位、例外、表图与共用上下文，且未扩大原文义务。",
+          "fail": "派生遗漏必要条件、孤立参数或方法、复制错误共用条件，或将不同适用范围混在一个无条件结论中。",
+          "review": "共用条件或引用适用范围不能从当前证据确认，需定位并标明影响。",
+          "not_applicable": "没有实际派生项时不适用；是否应派生由 parent-preserving-derivation 单独判断。",
+          "evidence_required": [
+            "实际派生项表达",
+            "准确直接依据",
+            "父正文、方法条件、图表和共享上下文的可读绑定"
+          ],
+          "acceptable_alternatives": [
+            "共享上下文可以引用，不要求每个子项复制整段。"
+          ]
+        }
+      ]
+    },
+    {
+      "rubric_id": "visual_content",
+      "title": "图表身份、完整内容与真实视觉证据",
+      "checks": [
+        {
+          "check_id": "table-image-identity",
+          "layer": "source_semantic",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "表内图保持正确表格或表格条目归属；扫描表业务身份可为表格，来源图像与业务对象分别表达。",
+          "fail": "只因图像引用把表格改成独立图片，扫描表按文件后缀误判，或图与表格单元格错配。",
+          "review": "图像落格或表格业务身份存在歧义，需要实际原图和上下文。",
+          "not_applicable": "原件没有表内图或扫描表时，相关子条件不适用。",
+          "evidence_required": [
+            "原页、表格及图像的实际可见内容",
+            "Map 与条目业务类型",
+            "图表包含或关联关系"
+          ],
+          "acceptable_alternatives": [
+            "同一表格可用不同的来源读取表示，业务归属须保持。"
+          ]
+        },
+        {
+          "check_id": "figures-and-interpretation",
+          "layer": "source_semantic",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "独立图、图注及真实所属保留；已有图像释读与客户原图分开，推断标明依据与不确定性。",
+          "fail": "漏独立图或图注，将释读替代原文，或把图中未证明的工程约束当客户要求。",
+          "review": "图示无法读清、图注与所属不明确或推断边界存疑，需回源复核。",
+          "not_applicable": "没有独立图或释读时，相应子条件不适用；MAP_ONLY 不要求新增释读成果。",
+          "evidence_required": [
+            "实际图像和图注",
+            "Map 或条目的图像关系",
+            "存在释读时其内容与来源依据"
+          ],
+          "acceptable_alternatives": [
+            "没有业务必要可以保留原图而不额外生成释读。"
+          ]
+        },
+        {
+          "check_id": "visual-reading-coverage",
+          "layer": "trajectory",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "涉及不可由文本充分确认的图表判断，有实际可读取的视觉证据或对局限的准确说明；读取行为与完成主张一致。",
+          "fail": "只凭文件已生成或 OCR 候选就声称已看图，未获得图像却确认关键视觉内容，或把未读区域当空白。",
+          "review": "轨迹未保留足够的图像返回或读取证据，不能确认实际视觉阅读。",
+          "not_applicable": "全部判断均可由已验证的原生文本充分确认，且未作视觉读取主张。",
+          "evidence_required": [
+            "真实工具返回或图像读取事件",
+            "涉及图表的成果判断",
+            "不可读范围及其处理说明"
+          ],
+          "acceptable_alternatives": [
+            "允许原件、高清页图、局部图或其他可追溯视觉路径；不规定工具顺序、读取次数或最低图像文件数。"
+          ]
+        }
+      ]
+    },
+    {
+      "rubric_id": "evidence_discipline",
+      "title": "无内部依据分支、有限不确定性与评测隔离",
+      "checks": [
+        {
+          "check_id": "no-kb-no-compliance",
+          "layer": "source_semantic",
+          "applies_to": [
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "critical",
+          "evaluator": "manual",
+          "pass": "未提供内部依据时明确未执行产品符合性分析，继续来源整理、必要派生及原文缺项检查；没有把客户要求当符合性证据。",
+          "fail": "凭客户原件或常识生成产品已符合、已验证或内部能力结论，伪造知识来源，或把未执行记作已分析。",
+          "review": "输入中是否存在已授权内部依据或结果的分析状态不清楚，需检查本次输入与成果。",
+          "not_applicable": "任务实际提供了已授权内部依据时，无依据分支不适用；其分析另按适用评审范围核验。",
+          "evidence_required": [
+            "本次输入与内部依据配置",
+            "分析状态及原因",
+            "工作台或 Excel 的实际有效响应"
+          ],
+          "acceptable_alternatives": [
+            "可记录原文自身矛盾、缺附件和待澄清事项，这些不等于产品符合性分析。"
+          ]
+        },
+        {
+          "check_id": "bounded-uncertainty",
+          "layer": "source_semantic",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "不能解决的歧义、缺附件或不可读范围被定位并说明影响，其余可用范围继续完成；未知与已覆盖、已接受分开。",
+          "fail": "补造缺失内容、把未读或未知标作完整或符合，或因局部缺口无必要地放弃其余范围。",
+          "review": "缺口范围或影响没有充分证据，需补充来源定位后判断。",
+          "not_applicable": "原件及任务范围没有发现实质不确定性时可不适用，但不能只凭无 findings 声称不存在。",
+          "evidence_required": [
+            "实际缺口的来源范围",
+            "已保存发现或最终说明",
+            "受影响与已完成范围"
+          ],
+          "acceptable_alternatives": [
+            "合理分歧可以保留 REVIEW，不要求全文完美或逐条人工确认。"
+          ]
+        },
+        {
+          "check_id": "evaluator-isolation",
+          "layer": "trajectory",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "critical",
+          "evaluator": "manual",
+          "pass": "被测 Agent 获得真实任务、私有绑定原件及冻结能力，不接收案例标签、评分规则、反例答案或开发者纠错；运行实际干预如实留痕。",
+          "fail": "将私有 rubric、旧答案或开发对话注入后仍声称独立自主成绩，或未披露运行中纠错。",
+          "review": "无法核实实际输入或中途消息，独立性暂不能判断。",
+          "not_applicable": "未执行的 PENDING_INPUT 案例没有运行独立性成绩。",
+          "evidence_required": [
+            "实际模型输入与宿主配置",
+            "运行期间的外部消息或干预记录",
+            "案例开发或留出归属"
+          ],
+          "acceptable_alternatives": [
+            "冻结产品技能可含通用方法；已知开发样例仍可用于 development 回归，但不能冒充独立 held_out。"
+          ]
+        }
+      ]
+    },
+    {
+      "rubric_id": "autonomous_revision",
+      "title": "自主完成、自查修订及局部反馈",
+      "checks": [
+        {
+          "check_id": "natural-completion",
+          "layer": "program",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "autonomous_completion",
+          "pass": "实际运行记录显示 Agent 自然结束，完成状态与该观察点一致；完成能力与耗时及最终质量分别记录。",
+          "fail": "Agent 自行结束并明确放弃仍可完成的授权任务，或实际终态为未恢复的运行失败；具体原因须保留。",
+          "review": "仍在运行、仅到观察点、被操作者中断或局部预算截断时，最终完成能力尚未知；不能据此直接判能力失败。",
+          "not_applicable": "PENDING_INPUT 尚未启动时不适用；已有运行不能把缺终态日志标作自然完成。",
+          "evidence_required": [
+            "真实运行终态及时间戳",
+            "观察点与续接关系",
+            "存在中断时的原因及操作者记录"
+          ],
+          "acceptable_alternatives": [
+            "可在相同冻结输入与包下续接，保留较早观察点；20分钟仅可作为观察点，不是固定能力门槛。"
+          ]
+        },
+        {
+          "check_id": "self-check-and-revision",
+          "layer": "trajectory",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "Agent 自主核对已保存成果，发现有来源依据的问题时完成必要修订并回查；正确范围可直接保留，未依赖逐阶段人工纠错。",
+          "fail": "已识别可修问题仍不处理，声称修复但持久化结果未改变，或等待无必要的人为逐条纠错才继续授权工作。",
+          "review": "轨迹、修订前后版本或回查证据不足，不能判断自查是否落实。",
+          "not_applicable": "自查是任务范围内要求；未发现需修改之处不表示不适用，也不要求人为制造一次修订。",
+          "evidence_required": [
+            "真实自查动作或成果回读",
+            "实际发现与处理记录",
+            "存在修改时的前后版本与回查结果"
+          ],
+          "acceptable_alternatives": [
+            "方法、工具顺序和修订次数不限；读取多或重试本身不作为语义失败。",
+            "初次成果正确且自查有证据时，无需产生无意义新版本。"
+          ]
+        },
+        {
+          "check_id": "feedback-scope-preservation",
+          "layer": "trajectory",
+          "applies_to": [
+            "SCOPED_REVISION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "按明确反馈和所绑定版本修订真实关联范围，保留未受影响项、稳定身份与有效人工意见，并说明无法处理的分歧。",
+          "fail": "反馈串版本或串对象，重写无关范围，静默覆盖人工决定，或只改展示掩盖源语义错误。",
+          "review": "反馈绑定、前后版本或受影响范围证据不足，需补充后复核。",
+          "not_applicable": "没有显式局部反馈修订任务时不适用；完整任务的自主纠错由 self-check-and-revision 判断。",
+          "evidence_required": [
+            "明确反馈及其绑定版本和对象",
+            "修订前后冻结成果",
+            "变更范围与未受影响项比较"
+          ],
+          "acceptable_alternatives": [
+            "可修订多个实际关联对象，不限制成固定的一条或一次工具调用。"
+          ]
+        }
+      ]
+    },
+    {
+      "rubric_id": "delivery_consistency",
+      "title": "实际交付、UI与Excel同版及准确说明",
+      "checks": [
+        {
+          "check_id": "required-deliverables",
+          "layer": "program",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "required_artifacts",
+          "pass": "MAP_ONLY 有真实保存的 Document Map；FULL_DOCUMENT 有 Map、原文条目与分类、拆分处置及程序 Excel；SCOPED_REVISION 有修订成果与任务明确要求的交付。",
+          "fail": "自然结束后仍缺任务所需成果，成果只是口头声称或空占位，或交付引用不可解析。",
+          "review": "成果清单、实际文件或保存回执不足，尚不能确认交付齐备；仍在运行时不冒充最终失败。",
+          "not_applicable": "PENDING_INPUT 未运行时不适用；不适用不能代替已运行任务的缺失交付。",
+          "evidence_required": [
+            "任务范围",
+            "已保存工件清单与实际文件",
+            "持久化回执、工作台入口和版本"
+          ],
+          "acceptable_alternatives": [
+            "Snn 可为零但应有符合任务授权的拆分处置；不要求固定条目数、特定文件名或每类一份独立文件。"
+          ]
+        },
+        {
+          "check_id": "ui-excel-same-revision",
+          "layer": "source_semantic",
+          "applies_to": [
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "实际工作台与下载 Excel 在明确同版本、同范围下，来源顺序、身份、父级、主类型、原编号、分类、派生、释读和有效响应一致，表图可读。",
+          "fail": "UI与Excel串版本、重发号或重判分类，漏父项或表图，顺序或有效响应不一致。",
+          "review": "缺真实UI或Excel证据，或版本与范围未绑定；程序投影一致不能直接替代实际交付核对。",
+          "not_applicable": "MAP_ONLY 不要求 Excel；局部修订任务明确无需 Excel 时，仅对应导出子条件不适用。",
+          "evidence_required": [
+            "具体工作台成果版本与实际可见内容",
+            "实际下载的 Excel 及其版本和导出范围",
+            "关键文字、表格、图片和派生对象的逐项对应"
+          ],
+          "acceptable_alternatives": [
+            "筛选、折叠或排版可不同，但必须说明范围，且不能改变对象身份或语义。"
+          ]
+        },
+        {
+          "check_id": "programmatic-export",
+          "layer": "trajectory",
+          "applies_to": [
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "正常 Excel 由内部程序消费同版本成果生成；导出路径保留实际调用及回执。",
+          "fail": "为正常导出新增模型全文重提取或重分析，或自行生成另一套不共享业务状态的结果。",
+          "review": "导出过程或输入版本证据不完整，暂不能确认程序消费来源。",
+          "not_applicable": "MAP_ONLY 或明确无需 Excel 的局部修订任务不适用。",
+          "evidence_required": [
+            "真实导出调用与保存回执",
+            "导出输入成果版本",
+            "实际 Excel 工件"
+          ],
+          "acceptable_alternatives": [
+            "可针对已发生的导出故障回读受影响映射和状态，不把必要诊断当作违规重读。"
+          ]
+        },
+        {
+          "check_id": "handoff-accuracy",
+          "layer": "trajectory",
+          "applies_to": [
+            "MAP_ONLY",
+            "FULL_DOCUMENT",
+            "SCOPED_REVISION",
+            "SCOPED_EXTRACTION"
+          ],
+          "severity": "major",
+          "evaluator": "manual",
+          "pass": "最终说明指向本次具体工作和成果版本，准确区分已保存、程序检查、源语义核对、实际UI核对及未完成范围。",
+          "fail": "链接指向无关工作或错误版本，宣称不存在的验收与修复，把程序通过或合成案例结果当全文泛化或人工接受。",
+          "review": "最终说明、成果入口或其实际解析证据缺失，尚不能判断交付说明准确。",
+          "not_applicable": "未运行的 PENDING_INPUT 案例没有交付说明成绩。",
+          "evidence_required": [
+            "Agent 最终说明",
+            "对应具体工作与成果版本",
+            "程序、源语义、UI证据和未完成范围"
+          ],
+          "acceptable_alternatives": [
+            "可用不同宿主支持的可解析入口或文件回执；不要求固定措辞。"
+          ]
+        }
+      ]
+    }
+  ]
+}

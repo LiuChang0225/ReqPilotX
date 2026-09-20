@@ -1,0 +1,50 @@
+{
+  "schema_version": "atomization-scope-command-golden/v1",
+  "hash_payload": {
+    "schema_version": "atomization-target-scope/v2",
+    "project_id": "project-golden",
+    "document_id": "document-golden",
+    "session_id": "session-golden",
+    "command_id": "command-golden-001",
+    "operation": "APPLY",
+    "scope": "BRANCH",
+    "expected_review_revision": 17,
+    "expected_scope_revision": 4,
+    "expected_entry_classification_snapshot_id": "accepted-classification-0007",
+    "expected_entry_classification_revision": 8,
+    "expected_entry_classification_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "expected_working_tree_id": "working-tree-0009",
+    "expected_working_tree_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "expected_effective_structure_id": "effective-structure-0003",
+    "anchor_tree_node_id": "section-brakes",
+    "target_review_node_ids": [
+      "review-brake-pressure",
+      "review-brake-temperature",
+      "review-background"
+    ],
+    "unselected_policy": "SOURCE_BOUND_PASSTHROUGH"
+  },
+  "expected_sha256": "b3e77d8c33f8863e5bbc771039a18305e217368425d63edcceb017cc885e61e0",
+  "expected_command": {
+    "schema_version": "requirement-atomization-run-request/v2",
+    "command_id": "command-golden-001",
+    "operation": "APPLY",
+    "scope": "BRANCH",
+    "expected_review_revision": 17,
+    "expected_scope_revision": 4,
+    "expected_entry_classification_snapshot_id": "accepted-classification-0007",
+    "expected_entry_classification_revision": 8,
+    "expected_entry_classification_sha256": "1111111111111111111111111111111111111111111111111111111111111111",
+    "expected_working_tree_id": "working-tree-0009",
+    "expected_working_tree_sha256": "2222222222222222222222222222222222222222222222222222222222222222",
+    "expected_effective_structure_id": "effective-structure-0003",
+    "anchor_tree_node_id": "section-brakes",
+    "target_review_node_ids": [
+      "review-brake-pressure",
+      "review-brake-temperature",
+      "review-background"
+    ],
+    "target_scope_sha256": "b3e77d8c33f8863e5bbc771039a18305e217368425d63edcceb017cc885e61e0",
+    "unselected_policy": "SOURCE_BOUND_PASSTHROUGH"
+  }
+}

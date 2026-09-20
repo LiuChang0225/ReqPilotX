@@ -1,0 +1,5 @@
+# Install the application and its real stdio adapter for the default offline suite.
+-r requirements.txt
+-r ../plugins/reqpilot/requirements-mcp.txt
+-r ../plugins/reqpilot/requirements-ocr.txt
+httpx==0.28.1

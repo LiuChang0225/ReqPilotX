@@ -1,5 +1,9 @@
 # Byte-compiled / optimized / DLL files
 __pycache__/
+.pytest_cache/
+.ruff_cache/
+.coverage
+htmlcov/
 *.py[cod]
 *$py.class
 
@@ -16,6 +20,8 @@ eggs/
 .eggs/
 lib/
 lib64/
+!prototype/frontend/src/shared/lib/
+!prototype/frontend/src/shared/lib/format.ts
 parts/
 sdist/
 var/
@@ -43,9 +49,23 @@ env/
 Thumbs.db
 
 # Project specific
+.env
+.env.*
+!*.env.example
+!**/.env.example
 .playwright-cli/
 storage/
+!prototype/app/adapters/storage/
+!prototype/app/adapters/storage/*.py
+!prototype/app/application/storage/
+!prototype/app/application/storage/*.py
 .qdrant-initialized
+node_modules/
+.vite/
+prototype/frontend/node_modules/
+prototype/frontend/.vite/
+prototype/frontend/coverage/
+prototype/frontend/dist-panel/
 prototype/app.db
 prototype/prototype.db
 prototype/storage/*.db
@@ -54,8 +74,9 @@ prototype/storage/*.db-shm
 prototype/storage/*.appdb
 prototype/storage/*.appdb-wal
 prototype/storage/*.appdb-shm
-prototype/.env
+prototype/.storage.*.lock
 prototype/.playwright-cli/
+prototype/runtime-data/
 prototype/storage/ai_traces/
 prototype/storage/exports/
 prototype/storage/knowledge_index/
@@ -75,6 +96,11 @@ prototype/eval/regression_suite/
 prototype/eval/table_assets/latest/
 prototype/eval/extraction_diagnose/*/per_doc/
 prototype/eval/extraction_diagnose/*/stderr.log
+prototype/eval/extraction_cases/reports/
+# Generated historical diagnostics are private run outputs, not source assets.
+/prototype/eval/extraction_batches/
+/prototype/eval/extraction_diagnose/
+/prototype/prototype/
 prototype/eval/extraction_batches/*/per_doc/
 prototype/eval/extraction_batches/*/section_split/
 prototype/eval/extraction_batches/*/document_rollup.csv
@@ -93,14 +119,33 @@ output/
 tmp/
 worktrees/
 
+# Local validation artifacts
+/prototype/reports/
+/reports/
+
 # Desktop packaging binaries
 prototype/bin/
 
 # CodeGraph & Superpowers IDE settings
 .codegraph/
 .superpowers/
+/.impeccable/
 
 # Sensitive customer documents — NEVER upload
+# Customer-specific Wiki content created independently of the source baseline.
+/docs/wiki/irps_baseline/
+/docs/wiki/cus2_baseline/
+/prototype/eval/private/
+/prototype/eval/private_oracles/
+/prototype/eval/extraction_cases/manifest.json
+/prototype/eval/extraction_cases/oracles.json
+/prototype/eval/extraction_cases/silver.json
+/prototype/eval/extraction_cases/llm_silver.json
+/prototype/eval/extraction_cases/llm_experience.json
+/prototype/eval/extraction_cases/visual_routes.json
+# Local promotional-video renders and build caches; source projects stay visible.
+/guizang_promo/.build/
+/guizang_promo/renders/
 OEM spec comparison/
 plan/
 docs/superpowers/

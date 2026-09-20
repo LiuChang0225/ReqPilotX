@@ -1,0 +1,37 @@
+{
+  "schema_version": "semantic-publication-canonical-hash-fixture/v1",
+  "generator": "python-json.dumps(sort_keys=True,separators=(',',':'),ensure_ascii=False)",
+  "payload": {
+    "array": [
+      3,
+      null,
+      true
+    ],
+    "float": 1.25,
+    "text": "中文"
+  },
+  "sha256": "1e8a8a3971dc0c2b41dcd30b3c90635176bc6ebababd8e3528186cf8aae0446c",
+  "numeric_payload": {
+    "array": [
+      1.0,
+      1e-07,
+      1e+20,
+      -0.0
+    ],
+    "nested": {
+      "bbox": [
+        10.0,
+        20.5
+      ]
+    }
+  },
+  "numeric_canonical_json": "{\"array\":[1.0,1e-07,1e+20,-0.0],\"nested\":{\"bbox\":[10.0,20.5]}}",
+  "numeric_sha256": "440495ef8b8dff58a65831cbbc74850f1ca56d4b081bc88d38f664e6e873d1c2",
+  "unicode_key_payload": {
+    "": "bmp",
+    "𐀀": "astral",
+    "中": "han"
+  },
+  "unicode_key_canonical_json": "{\"中\":\"han\",\"\":\"bmp\",\"𐀀\":\"astral\"}",
+  "unicode_key_sha256": "bb63a609e0077089274e0fa406fbba122f17f71dcd058c37e37c9ffbe37a5a9d"
+}

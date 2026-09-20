@@ -1,0 +1,134 @@
+{
+  "$defs": {
+    "AgentExtractionStage": {
+      "enum": [
+        "D0_SOURCE_PREFLIGHT",
+        "D1_DOCUMENT_UNDERSTANDING",
+        "D2_LOGICAL_STRUCTURE",
+        "D3_PARENT_PROVISION_RECOGNITION",
+        "D4_REQUIREMENT_DECOMPOSITION",
+        "D5_COMPLETENESS_VERIFICATION",
+        "D6_RESULT_ASSEMBLY"
+      ],
+      "title": "AgentExtractionStage",
+      "type": "string"
+    },
+    "AgentProgressBasis": {
+      "enum": [
+        "SOURCE",
+        "PAGES",
+        "LOGICAL_CONTAINERS",
+        "PARENT_PROVISIONS",
+        "ASSERTIONS",
+        "SOURCE_SCOPES"
+      ],
+      "title": "AgentProgressBasis",
+      "type": "string"
+    },
+    "AgentRunEventKind": {
+      "enum": [
+        "RUN_STARTED",
+        "STAGE_STARTED",
+        "STAGE_PROGRESS",
+        "TOOL_COMPLETED",
+        "ARTIFACT_VALIDATED",
+        "STAGE_COMPLETED",
+        "RUN_COMPLETED",
+        "RUN_BLOCKED",
+        "RUN_FAILED",
+        "RUN_CANCELLED"
+      ],
+      "title": "AgentRunEventKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "description": "Content-free event consumed identically by every ReqPilotX runner.",
+  "properties": {
+    "artifact_id": {
+      "anyOf": [
+        {
+          "pattern": "^agent-artifact-[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Artifact Id"
+    },
+    "attempt": {
+      "default": 1,
+      "minimum": 1,
+      "title": "Attempt",
+      "type": "integer"
+    },
+    "completed_units": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Completed Units",
+      "type": "integer"
+    },
+    "kind": {
+      "$ref": "#/$defs/AgentRunEventKind"
+    },
+    "message_code": {
+      "default": "",
+      "pattern": "^[a-z0-9_]{0,120}$",
+      "title": "Message Code",
+      "type": "string"
+    },
+    "progress_basis": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentProgressBasis"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "run_id": {
+      "pattern": "^agent-run-[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "reqpilotx-agent-run-event/v1",
+      "default": "reqpilotx-agent-run-event/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "sequence": {
+      "minimum": 1,
+      "title": "Sequence",
+      "type": "integer"
+    },
+    "stage": {
+      "anyOf": [
+        {
+          "$ref": "#/$defs/AgentExtractionStage"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null
+    },
+    "total_units": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Total Units",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "run_id",
+    "sequence",
+    "kind"
+  ],
+  "title": "AgentRunEventV1",
+  "type": "object"
+}

@@ -1,0 +1,915 @@
+{
+  "$defs": {
+    "AgentD1TableMapArtifactIdentityV1": {
+      "additionalProperties": false,
+      "description": "Host-pinned identity of the D1 evidence artifact used by the Agent.",
+      "properties": {
+        "artifact_id": {
+          "maxLength": 240,
+          "minLength": 1,
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "artifact_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Artifact Sha256",
+          "type": "string"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_sha256",
+        "artifact_id",
+        "artifact_sha256"
+      ],
+      "title": "AgentD1TableMapArtifactIdentityV1",
+      "type": "object"
+    },
+    "AgentKitIdentityV1": {
+      "additionalProperties": false,
+      "description": "Exact, runner-neutral identity of one Portable Agent Kit bundle.",
+      "properties": {
+        "bundle_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Bundle Sha256",
+          "type": "string"
+        },
+        "kit_id": {
+          "pattern": "^[a-z][a-z0-9-]{0,119}$",
+          "title": "Kit Id",
+          "type": "string"
+        },
+        "kit_version": {
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "title": "Kit Version",
+          "type": "string"
+        },
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Manifest Sha256",
+          "type": "string"
+        },
+        "policy_id": {
+          "pattern": "^[a-z][a-z0-9-]{0,119}$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_version": {
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "title": "Policy Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "reqpilotx-agent-kit-identity/v1",
+          "default": "reqpilotx-agent-kit-identity/v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "tool_registry_id": {
+          "pattern": "^[a-z][a-z0-9-]{0,119}$",
+          "title": "Tool Registry Id",
+          "type": "string"
+        },
+        "tool_registry_version": {
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "title": "Tool Registry Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kit_id",
+        "kit_version",
+        "manifest_sha256",
+        "bundle_sha256",
+        "policy_id",
+        "policy_version",
+        "tool_registry_id",
+        "tool_registry_version"
+      ],
+      "title": "AgentKitIdentityV1",
+      "type": "object"
+    },
+    "AgentLogicalTablePhysicalPartV1": {
+      "additionalProperties": false,
+      "description": "Exact, non-authoritative binding to one current physical TableIR fact.",
+      "properties": {
+        "cell_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "title": "Cell Ids",
+          "type": "array"
+        },
+        "column_count": {
+          "minimum": 1,
+          "title": "Column Count",
+          "type": "integer"
+        },
+        "d1_table_map_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "D1 Table Map Sha256",
+          "type": "string"
+        },
+        "page_numbers": {
+          "default": [],
+          "items": {
+            "type": "integer"
+          },
+          "title": "Page Numbers",
+          "type": "array"
+        },
+        "row_count": {
+          "minimum": 1,
+          "title": "Row Count",
+          "type": "integer"
+        },
+        "source_node_id": {
+          "pattern": "^node-[0-9a-f]{32}$",
+          "title": "Source Node Id",
+          "type": "string"
+        },
+        "source_order": {
+          "minimum": 0,
+          "title": "Source Order",
+          "type": "integer"
+        },
+        "source_refs": {
+          "items": {
+            "$ref": "#/$defs/StructureSourceRef"
+          },
+          "minItems": 1,
+          "title": "Source Refs",
+          "type": "array"
+        },
+        "table_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Table Id",
+          "type": "string"
+        },
+        "table_ir_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Table Ir Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "table_id",
+        "source_node_id",
+        "source_order",
+        "row_count",
+        "column_count",
+        "table_ir_sha256",
+        "d1_table_map_sha256",
+        "source_refs"
+      ],
+      "title": "AgentLogicalTablePhysicalPartV1",
+      "type": "object"
+    },
+    "AgentLogicalTableScopeEvidenceV1": {
+      "additionalProperties": false,
+      "description": "Content-free evidence handle supporting one logical-object decision.",
+      "properties": {
+        "evidence_ref": {
+          "maxLength": 400,
+          "minLength": 1,
+          "title": "Evidence Ref",
+          "type": "string"
+        },
+        "evidence_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Evidence Sha256",
+          "type": "string"
+        },
+        "page_numbers": {
+          "default": [],
+          "items": {
+            "type": "integer"
+          },
+          "title": "Page Numbers",
+          "type": "array"
+        }
+      },
+      "required": [
+        "evidence_ref",
+        "evidence_sha256"
+      ],
+      "title": "AgentLogicalTableScopeEvidenceV1",
+      "type": "object"
+    },
+    "AgentLogicalTableScopeV1": {
+      "additionalProperties": false,
+      "description": "Agent-owned grouping of physical tables into one logical object.\n\nThe artifact deliberately has no Structure node or ``CONTINUES`` relation.\nSourceIR and the D1 table-map artifact are immutable evidence/tool inputs;\nthey do not decide which physical tables form the logical object.",
+      "properties": {
+        "d1_table_map_artifact": {
+          "$ref": "#/$defs/AgentD1TableMapArtifactIdentityV1"
+        },
+        "evidence": {
+          "items": {
+            "$ref": "#/$defs/AgentLogicalTableScopeEvidenceV1"
+          },
+          "minItems": 1,
+          "title": "Evidence",
+          "type": "array"
+        },
+        "logical_object_id": {
+          "pattern": "^agent-logical-table-[0-9a-f]{32}$",
+          "title": "Logical Object Id",
+          "type": "string"
+        },
+        "physical_parts": {
+          "items": {
+            "$ref": "#/$defs/AgentLogicalTablePhysicalPartV1"
+          },
+          "minItems": 1,
+          "title": "Physical Parts",
+          "type": "array"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "agent-logical-table-scope/v1",
+          "default": "agent-logical-table-scope/v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "scope_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Scope Sha256",
+          "type": "string"
+        },
+        "source_ir_canonical_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Ir Canonical Sha256",
+          "type": "string"
+        },
+        "source_ir_id": {
+          "maxLength": 200,
+          "minLength": 1,
+          "title": "Source Ir Id",
+          "type": "string"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_ir_id",
+        "source_sha256",
+        "source_ir_canonical_sha256",
+        "d1_table_map_artifact",
+        "logical_object_id",
+        "physical_parts",
+        "reason_codes",
+        "evidence",
+        "scope_sha256"
+      ],
+      "title": "AgentLogicalTableScopeV1",
+      "type": "object"
+    },
+    "D2LogicalObjectKind": {
+      "enum": [
+        "DOCUMENT_UNIT",
+        "SECTION",
+        "PROVISION_SCOPE",
+        "TABLE",
+        "FIGURE",
+        "ATTACHMENT",
+        "CONTEXT",
+        "OTHER"
+      ],
+      "title": "D2LogicalObjectKind",
+      "type": "string"
+    },
+    "D2LogicalObjectV1": {
+      "additionalProperties": false,
+      "description": "Minimal D2 object boundary; source text remains in SourceIR.",
+      "properties": {
+        "logical_object_id": {
+          "pattern": "^(?:d2-logical-object|agent-logical-table)-[0-9a-f]{32}$",
+          "title": "Logical Object Id",
+          "type": "string"
+        },
+        "logical_table_scope_ids": {
+          "default": [],
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 1,
+          "title": "Logical Table Scope Ids",
+          "type": "array"
+        },
+        "object_kind": {
+          "$ref": "#/$defs/D2LogicalObjectKind"
+        },
+        "object_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Object Sha256",
+          "type": "string"
+        },
+        "page_numbers": {
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Page Numbers",
+          "type": "array"
+        },
+        "parent_logical_object_id": {
+          "anyOf": [
+            {
+              "pattern": "^(?:d2-logical-object|agent-logical-table)-[0-9a-f]{32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Parent Logical Object Id"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "source_order": {
+          "minimum": 0,
+          "title": "Source Order",
+          "type": "integer"
+        },
+        "source_segments": {
+          "default": [],
+          "items": {
+            "$ref": "#/$defs/D2SourceSegmentV1"
+          },
+          "title": "Source Segments",
+          "type": "array"
+        }
+      },
+      "required": [
+        "logical_object_id",
+        "object_kind",
+        "source_order",
+        "page_numbers",
+        "reason_codes",
+        "object_sha256"
+      ],
+      "title": "D2LogicalObjectV1",
+      "type": "object"
+    },
+    "D2LogicalStructureStatus": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL"
+      ],
+      "title": "D2LogicalStructureStatus",
+      "type": "string"
+    },
+    "D2PhysicalTableDispositionKind": {
+      "enum": [
+        "LOGICAL_SCOPE_PART",
+        "NESTED_VALUE_TABLE",
+        "NON_BUSINESS_FALSE_TABLE",
+        "UNRESOLVED"
+      ],
+      "title": "D2PhysicalTableDispositionKind",
+      "type": "string"
+    },
+    "D2PhysicalTableDispositionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "$ref": "#/$defs/D2PhysicalTableDispositionKind"
+        },
+        "disposition_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Disposition Sha256",
+          "type": "string"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "logical_table_scope_id": {
+          "anyOf": [
+            {
+              "pattern": "^agent-logical-table-[0-9a-f]{32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Logical Table Scope Id"
+        },
+        "nested_owner_table_id": {
+          "anyOf": [
+            {
+              "maxLength": 160,
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Nested Owner Table Id"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "table_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Table Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "table_id",
+        "disposition",
+        "reason_codes",
+        "evidence_refs",
+        "disposition_sha256"
+      ],
+      "title": "D2PhysicalTableDispositionV1",
+      "type": "object"
+    },
+    "D2SourceEvidenceDispositionKind": {
+      "enum": [
+        "LOGICAL_OBJECT_PART",
+        "NESTED_EVIDENCE",
+        "NON_BUSINESS_SOURCE",
+        "PAGE_FURNITURE",
+        "UNRESOLVED"
+      ],
+      "title": "D2SourceEvidenceDispositionKind",
+      "type": "string"
+    },
+    "D2SourceEvidenceDispositionV1": {
+      "additionalProperties": false,
+      "description": "Exactly-once D2 disposition for one non-table SourceIR range or asset.",
+      "properties": {
+        "disposition": {
+          "$ref": "#/$defs/D2SourceEvidenceDispositionKind"
+        },
+        "disposition_id": {
+          "pattern": "^d2-source-disposition-[0-9a-f]{32}$",
+          "title": "Disposition Id",
+          "type": "string"
+        },
+        "disposition_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Disposition Sha256",
+          "type": "string"
+        },
+        "end_offset": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Offset"
+        },
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 64,
+          "minItems": 1,
+          "title": "Evidence Refs",
+          "type": "array"
+        },
+        "logical_object_id": {
+          "anyOf": [
+            {
+              "pattern": "^(?:d2-logical-object|agent-logical-table)-[0-9a-f]{32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Logical Object Id"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "maxItems": 16,
+          "minItems": 1,
+          "title": "Reason Codes",
+          "type": "array"
+        },
+        "source_node_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Source Node Id",
+          "type": "string"
+        },
+        "source_order": {
+          "minimum": 0,
+          "title": "Source Order",
+          "type": "integer"
+        },
+        "source_segment_id": {
+          "anyOf": [
+            {
+              "pattern": "^d2-source-segment-[0-9a-f]{32}$",
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Source Segment Id"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "start_offset": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Offset"
+        }
+      },
+      "required": [
+        "disposition_id",
+        "source_sha256",
+        "source_node_id",
+        "source_order",
+        "disposition",
+        "reason_codes",
+        "evidence_refs",
+        "disposition_sha256"
+      ],
+      "title": "D2SourceEvidenceDispositionV1",
+      "type": "object"
+    },
+    "D2SourceHandleKind": {
+      "enum": [
+        "SOURCE_NODE",
+        "TABLE_CELL"
+      ],
+      "title": "D2SourceHandleKind",
+      "type": "string"
+    },
+    "D2SourceSegmentV1": {
+      "additionalProperties": false,
+      "description": "Content-free, exact handle/range evidence owned by one D2 object.",
+      "properties": {
+        "end_offset": {
+          "anyOf": [
+            {
+              "minimum": 1,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "End Offset"
+        },
+        "handle_kind": {
+          "$ref": "#/$defs/D2SourceHandleKind"
+        },
+        "owner_source_node_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Owner Source Node Id",
+          "type": "string"
+        },
+        "page_numbers": {
+          "items": {
+            "type": "integer"
+          },
+          "minItems": 1,
+          "title": "Page Numbers",
+          "type": "array"
+        },
+        "segment_id": {
+          "pattern": "^d2-source-segment-[0-9a-f]{32}$",
+          "title": "Segment Id",
+          "type": "string"
+        },
+        "segment_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Segment Sha256",
+          "type": "string"
+        },
+        "source_content_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Content Sha256",
+          "type": "string"
+        },
+        "source_handle": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Source Handle",
+          "type": "string"
+        },
+        "source_order": {
+          "minimum": 0,
+          "title": "Source Order",
+          "type": "integer"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "start_offset": {
+          "anyOf": [
+            {
+              "minimum": 0,
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ],
+          "default": null,
+          "title": "Start Offset"
+        }
+      },
+      "required": [
+        "segment_id",
+        "source_sha256",
+        "handle_kind",
+        "source_handle",
+        "owner_source_node_id",
+        "source_order",
+        "page_numbers",
+        "source_content_sha256",
+        "segment_sha256"
+      ],
+      "title": "D2SourceSegmentV1",
+      "type": "object"
+    },
+    "D2ValidatedD1ArtifactIdentityV1": {
+      "additionalProperties": false,
+      "description": "Host-issued identity of the D1 artifact accepted as D2 input.",
+      "properties": {
+        "artifact_id": {
+          "pattern": "^agent-artifact-[0-9a-f]{32}$",
+          "title": "Artifact Id",
+          "type": "string"
+        },
+        "artifact_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Artifact Sha256",
+          "type": "string"
+        },
+        "evidence_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Evidence Sha256",
+          "type": "string"
+        },
+        "kit_bundle_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Kit Bundle Sha256",
+          "type": "string"
+        },
+        "page_count": {
+          "minimum": 1,
+          "title": "Page Count",
+          "type": "integer"
+        },
+        "proposal_schema_id": {
+          "const": "document-understanding-proposal/v2",
+          "default": "document-understanding-proposal/v2",
+          "title": "Proposal Schema Id",
+          "type": "string"
+        },
+        "proposal_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Proposal Sha256",
+          "type": "string"
+        },
+        "run_id": {
+          "pattern": "^agent-run-[0-9a-f]{32}$",
+          "title": "Run Id",
+          "type": "string"
+        },
+        "source_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Source Sha256",
+          "type": "string"
+        },
+        "stage": {
+          "const": "D1_DOCUMENT_UNDERSTANDING",
+          "default": "D1_DOCUMENT_UNDERSTANDING",
+          "title": "Stage",
+          "type": "string"
+        },
+        "status": {
+          "enum": [
+            "VALIDATED",
+            "PARTIAL"
+          ],
+          "title": "Status",
+          "type": "string"
+        },
+        "validator_receipt_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Validator Receipt Sha256",
+          "type": "string"
+        }
+      },
+      "required": [
+        "artifact_id",
+        "artifact_sha256",
+        "run_id",
+        "source_sha256",
+        "status",
+        "proposal_sha256",
+        "evidence_sha256",
+        "validator_receipt_sha256",
+        "page_count",
+        "kit_bundle_sha256"
+      ],
+      "title": "D2ValidatedD1ArtifactIdentityV1",
+      "type": "object"
+    },
+    "StructureSourceRef": {
+      "additionalProperties": false,
+      "description": "Reference to immutable SourceIR identity; customer text is never copied.",
+      "properties": {
+        "kind": {
+          "$ref": "#/$defs/StructureSourceRefKind"
+        },
+        "source_id": {
+          "maxLength": 160,
+          "minLength": 1,
+          "title": "Source Id",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kind",
+        "source_id"
+      ],
+      "title": "StructureSourceRef",
+      "type": "object"
+    },
+    "StructureSourceRefKind": {
+      "enum": [
+        "source_node",
+        "table_cell",
+        "visual_text_observation"
+      ],
+      "title": "StructureSourceRefKind",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "d1_table_map_artifact": {
+      "$ref": "#/$defs/AgentD1TableMapArtifactIdentityV1"
+    },
+    "kit_identity": {
+      "$ref": "#/$defs/AgentKitIdentityV1"
+    },
+    "logical_objects": {
+      "items": {
+        "$ref": "#/$defs/D2LogicalObjectV1"
+      },
+      "minItems": 1,
+      "title": "Logical Objects",
+      "type": "array"
+    },
+    "logical_table_scopes": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/AgentLogicalTableScopeV1"
+      },
+      "title": "Logical Table Scopes",
+      "type": "array"
+    },
+    "physical_table_dispositions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/D2PhysicalTableDispositionV1"
+      },
+      "title": "Physical Table Dispositions",
+      "type": "array"
+    },
+    "predecessor_d1_artifact": {
+      "$ref": "#/$defs/D2ValidatedD1ArtifactIdentityV1"
+    },
+    "proposal_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Proposal Sha256",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^agent-run-[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "logical-structure-proposal/v1",
+      "default": "logical-structure-proposal/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_evidence_dispositions": {
+      "default": [],
+      "items": {
+        "$ref": "#/$defs/D2SourceEvidenceDispositionV1"
+      },
+      "title": "Source Evidence Dispositions",
+      "type": "array"
+    },
+    "source_ir_canonical_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Ir Canonical Sha256",
+      "type": "string"
+    },
+    "source_ir_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Source Ir Id",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "status": {
+      "$ref": "#/$defs/D2LogicalStructureStatus"
+    },
+    "unresolved_codes": {
+      "default": [],
+      "items": {
+        "type": "string"
+      },
+      "title": "Unresolved Codes",
+      "type": "array"
+    }
+  },
+  "required": [
+    "run_id",
+    "source_sha256",
+    "source_ir_id",
+    "source_ir_canonical_sha256",
+    "kit_identity",
+    "predecessor_d1_artifact",
+    "d1_table_map_artifact",
+    "status",
+    "logical_objects",
+    "proposal_sha256"
+  ],
+  "title": "D2LogicalStructureProposalV1",
+  "type": "object"
+}

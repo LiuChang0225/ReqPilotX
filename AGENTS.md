@@ -1,71 +1,29 @@
-# ReqPilotX Repository Instructions
+# ReqPilotX Agent Guide
 
-## Context Sync
+## 项目身份
 
-After any substantial debugging, implementation, architectural decision, or sample-switching work, use the `$context-sync` skill and update:
+- 本仓库只属于 **ReqPilotX**。
+- 以当前 Git 仓库根为工作目录；独立同步候选仍属于本项目，不依赖某台机器的绝对路径。
+- GitHub 仓库是 `https://github.com/LiuChang0225/ReqPilotX.git`。
+- `ReqPilotX`、`ReqPilotNext`、`ReqPilot` 是三个不同项目。除非用户明确要求跨项目操作，否则不要读取、复制或修改另外两个项目的代码、规则、技能、文档、数据或历史工件。
 
-1. `/Users/liuchang/Documents/ReqPilotX/docs/active-context.md`
-2. the current branch-local `prototype/docs/*active-context.md` file, if one exists for the active track/worktree
+## 开发约定
 
-Treat this as required before ending the turn whenever project state changed in a way that a new Codex window would need to know.
+- Agent 原生应用与可移植插件共用业务核心；App Server 已有实际任务保存证据，不能再视为尚未开始迁移。当前实施范围和建议顺序以 `docs/需求提取/开发计划.md` 为准。
+- 文档组织、原文条目及派生/引用关系以 `docs/需求提取/文档结构与原文条目模型V1.md` 为当前产品定义；提取、UI和导出共用，不把阅读标签作为第二套业务模型。
+- 已有反馈与粒度原则直接用于 Agent 自查、局部修订和回归；不把逐条人工确认或全文完美当成闭环开发前置。真实案例、技能沉淀与应用接入持续交叠。
+- 工作过程记录实际行动、证据、失败、反馈、工件和下一步；不补造轨迹，不记录隐藏思维链。
+- 直接围绕用户目标开发；不要求先创建 track、工作包、worktree、writer claim、checkpoint 或控制塔记录。
+- 开始修改前查看 Git 状态，保留用户已有改动，不覆盖无关工作。
+- 代码和测试定义实际运行行为。代码改变时，在同一轮更新直接受影响的产品说明、架构说明、接口说明、部署说明或验证说明；不要为了形式批量改动无关文档。
+- 测试范围与风险相称：优先跑聚焦测试，高风险或跨模块变更再扩大回归范围。说明未能执行的验证，不伪造通过结果。
+- 运行数据、构建产物、客户文档、密钥和本地环境文件不得提交。发现凭据时停止扩散并明确提示。
+- 完成用户要求的变更后，清理临时文件并让工作区保持可解释；用户要求“仓库干净”时，以一个连贯的本地提交收口。未经用户明确要求不要推送到远端。
 
-Do not update context files for trivial edits with no state change.
+## 文档与辅助数据
 
-## Context Routing
-
-All windows must read this global set first:
-
-1. `AGENTS.md`
-2. `docs/项目.md`
-3. `docs/开发执行清单.md`
-4. `docs/active-context.md`
-5. `prototype/eval/progress/track_registry.json`
-
-Then read only the branch-local active-context that matches the current track:
-
-- `release-foundation` -> `prototype/docs/release-foundation-active-context.md`
-- `extraction-quality-loop` -> `prototype/docs/extraction-active-context.md`
-- `rag-quality-loop` -> `prototype/docs/rag-quality-active-context.md`
-- `product-kb` -> `prototype/docs/product-kb-active-context.md`
-- `angular-feasibility` -> `prototype/docs/angular-feasibility-active-context.md`
-
-`prototype/docs/extraction-active-context.md` is no longer a universal must-read. It is extraction-track-only context.
-
-## Control Tower
-
-The execution truth for multi-branch work now lives in:
-
-- `prototype/eval/progress/track_registry.json`
-- `/project-progress`
-- `/api/progress/*`
-- `prototype/scripts/trackctl.py`
-
-Use repo-managed skills from `/.codex/skills-src/` and sync them into `$CODEX_HOME/skills` via `scripts/sync_codex_skills.py` when skills change.
-
-## Rule Ledgers
-
-When a sample family turns into a recurring audit/fix program, keep a dedicated long-form rule ledger instead of hiding history in active-context handoff notes.
-
-- For the SERES MDA extraction program, the authoritative ledger is:
-  - `prototype/docs/seres-mda-rule-fix-context.md`
-- This file is a repository rulebook, not a short handoff. Each meaningful SERES update should record:
-  - document inventory and structure characteristics
-  - discovered issues and affected sections/pages when known
-  - suspected layer and root cause
-  - promoted generic fix/rule, or the reason no rule was promoted
-  - verification evidence, effectiveness, and residual risk
-- Keep `docs/active-context.md` and branch-local `*active-context.md` files short; they should point to the ledger instead of duplicating its detail.
-- Do not compress `prototype/docs/seres-mda-rule-fix-context.md` into a brief status summary once it becomes the active rule ledger for this document family.
-
-## Scope
-
-Keep context updates short and operational:
-
-- current objective
-- active sample
-- recently fixed issues
-- current blockers
-- next steps
-- active port if relevant
-
-Do not duplicate large architecture content from `/Users/liuchang/Documents/ReqPilotX/docs/项目.md`.
+- [README.md](README.md) 是项目入口；[docs/项目.md](docs/项目.md) 描述当前产品状态；[docs/开发执行清单.md](docs/开发执行清单.md) 记录可选的下一步；[docs/active-context.md](docs/active-context.md) 只保存当前接续信息。
+- `prototype/eval/progress/program_registry.json` 仅是进度看板的兼容数据，不决定开发顺序，不约束 Agent 行为，也不是开工前置条件。
+- `docs/issues/` 用于可选的长期问题记录；发现问题可以直接修复，不必先登记。
+- `docs/参考资料索引.md` 区分保留的访谈/案例与历史执行资料；归档文本不拥有当前开发顺序或运行状态。
+- CodeGraph 可用于符号、调用链和影响范围查询；普通文本、配置值和历史路径仍可使用文本搜索。工具选择不构成开发门禁。

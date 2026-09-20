@@ -1,0 +1,8 @@
+ALTER TABLE knowledge_documents
+    ADD COLUMN IF NOT EXISTS authority TEXT NOT NULL DEFAULT 'UNKNOWN';
+
+ALTER TABLE knowledge_documents
+    ADD COLUMN IF NOT EXISTS claim_role TEXT NOT NULL DEFAULT 'UNKNOWN';
+
+ALTER TABLE knowledge_documents
+    ADD COLUMN IF NOT EXISTS applicability TEXT NOT NULL DEFAULT 'UNKNOWN';

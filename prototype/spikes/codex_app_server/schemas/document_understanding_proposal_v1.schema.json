@@ -1,0 +1,99 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "agent_claimed_status": {
+      "enum": ["READY_FOR_HOST_VALIDATION", "PARTIAL", "BLOCKED"],
+      "type": "string"
+    },
+    "facts_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "page_count": {
+      "minimum": 1,
+      "type": "integer"
+    },
+    "page_ledger_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "pages": {
+      "items": {
+        "additionalProperties": false,
+        "properties": {
+          "disposition": {
+            "enum": ["NATIVE_ACCEPTED", "VISUAL_OBSERVED", "UNRESOLVED", "BLOCKED"],
+            "type": "string"
+          },
+          "observations": {
+            "items": {
+              "additionalProperties": false,
+              "properties": {
+                "evidence_channel": {
+                  "enum": ["NATIVE", "VISUAL"],
+                  "type": "string"
+                },
+                "evidence_refs": {
+                  "items": {"type": "string"},
+                  "minItems": 1,
+                  "type": "array"
+                },
+                "exact_label": {
+                  "type": ["string", "null"]
+                },
+                "kind": {
+                  "enum": ["HEADING", "REQUIREMENT_TEXT", "TABLE", "FIGURE", "DIAGRAM_RELATION", "VISUAL_LABEL"],
+                  "type": "string"
+                }
+              },
+              "required": ["kind", "evidence_channel", "evidence_refs", "exact_label"],
+              "type": "object"
+            },
+            "type": "array"
+          },
+          "physical_page": {
+            "minimum": 1,
+            "type": "integer"
+          },
+          "unresolved_codes": {
+            "items": {"type": "string"},
+            "type": "array"
+          },
+          "used_fact_refs": {
+            "items": {"type": "string"},
+            "type": "array"
+          },
+          "used_page_image_sha256": {
+            "type": ["string", "null"]
+          }
+        },
+        "required": ["physical_page", "disposition", "used_fact_refs", "used_page_image_sha256", "observations", "unresolved_codes"],
+        "type": "object"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "enum": ["document-understanding-proposal/v1"],
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "type": "string"
+    },
+    "visual_canary": {
+      "additionalProperties": false,
+      "properties": {
+        "code": {"type": "string"},
+        "flow_from": {"type": "string"},
+        "flow_to": {"type": "string"},
+        "latch_orientation": {"type": "string"},
+        "page_number": {"minimum": 1, "type": "integer"},
+        "pin_a_position": {"type": "string"}
+      },
+      "required": ["page_number", "code", "latch_orientation", "flow_from", "flow_to", "pin_a_position"],
+      "type": "object"
+    }
+  },
+  "required": ["schema_version", "source_sha256", "facts_sha256", "page_ledger_sha256", "page_count", "pages", "visual_canary", "agent_claimed_status"],
+  "type": "object"
+}

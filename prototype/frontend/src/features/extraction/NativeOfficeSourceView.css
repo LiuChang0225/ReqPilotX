@@ -1,0 +1,23 @@
+.native-office-source { min-width: 0; height: 100%; display: flex; flex-direction: column; background: var(--surface, #fff); color: inherit; }
+.native-office-header { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding: 14px 16px; border-bottom: 1px solid #dce2de; }
+.native-office-header div { display: grid; gap: 4px; }
+.native-office-header small, .native-office-location { color: #65716a; font-size: 12px; }
+.native-office-content { min-height: 0; overflow: auto; padding: 12px 16px; }
+.native-office-content article { margin-bottom: 16px; padding: 8px; border-left: 3px solid transparent; }
+.native-office-content article[data-source-focused="true"] { border-left-color: #00893d; background: #f0f7f2; }
+.native-office-content p, .native-office-content h4 { white-space: pre-wrap; overflow-wrap: anywhere; margin: 8px 0; }
+.native-office-content figure { margin: 8px 0; }
+.native-office-content img { display: block; max-width: 100%; height: auto; }
+.native-office-content figcaption { margin-top: 6px; color: #65716a; font-size: 12px; }
+.native-office-grid { min-width: 0; margin: 8px 0 16px; }
+.native-office-grid-scroll { max-width: 100%; overflow: auto; }
+.native-office-grid table { border-collapse: collapse; min-width: 100%; font-size: 13px; }
+.native-office-grid caption { text-align: left; color: #65716a; padding: 6px 0; font-size: 12px; }
+.native-office-grid td { vertical-align: top; padding: 8px 10px; border: 1px solid #dce2de; min-width: 64px; max-width: 420px; white-space: pre-wrap; overflow-wrap: anywhere; }
+.native-office-grid td.is-focused { background: #e4f4e9; box-shadow: inset 0 0 0 1px #00893d; }
+.native-office-grid td small { display: block; color: #65716a; margin-top: 4px; }
+.native-office-sheets { display: flex; gap: 6px; padding: 8px 12px; overflow-x: auto; border-bottom: 1px solid #dce2de; }
+.native-office-sheets button { flex-shrink: 0; border: 1px solid #dce2de; background: transparent; color: inherit; padding: 6px 12px; border-radius: 6px; cursor: pointer; }
+.native-office-sheets button[aria-pressed="true"] { background: #e4f4e9; border-color: #00893d; }
+.native-office-state { padding: 16px; display: grid; gap: 12px; }
+.native-office-source :focus-visible, .native-office-grid :focus-visible { outline: 2px solid #00893d; outline-offset: 2px; }

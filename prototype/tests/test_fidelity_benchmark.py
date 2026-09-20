@@ -1,3 +1,10 @@
+if __package__:
+    from .runtime_isolation import activate_test_runtime
+else:
+    from runtime_isolation import activate_test_runtime
+
+activate_test_runtime()
+
 import sys
 import unittest
 from pathlib import Path

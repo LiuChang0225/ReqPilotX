@@ -1,0 +1,101 @@
+{
+  "$defs": {
+    "DocumentRenderDetail": {
+      "enum": [
+        "THUMBNAIL",
+        "HIGH",
+        "ORIGINAL",
+        "REGION"
+      ],
+      "title": "DocumentRenderDetail",
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "bbox": {
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Bbox",
+      "type": "array"
+    },
+    "detail": {
+      "$ref": "#/$defs/DocumentRenderDetail"
+    },
+    "height_px": {
+      "minimum": 1,
+      "title": "Height Px",
+      "type": "integer"
+    },
+    "image_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Image Sha256",
+      "type": "string"
+    },
+    "media_type": {
+      "const": "image/png",
+      "default": "image/png",
+      "title": "Media Type",
+      "type": "string"
+    },
+    "page_number": {
+      "minimum": 1,
+      "title": "Page Number",
+      "type": "integer"
+    },
+    "render_receipt_id": {
+      "pattern": "^document-render-[0-9a-f]{32}$",
+      "title": "Render Receipt Id",
+      "type": "string"
+    },
+    "scale": {
+      "exclusiveMinimum": 0.0,
+      "maximum": 4.0,
+      "title": "Scale",
+      "type": "number"
+    },
+    "schema_version": {
+      "const": "document-render-receipt/v1",
+      "default": "document-render-receipt/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "width_px": {
+      "minimum": 1,
+      "title": "Width Px",
+      "type": "integer"
+    }
+  },
+  "required": [
+    "render_receipt_id",
+    "source_sha256",
+    "page_number",
+    "detail",
+    "bbox",
+    "scale",
+    "width_px",
+    "height_px",
+    "image_sha256"
+  ],
+  "title": "DocumentRenderReceiptV1",
+  "type": "object"
+}

@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+if __package__:
+    from .runtime_isolation import activate_test_runtime
+else:
+    from runtime_isolation import activate_test_runtime
+
+activate_test_runtime()
+
 import sys
 import tempfile
 import unittest
@@ -18,7 +25,6 @@ from app.services.extraction_preview import build_extraction_preview
 
 _UPLOAD_DIR_CANDIDATES = [
     Path(__file__).resolve().parents[1] / "storage" / "uploads",
-    Path("/Users/liuchang/Documents/ReqPilotX/worktrees/_active/extraction-optimization/prototype/storage/uploads"),
 ]
 _OIL_PUMP_SAMPLE_PDF = next(
     (
@@ -31,55 +37,51 @@ _OIL_PUMP_SAMPLE_PDF = next(
 
 
 class ComplexTableModeTests(unittest.TestCase):
-    def test_detects_and_rewrites_sample_priority_complex_zones(self) -> None:
+    def test_filename_never_authorizes_a_special_complex_table_zone(self) -> None:
         segments = [
-            {"source_page": 13, "text": "2 主要设计和验证要求"},
-            {"source_page": 17, "text": "|技术要求内容|Col2|Col3|Col4|Col5|\n|类别|技术要求|对应GB 44495章节|技术要求|要求解读|"},
-            {"source_page": 18, "text": "安全升级及刷写\n漏洞管理"},
-            {"source_page": 19, "text": "|通信安全要求|7.2.1|车辆与车辆制造商云平台通信时，应对其通信对象的身份真实性进行验证。|"},
-            {"source_page": 20, "text": "网络安全\n7.2.11\n7.4.2"},
-            {"source_page": 21, "text": "5.6.2.1.1\n汽车数据处理者至少应对图像或视频"},
-            {"source_page": 22, "text": "数据安全\n5.6 个人信息传输"},
             {
-                "source_page": 23,
-                "text": "|序号 No.|网络安全活动 Cybersecurity Activity|\n|~~time~~ 1 总体要求 General Requirements|\n2.产品网络安全生命周期-概念设计阶段 Product Cybersecurity Lifecycle -Concept Phase",
+                "source_page": 17,
+                "text": (
+                    "|技术要求内容|类别|对应章节|要求解读|\n"
+                    "|网络安全|要求一|7.2.1|说明|\n"
+                    "|数据安全|要求二|7.4.2|说明|"
+                ),
             },
             {
-                "source_page": 24,
-                "text": "3.产品网络安全生命周期-开发阶段 Product Cybersecurity Lifecycle -Product Development\n4 产品网络安全生命周期-生产阶段 Product Cybersecurity Lifecycle -Production\n5 产品网络安全生命周期-运营维护阶段 Produt Cybersecurity Lifecycle -Operations & Maintenance",
-            },
-            {
-                "source_page": 25,
-                "text": "6 产品网络安全生命周期-报废/终止支持阶段 Product Cybersecurity Lifecycle -Decommissioning/End Support",
+                "source_page": 18,
+                "text": (
+                    "|技术要求内容|类别|对应章节|要求解读|\n"
+                    "|网络安全|要求三|7.5.1|说明|\n"
+                    "|数据安全|要求四|7.6.2|说明|"
+                ),
             },
         ]
-        zones = detect_complex_table_zones(segments=segments, source_file_path="油泵-PDS.pdf")
+        named_like_a_fixture = detect_complex_table_zones(
+            segments=segments,
+            source_file_path="油泵-PDS.pdf",
+        )
+        ordinary_name = detect_complex_table_zones(
+            segments=segments,
+            source_file_path="standard.pdf",
+        )
 
-        self.assertEqual([zone["family"] for zone in zones], ["merged_requirement_matrix", "lifecycle_matrix"])
-        self.assertEqual(len(zones[0]["groups"]), 2)
-        self.assertEqual(len(zones[1]["groups"]), 6)
-
+        self.assertEqual(named_like_a_fixture, ordinary_name)
+        self.assertEqual(
+            [zone["family"] for zone in ordinary_name],
+            ["generic_complex_table"],
+        )
+        self.assertEqual(ordinary_name[0]["groups"], [])
         rows = [
-            {"entry_id": "REQ-P13", "req_code": "REQ-P13", "entry_kind": "REQUIREMENT", "source_page": 13, "source_page_end": 13, "display_text": "page13", "raw_text": "page13", "requirement_text": "page13"},
             {"entry_id": "REQ-P17", "req_code": "REQ-P17", "entry_kind": "REQUIREMENT", "source_page": 17, "source_page_end": 17, "parent_section_label": "技术要求内容", "display_text": "技术要求内容", "raw_text": "技术要求内容", "requirement_text": "技术要求内容"},
-            {"entry_id": "REQ-P18-LEGIT", "req_code": "REQ-P18-LEGIT", "entry_kind": "REQUIREMENT", "source_page": 18, "source_page_end": 18, "section_code": "8.9", "parent_section_label": "8.9 正常边界条目", "display_text": "正常边界条目", "raw_text": "正常边界条目", "requirement_text": "正常边界条目"},
-            {"entry_id": "REQ-P20", "req_code": "REQ-P20", "entry_kind": "REQUIREMENT", "source_page": 20, "source_page_end": 20, "section_code": "7.2.12", "parent_section_label": "7.2.12 日志需要留存6个月以上", "display_text": "7.2.12 日志需要留存6个月以上", "raw_text": "7.2.12 日志需要留存6个月以上", "requirement_text": "7.2.12 日志需要留存6个月以上"},
-            {"entry_id": "REQ-P24", "req_code": "REQ-P24", "entry_kind": "REQUIREMENT", "source_page": 24, "source_page_end": 24, "section_code": "4", "parent_section_label": "4 生产", "display_text": "4 产品网络安全生命周期-生产阶段", "raw_text": "4 产品网络安全生命周期-生产阶段", "requirement_text": "4 产品网络安全生命周期-生产阶段"},
-            {"entry_id": "REQ-P24-LEGIT", "req_code": "REQ-P24-LEGIT", "entry_kind": "REQUIREMENT", "source_page": 24, "source_page_end": 24, "section_code": "8.1", "parent_section_label": "8.1 正常说明", "display_text": "正常说明", "raw_text": "正常说明", "requirement_text": "正常说明"},
+            {"entry_id": "REQ-P18", "req_code": "REQ-P18", "entry_kind": "REQUIREMENT", "source_page": 18, "source_page_end": 18, "parent_section_label": "技术要求内容", "display_text": "技术要求内容", "raw_text": "技术要求内容", "requirement_text": "技术要求内容"},
         ]
-        rewritten = rewrite_preview_rows_for_complex_tables(rows, zones=zones)
+        rewritten = rewrite_preview_rows_for_complex_tables(
+            rows,
+            zones=ordinary_name,
+        )
+        self.assertEqual(rewritten, rows)
 
-        self.assertTrue(any(row["entry_id"] == "REQ-P13" for row in rewritten))
-        self.assertTrue(any(row["entry_id"] == "REQ-P18-LEGIT" for row in rewritten))
-        self.assertTrue(any(row["entry_id"] == "REQ-P24-LEGIT" for row in rewritten))
-        complex_rows = [row for row in rewritten if bool(row.get("complex_table_mode"))]
-        self.assertEqual(len(complex_rows), 2)
-        self.assertTrue(all(row.get("complex_role") == "group" for row in complex_rows))
-        self.assertTrue(all(row.get("complex_split_level") == "zone" for row in complex_rows))
-        self.assertTrue(all(row.get("keep") is True for row in complex_rows))
-        self.assertTrue(all(row.get("complex_shadow_signatures") for row in complex_rows))
-
-    def test_rewrite_sections_preserves_unrelated_boundary_sections(self) -> None:
+    def test_historical_zone_metadata_cannot_collapse_sections(self) -> None:
         zones = [
             {
                 "zone_id": "cx-lifecycle-matrix-p23-p25",
@@ -104,9 +106,10 @@ class ComplexTableModeTests(unittest.TestCase):
 
         rewritten = rewrite_preview_sections_for_complex_tables(sections, zones=zones)
 
-        synthetic = [row for row in rewritten if row.get("complex_table_mode")]
-        self.assertEqual(len(synthetic), 1)
-        self.assertTrue(any(row.get("section_code") == "8.1" for row in rewritten))
+        self.assertEqual(rewritten, sections)
+        self.assertFalse(
+            any(row.get("complex_table_mode") for row in rewritten)
+        )
 
     def test_detects_generic_complex_table_candidates_without_collapse(self) -> None:
         segments = [
@@ -127,7 +130,9 @@ class ComplexTableModeTests(unittest.TestCase):
         self.assertEqual([row["entry_id"] for row in rewritten], ["REQ-030", "REQ-031"])
 
     @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
-    def test_build_preview_collapses_oil_pump_complex_table_pages(self) -> None:
+    def test_build_preview_does_not_apply_filename_or_page_specific_collapse(
+        self,
+    ) -> None:
         with tempfile.TemporaryDirectory() as tmpdir:
             preview = build_extraction_preview(
                 str(_OIL_PUMP_SAMPLE_PDF),
@@ -136,30 +141,13 @@ class ComplexTableModeTests(unittest.TestCase):
             )
 
         zones = preview.get("complex_table_zones") or []
-        self.assertEqual([zone.get("family") for zone in zones], ["merged_requirement_matrix", "lifecycle_matrix"])
+        self.assertTrue(
+            all(zone.get("family") == "generic_complex_table" for zone in zones)
+        )
 
         rows = preview.get("complete_requirement_entries") or []
         complex_rows = [row for row in rows if bool(row.get("complex_table_mode"))]
-        self.assertEqual(len(complex_rows), 2)
-        self.assertTrue(all(row.get("complex_role") == "group" for row in complex_rows))
-        self.assertTrue(all(row.get("complex_split_level") == "zone" for row in complex_rows))
-        self.assertTrue(
-            all(
-                bool(row.get("complex_table_mode"))
-                for row in rows
-                if 17 <= int(row.get("source_page") or 0) <= 25
-            )
-        )
-
-        self.assertTrue(all(row.get("keep") is True for row in complex_rows))
-        self.assertTrue(
-            all(
-                (row.get("table_refs") or [{}])[0].get("export_variant") == "source"
-                and (row.get("table_refs") or [{}])[0].get("recommended_export_variant") == "source"
-                and bool((row.get("table_refs") or [{}])[0].get("export_variant_locked"))
-                for row in complex_rows
-            )
-        )
+        self.assertEqual(complex_rows, [])
 
     @unittest.skipUnless(_OIL_PUMP_SAMPLE_PDF and _OIL_PUMP_SAMPLE_PDF.exists(), "oil pump sample pdf not available")
     def test_build_preview_rewrites_complex_rows_after_generic_dedupe(self) -> None:

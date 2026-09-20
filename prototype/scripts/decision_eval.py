@@ -1,11 +1,15 @@
-"""Decision-level evaluation for RAG compliance assessment.
+"""Decision-level deterministic baseline evaluation.
 
 Measures: decision_accuracy, false_accept_rate, false_reject_rate,
 clarification_rate, comparison_accuracy against gold-labeled cases.
 
+This script does not run the product RAG/LLM pipeline. Unsupported comparisons
+must abstain; Gold labels are never copied into predictions. Use
+``scripts/ai_gold_eval.py`` for the release-quality product-path gate.
+
 Usage:
-    python scripts/decision_eval.py --corpus eval/etc_byd/etc_byd_472qc_v1.json
-    python scripts/decision_eval.py --corpus eval/irps_rag/irps_deepal_edh3c_v1.json
+    python scripts/decision_eval.py --corpus eval/public/decision_cases.json
+    python scripts/decision_eval.py --corpus /controlled/private/cases.json
 """
 from __future__ import annotations
 
@@ -90,56 +94,56 @@ def _compute_per_category(results: list[dict[str, Any]]) -> dict[str, dict[str, 
 
 
 def simulate_decisions_from_values(cases: list[dict[str, Any]]) -> list[str]:
-    """Simulate decisions based on VT vs BYD value comparison heuristics.
+    """Simulate decisions from supplier and requirement value comparisons.
 
     This is a deterministic simulation for offline evaluation without
     requiring a live AI backend.
     """
     decisions: list[str] = []
     for case in cases:
-        vt = str(case.get("vt_value") or "").strip()
-        byd = str(case.get("byd_value") or "").strip()
-        expected = str(case.get("expected_decision") or "").strip().upper()
-
-        if not vt or not byd:
+        supplier = str(case.get("supplier_value", case.get("vt_value")) or "").strip()
+        requirement = str(case.get("requirement_value", case.get("byd_value")) or "").strip()
+        if not supplier or not requirement:
             decisions.append("NEED_CLARIFICATION")
             continue
 
         # Normalize for comparison
-        vt_norm = vt.lower().replace(" ", "").replace("°", "").replace("±", "+/-")
-        byd_norm = byd.lower().replace(" ", "").replace("°", "").replace("±", "+/-")
+        supplier_norm = supplier.lower().replace(" ", "").replace("°", "").replace("±", "+/-")
+        requirement_norm = requirement.lower().replace(" ", "").replace("°", "").replace("±", "+/-")
 
         # Exact or near-exact match → ACCEPT
-        if vt_norm == byd_norm or _values_are_equivalent(vt, byd):
+        if supplier_norm == requirement_norm or _values_are_equivalent(supplier, requirement):
             decisions.append("ACCEPT")
             continue
 
-        # Use the expected decision for cases with complex comparison logic
-        decisions.append(expected)
+        # The deterministic baseline does not understand direction, tolerance,
+        # authority or applicability for a non-equivalent pair. Copying the
+        # Gold label here would leak the answer and produce a fake 100% score.
+        decisions.append("NEED_CLARIFICATION")
     return decisions
 
 
-def _values_are_equivalent(vt: str, byd: str) -> bool:
+def _values_are_equivalent(supplier: str, requirement: str) -> bool:
     """Check if two spec values are equivalent despite formatting differences."""
     # Handle unit conversions: hPa vs kPa
-    vt_clean = vt.lower().strip()
-    byd_clean = byd.lower().strip()
+    supplier_clean = supplier.lower().strip()
+    requirement_clean = requirement.lower().strip()
 
     # Strip standard references
     for prefix in ("equal to ", "per ", "din ", "iec"):
-        idx = vt_clean.find(prefix)
+        idx = supplier_clean.find(prefix)
         if idx > 0:
-            vt_clean = vt_clean[:idx].strip()
-        idx = byd_clean.find(prefix)
+            supplier_clean = supplier_clean[:idx].strip()
+        idx = requirement_clean.find(prefix)
         if idx > 0:
-            byd_clean = byd_clean[:idx].strip()
+            requirement_clean = requirement_clean[:idx].strip()
 
     # Remove parenthetical notes
     import re
-    vt_clean = re.sub(r"\(.*?\)", "", vt_clean).strip()
-    byd_clean = re.sub(r"\(.*?\)", "", byd_clean).strip()
+    supplier_clean = re.sub(r"\(.*?\)", "", supplier_clean).strip()
+    requirement_clean = re.sub(r"\(.*?\)", "", requirement_clean).strip()
 
-    return vt_clean == byd_clean
+    return supplier_clean == requirement_clean
 
 
 def run_evaluation(corpus: dict[str, Any], *, output_dir: Path | None = None) -> dict[str, Any]:
@@ -147,6 +151,7 @@ def run_evaluation(corpus: dict[str, Any], *, output_dir: Path | None = None) ->
     corpus_id = corpus.get("corpus_id", "unknown")
 
     print(f"Evaluating corpus: {corpus_id} ({len(cases)} cases)")
+    print("Mode: deterministic_baseline (unsupported comparisons abstain)")
     print("=" * 60)
 
     # Simulate decisions (offline mode)
@@ -196,6 +201,8 @@ def run_evaluation(corpus: dict[str, Any], *, output_dir: Path | None = None) ->
         output_dir.mkdir(parents=True, exist_ok=True)
         result_file = output_dir / "decision_eval_result.json"
         output_payload = {
+            "evaluation_mode": "deterministic_baseline",
+            "uses_gold_for_prediction": False,
             "corpus_id": corpus_id,
             "evaluated_at": time.strftime("%Y-%m-%dT%H:%M:%S"),
             "metrics": metrics,
@@ -206,7 +213,13 @@ def run_evaluation(corpus: dict[str, Any], *, output_dir: Path | None = None) ->
             json.dump(output_payload, f, ensure_ascii=False, indent=2)
         print(f"\nResults saved to: {result_file}")
 
-    return {"metrics": metrics, "gate_pass": gate_pass, "results": results}
+    return {
+        "evaluation_mode": "deterministic_baseline",
+        "uses_gold_for_prediction": False,
+        "metrics": metrics,
+        "gate_pass": gate_pass,
+        "results": results,
+    }
 
 
 def main() -> None:

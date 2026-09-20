@@ -1,0 +1,7 @@
+{
+  "binary_sha256": "a9b6e97fd630b1d2eeba1d713ec966d02c6bb8e0b7a5477981cfef8f105be10c",
+  "codex_version": "codex-cli 0.150.0-alpha.12.2",
+  "protocol_schema_sha256": "eb7bf50a1149b0079a0fbeb9ebd002f5aae601dcdaf2de44071842534153c750",
+  "protocol_v2_schema_sha256": "b25c0fcc680b9291bba599eb892789b66df7f129ffc40eb9eac2283d3f2d02dd",
+  "schema": "reqpilotx-codex-protocol-lock/v1"
+}

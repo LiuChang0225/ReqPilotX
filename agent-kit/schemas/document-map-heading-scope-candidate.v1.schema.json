@@ -1,0 +1,154 @@
+{
+  "$defs": {
+    "DocumentMapHeadingDecisionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "candidate_id": {
+          "type": "string"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "disposition": {
+          "$ref": "#/$defs/DocumentMapHeadingDisposition"
+        },
+        "parent_candidate_id": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "public_summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "candidate_id",
+        "disposition",
+        "parent_candidate_id",
+        "confidence",
+        "public_summary"
+      ],
+      "type": "object"
+    },
+    "DocumentMapHeadingDisposition": {
+      "enum": [
+        "HEADING",
+        "NOT_HEADING"
+      ],
+      "type": "string"
+    },
+    "DocumentMapHeadingScopeAction": {
+      "enum": [
+        "ACCEPT_SCOPE",
+        "COORDINATE_WITH_PREVIOUS",
+        "COORDINATE_WITH_NEXT"
+      ],
+      "type": "string"
+    },
+    "DocumentMapHeadingScopeFindingV1": {
+      "additionalProperties": false,
+      "properties": {
+        "evidence_refs": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "finding_code": {
+          "type": "string"
+        },
+        "public_summary": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "finding_code",
+        "evidence_refs",
+        "public_summary"
+      ],
+      "type": "object"
+    },
+    "DocumentMapSourceEndpointV1": {
+      "additionalProperties": false,
+      "properties": {
+        "offset": {
+          "type": "integer"
+        },
+        "source_node_id": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "source_node_id",
+        "offset"
+      ],
+      "type": "object"
+    },
+    "DocumentMapSourceSpanV1": {
+      "additionalProperties": false,
+      "properties": {
+        "end": {
+          "$ref": "#/$defs/DocumentMapSourceEndpointV1"
+        },
+        "start": {
+          "$ref": "#/$defs/DocumentMapSourceEndpointV1"
+        }
+      },
+      "required": [
+        "start",
+        "end"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "accepted_source_span": {
+      "$ref": "#/$defs/DocumentMapSourceSpanV1"
+    },
+    "action": {
+      "$ref": "#/$defs/DocumentMapHeadingScopeAction"
+    },
+    "findings": {
+      "items": {
+        "$ref": "#/$defs/DocumentMapHeadingScopeFindingV1"
+      },
+      "type": "array"
+    },
+    "heading_decisions": {
+      "items": {
+        "$ref": "#/$defs/DocumentMapHeadingDecisionV1"
+      },
+      "type": "array"
+    },
+    "public_summary": {
+      "type": "string"
+    },
+    "request_id": {
+      "type": "string"
+    },
+    "request_sha256": {
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "document-map-heading-scope-candidate/v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "request_id",
+    "request_sha256",
+    "action",
+    "accepted_source_span",
+    "heading_decisions",
+    "findings",
+    "public_summary"
+  ],
+  "type": "object"
+}

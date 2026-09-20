@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+if __package__:
+    from .runtime_isolation import activate_test_runtime
+else:
+    from runtime_isolation import activate_test_runtime
+
+activate_test_runtime()
+
 import asyncio
 import io
 import json
@@ -8,23 +15,48 @@ import tempfile
 import time
 import unittest
 import sqlite3
+from concurrent.futures import ThreadPoolExecutor
 from contextlib import ExitStack
 from pathlib import Path
-from threading import Event
+from threading import Barrier, Event, Thread
+from types import SimpleNamespace
 from unittest.mock import patch
 
 import fitz
-from fastapi import HTTPException
+from app.application.errors import ApplicationError as HTTPException
 from fastapi.testclient import TestClient
-from openpyxl import load_workbook
 from PIL import Image as PILImage
 from starlette.datastructures import UploadFile
 
-from app import db, main
+from app import db
+from app.domain.extraction.requirement_tree import RequirementTreeState
+from app.domain.requirement_matrix import (
+    MatrixAiAssessmentV1,
+    MatrixAnalysisEligibility,
+    MatrixAnalysisStatus,
+    MatrixCountsV1,
+    MatrixManualDecisionV1,
+    MatrixNodeDisposition,
+    MatrixNodeKind,
+    MatrixNodeStateV1,
+    MatrixNodeVisibility,
+    MatrixSnapshotState,
+    RequirementMatrixSnapshotV1,
+)
+from app.api.pages import extraction_review_page
+if __package__:
+    from .application_under_test import main
+else:
+    from application_under_test import main
+from app.main import app as http_app
+
+import app.adapters.persistence.assessment_results as assessment_results
 from app.services.complex_table_mode import _row_shadow_signature
 from app.services import exporter, extraction_preview, preview_cache, table_assets, extractor
 from app.services.ai_copilot import AICopilotConfig, clear_runtime_ai_provider_overrides
-from app.services.exporter import export_compliance_matrix
+
+
+main.app = http_app
 
 
 class ImmediateThread:
@@ -44,6 +76,41 @@ class ImmediateThread:
 
     def is_alive(self) -> bool:
         return self._alive
+
+
+def _seed_human_decision(
+    requirement_id: str,
+    final_decision: str,
+    engineer_reason: str,
+) -> dict:
+    if db.get_assessment(requirement_id) is None:
+        db.upsert_assessment(
+            requirement_id,
+            "test-fixture",
+            "test-fixture",
+            "NEED_CLARIFICATION",
+            "Fixture assessment.",
+            0.0,
+            "manual",
+            "none",
+            "REQUIREMENT",
+            "",
+            "",
+            "HIGH",
+            "",
+            "test-fixture",
+            "test-fixture",
+        )
+    with db.get_conn() as conn:
+        conn.execute(
+            """
+            UPDATE assessments
+            SET final_decision = ?, engineer_reason = ?
+            WHERE requirement_id = ?
+            """,
+            (final_decision, engineer_reason, requirement_id),
+        )
+    return db.get_assessment(requirement_id) or {}
 
 
 def _fake_preview() -> dict:
@@ -522,9 +589,15 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.exit_stack.enter_context(patch.object(db, "DB_PATH", self.tmp_path / "app.db"))
         self.exit_stack.enter_context(patch.object(db, "STORAGE_DIR", self.tmp_path))
         self.exit_stack.enter_context(patch.object(main, "EXPORTS_DIR", self.tmp_path / "exports"))
+        self.background_threads: list[Thread] = []
+        self.exit_stack.enter_context(patch.object(main, "Thread", self._tracked_thread))
+        self._matrix_patch_installed = False
         db.init_db()
 
     def tearDown(self) -> None:
+        # Terminal job state can precede the worker's final event/projection
+        # writes. Keep this test's database and settings bound until it exits.
+        self._drain_background_threads()
         clear_runtime_ai_provider_overrides()
         self.exit_stack.close()
         db_file = self.tmp_path / "app.db"
@@ -540,6 +613,27 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                 time.sleep(0.05)
         self.tmpdir.cleanup()
 
+    def _tracked_thread(self, *args, **kwargs) -> Thread:
+        thread = Thread(*args, **kwargs)
+        self.background_threads.append(thread)
+        return thread
+
+    def _drain_background_threads(self, release_provider: Event | None = None) -> None:
+        with main._AI_ANALYSIS_THREAD_LOCK:
+            owned_jobs = [
+                (document_id, runtime.get("job_id", ""))
+                for document_id, runtime in main._AI_ANALYSIS_THREADS.items()
+                if runtime.get("thread") in self.background_threads
+            ]
+        for document_id, job_id in owned_jobs:
+            main._request_ai_analysis_cancel(document_id, job_id)
+        if release_provider is not None:
+            release_provider.set()
+        for thread in self.background_threads:
+            if thread.ident is not None:
+                thread.join(timeout=10)
+                self.assertFalse(thread.is_alive(), f"Test worker did not finish: {thread.name}")
+
     def _create_project_with_document(self, suffix: str = "") -> tuple[dict, dict]:
         sample_path = self.tmp_path / f"sample{suffix}.txt"
         sample_path.write_text("sample", encoding="utf-8")
@@ -551,6 +645,18 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             file_path=str(sample_path),
             extracted_text="sample",
         )
+        # Most workspace tests exercise downstream review/AI behavior, so their
+        # fixture represents a completed extraction preview. Readiness-specific
+        # tests explicitly reset this state to NOT_READY.
+        document = preview_cache.persist_preview_cache(
+            document,
+            {
+                "summary": {},
+                "sections": [],
+                "complete_requirement_entries": [],
+                "complete_requirement_entries_raw": [],
+            },
+        ) or document
         return project, document
 
     def _create_project_with_pdf_document(self, suffix: str = "") -> tuple[dict, dict]:
@@ -602,40 +708,342 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             extracted_text="knowledge",
         )
 
-    def _version_meta_values(self, workbook) -> dict[str, object]:
-        sheet = workbook["VersionMeta"]
-        return {
-            str(sheet.cell(row=row, column=1).value): sheet.cell(row=row, column=2).value
-            for row in range(1, sheet.max_row + 1)
-            if sheet.cell(row=row, column=1).value is not None
+    def _allow_verifiable_tree_derivation(self) -> None:
+        """Downstream behavior tests assume the active version owns a verified tree.
+
+        Immutable object persistence and cloning are exercised by the dedicated
+        RequirementTreeSnapshotPersistenceTests integration contract.
+        """
+
+        snapshot = SimpleNamespace(state=RequirementTreeState.READY, nodes=())
+
+        def inspect_tree(_requirement_set: dict, stored_rows: list[dict]) -> dict:
+            included = sum(
+                str(row.get("entry_kind") or "REQUIREMENT").upper()
+                in {"REQUIREMENT", "HYBRID"}
+                for row in stored_rows
+            )
+            return {
+                "requirement_tree_state": "READY",
+                "requirement_tree_issue": None,
+                "requirement_tree_has_evidence_bundle": True,
+                "tree_lock_ready": True,
+                "review_candidate_entry_count": len(stored_rows),
+                "structure_proxy_count": len(stored_rows),
+                "table_record_count": 0,
+                "semantic_requirement_count": 0,
+                "stored_review_entry_count": len(stored_rows),
+                "included_requirement_count": included,
+                "reference_count": sum(
+                    str(row.get("entry_kind") or "").upper() == "REFERENCE"
+                    for row in stored_rows
+                ),
+                "excluded_count": sum(
+                    str(row.get("entry_kind") or "").upper() == "EXCLUDED"
+                    for row in stored_rows
+                ),
+                "count_semantics": (
+                    "REVIEW_CANDIDATES_NOT_CONFIRMED_FINAL_REQUIREMENTS"
+                ),
+                "_business_key": "verified-test-tree",
+            }
+
+        self.exit_stack.enter_context(
+            patch(
+                "app.application.requirements._inspect_requirement_set_tree",
+                side_effect=inspect_tree,
+            )
+        )
+        self.exit_stack.enter_context(
+            patch(
+                "app.application.extraction.requirement_tree_snapshots."
+                "load_requirement_set_tree_snapshot",
+                return_value=snapshot,
+            )
+        )
+        self.exit_stack.enter_context(
+            patch(
+                "app.application.extraction.requirement_tree_snapshots."
+                "clone_requirement_set_tree_snapshot",
+                return_value=snapshot,
+            )
+        )
+        if not self._matrix_patch_installed:
+            self.exit_stack.enter_context(
+                patch(
+                    "app.application.requirement_matrix."
+                    "build_requirement_matrix_snapshot",
+                    side_effect=self._build_test_requirement_matrix,
+                )
+            )
+            self._matrix_patch_installed = True
+
+    def _build_test_requirement_matrix(
+        self,
+        project_id: str,
+        document_id: str,
+        requirement_set_id: str,
+        *,
+        require_current_runtime: bool = False,
+    ) -> RequirementMatrixSnapshotV1:
+        del require_current_runtime
+        rows = db.list_requirements(
+            project_id,
+            document_id,
+            requirement_set_id=requirement_set_id,
+        )
+        from app.adapters.persistence.requirement_matrix_states import (
+            list_requirement_matrix_node_states,
+        )
+
+        persisted_state_by_node_id = {
+            str(item.get("node_id") or ""): item
+            for item in list_requirement_matrix_node_states(
+                project_id=project_id,
+                document_id=document_id,
+                requirement_set_id=requirement_set_id,
+            )
         }
 
-    def _content_images(self, sheet) -> list:
-        images = []
-        for image in getattr(sheet, "_images", []):
-            anchor = getattr(image, "anchor", None)
-            marker = getattr(anchor, "_from", None)
-            if marker is None:
-                continue
-            if marker.col == 2 and marker.row >= 3:
-                images.append(image)
-        return images
+        def source_key(row: dict) -> tuple[tuple[int, ...], str]:
+            code = str(row.get("parent_section_code") or "")
+            parts = tuple(
+                int(part) if part.isdigit() else 999_999
+                for part in code.replace("-", ".").split(".")
+                if part
+            )
+            return parts or (999_999,), str(row.get("id") or "")
 
-    def _logo_images(self, sheet) -> list:
-        images = []
-        for image in getattr(sheet, "_images", []):
-            anchor = getattr(image, "anchor", None)
-            marker = getattr(anchor, "_from", None)
-            if marker is None:
-                continue
-            if marker.row <= 1 and marker.col >= 3:
-                images.append(image)
-        return images
+        ordered_rows = sorted(rows, key=source_key)
+        nodes: list[MatrixNodeStateV1] = []
+        for index, row in enumerate(ordered_rows):
+            requirement_id = str(row.get("id") or "")
+            node_id = f"matrix-{requirement_id}"
+            persisted_state = persisted_state_by_node_id.get(node_id, {})
+            kind = str(row.get("entry_kind") or "REQUIREMENT").upper()
+            eligible = kind in {"REQUIREMENT", "HYBRID"}
+            visibility = (
+                MatrixNodeVisibility.HUMAN_EXCLUDED
+                if kind == "EXCLUDED"
+                else MatrixNodeVisibility.VISIBLE
+            )
+            disposition = (
+                MatrixNodeDisposition.EXCLUDE
+                if visibility is MatrixNodeVisibility.HUMAN_EXCLUDED
+                else (
+                    MatrixNodeDisposition.ANALYZE
+                    if eligible
+                    else MatrixNodeDisposition.RETAIN
+                )
+            )
+            persisted_disposition = str(
+                persisted_state.get("disposition") or ""
+            ).strip().upper()
+            if persisted_disposition:
+                disposition = MatrixNodeDisposition(persisted_disposition)
+                visibility = (
+                    MatrixNodeVisibility.HUMAN_EXCLUDED
+                    if disposition is MatrixNodeDisposition.EXCLUDE
+                    else MatrixNodeVisibility.VISIBLE
+                )
+            assessment_mode = str(row.get("assessment_mode") or "")
+            ai_assessment = (
+                MatrixAiAssessmentV1(
+                    decision=str(row.get("ai_decision") or ""),
+                    compliance_status=str(row.get("compliance_status") or ""),
+                    reason=str(row.get("ai_reason") or ""),
+                    confidence=(
+                        float(row.get("ai_confidence"))
+                        if row.get("ai_confidence") is not None
+                        else None
+                    ),
+                    assessment_mode=assessment_mode,
+                )
+                if assessment_mode and assessment_mode.lower() != "manual"
+                else None
+            )
+            manual_decision = (
+                MatrixManualDecisionV1(
+                    decision=str(row.get("final_decision") or ""),
+                    reason=str(row.get("engineer_reason") or ""),
+                    decided_at=str(row.get("assessment_updated_at") or ""),
+                )
+                if str(row.get("final_decision") or "")
+                else None
+            )
+            status = MatrixAnalysisStatus.NOT_APPLICABLE
+            if eligible and disposition is MatrixNodeDisposition.ANALYZE:
+                status = (
+                    MatrixAnalysisStatus.DECIDED
+                    if manual_decision
+                    else (
+                        MatrixAnalysisStatus.ASSESSED
+                        if ai_assessment
+                        else MatrixAnalysisStatus.NOT_STARTED
+                    )
+                )
+            display_code = str(row.get("display_req_code") or f"REQ{index + 1:04d}")
+            nodes.append(
+                MatrixNodeStateV1(
+                    node_id=node_id,
+                    parent_id=None,
+                    depth=0,
+                    source_order=index,
+                    display_role=(
+                        MatrixNodeKind.ATOMIC_REQUIREMENT
+                        if eligible
+                        else MatrixNodeKind.CONTEXT
+                    ),
+                    label=str(
+                        row.get("raw_text")
+                        or row.get("requirement_text")
+                        or row.get("display_text")
+                        or display_code
+                    ),
+                    summary=str(
+                        row.get("raw_text")
+                        or row.get("requirement_text")
+                        or row.get("display_text")
+                        or ""
+                    ),
+                    content_blocks=tuple(row.get("content_blocks") or ()),
+                    table_refs=tuple(row.get("table_refs") or ()),
+                    source_refs=(),
+                    page_start=int(row.get("source_page") or 0) or None,
+                    requirement_entry_id=requirement_id,
+                    requirement_id=requirement_id,
+                    requirement_code=display_code,
+                    requirement_text=str(
+                        row.get("raw_text")
+                        or row.get("requirement_text")
+                        or row.get("display_text")
+                        or ""
+                    ),
+                    matrix_visibility=visibility,
+                    disposition=disposition,
+                    analysis_eligibility=(
+                        MatrixAnalysisEligibility.ELIGIBLE
+                        if eligible
+                        else MatrixAnalysisEligibility.NOT_ELIGIBLE
+                    ),
+                    analysis_status=status,
+                    ai_assessment=ai_assessment,
+                    manual_decision=manual_decision,
+                    compliance_status=str(row.get("compliance_status") or ""),
+                    save_revision=int(persisted_state.get("revision") or 0),
+                )
+            )
+        requirement_set = db.get_requirement_set(requirement_set_id) or {}
+        return RequirementMatrixSnapshotV1(
+            state=MatrixSnapshotState.READY,
+            project_id=project_id,
+            document_id=document_id,
+            requirement_set_id=requirement_set_id,
+            requirement_set_status=str(requirement_set.get("status") or "LOCKED"),
+            tree_sha256="f" * 64,
+            root_node_ids=tuple(node.node_id for node in nodes),
+            nodes=tuple(nodes),
+            counts=MatrixCountsV1(
+                total_nodes=len(nodes),
+                visible_nodes=sum(
+                    node.matrix_visibility is MatrixNodeVisibility.VISIBLE
+                    for node in nodes
+                ),
+                human_excluded_nodes=sum(
+                    node.matrix_visibility is MatrixNodeVisibility.HUMAN_EXCLUDED
+                    for node in nodes
+                ),
+                analyze_nodes=sum(
+                    node.disposition is MatrixNodeDisposition.ANALYZE
+                    for node in nodes
+                ),
+                retained_nodes=sum(
+                    node.disposition is MatrixNodeDisposition.RETAIN
+                    for node in nodes
+                ),
+                excluded_nodes=sum(
+                    node.disposition is MatrixNodeDisposition.EXCLUDE
+                    for node in nodes
+                ),
+                analysis_eligible_nodes=sum(
+                    node.analysis_eligibility is MatrixAnalysisEligibility.ELIGIBLE
+                    for node in nodes
+                ),
+                assessed_nodes=sum(
+                    node.analysis_status
+                    in {
+                        MatrixAnalysisStatus.ASSESSED,
+                        MatrixAnalysisStatus.DECIDED,
+                    }
+                    for node in nodes
+                ),
+                decided_nodes=sum(
+                    node.analysis_status is MatrixAnalysisStatus.DECIDED
+                    for node in nodes
+                ),
+            ),
+        )
+    def _active_requirement_set_id(self, document_id: str) -> str:
+        requirement_set = db.get_active_requirement_set(document_id)
+        self.assertIsNotNone(requirement_set)
+        return str((requirement_set or {}).get("id") or "")
 
-    def test_extraction_review_redirects_to_workspace_review(self) -> None:
-        response = main.extraction_review_page()
-        self.assertEqual(response.status_code, 307)
-        self.assertEqual(response.headers.get("location"), "/workspace?stage=review")
+    def _review_entry(
+        self,
+        document_id: str,
+        **payload: object,
+    ) -> main.ReviewedRequirementEntry:
+        return main.ReviewedRequirementEntry(
+            requirement_set_id=self._active_requirement_set_id(document_id),
+            **payload,
+        )
+
+    def _export_request(
+        self,
+        document_id: str,
+        **payload: object,
+    ) -> main.ExportRequest:
+        return main.ExportRequest(
+            document_id=document_id,
+            requirement_set_id=self._active_requirement_set_id(document_id),
+            **payload,
+        )
+
+    def _ai_start_payload(
+        self,
+        document_id: str,
+        *,
+        profile_id: str = "",
+    ) -> dict[str, str]:
+        payload = {
+            "requirement_set_id": self._active_requirement_set_id(document_id),
+        }
+        if profile_id:
+            payload["profile_id"] = profile_id
+        return payload
+
+    def _lock_active_requirement_set(
+        self,
+        project_id: str,
+        document_id: str,
+        *,
+        waiver_reason: str = "",
+    ) -> dict:
+        self._allow_verifiable_tree_derivation()
+        return main.lock_document_extraction(
+            project_id,
+            document_id,
+            main.LockExtractionRequest(
+                requirement_set_id=self._active_requirement_set_id(document_id),
+                waiver_reason=waiver_reason,
+            ),
+        )
+
+    def test_extraction_review_serves_read_only_source_workspace(self) -> None:
+        response = extraction_review_page()
+        self.assertEqual(response.status_code, 200)
+        self.assertEqual(Path(response.path).name, "index.html")
+        self.assertIn("no-store", response.headers["cache-control"])
 
     def test_review_entry_req_codes_are_unique_per_document(self) -> None:
         project = db.create_project(name="ReqCode Test", customer_name="Customer")
@@ -657,6 +1065,16 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             file_path=str(file_b),
             extracted_text="b",
         )
+        for document in (doc_a, doc_b):
+            requirement_set = db.create_requirement_set(
+                project["id"],
+                document["id"],
+            )
+            db.activate_requirement_set(
+                project["id"],
+                document["id"],
+                requirement_set["id"],
+            )
         payload = {
             "entry_id": "REQ0001",
             "req_code": "REQ0001",
@@ -674,12 +1092,12 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         res_a = main.save_review_entry(
             project["id"],
             doc_a["id"],
-            main.ReviewedRequirementEntry(**payload),
+            self._review_entry(doc_a["id"], **payload),
         )
         res_b = main.save_review_entry(
             project["id"],
             doc_b["id"],
-            main.ReviewedRequirementEntry(**payload),
+            self._review_entry(doc_b["id"], **payload),
         )
 
         self.assertEqual(res_a["review_save"]["action"], "inserted")
@@ -729,18 +1147,17 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(workspace["summary"]["preview_status"], "READY")
         self.assertTrue(workspace["summary"]["preview_cache_hit"])
 
-    def test_extraction_preview_reads_cached_preview(self) -> None:
-        project, document = self._create_project_with_document("-cached-preview")
-        with patch.object(main, "build_extraction_preview", return_value=_fake_preview()):
-            main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
-
-        with patch.object(main, "build_extraction_preview", side_effect=AssertionError("preview rebuilt")):
-            payload = main.get_sor_extraction_preview(project["id"], document["id"], response=main.Response())
-
-        self.assertEqual(payload["preview_status"], "READY")
-        self.assertTrue(payload["preview_cache_hit"])
-        self.assertEqual(len(payload["review_entries"]), 1)
-        self.assertEqual(len(payload["review_entries_raw"]), 2)
+    def test_removed_preview_routes_are_not_registered(self) -> None:
+        route_paths = {
+            str(getattr(route, "path", ""))
+            for route in main.app.routes
+        }
+        root = "/api/projects/{project_id}/sor-documents/{document_id}"
+        self.assertNotIn(f"{root}/extraction-preview", route_paths)
+        self.assertNotIn(f"{root}/refresh-preview", route_paths)
+        self.assertNotIn(f"{root}/extraction/preview", route_paths)
+        self.assertNotIn("/api/projects/{project_id}/analyze", route_paths)
+        self.assertNotIn(f"{root}/run-ai-analysis", route_paths)
 
     def test_review_entry_roundtrip_updates_workspace_and_version(self) -> None:
         project, document = self._create_project_with_document("-roundtrip")
@@ -754,7 +1171,8 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         insert_heading = main.save_review_entry(
             project["id"],
             document["id"],
-            main.ReviewedRequirementEntry(
+            self._review_entry(
+                document["id"],
                 entry_id="H-1",
                 req_code="",
                 entry_kind="HEADING",
@@ -778,13 +1196,14 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(insert_payload["review_save"]["req_code"], "H-1")
         self.assertEqual(insert_payload["saved_entry"]["req_code"], "H-1")
         self.assertEqual(insert_payload["saved_entry"]["keep"], True)
-        self.assertEqual(insert_payload["document"]["requirement_set_version"], 2)
+        self.assertEqual(insert_payload["document"]["requirement_set_version"], 1)
         self.assertEqual(len(insert_payload["requirements"]), 2)
 
         update_heading = main.save_review_entry(
             project["id"],
             document["id"],
-            main.ReviewedRequirementEntry(
+            self._review_entry(
+                document["id"],
                 entry_id="H-1",
                 req_code="",
                 entry_kind="HYBRID",
@@ -807,12 +1226,13 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(update_payload["review_save"]["action"], "updated")
         self.assertEqual(update_payload["saved_entry"]["entry_kind"], "HYBRID")
         self.assertEqual(update_payload["saved_entry"]["req_code"], "H-1")
-        self.assertEqual(update_payload["document"]["requirement_set_version"], 3)
+        self.assertEqual(update_payload["document"]["requirement_set_version"], 1)
 
         remove_heading = main.save_review_entry(
             project["id"],
             document["id"],
-            main.ReviewedRequirementEntry(
+            self._review_entry(
+                document["id"],
                 entry_id="H-1",
                 req_code="",
                 entry_kind="HEADING",
@@ -835,7 +1255,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(remove_payload["review_save"]["action"], "removed")
         self.assertEqual(remove_payload["review_save"]["req_code"], "H-1")
         self.assertEqual(remove_payload["saved_entry"]["keep"], False)
-        self.assertEqual(remove_payload["document"]["requirement_set_version"], 4)
+        self.assertEqual(remove_payload["document"]["requirement_set_version"], 1)
         self.assertEqual(len(remove_payload["requirements"]), 1)
 
     def test_review_save_uses_cached_preview_and_does_not_rebuild(self) -> None:
@@ -847,7 +1267,8 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             saved = main.save_review_entry(
                 project["id"],
                 document["id"],
-                main.ReviewedRequirementEntry(
+                self._review_entry(
+                    document["id"],
                     entry_id="REQ0001",
                     req_code="REQ0001",
                     entry_kind="REQUIREMENT",
@@ -877,8 +1298,11 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         with patch.object(main, "build_extraction_preview", return_value=preview):
             first = main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
         self.assertEqual(first["requirement_set_version"], 1)
+        first_set = db.get_active_requirement_set(document["id"])
+        first_requirement = db.list_requirements(project["id"], document["id"])[0]
+        _seed_human_decision(first_requirement["id"], "ACCEPT", "Historical decision")
 
-        locked = main.lock_document_extraction(project["id"], document["id"])
+        locked = self._lock_active_requirement_set(project["id"], document["id"])
         self.assertEqual(locked["document"]["workflow_stage"], "EXTRACTION_LOCKED")
 
         db.update_sor_document_ai_state(
@@ -897,73 +1321,1342 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(second["requirement_set_version"], 2)
         self.assertEqual(current.get("workflow_stage"), "EXTRACTED")
         self.assertEqual(str(current.get("extraction_locked_at") or ""), "")
-        self.assertEqual(str(current.get("ai_status") or ""), "STALE")
+        self.assertEqual(str(current.get("ai_status") or ""), "NOT_RUN")
+        self.assertEqual(len(db.list_requirement_sets(project["id"], document["id"])), 2)
+        historical = db.list_requirements(
+            project["id"], document["id"], requirement_set_id=first_set["id"]
+        )
+        self.assertEqual(historical[0]["id"], first_requirement["id"])
+        self.assertEqual(historical[0]["final_decision"], "ACCEPT")
 
-    def test_review_save_auto_unlocks_and_disables_export(self) -> None:
+    def test_locked_requirement_set_rejects_review_edits_without_silent_fork(
+        self,
+    ) -> None:
+        project, document = self._create_project_with_document("-locked-fork")
+        with patch.object(main, "build_extraction_preview", return_value=_fake_preview()):
+            main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
+        self._lock_active_requirement_set(project["id"], document["id"])
+
+        def payload(text: str) -> main.ReviewedRequirementEntry:
+            return self._review_entry(
+                document["id"],
+                entry_id="REQ0001",
+                req_code="REQ0001",
+                entry_kind="REQUIREMENT",
+                source_page=1,
+                source_anchor="Main > 1",
+                requirement_text=text,
+                display_text=text,
+                raw_text=text,
+                requirement_type="FUNCTIONAL",
+                priority="MEDIUM",
+                parent_section_code="1",
+                parent_section_title="概述",
+                parent_section_label="1 概述",
+                keep=True,
+            )
+
+        with self.assertRaises(HTTPException) as blocked:
+            main.save_review_entry(
+                project["id"],
+                document["id"],
+                payload("锁定后修订"),
+            )
+        sets = db.list_requirement_sets(project["id"], document["id"])
+
+        self.assertEqual(blocked.exception.status_code, 409)
+        self.assertEqual(blocked.exception.detail["code"], "requirement_set_locked")
+        self.assertEqual(
+            [(item["version"], item["status"]) for item in sets],
+            [(1, "LOCKED")],
+        )
+        self.assertEqual(
+            db.list_requirements(project["id"], document["id"])[0]["display_text"],
+            "供应商需要满足总成试验要求。",
+        )
+
+    def test_assessment_compliance_contract_round_trips_without_overwriting_human_decision(self) -> None:
+        project, document = self._create_project_with_document(
+            "-assessment-compliance-contract"
+        )
+        requirement = db.insert_requirement(
+            project["id"],
+            document["id"],
+            "REQ0001",
+            1,
+            "Page 1 | Section 1",
+            "系统应支持安全诊断。",
+            "FUNCTIONAL",
+            "HIGH",
+        )
+        gap = {
+            "schema_version": "assessment-information-gap/v1",
+            "found_evidence": [],
+            "missing_items": [
+                {
+                    "item": "诊断验证记录",
+                    "blocking_reason": "当前没有直接验证结果。",
+                    "required_input": "请补充验证报告。",
+                }
+            ],
+            "conflicts": [],
+            "clarification_questions": ["请补充验证报告。"],
+        }
+        sub_judgments = [
+            {
+                "sub_judgment_id": "sj-1",
+                "source_ranges": ["atomic_source_text"],
+                "statement": "系统应支持安全诊断。",
+                "compliance_status": "INSUFFICIENT_INFORMATION",
+                "reason": "缺少验证记录。",
+                "retrieval_evidence_ids": ["stable-chunk-1"],
+                "structured_information_gap": gap,
+            }
+        ]
+        db.upsert_assessment(
+            requirement["id"],
+            "profile",
+            "provider",
+            "NEED_CLARIFICATION",
+            "缺少直接证据。",
+            0.4,
+            "rag",
+            "vector",
+            "REQUIREMENT",
+            "basis",
+            "系统应支持安全诊断。",
+            "HIGH",
+            "请补充验证报告。",
+            "model",
+            "prompt-v3",
+            compliance_status="INSUFFICIENT_INFORMATION",
+            evidence_findings=[
+                {
+                    "retrieval_evidence_id": "stable-chunk-1",
+                    "finding": "CONTEXT_ONLY",
+                    "rationale": "只提供上下文。",
+                }
+            ],
+            structured_information_gap=gap,
+            sub_judgments=sub_judgments,
+        )
+        db.replace_evidences(
+            requirement["id"],
+            [
+                {
+                    "source_doc_id": "knowledge-1",
+                    "source_doc_name": "knowledge.txt",
+                    "source_doc_version": "v1",
+                    "source_location": "Chunk 1",
+                    "excerpt": "安全诊断章节。",
+                    "relevance": 0.71,
+                    "retrieval_evidence_id": "stable-chunk-1",
+                    "content_hash": "a" * 64,
+                    "evidence_contract_version": "evidence-v1",
+                    "content_kind": "paragraph",
+                    "doc_type": "REFERENCE",
+                    "status": "ACTIVE",
+                }
+            ],
+        )
+        _seed_human_decision(
+            requirement["id"],
+            "REJECT",
+            "人工确认当前版本不接受。",
+        )
+        db.upsert_assessment(
+            requirement["id"],
+            "profile",
+            "provider",
+            "NEED_CLARIFICATION",
+            "仍缺少直接证据。",
+            0.45,
+            "rag",
+            "vector",
+            "REQUIREMENT",
+            "basis",
+            "系统应支持安全诊断。",
+            "HIGH",
+            "请补充验证报告。",
+            "model",
+            "prompt-v3",
+            compliance_status="INSUFFICIENT_INFORMATION",
+            structured_information_gap=gap,
+            sub_judgments=sub_judgments,
+        )
+
+        persisted = db.get_requirement(requirement["id"])
+        self.assertIsNotNone(persisted)
+        assert persisted is not None
+        self.assertEqual(
+            persisted["compliance_status"],
+            "INSUFFICIENT_INFORMATION",
+        )
+        self.assertEqual(
+            persisted["structured_information_gap"],
+            gap,
+        )
+        self.assertEqual(persisted["sub_judgments"], sub_judgments)
+        self.assertEqual(persisted["final_decision"], "REJECT")
+        self.assertEqual(
+            persisted["engineer_reason"],
+            "人工确认当前版本不接受。",
+        )
+        self.assertNotEqual(
+            persisted["evidences"][0]["id"],
+            persisted["evidences"][0]["retrieval_evidence_id"],
+        )
+        self.assertEqual(
+            persisted["evidences"][0]["retrieval_evidence_id"],
+            "stable-chunk-1",
+        )
+        self.assertEqual(
+            persisted["evidences"][0]["evidence_metadata"]["status"],
+            "ACTIVE",
+        )
+
+    def test_locked_set_keeps_human_decision_on_same_version_and_fork_exposes_references(
+        self,
+    ) -> None:
+        project, document = self._create_project_with_document("-stale-reference")
+        requirement = db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1 | Section 1",
+            "需要满足验证要求。", "FUNCTIONAL", "HIGH",
+        )
+        db.upsert_assessment(
+            requirement["id"], "profile", "provider", "ACCEPT", "AI basis", 0.91,
+            "rag", "vector", "REQUIREMENT", "basis", "normalized", "LOW", "",
+            "model", "prompt-v1",
+        )
+        db.replace_evidences(
+            requirement["id"],
+            [{
+                "source_doc_id": "knowledge-1",
+                "source_doc_name": "knowledge.txt",
+                "source_doc_version": "v1",
+                "source_location": "line 3",
+                "excerpt": "reference excerpt",
+                "relevance": 0.9,
+            }],
+        )
+        _seed_human_decision(requirement["id"], "REJECT", "Human conclusion")
+        db.add_assessment_run(
+            requirement["id"], profile_id="profile", provider="provider", mode="rag",
+            retrieval_backend="vector", model_name="model", prompt_version="prompt-v1",
+            input_payload_json="{}", output_payload_json="{}", validation_status="VALID",
+            fallback_reason="",
+        )
+        ai_job = db.create_ai_analysis_job(
+            project["id"], document["id"], total_requirements=1, status="PENDING"
+        )
+        db.update_ai_analysis_job(
+            ai_job["id"], status="COMPLETED", finished_at="2026-07-18T00:00:00+00:00"
+        )
+        db.lock_sor_document_extraction(document["id"])
+
+        self.assertEqual(
+            db.get_assessment(requirement["id"])["final_decision"],
+            "REJECT",
+        )
+        self.assertEqual(
+            db.get_active_requirement_set(document["id"])["id"],
+            requirement["requirement_set_id"],
+        )
+        with self.assertRaises(PermissionError):
+            db.delete_requirement(requirement["id"])
+
+        draft = db.fork_requirement_set_for_edit(project["id"], document["id"])
+        copied = db.get_requirement_in_set_by_prior(draft["id"], requirement["id"])
+        self.assertIsNotNone(copied)
+        assert copied is not None
+        self.assertIsNone(copied.get("final_decision"))
+        self.assertEqual(copied["decision_reference"]["final_decision"], "REJECT")
+        self.assertEqual(copied["decision_reference"]["confirmation_status"], "PENDING")
+        self.assertEqual(copied["ai_decision"], "ACCEPT")
+        self.assertEqual(copied["assessment_reference_status"], "STALE_REFERENCE")
+        self.assertEqual(copied["evidences"][0]["reference_status"], "STALE_REFERENCE")
+        self.assertEqual(db.list_assessment_runs(copied["id"]), [])
+        self.assertEqual(len(db.list_assessment_runs(requirement["id"])), 1)
+        sets = db.list_requirement_sets(project["id"], document["id"])
+        old_set = next(item for item in sets if item["version"] == 1)
+        new_set = next(item for item in sets if item["version"] == 2)
+        self.assertEqual(old_set["latest_ai_run_id"], ai_job["id"])
+        self.assertEqual(old_set["latest_ai_run_status"], "COMPLETED")
+        self.assertFalse(new_set.get("latest_ai_run_id"))
+        db.lock_sor_document_extraction(
+            document["id"],
+            expected_requirement_set_id=draft["id"],
+        )
+        assessment_results.publish_serving_results(
+            [(
+                copied["id"],
+                {
+                "assessment": {
+                    "ai_decision": "REJECT", "ai_reason": "fresh result", "ai_confidence": 0.88,
+                    "assessment_mode": "rag", "analysis_label": "REQUIREMENT",
+                    "analysis_basis": "fresh", "normalized_requirement": "normalized",
+                    "risk_level": "HIGH", "clarification_question": "", "model_name": "new-model",
+                    "prompt_version": "v2",
+                },
+                "evidences": [],
+                "runs": [],
+                },
+            )],
+            document_id=document["id"],
+            requirement_set_id=draft["id"],
+            requirement_set_version=int(draft["version"]),
+            knowledge_base_version=int(
+                (db.get_project(project["id"]) or {})[
+                    "knowledge_base_version"
+                ]
+            ),
+            profile_id="profile", provider="provider", retrieval_backend="vector",
+        )
+        refreshed = db.get_requirement(copied["id"])
+        self.assertEqual(refreshed["assessment_reference_status"], "CURRENT")
+        self.assertEqual(refreshed["assessment_source_requirement_id"], "")
+        self.assertEqual(refreshed["assessment_result_origin"], "NATIVE")
+        self.assertEqual(refreshed["assessment_source_assessment_id"], "")
+        self.assertEqual(refreshed["assessment_impact_receipt_id"], "")
+        self.assertEqual(refreshed["ai_decision"], "REJECT")
+
+    def test_evidence_context_resolves_source_location_and_file(self) -> None:
+        project, document = self._create_project_with_document("-evidence-context")
+        knowledge_path = self.tmp_path / "evidence-source.txt"
+        source_text = "line one\nneedle evidence text\nline three\nneedle evidence text\nline five"
+        knowledge_path.write_text(source_text, encoding="utf-8")
+        knowledge = db.add_knowledge_document(
+            project["id"], "evidence-source.txt", "txt", str(knowledge_path),
+            source_text, doc_version="v2",
+            status="ACTIVE", effective_from="2026-01-01", effective_to="2027-01-01",
+        )
+        requirement = db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1", "need evidence",
+            "FUNCTIONAL", "MEDIUM",
+        )
+        db.replace_evidences(
+            requirement["id"],
+            [{
+                "source_doc_id": knowledge["id"], "source_doc_name": knowledge["file_name"],
+                "source_doc_version": "v2", "source_location": "line 4",
+                "excerpt": "needle evidence text", "relevance": 0.95,
+            }],
+        )
+        evidence_payload = db.get_requirement(requirement["id"])["evidences"][0]
+        self.assertEqual(evidence_payload["source_doc_status"], "ACTIVE")
+        self.assertEqual(evidence_payload["source_effective_from"], "2026-01-01")
+        self.assertEqual(evidence_payload["source_effective_to"], "2027-01-01")
+        self.assertEqual(evidence_payload["effective_from"], "2026-01-01")
+        self.assertEqual(evidence_payload["effective_to"], "2027-01-01")
+        evidence_id = evidence_payload["id"]
+        context = main.get_evidence_context(evidence_id)
+        self.assertEqual(context["source"]["line_number"], 4)
+        self.assertEqual(context["source"]["status"], "ACTIVE")
+        self.assertEqual(context["location_strategy"], "source_line_exact")
+        self.assertEqual(context["location_confidence"], "HIGH")
+        self.assertEqual(context["location_candidate_count"], 2)
+        self.assertIn("needle evidence text", context["context"])
+        self.assertEqual(context["file_url"], f"/api/evidences/{evidence_id}/file")
+        response = main.open_evidence_file(evidence_id)
+        self.assertEqual(Path(response.path), knowledge_path)
+
+    def test_failed_generation_keeps_active_set_and_history(self) -> None:
+        project, document = self._create_project_with_document("-generation-failure")
+        with patch.object(main, "build_extraction_preview", return_value=_fake_preview()):
+            main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
+        original_set = db.get_active_requirement_set(document["id"])
+        original_requirement = db.list_requirements(project["id"], document["id"])[0]
+        _seed_human_decision(original_requirement["id"], "ACCEPT", "Preserve me")
+
+        rows = [
+            {"req_code": "REQ1001", "entry_kind": "REQUIREMENT", "display_text": "new one"},
+            {"req_code": "REQ1002", "entry_kind": "REQUIREMENT", "display_text": "new two"},
+        ]
+        original_insert = db.insert_requirement
+        call_count = 0
+
+        def fail_second(*args, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                raise RuntimeError("simulated insert failure")
+            return original_insert(*args, **kwargs)
+
+        with patch.object(db, "insert_requirement", side_effect=fail_second):
+            with self.assertRaises(RuntimeError):
+                main._persist_requirements(
+                    project_id=project["id"], sor_document_id=document["id"], rows=rows,
+                    knowledge_docs=[], workflow_stage="EXTRACTED",
+                )
+
+        current_set = db.get_active_requirement_set(document["id"])
+        self.assertEqual(current_set["id"], original_set["id"])
+        self.assertEqual(len(db.list_requirement_sets(project["id"], document["id"])), 1)
+        preserved = db.get_requirement(original_requirement["id"])
+        self.assertEqual(preserved["final_decision"], "ACCEPT")
+
+    def test_requirement_set_publish_rolls_back_table_assets_and_activation_together(self) -> None:
+        project, document = self._create_project_with_document("-asset-atomic")
+        db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1", "old", "FUNCTIONAL", "MEDIUM"
+        )
+        original_set = db.get_active_requirement_set(document["id"])
+        db.replace_document_table_assets(
+            project["id"], document["id"], [{"table_id": "old-table", "value": "old"}]
+        )
+        candidate = db.create_requirement_set(project["id"], document["id"])
+        db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1", "new", "FUNCTIONAL", "MEDIUM",
+            requirement_set_id=candidate["id"],
+        )
+        original_replace = db._replace_document_table_assets_in_conn
+
+        def replace_then_fail(conn, **kwargs):
+            original_replace(conn, **kwargs)
+            raise RuntimeError("simulated publish failure")
+
+        with patch.object(db, "_replace_document_table_assets_in_conn", side_effect=replace_then_fail):
+            with self.assertRaises(RuntimeError):
+                db.activate_requirement_set(
+                    project["id"], document["id"], candidate["id"],
+                    table_assets=[{"table_id": "new-table", "value": "new"}],
+                )
+
+        self.assertEqual(db.get_active_requirement_set(document["id"])["id"], original_set["id"])
+        assets = db.list_document_table_assets(project["id"], document["id"])
+        self.assertEqual([asset["table_id"] for asset in assets], ["old-table"])
+        self.assertEqual(
+            db.list_document_table_assets(
+                project["id"], document["id"], requirement_set_id=candidate["id"]
+            ),
+            [],
+        )
+
+    def test_historical_requirement_set_without_tree_stays_read_only_with_ai_projection(self) -> None:
+        project, document = self._create_project_with_document("-restore-ai-projection")
+        db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1",
+            "Original requirement", "FUNCTIONAL", "MEDIUM",
+        )
+        first_set = db.get_active_requirement_set(document["id"])
+        ai_job = db.create_ai_analysis_job(
+            project["id"], document["id"], requirement_set_id=first_set["id"],
+            total_requirements=1, status="PENDING",
+        )
+        db.update_ai_analysis_job(
+            ai_job["id"], status="COMPLETED", finished_at="2026-07-18T08:00:00+00:00"
+        )
+        db.update_sor_document_ai_state(
+            document["id"], ai_status="READY", ai_assessed_at="2026-07-18T08:00:00+00:00",
+            ai_requirement_set_version=first_set["version"], ai_knowledge_base_version=0,
+        )
+
+        second_set = db.create_requirement_set(project["id"], document["id"])
+        db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1",
+            "Replacement requirement", "FUNCTIONAL", "MEDIUM",
+            requirement_set_id=second_set["id"],
+        )
+        db.activate_requirement_set(project["id"], document["id"], second_set["id"])
+        self.assertEqual(db.get_sor_document(document["id"])["ai_status"], "NOT_RUN")
+
+        with self.assertRaises(HTTPException) as restore_error:
+            main.restore_document_requirement_set(
+                project["id"], document["id"], first_set["id"]
+            )
+        self.assertEqual(restore_error.exception.status_code, 409)
+        historical = main.get_document_workspace(
+            project["id"],
+            document["id"],
+            include_preview=False,
+            requirement_set_id=first_set["id"],
+        )
+        self.assertEqual(historical["document"]["ai_status"], "COMPLETED")
+        self.assertEqual(
+            historical["document"]["ai_assessed_at"],
+            "2026-07-18T08:00:00+00:00",
+        )
+        self.assertEqual(
+            historical["document"]["ai_requirement_set_version"],
+            first_set["version"],
+        )
+        self.assertEqual(
+            db.get_active_requirement_set(document["id"])["id"],
+            second_set["id"],
+        )
+
+    def test_requirement_set_switch_and_fork_are_blocked_while_ai_job_is_active(self) -> None:
+        project, document = self._create_project_with_document("-set-switch-running-ai")
+        db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1",
+            "Original requirement", "FUNCTIONAL", "MEDIUM",
+        )
+        first_set = db.get_active_requirement_set(document["id"])
+        second_set = db.create_requirement_set(project["id"], document["id"])
+        db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1",
+            "Candidate requirement", "FUNCTIONAL", "MEDIUM",
+            requirement_set_id=second_set["id"],
+        )
+        job = db.create_ai_analysis_job(
+            project["id"], document["id"], requirement_set_id=first_set["id"],
+            total_requirements=1, status="PENDING",
+        )
+
+        with self.assertRaises(HTTPException) as activation_error:
+            main.activate_document_requirement_set(
+                project["id"], document["id"], second_set["id"]
+            )
+        self.assertEqual(activation_error.exception.status_code, 409)
+        with self.assertRaises(db.RequirementSetMutationBlocked):
+            db.create_requirement_set(project["id"], document["id"])
+        with self.assertRaises(db.RequirementSetMutationBlocked):
+            db.fork_requirement_set_for_edit(project["id"], document["id"])
+        self.assertEqual(db.get_active_requirement_set(document["id"])["id"], first_set["id"])
+        self.assertEqual(db.get_active_ai_analysis_job_for_document(document["id"])["id"], job["id"])
+
+    def test_legacy_requirement_set_migration_preserves_child_rows_and_ids(self) -> None:
+        legacy_path = self.tmp_path / "legacy-requirements.db"
+        conn = sqlite3.connect(legacy_path)
+        conn.execute("PRAGMA foreign_keys = ON")
+        conn.executescript(
+            """
+            CREATE TABLE projects(id TEXT PRIMARY KEY, name TEXT NOT NULL, customer_name TEXT NOT NULL, created_at TEXT NOT NULL);
+            CREATE TABLE sor_documents(
+                id TEXT PRIMARY KEY, project_id TEXT NOT NULL, file_name TEXT NOT NULL,
+                file_type TEXT NOT NULL, file_path TEXT NOT NULL, extracted_text TEXT NOT NULL,
+                created_at TEXT NOT NULL, FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE
+            );
+            CREATE TABLE requirements(
+                id TEXT PRIMARY KEY, project_id TEXT NOT NULL, sor_document_id TEXT NOT NULL,
+                req_code TEXT NOT NULL, source_page INTEGER, source_anchor TEXT,
+                requirement_text TEXT NOT NULL, requirement_type TEXT NOT NULL, priority TEXT NOT NULL,
+                status TEXT NOT NULL, created_at TEXT NOT NULL, updated_at TEXT NOT NULL,
+                UNIQUE(sor_document_id, req_code),
+                FOREIGN KEY(project_id) REFERENCES projects(id) ON DELETE CASCADE,
+                FOREIGN KEY(sor_document_id) REFERENCES sor_documents(id) ON DELETE CASCADE
+            );
+            CREATE TABLE assessments(
+                id TEXT PRIMARY KEY, requirement_id TEXT NOT NULL UNIQUE, ai_decision TEXT NOT NULL,
+                ai_reason TEXT NOT NULL, ai_confidence REAL NOT NULL, final_decision TEXT,
+                engineer_reason TEXT, model_name TEXT NOT NULL, prompt_version TEXT NOT NULL,
+                updated_at TEXT NOT NULL,
+                FOREIGN KEY(requirement_id) REFERENCES requirements(id) ON DELETE CASCADE
+            );
+            CREATE TABLE evidences(
+                id TEXT PRIMARY KEY, requirement_id TEXT NOT NULL, source_doc_id TEXT NOT NULL,
+                source_doc_name TEXT NOT NULL, source_location TEXT NOT NULL, excerpt TEXT NOT NULL,
+                relevance REAL NOT NULL,
+                FOREIGN KEY(requirement_id) REFERENCES requirements(id) ON DELETE CASCADE
+            );
+            CREATE TABLE assessment_runs(
+                id TEXT PRIMARY KEY, requirement_id TEXT NOT NULL, mode TEXT NOT NULL,
+                retrieval_backend TEXT NOT NULL, model_name TEXT NOT NULL, prompt_version TEXT NOT NULL,
+                input_payload_json TEXT NOT NULL, output_payload_json TEXT NOT NULL,
+                validation_status TEXT NOT NULL, fallback_reason TEXT NOT NULL DEFAULT '', created_at TEXT NOT NULL,
+                FOREIGN KEY(requirement_id) REFERENCES requirements(id) ON DELETE CASCADE
+            );
+            CREATE TABLE review_logs(
+                id TEXT PRIMARY KEY, requirement_id TEXT NOT NULL, action TEXT NOT NULL,
+                old_value TEXT, new_value TEXT, comment TEXT, operator TEXT NOT NULL, operated_at TEXT NOT NULL,
+                FOREIGN KEY(requirement_id) REFERENCES requirements(id) ON DELETE CASCADE
+            );
+            CREATE TABLE ai_analysis_jobs(
+                id TEXT PRIMARY KEY, project_id TEXT NOT NULL, sor_document_id TEXT NOT NULL,
+                status TEXT NOT NULL, created_at TEXT NOT NULL,
+                finished_at TEXT NOT NULL DEFAULT '', updated_at TEXT NOT NULL
+            );
+            INSERT INTO projects VALUES ('project-1', 'Legacy', 'Customer', 'created');
+            INSERT INTO sor_documents VALUES ('document-1', 'project-1', 'legacy.txt', 'txt', '/tmp/legacy', 'source', 'created');
+            INSERT INTO requirements VALUES (
+                'requirement-1', 'project-1', 'document-1', 'REQ0001', 1, 'Page 1',
+                'Legacy requirement', 'FUNCTIONAL', 'HIGH', 'IN_REVIEW', 'created', 'updated'
+            );
+            INSERT INTO assessments VALUES (
+                'assessment-1', 'requirement-1', 'ACCEPT', 'AI reason', 0.8,
+                'REJECT', 'Human reason', 'model', 'prompt', 'updated'
+            );
+            INSERT INTO evidences VALUES (
+                'evidence-1', 'requirement-1', 'knowledge-1', 'knowledge.txt', 'line 1', 'excerpt', 0.9
+            );
+            INSERT INTO assessment_runs VALUES (
+                'run-1', 'requirement-1', 'rag', 'vector', 'model', 'prompt', '{}', '{}', 'VALID', '', 'created'
+            );
+            INSERT INTO review_logs VALUES (
+                'log-1', 'requirement-1', 'EDIT_DECISION', '{}', '{}', 'comment', 'engineer', 'created'
+            );
+            INSERT INTO ai_analysis_jobs VALUES (
+                'job-1', 'project-1', 'document-1', 'COMPLETED', 'created', 'finished', 'finished'
+            );
+            """
+        )
+        conn.commit()
+        conn.close()
+
+        with patch.object(db, "DB_PATH", legacy_path):
+            db.init_db()
+            migrated_requirement = db.get_requirement("requirement-1")
+            sets = db.list_requirement_sets("project-1", "document-1")
+            self.assertEqual(migrated_requirement["id"], "requirement-1")
+            self.assertEqual(migrated_requirement["final_decision"], "REJECT")
+            self.assertEqual(migrated_requirement["evidences"][0]["id"], "evidence-1")
+            self.assertEqual(db.list_assessment_runs("requirement-1")[0]["id"], "run-1")
+            self.assertEqual(db.list_review_logs("requirement-1")[0]["action"], "EDIT_DECISION")
+            self.assertEqual(len(sets), 1)
+            self.assertEqual(migrated_requirement["requirement_set_id"], sets[0]["id"])
+            migrated_job = db.get_ai_analysis_job("job-1")
+            self.assertEqual(migrated_job["requirement_set_id"], sets[0]["id"])
+            self.assertEqual(migrated_job["knowledge_base_version"], 0)
+
+    def test_legacy_export_lineage_backfill_is_deterministic_and_never_guesses_mode(self) -> None:
+        project, document = self._create_project_with_document("-legacy-export")
+        requirement = db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1",
+            "Legacy exported requirement", "FUNCTIONAL", "MEDIUM",
+        )
+        timestamp = "2026-07-18T08:00:00+00:00"
+        with db.get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO export_jobs
+                (id, project_id, file_name, file_path, version_label, compare_export_id,
+                 snapshot_json, sor_document_id, requirement_set_id, export_mode,
+                 source_hash, knowledge_base_version, ai_run_id, human_coverage, created_at)
+                VALUES ('legacy-scoped', ?, 'legacy.xlsx', '/tmp/legacy.xlsx', '', '', ?, '', '',
+                        'DRAFT', '', 0, '', 0, ?)
+                """,
+                (project["id"], json.dumps([{"id": requirement["id"]}]), timestamp),
+            )
+
+        db.init_db()
+        scoped = db.get_export_job("legacy-scoped")
+        self.assertEqual(scoped["sor_document_id"], document["id"])
+        self.assertEqual(scoped["requirement_set_id"], requirement["requirement_set_id"])
+        self.assertEqual(scoped["export_mode"], "LEGACY")
+
+        second_path = self.tmp_path / "legacy-export-second.txt"
+        second_path.write_text("second", encoding="utf-8")
+        db.add_sor_document(
+            project["id"], "legacy-export-second.txt", "txt", str(second_path), "second"
+        )
+        with db.get_conn() as conn:
+            conn.execute(
+                """
+                INSERT INTO export_jobs
+                (id, project_id, file_name, file_path, version_label, compare_export_id,
+                 snapshot_json, sor_document_id, requirement_set_id, export_mode,
+                 source_hash, knowledge_base_version, ai_run_id, human_coverage, created_at)
+                VALUES ('legacy-ambiguous', ?, 'ambiguous.xlsx', '/tmp/ambiguous.xlsx', '', '',
+                        '[]', '', '', 'DRAFT', '', 0, '', 0, ?)
+                """,
+                (project["id"], timestamp),
+            )
+        db.init_db()
+        ambiguous = db.get_export_job("legacy-ambiguous")
+        self.assertEqual(ambiguous["sor_document_id"], "")
+        self.assertEqual(ambiguous["requirement_set_id"], "")
+        self.assertEqual(ambiguous["export_mode"], "LEGACY")
+
+    def test_review_save_cannot_mutate_or_unlock_locked_requirement_set(self) -> None:
         project, document = self._create_project_with_document("-auto-unlock")
         preview = _fake_preview()
         with patch.object(main, "build_extraction_preview", return_value=preview):
             main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
-            main.lock_document_extraction(project["id"], document["id"])
-            saved = main.save_review_entry(
+            locked = self._lock_active_requirement_set(
                 project["id"],
                 document["id"],
-                main.ReviewedRequirementEntry(
-                    entry_id="REQ0001",
-                    req_code="REQ0001",
-                    entry_kind="REQUIREMENT",
-                    source_page=1,
-                    source_page_end=1,
-                    source_anchor="Main > 1",
-                    requirement_text="供应商需要满足总成试验要求（更新）。",
-                    display_text="供应商需要满足总成试验要求（更新）。",
-                    raw_text="供应商需要满足总成试验要求（更新）。",
-                    requirement_type="FUNCTIONAL",
-                    priority="MEDIUM",
-                    parent_section_code="1",
-                    parent_section_title="概述",
-                    parent_section_label="1 概述",
-                    keep=True,
-                ),
             )
+            with self.assertRaises(HTTPException) as blocked:
+                main.save_review_entry(
+                    project["id"],
+                    document["id"],
+                    self._review_entry(
+                        document["id"],
+                        entry_id="REQ0001",
+                        req_code="REQ0001",
+                        entry_kind="REQUIREMENT",
+                        source_page=1,
+                        source_page_end=1,
+                        source_anchor="Main > 1",
+                        requirement_text="供应商需要满足总成试验要求（更新）。",
+                        display_text="供应商需要满足总成试验要求（更新）。",
+                        raw_text="供应商需要满足总成试验要求（更新）。",
+                        requirement_type="FUNCTIONAL",
+                        priority="MEDIUM",
+                        parent_section_code="1",
+                        parent_section_title="概述",
+                        parent_section_label="1 概述",
+                        keep=True,
+                    ),
+                )
 
-        self.assertEqual(saved["document"]["workflow_stage"], "REVIEWING")
-        self.assertFalse(saved["summary"]["locked"])
-        self.assertFalse(saved["actions"]["can_export"])
-        self.assertEqual(saved["saved_entry"]["raw_text"], "供应商需要满足总成试验要求（更新）。")
+        self.assertEqual(blocked.exception.status_code, 409)
+        self.assertTrue(locked["summary"]["locked"])
+        current = db.list_requirements(project["id"], document["id"])
+        self.assertEqual(
+            current[0]["raw_text"],
+            "供应商需要满足总成试验要求。",
+        )
 
     def test_lock_and_ai_gate_behavior(self) -> None:
         project, empty_document = self._create_project_with_document("-empty")
+        empty_set = db.create_requirement_set(
+            project["id"],
+            empty_document["id"],
+        )
+        db.activate_requirement_set(
+            project["id"],
+            empty_document["id"],
+            empty_set["id"],
+        )
+        with TestClient(main.app) as client:
+            missing_selection = client.post(
+                (
+                    f"/api/projects/{project['id']}/sor-documents/"
+                    f"{empty_document['id']}/lock-extraction"
+                ),
+                json={},
+            )
+        self.assertEqual(missing_selection.status_code, 422)
         with self.assertRaises(HTTPException) as lock_exc:
-            main.lock_document_extraction(project["id"], empty_document["id"])
+            main.lock_document_extraction(
+                project["id"],
+                empty_document["id"],
+                main.LockExtractionRequest(
+                    requirement_set_id=self._active_requirement_set_id(
+                        empty_document["id"]
+                    ),
+                ),
+            )
         self.assertEqual(lock_exc.exception.status_code, 409)
 
         project, document = self._create_project_with_document("-gate")
         with patch.object(main, "build_extraction_preview", return_value=_fake_preview()):
             main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
 
-        workspace_before_lock = main.get_document_workspace(project["id"], document["id"], include_preview=False)
-        self.assertFalse(workspace_before_lock["actions"]["can_export"])
+        with patch.object(main, "_build_ai_profile_catalog", return_value=[{"id": "azure", "ready": True}]):
+            workspace_before_lock = main.get_document_workspace(
+                project["id"], document["id"], include_preview=False
+            )
+            self.assertFalse(workspace_before_lock["actions"]["can_export"])
 
-        with self.assertRaises(HTTPException) as ai_before_lock_exc:
-            main.run_document_ai_analysis(project["id"], document["id"])
-        self.assertEqual(ai_before_lock_exc.exception.status_code, 409)
+            with self.assertRaises(HTTPException) as ai_before_lock_exc:
+                main.run_document_ai_analysis(
+                    project["id"],
+                    document["id"],
+                    self._active_requirement_set_id(document["id"]),
+                )
+            self.assertEqual(ai_before_lock_exc.exception.status_code, 409)
 
-        workspace_locked = main.lock_document_extraction(project["id"], document["id"])
-        self.assertTrue(workspace_locked["summary"]["locked"])
-        self.assertTrue(workspace_locked["actions"]["can_export"])
-        self.assertTrue(workspace_locked["actions"]["can_run_ai_analysis"])
+            workspace_locked = self._lock_active_requirement_set(
+                project["id"],
+                document["id"],
+            )
+            self.assertTrue(workspace_locked["summary"]["locked"])
+            self.assertTrue(workspace_locked["actions"]["can_export"])
+            self.assertTrue(workspace_locked["actions"]["can_run_ai_analysis"])
 
-        ai_without_kb = main.run_document_ai_analysis(project["id"], document["id"])
-        self.assertEqual(ai_without_kb["ai_processed_requirements"], 0)
-        self.assertGreater(ai_without_kb["ai_screened_requirements"], 0)
-        self.assertEqual(ai_without_kb["knowledge_docs_used"], 0)
-        self.assertGreater(ai_without_kb["summary"]["ai_eligible_count"], 0)
-        self.assertGreater(ai_without_kb["summary"]["assessment_target_count"], 0)
+            ai_without_kb = main.run_document_ai_analysis(
+                project["id"],
+                document["id"],
+                self._active_requirement_set_id(document["id"]),
+            )
+            self.assertEqual(ai_without_kb["ai_processed_requirements"], 0)
+            self.assertGreater(ai_without_kb["ai_screened_requirements"], 0)
+            self.assertEqual(ai_without_kb["knowledge_docs_used"], 0)
+            self.assertGreater(ai_without_kb["summary"]["ai_eligible_count"], 0)
+            self.assertGreater(ai_without_kb["summary"]["assessment_target_count"], 0)
 
-        self._add_knowledge_document(project["id"], "-gate")
+            self._add_knowledge_document(project["id"], "-gate")
+            workspace = main.get_document_workspace(project["id"], document["id"], include_preview=False)
+            self.assertTrue(workspace["actions"]["can_run_ai_analysis"])
+
+    def test_zero_target_matrix_can_lock_and_export_without_starting_analysis(
+        self,
+    ) -> None:
+        project, document = self._create_project_with_document("-zero-target")
+        db.insert_requirement(
+            project["id"],
+            document["id"],
+            "REF0001",
+            1,
+            "Page 1 | Reference",
+            "此条仅作为分析上下文保留。",
+            "REFERENCE",
+            "MEDIUM",
+            entry_kind="REFERENCE",
+            raw_text="此条仅作为分析上下文保留。",
+            display_text="此条仅作为分析上下文保留。",
+        )
+        self._allow_verifiable_tree_derivation()
+        requirement_set_id = self._active_requirement_set_id(document["id"])
+        requirement_id = db.list_requirements(
+            project["id"],
+            document["id"],
+            requirement_set_id=requirement_set_id,
+        )[0]["id"]
+        draft_workspace = main.get_document_workspace(
+            project["id"],
+            document["id"],
+            include_preview=False,
+        )
+        self.assertTrue(draft_workspace["actions"]["can_lock_extraction"])
+        self.assertTrue(draft_workspace["actions"]["can_export_draft"])
+        self.assertFalse(draft_workspace["actions"]["can_export"])
+        self.assertFalse(draft_workspace["actions"]["can_run_ai_analysis"])
+        self.assertNotIn(
+            "EMPTY_DECISION_SET",
+            {
+                item["code"]
+                for item in draft_workspace["readiness"]["lock"]["hard_blockers"]
+            },
+        )
+
+        with TestClient(main.app) as client:
+            readiness_response = client.get(
+                (
+                    f"/api/projects/{project['id']}/sor-documents/"
+                    f"{document['id']}/lock-readiness"
+                ),
+                params={"requirement_set_id": requirement_set_id},
+            )
+            self.assertEqual(readiness_response.status_code, 200)
+            readiness = readiness_response.json()
+            self.assertEqual(
+                readiness["schema_version"],
+                "requirement-set-lock-readiness/v1",
+            )
+            self.assertTrue(readiness["can_lock"])
+            self.assertEqual(readiness["next_destination"], "MATRIX")
+            self.assertEqual(readiness["counts"]["analysis_targets"], 0)
+            self.assertEqual(readiness["counts"]["retained_visible"], 1)
+            self.assertEqual(readiness["counts"]["skipped_visible"], 1)
+
+            from app.adapters.persistence.requirement_matrix_states import (
+                set_requirement_matrix_node_disposition,
+            )
+
+            set_requirement_matrix_node_disposition(
+                project_id=project["id"],
+                document_id=document["id"],
+                requirement_set_id=requirement_set_id,
+                node_id=f"matrix-{requirement_id}",
+                disposition="RETAIN",
+                reason="显式保留上下文",
+                expected_revision=0,
+            )
+            refreshed_response = client.get(
+                (
+                    f"/api/projects/{project['id']}/sor-documents/"
+                    f"{document['id']}/lock-readiness"
+                ),
+                params={"requirement_set_id": requirement_set_id},
+            )
+            self.assertEqual(refreshed_response.status_code, 200)
+            refreshed_readiness = refreshed_response.json()
+            self.assertNotEqual(
+                refreshed_readiness["readiness_sha256"],
+                readiness["readiness_sha256"],
+            )
+
+            stale_lock = client.post(
+                (
+                    f"/api/projects/{project['id']}/sor-documents/"
+                    f"{document['id']}/lock-extraction"
+                ),
+                json={
+                    "schema_version": "requirement-set-lock-request/v1",
+                    "requirement_set_id": requirement_set_id,
+                    "expected_readiness_sha256": readiness["readiness_sha256"],
+                },
+            )
+            self.assertEqual(stale_lock.status_code, 409)
+            self.assertEqual(
+                stale_lock.json()["detail"]["code"],
+                "requirement_set_lock_readiness_changed",
+            )
+            self.assertEqual(
+                db.get_requirement_set(requirement_set_id)["status"],
+                "DRAFT",
+            )
+
+            locked_response = client.post(
+                (
+                    f"/api/projects/{project['id']}/sor-documents/"
+                    f"{document['id']}/lock-extraction"
+                ),
+                json={
+                    "schema_version": "requirement-set-lock-request/v1",
+                    "requirement_set_id": requirement_set_id,
+                    "expected_readiness_sha256": refreshed_readiness[
+                        "readiness_sha256"
+                    ],
+                },
+            )
+            self.assertEqual(locked_response.status_code, 200)
+            locked = locked_response.json()
+
+        self.assertEqual(locked["next_destination"], "MATRIX")
+        self.assertFalse(locked["analysis_available"])
+        self.assertEqual(
+            locked["lock_readiness"]["readiness_sha256"],
+            refreshed_readiness["readiness_sha256"],
+        )
+        self.assertTrue(locked["actions"]["can_export"])
+        self.assertTrue(locked["actions"]["can_export_formal"])
+        self.assertFalse(locked["actions"]["can_run_ai_analysis"])
+        self.assertNotIn(
+            "EMPTY_DECISION_SET",
+            {
+                item["code"]
+                for item in locked["readiness"]["lock"]["hard_blockers"]
+            },
+        )
+
+        exported = main.export_project(
+            project["id"],
+            main.ExportRequest(
+                document_id=document["id"],
+                requirement_set_id=requirement_set_id,
+                mode="FORMAL",
+            ),
+        )
+        self.assertEqual(exported["decision_eligible_count"], 0)
+        self.assertTrue((main.EXPORTS_DIR / exported["file_name"]).exists())
+
+    def test_workspace_formal_readiness_uses_effective_ai_and_human_conclusions(
+        self,
+    ) -> None:
+        project, document = self._create_project_with_document(
+            "-effective-formal-readiness"
+        )
+        requirements = [
+            db.insert_requirement(
+                project["id"],
+                document["id"],
+                f"REQ000{index}",
+                index,
+                f"Page {index} | Section {index}",
+                f"系统应满足第 {index} 条需求。",
+                "FUNCTIONAL",
+                "HIGH",
+            )
+            for index in (1, 2)
+        ]
+        self._lock_active_requirement_set(project["id"], document["id"])
+        for requirement in requirements:
+            db.upsert_assessment(
+                requirement["id"],
+                "profile",
+                "provider",
+                "ACCEPT",
+                "AI 当前结论。",
+                0.9,
+                "llm_primary",
+                "vector",
+                "REQUIREMENT",
+                "basis",
+                "需求文本",
+                "HIGH",
+                "",
+                "model",
+                "prompt-v3",
+                compliance_status="COMPLIANT",
+            )
+        _seed_human_decision(
+            requirements[1]["id"],
+            "REJECT",
+            "工程师覆盖 AI 结论。",
+        )
+
+        workspace = main.get_document_workspace(
+            project["id"],
+            document["id"],
+            include_preview=False,
+        )
+
+        self.assertEqual(workspace["summary"]["decision_eligible_count"], 2)
+        self.assertEqual(workspace["summary"]["human_decision_count"], 1)
+        self.assertEqual(workspace["summary"]["unassigned_count"], 1)
+        self.assertEqual(workspace["summary"]["human_coverage"], 0.5)
+        self.assertEqual(workspace["summary"]["effective_conclusion_count"], 2)
+        self.assertEqual(
+            workspace["summary"]["effective_conclusion_coverage"],
+            1.0,
+        )
+        self.assertEqual(
+            workspace["summary"]["missing_effective_conclusion_count"],
+            0,
+        )
+        self.assertEqual(workspace["summary"]["ai_default_count"], 1)
+        self.assertEqual(workspace["summary"]["human_override_count"], 1)
+        self.assertEqual(workspace["summary"]["human_native_count"], 0)
+        self.assertTrue(workspace["readiness"]["formal_export"]["ready"])
+        self.assertTrue(workspace["actions"]["can_export_formal"])
+
+    def test_workspace_formal_readiness_requires_set_preview_proof(self) -> None:
+        project, document = self._create_project_with_document(
+            "-missing-set-preview-proof"
+        )
+        requirement = db.insert_requirement(
+            project["id"],
+            document["id"],
+            "REQ0001",
+            1,
+            "Page 1 | Section 1",
+            "系统应满足测试需求。",
+            "FUNCTIONAL",
+            "HIGH",
+        )
+        self._lock_active_requirement_set(project["id"], document["id"])
+        db.upsert_assessment(
+            requirement["id"],
+            "profile",
+            "provider",
+            "ACCEPT",
+            "AI 当前结论。",
+            0.9,
+            "llm_primary",
+            "vector",
+            "REQUIREMENT",
+            "basis",
+            "需求文本",
+            "HIGH",
+            "",
+            "model",
+            "prompt-v3",
+            compliance_status="COMPLIANT",
+        )
+        requirement_set_id = self._active_requirement_set_id(document["id"])
+        with db.get_conn() as conn:
+            conn.execute(
+                """
+                UPDATE requirement_sets
+                SET preview_generation_id = '', preview_status_at_lock = ''
+                WHERE id = ?
+                """,
+                (requirement_set_id,),
+            )
+
+        workspace = main.get_document_workspace(
+            project["id"],
+            document["id"],
+            include_preview=False,
+        )
+        with self.assertRaises(HTTPException) as export_error:
+            main.export_project(
+                project["id"],
+                main.ExportRequest(
+                    document_id=document["id"],
+                    requirement_set_id=requirement_set_id,
+                    mode="FORMAL",
+                ),
+            )
+
+        self.assertEqual(export_error.exception.status_code, 409)
+        export_blockers = export_error.exception.detail["readiness"][
+            "hard_blockers"
+        ]
+        self.assertIn(
+            {
+                "code": "PREVIEW_NOT_STABLE",
+                "status": "MISSING_REQUIREMENT_SET_PREVIEW",
+                "hard": True,
+            },
+            export_blockers,
+        )
+        self.assertFalse(workspace["readiness"]["formal_export"]["ready"])
+        self.assertFalse(workspace["actions"]["can_export_formal"])
+        self.assertIn(
+            {
+                "code": "PREVIEW_NOT_STABLE",
+                "status": "MISSING_REQUIREMENT_SET_PREVIEW",
+                "hard": True,
+            },
+            workspace["readiness"]["formal_export"]["hard_blockers"],
+        )
+
+    def test_workspace_human_coverage_counts_assessed_manual_decision(self) -> None:
+        project, document = self._create_project_with_document(
+            "-assessed-manual-coverage"
+        )
+        requirement = db.insert_requirement(
+            project["id"],
+            document["id"],
+            "REQ0001",
+            1,
+            "Page 1 | Section 1",
+            "系统应满足测试需求。",
+            "FUNCTIONAL",
+            "HIGH",
+        )
+        self._lock_active_requirement_set(project["id"], document["id"])
+        requirement_set_id = self._active_requirement_set_id(document["id"])
+        node = MatrixNodeStateV1(
+            node_id=f"matrix-{requirement['id']}",
+            parent_id=None,
+            child_ids=(),
+            depth=0,
+            source_order=0,
+            display_role=MatrixNodeKind.ATOMIC_REQUIREMENT,
+            label="系统应满足测试需求。",
+            source_refs=(),
+            page_start=1,
+            requirement_entry_id=requirement["id"],
+            requirement_id=requirement["id"],
+            requirement_code="REQ0001",
+            requirement_text="系统应满足测试需求。",
+            matrix_visibility=MatrixNodeVisibility.VISIBLE,
+            disposition=MatrixNodeDisposition.ANALYZE,
+            analysis_eligibility=MatrixAnalysisEligibility.ELIGIBLE,
+            analysis_status=MatrixAnalysisStatus.ASSESSED,
+            ai_assessment=MatrixAiAssessmentV1(
+                decision="ACCEPT",
+                compliance_status="COMPLIANT",
+                reason="AI 当前结论。",
+                confidence=0.9,
+                assessment_mode="llm_primary",
+            ),
+            manual_decision=MatrixManualDecisionV1(
+                decision="REJECT",
+                reason="工程师覆盖 AI 结论。",
+                decided_at="2026-08-09T00:00:00+00:00",
+            ),
+        )
+        matrix = RequirementMatrixSnapshotV1(
+            state=MatrixSnapshotState.READY,
+            project_id=project["id"],
+            document_id=document["id"],
+            requirement_set_id=requirement_set_id,
+            requirement_set_status="LOCKED",
+            tree_sha256="f" * 64,
+            root_node_ids=(node.node_id,),
+            nodes=(node,),
+            counts=MatrixCountsV1(
+                total_nodes=1,
+                visible_nodes=1,
+                analyze_nodes=1,
+                analysis_eligible_nodes=1,
+                assessed_nodes=1,
+                decided_nodes=0,
+            ),
+        )
+
+        with patch(
+            "app.application.requirement_matrix.build_requirement_matrix_snapshot",
+            return_value=matrix,
+        ):
+            workspace = main.get_document_workspace(
+                project["id"],
+                document["id"],
+                include_preview=False,
+            )
+
+        self.assertEqual(workspace["summary"]["decision_eligible_count"], 1)
+        self.assertEqual(workspace["summary"]["human_decision_count"], 1)
+        self.assertEqual(workspace["summary"]["unassigned_count"], 0)
+        self.assertEqual(workspace["summary"]["human_coverage"], 1.0)
+        self.assertEqual(workspace["summary"]["effective_conclusion_count"], 1)
+        self.assertEqual(workspace["summary"]["human_override_count"], 1)
+
+    def test_workspace_missing_source_warning_uses_all_matrix_business_nodes(
+        self,
+    ) -> None:
+        project, document = self._create_project_with_document(
+            "-matrix-missing-source"
+        )
+        db.insert_requirement(
+            project["id"],
+            document["id"],
+            "REQ0001",
+            1,
+            "Page 1 | Section 1",
+            "用于建立已锁定测试版本。",
+            "FUNCTIONAL",
+            "MEDIUM",
+        )
+        self._lock_active_requirement_set(project["id"], document["id"])
+        requirement_set_id = self._active_requirement_set_id(document["id"])
+
+        def matrix_node(
+            node_id: str,
+            *,
+            source_order: int,
+            role: MatrixNodeKind,
+            visibility: MatrixNodeVisibility,
+            disposition: MatrixNodeDisposition,
+        ) -> MatrixNodeStateV1:
+            return MatrixNodeStateV1(
+                node_id=node_id,
+                parent_id=None,
+                child_ids=(),
+                depth=0,
+                source_order=source_order,
+                display_role=role,
+                label=node_id,
+                source_refs=(),
+                page_start=None,
+                matrix_visibility=visibility,
+                disposition=disposition,
+                analysis_eligibility=MatrixAnalysisEligibility.NOT_ELIGIBLE,
+                analysis_status=MatrixAnalysisStatus.NOT_APPLICABLE,
+            )
+
+        nodes: list[MatrixNodeStateV1] = []
+        nodes.extend(
+            (
+                matrix_node(
+                    "structure-without-source",
+                    source_order=0,
+                    role=MatrixNodeKind.STRUCTURE,
+                    visibility=MatrixNodeVisibility.VISIBLE,
+                    disposition=MatrixNodeDisposition.RETAIN,
+                ),
+                matrix_node(
+                    "context-without-source",
+                    source_order=1,
+                    role=MatrixNodeKind.CONTEXT,
+                    visibility=MatrixNodeVisibility.VISIBLE,
+                    disposition=MatrixNodeDisposition.RETAIN,
+                ),
+                matrix_node(
+                    "excluded-without-source",
+                    source_order=2,
+                    role=MatrixNodeKind.CONTEXT,
+                    visibility=MatrixNodeVisibility.HUMAN_EXCLUDED,
+                    disposition=MatrixNodeDisposition.EXCLUDE,
+                ),
+                matrix_node(
+                    "system-without-source",
+                    source_order=3,
+                    role=MatrixNodeKind.STRUCTURE,
+                    visibility=MatrixNodeVisibility.SYSTEM_NON_BUSINESS,
+                    disposition=MatrixNodeDisposition.RETAIN,
+                ),
+            )
+        )
+        matrix = RequirementMatrixSnapshotV1(
+            state=MatrixSnapshotState.READY,
+            project_id=project["id"],
+            document_id=document["id"],
+            requirement_set_id=requirement_set_id,
+            requirement_set_status="LOCKED",
+            tree_sha256="f" * 64,
+            root_node_ids=tuple(node.node_id for node in nodes),
+            nodes=tuple(nodes),
+            counts=MatrixCountsV1(
+                total_nodes=4,
+                visible_nodes=2,
+                system_non_business_nodes=1,
+                human_excluded_nodes=1,
+                retained_nodes=3,
+                excluded_nodes=1,
+            ),
+        )
+
+        with patch(
+            "app.application.requirement_matrix.build_requirement_matrix_snapshot",
+            return_value=matrix,
+        ):
+            workspace = main.get_document_workspace(
+                project["id"],
+                document["id"],
+                include_preview=False,
+            )
+
+        for readiness_key in ("lock", "formal_export"):
+            warning = next(
+                (
+                    item
+                    for item in workspace["readiness"][readiness_key]["warnings"]
+                    if item["code"] == "MISSING_SOURCE"
+                ),
+                None,
+            )
+            self.assertEqual(
+                warning,
+                {"code": "MISSING_SOURCE", "count": 3, "hard": False},
+            )
+
+    def test_workspace_formal_readiness_blocks_reason_only_ai_payload(self) -> None:
+        project, document = self._create_project_with_document(
+            "-reason-only-formal-readiness"
+        )
+        requirement = db.insert_requirement(
+            project["id"],
+            document["id"],
+            "REQ0001",
+            1,
+            "Page 1 | Section 1",
+            "系统应满足测试需求。",
+            "FUNCTIONAL",
+            "HIGH",
+        )
+        self._lock_active_requirement_set(project["id"], document["id"])
+        db.upsert_assessment(
+            requirement["id"],
+            "profile",
+            "provider",
+            "",
+            "只有原因，没有结论。",
+            0.4,
+            "llm_primary",
+            "vector",
+            "REQUIREMENT",
+            "basis",
+            "需求文本",
+            "HIGH",
+            "",
+            "model",
+            "prompt-v3",
+            compliance_status="",
+        )
+
+        workspace = main.get_document_workspace(
+            project["id"],
+            document["id"],
+            include_preview=False,
+        )
+
+        self.assertFalse(workspace["readiness"]["formal_export"]["ready"])
+        self.assertEqual(
+            {
+                item["code"]
+                for item in workspace["readiness"]["formal_export"][
+                    "hard_blockers"
+                ]
+            },
+            {"MISSING_EFFECTIVE_CONCLUSIONS"},
+        )
+        self.assertEqual(workspace["summary"]["effective_conclusion_count"], 0)
+        self.assertEqual(
+            workspace["summary"]["missing_effective_conclusion_count"],
+            1,
+        )
+
+    def test_ready_legacy_preview_cannot_lock_without_requirement_tree(self) -> None:
+        project, document = self._create_project_with_document("-not-ready-lock")
+        db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1 | Section 1",
+            "Ready source required", "FUNCTIONAL", "MEDIUM",
+        )
         workspace = main.get_document_workspace(project["id"], document["id"], include_preview=False)
-        self.assertTrue(workspace["actions"]["can_run_ai_analysis"])
+        blockers = workspace["readiness"]["lock"]["blockers"]
+        self.assertEqual(workspace["summary"]["preview_status"], "READY")
+        self.assertEqual(workspace["readiness"]["lock"]["basis"], "NONE")
+        self.assertIn("PREVIEW_NOT_STABLE", {item["code"] for item in blockers})
+        self.assertFalse(workspace["actions"]["can_lock_extraction"])
+        with self.assertRaises(HTTPException) as exc:
+            main.lock_document_extraction(
+                project["id"],
+                document["id"],
+                main.LockExtractionRequest(
+                    requirement_set_id=self._active_requirement_set_id(
+                        document["id"]
+                    ),
+                ),
+            )
+        self.assertEqual(exc.exception.status_code, 409)
 
     def test_workspace_summary_counts_runnable_profiles_from_ready_flag(self) -> None:
         project, document = self._create_project_with_document("-ready-flag")
@@ -1029,26 +2722,8 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(workspace["summary"]["runnable_ai_profile_count"], 1)
         self.assertTrue(workspace["actions"]["can_run_ai_analysis"])
 
-    def test_refresh_preview_endpoint_builds_and_persists_cache(self) -> None:
-        project, document = self._create_project_with_document("-refresh-preview")
-        cache_path = preview_cache.preview_cache_path(document["id"])
-        if cache_path.exists():
-            cache_path.unlink()
-
-        with patch.object(preview_cache._PREVIEW_EXECUTOR, "submit", return_value=None):
-            response = main.refresh_document_preview(project["id"], document["id"])
-        self.assertEqual(response["preview_status"], "BUILDING")
-
-        with patch.object(preview_cache, "build_extraction_preview", return_value=_fake_preview()):
-            preview_cache._run_preview_refresh(document["id"], document["file_path"])
-
-        refreshed = main.get_sor_extraction_preview(project["id"], document["id"], response=main.Response())
-        self.assertEqual(refreshed["preview_status"], "READY")
-        self.assertTrue(refreshed["preview_cache_hit"])
-        self.assertTrue(cache_path.exists())
-
-    def test_load_cached_preview_marks_legacy_cache_as_stale(self) -> None:
-        project, document = self._create_project_with_document("-legacy-preview-cache")
+    def test_load_cached_preview_marks_unversioned_cache_as_stale(self) -> None:
+        project, document = self._create_project_with_document("-unversioned-preview-cache")
         cache_path = preview_cache.preview_cache_path(document["id"])
         cache_path.write_text(json.dumps(_fake_preview(), ensure_ascii=False), encoding="utf-8")
         db.update_sor_document_preview_state(
@@ -1169,7 +2844,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         update_preview_state.assert_not_called()
 
-    def test_sync_document_table_assets_keeps_preview_snapshot_root_intact(self) -> None:
+    def test_sync_document_table_assets_keeps_existing_snapshot_roots_intact(self) -> None:
         project, document = self._create_project_with_document("-isolated-snapshots")
         preview_root = preview_cache.document_snapshot_root(document["id"])
         persisted_root = main._table_snapshot_root(document["id"])
@@ -1182,7 +2857,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             main._sync_document_table_assets(project["id"], document["id"])
 
         self.assertTrue(preview_file.exists())
-        self.assertFalse(persisted_file.exists())
+        self.assertTrue(persisted_file.exists())
 
     def test_workspace_reorders_matrix_display_ids_by_preview_order(self) -> None:
         project, document = self._create_project_with_document("-ordering")
@@ -1722,7 +3397,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(rows[0]["table_refs"][0]["table_id"], "tbl_current")
         self.assertEqual(rows[0]["content_blocks"][0]["table_id"], "tbl_current")
 
-    def test_find_requirement_for_review_entry_prefers_source_match_over_stale_req_code(self) -> None:
+    def test_find_requirement_for_review_entry_preserves_unique_req_code_identity(self) -> None:
         requirements = [
             {
                 "id": "persisted-a",
@@ -1756,7 +3431,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         matched = main._find_requirement_for_review_entry(requirements, normalized)
 
         self.assertIsNotNone(matched)
-        self.assertEqual(matched["id"], "persisted-b")
+        self.assertEqual(matched["id"], "persisted-a")
 
     def test_enrich_requirements_with_preview_context_matches_by_source_signature(self) -> None:
         project, document = self._create_project_with_document("-preview-context-source-match")
@@ -1897,6 +3572,156 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(snapshot.headers.get("cache-control"), "no-store, max-age=0")
         self.assertEqual(snapshot.headers.get("pragma"), "no-cache")
 
+    def test_requirement_set_table_snapshots_survive_fork_edit_delete_and_regeneration(self) -> None:
+        project, document = self._create_project_with_document("-set-table-history")
+        snapshot_root = self.tmp_path / "set-table-snapshots"
+        preview = _fake_preview_with_table_markdown()
+
+        with patch.object(main, "TABLE_SNAPSHOT_DIR", snapshot_root), patch.object(
+            main, "build_extraction_preview", return_value=preview
+        ):
+            main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
+
+            first_set = db.get_active_requirement_set(document["id"])
+            first_row = db.list_requirements(
+                project["id"], requirement_set_id=first_set["id"]
+            )[0]
+            first_ref = first_row["table_refs"][0]
+            first_path = Path(first_ref["slice_snapshot_path"])
+            table_id = first_ref["table_id"]
+            self.assertTrue(first_path.exists())
+            self.assertIn(first_set["id"], first_path.parts)
+            workspace = main.get_document_workspace(project["id"], document["id"], include_preview=False)
+            self.assertIn(
+                f"requirement_set_id={first_set['id']}",
+                workspace["requirements"][0]["table_refs"][0]["slice_snapshot_url"],
+            )
+
+            db.lock_sor_document_extraction(document["id"])
+            with self.assertRaises(PermissionError):
+                db.replace_document_table_assets(
+                    project["id"], document["id"], [], requirement_set_id=first_set["id"]
+                )
+            draft = db.fork_requirement_set_for_edit(project["id"], document["id"])
+            draft_row = db.list_requirements(
+                project["id"], requirement_set_id=draft["id"]
+            )[0]
+            edit_payload = main.ReviewedRequirementEntry(
+                requirement_set_id=draft["id"],
+                entry_id=draft_row["req_code"],
+                req_code=draft_row["req_code"],
+                entry_kind=draft_row["entry_kind"],
+                source_page=draft_row["source_page"],
+                source_anchor=draft_row["source_anchor"],
+                requirement_text=draft_row["requirement_text"],
+                display_text=draft_row["display_text"],
+                raw_text=draft_row["raw_text"],
+                requirement_type=draft_row["requirement_type"],
+                priority="HIGH",
+                table_refs=draft_row["table_refs"],
+                content_blocks=draft_row["content_blocks"],
+                keep=True,
+            )
+            main.save_review_entry(project["id"], document["id"], edit_payload)
+
+            edited_row = db.list_requirements(
+                project["id"], requirement_set_id=draft["id"]
+            )[0]
+            draft_path = Path(edited_row["table_refs"][0]["slice_snapshot_path"])
+            self.assertTrue(draft_path.exists())
+            self.assertIn(draft["id"], draft_path.parts)
+            self.assertNotEqual(draft_path, first_path)
+            self.assertTrue(first_path.exists())
+
+            delete_payload = edit_payload.model_copy(update={"keep": False})
+            main.save_review_entry(project["id"], document["id"], delete_payload)
+            self.assertEqual(
+                db.list_document_table_assets(
+                    project["id"], document["id"], requirement_set_id=draft["id"]
+                ),
+                [],
+            )
+            self.assertTrue(draft_path.exists())
+            self.assertTrue(first_path.exists())
+            db.init_db()
+            self.assertEqual(
+                db.list_document_table_assets(
+                    project["id"], document["id"], requirement_set_id=draft["id"]
+                ),
+                [],
+            )
+
+            main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
+            regenerated_set = db.get_active_requirement_set(document["id"])
+            regenerated_row = db.list_requirements(
+                project["id"], requirement_set_id=regenerated_set["id"]
+            )[0]
+            regenerated_path = Path(regenerated_row["table_refs"][0]["slice_snapshot_path"])
+
+            self.assertNotEqual(regenerated_set["id"], first_set["id"])
+            self.assertIn(regenerated_set["id"], regenerated_path.parts)
+            self.assertTrue(regenerated_path.exists())
+            self.assertTrue(first_path.exists())
+            historical_asset = db.get_document_table_asset(
+                project["id"], document["id"], table_id,
+                requirement_set_id=first_set["id"],
+            )
+            self.assertEqual(Path(historical_asset["snapshot_path"]), first_path)
+            historical_snapshot = main.get_document_table_asset_snapshot(
+                project["id"], document["id"], table_id,
+                requirement_set_id=first_set["id"],
+            )
+            self.assertEqual(Path(historical_snapshot.path), first_path)
+            historical_workspace = main.get_document_workspace(
+                project["id"],
+                document["id"],
+                include_preview=True,
+                requirement_set_id=first_set["id"],
+            )
+            historical_ref = historical_workspace["requirements"][0]["table_refs"][0]
+            self.assertEqual(Path(historical_ref["slice_snapshot_path"]), first_path)
+            self.assertIn(
+                f"requirement_set_id={first_set['id']}",
+                historical_ref["slice_snapshot_url"],
+            )
+            active_snapshot = main.get_document_table_asset_snapshot(
+                project["id"], document["id"], table_id
+            )
+            self.assertEqual(Path(active_snapshot.path), regenerated_path)
+
+    def test_legacy_document_table_assets_backfill_into_active_requirement_set(self) -> None:
+        project, document = self._create_project_with_document("-legacy-table-backfill")
+        snapshot_path = self.tmp_path / "legacy-table.png"
+        snapshot_path.write_bytes(b"legacy")
+        db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1",
+            "legacy table requirement", "FUNCTIONAL", "MEDIUM",
+            table_refs=json.dumps(
+                [{"table_id": "tbl_legacy", "slice_snapshot_path": str(snapshot_path)}]
+            ),
+            has_table_asset=True,
+        )
+        active_set = db.get_active_requirement_set(document["id"])
+        db.replace_document_table_assets(
+            project["id"],
+            document["id"],
+            [{"table_id": "tbl_legacy", "snapshot_path": str(snapshot_path)}],
+        )
+
+        db.init_db()
+        with db.get_conn() as conn:
+            conn.execute(
+                "DELETE FROM document_table_assets WHERE sor_document_id = ?",
+                (document["id"],),
+            )
+
+        asset = db.get_document_table_asset(
+            project["id"], document["id"], "tbl_legacy",
+            requirement_set_id=active_set["id"],
+        )
+        self.assertEqual(asset["requirement_set_id"], active_set["id"])
+        self.assertEqual(Path(asset["snapshot_path"]), snapshot_path)
+
     def test_table_asset_api_exposes_source_snapshot_for_pdf_page_span(self) -> None:
         project, document = self._create_project_with_pdf_document("-source-snapshot")
         with patch.object(main, "build_extraction_preview", return_value=_fake_preview_with_complex_table_markdown()):
@@ -1918,6 +3743,83 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             self.assertGreaterEqual(image.width, 900)
             self.assertGreater(image.height, image.width)
             self.assertGreater(image.height, 1500)
+
+    def test_table_asset_api_uses_active_preview_when_indexes_are_missing(
+        self,
+    ) -> None:
+        project, document = self._create_project_with_pdf_document(
+            "-source-snapshot-recovery"
+        )
+        with patch.object(
+            main,
+            "build_extraction_preview",
+            return_value=_fake_preview_with_complex_table_markdown(),
+        ):
+            main.analyze_document(
+                project["id"],
+                main.AnalyzeRequest(document_id=document["id"]),
+            )
+
+        workspace = main.get_document_workspace(
+            project["id"],
+            document["id"],
+            include_preview=False,
+        )
+        table_ref = workspace["requirements"][0]["table_refs"][0]
+        table_id = table_ref["table_id"]
+        active_set = db.get_active_requirement_set(document["id"])
+        self.assertIsNotNone(active_set)
+        indexed_asset = db.get_document_table_asset(
+            project["id"],
+            document["id"],
+            table_id,
+            requirement_set_id=active_set["id"],
+        )
+        self.assertIsNotNone(indexed_asset)
+        cached_preview, _ = preview_cache.load_cached_preview(
+            db.get_sor_document(document["id"])
+        )
+        active_preview = dict(cached_preview or {})
+        active_preview["preview_generation_id"] = active_set[
+            "preview_generation_id"
+        ]
+        active_preview["table_assets"] = [indexed_asset]
+        preview_cache.persist_preview_cache(
+            db.get_sor_document(document["id"]),
+            active_preview,
+        )
+
+        with db.get_conn() as conn:
+            conn.execute(
+                "DELETE FROM document_table_assets WHERE sor_document_id = ?",
+                (document["id"],),
+            )
+            conn.execute(
+                "DELETE FROM requirement_set_table_assets "
+                "WHERE requirement_set_id = ?",
+                (active_set["id"],),
+            )
+            conn.execute(
+                "UPDATE requirements SET table_refs = '[]' "
+                "WHERE requirement_set_id = ?",
+                (active_set["id"],),
+            )
+
+        source_snapshot = main.get_document_table_asset_source_snapshot(
+            project["id"],
+            document["id"],
+            table_id,
+            requirement_set_id=active_set["id"],
+        )
+        slice_snapshot = main.get_document_table_asset_snapshot(
+            project["id"],
+            document["id"],
+            table_id,
+            requirement_set_id=active_set["id"],
+        )
+
+        self.assertTrue(Path(source_snapshot.path).exists())
+        self.assertTrue(Path(slice_snapshot.path).exists())
 
     def test_table_asset_api_prefers_preview_asset_over_stale_db_asset(self) -> None:
         project, document = self._create_project_with_document("-preview-asset-priority")
@@ -2078,6 +3980,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         row = workspace["requirements"][0]
         table_ref = dict(row["table_refs"][0], export_variant="slice")
         payload = main.ReviewedRequirementEntry(
+            requirement_set_id=self._active_requirement_set_id(document["id"]),
             entry_id=row.get("entry_id") or row["req_code"],
             req_code=row["req_code"],
             entry_kind=row["entry_kind"],
@@ -2847,51 +4750,6 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         self.assertLess(earlier, later)
 
-    def test_exporter_uses_table_refs_without_markdown_roundtrip(self) -> None:
-        _, file_path = export_compliance_matrix(
-            project_name="Workspace Test",
-            customer_name="Customer",
-            requirements=[
-                {
-                    "display_req_code": "REQ0100",
-                    "req_code": "REQ0100",
-                    "parent_section_label": "9.1 Asset Render",
-                    "raw_text": "试验条件如下：",
-                    "content_blocks": [
-                        {"kind": "paragraph", "text": "试验条件如下："},
-                        {"kind": "table", "table_id": "tbl_asset_render"},
-                    ],
-                    "table_refs": [
-                        {
-                            "table_id": "tbl_asset_render",
-                            "row_range": [1, 2],
-                            "inherited_headers": ["Item", "Condition"],
-                            "slice_rows": [["Voltage", "12V"], ["Current", "3A"]],
-                            "slice_render_mode": "structured",
-                            "slice_ai_projection": "table_id: tbl_asset_render",
-                        }
-                    ],
-                    "has_table_asset": True,
-                    "table_render_mode": "structured",
-                    "final_decision": "ACCEPT",
-                    "engineer_reason": "Asset render",
-                }
-            ],
-            export_dir=self.tmp_path / "exports",
-        )
-
-        workbook = load_workbook(file_path)
-        sheet = workbook["ComplianceMatrix"]
-        meta = self._version_meta_values(workbook)
-        content_images = self._content_images(sheet)
-
-        self.assertEqual(sheet["C4"].value, "试验条件如下：")
-        self.assertIsNone(sheet["C5"].value)
-        self.assertEqual(len(content_images), 1)
-        self.assertEqual(len(self._logo_images(sheet)), 1)
-        self.assertEqual(meta["TableImageCount"], 1)
-        self.assertAlmostEqual(sheet.column_dimensions["C"].width or 0, 130.0, delta=1.0)
-
     def test_table_ref_snapshot_prefers_source_variant(self) -> None:
         slice_path = self.tmp_path / "slice.png"
         source_path = self.tmp_path / "source.png"
@@ -2913,185 +4771,6 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertIsNotNone(buffer)
         self.assertEqual((image_width, image_height), (280, 90))
         self.assertEqual(warning, "")
-
-    def test_exporter_records_warning_when_source_snapshot_missing(self) -> None:
-        _, file_path = export_compliance_matrix(
-            project_name="Workspace Test",
-            customer_name="Customer",
-            requirements=[
-                {
-                    "display_req_code": "REQ0200",
-                    "req_code": "REQ0200",
-                    "parent_section_label": "9.2 Source Fallback",
-                    "raw_text": "导出应回退。",
-                    "content_blocks": [
-                        {"kind": "paragraph", "text": "导出应回退。"},
-                        {"kind": "table", "table_id": "tbl_source_fallback"},
-                    ],
-                    "table_refs": [
-                        {
-                            "table_id": "tbl_source_fallback",
-                            "row_range": [1, 1],
-                            "inherited_headers": ["Item", "Condition"],
-                            "slice_rows": [["Voltage", "12V"]],
-                            "slice_render_mode": "structured",
-                            "slice_ai_projection": "table_id: tbl_source_fallback",
-                            "export_variant": "source",
-                            "recommended_export_variant": "source",
-                            "source_snapshot_path": "",
-                        }
-                    ],
-                    "has_table_asset": True,
-                    "table_render_mode": "structured",
-                    "final_decision": "ACCEPT",
-                    "engineer_reason": "Fallback",
-                }
-            ],
-            export_dir=self.tmp_path / "exports",
-        )
-
-        workbook = load_workbook(file_path)
-        meta = self._version_meta_values(workbook)
-
-        self.assertEqual(meta["TableExportWarningCount"], 1)
-        self.assertIn("source snapshot missing", str(meta["TableExportWarnings"]))
-
-    def test_exporter_applies_schaeffler_branding_and_logo(self) -> None:
-        _, file_path = export_compliance_matrix(
-            project_name="Workspace Test",
-            customer_name="Customer",
-            requirements=[
-                {
-                    "display_req_code": "REQ0201",
-                    "req_code": "REQ0201",
-                    "parent_section_label": "9.3 Branding",
-                    "raw_text": "导出模板应带 Schaeffler 品牌化样式。",
-                    "final_decision": "ACCEPT",
-                    "engineer_reason": "Branding",
-                }
-            ],
-            export_dir=self.tmp_path / "exports",
-        )
-
-        workbook = load_workbook(file_path)
-        sheet = workbook["ComplianceMatrix"]
-        logo_images = self._logo_images(sheet)
-
-        self.assertEqual((sheet["A3"].fill.fgColor.rgb or "")[-6:], "00893D")
-        self.assertEqual(len(logo_images), 1)
-        self.assertEqual(logo_images[0].anchor._from.row, 0)
-        self.assertGreaterEqual(logo_images[0].anchor._from.col, 3)
-
-    def test_exporter_expands_row_height_for_long_comments(self) -> None:
-        _, file_path = export_compliance_matrix(
-            project_name="Workspace Test",
-            customer_name="Customer",
-            requirements=[
-                {
-                    "display_req_code": "REQ0202",
-                    "req_code": "REQ0202",
-                    "parent_section_label": "9.4 Long Comments",
-                    "raw_text": "短句。",
-                    "final_decision": "NEED_CLARIFICATION",
-                    "engineer_reason": "需要补充说明。" * 80,
-                }
-            ],
-            export_dir=self.tmp_path / "exports",
-        )
-
-        workbook = load_workbook(file_path)
-        sheet = workbook["ComplianceMatrix"]
-
-        self.assertGreater(sheet.row_dimensions[4].height or 0, 120)
-
-    def test_exporter_prefers_single_image_fit_before_split(self) -> None:
-        source_path = self.tmp_path / "medium-snapshot.png"
-        PILImage.new("RGB", (1000, 800), "white").save(source_path)
-
-        _, file_path = export_compliance_matrix(
-            project_name="Workspace Test",
-            customer_name="Customer",
-            requirements=[
-                {
-                    "display_req_code": "REQ0202A",
-                    "req_code": "REQ0202A",
-                    "parent_section_label": "9.4 Medium Snapshot",
-                    "raw_text": "中等高度截图。",
-                    "content_blocks": [
-                        {"kind": "paragraph", "text": "中等高度截图。"},
-                        {"kind": "table", "table_id": "tbl_medium_snapshot"},
-                    ],
-                    "table_refs": [
-                        {
-                            "table_id": "tbl_medium_snapshot",
-                            "slice_render_mode": "snapshot_only",
-                            "slice_snapshot_path": str(source_path),
-                            "source_snapshot_path": str(source_path),
-                            "export_variant": "source",
-                        }
-                    ],
-                    "final_decision": "ACCEPT",
-                    "engineer_reason": "Single image fit",
-                }
-            ],
-            export_dir=self.tmp_path / "exports",
-        )
-
-        workbook = load_workbook(file_path)
-        sheet = workbook["ComplianceMatrix"]
-        content_images = self._content_images(sheet)
-
-        self.assertEqual(len(content_images), 1)
-        self.assertEqual(content_images[0].anchor._from.row, 4)
-        self.assertLessEqual(sheet.row_dimensions[5].height or 0, 409.5)
-
-    def test_exporter_splits_tall_snapshot_into_multiple_rows(self) -> None:
-        source_path = self.tmp_path / "tall-snapshot.png"
-        PILImage.new("RGB", (420, 2400), "white").save(source_path)
-
-        _, file_path = export_compliance_matrix(
-            project_name="Workspace Test",
-            customer_name="Customer",
-            requirements=[
-                {
-                    "display_req_code": "REQ0203",
-                    "req_code": "REQ0203",
-                    "parent_section_label": "9.5 Tall Snapshot",
-                    "raw_text": "流程图见下图。",
-                    "content_blocks": [
-                        {"kind": "paragraph", "text": "流程图见下图。"},
-                        {"kind": "table", "table_id": "tbl_tall_snapshot"},
-                    ],
-                    "table_refs": [
-                        {
-                            "table_id": "tbl_tall_snapshot",
-                            "slice_render_mode": "snapshot_only",
-                            "slice_snapshot_path": str(source_path),
-                            "source_snapshot_path": str(source_path),
-                            "export_variant": "source",
-                        }
-                    ],
-                    "final_decision": "ACCEPT",
-                    "engineer_reason": "Tall screenshot",
-                }
-            ],
-            export_dir=self.tmp_path / "exports",
-        )
-
-        workbook = load_workbook(file_path)
-        sheet = workbook["ComplianceMatrix"]
-        meta = self._version_meta_values(workbook)
-        content_images = self._content_images(sheet)
-        anchored_rows = [image.anchor._from.row for image in content_images]
-
-        self.assertEqual(meta["TableImageCount"], 1)
-        self.assertGreater(len(content_images), 1)
-        self.assertEqual(anchored_rows, list(range(4, 4 + len(content_images))))
-        self.assertLessEqual(
-            max(sheet.row_dimensions[row_index + 1].height or 0 for row_index in anchored_rows),
-            409.5,
-        )
-        self.assertGreaterEqual(sheet.row_dimensions[5].height or 0, 350)
 
     def test_single_row_pipe_table_slice_is_materialized_as_table_asset(self) -> None:
         project, document = self._create_project_with_document("-single-row-slice")
@@ -3223,12 +4902,23 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
     def test_save_review_entry_preserves_complex_metadata_via_table_refs(self) -> None:
         project, document = self._create_project_with_document("-complex-save")
+        requirement_set = db.create_requirement_set(
+            project["id"],
+            document["id"],
+        )
+        db.activate_requirement_set(
+            project["id"],
+            document["id"],
+            requirement_set["id"],
+        )
         source_path = self.tmp_path / "complex-source.png"
         PILImage.new("RGB", (320, 180), "navy").save(source_path)
 
-        payload = main.ReviewedRequirementEntry(**_complex_group_review_row(source_snapshot_path=str(source_path)))
-        with patch.object(main, "request_preview_refresh", return_value={"accepted": False}):
-            result = main.save_review_entry(project["id"], document["id"], payload)
+        payload = main.ReviewedRequirementEntry(
+            requirement_set_id=self._active_requirement_set_id(document["id"]),
+            **_complex_group_review_row(source_snapshot_path=str(source_path)),
+        )
+        result = main.save_review_entry(project["id"], document["id"], payload)
 
         self.assertEqual(result["review_save"]["action"], "inserted")
         self.assertTrue(result["saved_entry"]["complex_table_mode"])
@@ -3244,134 +4934,6 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(asset["table_id"], "tbl_complex_group")
         source_snapshot = main.get_document_table_asset_source_snapshot(project["id"], document["id"], "tbl_complex_group")
         self.assertTrue(Path(source_snapshot.path).exists())
-
-    def test_export_requires_locked_extraction(self) -> None:
-        project, document = self._create_project_with_document("-export-lock")
-        db.insert_requirement(
-            project_id=project["id"],
-            sor_document_id=document["id"],
-            req_code="REQ0001",
-            source_page=1,
-            source_anchor="Page 1 | Section 1",
-            requirement_text="需要先锁定条目集后才能导出。",
-            raw_text="需要先锁定条目集后才能导出。",
-            display_text="需要先锁定条目集后才能导出。",
-            requirement_type="FUNCTIONAL",
-            priority="MEDIUM",
-        )
-        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
-
-        with self.assertRaises(HTTPException) as export_exc:
-            main.export_project(project["id"], main.ExportRequest(document_id=document["id"]))
-
-        self.assertEqual(export_exc.exception.status_code, 409)
-        self.assertIn("locked extraction", str(export_exc.exception.detail))
-
-        main.lock_document_extraction(project["id"], document["id"])
-        with patch.object(main, "build_extraction_preview", return_value=_fake_preview()):
-            result = main.export_project(project["id"], main.ExportRequest(document_id=document["id"]))
-        self.assertTrue((self.tmp_path / "exports" / result["file_name"]).exists())
-
-    def test_export_uses_cached_preview_workspace_order_and_blocks(self) -> None:
-        project, document = self._create_project_with_document("-export-preview-order")
-        db.insert_requirement(
-            project_id=project["id"],
-            sor_document_id=document["id"],
-            req_code="REQ0023",
-            source_page=5,
-            source_anchor="Main > 5.7",
-            requirement_text="5.7 次条需求",
-            raw_text="5.7 次条需求",
-            display_text="5.7 次条需求",
-            requirement_type="FUNCTIONAL",
-            priority="MEDIUM",
-            parent_section_code="5.7",
-            parent_section_title="次条需求",
-            parent_section_label="5.7 次条需求",
-        )
-        db.insert_requirement(
-            project_id=project["id"],
-            sor_document_id=document["id"],
-            req_code="REQ0024",
-            source_page=5,
-            source_anchor="Main > 5.1",
-            requirement_text="5.1 首条需求",
-            raw_text="5.1 首条需求",
-            display_text="5.1 首条需求",
-            requirement_type="FUNCTIONAL",
-            priority="MEDIUM",
-            parent_section_code="5.1",
-            parent_section_title="首条需求",
-            parent_section_label="5.1 首条需求",
-        )
-        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
-
-        preview_source = self.tmp_path / "preview-source.png"
-        PILImage.new("RGB", (320, 160), "forestgreen").save(preview_source)
-        preview = _fake_preview_with_reversed_req_codes()
-        preview["complete_requirement_entries"][0]["table_refs"] = [
-            {
-                "table_id": "tbl_preview",
-                "table_title": "首条需求截图",
-                "source_snapshot_path": str(preview_source),
-                "slice_snapshot_path": str(preview_source),
-                "slice_render_mode": "snapshot_only",
-                "export_variant": "source",
-                "recommended_export_variant": "source",
-                "inherited_headers": [],
-                "slice_rows": [],
-            }
-        ]
-        preview["complete_requirement_entries"][0]["content_blocks"] = [
-            {"kind": "paragraph", "text": "5.1 首条需求\n含截图块。"},
-            {"kind": "table", "table_id": "tbl_preview"},
-        ]
-        preview_cache.persist_preview_cache(db.get_sor_document(document["id"]) or {}, preview)
-        main.lock_document_extraction(project["id"], document["id"])
-
-        workspace = main.get_document_workspace(project["id"], document["id"], include_preview=True)
-        captured: dict[str, object] = {}
-
-        def _capture_export(**kwargs):
-            requirements = kwargs.get("requirements") or []
-            captured["requirements"] = [dict(row) for row in requirements]
-            export_dir = Path(kwargs["export_dir"])
-            export_dir.mkdir(parents=True, exist_ok=True)
-            file_path = export_dir / "captured.xlsx"
-            file_path.write_text("stub", encoding="utf-8")
-            return file_path.name, str(file_path)
-
-        with patch.object(main, "export_compliance_matrix", side_effect=_capture_export):
-            result = main.export_project(project["id"], main.ExportRequest(document_id=document["id"]))
-
-        self.assertEqual(result["file_name"], "captured.xlsx")
-        exported_requirements = captured["requirements"]
-        self.assertIsInstance(exported_requirements, list)
-        self.assertEqual(
-            [
-                (
-                    row["req_code"],
-                    row["display_req_code"],
-                    [block.get("kind") for block in row.get("content_blocks") or []],
-                )
-                for row in exported_requirements
-            ],
-            [
-                (
-                    row["req_code"],
-                    row["display_req_code"],
-                    [block.get("kind") for block in row.get("content_blocks") or []],
-                )
-                for row in workspace["requirements"]
-            ],
-        )
-        self.assertEqual([row["req_code"] for row in exported_requirements], ["REQ0024", "REQ0023"])
-        self.assertEqual([row["display_req_code"] for row in exported_requirements], ["REQ0001", "REQ0002"])
-        self.assertEqual(
-            [block.get("kind") for block in exported_requirements[0]["content_blocks"]],
-            ["paragraph", "table"],
-        )
-        self.assertEqual(exported_requirements[0]["table_refs"][0]["table_id"], "tbl_preview")
 
     def test_run_ai_analysis_persists_extended_assessment_fields_and_runs(self) -> None:
         project, document = self._create_project_with_document("-ai-copilot")
@@ -3420,7 +4982,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             doc_version="v1.0",
         )
         db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
-        main.lock_document_extraction(project["id"], document["id"])
+        self._lock_active_requirement_set(project["id"], document["id"])
 
         with patch.dict(
             os.environ,
@@ -3430,7 +4992,11 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             },
             clear=False,
         ):
-            result = main.run_document_ai_analysis(project["id"], document["id"])
+            result = main.run_document_ai_analysis(
+                project["id"],
+                document["id"],
+                self._active_requirement_set_id(document["id"]),
+            )
 
         row = next(item for item in result["requirements"] if item["id"] == requirement["id"])
         self.assertTrue(row["ai_decision"])
@@ -3438,7 +5004,24 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(row["analysis_label"], "REQUIREMENT")
         self.assertTrue(row["normalized_requirement"])
         self.assertIn(row["risk_level"], {"LOW", "MEDIUM", "HIGH"})
+        self.assertEqual(
+            row["compliance_status"],
+            {
+                "ACCEPT": "COMPLIANT",
+                "DEVIATION_ACCEPT": "PARTIALLY_COMPLIANT",
+                "REJECT": "NON_COMPLIANT",
+                "NEED_CLARIFICATION": "INSUFFICIENT_INFORMATION",
+            }[row["ai_decision"]],
+        )
+        self.assertTrue(row["sub_judgments"])
+        if row["compliance_status"] == "INSUFFICIENT_INFORMATION":
+            self.assertTrue(
+                row["structured_information_gap"]["missing_items"]
+            )
         self.assertIn("source_doc_version", row["evidences"][0])
+        self.assertTrue(row["evidences"][0]["retrieval_evidence_id"])
+        self.assertEqual(len(row["evidences"][0]["content_hash"]), 64)
+        self.assertTrue(row["evidences"][0]["evidence_metadata"])
 
         runs = db.list_assessment_runs(requirement["id"])
         self.assertEqual(len(runs), 2)
@@ -3477,7 +5060,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             doc_version="v1.0",
         )
         db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
-        main.lock_document_extraction(project["id"], document["id"])
+        self._lock_active_requirement_set(project["id"], document["id"])
 
         with patch.dict(
             os.environ,
@@ -3491,7 +5074,10 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                 with TestClient(main.app) as client:
                     start_response = client.post(
                         f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
-                        json={"profile_id": "azure"},
+                        json=self._ai_start_payload(
+                            document["id"],
+                            profile_id="azure",
+                        ),
                     )
                     self.assertEqual(start_response.status_code, 200)
                     start_payload = start_response.json()
@@ -3511,13 +5097,38 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                     )
                     self.assertTrue(any(item["event_type"] == "job_completed" for item in status_payload["events"]))
 
-                    detail_response = client.get(f"/api/requirements/{requirement['id']}/analysis-detail")
-                    self.assertEqual(detail_response.status_code, 200)
-                    detail_payload = detail_response.json()
-                    self.assertEqual(detail_payload["requirement"]["id"], requirement["id"])
-                    self.assertEqual(detail_payload["assessment"]["analysis_label"], "REQUIREMENT")
-                    self.assertGreaterEqual(len(detail_payload["assessment_runs"]), 1)
-                    self.assertIsInstance(detail_payload["evidences"], list)
+                    requirement_set_id = self._active_requirement_set_id(
+                        document["id"]
+                    )
+                    matrix_response = client.get(
+                        f"/api/projects/{project['id']}/sor-documents/"
+                        f"{document['id']}/requirement-sets/"
+                        f"{requirement_set_id}/matrix"
+                    )
+                    self.assertEqual(matrix_response.status_code, 200)
+                    matrix_node = next(
+                        node
+                        for node in matrix_response.json()["nodes"]
+                        if node["requirement_id"] == requirement["id"]
+                    )
+                    self.assertEqual(
+                        matrix_node["ai_assessment"]["assessment_mode"],
+                        "heuristic",
+                    )
+                    self.assertGreaterEqual(
+                        len(db.list_assessment_runs(requirement["id"])),
+                        1,
+                    )
+                    self.assertIsInstance(
+                        (db.get_requirement(requirement["id"]) or {})[
+                            "evidences"
+                        ],
+                        list,
+                    )
+                    legacy = client.get(
+                        f"/api/requirements/{requirement['id']}/analysis-detail"
+                    )
+                    self.assertEqual(legacy.status_code, 404)
 
     def test_ai_analysis_detail_and_events_use_display_req_codes_from_workspace_order(self) -> None:
         project, document = self._create_project_with_document("-ai-display-order")
@@ -3569,7 +5180,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             db.get_sor_document(document["id"]) or {},
             _fake_preview_with_reversed_req_codes(),
         )
-        main.lock_document_extraction(project["id"], document["id"])
+        self._lock_active_requirement_set(project["id"], document["id"])
 
         with patch.dict(
             os.environ,
@@ -3583,7 +5194,10 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                 with TestClient(main.app) as client:
                     start_response = client.post(
                         f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
-                        json={"profile_id": "azure"},
+                        json=self._ai_start_payload(
+                            document["id"],
+                            profile_id="azure",
+                        ),
                     )
                     self.assertEqual(start_response.status_code, 200)
 
@@ -3598,18 +5212,114 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                         if item.get("event_type") == "requirement_completed"
                     }
 
-                    detail_response = client.get(f"/api/requirements/{first_requirement['id']}/analysis-detail")
-                    self.assertEqual(detail_response.status_code, 200)
-                    detail_payload = detail_response.json()
+                    requirement_set_id = self._active_requirement_set_id(
+                        document["id"]
+                    )
+                    matrix_response = client.get(
+                        f"/api/projects/{project['id']}/sor-documents/"
+                        f"{document['id']}/requirement-sets/"
+                        f"{requirement_set_id}/matrix"
+                    )
+                    self.assertEqual(matrix_response.status_code, 200)
+                    matrix_node = next(
+                        node
+                        for node in matrix_response.json()["nodes"]
+                        if node["requirement_id"] == first_requirement["id"]
+                    )
+                    legacy = client.get(
+                        f"/api/requirements/{first_requirement['id']}/analysis-detail"
+                    )
+                    self.assertEqual(legacy.status_code, 404)
 
         self.assertEqual(status_payload["job"]["status"], "COMPLETED")
         self.assertEqual(completed_codes, {"REQ0001", "REQ0002"})
         self.assertNotIn("REQ0023", completed_codes)
         self.assertNotIn("REQ0024", completed_codes)
-        self.assertEqual(detail_payload["requirement"]["req_code"], first_requirement["req_code"])
-        self.assertEqual(detail_payload["requirement"]["display_req_code"], "REQ0001")
-        self.assertEqual(detail_payload["requirement"]["display_sort_index"], 1)
+        self.assertEqual(
+            (db.get_requirement(first_requirement["id"]) or {})["req_code"],
+            first_requirement["req_code"],
+        )
+        self.assertEqual(matrix_node["requirement_code"], "REQ0001")
         self.assertEqual(later_requirement["req_code"], "REQ0023")
+
+    def test_assessment_execution_policy_requires_mode_and_primary_run_provenance(self) -> None:
+        base_assessment = {
+            "analysis_label": "REQUIREMENT",
+            "ai_decision": "ACCEPT",
+            "analysis_basis": "candidate result",
+        }
+        cases = (
+            ("llm_primary", "heuristic", [], "cannot serve heuristic"),
+            ("heuristic", "llm_primary", [], "cannot serve llm_primary"),
+            ("llm_primary", "llm_primary", [], "has no primary assessment run"),
+        )
+
+        for configured_mode, assessment_mode, runs, expected_reason in cases:
+            with self.subTest(configured_mode=configured_mode, assessment_mode=assessment_mode):
+                verdict = main.evaluate_assessment_execution(
+                    assessment={**base_assessment, "assessment_mode": assessment_mode},
+                    runs=runs,
+                    configured_mode=configured_mode,
+                )
+                self.assertFalse(verdict.serviceable)
+                self.assertIn(expected_reason, verdict.failure_reason)
+
+        hard_rule_verdict = main.evaluate_assessment_execution(
+            assessment={**base_assessment, "assessment_mode": "llm_primary"},
+            runs=[
+                {
+                    "mode": "llm_primary",
+                    "validation_status": "hard_rule_override",
+                    "fallback_reason": "hard_rule_negative_reject",
+                }
+            ],
+            configured_mode="llm_primary",
+        )
+        self.assertTrue(hard_rule_verdict.serviceable)
+
+        manual_screening_verdict = main.evaluate_assessment_execution(
+            assessment={
+                "analysis_label": "REQUIREMENT",
+                "ai_decision": "",
+                "assessment_mode": "screening_only",
+                "analysis_basis": "manual classification; no knowledge evidence available",
+            },
+            runs=[
+                {
+                    "mode": "screening_manual_override",
+                    "validation_status": "accepted",
+                    "fallback_reason": "",
+                }
+            ],
+            configured_mode="llm_primary",
+        )
+        self.assertTrue(manual_screening_verdict.serviceable)
+
+    def test_assessment_execution_policy_does_not_mask_non_shadow_failure(self) -> None:
+        verdict = main.evaluate_assessment_execution(
+            assessment={
+                "analysis_label": "REQUIREMENT",
+                "ai_decision": "NEED_CLARIFICATION",
+                "assessment_mode": "heuristic",
+                "analysis_basis": "heuristic serving result",
+            },
+            runs=[
+                {
+                    "mode": "llm_shadow",
+                    "validation_status": "failed",
+                    "fallback_reason": "shadow provider timeout",
+                },
+                {
+                    "mode": "heuristic",
+                    "validation_status": "failed",
+                    "fallback_reason": "serving rule execution failed",
+                },
+            ],
+            configured_mode="llm_shadow",
+        )
+
+        self.assertFalse(verdict.serviceable)
+        self.assertIn("serving rule execution failed", verdict.failure_reason)
 
     def test_ai_analysis_job_api_reports_failed_runs(self) -> None:
         project, document = self._create_project_with_document("-ai-job-failed")
@@ -3629,13 +5339,14 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             parent_section_label="5.1 Startup",
         )
         db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
-        main.lock_document_extraction(project["id"], document["id"])
+        self._lock_active_requirement_set(project["id"], document["id"])
 
         with patch.object(main, "run_ai_copilot_assessment", side_effect=RuntimeError("simulated ai failure")):
             with patch.object(main, "Thread", ImmediateThread):
                 with TestClient(main.app) as client:
                     start_response = client.post(
-                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start"
+                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                        json=self._ai_start_payload(document["id"]),
                     )
                     self.assertEqual(start_response.status_code, 200)
 
@@ -3682,7 +5393,16 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             parent_section_label="5.2 Startup",
         )
         db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
-        main.lock_document_extraction(project["id"], document["id"])
+        db.attach_requirement_tree_snapshot(
+            self._active_requirement_set_id(document["id"]),
+            object_key="test/ai-job-fail-closed/requirement-tree.json",
+            tree_sha256="f" * 64,
+            schema_version="requirement-tree-snapshot/v1",
+            structure_snapshot_id="test-ai-job-fail-closed",
+            structure_tree_sha256="e" * 64,
+            structure_revision=1,
+        )
+        self._lock_active_requirement_set(project["id"], document["id"])
         ai_config = AICopilotConfig(
             assessment_mode="llm_shadow",
             retrieval_backend="qdrant",
@@ -3713,7 +5433,10 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             qdrant_collection_name="reqpilot-knowledge-aliyun-local",
         )
         eligible_rows = db.list_requirements(project["id"], document["id"])
-        prepared = (project, document, eligible_rows, eligible_rows, [], ai_config)
+        screening_rows = [row for row in eligible_rows if row["id"] == screening_requirement["id"]]
+        analysis_rows = [row for row in eligible_rows if row["id"] == analysis_requirement["id"]]
+        screening_prepared = (project, document, screening_rows, screening_rows, [], ai_config)
+        analysis_prepared = (project, document, analysis_rows, analysis_rows, [], ai_config)
         screening_failed_result = {
             "assessment": {
                 "profile_id": "aliyun",
@@ -3763,7 +5486,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                 "assessment_mode": "analysis_failed",
                 "retrieval_backend": "qdrant",
                 "model_name": "qwen3.7-plus",
-                "prompt_version": "v2.0-aliyun-rag-copilot",
+                "prompt_version": "v3.0-compliance-evidence-contract",
             },
             "evidences": [],
             "runs": [
@@ -3785,7 +5508,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                     "mode": "llm_shadow",
                     "retrieval_backend": "qdrant",
                     "model_name": "qwen3.7-plus",
-                    "prompt_version": "v2.0-aliyun-rag-copilot",
+                    "prompt_version": "v3.0-compliance-evidence-contract",
                     "input_payload_json": "{}",
                     "output_payload_json": "",
                     "validation_status": "failed",
@@ -3795,34 +5518,1359 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             "trace_path": str(self.tmp_path / "trace-analysis-failed.json"),
         }
 
-        with patch.object(main, "_prepare_document_ai_analysis_request", return_value=prepared), patch.object(
+        with patch.object(
+            main,
+            "_prepare_document_ai_analysis_request",
+            side_effect=[screening_prepared, screening_prepared, analysis_prepared, analysis_prepared],
+        ), patch.object(
             main,
             "run_ai_copilot_assessment",
             side_effect=[screening_failed_result, analysis_failed_result],
         ), patch.object(main, "Thread", ImmediateThread):
             with TestClient(main.app) as client:
-                start_response = client.post(
-                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
-                    json={"profile_id": "aliyun"},
+                screening_scope_request = {
+                    "command_id": "test-screening-failure",
+                    "requirement_set_id": self._active_requirement_set_id(document["id"]),
+                    "expected_tree_sha256": "f" * 64,
+                    "scope": "CURRENT",
+                    "node_ids": [f"matrix-{screening_requirement['id']}"],
+                }
+                screening_preview_response = client.post(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis/scope-preview",
+                    json=screening_scope_request,
                 )
-                self.assertEqual(start_response.status_code, 200)
-                status_response = client.get(
+                self.assertEqual(screening_preview_response.status_code, 200)
+                screening_start_response = client.post(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                    json={
+                        **screening_scope_request,
+                        "profile_id": "aliyun",
+                        "expected_scope_sha256": screening_preview_response.json()[
+                            "scope_sha256"
+                        ],
+                    },
+                )
+                self.assertEqual(
+                    screening_start_response.status_code,
+                    200,
+                    screening_start_response.text,
+                )
+                screening_status_response = client.get(
                     f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
                 )
-                self.assertEqual(status_response.status_code, 200)
-                status_payload = status_response.json()
+                self.assertEqual(screening_status_response.status_code, 200)
+                screening_status = screening_status_response.json()
 
-        completed_messages = {
-            str(item.get("message") or "")
-            for item in status_payload["events"]
-            if item.get("event_type") == "requirement_completed"
-        }
-        self.assertIn("完成 REQ0001：筛选失败。", completed_messages)
-        self.assertIn("完成 REQ0002：分析失败。", completed_messages)
+                analysis_scope_request = {
+                    "command_id": "test-analysis-failure",
+                    "requirement_set_id": self._active_requirement_set_id(document["id"]),
+                    "expected_tree_sha256": "f" * 64,
+                    "scope": "CURRENT",
+                    "node_ids": [f"matrix-{analysis_requirement['id']}"],
+                }
+                analysis_preview_response = client.post(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis/scope-preview",
+                    json=analysis_scope_request,
+                )
+                self.assertEqual(analysis_preview_response.status_code, 200)
+                analysis_start_response = client.post(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                    json={
+                        **analysis_scope_request,
+                        "profile_id": "aliyun",
+                        "expected_scope_sha256": analysis_preview_response.json()[
+                            "scope_sha256"
+                        ],
+                    },
+                )
+                self.assertEqual(
+                    analysis_start_response.status_code,
+                    200,
+                    analysis_start_response.text,
+                )
+                analysis_status_response = client.get(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
+                )
+                self.assertEqual(analysis_status_response.status_code, 200)
+                analysis_status = analysis_status_response.json()
+
+        for status_payload, failure_mode, requirement_code in (
+            (screening_status, "screening_failed", "REQ0001"),
+            (analysis_status, "analysis_failed", "REQ0002"),
+        ):
+            self.assertEqual(status_payload["job"]["status"], "FAILED")
+            self.assertEqual(status_payload["job"]["outcome"], "FAILED")
+            self.assertEqual(status_payload["job"]["completed_requirements"], 0)
+            self.assertEqual(status_payload["job"]["current_requirement_code"], requirement_code)
+            self.assertIn(failure_mode, status_payload["job"]["error_message"])
+            event_types = {str(item.get("event_type") or "") for item in status_payload["events"]}
+            self.assertIn("requirement_failed", event_types)
+            self.assertIn("job_failed", event_types)
+            self.assertNotIn("job_completed", event_types)
+            self.assertEqual(status_payload["document"]["ai_status"], "NOT_RUN")
+
         screening_row = db.get_requirement(screening_requirement["id"]) or {}
         analysis_row = db.get_requirement(analysis_requirement["id"]) or {}
-        self.assertEqual(screening_row.get("assessment_mode"), "screening_failed")
-        self.assertEqual(analysis_row.get("assessment_mode"), "analysis_failed")
+        self.assertFalse(screening_row.get("assessment_mode"))
+        self.assertFalse(analysis_row.get("assessment_mode"))
+        self.assertEqual(db.list_assessment_runs(screening_requirement["id"])[0]["validation_status"], "failed")
+        self.assertEqual(db.list_assessment_runs(analysis_requirement["id"])[0]["validation_status"], "failed")
+
+    def test_ai_analysis_job_partial_provider_failure_preserves_last_serving_results(self) -> None:
+        project, document = self._create_project_with_document("-ai-job-partial-failure")
+        requirements = [
+            db.insert_requirement(
+                project_id=project["id"],
+                sor_document_id=document["id"],
+                req_code=f"REQ000{index}",
+                source_page=index,
+                source_anchor=f"Page {index} | Section 5.{index}",
+                requirement_text=f"Requirement {index} shall remain traceable.",
+                raw_text=f"Requirement {index} shall remain traceable.",
+                display_text=f"Requirement {index} shall remain traceable.",
+                requirement_type="FUNCTIONAL",
+                priority="MEDIUM",
+                parent_section_code=f"5.{index}",
+                parent_section_title="Traceability",
+                parent_section_label=f"5.{index} Traceability",
+            )
+            for index in (1, 2)
+        ]
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        locked_document = self._lock_active_requirement_set(project["id"], document["id"])["document"]
+        for index, requirement in enumerate(requirements, start=1):
+            db.upsert_assessment(
+                requirement_id=requirement["id"],
+                profile_id="azure",
+                provider="azure",
+                ai_decision="ACCEPT",
+                ai_reason=f"last-good-{index}",
+                ai_confidence=0.88,
+                assessment_mode="heuristic",
+                retrieval_backend="local",
+                analysis_label="REQUIREMENT",
+                analysis_basis="last known good serving result",
+                normalized_requirement=f"old-{index}",
+                risk_level="LOW",
+                clarification_question="",
+                model_name="old-model",
+                prompt_version="old-prompt",
+            )
+            db.replace_evidences(
+                requirement["id"],
+                [
+                    {
+                        "source_doc_id": f"old-doc-{index}",
+                        "source_doc_name": "old-evidence.txt",
+                        "source_doc_version": "v1",
+                        "source_location": f"line {index}",
+                        "excerpt": f"last-good-evidence-{index}",
+                        "relevance": 0.91,
+                    }
+                ],
+            )
+        db.update_sor_document_ai_state(
+            document["id"],
+            ai_status="READY",
+            ai_assessed_at="2026-07-10T00:00:00+00:00",
+            ai_requirement_set_version=int(locked_document.get("requirement_set_version") or 0),
+            ai_knowledge_base_version=int(project.get("knowledge_base_version") or 0),
+            workflow_stage="AI_READY",
+        )
+        previous_assessments = {item["id"]: db.get_assessment(item["id"]) for item in requirements}
+        previous_evidences = {
+            item["id"]: (db.get_requirement(item["id"]) or {}).get("evidences") for item in requirements
+        }
+
+        with patch.dict(os.environ, {"REQPILOT_AI_ASSESSMENT_MODE": "heuristic"}, clear=False):
+            ai_config = main.load_ai_copilot_config("azure")
+        eligible_rows = db.list_requirements(project["id"], document["id"])
+        prepared = (project, locked_document, eligible_rows, eligible_rows, [], ai_config)
+        first_result = {
+            "assessment": {
+                "profile_id": "azure",
+                "provider": "azure",
+                "analysis_label": "REQUIREMENT",
+                "analysis_basis": "new candidate",
+                "ai_decision": "REJECT",
+                "ai_reason": "new result must not publish partially",
+                "ai_confidence": 0.93,
+                "risk_level": "HIGH",
+                "clarification_question": "",
+                "normalized_requirement": "new-1",
+                "assessment_mode": "heuristic",
+                "retrieval_backend": "local",
+                "model_name": "new-model",
+                "prompt_version": "new-prompt",
+            },
+            "evidences": [
+                {
+                    "source_doc_id": "new-doc",
+                    "source_doc_name": "new-evidence.txt",
+                    "source_doc_version": "v2",
+                    "source_location": "line 10",
+                    "excerpt": "new evidence",
+                    "relevance": 0.99,
+                }
+            ],
+            "runs": [],
+        }
+
+        with patch.object(main, "_prepare_document_ai_analysis_request", return_value=prepared), patch.object(
+            main,
+            "run_ai_copilot_assessment",
+            side_effect=[first_result, RuntimeError("provider timeout on second row")],
+        ), patch.object(main, "Thread", ImmediateThread):
+            with TestClient(main.app) as client:
+                start_response = client.post(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                    json=self._ai_start_payload(document["id"]),
+                )
+                self.assertEqual(start_response.status_code, 200)
+                status_payload = client.get(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
+                ).json()
+
+        self.assertEqual(status_payload["job"]["status"], "FAILED")
+        self.assertEqual(status_payload["job"]["completed_requirements"], 1)
+        self.assertEqual(status_payload["job"]["analyzed_requirements"], 1)
+        self.assertEqual(status_payload["job"]["current_requirement_code"], "REQ0002")
+        self.assertIn("provider timeout on second row", status_payload["job"]["error_message"])
+        self.assertEqual(status_payload["document"]["ai_status"], "READY")
+        self.assertEqual(status_payload["document"]["workflow_stage"], "AI_READY")
+        self.assertIn("未发布本次部分结果", status_payload["job"]["last_message"])
+        for requirement in requirements:
+            self.assertEqual(db.get_assessment(requirement["id"]), previous_assessments[requirement["id"]])
+            self.assertEqual(
+                (db.get_requirement(requirement["id"]) or {}).get("evidences"),
+                previous_evidences[requirement["id"]],
+            )
+        event_types = [str(item.get("event_type") or "") for item in status_payload["events"]]
+        self.assertIn("requirement_completed", event_types)
+        self.assertIn("requirement_failed", event_types)
+        self.assertIn("job_failed", event_types)
+        self.assertNotIn("job_completed", event_types)
+
+    def test_atomic_serving_result_publish_rolls_back_every_requirement_on_write_failure(self) -> None:
+        import app.adapters.persistence.assessment_results as assessment_results
+
+        project, document = self._create_project_with_document("-atomic-serving-rollback")
+        requirements = [
+            db.insert_requirement(
+                project_id=project["id"],
+                sor_document_id=document["id"],
+                req_code=f"REQ000{index}",
+                source_page=index,
+                source_anchor=f"Page {index} | Section 6.{index}",
+                requirement_text=f"Requirement {index} shall be satisfied.",
+                raw_text=f"Requirement {index} shall be satisfied.",
+                display_text=f"Requirement {index} shall be satisfied.",
+                requirement_type="FUNCTIONAL",
+                priority="MEDIUM",
+            )
+            for index in (1, 2)
+        ]
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        locked_document = self._lock_active_requirement_set(project["id"], document["id"])["document"]
+        for index, requirement in enumerate(requirements, start=1):
+            db.upsert_assessment(
+                requirement_id=requirement["id"],
+                profile_id="azure",
+                provider="azure",
+                ai_decision="ACCEPT",
+                ai_reason=f"old-reason-{index}",
+                ai_confidence=0.8,
+                assessment_mode="heuristic",
+                retrieval_backend="local",
+                analysis_label="REQUIREMENT",
+                analysis_basis="old serving result",
+                normalized_requirement=f"old-{index}",
+                risk_level="LOW",
+                clarification_question="",
+                model_name="old-model",
+                prompt_version="old-prompt",
+            )
+            db.replace_evidences(
+                requirement["id"],
+                [
+                    {
+                        "source_doc_id": f"old-doc-{index}",
+                        "source_doc_name": "old.txt",
+                        "source_doc_version": "v1",
+                        "source_location": f"line {index}",
+                        "excerpt": f"old-evidence-{index}",
+                        "relevance": 0.8,
+                    }
+                ],
+            )
+        previous_assessments = {item["id"]: db.get_assessment(item["id"]) for item in requirements}
+        previous_evidences = {
+            item["id"]: (db.get_requirement(item["id"]) or {}).get("evidences") for item in requirements
+        }
+
+        def result_for(index: int) -> dict:
+            return {
+                "assessment": {
+                    "analysis_label": "REQUIREMENT",
+                    "analysis_basis": "new candidate",
+                    "ai_decision": "REJECT",
+                    "ai_reason": f"new-reason-{index}",
+                    "ai_confidence": 0.9,
+                    "risk_level": "HIGH",
+                    "clarification_question": "",
+                    "normalized_requirement": f"new-{index}",
+                    "assessment_mode": "heuristic",
+                    "retrieval_backend": "local",
+                    "model_name": "new-model",
+                    "prompt_version": "new-prompt",
+                },
+                "evidences": [
+                    {
+                        "source_doc_id": f"new-doc-{index}",
+                        "source_doc_name": "new.txt",
+                        "source_doc_version": "v2",
+                        "source_location": f"line {index}",
+                        "excerpt": f"new-evidence-{index}",
+                        "relevance": 0.95,
+                    }
+                ],
+            }
+
+        original_persist = assessment_results._persist_result
+        call_count = 0
+
+        def fail_during_second_result(conn, requirement_id, result, **kwargs):
+            nonlocal call_count
+            call_count += 1
+            if call_count == 2:
+                conn.execute(
+                    "UPDATE assessments SET model_name = 'half-written' WHERE requirement_id = ?",
+                    (requirement_id,),
+                )
+                raise RuntimeError("simulated evidence publication failure")
+            return original_persist(conn, requirement_id, result, **kwargs)
+
+        with patch.object(assessment_results, "_persist_result", side_effect=fail_during_second_result):
+            with self.assertRaisesRegex(RuntimeError, "simulated evidence publication failure"):
+                assessment_results.publish_serving_results(
+                    [(item["id"], result_for(index)) for index, item in enumerate(requirements, start=1)],
+                    document_id=document["id"],
+                    requirement_set_version=int(locked_document.get("requirement_set_version") or 0),
+                    knowledge_base_version=int(project.get("knowledge_base_version") or 0),
+                    profile_id="azure",
+                    provider="azure",
+                    retrieval_backend="local",
+                )
+
+        for requirement in requirements:
+            self.assertEqual(db.get_assessment(requirement["id"]), previous_assessments[requirement["id"]])
+            self.assertEqual(
+                (db.get_requirement(requirement["id"]) or {}).get("evidences"),
+                previous_evidences[requirement["id"]],
+            )
+
+    def test_analysis_job_claim_is_atomic_and_returns_one_active_job(self) -> None:
+        project, document = self._create_project_with_document("-atomic-job-claim")
+        requirement = db.insert_requirement(
+            project["id"],
+            document["id"],
+            "REQ0001",
+            1,
+            "Page 1",
+            "Supplier shall provide evidence.",
+            "REGULATION",
+            "MEDIUM",
+        )
+        requirement_set_id = str(requirement["requirement_set_id"])
+        db.lock_sor_document_extraction(
+            document["id"],
+            expected_requirement_set_id=requirement_set_id,
+        )
+        barrier = Barrier(2)
+
+        def claim() -> tuple[dict, bool]:
+            barrier.wait()
+            return assessment_results.claim_analysis_job(
+                project_id=project["id"],
+                document_id=document["id"],
+                requirement_set_id=requirement_set_id,
+                profile_id="azure",
+                provider="azure",
+                assessment_mode="heuristic",
+                retrieval_backend="local",
+                chat_model="",
+                embedding_model="",
+                total_requirements=1,
+                queued_message="queued",
+            )
+
+        with ThreadPoolExecutor(max_workers=2) as executor:
+            results = [future.result() for future in (executor.submit(claim), executor.submit(claim))]
+
+        self.assertEqual(len({result[0]["id"] for result in results}), 1)
+        self.assertEqual(sorted(result[1] for result in results), [False, True])
+        with db.get_conn() as connection:
+            active_count = connection.execute(
+                """
+                SELECT COUNT(*) FROM ai_analysis_jobs
+                WHERE sor_document_id = ?
+                  AND status IN ('PENDING', 'RUNNING', 'CANCEL_REQUESTED')
+                """,
+                (document["id"],),
+            ).fetchone()[0]
+            created_event_count = connection.execute(
+                "SELECT COUNT(*) FROM ai_analysis_events WHERE sor_document_id = ? AND event_type = 'job_created'",
+                (document["id"],),
+            ).fetchone()[0]
+        self.assertEqual(active_count, 1)
+        self.assertEqual(created_event_count, 1)
+
+    def test_analysis_job_claim_serializes_before_requirement_set_activation(
+        self,
+    ) -> None:
+        project, document = self._create_project_with_document("-claim-activation")
+        requirement = db.insert_requirement(
+            project["id"],
+            document["id"],
+            "REQ0001",
+            1,
+            "Page 1",
+            "Supplier shall provide evidence.",
+            "REGULATION",
+            "MEDIUM",
+        )
+        source_set_id = str(requirement["requirement_set_id"])
+        db.lock_sor_document_extraction(
+            document["id"],
+            expected_requirement_set_id=source_set_id,
+        )
+        target = db.create_requirement_set(project["id"], document["id"])
+        claim_reached_set_lock = Event()
+        activation_attempted = Event()
+        activation_done = Event()
+        activation_errors: list[BaseException] = []
+        original_set_lock = (
+            assessment_results.lock_requirement_matrix_sets_in_connection
+        )
+
+        def hold_claim_after_document_lock(*args, **kwargs):
+            claim_reached_set_lock.set()
+            self.assertTrue(activation_attempted.wait(timeout=2))
+            time.sleep(0.1)
+            self.assertFalse(activation_done.is_set())
+            return original_set_lock(*args, **kwargs)
+
+        def activate_target() -> None:
+            claim_reached_set_lock.wait(timeout=2)
+            activation_attempted.set()
+            try:
+                db.activate_requirement_set(
+                    project["id"],
+                    document["id"],
+                    target["id"],
+                    expected_active_requirement_set_id=source_set_id,
+                )
+            except BaseException as exc:  # Asserted in the owner thread.
+                activation_errors.append(exc)
+            finally:
+                activation_done.set()
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            future = executor.submit(activate_target)
+            with patch.object(
+                assessment_results,
+                "lock_requirement_matrix_sets_in_connection",
+                side_effect=hold_claim_after_document_lock,
+            ):
+                job, claimed = assessment_results.claim_analysis_job(
+                    project_id=project["id"],
+                    document_id=document["id"],
+                    requirement_set_id=source_set_id,
+                    profile_id="azure",
+                    provider="azure",
+                    assessment_mode="heuristic",
+                    retrieval_backend="local",
+                    chat_model="",
+                    embedding_model="",
+                    total_requirements=1,
+                    queued_message="queued",
+                )
+            future.result(timeout=5)
+
+        self.assertTrue(claimed)
+        self.assertEqual(job["requirement_set_id"], source_set_id)
+        self.assertEqual(len(activation_errors), 1)
+        self.assertIsInstance(
+            activation_errors[0],
+            db.RequirementSetMutationBlocked,
+        )
+        self.assertEqual(
+            (db.get_active_requirement_set(document["id"]) or {})["id"],
+            source_set_id,
+        )
+        self.assertFalse(bool(int((db.get_requirement_set(target["id"]) or {})["is_active"])))
+
+    def test_analysis_job_captures_knowledge_snapshot_and_completed_set_lineage(self) -> None:
+        project, document = self._create_project_with_document("-job-kb-snapshot")
+        requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1",
+            requirement_text="Supplier shall provide evidence.",
+            requirement_type="REGULATION",
+            priority="MEDIUM",
+        )
+        requirement_set = db.get_requirement_set(requirement["requirement_set_id"])
+        db.bump_project_knowledge_base_version(project["id"])
+        db.lock_sor_document_extraction(
+            document["id"],
+            expected_requirement_set_id=requirement_set["id"],
+        )
+
+        job, claimed = assessment_results.claim_analysis_job(
+            project_id=project["id"],
+            document_id=document["id"],
+            requirement_set_id=requirement_set["id"],
+            profile_id="azure",
+            provider="azure",
+            assessment_mode="heuristic",
+            retrieval_backend="local",
+            chat_model="",
+            embedding_model="",
+            total_requirements=1,
+            queued_message="queued",
+        )
+        self.assertTrue(claimed)
+        self.assertEqual(job["requirement_set_id"], requirement_set["id"])
+        self.assertEqual(job["knowledge_base_version"], 1)
+        db.update_ai_analysis_job(
+            job["id"], status="COMPLETED", finished_at="2026-07-18T09:00:00+00:00"
+        )
+        completed = db.get_latest_completed_ai_analysis_job_for_set(requirement_set["id"])
+        self.assertEqual(completed["id"], job["id"])
+        self.assertEqual(completed["knowledge_base_version"], 1)
+
+    def test_analysis_publication_rejects_claimed_execution_identity_drift(
+        self,
+    ) -> None:
+        project, document = self._create_project_with_document("-job-profile-drift")
+        requirement = db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1",
+            "Supplier shall provide evidence.", "REGULATION", "MEDIUM",
+        )
+        requirement_set = db.get_requirement_set(requirement["requirement_set_id"])
+        db.lock_sor_document_extraction(
+            document["id"],
+            expected_requirement_set_id=requirement_set["id"],
+        )
+        job, claimed = assessment_results.claim_analysis_job(
+            project_id=project["id"],
+            document_id=document["id"],
+            requirement_set_id=requirement_set["id"],
+            profile_id="profile-claimed",
+            provider="provider-claimed",
+            assessment_mode="heuristic",
+            retrieval_backend="retrieval-claimed",
+            chat_model="chat-claimed",
+            embedding_model="embedding-claimed",
+            total_requirements=1,
+            queued_message="queued",
+        )
+        self.assertTrue(claimed)
+        db.update_ai_analysis_job(job["id"], status="RUNNING")
+        result = {
+            "assessment": {
+                "ai_decision": "ACCEPT",
+                "ai_reason": "candidate",
+                "ai_confidence": 0.9,
+                "assessment_mode": "heuristic",
+                "analysis_label": "REQUIREMENT",
+                "analysis_basis": "FULL",
+                "normalized_requirement": "candidate",
+                "risk_level": "LOW",
+                "clarification_question": "",
+                "model_name": "model",
+                "prompt_version": "prompt",
+            },
+            "evidences": [],
+        }
+
+        with self.assertRaisesRegex(
+            RuntimeError,
+            "execution identity changed",
+        ):
+            assessment_results.publish_serving_results(
+                [(requirement["id"], result)],
+                document_id=document["id"],
+                requirement_set_id=requirement_set["id"],
+                requirement_set_version=int(requirement_set["version"]),
+                knowledge_base_version=int(
+                    (db.get_project(project["id"]) or {})[
+                        "knowledge_base_version"
+                    ]
+                ),
+                profile_id="profile-drifted",
+                provider="provider-claimed",
+                retrieval_backend="retrieval-claimed",
+                job_completion={
+                    "job_id": job["id"],
+                    "total_requirements": 1,
+                    "completed_requirements": 1,
+                    "analyzed_requirements": 1,
+                    "info_requirements": 0,
+                    "screened_requirements": 0,
+                    "message": "done",
+                    "event_payload": {},
+                },
+            )
+
+        self.assertIsNone(db.get_assessment(requirement["id"]))
+        self.assertEqual((db.get_ai_analysis_job(job["id"]) or {})["status"], "RUNNING")
+
+    def test_late_failed_worker_cannot_overwrite_newer_same_set_projection(self) -> None:
+        project, document = self._create_project_with_document("-late-worker-projection")
+        requirement = db.insert_requirement(
+            project["id"], document["id"], "REQ0001", 1, "Page 1",
+            "Supplier shall provide evidence.", "REGULATION", "MEDIUM",
+        )
+        requirement_set = db.get_requirement_set(requirement["requirement_set_id"])
+        old_job = db.create_ai_analysis_job(
+            project["id"], document["id"], requirement_set_id=requirement_set["id"],
+            total_requirements=1, status="RUNNING",
+        )
+        db.update_ai_analysis_job(old_job["id"], status="FAILED", finished_at="old-finished")
+        newer_job = db.create_ai_analysis_job(
+            project["id"], document["id"], requirement_set_id=requirement_set["id"],
+            total_requirements=1, status="COMPLETED",
+        )
+        db.update_sor_document_ai_state(
+            document["id"],
+            ai_status="READY",
+            ai_assessed_at="newer-finished",
+            ai_requirement_set_version=requirement_set["version"],
+            ai_knowledge_base_version=0,
+            workflow_stage="AI_READY",
+        )
+
+        projected = db.update_sor_document_ai_state_for_job(
+            old_job["id"], ai_status="STALE", workflow_stage="EXTRACTION_LOCKED"
+        )
+        current = db.get_sor_document(document["id"])
+        self.assertFalse(projected)
+        self.assertEqual(current["ai_status"], "READY")
+        self.assertEqual(current["ai_assessed_at"], "newer-finished")
+        self.assertEqual(
+            db.get_latest_completed_ai_analysis_job_for_set(requirement_set["id"])["id"],
+            newer_job["id"],
+        )
+
+    def test_start_route_reuses_claimed_job_while_worker_is_live(self) -> None:
+        project, document = self._create_project_with_document("-start-single-flight")
+        requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1",
+            requirement_text="Supplier shall provide evidence.",
+            raw_text="Supplier shall provide evidence.",
+            display_text="Supplier shall provide evidence.",
+            requirement_type="REGULATION",
+            priority="MEDIUM",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        locked_document = self._lock_active_requirement_set(project["id"], document["id"])["document"]
+        with patch.dict(os.environ, {"REQPILOT_AI_ASSESSMENT_MODE": "heuristic"}, clear=False):
+            ai_config = main.load_ai_copilot_config("azure")
+        eligible_rows = [db.get_requirement(requirement["id"])]
+        prepared = (project, locked_document, eligible_rows, eligible_rows, [], ai_config)
+
+        class HoldingThread(ImmediateThread):
+            def start(self) -> None:
+                self._alive = True
+
+        try:
+            with patch.object(
+                main,
+                "_prepare_document_ai_analysis_request",
+                return_value=prepared,
+            ), patch.object(main, "Thread", HoldingThread):
+                request = main.RunAIAnalysisRequest(
+                    requirement_set_id=self._active_requirement_set_id(
+                        document["id"]
+                    ),
+                )
+                first = main.start_document_ai_analysis(
+                    project["id"],
+                    document["id"],
+                    request,
+                )
+                second = main.start_document_ai_analysis(
+                    project["id"],
+                    document["id"],
+                    request,
+                )
+        finally:
+            main._clear_ai_analysis_thread(document["id"])
+
+        self.assertEqual(first["job"]["id"], second["job"]["id"])
+        with db.get_conn() as connection:
+            job_count = connection.execute(
+                "SELECT COUNT(*) FROM ai_analysis_jobs WHERE sor_document_id = ?",
+                (document["id"],),
+            ).fetchone()[0]
+        self.assertEqual(job_count, 1)
+
+    def test_status_cannot_finalize_job_between_claim_and_runtime_registration(self) -> None:
+        project, document = self._create_project_with_document("-claim-register-race")
+        requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1",
+            requirement_text="Supplier shall provide evidence.",
+            raw_text="Supplier shall provide evidence.",
+            display_text="Supplier shall provide evidence.",
+            requirement_type="REGULATION",
+            priority="MEDIUM",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        locked_document = self._lock_active_requirement_set(project["id"], document["id"])["document"]
+        with patch.dict(os.environ, {"REQPILOT_AI_ASSESSMENT_MODE": "heuristic"}, clear=False):
+            ai_config = main.load_ai_copilot_config("azure")
+        eligible_rows = [db.get_requirement(requirement["id"])]
+        prepared = (project, locked_document, eligible_rows, eligible_rows, [], ai_config)
+        request = main.RunAIAnalysisRequest(
+            requirement_set_id=self._active_requirement_set_id(document["id"]),
+        )
+        claim_committed = Event()
+        release_claim = Event()
+        status_attempted = Event()
+        original_claim = main.claim_analysis_job
+
+        def delayed_claim(**kwargs):
+            result = original_claim(**kwargs)
+            claim_committed.set()
+            self.assertTrue(release_claim.wait(timeout=2))
+            return result
+
+        class HoldingThread(ImmediateThread):
+            def start(self) -> None:
+                self._alive = True
+
+        def read_status() -> dict:
+            status_attempted.set()
+            return main._build_ai_analysis_status_payload(project["id"], document["id"])
+
+        try:
+            with patch.object(
+                main,
+                "_prepare_document_ai_analysis_request",
+                return_value=prepared,
+            ), patch.object(main, "claim_analysis_job", side_effect=delayed_claim), patch.object(
+                main,
+                "Thread",
+                HoldingThread,
+            ), ThreadPoolExecutor(max_workers=2) as executor:
+                start_future = executor.submit(
+                    main.start_document_ai_analysis,
+                    project["id"],
+                    document["id"],
+                    request,
+                )
+                self.assertTrue(claim_committed.wait(timeout=2))
+                status_future = executor.submit(read_status)
+                self.assertTrue(status_attempted.wait(timeout=2))
+                self.assertFalse(status_future.done())
+                release_claim.set()
+                started = start_future.result(timeout=2)
+                status = status_future.result(timeout=2)
+        finally:
+            release_claim.set()
+            main._clear_ai_analysis_thread(document["id"])
+
+        self.assertEqual(started["job"]["id"], status["job"]["id"])
+        self.assertEqual((db.get_ai_analysis_job(started["job"]["id"]) or {}).get("status"), "PENDING")
+        event_types = [
+            item.get("event_type")
+            for item in db.list_ai_analysis_events(started["job"]["id"])
+        ]
+        self.assertNotIn("job_failed", event_types)
+
+    def test_old_worker_cleanup_cannot_remove_new_job_runtime(self) -> None:
+        document_id = "runtime-document"
+        old_thread = ImmediateThread()
+        new_thread = ImmediateThread()
+        main._register_ai_analysis_thread(document_id, old_thread, job_id="old-job")
+        main._register_ai_analysis_thread(document_id, new_thread, job_id="new-job")
+
+        main._clear_ai_analysis_thread(document_id, job_id="old-job")
+
+        self.assertIs(main._get_ai_analysis_thread(document_id), new_thread)
+        main._clear_ai_analysis_thread(document_id, job_id="new-job")
+        self.assertIsNone(main._get_ai_analysis_thread(document_id))
+
+    def test_worker_rejects_requirement_or_knowledge_snapshot_drift_before_publish(self) -> None:
+        for drift_kind in ("requirements", "knowledge"):
+            with self.subTest(drift_kind=drift_kind):
+                project, document = self._create_project_with_document(f"-snapshot-{drift_kind}")
+                requirement = db.insert_requirement(
+                    project_id=project["id"],
+                    sor_document_id=document["id"],
+                    req_code="REQ0001",
+                    source_page=1,
+                    source_anchor="Page 1 | Section 5.1",
+                    requirement_text="Supplier shall provide a validation report.",
+                    raw_text="Supplier shall provide a validation report.",
+                    display_text="Supplier shall provide a validation report.",
+                    requirement_type="REGULATION",
+                    priority="MEDIUM",
+                )
+                db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+                locked_document = self._lock_active_requirement_set(project["id"], document["id"])["document"]
+                replacement_set = None
+                if drift_kind == "requirements":
+                    replacement_set = db.create_requirement_set(project["id"], document["id"])
+                    db.insert_requirement(
+                        project_id=project["id"],
+                        sor_document_id=document["id"],
+                        requirement_set_id=replacement_set["id"],
+                        req_code="REQ0001",
+                        source_page=1,
+                        source_anchor="Page 1 | Section 5.1",
+                        requirement_text="A newer Requirement Set owns this projection.",
+                        requirement_type="REGULATION",
+                        priority="MEDIUM",
+                    )
+                with patch.dict(os.environ, {"REQPILOT_AI_ASSESSMENT_MODE": "heuristic"}, clear=False):
+                    ai_config = main.load_ai_copilot_config("azure")
+                eligible_rows = db.list_requirements(project["id"], document["id"])
+                job = db.create_ai_analysis_job(
+                    project_id=project["id"],
+                    sor_document_id=document["id"],
+                    profile_id=ai_config.profile_id,
+                    provider=ai_config.provider,
+                    assessment_mode=ai_config.assessment_mode,
+                    retrieval_backend=ai_config.retrieval_backend,
+                    total_requirements=1,
+                )
+                runtime_thread = ImmediateThread()
+                main._register_ai_analysis_thread(document["id"], runtime_thread, job_id=job["id"])
+                result = {
+                    "assessment": {
+                        "profile_id": "azure",
+                        "provider": "azure",
+                        "analysis_label": "REQUIREMENT",
+                        "analysis_basis": "heuristic serving result",
+                        "ai_decision": "NEED_CLARIFICATION",
+                        "ai_reason": "human review is required",
+                        "ai_confidence": 0.6,
+                        "risk_level": "MEDIUM",
+                        "clarification_question": "Provide evidence.",
+                        "normalized_requirement": requirement["requirement_text"],
+                        "assessment_mode": "heuristic",
+                        "retrieval_backend": "local",
+                        "model_name": "rules-rag-prototype",
+                        "prompt_version": "heuristic-v1",
+                    },
+                    "evidences": [],
+                    "runs": [],
+                }
+                drift_applied = False
+
+                def run_with_drift(*args, **kwargs):
+                    nonlocal drift_applied
+                    if not drift_applied:
+                        drift_applied = True
+                        if drift_kind == "requirements":
+                            with db.get_conn() as connection:
+                                connection.execute(
+                                    "UPDATE requirement_sets SET is_active = 0 WHERE sor_document_id = ?",
+                                    (document["id"],),
+                                )
+                                connection.execute(
+                                    "UPDATE requirement_sets SET is_active = 1 WHERE id = ?",
+                                    (replacement_set["id"],),
+                                )
+                                connection.execute(
+                                    """
+                                    UPDATE sor_documents
+                                    SET active_requirement_set_id = ?, requirement_set_version = ?,
+                                        ai_status = 'READY', ai_assessed_at = 'newer-projection',
+                                        ai_requirement_set_version = ?, ai_knowledge_base_version = 0,
+                                        workflow_stage = 'AI_READY'
+                                    WHERE id = ?
+                                    """,
+                                    (
+                                        replacement_set["id"], replacement_set["version"],
+                                        replacement_set["version"], document["id"],
+                                    ),
+                                )
+                        else:
+                            db.bump_project_knowledge_base_version(project["id"])
+                    return result
+
+                prepared = (project, locked_document, eligible_rows, eligible_rows, [], ai_config)
+                with patch.object(
+                    main,
+                    "_prepare_document_ai_analysis_request",
+                    return_value=prepared,
+                ), patch.object(main, "run_ai_copilot_assessment", side_effect=run_with_drift):
+                    main._run_document_ai_analysis_worker(job["id"], project["id"], document["id"])
+
+                stored_job = db.get_ai_analysis_job(job["id"]) or {}
+                event_types = [item.get("event_type") for item in db.list_ai_analysis_events(job["id"])]
+                self.assertEqual(stored_job.get("status"), "FAILED")
+                self.assertIn("superseded", str(stored_job.get("error_message") or ""))
+                expected_projection = "READY" if drift_kind == "requirements" else "STALE"
+                self.assertEqual(
+                    (db.get_sor_document(document["id"]) or {}).get("ai_status"),
+                    expected_projection,
+                )
+                self.assertIsNone(db.get_assessment(requirement["id"]))
+                self.assertIn("job_failed", event_types)
+                self.assertNotIn("job_completed", event_types)
+
+    def test_analysis_status_projects_ready_snapshot_mismatch_as_stale(self) -> None:
+        project, document = self._create_project_with_document("-status-stale-projection")
+        db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1",
+            requirement_text="Supplier shall provide evidence.",
+            raw_text="Supplier shall provide evidence.",
+            display_text="Supplier shall provide evidence.",
+            requirement_type="REGULATION",
+            priority="MEDIUM",
+        )
+        locked = db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        db.update_sor_document_ai_state(
+            document["id"],
+            ai_status="READY",
+            workflow_stage="AI_READY",
+            ai_requirement_set_version=int(locked.get("requirement_set_version") or 0),
+            ai_knowledge_base_version=0,
+        )
+        db.bump_project_knowledge_base_version(project["id"])
+
+        payload = main._build_ai_analysis_status_payload(project["id"], document["id"])
+
+        self.assertEqual(payload["document"]["ai_status"], "STALE")
+
+    def test_analysis_status_uses_terminal_event_over_stale_job_snapshot(self) -> None:
+        project, document = self._create_project_with_document("-status-terminal-event")
+        job = db.create_ai_analysis_job(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            total_requirements=1,
+            status="RUNNING",
+        )
+        stale_job = dict(job)
+        db.update_ai_analysis_job(
+            job["id"],
+            status="COMPLETED",
+            current_stage="completed",
+            completed_requirements=1,
+            finished_at="2026-07-11T00:00:00+00:00",
+        )
+        db.add_ai_analysis_event(
+            job_id=job["id"],
+            sor_document_id=document["id"],
+            event_type="job_completed",
+            stage="completed",
+            message="completed",
+            payload={"outcome": "COMPLETED", "published": True},
+        )
+
+        payload = main._build_ai_analysis_status_payload(
+            project["id"],
+            document["id"],
+            job=stale_job,
+        )
+
+        self.assertEqual(payload["job"]["status"], "COMPLETED")
+        self.assertEqual(payload["job"]["current_stage"], "completed")
+        self.assertEqual(payload["job"]["outcome"], "COMPLETED")
+
+    def test_published_job_remains_completed_when_workspace_response_assembly_fails(self) -> None:
+        project, document = self._create_project_with_document("-published-workspace-failure")
+        requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1 | Section 7.1",
+            requirement_text="Supplier shall provide a validation report.",
+            raw_text="Supplier shall provide a validation report.",
+            display_text="Supplier shall provide a validation report.",
+            requirement_type="REGULATION",
+            priority="MEDIUM",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        locked_document = self._lock_active_requirement_set(project["id"], document["id"])["document"]
+        with patch.dict(os.environ, {"REQPILOT_AI_ASSESSMENT_MODE": "heuristic"}, clear=False):
+            ai_config = main.load_ai_copilot_config("azure")
+        job = db.create_ai_analysis_job(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            profile_id=ai_config.profile_id,
+            provider=ai_config.provider,
+            assessment_mode=ai_config.assessment_mode,
+            retrieval_backend=ai_config.retrieval_backend,
+            total_requirements=1,
+        )
+        runtime_thread = ImmediateThread()
+        main._register_ai_analysis_thread(document["id"], runtime_thread, job_id=job["id"])
+        result = {
+            "assessment": {
+                "analysis_label": "REQUIREMENT",
+                "analysis_basis": "heuristic serving result",
+                "ai_decision": "ACCEPT",
+                "ai_reason": "canonical evidence supports the requirement",
+                "ai_confidence": 0.9,
+                "risk_level": "LOW",
+                "clarification_question": "",
+                "normalized_requirement": "Supplier shall provide a validation report.",
+                "assessment_mode": "heuristic",
+                "retrieval_backend": "local",
+                "model_name": "rules-rag-prototype",
+                "prompt_version": "heuristic-v1",
+            },
+            "evidences": [],
+            "runs": [],
+        }
+
+        try:
+            eligible_rows = db.list_requirements(project["id"], document["id"])
+            prepared = (project, locked_document, eligible_rows, eligible_rows, [], ai_config)
+            with patch.object(main, "_prepare_document_ai_analysis_request", return_value=prepared), patch.object(
+                main,
+                "run_ai_copilot_assessment",
+                return_value=result,
+            ), patch.object(
+                main,
+                "_build_document_workspace",
+                side_effect=RuntimeError("workspace response assembly failed"),
+            ):
+                main._run_document_ai_analysis_worker(job["id"], project["id"], document["id"])
+        finally:
+            main._clear_ai_analysis_thread(document["id"])
+
+        stored_job = db.get_ai_analysis_job(job["id"]) or {}
+        self.assertEqual(stored_job.get("status"), "COMPLETED")
+        self.assertEqual(stored_job.get("current_stage"), "completed")
+        self.assertEqual((db.get_sor_document(document["id"]) or {}).get("ai_status"), "READY")
+        self.assertEqual((db.get_assessment(requirement["id"]) or {}).get("model_name"), "rules-rag-prototype")
+        event_types = [item.get("event_type") for item in db.list_ai_analysis_events(job["id"])]
+        self.assertIn("job_completed", event_types)
+        self.assertNotIn("job_failed", event_types)
+
+        with patch.object(main, "run_ai_copilot_assessment", return_value=result), patch.object(
+            main,
+            "_build_document_workspace",
+            side_effect=RuntimeError("sync projection failed after commit"),
+        ):
+            sync_result = main._execute_document_ai_analysis(
+                project,
+                locked_document,
+                eligible_rows,
+                [],
+                ai_config=ai_config,
+            )
+        self.assertTrue(sync_result["ai_analysis_published"])
+        self.assertEqual(sync_result["ai_analysis_outcome"], "COMPLETED")
+        self.assertEqual(sync_result["workspace_projection_status"], "FAILED")
+        self.assertIn("sync projection failed", sync_result["workspace_projection_error"])
+        self.assertTrue(sync_result["workspace_projection"]["published"])
+        self.assertTrue(sync_result["workspace_requirements_current"])
+        self.assertEqual(sync_result["requirements"][0]["model_name"], "rules-rag-prototype")
+
+    def test_stop_rejects_cancellation_after_atomic_publication_cutoff(self) -> None:
+        project, document = self._create_project_with_document("-publishing-cancel-cutoff")
+        job = db.create_ai_analysis_job(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            total_requirements=1,
+            status="RUNNING",
+        )
+        runtime_thread = ImmediateThread()
+        main._register_ai_analysis_thread(document["id"], runtime_thread, job_id=job["id"])
+        self.assertTrue(main._begin_ai_analysis_publish(document["id"], job["id"]))
+
+        try:
+            with patch.object(main, "_has_live_ai_analysis_thread", return_value=True):
+                with self.assertRaises(HTTPException) as raised:
+                    main.stop_document_ai_analysis(project["id"], document["id"])
+            self.assertEqual(raised.exception.status_code, 409)
+            self.assertIn("atomic result publication", str(raised.exception.detail))
+            self.assertEqual((db.get_ai_analysis_job(job["id"]) or {}).get("status"), "RUNNING")
+        finally:
+            main._clear_ai_analysis_thread(document["id"])
+
+    def test_ai_analysis_job_primary_fallback_is_failed_and_not_published(self) -> None:
+        project, document = self._create_project_with_document("-ai-primary-fallback")
+        requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1 | Section 5.1",
+            requirement_text="Supplier shall provide a validation report.",
+            raw_text="Supplier shall provide a validation report.",
+            display_text="Supplier shall provide a validation report.",
+            requirement_type="REGULATION",
+            priority="MEDIUM",
+            parent_section_code="5.1",
+            parent_section_title="Validation",
+            parent_section_label="5.1 Validation",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        locked_document = self._lock_active_requirement_set(project["id"], document["id"])["document"]
+        db.upsert_assessment(
+            requirement_id=requirement["id"],
+            profile_id="azure",
+            provider="azure",
+            ai_decision="ACCEPT",
+            ai_reason="last good result before primary provider fallback",
+            ai_confidence=0.87,
+            assessment_mode="heuristic",
+            retrieval_backend="local",
+            analysis_label="REQUIREMENT",
+            analysis_basis="last good result",
+            normalized_requirement="Supplier shall provide a validation report.",
+            risk_level="LOW",
+            clarification_question="",
+            model_name="old-model",
+            prompt_version="old-prompt",
+        )
+        previous_assessment = db.get_assessment(requirement["id"])
+        with patch.dict(os.environ, {"REQPILOT_AI_ASSESSMENT_MODE": "llm_primary"}, clear=False):
+            ai_config = main.load_ai_copilot_config("azure")
+        eligible_rows = db.list_requirements(project["id"], document["id"])
+        prepared = (project, locked_document, eligible_rows, eligible_rows, [], ai_config)
+        fallback_result = {
+            "assessment": {
+                "profile_id": "azure",
+                "provider": "azure",
+                "analysis_label": "REQUIREMENT",
+                "analysis_basis": "heuristic fallback candidate",
+                "ai_decision": "NEED_CLARIFICATION",
+                "ai_reason": "fallback result",
+                "ai_confidence": 0.5,
+                "risk_level": "MEDIUM",
+                "clarification_question": "Provide evidence.",
+                "normalized_requirement": "Supplier shall provide a validation report.",
+                "assessment_mode": "heuristic_fallback",
+                "retrieval_backend": "local",
+                "model_name": "heuristic-v1",
+                "prompt_version": "fallback-v1",
+            },
+            "evidences": [],
+            "runs": [
+                {
+                    "profile_id": "azure",
+                    "provider": "azure",
+                    "mode": "llm_primary",
+                    "retrieval_backend": "local",
+                    "model_name": "gpt",
+                    "prompt_version": "v1",
+                    "input_payload_json": "{}",
+                    "output_payload_json": "",
+                    "validation_status": "failed",
+                    "fallback_reason": "provider unavailable",
+                },
+                {
+                    "profile_id": "azure",
+                    "provider": "azure",
+                    "mode": "heuristic_fallback",
+                    "retrieval_backend": "local",
+                    "model_name": "heuristic-v1",
+                    "prompt_version": "fallback-v1",
+                    "input_payload_json": "{}",
+                    "output_payload_json": "{}",
+                    "validation_status": "accepted",
+                    "fallback_reason": "llm_primary_failed: provider unavailable",
+                },
+            ],
+        }
+
+        with patch.object(main, "_prepare_document_ai_analysis_request", return_value=prepared), patch.object(
+            main,
+            "run_ai_copilot_assessment",
+            return_value=fallback_result,
+        ), patch.object(main, "Thread", ImmediateThread):
+            with TestClient(main.app) as client:
+                status_payload = client.post(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                    json=self._ai_start_payload(document["id"]),
+                ).json()
+
+        self.assertEqual(status_payload["job"]["status"], "FAILED")
+        self.assertEqual(status_payload["job"]["completed_requirements"], 0)
+        self.assertIn("provider unavailable", status_payload["job"]["error_message"])
+        self.assertEqual(status_payload["document"]["ai_status"], "STALE")
+        self.assertEqual(db.get_assessment(requirement["id"]), previous_assessment)
+        self.assertEqual(len(db.list_assessment_runs(requirement["id"])), 2)
+
+    def test_ai_analysis_job_shadow_failure_reports_warning_with_heuristic_serving_result(self) -> None:
+        project, document = self._create_project_with_document("-ai-shadow-warning")
+        requirement = db.insert_requirement(
+            project_id=project["id"],
+            sor_document_id=document["id"],
+            req_code="REQ0001",
+            source_page=1,
+            source_anchor="Page 1 | Section 5.1",
+            requirement_text="Supplier shall provide a validation report.",
+            raw_text="Supplier shall provide a validation report.",
+            display_text="Supplier shall provide a validation report.",
+            requirement_type="REGULATION",
+            priority="MEDIUM",
+            parent_section_code="5.1",
+            parent_section_title="Validation",
+            parent_section_label="5.1 Validation",
+        )
+        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
+        locked_document = self._lock_active_requirement_set(project["id"], document["id"])["document"]
+        with patch.dict(os.environ, {"REQPILOT_AI_ASSESSMENT_MODE": "llm_shadow"}, clear=False):
+            ai_config = main.load_ai_copilot_config("azure")
+        eligible_rows = db.list_requirements(project["id"], document["id"])
+        prepared = (project, locked_document, eligible_rows, eligible_rows, [], ai_config)
+        shadow_result = {
+            "assessment": {
+                "profile_id": "azure",
+                "provider": "azure",
+                "analysis_label": "REQUIREMENT",
+                "analysis_basis": "heuristic serving result",
+                "ai_decision": "NEED_CLARIFICATION",
+                "ai_reason": "heuristic result remains authoritative",
+                "ai_confidence": 0.6,
+                "risk_level": "MEDIUM",
+                "clarification_question": "Provide evidence.",
+                "normalized_requirement": "Supplier shall provide a validation report.",
+                "assessment_mode": "heuristic",
+                "retrieval_backend": "local",
+                "model_name": "heuristic-v1",
+                "prompt_version": "heuristic-v1",
+            },
+            "evidences": [],
+            "runs": [
+                {
+                    "profile_id": "azure",
+                    "provider": "azure",
+                    "mode": "heuristic",
+                    "retrieval_backend": "local",
+                    "model_name": "heuristic-v1",
+                    "prompt_version": "heuristic-v1",
+                    "input_payload_json": "{}",
+                    "output_payload_json": "{}",
+                    "validation_status": "accepted",
+                    "fallback_reason": "",
+                },
+                {
+                    "profile_id": "azure",
+                    "provider": "azure",
+                    "mode": "screening_llm_shadow",
+                    "retrieval_backend": "screening_only",
+                    "model_name": "gpt-screening",
+                    "prompt_version": "shadow-screening-v1",
+                    "input_payload_json": "{}",
+                    "output_payload_json": "invalid",
+                    "validation_status": "fallback",
+                    "fallback_reason": "screening schema invalid",
+                },
+                {
+                    "profile_id": "azure",
+                    "provider": "azure",
+                    "mode": "llm_shadow",
+                    "retrieval_backend": "local",
+                    "model_name": "gpt",
+                    "prompt_version": "shadow-v1",
+                    "input_payload_json": "{}",
+                    "output_payload_json": "",
+                    "validation_status": "failed",
+                    "fallback_reason": "shadow provider unavailable",
+                },
+            ],
+        }
+
+        with patch.object(main, "_prepare_document_ai_analysis_request", return_value=prepared), patch.object(
+            main,
+            "run_ai_copilot_assessment",
+            return_value=shadow_result,
+        ), patch.object(main, "Thread", ImmediateThread):
+            with TestClient(main.app) as client:
+                status_payload = client.post(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                    json=self._ai_start_payload(document["id"]),
+                ).json()
+
+        self.assertEqual(status_payload["job"]["status"], "COMPLETED")
+        self.assertEqual(status_payload["job"]["outcome"], "COMPLETED_WITH_WARNINGS")
+        self.assertEqual(status_payload["job"]["warning_count"], 1)
+        self.assertIn("shadow", status_payload["job"]["last_message"])
+        self.assertEqual(status_payload["document"]["ai_status"], "READY")
+        self.assertEqual((db.get_assessment(requirement["id"]) or {}).get("assessment_mode"), "heuristic")
+        completion_event = next(
+            item for item in status_payload["events"] if item.get("event_type") == "job_completed"
+        )
+        self.assertEqual(completion_event["payload"]["outcome"], "COMPLETED_WITH_WARNINGS")
+        self.assertEqual(completion_event["payload"]["serving_mode"], "heuristic")
+        self.assertEqual(completion_event["payload"]["warning_requirement_count"], 1)
+
+        healthy_shadow_result = {
+            **shadow_result,
+            "runs": [
+                {
+                    **shadow_result["runs"][0],
+                    "mode": "screening_llm_shadow",
+                    "validation_status": "accepted",
+                    "fallback_reason": "",
+                },
+                {
+                    **shadow_result["runs"][0],
+                    "mode": "llm_shadow",
+                    "validation_status": "accepted",
+                    "fallback_reason": "",
+                },
+                shadow_result["runs"][0],
+            ],
+        }
+        with patch.object(main, "_prepare_document_ai_analysis_request", return_value=prepared), patch.object(
+            main,
+            "run_ai_copilot_assessment",
+            return_value=healthy_shadow_result,
+        ), patch.object(main, "Thread", ImmediateThread):
+            with TestClient(main.app) as client:
+                healthy_status = client.post(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                    json=self._ai_start_payload(document["id"]),
+                ).json()
+
+        self.assertEqual(healthy_status["job"]["status"], "COMPLETED")
+        self.assertEqual(healthy_status["job"]["outcome"], "COMPLETED")
+        self.assertEqual(healthy_status["job"]["warning_requirement_count"], 0)
+        self.assertEqual(healthy_status["job"]["serving_mode"], "heuristic")
+        healthy_completion_event = next(
+            item for item in healthy_status["events"] if item.get("event_type") == "job_completed"
+        )
+        self.assertEqual(healthy_completion_event["payload"]["serving_mode"], "heuristic")
+
+        with patch.object(main, "run_ai_copilot_assessment", return_value=shadow_result):
+            sync_result = main._execute_document_ai_analysis(
+                project,
+                locked_document,
+                eligible_rows,
+                [],
+                ai_config=ai_config,
+            )
+        self.assertEqual(sync_result["ai_analysis_outcome"], "COMPLETED_WITH_WARNINGS")
+        self.assertEqual(sync_result["ai_analysis_warning_requirement_count"], 1)
+        self.assertIn("shadow provider unavailable", sync_result["ai_analysis_warning_reasons"])
 
     def test_run_ai_analysis_marks_info_rows_and_skips_manual_decision(self) -> None:
         project, document = self._create_project_with_document("-ai-info")
@@ -3846,11 +6894,14 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             file_name="platform-spec.txt",
             file_type="txt",
             file_path=str(self.tmp_path / "platform-spec-info.txt"),
-            extracted_text="Status naming reference only.",
+            extracted_text=(
+                "Status naming reference only. "
+                "This note defines the approved status labels used in engineering reports."
+            ),
             doc_version="v1.0",
         )
         db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
-        main.lock_document_extraction(project["id"], document["id"])
+        self._lock_active_requirement_set(project["id"], document["id"])
 
         with patch.dict(
             os.environ,
@@ -3860,7 +6911,11 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             },
             clear=False,
         ):
-            result = main.run_document_ai_analysis(project["id"], document["id"])
+            result = main.run_document_ai_analysis(
+                project["id"],
+                document["id"],
+                self._active_requirement_set_id(document["id"]),
+            )
 
         row = next(item for item in result["requirements"] if item["id"] == info_requirement["id"])
         self.assertEqual(row["analysis_label"], "INFO")
@@ -3888,7 +6943,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             parent_section_label="4.5 Compliance",
         )
         db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
-        main.lock_document_extraction(project["id"], document["id"])
+        locked_document = self._lock_active_requirement_set(project["id"], document["id"])["document"]
         ai_config = AICopilotConfig(
             assessment_mode="llm_shadow",
             retrieval_backend="qdrant",
@@ -3919,7 +6974,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             qdrant_collection_name="reqpilot-knowledge-aliyun-local",
         )
         eligible_rows = db.list_requirements(project["id"], document["id"])
-        prepared = (project, document, eligible_rows, eligible_rows, [], ai_config)
+        prepared = (project, locked_document, eligible_rows, eligible_rows, [], ai_config)
 
         def fake_run_ai_copilot_assessment(
             requirement_row: dict[str, object],
@@ -4018,17 +7073,17 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                     "profile_id": "aliyun",
                     "provider": "aliyun",
                     "analysis_label": "REQUIREMENT",
-                    "analysis_basis": "已完成LLM分析。",
+                    "analysis_basis": "heuristic serving result; shadow output is observation only.",
                     "ai_decision": "NEED_CLARIFICATION",
                     "ai_reason": "候选证据无法直接覆盖 CAMDS 数据填报义务。",
                     "ai_confidence": 0.91,
                     "risk_level": "HIGH",
                     "clarification_question": "请补充 CAMDS 数据提交记录。",
                     "normalized_requirement": "Supplier shall submit CAMDS data before SOP.",
-                    "assessment_mode": "llm_shadow",
+                    "assessment_mode": "heuristic",
                     "retrieval_backend": "qdrant",
-                    "model_name": "qwen3.7-plus",
-                    "prompt_version": "v2.0-aliyun-rag-copilot",
+                    "model_name": "heuristic-v1",
+                    "prompt_version": "heuristic-v1",
                 },
                 "evidences": [],
                 "runs": [
@@ -4050,7 +7105,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                         "mode": "llm_shadow",
                         "retrieval_backend": "qdrant",
                         "model_name": "qwen3.7-plus",
-                        "prompt_version": "v2.0-aliyun-rag-copilot",
+                        "prompt_version": "v3.0-compliance-evidence-contract",
                         "input_payload_json": "{}",
                         "output_payload_json": "{\"proposed_decision\":\"NEED_CLARIFICATION\"}",
                         "validation_status": "accepted",
@@ -4068,7 +7123,10 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             with TestClient(main.app) as client:
                 start_response = client.post(
                     f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
-                    json={"profile_id": "aliyun"},
+                    json=self._ai_start_payload(
+                        document["id"],
+                        profile_id="aliyun",
+                    ),
                 )
                 self.assertEqual(start_response.status_code, 200)
                 status_response = client.get(
@@ -4104,11 +7162,57 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             any(item.get("event_type") == "requirement_completed" for item in status_payload["events"])
         )
         updated_row = db.get_requirement(requirement["id"]) or {}
-        self.assertEqual(updated_row.get("assessment_mode"), "llm_shadow")
+        self.assertEqual(updated_row.get("assessment_mode"), "heuristic")
 
     def test_ai_analysis_job_can_be_stopped_from_api(self) -> None:
+        self._exercise_ai_analysis_stop()
+
+    def test_failed_stop_assertion_drains_worker_before_restoring_provider(self) -> None:
+        original_provider = main.run_ai_copilot_assessment
+        with self.assertRaisesRegex(AssertionError, "synthetic assertion while provider is running"):
+            self._exercise_ai_analysis_stop(abort_before_stop=True)
+        self.assertTrue(self.background_threads)
+        self.assertTrue(all(not thread.is_alive() for thread in self.background_threads))
+        self.assertIs(main.run_ai_copilot_assessment, original_provider)
+
+    def test_stop_waits_for_worker_cleanup_after_cancelled_status(self) -> None:
+        finalizing = Event()
+        release_cleanup = Event()
+        clearing: dict[str, object] = {}
+        original_clear = main._clear_ai_analysis_thread
+
+        def delayed_clear(document_id, **kwargs):
+            thread = main._get_ai_analysis_thread(document_id)
+            if thread in self.background_threads:
+                clearing.update(document_id=document_id, job_id=kwargs["job_id"], thread=thread)
+                finalizing.set()
+                if not release_cleanup.wait(timeout=10):
+                    raise AssertionError("Test did not release worker cleanup")
+            return original_clear(document_id, **kwargs)
+
+        def observe_terminal_worker() -> None:
+            try:
+                self.assertTrue(finalizing.wait(timeout=10), "Worker did not reach cleanup")
+                job = db.get_ai_analysis_job(str(clearing["job_id"])) or {}
+                self.assertEqual(job.get("status"), "CANCELLED")
+                self.assertTrue(clearing["thread"].is_alive())
+                self.assertEqual(db.DB_PATH, self.tmp_path / "app.db")
+            finally:
+                release_cleanup.set()
+
+        with ThreadPoolExecutor(max_workers=1) as executor:
+            observer = executor.submit(observe_terminal_worker)
+            try:
+                with patch.object(main, "_clear_ai_analysis_thread", side_effect=delayed_clear):
+                    self._exercise_ai_analysis_stop()
+            finally:
+                release_cleanup.set()
+            observer.result(timeout=10)
+        self.assertTrue(all(not thread.is_alive() for thread in self.background_threads))
+
+    def _exercise_ai_analysis_stop(self, *, abort_before_stop: bool = False) -> None:
         project, document = self._create_project_with_document("-ai-stop")
-        db.insert_requirement(
+        requirement = db.insert_requirement(
             project_id=project["id"],
             sor_document_id=document["id"],
             req_code="REQ0001",
@@ -4124,7 +7228,25 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             parent_section_label="4.5 Compliance",
         )
         db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
-        main.lock_document_extraction(project["id"], document["id"])
+        locked_document = self._lock_active_requirement_set(project["id"], document["id"])["document"]
+        db.upsert_assessment(
+            requirement_id=requirement["id"],
+            profile_id="azure",
+            provider="azure",
+            ai_decision="ACCEPT",
+            ai_reason="last good result before cancellation",
+            ai_confidence=0.87,
+            assessment_mode="heuristic",
+            retrieval_backend="local",
+            analysis_label="REQUIREMENT",
+            analysis_basis="last good result",
+            normalized_requirement="Supplier shall submit CAMDS data before SOP.",
+            risk_level="LOW",
+            clarification_question="",
+            model_name="old-model",
+            prompt_version="old-prompt",
+        )
+        previous_assessment = db.get_assessment(requirement["id"])
         ai_config = AICopilotConfig(
             assessment_mode="llm_shadow",
             retrieval_backend="qdrant",
@@ -4155,8 +7277,9 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             qdrant_collection_name="reqpilot-knowledge-aliyun-local",
         )
         eligible_rows = db.list_requirements(project["id"], document["id"])
-        prepared = (project, document, eligible_rows, eligible_rows, [], ai_config)
+        prepared = (project, locked_document, eligible_rows, eligible_rows, [], ai_config)
         started = Event()
+        release_provider = Event()
 
         def fake_run_ai_copilot_assessment(
             requirement_row: dict[str, object],
@@ -4178,19 +7301,19 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                     }
                 )
                 started.set()
-                for index in range(200):
-                    progress_callback(
-                        {
-                            "type": "reasoning",
-                            "stage": "assessment",
-                            "mode": "llm_shadow",
-                            "model_name": "qwen3.7-plus",
-                            "delta": f"thinking-{index}-" + ("x" * 200),
-                            "content": f"thinking-{index}-" + ("x" * 200),
-                            "characters_emitted": (index + 1) * 210,
-                        }
-                    )
-                    time.sleep(0.02)
+                if not release_provider.wait(timeout=10):
+                    raise AssertionError("Test did not release the mock provider")
+                progress_callback(
+                    {
+                        "type": "reasoning",
+                        "stage": "assessment",
+                        "mode": "llm_shadow",
+                        "model_name": "qwen3.7-plus",
+                        "delta": "provider resumed after the stop request",
+                        "content": "provider resumed after the stop request",
+                        "characters_emitted": 40,
+                    }
+                )
             return {
                 "assessment": {
                     "profile_id": "aliyun",
@@ -4206,7 +7329,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                     "assessment_mode": "llm_shadow",
                     "retrieval_backend": "qdrant",
                     "model_name": "qwen3.7-plus",
-                    "prompt_version": "v2.0-aliyun-rag-copilot",
+                    "prompt_version": "v3.0-compliance-evidence-contract",
                 },
                 "evidences": [],
                 "runs": [],
@@ -4219,33 +7342,40 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             side_effect=fake_run_ai_copilot_assessment,
         ):
             with TestClient(main.app) as client:
-                start_response = client.post(
-                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
-                    json={"profile_id": "aliyun"},
-                )
-                self.assertEqual(start_response.status_code, 200)
-                self.assertTrue(started.wait(timeout=1.5))
-
-                stop_response = client.post(
-                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/stop"
-                )
-                self.assertEqual(stop_response.status_code, 200)
-                self.assertEqual(stop_response.json()["job"]["status"], "CANCEL_REQUESTED")
-
-                deadline = time.time() + 3.0
-                status_payload = stop_response.json()
-                while time.time() < deadline:
-                    status_response = client.get(
-                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
+                try:
+                    start_response = client.post(
+                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/start",
+                        json=self._ai_start_payload(
+                            document["id"],
+                            profile_id="aliyun",
+                        ),
                     )
-                    self.assertEqual(status_response.status_code, 200)
-                    status_payload = status_response.json()
-                    if str(status_payload.get("job", {}).get("status") or "").upper() == "CANCELLED":
-                        break
-                    time.sleep(0.05)
+                    self.assertEqual(start_response.status_code, 200)
+                    self.assertTrue(started.wait(timeout=10), "Mock provider did not start")
+                    self.assertTrue(any(thread.is_alive() for thread in self.background_threads))
+                    if abort_before_stop:
+                        self.fail("synthetic assertion while provider is running")
+
+                    stop_response = client.post(
+                        f"/api/projects/{project['id']}/sor-documents/{document['id']}/run-ai-analysis/stop"
+                    )
+                    self.assertEqual(stop_response.status_code, 200)
+                    self.assertEqual(stop_response.json()["job"]["status"], "CANCEL_REQUESTED")
+                finally:
+                    # Also drain on an assertion failure, while both provider
+                    # patches and the database still belong to this test.
+                    self._drain_background_threads(release_provider)
+
+                status_response = client.get(
+                    f"/api/projects/{project['id']}/sor-documents/{document['id']}/ai-analysis-status"
+                )
+                self.assertEqual(status_response.status_code, 200)
+                status_payload = status_response.json()
 
         self.assertEqual(str(status_payload.get("job", {}).get("status") or "").upper(), "CANCELLED")
         self.assertEqual(str(status_payload.get("job", {}).get("current_stage") or "").lower(), "cancelled")
+        self.assertEqual(status_payload["job"]["outcome"], "CANCELLED")
+        self.assertEqual(status_payload["job"]["completed_requirements"], 0)
         event_types = [str(item.get("event_type") or "") for item in status_payload.get("events") or []]
         self.assertIn("job_cancel_requested", event_types)
         self.assertIn("job_cancelled", event_types)
@@ -4254,64 +7384,70 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         )
         refreshed_document = db.get_sor_document(document["id"]) or {}
         self.assertEqual(str(refreshed_document.get("ai_status") or "").upper(), "STALE")
+        self.assertEqual(db.get_assessment(requirement["id"]), previous_assessment)
 
-    def test_override_analysis_label_promotes_info_row_back_to_requirement(self) -> None:
-        project, document = self._create_project_with_document("-override-info")
-        info_requirement = db.insert_requirement(
-            project_id=project["id"],
-            sor_document_id=document["id"],
-            req_code="REQ0001",
-            source_page=1,
-            source_anchor="Page 1 | Section 4.5",
-            requirement_text="Functional status A",
-            raw_text="Functional status A",
-            display_text="Functional status A",
-            requirement_type="FUNCTIONAL",
-            priority="MEDIUM",
-            parent_section_code="4.5",
-            parent_section_title="Status",
-            parent_section_label="4.5 Status",
-        )
-        db.add_knowledge_document(
-            project_id=project["id"],
-            file_name="status-spec.txt",
-            file_type="txt",
-            file_path=str(self.tmp_path / "status-spec.txt"),
-            extracted_text=(
-                "4.5 Status\n"
-                "Functional status A shall be supported during and after the test.\n"
-                "Status A validation passed in historical project baseline.\n"
-            ),
-            doc_version="v1.0",
-        )
-        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
-        main.lock_document_extraction(project["id"], document["id"])
-
-        with patch.dict(
-            os.environ,
-            {
-                "REQPILOT_AI_ASSESSMENT_MODE": "heuristic",
-                "REQPILOT_AI_TRACE_DIR": str(self.tmp_path / "ai_traces_override"),
+    def test_requirement_import_records_but_does_not_serve_primary_fallback(self) -> None:
+        project, document = self._create_project_with_document("-import-primary-fallback")
+        with patch.dict(os.environ, {"REQPILOT_AI_ASSESSMENT_MODE": "llm_primary"}, clear=False):
+            ai_config = main.load_ai_copilot_config("azure")
+        fallback_result = {
+            "assessment": {
+                "analysis_label": "REQUIREMENT",
+                "analysis_basis": "provider fallback",
+                "ai_decision": "NEED_CLARIFICATION",
+                "ai_reason": "provider unavailable",
+                "ai_confidence": 0.2,
+                "risk_level": "HIGH",
+                "clarification_question": "Provide evidence.",
+                "normalized_requirement": "Supplier shall provide a report.",
+                "assessment_mode": "heuristic_fallback",
+                "retrieval_backend": "local",
+                "model_name": "heuristic-v1",
+                "prompt_version": "fallback-v1",
             },
-            clear=False,
-        ):
-            main.run_document_ai_analysis(project["id"], document["id"])
-            row_before = db.get_requirement(info_requirement["id"])
-            self.assertEqual(row_before["analysis_label"], "INFO")
+            "evidences": [],
+            "runs": [
+                {
+                    "mode": "llm_primary",
+                    "validation_status": "failed",
+                    "fallback_reason": "provider unavailable",
+                    "profile_id": "azure",
+                    "provider": "azure",
+                    "retrieval_backend": "local",
+                    "model_name": "gpt",
+                    "prompt_version": "v1",
+                    "input_payload_json": "{}",
+                    "output_payload_json": "",
+                }
+            ],
+        }
+        rows = [
+            {
+                "req_code": "REQ0001",
+                "display_text": "Supplier shall provide a report.",
+                "raw_text": "Supplier shall provide a report.",
+                "requirement_type": "FUNCTIONAL",
+                "priority": "MEDIUM",
+                "source_anchor": "Page 1 | Section 4.5",
+            }
+        ]
 
-            result = main.override_analysis_label(
-                info_requirement["id"],
-                main.AnalysisLabelOverrideRequest(analysis_label="REQUIREMENT", rerun_assessment=True),
+        with patch.object(main, "load_ai_copilot_config", return_value=ai_config), patch.object(
+            main,
+            "_ensure_profile_knowledge_syncs",
+        ), patch.object(main, "run_ai_copilot_assessment", return_value=fallback_result):
+            inserted = main._persist_requirements(
+                project_id=project["id"],
+                sor_document_id=document["id"],
+                rows=rows,
+                knowledge_docs=[{"id": "kb-1"}],
             )
 
-        updated = db.get_requirement(info_requirement["id"])
-        self.assertEqual(updated["analysis_label"], "REQUIREMENT")
-        self.assertTrue(updated["analysis_basis"])
-        self.assertTrue(updated["ai_decision"])
-        self.assertEqual(result["assessment"]["analysis_label"], "REQUIREMENT")
-        self.assertGreaterEqual(result["assessment_runs_recorded"], 1)
-        runs = db.list_assessment_runs(info_requirement["id"])
-        self.assertIn("screening_manual_override", {run["mode"] for run in runs})
+        imported = db.list_requirements(project["id"], document["id"])
+        self.assertEqual(inserted, 1)
+        self.assertEqual(len(imported), 1)
+        self.assertIsNone(db.get_assessment(imported[0]["id"]))
+        self.assertEqual(db.list_assessment_runs(imported[0]["id"])[0]["validation_status"], "failed")
 
     def test_run_ai_analysis_without_knowledge_docs_only_screens_requirement_rows(self) -> None:
         project, document = self._create_project_with_document("-screen-only")
@@ -4331,7 +7467,7 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             parent_section_label="4.5 Status",
         )
         db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
-        main.lock_document_extraction(project["id"], document["id"])
+        self._lock_active_requirement_set(project["id"], document["id"])
 
         with patch.dict(
             os.environ,
@@ -4341,7 +7477,11 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             },
             clear=False,
         ):
-            result = main.run_document_ai_analysis(project["id"], document["id"])
+            result = main.run_document_ai_analysis(
+                project["id"],
+                document["id"],
+                self._active_requirement_set_id(document["id"]),
+            )
 
         row = next(item for item in result["requirements"] if item["id"] == requirement["id"])
         self.assertEqual(row["analysis_label"], "REQUIREMENT")
@@ -4359,7 +7499,18 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         knowledge_dir.mkdir(parents=True, exist_ok=True)
         upload = UploadFile(filename="spec.txt", file=io.BytesIO("Spec content".encode("utf-8")))
 
-        with patch.object(main, "KNOWLEDGE_DIR", knowledge_dir):
+        with patch.object(main, "KNOWLEDGE_DIR", knowledge_dir), patch.object(
+            main,
+            "require_knowledge_upload_capability",
+        ), patch.object(
+            main,
+            "_project_knowledge_sync_profile_ids",
+            return_value=["aliyun"],
+        ), patch.object(
+            main,
+            "_sync_knowledge_document_targets",
+            side_effect=lambda _project_id, document, **_kwargs: document,
+        ):
             created = asyncio.run(
                 main.upload_knowledge_document(
                     project["id"],
@@ -4369,6 +7520,9 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                     status="ACTIVE",
                     effective_from="2026-01-01",
                     effective_to="2026-12-31",
+                    authority="CUSTOMER_APPROVED",
+                    claim_role="NORMATIVE_REQUIREMENT",
+                    applicability="Platform X / release V1.2",
                 )
             )
 
@@ -4378,7 +7532,14 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(created["status"], "ACTIVE")
         self.assertEqual(created["effective_from"], "2026-01-01")
         self.assertEqual(created["effective_to"], "2026-12-31")
+        self.assertEqual(created["authority"], "CUSTOMER_APPROVED")
+        self.assertEqual(created["claim_role"], "NORMATIVE_REQUIREMENT")
+        self.assertEqual(
+            created["applicability"],
+            "Platform X / release V1.2",
+        )
         self.assertEqual(listed[0]["doc_type"], "STANDARD")
+        self.assertEqual(listed[0]["authority"], "CUSTOMER_APPROVED")
         self.assertEqual(listed[0]["doc_version"], "V1.2")
 
     def test_upload_knowledge_document_syncs_only_default_profile_on_upload(self) -> None:
@@ -4411,7 +7572,10 @@ class UnifiedWorkspaceTests(unittest.TestCase):
 
         with patch.object(main, "KNOWLEDGE_DIR", knowledge_dir), patch.object(
             main,
-            "_default_knowledge_sync_profile_ids",
+            "require_knowledge_upload_capability",
+        ), patch.object(
+            main,
+            "_project_knowledge_sync_profile_ids",
             return_value=["azure"],
         ), patch.object(
             main,
@@ -4435,6 +7599,11 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(created["retrieval_syncs"][0]["profile_id"], "azure")
 
     def test_runtime_ai_provider_setup_endpoint_can_switch_default_profile(self) -> None:
+        production_config = Path(__file__).resolve().parents[1] / "storage/config.json"
+        production_before = (
+            production_config.read_bytes(),
+            production_config.stat().st_mtime_ns,
+        ) if production_config.exists() else None
         with TestClient(main.app) as client:
             response = client.post(
                 "/api/runtime/ai-provider-setup",
@@ -4456,8 +7625,69 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(payload["default_profile_id"], "aliyun")
         self.assertTrue(payload["aliyun"]["api_key_configured"])
         self.assertEqual(payload["aliyun"]["embedding_model"], "text-embedding-v4")
+        if production_before is None:
+            self.assertFalse(production_config.exists())
+        else:
+            self.assertEqual(production_config.read_bytes(), production_before[0])
+            self.assertEqual(production_config.stat().st_mtime_ns, production_before[1])
 
-    def test_runtime_ai_provider_setup_endpoint_rejects_non_ascii_aliyun_api_key(self) -> None:
+    def test_runtime_worker_fleet_endpoint_is_revision_aware(self) -> None:
+        with TestClient(main.app) as client:
+            response = client.get("/api/runtime/worker-fleet")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["schema_version"], "runtime-worker-fleet-status/v1")
+        self.assertTrue(payload["revision_required"])
+        self.assertEqual(payload["required_kind"], "document.extract")
+        self.assertIn(payload["state"], {"READY", "SYNCING", "UNAVAILABLE"})
+
+    def test_runtime_worker_fleet_route_forces_current_revision_ack(self) -> None:
+        from app.application import runtime
+
+        captured: dict[str, object] = {}
+
+        class Queue:
+            @staticmethod
+            def worker_fleet_status(**kwargs):
+                captured.update(kwargs)
+                return {
+                    "schema_version": "runtime-worker-fleet-status/v1",
+                    "state": "SYNCING",
+                    "desired_connection_revision": kwargs["desired_revision"],
+                    "required_kind": kwargs["required_kind"],
+                    "revision_required": True,
+                    "registered_worker_count": 1,
+                    "live_worker_count": 1,
+                    "eligible_worker_count": 0,
+                    "idle_worker_count": 1,
+                    "active_worker_count": 0,
+                    "draining_worker_count": 0,
+                    "stale_revision_worker_count": 1,
+                    "workers": [],
+                }
+
+        with (
+            patch.object(
+                runtime.RUNTIME_STATE,
+                "container",
+                SimpleNamespace(jobs=Queue()),
+            ),
+            patch.object(
+                runtime,
+                "get_runtime_connection_revision",
+                return_value=27,
+            ),
+        ):
+            payload = runtime.get_runtime_worker_fleet_route()
+
+        self.assertEqual(payload["state"], "SYNCING")
+        self.assertEqual(captured["desired_revision"], 27)
+        self.assertIs(captured["require_connection_revision"], True)
+
+    def test_runtime_ai_provider_setup_endpoint_rejects_non_ascii_aliyun_api_key(
+        self,
+    ) -> None:
         with TestClient(main.app) as client:
             response = client.post(
                 "/api/runtime/ai-provider-setup",
@@ -4475,11 +7705,240 @@ class UnifiedWorkspaceTests(unittest.TestCase):
             )
 
         self.assertEqual(response.status_code, 422)
-        self.assertIn("DashScope API Key contains non-ASCII characters", response.json()["detail"])
+        self.assertIn(
+            "DashScope API Key contains non-ASCII characters", response.json()["detail"]
+        )
 
-    def test_upload_knowledge_document_requires_ready_default_profile(self) -> None:
-        project, _document = self._create_project_with_document("-knowledge-profile-gate")
-        upload = UploadFile(filename="spec.txt", file=io.BytesIO("Spec content".encode("utf-8")))
+    def test_runtime_ai_provider_setup_rejects_untrusted_aliyun_url_before_save(
+        self,
+    ) -> None:
+        with patch(
+            "app.application.runtime.apply_runtime_ai_provider_setup"
+        ) as save_setup:
+            with TestClient(main.app) as client:
+                response = client.post(
+                    "/api/runtime/ai-provider-setup",
+                    json={
+                        "default_profile_id": "aliyun",
+                        "aliyun": {
+                            "api_key": "synthetic-key",
+                            "base_url": "https://evil.example/compatible-mode/v1",
+                        },
+                    },
+                )
+
+        self.assertEqual(response.status_code, 422)
+        self.assertEqual(
+            response.json()["detail"],
+            "Aliyun Base URL must be an approved DashScope HTTPS compatible-mode endpoint.",
+        )
+        save_setup.assert_not_called()
+
+    def test_runtime_setup_readiness_uses_current_revision_capabilities(self) -> None:
+        from app.application import runtime
+
+        setup_payload = {
+            "default_profile_id": "aliyun",
+            "connection_revision": 9,
+            "profiles": [
+                {
+                    "id": "aliyun",
+                    "ready": True,
+                    "llm_ready": True,
+                    "retrieval_ready": True,
+                }
+            ],
+            "aliyun": {"ready": True},
+            "azure": {"ready": False},
+        }
+        configs = [SimpleNamespace(profile_id="aliyun")]
+        capabilities = [
+            {
+                "capability_id": capability_id,
+                "ready": True,
+                "connection_revision": 8,
+            }
+            for capability_id in ("aliyun.llm", "aliyun.embedding", "qdrant")
+        ]
+        worker_fleet = {
+            "schema_version": "runtime-worker-fleet-status/v1",
+            "state": "SYNCING",
+            "desired_connection_revision": 9,
+            "required_kind": "document.extract",
+            "revision_required": True,
+            "registered_worker_count": 2,
+            "live_worker_count": 2,
+            "eligible_worker_count": 0,
+            "idle_worker_count": 2,
+            "active_worker_count": 0,
+            "draining_worker_count": 0,
+            "stale_revision_worker_count": 2,
+            "workers": [],
+        }
+        with patch.object(
+            runtime, "build_runtime_ai_provider_setup", return_value=setup_payload
+        ), patch.object(
+            runtime, "list_ai_copilot_profiles", return_value=configs
+        ), patch.object(
+            runtime, "build_ai_profile_check", return_value={"runnable": True}
+        ), patch.object(
+            runtime,
+            "get_runtime_capabilities_route",
+            return_value={"capabilities": capabilities},
+        ), patch.object(
+            runtime,
+            "get_runtime_worker_fleet_route",
+            return_value=worker_fleet,
+            create=True,
+        ):
+            payload = runtime._build_runtime_ai_provider_setup_response()
+
+        aliyun_profile = payload["profiles"][0]
+        self.assertFalse(payload["aliyun"]["ready"])
+        self.assertFalse(payload["aliyun"]["llm_ready"])
+        self.assertFalse(payload["aliyun"]["retrieval_ready"])
+        self.assertFalse(aliyun_profile["ready"])
+        self.assertFalse(aliyun_profile["llm_ready"])
+        self.assertFalse(aliyun_profile["retrieval_ready"])
+        self.assertEqual(payload["worker_fleet"], worker_fleet)
+
+    def test_runtime_setup_restores_the_current_revision_aliyun_probe(self) -> None:
+        from app.application import runtime
+
+        receipt = {
+            "schema_version": "runtime-aliyun-connection-probe/v2",
+            "provider": "aliyun",
+            "connection_revision": 9,
+            "checked_at": "2026-08-18T00:00:00+00:00",
+            "ready": True,
+            "checks": {
+                "assessment": {"state": "READY", "ready": True},
+                "screening": {"state": "READY", "ready": True},
+                "ocr": {"state": "READY", "ready": True},
+                "embedding": {"state": "READY", "ready": True},
+                "qdrant": {"state": "READY", "ready": True},
+            },
+        }
+        setup_payload = {
+            "default_profile_id": "aliyun",
+            "connection_revision": 9,
+            "profiles": [{"id": "aliyun"}],
+            "aliyun": {},
+            "azure": {},
+        }
+        configs = [SimpleNamespace(profile_id="aliyun")]
+        capabilities = [
+            {
+                "capability_id": capability_id,
+                "ready": True,
+                "connection_revision": 9,
+            }
+            for capability_id in ("aliyun.llm", "aliyun.embedding", "qdrant")
+        ]
+        with patch.object(
+            runtime, "build_runtime_ai_provider_setup", return_value=setup_payload
+        ), patch.object(
+            runtime, "list_ai_copilot_profiles", return_value=configs
+        ), patch.object(
+            runtime, "build_ai_profile_check", return_value={"runnable": True}
+        ), patch.object(
+            runtime,
+            "get_runtime_capabilities_route",
+            return_value={"capabilities": capabilities},
+        ), patch.object(
+            runtime,
+            "get_runtime_aliyun_connection_probe_receipt",
+            return_value=receipt,
+            create=True,
+        ):
+            payload = runtime._build_runtime_ai_provider_setup_response()
+
+        self.assertEqual(payload["aliyun_probe"], receipt)
+
+    def test_runtime_aliyun_probe_endpoint_returns_revision_bound_sanitized_checks(
+        self,
+    ) -> None:
+        safe_payload = {
+            "schema_version": "runtime-aliyun-connection-probe/v2",
+            "provider": "aliyun",
+            "connection_revision": 31,
+            "checked_at": "2026-08-12T00:00:00+00:00",
+            "ready": True,
+            "checks": {
+                "screening": {
+                    "state": "READY",
+                    "ready": True,
+                    "reason_code": "",
+                    "message": "",
+                    "model": "qwen3.7-flash",
+                    "role": "screening",
+                },
+                "assessment": {
+                    "state": "READY",
+                    "ready": True,
+                    "reason_code": "",
+                    "message": "",
+                    "model": "qwen3.8-max",
+                    "role": "assessment",
+                },
+                "ocr": {
+                    "state": "READY",
+                    "ready": True,
+                    "reason_code": "",
+                    "message": "",
+                    "model": "qwen3.5-ocr",
+                    "role": "ocr",
+                    "request_count": 1,
+                },
+                "embedding": {
+                    "state": "READY",
+                    "ready": True,
+                    "reason_code": "",
+                    "message": "",
+                    "model": "text-embedding-v4",
+                    "role": "embedding",
+                    "dimensions": 1024,
+                },
+                "qdrant": {
+                    "state": "READY",
+                    "ready": True,
+                    "reason_code": "",
+                    "message": "",
+                    "role": "vector_store",
+                },
+            },
+            "capabilities": [],
+        }
+        with patch(
+            "app.application.runtime.probe_runtime_aliyun_connection",
+            return_value=safe_payload,
+        ):
+            with TestClient(main.app) as client:
+                response = client.post("/api/runtime/ai-provider-setup/aliyun-probe")
+
+        self.assertEqual(response.status_code, 200)
+        payload = response.json()
+        self.assertEqual(payload["connection_revision"], 31)
+        self.assertEqual(
+            set(payload["checks"]),
+            {"screening", "assessment", "ocr", "embedding", "qdrant"},
+        )
+        serialized = json.dumps(payload)
+        self.assertNotIn("api_key", serialized.lower())
+        self.assertNotIn("dashscope.aliyuncs.com", serialized)
+        self.assertNotIn("customer", serialized.lower())
+
+    def test_upload_knowledge_document_is_saved_before_project_backend_is_ready(
+        self,
+    ) -> None:
+        project, _document = self._create_project_with_document(
+            "-knowledge-profile-gate"
+        )
+        upload = UploadFile(
+            filename="spec.txt", file=io.BytesIO("Spec content".encode("utf-8"))
+        )
+        knowledge_dir = self.tmp_path / "knowledge_deferred_sync"
+        knowledge_dir.mkdir(parents=True, exist_ok=True)
 
         with patch.dict(
             os.environ,
@@ -4509,8 +7968,11 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                 )
                 self.assertEqual(setup_resp.status_code, 200)
 
-            with self.assertRaises(HTTPException) as ctx:
-                asyncio.run(
+            with patch(
+                "app.application.ingestion._upload_staging_dir",
+                return_value=knowledge_dir,
+            ):
+                created = asyncio.run(
                     main.upload_knowledge_document(
                         project["id"],
                         file=upload,
@@ -4522,8 +7984,10 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                     )
                 )
 
-        self.assertEqual(ctx.exception.status_code, 409)
-        self.assertIn("Aliyun knowledge sync is not ready yet", str(ctx.exception.detail))
+        self.assertTrue(created["retrieval_sync_deferred"])
+        self.assertEqual(created["retrieval_sync_status"], "PENDING")
+        self.assertEqual(len(db.list_knowledge_documents(project["id"])), 1)
+        self.assertTrue(any(knowledge_dir.iterdir()))
 
     def test_build_ai_profile_catalog_marks_unsynced_profile_as_pending(self) -> None:
         azure_config = AICopilotConfig(
@@ -4721,7 +8185,11 @@ class UnifiedWorkspaceTests(unittest.TestCase):
                 ],
             }
 
-        with patch.object(main, "_default_knowledge_sync_profile_ids", return_value=["aliyun"]), patch.object(
+        with patch.object(main, "require_knowledge_upload_capability"), patch.object(
+            main,
+            "_project_knowledge_sync_profile_ids",
+            return_value=["aliyun"],
+        ), patch.object(
             main,
             "_sync_knowledge_document_targets",
             side_effect=fake_sync,
@@ -4742,7 +8210,18 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         knowledge_dir = self.tmp_path / "knowledge_route"
         knowledge_dir.mkdir(parents=True, exist_ok=True)
 
-        with patch.object(main, "KNOWLEDGE_DIR", knowledge_dir):
+        with patch.object(main, "KNOWLEDGE_DIR", knowledge_dir), patch.object(
+            main,
+            "require_knowledge_upload_capability",
+        ), patch.object(
+            main,
+            "_project_knowledge_sync_profile_ids",
+            return_value=["aliyun"],
+        ), patch.object(
+            main,
+            "_sync_knowledge_document_targets",
+            side_effect=lambda _project_id, document, **_kwargs: document,
+        ):
             with TestClient(main.app) as client:
                 response = client.post(
                     f"/api/projects/{project['id']}/knowledge-documents",
@@ -4767,7 +8246,18 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         knowledge_dir = self.tmp_path / "knowledge_duplicate"
         knowledge_dir.mkdir(parents=True, exist_ok=True)
 
-        with patch.object(main, "KNOWLEDGE_DIR", knowledge_dir):
+        with patch.object(main, "KNOWLEDGE_DIR", knowledge_dir), patch.object(
+            main,
+            "require_knowledge_upload_capability",
+        ), patch.object(
+            main,
+            "_project_knowledge_sync_profile_ids",
+            return_value=["aliyun"],
+        ), patch.object(
+            main,
+            "_sync_knowledge_document_targets",
+            side_effect=lambda _project_id, document, **_kwargs: document,
+        ):
             with TestClient(main.app) as client:
                 first = client.post(
                     f"/api/projects/{project['id']}/knowledge-documents",
@@ -4883,230 +8373,3 @@ class UnifiedWorkspaceTests(unittest.TestCase):
         self.assertEqual(len(db.list_knowledge_documents(project["id"])), 2)
         self.assertEqual(len(listed), 1)
         self.assertEqual(listed[0]["file_name"], "platform-spec.txt")
-
-    def test_export_works_without_cached_preview(self) -> None:
-        project, document = self._create_project_with_document("-export-no-preview")
-        db.insert_requirement(
-            project_id=project["id"],
-            sor_document_id=document["id"],
-            req_code="REQ0001",
-            source_page=1,
-            source_anchor="Page 1 | Section 1",
-            requirement_text="无 preview 缓存时仍可导出。",
-            raw_text="无 preview 缓存时仍可导出。",
-            display_text="无 preview 缓存时仍可导出。",
-            requirement_type="FUNCTIONAL",
-            priority="MEDIUM",
-        )
-        db.increment_sor_document_requirement_set_version(document["id"], "REVIEWING")
-        main.lock_document_extraction(project["id"], document["id"])
-
-        result = main.export_project(project["id"], main.ExportRequest(document_id=document["id"]))
-        self.assertTrue((self.tmp_path / "exports" / result["file_name"]).exists())
-
-    def test_export_translates_database_lock_to_retryable_http_error(self) -> None:
-        project, document = self._create_project_with_document("-export-busy")
-        with patch.object(main, "build_extraction_preview", return_value=_fake_preview()):
-            main.analyze_document(project["id"], main.AnalyzeRequest(document_id=document["id"]))
-            main.lock_document_extraction(project["id"], document["id"])
-            with patch.object(db, "create_export_job", side_effect=sqlite3.OperationalError("database is locked")):
-                with self.assertRaises(HTTPException) as export_exc:
-                    main.export_project(project["id"], main.ExportRequest(document_id=document["id"]))
-
-        self.assertEqual(export_exc.exception.status_code, 503)
-        self.assertIn("busy", str(export_exc.exception.detail).lower())
-
-    def test_exporter_renders_markdown_tables_as_images(self) -> None:
-        file_name, file_path = export_compliance_matrix(
-            project_name="Workspace Test",
-            customer_name="Customer",
-            requirements=[
-                {
-                    "display_req_code": "REQ0001",
-                    "req_code": "REQ0001",
-                    "parent_section_label": "5.1 Test Setup",
-                    "raw_text": (
-                        "试验条件如下：\n\n"
-                        "| Item | Condition |\n"
-                        "| --- | --- |\n"
-                        "| Voltage | 12V |\n"
-                        "| Current | 3A |"
-                    ),
-                    "final_decision": "ACCEPT",
-                    "engineer_reason": "Reviewed",
-                }
-            ],
-            export_dir=self.tmp_path / "exports",
-        )
-
-        self.assertTrue(file_name.endswith(".xlsx"))
-        workbook = load_workbook(file_path)
-        sheet = workbook["ComplianceMatrix"]
-        meta = self._version_meta_values(workbook)
-        content_images = self._content_images(sheet)
-
-        self.assertEqual(sheet["B3"].value, "Section")
-        self.assertEqual(sheet["A4"].value, "REQ0001")
-        self.assertEqual(sheet["C4"].value, "试验条件如下：")
-        self.assertIsNone(sheet["C5"].value)
-        self.assertEqual(sheet["D4"].value, "ACCEPT")
-        self.assertEqual(sheet["E4"].value, "Reviewed")
-        self.assertEqual(len(content_images), 1)
-        self.assertEqual(content_images[0].anchor._from.col, 2)
-        self.assertEqual(content_images[0].anchor._from.row, 4)
-        merged_ranges = {str(item) for item in sheet.merged_cells.ranges}
-        self.assertNotIn("C3:D3", merged_ranges)
-        self.assertEqual(meta["TableImageCount"], 1)
-        self.assertEqual(meta["TableFallbackTextCount"], 0)
-
-    def test_exporter_preserves_paragraph_table_paragraph_order(self) -> None:
-        _, file_path = export_compliance_matrix(
-            project_name="Workspace Test",
-            customer_name="Customer",
-            requirements=[
-                {
-                    "display_req_code": "REQ0002",
-                    "req_code": "REQ0002",
-                    "parent_section_label": "5.2 Sequence",
-                    "raw_text": (
-                        "第一段说明。\n\n"
-                        "| Step | Value |\n"
-                        "| --- | --- |\n"
-                        "| Torque | 25Nm |\n"
-                        "| Time | 30s |\n\n"
-                        "第二段说明。"
-                    ),
-                    "final_decision": "CHECK",
-                    "engineer_reason": "Ordered",
-                }
-            ],
-            export_dir=self.tmp_path / "exports",
-        )
-
-        workbook = load_workbook(file_path)
-        sheet = workbook["ComplianceMatrix"]
-        content_images = self._content_images(sheet)
-
-        self.assertEqual(sheet["A4"].value, "REQ0002")
-        self.assertEqual(sheet["C4"].value, "第一段说明。")
-        self.assertIsNone(sheet["C5"].value)
-        self.assertEqual(sheet["C6"].value, "第二段说明。")
-        self.assertEqual(len(content_images), 1)
-        self.assertEqual(content_images[0].anchor._from.col, 2)
-        self.assertEqual(content_images[0].anchor._from.row, 4)
-        merged_ranges = {str(item) for item in sheet.merged_cells.ranges}
-        self.assertIn("A4:A6", merged_ranges)
-        self.assertIn("B4:B6", merged_ranges)
-        self.assertIn("D4:D6", merged_ranges)
-        self.assertIn("E4:E6", merged_ranges)
-
-    def test_exporter_invalid_markdown_table_falls_back_to_text(self) -> None:
-        _, file_path = export_compliance_matrix(
-            project_name="Workspace Test",
-            customer_name="Customer",
-            requirements=[
-                {
-                    "display_req_code": "REQ0003",
-                    "req_code": "REQ0003",
-                    "parent_section_label": "5.3 Fallback",
-                    "raw_text": "| Item | Condition |\n| --- | --- |\n| Too | Many | Cells |",
-                    "final_decision": "REVIEW",
-                    "engineer_reason": "Fallback",
-                }
-            ],
-            export_dir=self.tmp_path / "exports",
-        )
-
-        workbook = load_workbook(file_path)
-        sheet = workbook["ComplianceMatrix"]
-        meta = self._version_meta_values(workbook)
-
-        self.assertEqual(len(self._content_images(sheet)), 0)
-        self.assertEqual(
-            sheet["C4"].value,
-            "| Item | Condition |\n| --- | --- |\n| Too | Many | Cells |",
-        )
-        self.assertEqual(meta["TableImageCount"], 0)
-        self.assertEqual(meta["TableFallbackTextCount"], 1)
-
-    def test_exporter_renders_pipe_tables_without_separator_as_images(self) -> None:
-        _, file_path = export_compliance_matrix(
-            project_name="Workspace Test",
-            customer_name="Customer",
-            requirements=[
-                {
-                    "display_req_code": "REQ0004",
-                    "req_code": "REQ0004",
-                    "parent_section_label": "3.2.2 产品详细描述",
-                    "raw_text": (
-                        "1）前减振器布置要求\n"
-                        "|序号|项目|要求|\n"
-                        "|1|基本尺寸|活塞桶直径Φ32-48mm|\n"
-                        "|2|电磁阀|前后电磁阀处于同一高度|\n"
-                        "表格后说明。"
-                    ),
-                    "final_decision": "ACCEPT",
-                    "engineer_reason": "Pipe table",
-                }
-            ],
-            export_dir=self.tmp_path / "exports",
-        )
-
-        workbook = load_workbook(file_path)
-        sheet = workbook["ComplianceMatrix"]
-        meta = self._version_meta_values(workbook)
-        content_images = self._content_images(sheet)
-
-        self.assertEqual(sheet["C4"].value, "1）前减振器布置要求")
-        self.assertIsNone(sheet["C5"].value)
-        self.assertEqual(sheet["C6"].value, "表格后说明。")
-        self.assertEqual(len(content_images), 1)
-        self.assertEqual(content_images[0].anchor._from.col, 2)
-        self.assertEqual(content_images[0].anchor._from.row, 4)
-        self.assertEqual(meta["TableImageCount"], 1)
-        self.assertEqual(meta["TableFallbackTextCount"], 0)
-
-    def test_exporter_keeps_multiple_table_images_in_requirement_order(self) -> None:
-        _, file_path = export_compliance_matrix(
-            project_name="Workspace Test",
-            customer_name="Customer",
-            requirements=[
-                {
-                    "display_req_code": "REQ0005",
-                    "req_code": "REQ0005",
-                    "parent_section_label": "6.1 多表顺序",
-                    "raw_text": (
-                        "第一段说明。\n"
-                        "|项|值|\n"
-                        "|A|1|\n"
-                        "|B|2|\n"
-                        "中间说明。\n"
-                        "|项|值|\n"
-                        "|C|3|\n"
-                        "|D|4|\n"
-                        "最后说明。"
-                    ),
-                    "final_decision": "ACCEPT",
-                    "engineer_reason": "Multi table",
-                }
-            ],
-            export_dir=self.tmp_path / "exports",
-        )
-
-        workbook = load_workbook(file_path)
-        sheet = workbook["ComplianceMatrix"]
-        content_images = self._content_images(sheet)
-
-        self.assertEqual(sheet.max_column, 5)
-        self.assertEqual(sheet["C4"].value, "第一段说明。")
-        self.assertEqual(sheet["C6"].value, "中间说明。")
-        self.assertEqual(sheet["C8"].value, "最后说明。")
-        self.assertEqual(len(content_images), 2)
-        self.assertEqual(content_images[0].anchor._from.col, 2)
-        self.assertEqual(content_images[0].anchor._from.row, 4)
-        self.assertEqual(content_images[1].anchor._from.col, 2)
-        self.assertEqual(content_images[1].anchor._from.row, 6)
-
-
-if __name__ == "__main__":
-    unittest.main()

@@ -1,0 +1,21 @@
+import test from 'node:test';
+import assert from 'node:assert/strict';
+import { readFile } from 'node:fs/promises';
+import { createRequire } from 'node:module';
+import vm from 'node:vm';
+const pair = process.env.PAIR_REPO;
+if (!pair) throw Error('Set PAIR_REPO to the tested Pair checkout; no model is called.');
+const hostRequire = createRequire(pair + '/packages/client/web/package.json');
+test('built client is lazy and uses only the shared host React modules; registers/disposes panel effects', async () => {
+  const code = await readFile(new URL('../client/lib/client.js', import.meta.url), 'utf8');
+  const calls = []; const styles = []; const disposers = []; const registrations = []; let entry;
+  const document = { createElement() { return { dataset: {}, textContent: '', remove() { styles.splice(styles.indexOf(this), 1); } }; }, head: { append(style) { styles.push(style); } } };
+  vm.runInNewContext(code, { window: { __ModuleLoader__: { load(value) { entry = value; } } }, document, URL, console });
+  assert.equal(entry.id, '@reqpilotx/dsh-pair-client'); assert.equal(calls.length, 0); assert.equal(styles.length, 0);
+  const plugin = entry.factory(id => { calls.push(id); assert.ok(['react', 'react/jsx-runtime', 'react-dom'].includes(id)); return hostRequire(id); });
+  plugin.apply({ effect(fn) { disposers.push(fn()); }, locale: { register() { return () => {}; } }, slots: { inject(_name, fn) { disposers.push(fn()); }, register(options, Component) { registrations.push({ options, Component }); return () => {}; } } });
+  assert.equal(styles.length, 1);
+  assert.deepEqual(registrations.map(x => [x.options.name, x.options.key || x.options.id]), [['main', 'reqpilotx'], ['sidebar.panellist', 'reqpilotx']]);
+  for (const dispose of disposers.reverse()) if (typeof dispose === 'function') dispose();
+  assert.equal(styles.length, 0); assert.equal(hostRequire('react/package.json').version, '18.3.1');
+});

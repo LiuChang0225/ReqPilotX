@@ -1,0 +1,64 @@
+{
+  "additionalProperties": false,
+  "description": "Exact, runner-neutral identity of one Portable Agent Kit bundle.",
+  "properties": {
+    "bundle_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Bundle Sha256",
+      "type": "string"
+    },
+    "kit_id": {
+      "pattern": "^[a-z][a-z0-9-]{0,119}$",
+      "title": "Kit Id",
+      "type": "string"
+    },
+    "kit_version": {
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "title": "Kit Version",
+      "type": "string"
+    },
+    "manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Manifest Sha256",
+      "type": "string"
+    },
+    "policy_id": {
+      "pattern": "^[a-z][a-z0-9-]{0,119}$",
+      "title": "Policy Id",
+      "type": "string"
+    },
+    "policy_version": {
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "title": "Policy Version",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "reqpilotx-agent-kit-identity/v1",
+      "default": "reqpilotx-agent-kit-identity/v1",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "tool_registry_id": {
+      "pattern": "^[a-z][a-z0-9-]{0,119}$",
+      "title": "Tool Registry Id",
+      "type": "string"
+    },
+    "tool_registry_version": {
+      "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+      "title": "Tool Registry Version",
+      "type": "string"
+    }
+  },
+  "required": [
+    "kit_id",
+    "kit_version",
+    "manifest_sha256",
+    "bundle_sha256",
+    "policy_id",
+    "policy_version",
+    "tool_registry_id",
+    "tool_registry_version"
+  ],
+  "title": "AgentKitIdentityV1",
+  "type": "object"
+}

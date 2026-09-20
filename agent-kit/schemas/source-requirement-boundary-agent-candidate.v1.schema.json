@@ -1,0 +1,130 @@
+{
+  "$defs": {
+    "ContextRowRole": {
+      "enum": [
+        "FRONT_MATTER",
+        "HEADER",
+        "METADATA",
+        "CONTEXT",
+        "NOTE"
+      ],
+      "type": "string"
+    },
+    "SourceRecordForm": {
+      "enum": [
+        "NUMBERED_CLAUSE",
+        "NATIVE_LIST",
+        "PARAGRAPH",
+        "TABLE_RECORD",
+        "TABLE_BRANCH",
+        "IMAGE"
+      ],
+      "type": "string"
+    },
+    "_AgentContextRowGroupV1": {
+      "additionalProperties": false,
+      "properties": {
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "role": {
+          "$ref": "#/$defs/ContextRowRole"
+        },
+        "row_group": {
+          "$ref": "#/$defs/_AgentRowGroupV1"
+        }
+      },
+      "required": [
+        "role",
+        "row_group",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "_AgentRowGroupV1": {
+      "additionalProperties": false,
+      "properties": {
+        "fragment_id": {
+          "type": "string"
+        },
+        "row_count": {
+          "type": "integer"
+        },
+        "row_start": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "fragment_id",
+        "row_start",
+        "row_count"
+      ],
+      "type": "object"
+    },
+    "_BoundaryAgentRecordV1": {
+      "additionalProperties": false,
+      "properties": {
+        "label": {
+          "type": "string"
+        },
+        "row_groups": {
+          "items": {
+            "$ref": "#/$defs/_AgentRowGroupV1"
+          },
+          "type": "array"
+        },
+        "shared_source_content_ids": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source_form": {
+          "$ref": "#/$defs/SourceRecordForm"
+        }
+      },
+      "required": [
+        "label",
+        "source_form",
+        "row_groups",
+        "shared_source_content_ids"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "context_row_groups": {
+      "items": {
+        "$ref": "#/$defs/_AgentContextRowGroupV1"
+      },
+      "type": "array"
+    },
+    "diagnostic_codes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "records": {
+      "items": {
+        "$ref": "#/$defs/_BoundaryAgentRecordV1"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "source-requirement-boundary-agent-candidate/v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "records",
+    "context_row_groups",
+    "diagnostic_codes"
+  ],
+  "type": "object"
+}

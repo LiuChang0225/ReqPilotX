@@ -13,14 +13,14 @@ PROJECT_DIR = Path(__file__).resolve().parents[1]
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
-from app.services.extraction_preview import build_extraction_preview
 from app.services.parser import parse_document_with_diagnostics
 from scripts import fidelity_benchmark
 from scripts import section_split_regression
 from scripts import structural_quality_gate
+from scripts.preview_snapshot_scope import build_preview_in_isolated_workspace
 
 
-DEFAULT_BATCH_CONFIG = PROJECT_DIR / "eval" / "extraction_batches.json"
+DEFAULT_BATCH_CONFIG = PROJECT_DIR / "eval" / "extraction_batches.example.json"
 DEFAULT_ISSUE_TAXONOMY = PROJECT_DIR / "eval" / "extraction_issue_taxonomy.json"
 DEFAULT_PATTERN_LIBRARY = PROJECT_DIR / "eval" / "extraction_patterns.json"
 DEFAULT_QUALITY_PROFILE_CONFIG = PROJECT_DIR / "eval" / "quality_gate_profiles.json"
@@ -204,6 +204,7 @@ def run_batch_extraction_audit(
         }
         diagnosis = run_extraction_audit(
             pdf_path=pdf_path,
+            snapshot_work_dir=out_dir,
             doc_context=doc_context,
             issue_taxonomy=issue_taxonomy,
             pattern_library=pattern_library,
@@ -245,6 +246,7 @@ def run_batch_extraction_audit(
 def run_extraction_audit(
     *,
     pdf_path: Path,
+    snapshot_work_dir: Path,
     doc_context: dict[str, Any],
     issue_taxonomy: dict[str, Any],
     pattern_library: dict[str, Any],
@@ -253,7 +255,10 @@ def run_extraction_audit(
     fidelity_profiles: list[fidelity_benchmark.FidelityProfile],
 ) -> dict[str, Any]:
     pdf_path = pdf_path.expanduser().resolve()
-    preview = build_extraction_preview(str(pdf_path))
+    preview = build_preview_in_isolated_workspace(
+        pdf_path,
+        working_dir=snapshot_work_dir,
+    )
     parsed = parse_document_with_diagnostics(str(pdf_path))
     logical_name = _normalize_name(pdf_path.name)
 
@@ -270,7 +275,11 @@ def run_extraction_audit(
 
     fidelity_profile = fidelity_benchmark._match_profile(fidelity_profiles, logical_name)
     fidelity_result = (
-        fidelity_benchmark._evaluate_document(pdf_path, fidelity_profile)
+        fidelity_benchmark._evaluate_document(
+            pdf_path,
+            fidelity_profile,
+            snapshot_work_dir=snapshot_work_dir,
+        )
         if fidelity_profile is not None
         else None
     )

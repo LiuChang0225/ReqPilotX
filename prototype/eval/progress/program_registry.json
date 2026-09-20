@@ -1,0 +1,64 @@
+{
+  "schema_version": 2,
+  "updated_at": "2026-07-17T23:30:00+08:00",
+  "program": {
+    "id": "reqpilotx-product-snapshot",
+    "title": "ReqPilotX Product Snapshot",
+    "objective": "Provide optional capability labels for the progress page without controlling development order or Agent behavior.",
+    "default_branch": "main",
+    "delivery_model": "product_led",
+    "wip_limit": 8,
+    "architecture_doc": "docs/architecture/target-architecture.md",
+    "context_doc": "docs/active-context.md"
+  },
+  "product_outcomes": [],
+  "capabilities": [
+    {
+      "id": "document-platform",
+      "title": "Document Platform",
+      "architecture_boundary": "document_platform",
+      "owned_paths": [
+        "prototype/app/services/parser.py",
+        "prototype/app/services/extractor.py",
+        "prototype/app/services/extraction_preview.py",
+        "prototype/app/services/table_assets.py"
+      ]
+    },
+    {
+      "id": "assessment",
+      "title": "Assessment",
+      "architecture_boundary": "assessment",
+      "owned_paths": [
+        "prototype/app/domain/assessment/*",
+        "prototype/app/domain/knowledge/*",
+        "prototype/app/adapters/models/*",
+        "prototype/app/services/ai_copilot.py",
+        "prototype/app/services/rag.py"
+      ]
+    },
+    {
+      "id": "workspace-experience",
+      "title": "Workspace Experience",
+      "architecture_boundary": "frontend",
+      "owned_paths": [
+        "prototype/app/static/*"
+      ]
+    },
+    {
+      "id": "delivery-runtime",
+      "title": "Delivery Runtime",
+      "architecture_boundary": "runtime",
+      "owned_paths": [
+        "prototype/app/infrastructure/*",
+        "prototype/app/runtime_paths.py",
+        "prototype/app/runtime_readiness.py",
+        "prototype/app_desktop.py",
+        "prototype/build_desktop.py",
+        "prototype/scripts/release_preflight.py",
+        "prototype/scripts/artifact_self_test.py",
+        "prototype/scripts/storage_backup.py"
+      ]
+    }
+  ],
+  "work_packages": []
+}

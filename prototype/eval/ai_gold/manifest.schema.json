@@ -1,0 +1,192 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reqpilotx.local/schemas/ai-gold-manifest.v2.json",
+  "title": "ReqPilotX AI Gold Manifest",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "dataset_id",
+    "version",
+    "status",
+    "payload",
+    "label_policy",
+    "evaluation_policy",
+    "coverage",
+    "split_strategy",
+    "revisions",
+    "privacy"
+  ],
+  "properties": {
+    "schema_version": {"const": "ai_gold_manifest.v2"},
+    "dataset_id": {"type": "string", "minLength": 1},
+    "version": {"type": "string", "minLength": 1},
+    "status": {"enum": ["PROPOSED", "FROZEN", "RETIRED"]},
+    "payload": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["location_class", "sha256"],
+      "properties": {
+        "location_class": {"const": "CONTROLLED_EXTERNAL"},
+        "sha256": {"type": "string", "pattern": "^([a-f0-9]{64})?$"}
+      }
+    },
+    "label_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["version", "approval_status", "reviewers_per_case", "adjudication_required"],
+      "properties": {
+        "version": {"type": "string", "minLength": 1},
+        "approval_status": {"enum": ["PROPOSED", "APPROVED"]},
+        "reviewers_per_case": {"type": "integer", "minimum": 2},
+        "adjudication_required": {"type": "boolean"}
+      }
+    },
+    "evaluation_policy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "version",
+        "approval_status",
+        "explicit_requirement",
+        "decision_safety",
+        "assessment_contract"
+      ],
+      "properties": {
+        "version": {"type": "string", "minLength": 1},
+        "approval_status": {"enum": ["PROPOSED", "APPROVED"]},
+        "explicit_requirement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min_recall", "min_info_specificity"],
+          "properties": {
+            "min_recall": {"type": "number", "minimum": 0, "maximum": 1},
+            "min_info_specificity": {"type": "number", "minimum": 0, "maximum": 1}
+          }
+        },
+        "decision_safety": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["min_macro_recall", "min_per_class_recall", "max_unsafe_accepts"],
+          "properties": {
+            "min_macro_recall": {"type": "number", "minimum": 0, "maximum": 1},
+            "min_per_class_recall": {"type": "number", "minimum": 0, "maximum": 1},
+            "max_unsafe_accepts": {"type": "integer", "minimum": 0}
+          }
+        },
+        "assessment_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": [
+            "min_compliance_macro_recall",
+            "min_citation_precision",
+            "min_citation_recall",
+            "min_information_gap_completeness",
+            "min_sub_judgment_exact_match"
+          ],
+          "properties": {
+            "min_compliance_macro_recall": {"type": "number", "minimum": 0, "maximum": 1},
+            "min_citation_precision": {"type": "number", "minimum": 0, "maximum": 1},
+            "min_citation_recall": {"type": "number", "minimum": 0, "maximum": 1},
+            "min_information_gap_completeness": {"type": "number", "minimum": 0, "maximum": 1},
+            "min_sub_judgment_exact_match": {"type": "number", "minimum": 0, "maximum": 1}
+          }
+        }
+      }
+    },
+    "coverage": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["case_count", "explicit_requirement", "decision", "assessment_contract"],
+      "properties": {
+        "case_count": {"type": "integer", "minimum": 0},
+        "explicit_requirement": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["labeled", "document_count", "project_count", "label_counts"],
+          "properties": {
+            "labeled": {"type": "integer", "minimum": 0},
+            "document_count": {"type": "integer", "minimum": 0},
+            "project_count": {"type": "integer", "minimum": 0},
+            "label_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["REQUIREMENT", "INFO"],
+              "properties": {
+                "REQUIREMENT": {"type": "integer", "minimum": 0},
+                "INFO": {"type": "integer", "minimum": 0}
+              }
+            }
+          }
+        },
+        "decision": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["labeled", "document_count", "project_count", "class_counts"],
+          "properties": {
+            "labeled": {"type": "integer", "minimum": 0},
+            "document_count": {"type": "integer", "minimum": 0},
+            "project_count": {"type": "integer", "minimum": 0},
+            "class_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": ["ACCEPT", "REJECT", "DEVIATION_ACCEPT", "NEED_CLARIFICATION"],
+              "properties": {
+                "ACCEPT": {"type": "integer", "minimum": 0},
+                "REJECT": {"type": "integer", "minimum": 0},
+                "DEVIATION_ACCEPT": {"type": "integer", "minimum": 0},
+                "NEED_CLARIFICATION": {"type": "integer", "minimum": 0}
+              }
+            }
+          }
+        },
+        "assessment_contract": {
+          "type": "object",
+          "additionalProperties": false,
+          "required": ["labeled", "class_counts"],
+          "properties": {
+            "labeled": {"type": "integer", "minimum": 0},
+            "class_counts": {
+              "type": "object",
+              "additionalProperties": false,
+              "required": [
+                "COMPLIANT",
+                "PARTIALLY_COMPLIANT",
+                "NON_COMPLIANT",
+                "INSUFFICIENT_INFORMATION"
+              ],
+              "properties": {
+                "COMPLIANT": {"type": "integer", "minimum": 0},
+                "PARTIALLY_COMPLIANT": {"type": "integer", "minimum": 0},
+                "NON_COMPLIANT": {"type": "integer", "minimum": 0},
+                "INSUFFICIENT_INFORMATION": {"type": "integer", "minimum": 0}
+              }
+            }
+          }
+        }
+      }
+    },
+    "split_strategy": {"const": "PROJECT_DOCUMENT_GROUP"},
+    "revisions": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["code_sha", "prompt_versions", "model_versions", "config_sha256"],
+      "properties": {
+        "code_sha": {"type": "string"},
+        "prompt_versions": {"type": "array", "items": {"type": "string"}},
+        "model_versions": {"type": "array", "items": {"type": "string"}},
+        "config_sha256": {"type": "string", "pattern": "^([a-f0-9]{64})?$"}
+      }
+    },
+    "privacy": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["contains_customer_data", "hmac_pseudonymized_ids", "text_committed_to_repo"],
+      "properties": {
+        "contains_customer_data": {"type": "boolean"},
+        "hmac_pseudonymized_ids": {"const": true},
+        "text_committed_to_repo": {"const": false}
+      }
+    }
+  }
+}

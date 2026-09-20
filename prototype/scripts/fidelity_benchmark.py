@@ -1,5 +1,8 @@
 from __future__ import annotations
 
+# Install the repository import root before application imports.
+# ruff: noqa: E402
+
 import argparse
 import csv
 import json
@@ -13,7 +16,8 @@ PROJECT_DIR = Path(__file__).resolve().parents[1]
 if str(PROJECT_DIR) not in sys.path:
     sys.path.insert(0, str(PROJECT_DIR))
 
-from app.services.extraction_preview import build_extraction_preview, counts_toward_fidelity_section
+from app.services.extraction_preview import counts_toward_fidelity_section
+from scripts.preview_snapshot_scope import build_preview_in_isolated_workspace
 
 
 LIST_STYLE_HEADING_RE = re.compile(r"^\s*\d+\s*[)）]")
@@ -57,7 +61,7 @@ class FidelityProfile:
 
 
 def main() -> None:
-    parser = argparse.ArgumentParser(description="Profile-based fidelity benchmark for stable SOR/Q-JLY regression.")
+    parser = argparse.ArgumentParser(description="Profile-based fidelity benchmark for document extraction.")
     parser.add_argument("pdf_dir", type=Path, help="Directory containing PDFs to benchmark.")
     parser.add_argument(
         "--profile-config",
@@ -125,7 +129,11 @@ def main() -> None:
     failed_docs = 0
 
     for pdf_path, profile in selected_docs:
-        result = _evaluate_document(pdf_path, profile)
+        result = _evaluate_document(
+            pdf_path,
+            profile,
+            snapshot_work_dir=out_dir,
+        )
         doc_rows.append(result["doc_row"])
         issue_rows.extend(result["issue_rows"])
         checks_total += result["checks_total"]
@@ -178,8 +186,16 @@ def main() -> None:
         raise SystemExit(1)
 
 
-def _evaluate_document(pdf_path: Path, profile: FidelityProfile) -> dict[str, Any]:
-    preview = build_extraction_preview(str(pdf_path))
+def _evaluate_document(
+    pdf_path: Path,
+    profile: FidelityProfile,
+    *,
+    snapshot_work_dir: Path,
+) -> dict[str, Any]:
+    preview = build_preview_in_isolated_workspace(
+        pdf_path,
+        working_dir=snapshot_work_dir,
+    )
     summary = preview.get("summary", {}) if isinstance(preview, dict) else {}
     parser_diagnostics = preview.get("parser_diagnostics", {}) if isinstance(preview, dict) else {}
     all_sections = preview.get("sections", []) if isinstance(preview, dict) else []

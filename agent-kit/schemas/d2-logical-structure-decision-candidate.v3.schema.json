@@ -1,0 +1,691 @@
+{
+  "$defs": {
+    "D2CandidateSourceRangeV1": {
+      "additionalProperties": false,
+      "properties": {
+        "end_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "handle_kind": {
+          "$ref": "#/$defs/D2SourceHandleKind"
+        },
+        "source_handle": {
+          "type": "string"
+        },
+        "start_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "handle_kind",
+        "source_handle",
+        "start_offset",
+        "end_offset"
+      ],
+      "type": "object"
+    },
+    "D2CandidateSourceSpanV2": {
+      "additionalProperties": false,
+      "properties": {
+        "end_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "end_source_handle": {
+          "type": "string"
+        },
+        "start_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "start_source_handle": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "start_source_handle",
+        "start_offset",
+        "end_source_handle",
+        "end_offset"
+      ],
+      "type": "object"
+    },
+    "D2EmptyPhysicalTableDispositionCandidateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "$ref": "#/$defs/D2EmptyPhysicalTableDispositionKind"
+        },
+        "physical_table_id": {
+          "type": "string"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "physical_table_id",
+        "disposition",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "D2EmptyPhysicalTableDispositionKind": {
+      "enum": [
+        "NON_BUSINESS_FALSE_REGION",
+        "UNRESOLVED"
+      ],
+      "type": "string"
+    },
+    "D2LogicalObjectKind": {
+      "enum": [
+        "DOCUMENT_UNIT",
+        "SECTION",
+        "PROVISION_SCOPE",
+        "TABLE",
+        "FIGURE",
+        "ATTACHMENT",
+        "CONTEXT",
+        "OTHER"
+      ],
+      "type": "string"
+    },
+    "D2LogicalObjectPartTableRegionCandidateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "cell_spans": {
+          "items": {
+            "$ref": "#/$defs/D2PhysicalTableCellOrdinalSpanV1"
+          },
+          "type": "array"
+        },
+        "disposition": {
+          "const": "LOGICAL_OBJECT_PART",
+          "type": "string"
+        },
+        "logical_object_key": {
+          "type": "string"
+        },
+        "physical_table_id": {
+          "type": "string"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "region_key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "region_key",
+        "physical_table_id",
+        "cell_spans",
+        "reason_codes",
+        "disposition",
+        "logical_object_key"
+      ],
+      "type": "object"
+    },
+    "D2LogicalScopePartTableRegionCandidateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "cell_spans": {
+          "items": {
+            "$ref": "#/$defs/D2PhysicalTableCellOrdinalSpanV1"
+          },
+          "type": "array"
+        },
+        "disposition": {
+          "const": "LOGICAL_SCOPE_PART",
+          "type": "string"
+        },
+        "logical_scope_key": {
+          "type": "string"
+        },
+        "physical_table_id": {
+          "type": "string"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "region_key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "region_key",
+        "physical_table_id",
+        "cell_spans",
+        "reason_codes",
+        "disposition",
+        "logical_scope_key"
+      ],
+      "type": "object"
+    },
+    "D2NestedValueTableRegionCandidateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "cell_spans": {
+          "items": {
+            "$ref": "#/$defs/D2PhysicalTableCellOrdinalSpanV1"
+          },
+          "type": "array"
+        },
+        "disposition": {
+          "const": "NESTED_VALUE_REGION",
+          "type": "string"
+        },
+        "nested_owner_region_key": {
+          "type": "string"
+        },
+        "physical_table_id": {
+          "type": "string"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "region_key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "region_key",
+        "physical_table_id",
+        "cell_spans",
+        "reason_codes",
+        "disposition",
+        "nested_owner_region_key"
+      ],
+      "type": "object"
+    },
+    "D2NonBusinessFalseTableRegionCandidateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "cell_spans": {
+          "items": {
+            "$ref": "#/$defs/D2PhysicalTableCellOrdinalSpanV1"
+          },
+          "type": "array"
+        },
+        "disposition": {
+          "const": "NON_BUSINESS_FALSE_REGION",
+          "type": "string"
+        },
+        "physical_table_id": {
+          "type": "string"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "region_key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "region_key",
+        "physical_table_id",
+        "cell_spans",
+        "reason_codes",
+        "disposition"
+      ],
+      "type": "object"
+    },
+    "D2PhysicalTableCellOrdinalSpanV1": {
+      "additionalProperties": false,
+      "properties": {
+        "end_cell_ordinal_exclusive": {
+          "type": "integer"
+        },
+        "start_cell_ordinal": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_cell_ordinal",
+        "end_cell_ordinal_exclusive"
+      ],
+      "type": "object"
+    },
+    "D2RegionLogicalObjectPlacementDecisionCandidateV3": {
+      "additionalProperties": false,
+      "properties": {
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source_region_logical_object_keys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "target_object_key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "target_object_key",
+        "source_region_logical_object_keys",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "D2RegionLogicalScopePlacementDecisionCandidateV3": {
+      "additionalProperties": false,
+      "properties": {
+        "logical_scope_key": {
+          "type": "string"
+        },
+        "parent_object_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "logical_scope_key",
+        "parent_object_key",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "D2SourceHandleKind": {
+      "enum": [
+        "SOURCE_NODE",
+        "TABLE_CELL"
+      ],
+      "type": "string"
+    },
+    "D2TableLogicalScopeCandidateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "logical_scope_key": {
+          "type": "string"
+        },
+        "ordered_region_keys": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "logical_scope_key",
+        "ordered_region_keys",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "D2TableRegionDecisionCandidateV3": {
+      "additionalProperties": false,
+      "properties": {
+        "empty_table_dispositions": {
+          "items": {
+            "$ref": "#/$defs/D2EmptyPhysicalTableDispositionCandidateV1"
+          },
+          "type": "array"
+        },
+        "logical_scopes": {
+          "items": {
+            "$ref": "#/$defs/D2TableLogicalScopeCandidateV1"
+          },
+          "type": "array"
+        },
+        "regions": {
+          "items": {
+            "anyOf": [
+              {
+                "$ref": "#/$defs/D2LogicalScopePartTableRegionCandidateV1"
+              },
+              {
+                "$ref": "#/$defs/D2LogicalObjectPartTableRegionCandidateV1"
+              },
+              {
+                "$ref": "#/$defs/D2NestedValueTableRegionCandidateV1"
+              },
+              {
+                "$ref": "#/$defs/D2NonBusinessFalseTableRegionCandidateV1"
+              },
+              {
+                "$ref": "#/$defs/D2UnresolvedTableRegionCandidateV1"
+              }
+            ]
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "regions",
+        "logical_scopes",
+        "empty_table_dispositions"
+      ],
+      "type": "object"
+    },
+    "D2TableSupplementalEvidenceKindV1": {
+      "enum": [
+        "TABLE_NODE_RAW_TEXT",
+        "TABLE_NOTES",
+        "TABLE_VISUAL"
+      ],
+      "type": "string"
+    },
+    "D2TableSupplementalEvidencePlacementDecisionCandidateV3": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "enum": [
+            "CELL_DERIVED",
+            "OWNED_BY_OBJECT",
+            "OWNED_BY_SCOPE",
+            "NESTED",
+            "NON_BUSINESS",
+            "UNRESOLVED"
+          ],
+          "type": "string"
+        },
+        "evidence_kind": {
+          "$ref": "#/$defs/D2TableSupplementalEvidenceKindV1"
+        },
+        "nested_owner_region_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owner_logical_scope_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "owner_object_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "physical_table_id": {
+          "type": "string"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "physical_table_id",
+        "evidence_kind",
+        "disposition",
+        "owner_object_key",
+        "owner_logical_scope_key",
+        "nested_owner_region_key",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "D2UnboundSourceDispositionDecisionCandidateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "disposition": {
+          "enum": [
+            "NON_BUSINESS_SOURCE",
+            "PAGE_FURNITURE",
+            "UNRESOLVED"
+          ],
+          "type": "string"
+        },
+        "end_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source_handle": {
+          "type": "string"
+        },
+        "start_offset": {
+          "anyOf": [
+            {
+              "type": "integer"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "disposition",
+        "source_handle",
+        "start_offset",
+        "end_offset",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "D2UnifiedLogicalObjectDecisionCandidateV3": {
+      "additionalProperties": false,
+      "properties": {
+        "object_key": {
+          "type": "string"
+        },
+        "object_kind": {
+          "$ref": "#/$defs/D2LogicalObjectKind"
+        },
+        "parent_object_key": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "source_ranges": {
+          "items": {
+            "$ref": "#/$defs/D2CandidateSourceRangeV1"
+          },
+          "type": "array"
+        },
+        "source_spans": {
+          "items": {
+            "$ref": "#/$defs/D2CandidateSourceSpanV2"
+          },
+          "type": "array"
+        }
+      },
+      "required": [
+        "object_key",
+        "object_kind",
+        "parent_object_key",
+        "source_ranges",
+        "source_spans",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "D2UnresolvedTableRegionCandidateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "cell_spans": {
+          "items": {
+            "$ref": "#/$defs/D2PhysicalTableCellOrdinalSpanV1"
+          },
+          "type": "array"
+        },
+        "disposition": {
+          "const": "UNRESOLVED",
+          "type": "string"
+        },
+        "physical_table_id": {
+          "type": "string"
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "region_key": {
+          "type": "string"
+        }
+      },
+      "required": [
+        "region_key",
+        "physical_table_id",
+        "cell_spans",
+        "reason_codes",
+        "disposition"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "logical_objects": {
+      "items": {
+        "$ref": "#/$defs/D2UnifiedLogicalObjectDecisionCandidateV3"
+      },
+      "type": "array"
+    },
+    "region_logical_object_placements": {
+      "items": {
+        "$ref": "#/$defs/D2RegionLogicalObjectPlacementDecisionCandidateV3"
+      },
+      "type": "array"
+    },
+    "region_logical_scope_placements": {
+      "items": {
+        "$ref": "#/$defs/D2RegionLogicalScopePlacementDecisionCandidateV3"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "d2-logical-structure-decision-candidate/v3",
+      "type": "string"
+    },
+    "source_evidence_dispositions": {
+      "items": {
+        "$ref": "#/$defs/D2UnboundSourceDispositionDecisionCandidateV1"
+      },
+      "type": "array"
+    },
+    "supplemental_evidence_placements": {
+      "items": {
+        "$ref": "#/$defs/D2TableSupplementalEvidencePlacementDecisionCandidateV3"
+      },
+      "type": "array"
+    },
+    "table_regions": {
+      "$ref": "#/$defs/D2TableRegionDecisionCandidateV3"
+    },
+    "unresolved_codes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    }
+  },
+  "required": [
+    "schema_version",
+    "logical_objects",
+    "table_regions",
+    "region_logical_scope_placements",
+    "region_logical_object_placements",
+    "supplemental_evidence_placements",
+    "source_evidence_dispositions",
+    "unresolved_codes"
+  ],
+  "type": "object"
+}

@@ -1,0 +1,176 @@
+{
+  "$schema": "https://json-schema.org/draft/2020-12/schema",
+  "$id": "https://reqpilotx.local/schemas/pdf-body-review-approval.v1.json",
+  "title": "ReqPilotX controlled external PDF body review approval",
+  "type": "object",
+  "additionalProperties": false,
+  "required": [
+    "schema_version",
+    "status",
+    "location_class",
+    "draft_sha256",
+    "profile_sha256",
+    "binding",
+    "review_basis",
+    "review_policy_version",
+    "reviews"
+  ],
+  "properties": {
+    "schema_version": { "const": "pdf_body_review_approval.v1" },
+    "status": { "const": "APPROVED" },
+    "location_class": { "const": "CONTROLLED_EXTERNAL" },
+    "draft_sha256": { "$ref": "#/$defs/sha256" },
+    "profile_sha256": { "$ref": "#/$defs/sha256" },
+    "binding": { "$ref": "#/$defs/binding" },
+    "review_basis": { "const": "ORIGINAL_PDF_PAGES" },
+    "review_policy_version": { "$ref": "#/$defs/safeIdentifier" },
+    "reviews": {
+      "type": "array",
+      "minItems": 1,
+      "items": { "$ref": "#/$defs/review" }
+    }
+  },
+  "$defs": {
+    "sha256": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "hmacId": {
+      "type": "string",
+      "pattern": "^[a-f0-9]{64}$"
+    },
+    "safeIdentifier": {
+      "type": "string",
+      "minLength": 1,
+      "maxLength": 128,
+      "pattern": "^[A-Za-z0-9][A-Za-z0-9._:@/+\\-]*$"
+    },
+    "binding": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "assertion_id",
+        "evaluator_id",
+        "document_id",
+        "source_sha256",
+        "body_page_start",
+        "body_page_end",
+        "review_mode"
+      ],
+      "properties": {
+        "assertion_id": {
+          "type": "string",
+          "pattern": "^[A-Z][A-Z0-9-]+$"
+        },
+        "evaluator_id": {
+          "const": "source_ir.pdf_reviewed_body_sequence/v1"
+        },
+        "document_id": {
+          "type": "string",
+          "pattern": "^DOC-[A-Z0-9-]+$"
+        },
+        "source_sha256": { "$ref": "#/$defs/sha256" },
+        "body_page_start": { "type": "integer", "minimum": 1 },
+        "body_page_end": { "type": "integer", "minimum": 1 },
+        "review_mode": { "enum": ["NATIVE", "REMOTE_VISUAL"] },
+        "approved_visual_provider": {
+          "enum": ["bailian", "azure-document-intelligence"]
+        },
+        "visual_provider_id": {
+          "enum": [
+            "aliyun-bailian-qwen-ocr",
+            "azure-document-intelligence"
+          ]
+        },
+        "visual_text_provider_version_sha256": { "$ref": "#/$defs/sha256" },
+        "visual_table_provider_version_sha256": { "$ref": "#/$defs/sha256" }
+      },
+      "allOf": [
+        {
+          "if": {
+            "properties": { "review_mode": { "const": "NATIVE" } },
+            "required": ["review_mode"]
+          },
+          "then": {
+            "not": {
+              "anyOf": [
+                { "required": ["approved_visual_provider"] },
+                { "required": ["visual_provider_id"] },
+                { "required": ["visual_text_provider_version_sha256"] },
+                { "required": ["visual_table_provider_version_sha256"] }
+              ]
+            }
+          },
+          "else": {
+            "required": [
+              "approved_visual_provider",
+              "visual_provider_id",
+              "visual_text_provider_version_sha256",
+              "visual_table_provider_version_sha256"
+            ]
+          }
+        }
+      ]
+    },
+    "channelApprovals": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["text", "image", "table"],
+      "properties": {
+        "text": { "const": "APPROVED" },
+        "image": { "const": "APPROVED" },
+        "table": { "const": "APPROVED" }
+      }
+    },
+    "pageApproval": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["page_number", "channels"],
+      "properties": {
+        "page_number": { "type": "integer", "minimum": 1 },
+        "channels": { "$ref": "#/$defs/channelApprovals" }
+      }
+    },
+    "reviewTool": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": ["tool_id", "tool_version"],
+      "properties": {
+        "tool_id": { "$ref": "#/$defs/safeIdentifier" },
+        "tool_version": { "$ref": "#/$defs/safeIdentifier" }
+      }
+    },
+    "review": {
+      "type": "object",
+      "additionalProperties": false,
+      "required": [
+        "reviewer_id",
+        "reviewer_id_scheme",
+        "actor_type",
+        "reviewer_role",
+        "independence_attested",
+        "reviewed_at_utc",
+        "review_tool",
+        "page_approvals"
+      ],
+      "properties": {
+        "reviewer_id": { "$ref": "#/$defs/hmacId" },
+        "reviewer_id_scheme": { "const": "HMAC_SHA256" },
+        "actor_type": { "const": "HUMAN" },
+        "reviewer_role": { "const": "INDEPENDENT_PDF_BODY_REVIEWER" },
+        "independence_attested": { "const": true },
+        "reviewed_at_utc": {
+          "type": "string",
+          "format": "date-time",
+          "pattern": "Z$"
+        },
+        "review_tool": { "$ref": "#/$defs/reviewTool" },
+        "page_approvals": {
+          "type": "array",
+          "minItems": 1,
+          "items": { "$ref": "#/$defs/pageApproval" }
+        }
+      }
+    }
+  }
+}

@@ -11,6 +11,7 @@ from pathlib import Path
 from typing import Any
 
 from app import db
+from app.services.document_parse_budget import document_parse_slot
 from app.services.extraction_preview import build_extraction_preview
 from app.services.table_assets import current_source_snapshot_build_token
 
@@ -274,11 +275,12 @@ def _run_preview_refresh(document_id: str, file_path: str, preview_generation_id
         snapshot_root = purge_preview_artifacts(document_id)
         if _refresh_cancelled(document_id):
             return
-        preview = build_extraction_preview(
-            file_path,
-            document_id=document_id,
-            snapshot_root=snapshot_root,
-        )
+        with document_parse_slot():
+            preview = build_extraction_preview(
+                file_path,
+                document_id=document_id,
+                snapshot_root=snapshot_root,
+            )
         preview["preview_generation_id"] = preview_generation_id
         if _refresh_cancelled(document_id):
             return

@@ -1,0 +1,166 @@
+{
+  "$defs": {
+    "AgentKitIdentityV1": {
+      "additionalProperties": false,
+      "description": "Exact, runner-neutral identity of one Portable Agent Kit bundle.",
+      "properties": {
+        "bundle_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Bundle Sha256",
+          "type": "string"
+        },
+        "kit_id": {
+          "pattern": "^[a-z][a-z0-9-]{0,119}$",
+          "title": "Kit Id",
+          "type": "string"
+        },
+        "kit_version": {
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "title": "Kit Version",
+          "type": "string"
+        },
+        "manifest_sha256": {
+          "pattern": "^[0-9a-f]{64}$",
+          "title": "Manifest Sha256",
+          "type": "string"
+        },
+        "policy_id": {
+          "pattern": "^[a-z][a-z0-9-]{0,119}$",
+          "title": "Policy Id",
+          "type": "string"
+        },
+        "policy_version": {
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "title": "Policy Version",
+          "type": "string"
+        },
+        "schema_version": {
+          "const": "reqpilotx-agent-kit-identity/v1",
+          "default": "reqpilotx-agent-kit-identity/v1",
+          "title": "Schema Version",
+          "type": "string"
+        },
+        "tool_registry_id": {
+          "pattern": "^[a-z][a-z0-9-]{0,119}$",
+          "title": "Tool Registry Id",
+          "type": "string"
+        },
+        "tool_registry_version": {
+          "pattern": "^[0-9]+\\.[0-9]+\\.[0-9]+$",
+          "title": "Tool Registry Version",
+          "type": "string"
+        }
+      },
+      "required": [
+        "kit_id",
+        "kit_version",
+        "manifest_sha256",
+        "bundle_sha256",
+        "policy_id",
+        "policy_version",
+        "tool_registry_id",
+        "tool_registry_version"
+      ],
+      "title": "AgentKitIdentityV1",
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "document_role": {
+      "pattern": "^[A-Z][A-Z0-9_]{0,79}$",
+      "title": "Document Role",
+      "type": "string"
+    },
+    "intentional_blank_pages": {
+      "default": [],
+      "items": {
+        "type": "integer"
+      },
+      "title": "Intentional Blank Pages",
+      "type": "array"
+    },
+    "kit_identity": {
+      "$ref": "#/$defs/AgentKitIdentityV1"
+    },
+    "opaque_source_handle": {
+      "pattern": "^source-handle-[0-9a-f]{32}$",
+      "title": "Opaque Source Handle",
+      "type": "string"
+    },
+    "page_count": {
+      "minimum": 1,
+      "title": "Page Count",
+      "type": "integer"
+    },
+    "page_manifest_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Page Manifest Sha256",
+      "type": "string"
+    },
+    "run_id": {
+      "pattern": "^agent-run-[0-9a-f]{32}$",
+      "title": "Run Id",
+      "type": "string"
+    },
+    "schema_version": {
+      "const": "document-run-manifest/v2",
+      "default": "document-run-manifest/v2",
+      "title": "Schema Version",
+      "type": "string"
+    },
+    "source_adapter_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Source Adapter Id",
+      "type": "string"
+    },
+    "source_adapter_version": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Source Adapter Version",
+      "type": "string"
+    },
+    "source_ir_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Source Ir Id",
+      "type": "string"
+    },
+    "source_ir_status": {
+      "enum": [
+        "COMPLETE",
+        "PARTIAL",
+        "FAILED"
+      ],
+      "title": "Source Ir Status",
+      "type": "string"
+    },
+    "source_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Source Sha256",
+      "type": "string"
+    },
+    "stage_context_sha256": {
+      "pattern": "^[0-9a-f]{64}$",
+      "title": "Stage Context Sha256",
+      "type": "string"
+    }
+  },
+  "required": [
+    "run_id",
+    "opaque_source_handle",
+    "source_sha256",
+    "page_count",
+    "document_role",
+    "source_ir_id",
+    "source_ir_status",
+    "source_adapter_id",
+    "source_adapter_version",
+    "page_manifest_sha256",
+    "stage_context_sha256",
+    "kit_identity"
+  ],
+  "title": "DocumentRunManifestV2",
+  "type": "object"
+}

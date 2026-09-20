@@ -1,0 +1,32 @@
+name: Source and frontend verification
+on:
+  push:
+  pull_request:
+permissions:
+  contents: read
+concurrency:
+  group: source-and-frontend-${{ github.head_ref || github.ref_name }}
+  cancel-in-progress: true
+jobs:
+  source-and-frontend:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.13'
+      - name: Check distributable tree
+        run: python prototype/scripts/repository_safety_audit.py --staged
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '22'
+          cache: npm
+          cache-dependency-path: prototype/frontend/package-lock.json
+      - run: npm --prefix prototype/frontend ci
+      - run: npm --prefix prototype/frontend run test
+      - run: node --test prototype/frontend/scripts/scope-panel-css.test.mjs
+      - run: npm --prefix prototype/frontend run build
+      - run: npm --prefix prototype/frontend run build:panel
+      - run: node integrations/pair/scripts/build.mjs
+      - name: Pair independent adapter contracts
+        run: node --test integrations/pair/tests/host.test.mjs integrations/pair/tests/runtime.test.mjs integrations/pair/tests/shared-artifacts.test.mjs

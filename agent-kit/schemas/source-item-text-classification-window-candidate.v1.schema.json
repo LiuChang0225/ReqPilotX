@@ -1,0 +1,109 @@
+{
+  "$defs": {
+    "NonRequirementRole": {
+      "enum": [
+        "HEADING",
+        "METADATA",
+        "REVISION_HISTORY",
+        "CONTEXT",
+        "DEFINITION",
+        "RATIONALE",
+        "EXAMPLE",
+        "NOTE",
+        "REFERENCE"
+      ],
+      "type": "string"
+    },
+    "RequirementKind": {
+      "enum": [
+        "FUNCTIONAL",
+        "QUALITY",
+        "CONSTRAINT",
+        "PROJECT",
+        "PROCESS"
+      ],
+      "type": "string"
+    },
+    "Requirementness": {
+      "enum": [
+        "REQUIREMENT",
+        "NON_REQUIREMENT"
+      ],
+      "type": "string"
+    },
+    "SourceRequirementClassificationDecisionV1": {
+      "additionalProperties": false,
+      "properties": {
+        "confidence": {
+          "type": "number"
+        },
+        "decision_summary": {
+          "type": "string"
+        },
+        "non_requirement_role": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/NonRequirementRole"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "record_key": {
+          "type": "string"
+        },
+        "requirement_kinds": {
+          "items": {
+            "$ref": "#/$defs/RequirementKind"
+          },
+          "type": "array"
+        },
+        "requirementness": {
+          "$ref": "#/$defs/Requirementness"
+        }
+      },
+      "required": [
+        "record_key",
+        "requirementness",
+        "requirement_kinds",
+        "non_requirement_role",
+        "confidence",
+        "decision_summary",
+        "reason_codes"
+      ],
+      "type": "object"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "decisions": {
+      "items": {
+        "$ref": "#/$defs/SourceRequirementClassificationDecisionV1"
+      },
+      "type": "array"
+    },
+    "diagnostic_codes": {
+      "items": {
+        "type": "string"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "source-item-text-classification-window-candidate/v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "decisions",
+    "diagnostic_codes"
+  ],
+  "type": "object"
+}

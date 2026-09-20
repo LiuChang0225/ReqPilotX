@@ -1,0 +1,17 @@
+{
+  "schema_version": "1.0",
+  "data_classification": "synthetic_template",
+  "candidate_roots": [
+    {"name": "local_corpus", "root": "home", "path": "Documents/ReqPilotX-local-corpus", "optional": true}
+  ],
+  "batches": [
+    {
+      "id": "synthetic_example",
+      "description": "Template only. Supply an explicit private --batch-config for real evaluation.",
+      "documents": [
+        {"doc_key": "synthetic_component_spec", "profile": "", "match_regex": "synthetic-component-spec\\.pdf", "section_split": true, "gate_tags": ["regression-suite"]}
+      ],
+      "gate_expectations": {"min_quality_score_pct": 95.0, "min_quality_doc_score_pct": 70.0, "max_quality_high_severity_issues": 0}
+    }
+  ]
+}

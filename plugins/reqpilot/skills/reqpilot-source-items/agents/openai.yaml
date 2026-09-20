@@ -1,0 +1,3 @@
+interface:
+  display_name: "ReqPilot source items"
+  short_description: "Preserve source items, identities and classifications"

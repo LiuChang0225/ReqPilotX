@@ -1,0 +1,56 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "bbox": {
+      "maxItems": 4,
+      "minItems": 4,
+      "prefixItems": [
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        },
+        {
+          "type": "number"
+        }
+      ],
+      "title": "Bbox",
+      "type": "array"
+    },
+    "page_number": {
+      "minimum": 1,
+      "title": "Page Number",
+      "type": "integer"
+    },
+    "scale": {
+      "default": 3.0,
+      "exclusiveMinimum": 0.0,
+      "maximum": 4.0,
+      "title": "Scale",
+      "type": "number"
+    },
+    "source_handle": {
+      "anyOf": [
+        {
+          "pattern": "^source-handle-[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Handle"
+    }
+  },
+  "required": [
+    "page_number",
+    "bbox"
+  ],
+  "title": "DocumentRenderRegionInputV1",
+  "type": "object"
+}

@@ -1,3 +1,10 @@
+if __package__:
+    from .runtime_isolation import activate_test_runtime
+else:
+    from runtime_isolation import activate_test_runtime
+
+activate_test_runtime()
+
 import sys
 import unittest
 from pathlib import Path
@@ -2065,18 +2072,18 @@ class ExtractorSectionConsolidationTest(unittest.TestCase):
         block = _block("6", "投标说明", 10, text="6、投标说明")
         block["entries"] = [
             {"text": "6、投标说明", "source_page": 10, "source_line_index": 1, "source_anchor": "Page 10"},
-            {"text": "8）技术方案的可行性论证需要提供客观论证材料，如弄虚作假，JAC保留处罚及更换供应商的权利；", "source_page": 10, "source_line_index": 2, "source_anchor": "Page 10"},
-            {"text": "9）技术标书及交流过程中只接受简体中文文件，防止分歧。", "source_page": 10, "source_line_index": 3, "source_anchor": "Page 10"},
-            {"text": "10）商务报价应至少包含设计开发费用、模具夹具检具治具费用。", "source_page": 10, "source_line_index": 4, "source_anchor": "Page 10"},
+            {"text": "8）合成演示装置应在收到启动信号后记录状态；", "source_page": 10, "source_line_index": 2, "source_anchor": "Page 10"},
+            {"text": "9）演示报告应使用统一模板。", "source_page": 10, "source_line_index": 3, "source_anchor": "Page 10"},
+            {"text": "10）演示交付清单应包含测试日志。", "source_page": 10, "source_line_index": 4, "source_anchor": "Page 10"},
         ]
         block["source_anchor"] = "Page 10 | Section 6 投标说明"
 
         subblocks = _split_block_by_bullets(block)
         first_lines = [item["lines"][0] for item in subblocks]
 
-        self.assertIn("8）技术方案的可行性论证需要提供客观论证材料，如弄虚作假，JAC保留处罚及更换供应商的权利；", first_lines)
-        self.assertIn("9）技术标书及交流过程中只接受简体中文文件，防止分歧。", first_lines)
-        self.assertIn("10）商务报价应至少包含设计开发费用、模具夹具检具治具费用。", first_lines)
+        self.assertIn("8）合成演示装置应在收到启动信号后记录状态；", first_lines)
+        self.assertIn("9）演示报告应使用统一模板。", first_lines)
+        self.assertIn("10）演示交付清单应包含测试日志。", first_lines)
 
     def test_top_level_headers_accept_note_suffix_colon_suffix_and_long_bilingual_titles(self) -> None:
         note_header = _parse_section_header("2.主要设计和验证要求（注：测试工况和评价验收方案需在DVP中详细定义。）")

@@ -1,0 +1,56 @@
+{
+  "schema_version": "reqpilotx-extraction-policy/v1",
+  "policy_id": "reqpilotx-extraction-policy",
+  "policy_version": "1.0.0",
+  "scope": [
+    "document_recognition",
+    "logical_structure",
+    "parent_provisions",
+    "requirement_decomposition",
+    "completeness_verification",
+    "result_assembly"
+  ],
+  "source_authority_order": [
+    "verified_source_identity",
+    "visible_page_evidence",
+    "native_source_facts",
+    "typed_parser_facts",
+    "typed_resolver_suggestions"
+  ],
+  "ontology": [
+    "DOCUMENT_CONTAINER",
+    "SECTION_CONTAINER",
+    "ATTACHMENT_CONTAINER",
+    "LOGICAL_TABLE_CONTAINER",
+    "LOGICAL_RECORD",
+    "PARENT_PROVISION",
+    "NESTED_PROVISION",
+    "REQUIREMENT_ASSERTION",
+    "FACET",
+    "CONTEXT",
+    "REFERENCE",
+    "UNRESOLVED"
+  ],
+  "completion": {
+    "validated": "Every declared source scope is grounded and dispositioned, and the stage validator accepted the artifact.",
+    "partial": "Useful grounded output exists, but one or more declared source scopes remain unresolved.",
+    "blocked": "Required source evidence, authority, capability, or budget is unavailable.",
+    "failed": "The runtime or contract failed without a validator-safe artifact."
+  },
+  "forbidden_primary_controls": [
+    "legacy_structure_node_universe",
+    "fixed_document_chunk_count",
+    "host_selected_visual_whitelist",
+    "provider_readiness",
+    "reference_artifact_as_product_input",
+    "requirement_count_target",
+    "silent_legacy_fallback",
+    "single_turn_document_map",
+    "whole_document_exact_json_consensus"
+  ],
+  "authority": {
+    "agent": "PROPOSAL_ONLY",
+    "tools": "EVIDENCE_OR_VALIDATION_ONLY",
+    "business_writes": "FORBIDDEN"
+  }
+}

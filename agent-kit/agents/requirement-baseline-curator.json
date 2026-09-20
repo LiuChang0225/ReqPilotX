@@ -1,0 +1,18 @@
+{
+  "schema_version": "reqpilotx-agent-profile/v1",
+  "agent_id": "reqpilotx-requirement-baseline-curator",
+  "role": "PRIMARY_BASELINE_CURATOR",
+  "stage_order": [
+    "D0_SOURCE_PREFLIGHT",
+    "D1_DOCUMENT_UNDERSTANDING",
+    "D2_LOGICAL_STRUCTURE",
+    "D3_PARENT_PROVISION_RECOGNITION",
+    "D5_COMPLETENESS_VERIFICATION",
+    "D6_RESULT_ASSEMBLY"
+  ],
+  "authority": "PROPOSAL_ONLY",
+  "preserves_source_verbatim": true,
+  "may_atomize": false,
+  "may_write_business_state": false,
+  "completion_source": "BASELINE_VERIFICATION_RECEIPT"
+}

@@ -35,7 +35,9 @@ def main() -> None:
         "failures": len(result.failures),
         "errors": len(result.errors),
         "skipped": len(result.skipped),
-        "overall_pass": not result.failures and not result.errors,
+        # This command is a gate, so an unexecuted required regression is not
+        # equivalent to a passing regression.
+        "overall_pass": not result.failures and not result.errors and not result.skipped,
         "failure_tests": [str(test) for test, _ in result.failures],
         "error_tests": [str(test) for test, _ in result.errors],
         "skipped_tests": [f"{str(test)} :: {reason}" for test, reason in result.skipped],
@@ -50,8 +52,17 @@ def main() -> None:
     print(f"[table-gate] summary json: {summary_json}")
     print(f"[table-gate] summary md: {summary_md}")
 
-    if result.failures or result.errors:
-        raise SystemExit(1)
+    exit_code = _gate_exit_code(summary)
+    if exit_code:
+        raise SystemExit(exit_code)
+
+
+def _gate_exit_code(summary: dict) -> int:
+    if int(summary.get("failures", 0)) or int(summary.get("errors", 0)):
+        return 1
+    if int(summary.get("skipped", 0)):
+        return 2
+    return 0
 
 
 def _render_md(summary: dict) -> str:

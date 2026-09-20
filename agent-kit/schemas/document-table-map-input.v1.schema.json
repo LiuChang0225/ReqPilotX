@@ -1,0 +1,47 @@
+{
+  "additionalProperties": false,
+  "properties": {
+    "include_cells": {
+      "default": false,
+      "title": "Include Cells",
+      "type": "boolean"
+    },
+    "limit": {
+      "default": 100,
+      "maximum": 200,
+      "minimum": 1,
+      "title": "Limit",
+      "type": "integer"
+    },
+    "offset": {
+      "default": 0,
+      "minimum": 0,
+      "title": "Offset",
+      "type": "integer"
+    },
+    "source_handle": {
+      "anyOf": [
+        {
+          "pattern": "^source-handle-[0-9a-f]{32}$",
+          "type": "string"
+        },
+        {
+          "type": "null"
+        }
+      ],
+      "default": null,
+      "title": "Source Handle"
+    },
+    "table_id": {
+      "maxLength": 160,
+      "minLength": 1,
+      "title": "Table Id",
+      "type": "string"
+    }
+  },
+  "required": [
+    "table_id"
+  ],
+  "title": "DocumentTableMapInputV1",
+  "type": "object"
+}

@@ -1,0 +1,51 @@
+<!doctype html>
+<!--
+THESIS: 让负责人沿证据逐类作决策，拒绝把类型覆盖压成一排漂亮数字。
+OWN-WORLD: ReqPilotX纸白/冷灰连续工作面，绿色只表示人工主动作，蓝灰表示代理候选，琥珀表示未决。
+STORY: 先看六项跨类型决策，再逐类核对结果、问题和真实渲染证据，最后只决定当前对象。
+FIRST VIEWPORT: 左侧卷宗队列，中间代理结论与问题，右侧证据台；当前决策条固定在中栏底部。
+FORM: Evidence instrument bench，结构候选第3项，seed 8ccc17c9；继承现有工程工作台，不另造视觉世界。
+-->
+<html lang="zh-CN">
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1">
+  <title>ReqPilotX · 全类型决策台</title>
+  <link rel="stylesheet" href="/app.css">
+  <script type="module" src="/app.js"></script>
+</head>
+<body>
+  <a class="skip-link" href="#detail">跳到当前决策</a>
+  <div id="app" class="application" aria-busy="true">
+    <header class="app-header">
+      <div class="brand"><span class="brand-mark" aria-hidden="true">R</span><strong>ReqPilotX</strong><span class="brand-divider"></span><span>全类型决策台</span></div>
+      <div class="header-actions"><span id="run-status" class="proxy-tag">正在载入代理候选</span><a class="quiet-button" href="/report.md" target="_blank" rel="noopener">打开完整报告</a><a class="quiet-button" href="/api/export" download>导出你的决定</a></div>
+    </header>
+    <section class="campaign-bar" aria-label="本轮覆盖">
+      <div><h1>全类型目标态验证</h1><p id="campaign-meta">正在核对工件身份…</p></div>
+      <details class="explanation"><summary>这些状态代表什么</summary><div><p>“代理候选”表示已经形成可追溯建议，不等于人工接受。</p><p>类型完成表示正确入口、证据状态和处置已经明确；技术缺口继续保留。</p><p>只对当前对象作决定，不会自动确认其它类型或六项总决策。</p></div></details>
+    </section>
+    <div id="global-error" class="global-error" role="alert" hidden></div>
+    <main class="workbench">
+      <aside class="docket-pane" aria-label="决策卷宗">
+        <div class="pane-heading"><h2>决策卷宗</h2><span id="docket-progress">0 / 23</span></div>
+        <label class="search-label"><span class="sr-only">搜索类型、问题或建议</span><input id="search" type="search" placeholder="搜索类型、问题或建议…" autocomplete="off" spellcheck="false"></label>
+        <div class="filter-row"><label class="sr-only" for="filter">决策范围</label><select id="filter"><option value="all">全部卷宗</option><option value="pending">等待决定</option><option value="open">含开放问题</option><option value="decisions">仅六项总决策</option><option value="requirements">需求源类型</option><option value="nonrequirements">非需求源类型</option></select><span id="match-count"></span></div>
+        <div id="docket" class="docket" role="listbox" aria-label="全类型和总决策"></div>
+        <div class="docket-foot"><span class="status-dot" aria-hidden="true"></span><span id="decision-count">尚无人工决定</span></div>
+      </aside>
+      <section class="detail-pane" aria-label="代理结论与最终决定">
+        <div class="compact-switch" aria-label="窄屏工作面"><button id="show-detail" type="button" aria-pressed="true">结论与问题</button><button id="show-preview" type="button" aria-pressed="false">证据预览</button></div>
+        <article id="detail" class="detail-scroll" tabindex="-1"></article>
+        <div id="decision-panel" class="decision-panel"></div>
+      </section>
+      <aside id="preview-pane" class="preview-pane" aria-label="真实证据预览">
+        <div class="preview-heading"><div><h2>真实证据预览</h2><p id="preview-caption">选择类型查看渲染证据</p></div><a id="open-preview" class="text-button" target="_blank" rel="noopener" hidden>单独打开 ↗</a></div>
+        <div id="preview-scroller" class="preview-scroller"><div id="preview-empty" class="preview-empty">六项总决策由多个类型共同支持；选择具体类型查看页面、工作表或幻灯片证据。</div></div>
+        <div class="preview-foot"><label for="preview-zoom">预览缩放</label><select id="preview-zoom"><option value="fit">适宽</option><option value="1.25">125%</option><option value="1.75">175%</option></select><span>渲染预览 ≠ 人工验收</span></div>
+      </aside>
+    </main>
+    <div id="toast" class="toast" role="status" aria-live="polite" hidden></div>
+  </div>
+</body>
+</html>

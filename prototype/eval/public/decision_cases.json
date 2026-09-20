@@ -1,0 +1,10 @@
+{
+  "corpus_id": "synthetic-decision-contract-v1",
+  "data_classification": "synthetic",
+  "description": "Invented values for deterministic comparison contracts; not a customer or product quality benchmark.",
+  "cases": [
+    {"id": "equal-format", "category": "equivalent", "supplier_value": "12 V", "requirement_value": "12V", "expected_decision": "ACCEPT"},
+    {"id": "missing-value", "category": "missing", "supplier_value": "", "requirement_value": "12 V", "expected_decision": "NEED_CLARIFICATION"},
+    {"id": "unsupported-direction", "category": "inequality", "supplier_value": "5 ms", "requirement_value": "10 ms maximum", "expected_decision": "NEED_CLARIFICATION"}
+  ]
+}

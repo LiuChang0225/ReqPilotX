@@ -5,26 +5,6 @@ import re
 from typing import Any, Callable
 
 
-_LIFECYCLE_LABEL_PATTERNS: list[tuple[str, re.Pattern[str]]] = [
-    ("1 总体要求", re.compile(r"(?:^|\b)1[\.\s、\-]*总体要求", re.I)),
-    ("2 概念设计", re.compile(r"(?:^|\b)2[\.\s、\-]*产品?网络安全生命周期[\-—–]概念设计阶段|(?:^|\b)2[\.\s、\-]*概念设计", re.I)),
-    ("3 开发", re.compile(r"(?:^|\b)3[\.\s、\-]*产品?网络安全生命周期[\-—–]开发阶段|(?:^|\b)3[\.\s、\-]*开发", re.I)),
-    ("4 生产", re.compile(r"(?:^|\b)4[\.\s、\-]*产品?网络安全生命周期[\-—–]生产阶段|(?:^|\b)4[\.\s、\-]*生产", re.I)),
-    ("5 运营维护", re.compile(r"(?:^|\b)5[\.\s、\-]*产品?网络安全生命周期[\-—–]运营维护阶段|(?:^|\b)5[\.\s、\-]*运营维护", re.I)),
-    (
-        "6 报废/终止支持",
-        re.compile(r"(?:^|\b)6[\.\s、\-]*产品?网络安全生命周期[\-—–]报废/终止支持阶段|(?:^|\b)6[\.\s、\-]*报废/终止支持", re.I),
-    ),
-]
-
-_MERGED_MATRIX_TITLE_CUES = (
-    "技术要求内容",
-    "通信安全要求",
-    "网络安全",
-    "数据安全",
-    "个人信息处理",
-)
-
 _GENERIC_COMPLEX_TABLE_CUES = (
     "对应gb",
     "要求解读",
@@ -69,27 +49,15 @@ def detect_complex_table_zones(
     segments: list[dict[str, Any]],
     source_file_path: str = "",
 ) -> list[dict[str, Any]]:
+    # ``source_file_path`` remains in the compatibility signature, but a file
+    # name is never structure evidence.  Detection is deliberately limited to
+    # source-bound, non-destructive generic metadata.
+    _ = source_file_path
     page_text = _collect_page_text(segments)
-    zones: list[ComplexTableZone] = []
-    reserved_page_ranges: list[tuple[int, int]] = []
-
-    merged_matrix = _detect_merged_requirement_matrix_zone(page_text, source_file_path=source_file_path)
-    if merged_matrix is not None:
-        zones.append(merged_matrix)
-        reserved_page_ranges.append((merged_matrix.page_start, merged_matrix.page_end))
-
-    lifecycle_matrix = _detect_lifecycle_matrix_zone(page_text, source_file_path=source_file_path)
-    if lifecycle_matrix is not None:
-        zones.append(lifecycle_matrix)
-        reserved_page_ranges.append((lifecycle_matrix.page_start, lifecycle_matrix.page_end))
-
-    if not _is_sample_priority_source(source_file_path):
-        zones.extend(
-            _detect_generic_complex_table_zones(
-                page_text,
-                reserved_page_ranges=reserved_page_ranges,
-            )
-        )
+    zones = _detect_generic_complex_table_zones(
+        page_text,
+        reserved_page_ranges=[],
+    )
 
     return [asdict(zone) for zone in sorted(zones, key=lambda item: (item.page_start, item.page_end, item.family))]
 
@@ -270,133 +238,6 @@ def _collect_page_text(segments: list[dict[str, Any]]) -> dict[int, str]:
     return {page: "\n".join(chunks) for page, chunks in pages.items()}
 
 
-def _detect_merged_requirement_matrix_zone(
-    page_text: dict[int, str],
-    *,
-    source_file_path: str = "",
-) -> ComplexTableZone | None:
-    required_pages = range(17, 23)
-    if not all(page in page_text for page in required_pages):
-        return None
-    page17 = page_text.get(17, "")
-    joined = "\n".join(page_text.get(page, "") for page in required_pages)
-    if "GB 44495" not in joined and "对应GB 44495章节" not in page17:
-        return None
-    if "技术要求内容" not in page17 or "要求解读" not in page17:
-        return None
-    if "网络安全" not in joined and "数据安全" not in joined:
-        return None
-    if source_file_path and not _is_sample_priority_source(source_file_path):
-        return None
-
-    return ComplexTableZone(
-        zone_id="cx-merged-requirement-matrix-p17-p22",
-        family="merged_requirement_matrix",
-        page_start=17,
-        page_end=22,
-        review_title="网络安全 / 数据安全技术要求矩阵",
-        groups=[
-            ComplexTableGroup(
-                group_id="cx-merged-requirement-matrix-p17-p22-network-security",
-                label="网络安全",
-                sort_order=1,
-                page_start=17,
-                page_end=20,
-                section_code="网络安全",
-                section_title="网络安全",
-                snapshot_mode="full_page_span",
-            ),
-            ComplexTableGroup(
-                group_id="cx-merged-requirement-matrix-p17-p22-data-security",
-                label="数据安全",
-                sort_order=2,
-                page_start=21,
-                page_end=22,
-                section_code="数据安全",
-                section_title="数据安全",
-                snapshot_mode="full_page_span",
-            ),
-        ],
-        warnings=[
-            "跨页复杂表，包含纵向合并单元格",
-            "表内章节号视为 GB 44495 对应章节，不作为正文条目细拆",
-        ],
-        source_only=True,
-        summary_review_only=True,
-    )
-
-
-def _detect_lifecycle_matrix_zone(
-    page_text: dict[int, str],
-    *,
-    source_file_path: str = "",
-) -> ComplexTableZone | None:
-    required_pages = range(23, 26)
-    if not all(page in page_text for page in required_pages):
-        return None
-    joined = "\n".join(page_text.get(page, "") for page in required_pages)
-    if "网络安全活动 Cybersecurity Activity" not in joined:
-        return None
-    if source_file_path and not _is_sample_priority_source(source_file_path):
-        return None
-
-    start_pages: list[int] = []
-    groups: list[ComplexTableGroup] = []
-    for order, (label, pattern) in enumerate(_LIFECYCLE_LABEL_PATTERNS, start=1):
-        start_page = _first_page_matching(page_text, required_pages, pattern)
-        if start_page <= 0:
-            return None
-        start_pages.append(start_page)
-        section_code = label.split(" ", 1)[0]
-        groups.append(
-            ComplexTableGroup(
-                group_id=f"cx-lifecycle-matrix-p23-p25-{_slug(label)}",
-                label=label,
-                sort_order=order,
-                page_start=start_page,
-                page_end=start_page,
-                section_code=section_code,
-                section_title=label,
-                start_label=label,
-                snapshot_mode="anchor_window",
-            )
-        )
-
-    finalized_groups: list[ComplexTableGroup] = []
-    for index, group in enumerate(groups):
-        next_label = groups[index + 1].label if index + 1 < len(groups) else ""
-        next_page = groups[index + 1].page_start if index + 1 < len(groups) else 25
-        finalized_groups.append(
-            ComplexTableGroup(
-                group_id=group.group_id,
-                label=group.label,
-                sort_order=group.sort_order,
-                page_start=group.page_start,
-                page_end=max(group.page_start, next_page),
-                section_code=group.section_code,
-                section_title=group.section_title,
-                start_label=group.start_label or group.label,
-                next_label_hint=next_label,
-                snapshot_mode=group.snapshot_mode,
-            )
-        )
-
-    return ComplexTableZone(
-        zone_id="cx-lifecycle-matrix-p23-p25",
-        family="lifecycle_matrix",
-        page_start=23,
-        page_end=25,
-        review_title="产品网络安全生命周期矩阵",
-        groups=finalized_groups,
-        warnings=[
-            "跨页宽矩阵，按阶段 band 做高置信拆分",
-            "不做行级 requirement 自动细拆",
-        ],
-        source_only=True,
-        summary_review_only=True,
-    )
-
-
 def _detect_generic_complex_table_zones(
     page_text: dict[int, str],
     *,
@@ -444,26 +285,8 @@ def _detect_generic_complex_table_zones(
     return zones
 
 
-def _first_page_matching(
-    page_text: dict[int, str],
-    pages: range,
-    pattern: re.Pattern[str],
-) -> int:
-    for page in pages:
-        if pattern.search(page_text.get(page, "")):
-            return page
-    return 0
-
-
 def _page_in_reserved_ranges(page: int, reserved_page_ranges: list[tuple[int, int]]) -> bool:
     return any(start <= page <= end for start, end in reserved_page_ranges)
-
-
-def _is_sample_priority_source(source_file_path: str) -> bool:
-    token = str(source_file_path or "").strip()
-    if not token:
-        return False
-    return "油泵" in token or "前后油泵总成" in token
 
 
 def _looks_like_generic_complex_table_page(text: str) -> bool:
@@ -510,7 +333,11 @@ def _range_within_zone(page_start: int, page_end: int, zone: dict[str, Any]) -> 
 
 
 def _zone_supports_collapse(zone: dict[str, Any]) -> bool:
-    return str(zone.get("family") or "").strip() in {"merged_requirement_matrix", "lifecycle_matrix"}
+    # Automatic destructive collapse has been retired.  Historical rows may
+    # still carry compatibility metadata, but no detected zone can authorize
+    # replacing source-derived rows with synthetic requirements.
+    _ = zone
+    return False
 
 
 def _collect_zone_rewrite_plans(
@@ -798,79 +625,13 @@ def _slug(value: str) -> str:
 
 
 def _row_matches_zone_collapse(row: dict[str, Any], zone: dict[str, Any]) -> bool:
-    zone_match = _find_zone_for_row(row, [zone])
-    if zone_match is None:
-        return False
-    family = str(zone.get("family") or "").strip()
-    if family == "merged_requirement_matrix":
-        return _matches_merged_requirement_matrix_item(row)
-    if family == "lifecycle_matrix":
-        return _matches_lifecycle_matrix_item(row)
+    _ = row, zone
     return False
 
 
 def _section_matches_zone_collapse(section: dict[str, Any], zone: dict[str, Any]) -> bool:
-    zone_match = _find_zone_for_section(section, [zone])
-    if zone_match is None:
-        return False
-    family = str(zone.get("family") or "").strip()
-    if family == "merged_requirement_matrix":
-        return _matches_merged_requirement_matrix_item(section, is_section=True)
-    if family == "lifecycle_matrix":
-        return _matches_lifecycle_matrix_item(section, is_section=True)
+    _ = section, zone
     return False
-
-
-def _matches_merged_requirement_matrix_item(item: dict[str, Any], *, is_section: bool = False) -> bool:
-    section_code = str(item.get("section_code") or "").strip()
-    page_start = _positive_int(item.get("source_page_start") if is_section else item.get("source_page"))
-    if page_start <= 0:
-        page_start = _positive_int(item.get("source_page"))
-    text_blob = _item_text_blob(item, is_section=is_section)
-    if section_code.startswith("7.") or section_code.startswith("5."):
-        return True
-    if not section_code and _contains_any(text_blob, _MERGED_MATRIX_TITLE_CUES):
-        return True
-    if 17 <= page_start <= 22 and _contains_any(text_blob, ("gb 44495", "要求解读")):
-        return True
-    return False
-
-
-def _matches_lifecycle_matrix_item(item: dict[str, Any], *, is_section: bool = False) -> bool:
-    section_code = str(item.get("section_code") or "").strip()
-    if section_code in {"2", "3", "4", "5", "6"}:
-        return True
-    text_blob = _item_text_blob(item, is_section=is_section)
-    if "网络安全活动 cybersecurity activity" in text_blob or "网络安全活动" in text_blob:
-        return True
-    return any(pattern.search(text_blob) for _, pattern in _LIFECYCLE_LABEL_PATTERNS)
-
-
-def _item_text_blob(item: dict[str, Any], *, is_section: bool = False) -> str:
-    if is_section:
-        parts = [
-            item.get("section_code"),
-            item.get("section_title"),
-            item.get("text_preview"),
-        ]
-    else:
-        parts = [
-            item.get("section_code"),
-            item.get("parent_section_code"),
-            item.get("section_title"),
-            item.get("parent_section_title"),
-            item.get("parent_section_label"),
-            item.get("heading_text"),
-            item.get("display_text"),
-            item.get("raw_text"),
-            item.get("requirement_text"),
-        ]
-    return _normalize_signature_text(" ".join(str(part or "") for part in parts if part))
-
-
-def _contains_any(text: str, cues: tuple[str, ...]) -> bool:
-    lowered = str(text or "").strip().lower()
-    return any(cue.lower() in lowered for cue in cues)
 
 
 def _row_shadow_signature(row: dict[str, Any]) -> str:

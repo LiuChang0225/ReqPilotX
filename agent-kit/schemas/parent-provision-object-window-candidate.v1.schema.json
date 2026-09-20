@@ -1,0 +1,219 @@
+{
+  "$defs": {
+    "D3CandidateSourceSpanV2": {
+      "additionalProperties": false,
+      "properties": {
+        "end_offset": {
+          "type": "integer"
+        },
+        "end_segment_ordinal": {
+          "type": "integer"
+        },
+        "start_offset": {
+          "type": "integer"
+        },
+        "start_segment_ordinal": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "start_segment_ordinal",
+        "start_offset",
+        "end_segment_ordinal",
+        "end_offset"
+      ],
+      "type": "object"
+    },
+    "D3ParentBoundaryClassificationEntryV2": {
+      "additionalProperties": false,
+      "properties": {
+        "ancestor_labels": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "confidence": {
+          "type": "number"
+        },
+        "content_role": {
+          "$ref": "#/$defs/ProvisionContentRole"
+        },
+        "explicit_label": {
+          "anyOf": [
+            {
+              "type": "string"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "reason_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "requirement_kind": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequirementKind"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        },
+        "requirementness": {
+          "$ref": "#/$defs/Requirementness"
+        },
+        "source_spans": {
+          "items": {
+            "$ref": "#/$defs/D3CandidateSourceSpanV2"
+          },
+          "type": "array"
+        },
+        "technicality": {
+          "anyOf": [
+            {
+              "$ref": "#/$defs/RequirementTechnicality"
+            },
+            {
+              "type": "null"
+            }
+          ]
+        }
+      },
+      "required": [
+        "source_spans",
+        "explicit_label",
+        "ancestor_labels",
+        "requirementness",
+        "requirement_kind",
+        "technicality",
+        "content_role",
+        "confidence",
+        "reason_codes"
+      ],
+      "type": "object"
+    },
+    "ParentProvisionObjectCandidateV1": {
+      "additionalProperties": false,
+      "properties": {
+        "diagnostic_codes": {
+          "items": {
+            "type": "string"
+          },
+          "type": "array"
+        },
+        "entries": {
+          "items": {
+            "$ref": "#/$defs/D3ParentBoundaryClassificationEntryV2"
+          },
+          "type": "array"
+        },
+        "schema_version": {
+          "const": "parent-provision-object-candidate/v1",
+          "type": "string"
+        },
+        "scope_status": {
+          "$ref": "#/$defs/ParentProvisionObjectScopeStatus"
+        }
+      },
+      "required": [
+        "schema_version",
+        "scope_status",
+        "entries",
+        "diagnostic_codes"
+      ],
+      "type": "object"
+    },
+    "ParentProvisionObjectScopeStatus": {
+      "enum": [
+        "CLOSED_WITHIN_OBJECT",
+        "UNRESOLVED",
+        "ADJACENT_RECONCILIATION_REQUIRED"
+      ],
+      "type": "string"
+    },
+    "ParentProvisionObjectWindowItemV1": {
+      "additionalProperties": false,
+      "properties": {
+        "batch_id": {
+          "type": "string"
+        },
+        "candidate": {
+          "$ref": "#/$defs/ParentProvisionObjectCandidateV1"
+        }
+      },
+      "required": [
+        "batch_id",
+        "candidate"
+      ],
+      "type": "object"
+    },
+    "ProvisionContentRole": {
+      "enum": [
+        "PROVISION",
+        "HEADING",
+        "METADATA",
+        "CONTEXT",
+        "RATIONALE",
+        "ASSUMPTION",
+        "EXAMPLE",
+        "DEFINITION",
+        "REFERENCE",
+        "NOTE",
+        "TABLE_RECORD",
+        "OTHER"
+      ],
+      "type": "string"
+    },
+    "RequirementKind": {
+      "enum": [
+        "FUNCTIONAL",
+        "QUALITY",
+        "CONSTRAINT",
+        "OTHER_REQUIREMENT",
+        "UNRESOLVED"
+      ],
+      "type": "string"
+    },
+    "RequirementTechnicality": {
+      "enum": [
+        "TECHNICAL",
+        "NON_TECHNICAL",
+        "MIXED",
+        "UNRESOLVED"
+      ],
+      "type": "string"
+    },
+    "Requirementness": {
+      "enum": [
+        "REQUIREMENT",
+        "NON_REQUIREMENT",
+        "UNRESOLVED"
+      ],
+      "type": "string"
+    }
+  },
+  "additionalProperties": false,
+  "properties": {
+    "items": {
+      "items": {
+        "$ref": "#/$defs/ParentProvisionObjectWindowItemV1"
+      },
+      "type": "array"
+    },
+    "schema_version": {
+      "const": "parent-provision-object-window-candidate/v1",
+      "type": "string"
+    }
+  },
+  "required": [
+    "schema_version",
+    "items"
+  ],
+  "type": "object"
+}

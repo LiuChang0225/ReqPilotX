@@ -1,0 +1,265 @@
+{
+  "schema_version": "reqpilotx-portable-agent-kit/v1",
+  "kit_id": "reqpilotx-document-extraction",
+  "kit_version": "0.15.2",
+  "policy_id": "reqpilotx-extraction-policy",
+  "policy_version": "1.0.0",
+  "policy_path": "policy/extraction-policy.v1.json",
+  "tool_registry_id": "reqpilotx-document-evidence-tools",
+  "tool_registry_version": "1.3.0",
+  "tool_registry_path": "tool-contracts/document-evidence-tools.v1.json",
+  "agents": [
+    "agents/cold-verifier.json",
+    "agents/extraction-orchestrator.json",
+    "agents/requirement-atomizer.json",
+    "agents/requirement-baseline-curator.json"
+  ],
+  "stages": [
+    {
+      "stage": "D0_SOURCE_PREFLIGHT",
+      "owner": "HOST",
+      "implementation_status": "AVAILABLE",
+      "artifact_schema_id": "document-run-manifest/v2",
+      "artifact_schema_path": "schemas/document-run-manifest.v2.schema.json",
+      "skill_id": null,
+      "reference_paths": [],
+      "validator_id": "reqpilotx-source-preflight-validator",
+      "validator_version": "1.0.0"
+    },
+    {
+      "stage": "D1_DOCUMENT_UNDERSTANDING",
+      "owner": "PRIMARY_AGENT",
+      "implementation_status": "AVAILABLE",
+      "artifact_schema_id": "document-understanding-proposal/v2",
+      "artifact_schema_path": "schemas/document-understanding-proposal.v2.schema.json",
+      "runner_output_schema_id": "agent-stage-final-receipt/v1",
+      "runner_output_schema_path": "schemas/agent-stage-final-receipt.v1.schema.json",
+      "runner_output_schema_variants": [
+        {
+          "execution_mode": "DOCUMENT_MAP_HEADING_SCOPE",
+          "schema_id": "document-map-heading-scope-candidate/v2",
+          "schema_path": "schemas/document-map-heading-scope-candidate.v2.schema.json"
+        },
+        {
+          "execution_mode": "DOCUMENT_MAP_SCOPE_REPLACEMENT",
+          "schema_id": "document-map-scope-replacement-candidate/v2",
+          "schema_path": "schemas/document-map-scope-replacement-candidate.v2.schema.json"
+        },
+        {
+          "execution_mode": "DOCUMENT_MAP_SURVEY",
+          "schema_id": "document-map-survey-candidate/v1",
+          "schema_path": "schemas/document-map-survey-candidate.v1.schema.json"
+        }
+      ],
+      "skill_id": "reqpilotx-document-understanding",
+      "capability_skill_ids": ["pdf"],
+      "reference_paths": [
+        "references/document-map-recovery.md",
+        "references/evidence-authority.md",
+        "references/failure-policy.md",
+        "references/stage-contracts.md"
+      ],
+      "validator_id": "reqpilotx-document-understanding-validator",
+      "validator_version": "1.1.0"
+    },
+    {
+      "stage": "D2_LOGICAL_STRUCTURE",
+      "owner": "PRIMARY_AGENT",
+      "implementation_status": "AVAILABLE",
+      "artifact_schema_id": "logical-structure-proposal/v2",
+      "artifact_schema_path": "schemas/logical-structure-proposal.v2.schema.json",
+      "runner_output_schema_id": "d2-logical-structure-decision-candidate/v3",
+      "runner_output_schema_path": "schemas/d2-logical-structure-decision-candidate.v3.schema.json",
+      "runner_output_schema_variants": [
+        {
+          "execution_mode": "STRUCTURE_HANDOFF",
+          "schema_id": "native-structure-handoff-result/v2",
+          "schema_path": "schemas/native-structure-handoff-result.v2.schema.json"
+        }
+      ],
+      "skill_id": "reqpilotx-logical-structure-reconstruction",
+      "capability_skill_ids": ["pdf"],
+      "reference_paths": [
+        "references/boundary-examples.md",
+        "references/core-ontology.md",
+        "references/document-map-recovery.md",
+        "references/evidence-authority.md",
+        "references/logical-object-ownership.md",
+        "references/stage-contracts.md"
+      ],
+      "validator_id": "reqpilotx-logical-structure-validator",
+      "validator_version": "1.2.0"
+    },
+    {
+      "stage": "D3_PARENT_PROVISION_RECOGNITION",
+      "owner": "PRIMARY_AGENT",
+      "implementation_status": "AVAILABLE",
+      "artifact_schema_id": "parent-provision-proposal/v3",
+      "artifact_schema_path": "schemas/parent-provision-proposal.v3.schema.json",
+      "runner_output_schema_id": "d3-parent-boundary-classification-candidate/v2",
+      "runner_output_schema_path": "schemas/d3-parent-boundary-classification-candidate.v2.schema.json",
+      "runner_output_schema_variants": [
+        {
+          "execution_mode": "OBJECT_BATCH",
+          "schema_id": "parent-provision-object-candidate/v1",
+          "schema_path": "schemas/parent-provision-object-candidate.v1.schema.json"
+        },
+        {
+          "execution_mode": "OBJECT_RECONCILIATION",
+          "schema_id": "parent-provision-object-reconciliation-candidate/v1",
+          "schema_path": "schemas/parent-provision-object-reconciliation-candidate.v1.schema.json"
+        },
+        {
+          "execution_mode": "OBJECT_WINDOW",
+          "schema_id": "parent-provision-object-window-candidate/v1",
+          "schema_path": "schemas/parent-provision-object-window-candidate.v1.schema.json"
+        },
+        {
+          "execution_mode": "SOURCE_ITEM_TEXT_BATCH",
+          "schema_id": "source-item-text-batch-candidate/v1",
+          "schema_path": "schemas/source-item-text-batch-candidate.v1.schema.json"
+        },
+        {
+          "execution_mode": "SOURCE_ITEM_TEXT_BOUNDARY_PLAN",
+          "schema_id": "source-item-text-boundary-agent-candidate/v1",
+          "schema_path": "schemas/source-item-text-boundary-agent-candidate.v1.schema.json"
+        },
+        {
+          "execution_mode": "SOURCE_ITEM_TEXT_CLASSIFICATION_WINDOW",
+          "schema_id": "source-item-text-classification-window-candidate/v1",
+          "schema_path": "schemas/source-item-text-classification-window-candidate.v1.schema.json"
+        },
+        {
+          "execution_mode": "SOURCE_REQUIREMENT_BOUNDARY_PLAN",
+          "schema_id": "source-requirement-boundary-agent-candidate/v1",
+          "schema_path": "schemas/source-requirement-boundary-agent-candidate.v1.schema.json"
+        },
+        {
+          "execution_mode": "SOURCE_REQUIREMENT_CLASSIFICATION_WINDOW",
+          "schema_id": "source-requirement-classification-window-candidate/v1",
+          "schema_path": "schemas/source-requirement-classification-window-candidate.v1.schema.json"
+        },
+        {
+          "execution_mode": "SOURCE_REQUIREMENT_SLICE",
+          "schema_id": "source-requirement-slice-candidate/v1",
+          "schema_path": "schemas/source-requirement-slice-candidate.v1.schema.json"
+        }
+      ],
+      "skill_id": "reqpilotx-parent-provision-recognition",
+      "reference_paths": [
+        "references/boundary-examples.md",
+        "references/core-ontology.md",
+        "references/evidence-authority.md",
+        "references/failure-policy.md",
+        "references/logical-object-ownership.md",
+        "references/requirements-engineering-baseline.md",
+        "references/stage-contracts.md"
+      ],
+      "validator_id": "reqpilotx-parent-provision-validator",
+      "validator_version": "1.0.0"
+    },
+    {
+      "stage": "D4_REQUIREMENT_DECOMPOSITION",
+      "owner": "PRIMARY_AGENT",
+      "implementation_status": "PLANNED",
+      "artifact_schema_id": "requirement-decomposition-proposal/v2",
+      "artifact_schema_path": null,
+      "skill_id": "reqpilotx-requirement-decomposition",
+      "reference_paths": [
+        "references/core-ontology.md",
+        "references/evidence-authority.md",
+        "references/failure-policy.md",
+        "references/requirements-engineering-baseline.md",
+        "references/stage-contracts.md"
+      ],
+      "validator_id": null,
+      "validator_version": null
+    },
+    {
+      "stage": "D5_COMPLETENESS_VERIFICATION",
+      "owner": "COLD_VERIFIER",
+      "implementation_status": "PLANNED",
+      "artifact_schema_id": "extraction-verification-report/v1",
+      "artifact_schema_path": null,
+      "skill_id": "reqpilotx-extraction-verification",
+      "reference_paths": [
+        "references/boundary-examples.md",
+        "references/core-ontology.md",
+        "references/evidence-authority.md",
+        "references/failure-policy.md",
+        "references/logical-object-ownership.md",
+        "references/requirements-engineering-baseline.md",
+        "references/runner-parity.md"
+      ],
+      "validator_id": null,
+      "validator_version": null
+    },
+    {
+      "stage": "D6_RESULT_ASSEMBLY",
+      "owner": "PRIMARY_AGENT",
+      "implementation_status": "PLANNED",
+      "artifact_schema_id": "agent-extraction-read-model/v1",
+      "artifact_schema_path": null,
+      "skill_id": "reqpilotx-result-assembly",
+      "reference_paths": [
+        "references/core-ontology.md",
+        "references/runner-parity.md",
+        "references/stage-contracts.md"
+      ],
+      "validator_id": null,
+      "validator_version": null
+    }
+  ],
+  "skills": [
+    {
+      "skill_id": "pdf",
+      "stage": null,
+      "capability_for_stages": [
+        "D1_DOCUMENT_UNDERSTANDING",
+        "D2_LOGICAL_STRUCTURE"
+      ],
+      "path": ".agents/skills/pdf/SKILL.md",
+      "provenance_path": "provenance/openai-primary-runtime-pdf.v1.json"
+    },
+    {
+      "skill_id": "reqpilotx-document-understanding",
+      "stage": "D1_DOCUMENT_UNDERSTANDING",
+      "path": ".agents/skills/reqpilotx-document-understanding/SKILL.md"
+    },
+    {
+      "skill_id": "reqpilotx-extraction-verification",
+      "stage": "D5_COMPLETENESS_VERIFICATION",
+      "path": ".agents/skills/reqpilotx-extraction-verification/SKILL.md"
+    },
+    {
+      "skill_id": "reqpilotx-logical-structure-reconstruction",
+      "stage": "D2_LOGICAL_STRUCTURE",
+      "path": ".agents/skills/reqpilotx-logical-structure-reconstruction/SKILL.md"
+    },
+    {
+      "skill_id": "reqpilotx-parent-provision-recognition",
+      "stage": "D3_PARENT_PROVISION_RECOGNITION",
+      "path": ".agents/skills/reqpilotx-parent-provision-recognition/SKILL.md"
+    },
+    {
+      "skill_id": "reqpilotx-requirement-decomposition",
+      "stage": "D4_REQUIREMENT_DECOMPOSITION",
+      "path": ".agents/skills/reqpilotx-requirement-decomposition/SKILL.md"
+    },
+    {
+      "skill_id": "reqpilotx-result-assembly",
+      "stage": "D6_RESULT_ASSEMBLY",
+      "path": ".agents/skills/reqpilotx-result-assembly/SKILL.md"
+    }
+  ],
+  "runner_profiles": [
+    "runtime/app-server-product.json",
+    "runtime/desktop-discovery.json",
+    "runtime/desktop-reference.json"
+  ],
+  "parity": {
+    "reference_profile_id": "desktop-reference",
+    "product_profile_id": "app-server-product",
+    "policy_path": "runtime/parity-policy.json"
+  }
+}

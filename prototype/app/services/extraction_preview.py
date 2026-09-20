@@ -293,7 +293,7 @@ def _is_running_header_or_footer_line(text: str) -> bool:
         return False
     if re.fullmatch(r"\d{1,3}", value):
         return True
-    return value.startswith(("Q/SK ", "Q-SK ", "Q／SK ", "Q／SKJ", "Q-SKJ", "Q/SKJ"))
+    return bool(re.match(r"^Q(?:/|-|／)[A-Z]{1,6}J?(?:\s|[-/.]|\d)", value, re.I))
 
 
 def _looks_like_table_explanatory_paragraph_line(
@@ -692,6 +692,20 @@ def _collapse_layout_table_body_lines(lines: list[str]) -> str:
     return value
 
 
+def _is_standalone_company_header(text: str) -> bool:
+    value = _normalize_layout_table_text(text)
+    if not 2 <= len(value) <= 80:
+        return False
+    return bool(
+        re.fullmatch(
+            r"[\w\s（）()&·.,\-]+(?:股份)?有限公司|"
+            r"[A-Za-z0-9\s&.,\-]+(?:limited|ltd\.?|corporation|corp\.?|company)",
+            value,
+            flags=re.I,
+        )
+    )
+
+
 def _build_layout_table_line_specs(
     *,
     pdf_document,
@@ -726,7 +740,7 @@ def _build_layout_table_line_specs(
                 continue
             if re.fullmatch(r"\d{1,3}", compact):
                 continue
-            if "重庆赛力斯汽车有限公司" in text:
+            if _is_standalone_company_header(text):
                 continue
             specs.append(
                 {
@@ -770,7 +784,7 @@ def _build_section_visual_line_specs(
                 continue
             if re.fullmatch(r"\d{1,3}", compact):
                 continue
-            if "重庆赛力斯汽车有限公司" in text:
+            if _is_standalone_company_header(text):
                 continue
             specs.append(
                 {
