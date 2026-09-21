@@ -24,11 +24,15 @@ from zipfile import BadZipFile, ZipFile
 
 from portable_core import (
     ENGINE_DISTRIBUTION,
+    MODULE_ROOTS,  # noqa: F401 - compatibility export for bundle-boundary tests
     NAMESPACE_INITIALIZERS,
+    SCRIPT_ROOTS,  # noqa: F401 - compatibility export for bundle-boundary tests
     canonical_digest,
     digest,
     digest_bytes,
     find_repo,
+    module_file,  # noqa: F401 - compatibility export for bundle-boundary tests
+    python_closure,  # noqa: F401 - compatibility export for bundle-boundary tests
     select_core,
 )
 
