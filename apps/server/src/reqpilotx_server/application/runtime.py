@@ -27,6 +27,10 @@ from reqpilotx_server.application.reading_visual_configuration import (
 )
 from reqpilotx_server.application.storage.runtime_files import RuntimeObjectFiles
 from reqpilotx_server.application.source_runtime import bind_source_runtime, clear_source_runtime
+from reqpilotx_server.resource_paths import (
+    configured_development_root,
+    configured_frontend_dir,
+)
 from reqpilotx_server.application.transport import (
     BackgroundTaskScheduler,
     JsonArtifact,
@@ -86,9 +90,9 @@ class ApplicationRuntimeState:
 
 RUNTIME_STATE = ApplicationRuntimeState()
 
-APP_DIR = Path(__file__).resolve().parents[1]
+DEVELOPMENT_ROOT = configured_development_root()
 
-PROTOTYPE_DIR = APP_DIR.parent
+PROTOTYPE_DIR = DEVELOPMENT_ROOT / "prototype" if DEVELOPMENT_ROOT else None
 
 STORAGE_DIR = resolve_storage_dir(PROTOTYPE_DIR)
 
@@ -100,7 +104,7 @@ EXPORTS_DIR = STORAGE_DIR / "exports"
 
 TABLE_SNAPSHOT_DIR = STORAGE_DIR / "table_snapshots"
 
-STATIC_DIR = PROTOTYPE_DIR / "frontend" / "dist"
+STATIC_DIR = configured_frontend_dir()
 
 MAX_DOCUMENT_UPLOAD_BYTES = 128 * 1024 * 1024
 

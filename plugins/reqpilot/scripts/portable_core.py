@@ -34,6 +34,7 @@ MODULE_ROOTS = (
     "reqpilotx.ports.agent_structure_handoff_executor",
 )
 SCRIPT_ROOTS = ("reqpilotx.tools.fast_source_capture",)
+RESOURCE_FILES = ("reqpilotx/resources/branding/schaeffler-logo.png.base64",)
 DEPENDENCIES = {
     "pydantic": "pydantic",
     "pypdf": "pypdf",
@@ -224,6 +225,14 @@ def select_core(repo: Path, *, extraction_only: bool = False) -> CoreSelection:
         roots,
         [path for path in scripts if path is not None],
     )
+    for relative in RESOURCE_FILES:
+        resource = source_root / relative
+        if not resource.is_file() or resource.is_symlink():
+            raise ValueError(f"Required engine resource is missing: {relative}")
+        files.add(resource)
+        initializer = resource.parent.parent / "__init__.py"
+        if initializer.is_file():
+            files.add(initializer)
     requirements = _engine_requirements(repo)
     by_distribution = {line.split("==", 1)[0]: line for line in requirements}
     wanted = {DEPENDENCIES[name] for name in external if name in DEPENDENCIES}

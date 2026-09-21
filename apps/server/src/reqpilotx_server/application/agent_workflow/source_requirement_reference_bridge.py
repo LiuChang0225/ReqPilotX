@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import hashlib
 import json
 import os
@@ -48,7 +50,7 @@ SOURCE_REQUIREMENT_FEEDBACK_SCHEMA_VERSION = "source-requirement-feedback/v1"
 SOURCE_ITEM_LEDGER_SCHEMA_VERSION = "source-item-ledger/v1"
 REQIF_MAPPING_PROFILE_ID = "reqpilotx-reqif-1.2-draft/v1"
 
-_PROTOTYPE_DIR = Path(__file__).resolve().parents[3]
+_PROTOTYPE_DIR = development_path('prototype')
 REFERENCE_ROOT = _PROTOTYPE_DIR / "runtime-data" / "source-requirement-references"
 FEEDBACK_ROOT = _PROTOTYPE_DIR / "runtime-data" / "source-requirement-feedback"
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")

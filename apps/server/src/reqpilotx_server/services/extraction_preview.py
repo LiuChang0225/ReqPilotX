@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 from collections import defaultdict
 from contextlib import nullcontext
 import hashlib
@@ -120,7 +122,7 @@ _LAYOUT_TABLE_MAX_LABEL_CHARS = 20
 _LAYOUT_TABLE_LEFT_COLUMN_MAX_OFFSET = 96.0
 _LAYOUT_TABLE_PRELABEL_GAP = 24.0
 _VISUAL_BAND_MAX_GAP = 28.0
-_PROTOTYPE_DIR = Path(__file__).resolve().parents[2]
+_PROTOTYPE_DIR = development_path('prototype')
 
 
 def _strip_surrogate_codepoints(value: str) -> str:

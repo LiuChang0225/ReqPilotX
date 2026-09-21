@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import hashlib
 import json
 import re
@@ -73,7 +75,7 @@ LLM_REQUIREMENT_SILVER_EVALUATION_SCHEMA_VERSION = (
 )
 DEFAULT_LLM_REQUIREMENT_SILVER_PATH = private_eval_path("extraction_cases/llm_silver.json")
 DEFAULT_LLM_REQUIREMENT_SILVER_SCHEMA_PATH = (
-    Path(__file__).resolve().parents[3] / "eval" / "extraction_cases" / "llm_silver.schema.json"
+    development_path('prototype') / "eval" / "extraction_cases" / "llm_silver.schema.json"
 )
 
 _DOCUMENT_ID_PATTERN = re.compile(r"^DOC-[A-Z0-9-]+$")

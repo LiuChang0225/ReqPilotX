@@ -25,7 +25,7 @@ from reqpilotx_server.worker.runtime import JobHandler
 
 
 def build_job_handlers(container: RuntimeContainer) -> dict[str, JobHandler]:
-    """Build the production worker registry without starting the HTTP reqpilotx_server."""
+    """Build the production worker registry without starting the HTTP app."""
 
     runtime.configure_worker_runtime(container)
     return {

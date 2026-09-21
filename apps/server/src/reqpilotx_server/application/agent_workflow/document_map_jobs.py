@@ -6,6 +6,8 @@ the existing ObjectStore.  This module does not classify or rewrite source items
 
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 from io import BytesIO
 import hashlib
 import json
@@ -27,7 +29,7 @@ from reqpilotx_server.application.transport import ResponseSink
 from reqpilotx_server.ports.job_queue import DurableJob, JobExecutionContext, NonRetryableJobError
 
 DOCUMENT_MAP_JOB_KIND = "agent.document-map"
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = development_path()
 
 
 class DocumentMapStartRequestV1(BaseModel):

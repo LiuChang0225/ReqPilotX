@@ -1,6 +1,8 @@
 """Durable original-image SourceItems through the shared compiler and publisher."""
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 from copy import deepcopy
 from pathlib import Path
 import tempfile
@@ -29,7 +31,7 @@ from reqpilotx_server.ports.job_queue import DurableJob, JobExecutionContext, No
 from reqpilotx_server.adapters.agents.codex_app_server.json_stage_driver import LocalCodexAppServerJsonStageDriver
 
 IMAGE_JOB_KIND = "agent.source-item.images"
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = development_path()
 IMAGE_SKILL = """# Original image source items
 
 Read the supplied original page images, focus on the exact Map-bound image

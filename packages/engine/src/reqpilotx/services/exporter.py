@@ -11,6 +11,7 @@ from collections import Counter
 from dataclasses import dataclass
 from datetime import datetime
 from functools import lru_cache
+from importlib.resources import files
 from io import BytesIO
 from pathlib import Path
 from typing import Any, Callable, Iterable
@@ -105,14 +106,14 @@ _MATRIX_FIGURE_PADDING_PX = 4
 _MATRIX_FIGURE_MIN_SLOT_WIDTH_PX = 96
 _MATRIX_FIGURE_MAX_SLOT_HEIGHT_PX = 120
 _BRAND_LOGO_PATH_CANDIDATES = (
-    Path(__file__).resolve().parents[2]
-    / "resources"
-    / "branding"
-    / "schaeffler-logo.png",
-    Path(__file__).resolve().parents[2]
-    / "resources"
-    / "branding"
-    / "schaeffler-logo.png.base64",
+    Path(str(files("reqpilotx.resources").joinpath("branding/schaeffler-logo.png"))),
+    Path(
+        str(
+            files("reqpilotx.resources").joinpath(
+                "branding/schaeffler-logo.png.base64"
+            )
+        )
+    ),
     Path.home()
     / ".codex"
     / "skills"

@@ -40,6 +40,7 @@ dependencies = [
 [project.scripts]
 reqpilotx-api = "reqpilotx_server.cli:api_main"
 reqpilotx-worker = "reqpilotx_server.worker.__main__:main"
+reqpilotx-capability = "reqpilotx_server.tools.prepare_native_loop_capability:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
@@ -49,4 +50,5 @@ namespaces = true
 [tool.setuptools.package-data]
 reqpilotx_server = [
   "adapters/agents/codex_app_server/protocol_lock.json",
+  "resources/migrations/postgresql/*.sql",
 ]

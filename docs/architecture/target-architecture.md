@@ -26,7 +26,8 @@ PostgreSQL + LocalObjectStore
 independent worker -> application use cases
 ```
 
-- `prototype/app/main.py` 是薄入口，HTTP 装配在 `app/api/`。
+- `apps/server/src/reqpilotx_server/main.py` 是安装版薄入口，HTTP 装配在
+  `reqpilotx_server/api/`；`prototype/app/main.py` 仅为旧 import 兼容别名。
 - 业务用例在 `app/application/`，稳定对象/不变量在 `app/domain/`，外部能力通过 `app/ports/`。
 - `app/adapters/` 提供文档、Agent、模型、存储与持久化实现；`app/worker/` 处理持久任务。
 - `prototype/frontend/` 是现有应用唯一前端工程；生成的 dist 不提交。

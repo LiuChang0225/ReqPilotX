@@ -12,6 +12,7 @@ import re
 import shutil
 import subprocess
 import sys
+import tempfile
 from typing import Literal
 from uuid import uuid4
 
@@ -19,7 +20,6 @@ from pydantic import BaseModel, ConfigDict, Field
 
 from reqpilotx_server.adapters.agents.codex_app_server.native_loop_driver import _digest, _write_json
 from reqpilotx_server.application.agent_workflow.source_item_loop_jobs import (
-    ROOT,
     ACTIVE,
     _existing,
     _locked,
@@ -35,8 +35,7 @@ from reqpilotx_server.infrastructure.runtime_settings import (
 )
 
 
-REGISTRY = ROOT / "prototype/runtime-data/native-loop-capabilities"
-_BUILD_SCRIPT = ROOT / "plugins/reqpilot/scripts/build_bundle.py"
+REGISTRY = Path(tempfile.gettempdir()) / "reqpilotx/native-loop-capabilities"
 
 
 def _manifest_path(value: object, *, category: str) -> PurePosixPath:
@@ -258,12 +257,21 @@ def prepare_native_loop_capability(root: Path, settings: RuntimeSettings | objec
             deployment = getattr(settings, "deployment_mode", DeploymentMode.LOCAL)
             if str(deployment) == DeploymentMode.CLOUD.value:
                 raise ValueError("Cloud tasks cannot build capabilities from source")
+            development_root = getattr(settings, "development_root", None)
+            if development_root is None:
+                raise ValueError(
+                    "development-source requires absolute REQPILOT_DEVELOPMENT_ROOT"
+                )
+            build_script = (
+                Path(development_root)
+                / "plugins/reqpilot/scripts/build_bundle.py"
+            ).resolve(strict=True)
             built = subprocess.run(
                 [
                     sys.executable,
-                    str(_BUILD_SCRIPT),
+                    str(build_script),
                     "--repo",
-                    str(ROOT),
+                    str(Path(development_root).resolve(strict=True)),
                     "--output",
                     str(staging),
                 ],

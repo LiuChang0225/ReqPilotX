@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import copy
 import hashlib
 import json
@@ -65,7 +67,7 @@ _SAFE_ID_PATTERN = re.compile(r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
 _MAX_REFERENCE_FILE_BYTES = 8 * 1024 * 1024
 _FEEDBACK_LOCK = threading.RLock()
 
-_PROTOTYPE_DIR = Path(__file__).resolve().parents[3]
+_PROTOTYPE_DIR = development_path('prototype')
 REFERENCE_ROOT = _PROTOTYPE_DIR / "runtime-data" / "agent-reference-workflows"
 FEEDBACK_ROOT = _PROTOTYPE_DIR / "runtime-data" / "native-structure-feedback"
 

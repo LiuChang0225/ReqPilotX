@@ -16,6 +16,7 @@ from reqpilotx_server.application.extraction.source_asset_objects import (
 )
 from reqpilotx_server.worker.handlers import build_job_handlers
 from reqpilotx_server.worker.runtime import WorkerRuntime
+from reqpilotx_server.composition.trust import configure_host_truststore
 
 
 def _official_local_worker_id(
@@ -79,6 +80,7 @@ def build_parser() -> argparse.ArgumentParser:
 
 
 def main() -> int:
+    configure_host_truststore()
     args = build_parser().parse_args()
     if args.job_id and not args.once:
         raise SystemExit("--job-id requires --once.")

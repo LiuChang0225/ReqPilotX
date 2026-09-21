@@ -44,6 +44,7 @@ from reqpilotx_server.domain.knowledge import (
     has_current_evidence_contract,
 )
 from reqpilotx_server.runtime_paths import resolve_storage_dir
+from reqpilotx_server.resource_paths import configured_development_root
 from reqpilotx_server.services.assessor import (
     COMPLIANCE_HINTS,
     MANDATORY_HINTS,
@@ -182,8 +183,8 @@ NUMERIC_CONSTRAINT_PATTERN = re.compile(
     re.I,
 )
 
-APP_DIR = Path(__file__).resolve().parent
-PROTOTYPE_DIR = APP_DIR.parent.parent
+DEVELOPMENT_ROOT = configured_development_root()
+PROTOTYPE_DIR = DEVELOPMENT_ROOT / "prototype" if DEVELOPMENT_ROOT else None
 STORAGE_DIR = resolve_storage_dir(PROTOTYPE_DIR)
 TRACE_DIR = STORAGE_DIR / "ai_traces"
 INDEX_PAYLOAD_DIR = STORAGE_DIR / "knowledge_index"

@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 from datetime import UTC, datetime
 from io import BytesIO
 import hashlib
@@ -52,7 +54,7 @@ NATIVE_STRUCTURE_BASELINE_RESULT_SCHEMA_VERSION = (
     "native-structure-baseline-job-result/v1"
 )
 
-_REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+_REPOSITORY_ROOT = development_path()
 _AGENT_KIT_ROOT = _REPOSITORY_ROOT / "agent-kit"
 
 

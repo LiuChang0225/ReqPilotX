@@ -8,6 +8,8 @@ current document and publish content-addressed SourceIR assets.
 
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 from dataclasses import dataclass
 from pathlib import Path
 from typing import Any
@@ -22,7 +24,7 @@ from reqpilotx_server.infrastructure.runtime_settings import (
 from reqpilotx_server.ports.object_store import ObjectStore
 
 
-_PROTOTYPE_DIR = Path(__file__).resolve().parents[2]
+_PROTOTYPE_DIR = development_path('prototype')
 
 
 @dataclass(slots=True)

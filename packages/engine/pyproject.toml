@@ -29,3 +29,4 @@ namespaces = true
 
 [tool.setuptools.package-data]
 reqpilotx_engine = ["core-manifest.json"]
+reqpilotx = ["resources/branding/*.base64"]

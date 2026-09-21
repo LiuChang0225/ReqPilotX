@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import hashlib
 import json
 import os
@@ -54,7 +56,7 @@ SUPPORTED_PDF_VISUAL_PROVIDER_IDS = frozenset(
     }
 )
 
-_PROTOTYPE_DIR = Path(__file__).resolve().parents[3]
+_PROTOTYPE_DIR = development_path('prototype')
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _ALLOWED_INPUT_ROTATIONS = frozenset({0, 90, 180, 270})
 PDF_VISUAL_ROUTING_POLICY_ID = "native-first-simple/v1"

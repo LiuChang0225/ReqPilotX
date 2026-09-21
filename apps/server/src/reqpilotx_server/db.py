@@ -18,16 +18,20 @@ from reqpilotx_server.infrastructure.runtime_settings import (
     RuntimeSettings,
 )
 from reqpilotx_server.runtime_paths import resolve_storage_dir
+from reqpilotx_server.resource_paths import (
+    configured_development_root,
+    postgres_migration_dir,
+)
 from reqpilotx_server.services.complex_table_mode import hydrate_complex_row_metadata
 from reqpilotx_server.services.table_assets import (
     _refresh_enriched_entry_text_fields,
     normalize_preserved_entry_table_assets,
 )
 
-APP_DIR = Path(__file__).resolve().parent
-PROTOTYPE_DIR = APP_DIR.parent
+DEVELOPMENT_ROOT = configured_development_root()
+PROTOTYPE_DIR = DEVELOPMENT_ROOT / "prototype" if DEVELOPMENT_ROOT else None
 STORAGE_DIR = resolve_storage_dir(PROTOTYPE_DIR)
-DB_PATH = STORAGE_DIR / "reqpilotx_server.db"
+DB_PATH = STORAGE_DIR / "app.db"
 _RUNTIME_SETTINGS = RuntimeSettings.from_environment(prototype_dir=PROTOTYPE_DIR)
 _POSTGRES_DATABASE: PostgresDatabase | None = None
 
@@ -368,9 +372,7 @@ def _postgres_database() -> PostgresDatabase:
 
 def init_db() -> None:
     if is_postgresql_runtime():
-        _postgres_database().apply_migrations(
-            PROTOTYPE_DIR / "migrations" / "postgresql"
-        )
+        _postgres_database().apply_migrations(postgres_migration_dir())
         return
     with get_conn() as conn:
         conn.executescript(

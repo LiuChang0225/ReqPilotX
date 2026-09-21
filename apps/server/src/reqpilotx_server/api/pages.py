@@ -5,8 +5,10 @@ from pathlib import Path
 from fastapi import APIRouter, HTTPException
 from fastapi.responses import FileResponse
 
+from reqpilotx_server.resource_paths import configured_frontend_dir
 
-FRONTEND_DIST = Path(__file__).resolve().parents[2] / "frontend" / "dist"
+
+FRONTEND_DIST = configured_frontend_dir()
 _ENTRY_ROUTES = (
     "/",
     "/home",

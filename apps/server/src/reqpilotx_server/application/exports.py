@@ -606,7 +606,7 @@ def reveal_export(file_name: str) -> dict:
     ):
         raise ApplicationError(
             status_code=404,
-            detail="Reveal action is only available in the desktop reqpilotx_server.",
+            detail="Reveal action is only available in the desktop app.",
         )
     safe = _safe_name(file_name)
     path = EXPORTS_DIR / safe

@@ -7,6 +7,8 @@ files, or formal AI-copilot runtime objects.
 
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import json
 import os
 from collections.abc import Mapping
@@ -165,7 +167,7 @@ def build_reading_visual_setup(
 
 
 def _read_config_json(*, prototype_dir: Path | None) -> dict[str, Any]:
-    root = prototype_dir or Path(__file__).resolve().parents[2]
+    root = prototype_dir or development_path('prototype')
     path = resolve_storage_dir(root) / "config.json"
     try:
         payload = json.loads(path.read_text(encoding="utf-8"))

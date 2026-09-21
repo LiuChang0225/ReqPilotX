@@ -42,7 +42,7 @@ _LOCK_REGISTRY_GUARD = Lock()
 _DOCUMENT_LOCKS: dict[tuple[str, str, str], RLock] = {}
 _ENTRY_LOCKS: dict[tuple[str, str, str, str], RLock] = {}
 _REVOKED_DOCUMENT_BINDINGS: set[tuple[str, str, str]] = set()
-logger = logging.getLogger(__name__)
+logger = logging.getLogger("app.services.visual_text_snapshot_cache")
 
 
 class VisualTextSnapshotCacheRequiredMiss(RuntimeError):

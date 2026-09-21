@@ -51,7 +51,6 @@ from reqpilotx_server.application.errors import ApplicationError
 from reqpilotx_server.application.transport import ResponseSink
 from reqpilotx_server.ports.job_queue import NonRetryableJobError
 
-ROOT = Path(__file__).resolve().parents[4]
 LOOP_JOB_KIND = "agent.source-item.loop"
 ENTRYPOINT = "source-item-workbench-v1"
 TASK_SCHEMA = "source-item-loop-task/v1"
@@ -861,7 +860,7 @@ def run_durable_source_item_loop(job, context):
     driver = LocalCodexAppServerNativeLoopDriver(
         codex_bin=container.settings.codex_bin,
         codex_home=container.settings.codex_home,
-        repository_root=ROOT,
+        repository_root=container.settings.development_root or root,
         model_id=container.settings.agent_model_id,
     )
     from reqpilotx_server.adapters.agents.codex_app_server.native_loop_pdf import native_loop_skill_paths

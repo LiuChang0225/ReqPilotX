@@ -49,6 +49,7 @@ from reqpilotx_server.infrastructure.runtime_settings import (
     ObjectStoreBackend,
     RuntimeSettings,
 )
+from reqpilotx_server.resource_paths import postgres_migration_dir
 from reqpilotx_server.ports.job_queue import JobQueue
 from reqpilotx_server.ports.agent_structure_proposal_repository import (
     AgentStructureProposalRepository,
@@ -149,10 +150,7 @@ def build_runtime_container(
     if settings.database_backend is DatabaseBackend.POSTGRESQL:
         database = PostgresDatabase(settings.database_url)
         if apply_migrations:
-            migration_dir = (
-                Path(__file__).resolve().parents[2] / "migrations" / "postgresql"
-            )
-            database.apply_migrations(migration_dir)
+            database.apply_migrations(postgres_migration_dir())
         jobs = PostgresJobQueue(database)
         llm_review_repository = PostgresLlmRequirementReviewRepository(database)
         requirement_enrichment_repository = PostgresRequirementEnrichmentRepository(
@@ -217,10 +215,14 @@ def _build_structure_handoff_executor(
         return None
     if settings.codex_bin is None or settings.codex_home is None:
         raise ValueError("Codex App Server paths were not validated.")
+    if settings.development_root is None:
+        raise ValueError(
+            "Codex App Server host assets require REQPILOT_DEVELOPMENT_ROOT."
+        )
     return LocalCanonicalStructureHandoffExecutor(
         codex_bin=settings.codex_bin,
         codex_home=settings.codex_home,
-        repository_root=Path(__file__).resolve().parents[3],
+        repository_root=settings.development_root,
     )
 
 
@@ -231,10 +233,14 @@ def _build_source_requirement_window_executor(
         return None
     if settings.codex_bin is None or settings.codex_home is None:
         raise ValueError("Codex App Server paths were not validated.")
+    if settings.development_root is None:
+        raise ValueError(
+            "Codex App Server host assets require REQPILOT_DEVELOPMENT_ROOT."
+        )
     return LocalCanonicalSourceRequirementWindowExecutor(
         codex_bin=settings.codex_bin,
         codex_home=settings.codex_home,
-        repository_root=Path(__file__).resolve().parents[3],
+        repository_root=settings.development_root,
     )
 
 
@@ -245,10 +251,14 @@ def _build_source_item_text_executor(
         return None
     if settings.codex_bin is None or settings.codex_home is None:
         raise ValueError("Codex App Server paths were not validated.")
+    if settings.development_root is None:
+        raise ValueError(
+            "Codex App Server host assets require REQPILOT_DEVELOPMENT_ROOT."
+        )
     return LocalCanonicalSourceItemTextExecutor(
         codex_bin=settings.codex_bin,
         codex_home=settings.codex_home,
-        repository_root=Path(__file__).resolve().parents[3],
+        repository_root=settings.development_root,
     )
 
 
@@ -265,7 +275,11 @@ def _build_agent_runtime_components(
         raise ValueError("Unsupported Agent Runtime backend.")
     if settings.codex_bin is None or settings.codex_home is None:
         raise ValueError("Codex App Server paths were not validated.")
-    repository_root = Path(__file__).resolve().parents[3]
+    if settings.development_root is None:
+        raise ValueError(
+            "Codex App Server host assets require REQPILOT_DEVELOPMENT_ROOT."
+        )
+    repository_root = settings.development_root
     structure_driver = LocalCodexAppServerStructureDriver(
         codex_bin=settings.codex_bin,
         codex_home=settings.codex_home,

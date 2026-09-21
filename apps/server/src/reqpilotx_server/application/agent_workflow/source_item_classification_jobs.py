@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 from pathlib import Path
 import tempfile
 
@@ -41,7 +43,7 @@ from reqpilotx_server.adapters.agents.codex_app_server.json_stage_driver import 
     LocalCodexAppServerJsonStageDriver,
 )
 
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = development_path()
 CLASSIFICATION_JOB_KIND = "agent.source-item.classify"
 
 

@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import os
 import re
 import tempfile
@@ -8,6 +10,11 @@ from dataclasses import dataclass
 from enum import StrEnum
 from pathlib import Path
 from urllib.parse import urlsplit
+
+from reqpilotx_server.resource_paths import (
+    configured_development_root,
+    configured_frontend_dir,
+)
 
 
 class DeploymentMode(StrEnum):
@@ -81,6 +88,8 @@ class RuntimeSettings:
         "reqpilotx/native-loop-capabilities"
     )
     native_capability_bundle_sha256: str = ""
+    development_root: Path | None = None
+    frontend_root: Path = Path(tempfile.gettempdir()) / "reqpilotx/frontend"
 
     @classmethod
     def from_environment(
@@ -91,7 +100,7 @@ class RuntimeSettings:
     ) -> RuntimeSettings:
         source = os.environ if environment is None else environment
         root = (
-            Path(__file__).resolve().parents[2]
+            development_path('prototype')
             if prototype_dir is None
             else Path(prototype_dir)
         )
@@ -133,7 +142,7 @@ class RuntimeSettings:
             source.get("REQPILOT_OBJECT_ROOT")
             or (
                 source.get("REQPILOT_STORAGE_DIR")
-                if test_mode
+                if test_mode or prototype_dir is None
                 else None
             )
             or root / "runtime-data"
@@ -217,6 +226,11 @@ class RuntimeSettings:
         native_capability_bundle_sha256 = str(
             source.get("REQPILOT_NATIVE_CAPABILITY_BUNDLE_SHA256") or ""
         ).strip().lower()
+        try:
+            development_root = configured_development_root(source)
+            frontend_root = configured_frontend_dir(source)
+        except ValueError as exc:
+            raise RuntimeConfigurationError(str(exc)) from exc
         if native_capability_bundle_sha256 and not re.fullmatch(
             r"[0-9a-f]{64}", native_capability_bundle_sha256
         ):
@@ -295,6 +309,8 @@ class RuntimeSettings:
             native_capability_mode=native_capability_mode,
             native_capability_registry_root=native_capability_registry_root,
             native_capability_bundle_sha256=native_capability_bundle_sha256,
+            development_root=development_root,
+            frontend_root=frontend_root,
         )
 
     @property

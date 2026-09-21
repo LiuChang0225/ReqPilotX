@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import hashlib
 import json
 import math
@@ -79,7 +81,7 @@ PDF_SHADOW_SILVER_SUBSET_EVALUATION_SCHEMA_VERSION = (
 )
 DEFAULT_PDF_SHADOW_SILVER_PATH = private_eval_path("extraction_cases/silver.json")
 DEFAULT_PDF_SHADOW_SILVER_SCHEMA_PATH = (
-    Path(__file__).resolve().parents[3] / "eval" / "extraction_cases" / "silver.schema.json"
+    development_path('prototype') / "eval" / "extraction_cases" / "silver.schema.json"
 )
 _CHECK_ID_PATTERN = re.compile(r"^[a-z0-9_.:-]{1,240}$")
 _DOCUMENT_ID_PATTERN = re.compile(r"^DOC-[A-Z0-9-]+$")

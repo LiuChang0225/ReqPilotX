@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 from dataclasses import dataclass
 from functools import lru_cache
 from pathlib import Path
@@ -12,7 +14,7 @@ from reqpilotx_server.application.agent_workflow.structure_tool_loop import (
 )
 
 
-DEFAULT_AGENT_KIT_ROOT = Path(__file__).resolve().parents[4] / "agent-kit"
+DEFAULT_AGENT_KIT_ROOT = development_path() / "agent-kit"
 
 
 @dataclass(frozen=True, slots=True)

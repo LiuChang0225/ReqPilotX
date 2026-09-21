@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import argparse
 from collections import Counter
 from dataclasses import dataclass, field, replace
@@ -841,7 +843,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = run_read_only_mcp_canary(
             codex_bin=args.codex_bin,
             codex_home=args.codex_home,
-            repository_root=Path(__file__).resolve().parents[3],
+            repository_root=development_path('prototype', 'app'),
             model=str(args.model),
             timeout_seconds=float(args.timeout_seconds),
         )

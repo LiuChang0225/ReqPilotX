@@ -21,7 +21,7 @@ class McpTaskAdapterTests(unittest.TestCase):
         import base64,hashlib
         import pymupdf
         from mcp import Client, StdioServerParameters
-        from app.adapters.documents.pdf_source_crop_renderer import render_pdf_source_crop
+        from reqpilotx.adapters.documents.pdf_source_crop_renderer import render_pdf_source_crop
         with TemporaryDirectory() as temporary:
             root=Path(temporary);source=root/'source.pdf';doc=pymupdf.open()
             page=doc.new_page(width=300,height=400)

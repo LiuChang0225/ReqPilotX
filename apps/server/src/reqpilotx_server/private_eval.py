@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import os
 from pathlib import Path
 
@@ -20,7 +22,7 @@ def private_eval_path(relative_path: str) -> Path:
     root = (
         Path(configured).expanduser().resolve()
         if configured
-        else Path(__file__).resolve().parents[1] / "eval" / "private"
+        else development_path('prototype') / "eval" / "private"
     )
     result = (root / relative_path).resolve()
     if not result.is_relative_to(root.resolve()):

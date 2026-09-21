@@ -14,13 +14,13 @@ class SourceDocumentModelSelectionTests(TestCase):
                                      ({}, ('gpt-5.6-sol','high'))]:
             with self.subTest(selection=selection), TemporaryDirectory() as directory:
                 root=Path(directory)
-                settings=SimpleNamespace(codex_bin=root/'codex',codex_home=root/'home',agent_model_id='gpt-5.6-sol')
+                settings=SimpleNamespace(codex_bin=root/'codex',codex_home=root/'home',agent_model_id='gpt-5.6-sol',development_root=root)
                 container=SimpleNamespace(settings=settings)
                 meta={'latest_job_id':'job','task_id':'task','project_id':'p','document_id':'d','source_sha256':'a'*64,'request':selection}
                 job=SimpleNamespace(job_id='job',aggregate_id='d',payload={'project_id':'p','task_id':'task',
                     'application_entrypoint':source.ENTRYPOINT,'phase':'INITIAL_SOURCE','goal':'Read the original','origin':'USER_REQUEST'})
                 with patch.object(source,'_raw_existing',return_value=(container,root,meta)), \
-                     patch('app.application.agent_workflow.native_loop_capabilities.active_native_loop_plugin',return_value=root/'plugin'), \
+                     patch('app.application.agent_workflow.native_loop_capabilities.native_loop_plugin_for_job',return_value=root/'plugin'), \
                      patch.object(source,'SourceDocumentToolHost') as host, patch.object(source,'LocalCodexAppServerNativeLoopDriver') as driver:
                     from app.application.agent_workflow.native_task_brief import build_task_brief
                     host.return_value.task_brief.return_value=build_task_brief(goal='Read the original',origin='USER_REQUEST',require_map_confirmation=False)

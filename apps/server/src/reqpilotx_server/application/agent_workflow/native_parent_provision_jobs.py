@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 from collections import Counter
 from io import BytesIO
 import hashlib
@@ -106,7 +108,7 @@ NATIVE_PARENT_PROVISION_JOB_KIND = "agent.parent-provision.recognize"
 NATIVE_PARENT_PROVISION_JOB_SCHEMA_VERSION = "native-parent-provision-job/v1"
 NATIVE_PARENT_PROVISION_RESULT_SCHEMA_VERSION = "native-parent-provision-job-result/v1"
 
-_REPOSITORY_ROOT = Path(__file__).resolve().parents[4]
+_REPOSITORY_ROOT = development_path()
 _AGENT_KIT_ROOT = _REPOSITORY_ROOT / "agent-kit"
 
 

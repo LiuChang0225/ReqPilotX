@@ -352,7 +352,7 @@ def build_source_asset_loader(object_store: ObjectStore) -> SourceAssetLoader:
 
 
 def runtime_source_asset_publisher() -> SourceAssetPublisher | None:
-    """Return the runtime asset sink, or no sink outside an initialized reqpilotx_server.
+    """Return the runtime asset sink, or no sink outside an initialized app.
 
     SourceIR adapters deliberately keep portable logical keys.  This
     application boundary is the only place where those keys become durable

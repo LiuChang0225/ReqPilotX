@@ -38,7 +38,6 @@ from reqpilotx_server.application.agent_workflow.native_structure_bridge import 
     _require_project_document,
 )
 from reqpilotx_server.application.agent_workflow.source_item_loop_jobs import (
-    ROOT,
     ACTIVE,
     ENTRYPOINT,
     LoopControlRequestV1,
@@ -1293,7 +1292,7 @@ def run_durable_source_document_loop(job, context):
     driver = LocalCodexAppServerNativeLoopDriver(
         codex_bin=container.settings.codex_bin,
         codex_home=container.settings.codex_home,
-        repository_root=ROOT,
+        repository_root=container.settings.development_root or root,
         model_id=meta.get("request", {}).get("model_id") or container.settings.agent_model_id,
         reasoning_effort=meta.get("request", {}).get("reasoning_effort") or "high",
     )

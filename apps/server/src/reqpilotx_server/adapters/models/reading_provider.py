@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import json
 from pathlib import Path
 import re
@@ -275,7 +277,7 @@ def build_reading_provider() -> ReadingProviderPort:
             reason_code=reason_code or "reading_codex_unavailable",
         )
     config = runtime.provider_config()
-    repository_root = Path(__file__).resolve().parents[4]
+    repository_root = development_path()
     return ConfiguredReadingProvider(
         config,
         transport=CodexReadingJsonChatTransport(

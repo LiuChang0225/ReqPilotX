@@ -8,6 +8,8 @@ its own explicit provider selection and model settings.
 
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import json
 import logging
 import os
@@ -436,7 +438,7 @@ def _azure_token_provider(allow_interactive_login: bool):
 def _read_runtime_config_json(
     *, environment: Mapping[str, str]
 ) -> dict[str, Any]:
-    prototype_dir = Path(__file__).resolve().parents[3]
+    prototype_dir = development_path('prototype')
     path = resolve_storage_dir(prototype_dir, environment=environment) / "config.json"
     if not path.is_file():
         return {}

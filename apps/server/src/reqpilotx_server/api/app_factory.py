@@ -67,7 +67,7 @@ def create_app(*, settings: RuntimeSettings | None = None) -> FastAPI:
     runtime_settings = settings or runtime.RUNTIME_SETTINGS
     app = create_http_app(
         settings=runtime_settings,
-        static_dir=runtime.STATIC_DIR,
+        static_dir=runtime_settings.frontend_root,
     )
     app.add_exception_handler(
         ApplicationError,

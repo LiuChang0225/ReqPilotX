@@ -262,7 +262,12 @@ def run(args: Namespace) -> int:
         import psycopg
         with psycopg.connect(database_url) as connection:
             migrations = connection.execute("SELECT version, name, sha256 FROM schema_migrations ORDER BY version").fetchall()
-        expected_migrations = sorted((ROOT / "prototype" / "migrations" / "postgresql").glob("*.sql"))
+        expected_migrations = sorted(
+            (
+                ROOT
+                / "apps/server/src/reqpilotx_server/resources/migrations/postgresql"
+            ).glob("*.sql")
+        )
         require(len(migrations) == len(expected_migrations) and len(migrations) > 0,
                 "Application migrations were not fully applied")
         receipt["migrations"] = [{"version": row[0], "name": row[1], "sha256": row[2]} for row in migrations]

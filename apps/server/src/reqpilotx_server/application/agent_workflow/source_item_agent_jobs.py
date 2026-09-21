@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 from io import BytesIO
 import hashlib
 import json
@@ -49,7 +51,7 @@ from reqpilotx_server.adapters.agents.codex_app_server.json_stage_driver import 
 
 DECOMPOSITION_JOB_KIND = "agent.source-item.decompose"
 ANALYSIS_JOB_KIND = "agent.source-item.analyze"
-ROOT = Path(__file__).resolve().parents[4]
+ROOT = development_path()
 
 
 def get_source_item_agent_job(

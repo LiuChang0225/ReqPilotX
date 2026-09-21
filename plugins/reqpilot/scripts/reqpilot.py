@@ -186,14 +186,20 @@ def catalog(_: argparse.Namespace) -> dict:
 
 def capture(args: argparse.Namespace) -> int:
     root = runtime_root(args.project_root)
-    command = [sys.executable, str(root / "scripts/fast_source_capture.py"), "--source", str(args.source.expanduser().resolve(strict=True)), "--output-dir", str(args.output_dir.expanduser().resolve())]
+    command = [sys.executable, "-m", "reqpilotx.tools.fast_source_capture", "--source", str(args.source.expanduser().resolve(strict=True)), "--output-dir", str(args.output_dir.expanduser().resolve())]
     if args.expected_sha256:
         command.extend(["--expected-sha256", args.expected_sha256])
     if args.capture_only:
         command.append("--capture-only")
     if args.progress:
         command.append("--progress")
-    return subprocess.run(command, check=False).returncode
+    environment = dict(os.environ)
+    environment["PYTHONPATH"] = str(root) + (
+        os.pathsep + environment["PYTHONPATH"]
+        if environment.get("PYTHONPATH")
+        else ""
+    )
+    return subprocess.run(command, check=False, env=environment).returncode
 
 
 def host(args: argparse.Namespace) -> int:

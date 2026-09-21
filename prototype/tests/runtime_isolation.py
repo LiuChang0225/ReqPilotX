@@ -21,6 +21,8 @@ OBJECT_STORE_ENV_VAR = "REQPILOT_OBJECT_STORE"
 OBJECT_ROOT_ENV_VAR = "REQPILOT_OBJECT_ROOT"
 SCRATCH_ROOT_ENV_VAR = "REQPILOT_SCRATCH_ROOT"
 AGENT_RUNTIME_ENV_VAR = "REQPILOT_AGENT_RUNTIME"
+DEVELOPMENT_ROOT_ENV_VAR = "REQPILOT_DEVELOPMENT_ROOT"
+FRONTEND_ROOT_ENV_VAR = "REQPILOT_FRONTEND_DIR"
 
 _LOCK = Lock()
 _ACTIVE_STORAGE_DIR: Path | None = None
@@ -45,6 +47,8 @@ def _apply_isolated_environment(storage_dir: Path) -> None:
             OBJECT_ROOT_ENV_VAR: str(storage_dir),
             SCRATCH_ROOT_ENV_VAR: str(scratch_dir),
             AGENT_RUNTIME_ENV_VAR: "none",
+            DEVELOPMENT_ROOT_ENV_VAR: str(_PROTOTYPE_DIR.parent),
+            FRONTEND_ROOT_ENV_VAR: str(_PROTOTYPE_DIR / "frontend/dist"),
         }
     )
 

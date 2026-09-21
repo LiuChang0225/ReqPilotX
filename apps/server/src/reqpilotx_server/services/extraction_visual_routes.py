@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import hashlib
 import json
 import re
@@ -35,7 +37,7 @@ EXTRACTION_VISUAL_STRATEGY_SCHEMA_VERSION = "extraction-visual-strategy/v1"
 _MAX_ROUTE_REGISTRY_BYTES = 8 * 1024 * 1024
 _SHA256_PATTERN = re.compile(r"^[0-9a-f]{64}$")
 _ROUTE_ID_PATTERN = re.compile(r"^pvr-[0-9a-f]{32}$")
-_PROTOTYPE_DIR = Path(__file__).resolve().parents[2]
+_PROTOTYPE_DIR = development_path('prototype')
 DEFAULT_VISUAL_ROUTE_REGISTRY_PATH = private_eval_path("extraction_cases/visual_routes.json")
 
 

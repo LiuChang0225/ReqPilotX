@@ -2,6 +2,8 @@
 
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import argparse
 from dataclasses import replace
 import hashlib
@@ -49,7 +51,7 @@ _PDF_SKILL = "reqpilotx-pdf-understanding"
 _STRUCTURE_SKILL = "reqpilotx-structure-tree-generation"
 _EXPECTED_SKILLS = frozenset({_PDF_SKILL, _STRUCTURE_SKILL})
 _SCHEMA_DIR = (
-    Path(__file__).resolve().parents[4] / "spikes/codex_app_server/schemas"
+    development_path('prototype') / "spikes/codex_app_server/schemas"
 )
 _PDF_SCHEMA_PATH = _SCHEMA_DIR / "document_understanding_proposal_v1.schema.json"
 _STRUCTURE_SCHEMA_PATH = _SCHEMA_DIR / "structure_proposal_v1.schema.json"
@@ -693,7 +695,7 @@ def main(argv: Sequence[str] | None = None) -> int:
         result = run_pdf_skill_canary(
             codex_bin=args.codex_bin,
             codex_home=args.codex_home,
-            repository_root=Path(__file__).resolve().parents[3],
+            repository_root=development_path('prototype', 'app'),
             model=str(args.model),
             timeout_seconds=float(args.timeout_seconds),
         )

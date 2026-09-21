@@ -40,6 +40,8 @@ export REQPILOT_CODEX_AUTH_STORE="${REQPILOT_CODEX_AUTH_STORE:-file}"
 export REQPILOT_AGENT_CUSTOMER_DATA_ENABLED="${REQPILOT_AGENT_CUSTOMER_DATA_ENABLED:-1}"
 export PYTHONPATH="$repo_dir/packages/engine/src:$repo_dir/apps/server/src:$prototype_dir${PYTHONPATH:+:$PYTHONPATH}"
 export REQPILOT_STORAGE_DIR="${REQPILOT_STORAGE_DIR:-$prototype_dir/storage}"
+export REQPILOT_OBJECT_ROOT="${REQPILOT_OBJECT_ROOT:-$prototype_dir/runtime-data}"
 export REQPILOT_FRONTEND_DIR="${REQPILOT_FRONTEND_DIR:-$prototype_dir/frontend/dist}"
+export REQPILOT_DEVELOPMENT_ROOT="${REQPILOT_DEVELOPMENT_ROOT:-$repo_dir}"
 echo "$$" > "$worker_pid_file"
 exec "$worker_python" "$worker_cli" serve

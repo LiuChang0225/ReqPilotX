@@ -1,5 +1,7 @@
 from __future__ import annotations
 
+from reqpilotx_server.resource_paths import development_path
+
 import json
 import os
 import secrets
@@ -181,7 +183,7 @@ def resolve_local_qdrant_binary(
 ) -> Path | None:
     source = os.environ if environment is None else environment
     root = (
-        Path(__file__).resolve().parents[2]
+        development_path('prototype')
         if prototype_dir is None
         else Path(prototype_dir).expanduser().resolve(strict=False)
     )
