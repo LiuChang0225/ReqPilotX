@@ -14,6 +14,7 @@ sys.path.insert(0, str(REPO / "prototype"))
 sys.path.insert(0, str(REPO / "plugins/reqpilot/scripts"))
 
 from app.application.agent_workflow.native_loop_capabilities import (  # noqa: E402
+    _registered_bundle_path,
     _verify_bundle,
     register_native_loop_capability_bundle,
 )
@@ -73,10 +74,8 @@ def main() -> int:
                 require_engine_release=True,
             )
         else:
-            bundle = (
-                args.registry_root
-                / args.bundle_sha256
-                / "reqpilot"
+            bundle = _registered_bundle_path(
+                args.registry_root, args.bundle_sha256
             )
             receipt = _verify_bundle(
                 bundle,
