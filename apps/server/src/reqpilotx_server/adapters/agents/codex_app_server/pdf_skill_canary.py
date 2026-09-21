@@ -51,7 +51,7 @@ _PDF_SKILL = "reqpilotx-pdf-understanding"
 _STRUCTURE_SKILL = "reqpilotx-structure-tree-generation"
 _EXPECTED_SKILLS = frozenset({_PDF_SKILL, _STRUCTURE_SKILL})
 _SCHEMA_DIR = (
-    development_path('prototype') / "spikes/codex_app_server/schemas"
+    development_path("experiments") / "codex-app-server/schemas"
 )
 _PDF_SCHEMA_PATH = _SCHEMA_DIR / "document_understanding_proposal_v1.schema.json"
 _STRUCTURE_SCHEMA_PATH = _SCHEMA_DIR / "structure_proposal_v1.schema.json"
@@ -463,9 +463,16 @@ def _copy_runtime_skills(
     repository_root: Path,
     skill_names: Sequence[str] = tuple(sorted(_EXPECTED_SKILLS)),
 ) -> tuple[dict[str, Path], dict[str, Mapping[str, str]]]:
-    source_root = (
-        repository_root / "prototype/runtime_assets/codex-workspace/.agents/skills"
-    ).resolve(strict=True)
+    repository_root = repository_root.resolve(strict=True)
+    unresolved_source_root = (
+        repository_root / "agent-assets/compatibility/runtime-skills"
+    )
+    try:
+        source_root = unresolved_source_root.resolve(strict=True)
+    except OSError as exc:
+        raise LifecycleProbeError("PRODUCT_SKILL_SOURCE_MISSING") from exc
+    if source_root != repository_root and not source_root.is_relative_to(repository_root):
+        raise LifecycleProbeError("PRODUCT_SKILL_SOURCE_ESCAPES_REPOSITORY")
     target_root = runtime.sterile_cwd / ".agents/skills"
     target_root.mkdir(parents=True, mode=0o700)
     os.chmod(target_root.parent, 0o700)
@@ -476,7 +483,11 @@ def _copy_runtime_skills(
     if not normalized_skill_names:
         raise LifecycleProbeError("PRODUCT_SKILL_ALLOWLIST_EMPTY")
     for skill_name in normalized_skill_names:
+        if not re.fullmatch(r"[a-z0-9][a-z0-9-]{1,79}", skill_name):
+            raise LifecycleProbeError("PRODUCT_SKILL_NAME_INVALID")
         source = source_root / skill_name
+        if source.is_symlink() or not source.is_dir():
+            raise LifecycleProbeError("PRODUCT_SKILL_SOURCE_MISSING")
         target = target_root / skill_name
         shutil.copytree(source, target)
         skill_md = (target / "SKILL.md").resolve(strict=True)

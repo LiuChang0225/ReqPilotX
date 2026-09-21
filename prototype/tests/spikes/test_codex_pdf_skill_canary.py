@@ -215,7 +215,8 @@ class CodexPdfSkillCanaryTests(unittest.TestCase):
 
     def test_machine_schemas_are_strict_json_objects(self) -> None:
         schema_dir = (
-            Path(__file__).resolve().parents[2] / "spikes/codex_app_server/schemas"
+            Path(__file__).resolve().parents[3]
+            / "experiments/codex-app-server/schemas"
         )
         for name in (
             "document_agent_facts_v1.schema.json",

@@ -12,6 +12,7 @@ import argparse
 import base64
 import csv
 import hashlib
+import importlib.util
 import io
 import json
 import shutil
@@ -23,16 +24,11 @@ from zipfile import BadZipFile, ZipFile
 
 from portable_core import (
     ENGINE_DISTRIBUTION,
-    MODULE_ROOTS,
     NAMESPACE_INITIALIZERS,
-    PLUGIN_ROOT,
-    SCRIPT_ROOTS,
     canonical_digest,
     digest,
     digest_bytes,
     find_repo,
-    module_file,
-    python_closure,
     select_core,
 )
 
@@ -44,6 +40,28 @@ ENGINE_WRAPPER_MEMBERS = frozenset({
 DIST_INFO_MEMBERS = frozenset(
     {"METADATA", "WHEEL", "entry_points.txt", "top_level.txt", "RECORD"}
 )
+
+
+def _load_agent_asset_registry(repo: Path):
+    path = repo / "agent-assets/scripts/asset_registry.py"
+    if not path.is_file() or path.is_symlink():
+        raise ValueError(f"Agent asset registry is missing or unsafe: {path}")
+    spec = importlib.util.spec_from_file_location("reqpilotx_agent_asset_registry", path)
+    if spec is None or spec.loader is None:
+        raise ValueError("Agent asset registry cannot be loaded")
+    module = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(module)
+    return module
+
+
+def _asset_source(repo: Path, catalog: dict, identifier: str) -> Path:
+    matches = [group for group in catalog["groups"] if group.get("id") == identifier]
+    if len(matches) != 1:
+        raise ValueError(f"Agent asset catalog must define exactly one {identifier!r} group")
+    path = repo.joinpath(*PurePosixPath(matches[0]["source"]).parts)
+    if not path.is_dir() or path.is_symlink():
+        raise ValueError(f"Canonical Agent asset source is missing or unsafe: {identifier}")
+    return path
 
 
 def _safe_wheel_member(name: str) -> PurePosixPath:
@@ -239,11 +257,19 @@ def _install_direct_selection(selection, runtime: Path) -> list[dict]:
 
 def build(repo: Path, output: Path, *, extraction_only: bool = False, engine_wheel: Path | None = None) -> dict:
     repo = find_repo(repo)
+    plugin_root = repo / "plugins/reqpilot"
+    if not plugin_root.is_dir() or plugin_root.is_symlink():
+        raise ValueError("ReqPilotX plugin source is missing or unsafe")
     output = output.expanduser().resolve()
     if output.exists():
         raise ValueError("Bundle output must not exist; each build gets a new immutable directory")
-    if output == PLUGIN_ROOT or output in PLUGIN_ROOT.parents or PLUGIN_ROOT in output.parents:
+    if output == plugin_root or output in plugin_root.parents or plugin_root in output.parents:
         raise ValueError("Build output must be outside plugin source")
+    asset_registry = _load_agent_asset_registry(repo)
+    agent_assets = asset_registry.release_asset_manifest(repo)
+    asset_catalog = asset_registry.load_catalog(repo)
+    skill_source = _asset_source(repo, asset_catalog, "current-portable-skills")
+    pdf_source = _asset_source(repo, asset_catalog, "vendor-pdf-26-905-11957")
     selection = select_core(repo, extraction_only=extraction_only)
     engine_manifest = None
     if engine_wheel is not None and extraction_only:
@@ -253,11 +279,31 @@ def build(repo: Path, output: Path, *, extraction_only: bool = False, engine_whe
             engine_wheel = engine_wheel.expanduser().resolve(strict=True)
             engine_manifest = _validated_wheel_manifest(engine_wheel)
             _assert_same_selection(selection, engine_manifest)
+            asset_registry.assert_release_inputs_match_commit(
+                repo,
+                str(engine_manifest["source_commit"]),
+            )
+            loaded_builder = Path(__file__).resolve()
+            committed_builder = plugin_root / "scripts/build_bundle.py"
+            if loaded_builder.read_bytes() != committed_builder.read_bytes():
+                raise ValueError("Loaded plugin builder differs from the release checkout")
         shutil.copytree(
-            PLUGIN_ROOT,
+            plugin_root,
             output,
-            ignore=shutil.ignore_patterns("runtime", "runtime-data", "tests", "__pycache__", "*.pyc", "*.zip", ".pytest_cache"),
+            ignore=shutil.ignore_patterns(
+                "runtime",
+                "runtime-data",
+                "tests",
+                "skills",
+                "__pycache__",
+                "*.pyc",
+                "*.zip",
+                ".pytest_cache",
+            ),
         )
+        shutil.copytree(skill_source, output / "skills")
+        shutil.rmtree(output / "capabilities/pdf")
+        shutil.copytree(pdf_source, output / "capabilities/pdf")
         runtime = output / "runtime/prototype"
         if extraction_only or engine_manifest is None:
             runtime_files = _install_direct_selection(selection, runtime)
@@ -281,9 +327,10 @@ def build(repo: Path, output: Path, *, extraction_only: bool = False, engine_whe
             "module_roots": list(selection.module_roots),
             "python_minimum": "3.11",
             "requirements": list(selection.requirements),
-            "optional_local_ocr_requirements": (PLUGIN_ROOT / "requirements-ocr.txt").read_text(encoding="utf-8").splitlines(),
+            "optional_local_ocr_requirements": (plugin_root / "requirements-ocr.txt").read_text(encoding="utf-8").splitlines(),
             "optional_or_unknown_imports": list(selection.optional_or_unknown_imports),
             "runtime_files": runtime_files,
+            "agent_assets": agent_assets,
         }
         if engine_manifest is not None:
             receipt["engine_release"] = {
@@ -303,6 +350,7 @@ def build(repo: Path, output: Path, *, extraction_only: bool = False, engine_whe
         ]
         receipt["bundle_sha256"] = canonical_digest(receipt)
         (output / "build-receipt.json").write_text(json.dumps(receipt, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        asset_registry.verify_frozen_bundle(output)
         return {
             "status": "EXTRACTION_ONLY_BUILT" if extraction_only else "BUILT",
             "output": str(output),

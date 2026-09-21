@@ -1,0 +1,125 @@
+{
+  "schema_version": "reqpilotx-agent-asset-catalog/v1",
+  "groups": [
+    {
+      "id": "current-project-skill",
+      "classification": "CURRENT",
+      "asset_kind": "PROJECT_DISCOVERY_SKILL",
+      "source": "agent-assets/current/project-skills",
+      "tree_sha256": "a4542d0da61da19ae4e3a3dc6e58df50778385125bd82eb3573bceb966d351d7",
+      "consumers": [
+        "Codex project skill discovery from .agents/skills",
+        "engineers performing the current extraction and feedback loop"
+      ],
+      "target": "Maintain current project-only Agent guidance without shipping development context in the portable plugin.",
+      "compatibility": "The .agents/skills tree is a deterministic discovery projection of this source.",
+      "verification": "Exact source/projection inventory and SHA-256 equality.",
+      "retirement_condition": "Retire only after project skill discovery has a tested replacement.",
+      "projections": [
+        {
+          "path": ".agents/skills",
+          "mode": "mirror"
+        }
+      ]
+    },
+    {
+      "id": "current-portable-skills",
+      "classification": "CURRENT",
+      "asset_kind": "PORTABLE_PLUGIN_SKILLS_AND_REFERENCES",
+      "source": "agent-assets/current/plugin-skills",
+      "tree_sha256": "fa5c08a8baf3e8e2b1acc7380aa96218bfedd5321d1311d48e132f4fef0e395e",
+      "consumers": [
+        "ReqPilotX portable plugin discovery",
+        "native registered capability bundles",
+        "source-faithful task and review documentation"
+      ],
+      "target": "Provide one maintained source for current business skills and their references.",
+      "compatibility": "plugins/reqpilot/skills remains a deterministic source-checkout discovery projection; frozen bundles receive regular files from this source.",
+      "verification": "Exact source/projection inventory and SHA-256 equality plus frozen-bundle asset verification.",
+      "retirement_condition": "The projection may retire only when every supported host discovers the canonical source or a frozen bundle directly.",
+      "projections": [
+        {
+          "path": "plugins/reqpilot/skills",
+          "mode": "mirror"
+        }
+      ],
+      "bundle_root": "skills"
+    },
+    {
+      "id": "vendor-pdf-26-904-11930",
+      "classification": "COMPATIBILITY",
+      "asset_kind": "VENDORED_PDF_SKILL_RELEASE",
+      "source": "agent-assets/vendor/openai-primary-runtime-pdf/releases/26.904.11930",
+      "tree_sha256": "d1ec2c0d18598c76e7b9634afe0f50e9daee6d16153d29a4b120683b4ecaba4f",
+      "consumers": [
+        "portable Agent Kit 0.15.2",
+        "Agent Kit lock and provenance validation"
+      ],
+      "target": "Freeze the exact upstream PDF capability bytes, MIT license declaration, version and provenance consumed by Agent Kit 0.15.2.",
+      "compatibility": "Projected into agent-kit without changing its paths, lock, bundle identity or old frozen tasks.",
+      "verification": "Subset projection equality plus the existing Agent Kit lock validator.",
+      "retirement_condition": "Retain while any compatible Agent Kit or frozen task identifies version 26.904.11930.",
+      "projections": [
+        {
+          "path": "agent-kit",
+          "mode": "subset"
+        }
+      ]
+    },
+    {
+      "id": "vendor-pdf-26-905-11957",
+      "classification": "CURRENT",
+      "asset_kind": "VENDORED_PDF_SKILL_RELEASE",
+      "source": "agent-assets/vendor/openai-primary-runtime-pdf/releases/26.905.11957",
+      "tree_sha256": "19d6a4826f229e7a24b3f5cbfd69914e4faf19b09258b4af91b11db34779786b",
+      "consumers": [
+        "ReqPilotX portable plugin PDF capability",
+        "new native registered capability bundles"
+      ],
+      "target": "Freeze the exact upstream PDF capability bytes, MIT license declaration, version, manifest and provenance used by new bundles.",
+      "compatibility": "Projected into plugins/reqpilot/capabilities/pdf for source-checkout discovery; frozen bundles receive regular files and keep a new complete bundle identity.",
+      "verification": "Exact projection equality, upstream hashes and frozen-bundle asset verification.",
+      "retirement_condition": "Retain while a supported plugin bundle or task identifies version 26.905.11957.",
+      "projections": [
+        {
+          "path": "plugins/reqpilot/capabilities/pdf",
+          "mode": "mirror"
+        }
+      ],
+      "bundle_root": "capabilities/pdf"
+    },
+    {
+      "id": "compatibility-runtime-skills",
+      "classification": "COMPATIBILITY",
+      "asset_kind": "EXPLICIT_CANARY_SKILLS",
+      "source": "agent-assets/compatibility/runtime-skills",
+      "tree_sha256": "0ff5b9a54e85906acf53a8c68b267d446b7e90b86c7206e458f6db7dc3c67b5d",
+      "consumers": [
+        "synthetic Codex PDF and structure canaries",
+        "explicit-only compatibility task checks"
+      ],
+      "target": "Keep the bounded legacy/shadow skill set separate from current portable business skills.",
+      "compatibility": "The canary copies only an explicit allowlist from this root; no runtime falls back to prototype/runtime_assets.",
+      "verification": "Catalog identity, explicit policy files and focused no-model canary contract tests.",
+      "retirement_condition": "Retire individual skills only after their canary consumers and old task identities have exited.",
+      "projections": []
+    },
+    {
+      "id": "compatibility-agent-kit",
+      "classification": "COMPATIBILITY",
+      "asset_kind": "PORTABLE_STAGE_AGENT_KIT",
+      "source": "agent-kit",
+      "tree_sha256": "2b198da7f124ecacebc5a9fbadd9a329b5c0e41841c190db768789069ea7e851",
+      "consumers": [
+        "native structure and SourceItem compatibility workflows",
+        "Agent Kit materializer and cold canaries",
+        "schema, stage-lineage and bundle-reference validators"
+      ],
+      "target": "Preserve Agent Kit 0.15.2, its D0-D6 contracts and its internal relative layout while current product skills evolve separately.",
+      "compatibility": "The existing agent-kit path remains authoritative for this frozen compatibility group; it is not rewritten as the current business workflow.",
+      "verification": "Existing lock, manifest, materializer and focused compatibility tests.",
+      "retirement_condition": "Retire only after all listed runtime, canary and replay consumers use a versioned successor and old frozen tasks remain replayable.",
+      "projections": []
+    }
+  ]
+}

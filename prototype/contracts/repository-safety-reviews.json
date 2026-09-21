@@ -6,6 +6,20 @@
     ],
     "reason": "Public corporate design-system name or bundled brand logo filename, required by existing visual/export contract; no customer source text."
   },
+  "agent-assets/vendor/openai-primary-runtime-pdf/releases/26.904.11930/provenance/openai-primary-runtime-pdf.plugin.json": {
+    "sha256": "5c496ff869eb92b321265b1d3bb08357fd55631dd860a8dbf5b7dd4fa5d00767",
+    "rules": [
+      "personal_email"
+    ],
+    "reason": "Unmodified upstream plugin author attribution in an immutable versioned vendor snapshot."
+  },
+  "agent-assets/vendor/openai-primary-runtime-pdf/releases/26.905.11957/provenance/openai-primary-runtime-pdf.plugin.json": {
+    "sha256": "8cf6f5d8067c166fa4000e9b3a0ad3f600f453d7d2f8601ac48c8f6be7c4f97b",
+    "rules": [
+      "personal_email"
+    ],
+    "reason": "Unmodified upstream plugin author attribution in an immutable versioned vendor snapshot."
+  },
   "agent-kit/provenance/openai-primary-runtime-pdf.plugin.json": {
     "sha256": "5c496ff869eb92b321265b1d3bb08357fd55631dd860a8dbf5b7dd4fa5d00767",
     "rules": [

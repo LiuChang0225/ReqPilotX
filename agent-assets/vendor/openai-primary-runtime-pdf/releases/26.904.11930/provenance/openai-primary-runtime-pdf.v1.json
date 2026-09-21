@@ -1,0 +1,18 @@
+{
+  "schema_version": "reqpilotx-agent-kit-skill-provenance/v1",
+  "skill_id": "pdf",
+  "distribution_id": "pdf@openai-primary-runtime",
+  "distribution_version": "26.904.11930",
+  "source_url": "https://chatgpt.com/plugins/share/pdf@openai-primary-runtime",
+  "author": "OpenAI",
+  "license": "MIT",
+  "runtime_bundle_version": "26.904.11930",
+  "vendored_skill_sha256": "afc4472ec4d625f703e9f414fe6814ce3cfa0ec51c7a07887fe587264c8b561e",
+  "upstream_skill_sha256": "afc4472ec4d625f703e9f414fe6814ce3cfa0ec51c7a07887fe587264c8b561e",
+  "upstream_plugin_manifest_path": "provenance/openai-primary-runtime-pdf.plugin.json",
+  "upstream_plugin_manifest_sha256": "5c496ff869eb92b321265b1d3bb08357fd55631dd860a8dbf5b7dd4fa5d00767",
+  "upstream_openai_yaml_path": ".agents/skills/pdf/agents/openai.yaml",
+  "upstream_openai_yaml_sha256": "74623eb0387951f4c6d0d02e6daf1c8a2dd449599c92a0edcafd12a2049c1a00",
+  "upstream_operation_helper_path": ".agents/skills/pdf/container_tools/mark_artifact_operation_started.mjs",
+  "upstream_operation_helper_sha256": "e0578762dc2a8f44a26323062c8afcf6c72ef197649f349c8b40e9f2a03c8942"
+}

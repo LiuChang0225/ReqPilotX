@@ -29,7 +29,6 @@ sys.path.insert(0, str(PLUGIN_SCRIPTS))
 
 from build_bundle import (  # noqa: E402
     _assert_same_selection,
-    _install_direct_selection,
     _validated_wheel_manifest,
     _wheel_content_inventory,
     build as build_bundle,
@@ -55,6 +54,8 @@ CODE_FINGERPRINT_PATHS = (
     "plugins/reqpilot/tests/portable_fixtures.py",
     "plugins/reqpilot/tests/test_engine_distribution.py",
     "plugins/reqpilot/tests/test_release_verification.py",
+    "agent-assets/catalog.json",
+    "agent-assets/scripts/asset_registry.py",
     "scripts/run_required_unittest.py",
     "scripts/verify_engine_release.py",
 )
@@ -561,12 +562,7 @@ assert importlib.util.find_spec('reqpilotx_engine') is None
             raise ValueError(f"Wheel-derived plugin doctor failed: {doctor_result}")
 
         direct_plugin = root / "direct-selection-plugin"
-        shutil.copytree(
-            repo / "plugins/reqpilot",
-            direct_plugin,
-            ignore=shutil.ignore_patterns("runtime", "runtime-data", "tests", "__pycache__", "*.pyc", "*.zip", ".pytest_cache"),
-        )
-        _install_direct_selection(select_core(repo), direct_plugin / "runtime/prototype")
+        build_bundle(repo, direct_plugin)
         fixture_dir = root / "installed-fixture"
         shutil.copytree(
             repo / "plugins/reqpilot/scripts", fixture_dir,
@@ -574,8 +570,10 @@ assert importlib.util.find_spec('reqpilotx_engine') is None
         )
         (fixture_dir / "reqpilot.py").write_text("def load_runtime(root=None):\n    return None\n", encoding="utf-8")
 
-        source_origins = root / "source-origins"; source_origins.mkdir()
-        plugin_origins = root / "plugin-origins"; plugin_origins.mkdir()
+        source_origins = root / "source-origins"
+        source_origins.mkdir()
+        plugin_origins = root / "plugin-origins"
+        plugin_origins.mkdir()
         development = root / "development-example"
         run_plugin_cli(
             plugin_python, direct_plugin / "scripts/reqpilot.py", ["worked-example", "--output-dir", str(development)],
@@ -600,7 +598,8 @@ assert importlib.util.find_spec('reqpilotx_engine') is None
         broken_plugin = root / "broken-plugin"
         shutil.copytree(plugin, broken_plugin)
         (broken_plugin / "runtime/prototype/reqpilotx/application/agent_workflow/source_requirement_baseline.py").unlink()
-        broken_origins = root / "broken-origins"; broken_origins.mkdir()
+        broken_origins = root / "broken-origins"
+        broken_origins.mkdir()
         run_plugin_cli(
             plugin_python, broken_plugin / "scripts/reqpilot.py",
             ["worked-example", "--source", str(development / "example.pdf"), "--output-dir", str(root / "broken-plugin-example")],
@@ -627,7 +626,8 @@ assert importlib.util.find_spec('reqpilotx_engine') is None
         }
         mcp_origin_result = None
         if not skip_mcp:
-            mcp_origins = root / "mcp-origins"; mcp_origins.mkdir()
+            mcp_origins = root / "mcp-origins"
+            mcp_origins.mkdir()
             mcp_env = dict(env)
             mcp_env.update({
                 "REQPILOT_TEST_PROJECT_ROOT": str(root / "no-checkout"),

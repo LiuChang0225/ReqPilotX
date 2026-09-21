@@ -24,6 +24,7 @@
 
 - [README.md](README.md) 是项目入口；[docs/项目.md](docs/项目.md) 描述当前产品状态；[docs/开发执行清单.md](docs/开发执行清单.md) 记录可选的下一步；[docs/active-context.md](docs/active-context.md) 只保存当前接续信息。
 - `prototype/eval/progress/program_registry.json` 仅是进度看板的兼容数据，不决定开发顺序，不约束 Agent 行为，也不是开工前置条件。
+- 当前业务技能与第三方能力的维护源在 `agent-assets/`；`.agents/skills`、`plugins/reqpilot/skills` 及 vendor 宿主路径是受校验的发现/发行投影。`agent-kit/` 是有独立版本锁和现役消费者的兼容能力组，不随当前技能自动改写。
 - `docs/issues/` 用于可选的长期问题记录；发现问题可以直接修复，不必先登记。
 - `docs/参考资料索引.md` 区分保留的访谈/案例与历史执行资料；归档文本不拥有当前开发顺序或运行状态。
 - CodeGraph 可用于符号、调用链和影响范围查询；普通文本、配置值和历史路径仍可使用文本搜索。工具选择不构成开发门禁。
