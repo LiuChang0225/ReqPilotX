@@ -1,50 +1,5 @@
-from __future__ import annotations
+"""Compatibility alias for reqpilotx_server.ports.agent_table_materialization_repository."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-from typing import Protocol, runtime_checkable
-
-from app.application.extraction.agent_table_boundaries import (
-    AgentTableProjectionMaterializationV1,
-)
-from app.application.extraction.agent_table_materialization_contracts import (
-    AgentTableMaterializationRecordV1,
-)
-from app.application.extraction.agent_logical_table_scope import (
-    AgentLogicalTableScopeV1,
-)
-from app.domain.extraction.table_evidence import TableEvidenceBindingV1
-from app.domain.extraction.table_records import TableRecordProjectionV1
-
-
-class AgentTableMaterializationConflict(RuntimeError):
-    """Raised when immutable lineage or projection CAS no longer matches."""
-
-
-@runtime_checkable
-class AgentTableMaterializationRepository(Protocol):
-    """Atomically persist an Agent artifact and advance its projection head."""
-
-    def commit(
-        self,
-        *,
-        project_id: str,
-        document_id: str,
-        command_id: str,
-        base_projection: TableRecordProjectionV1,
-        logical_table_scope: AgentLogicalTableScopeV1,
-        materialization: AgentTableProjectionMaterializationV1,
-        evidence_bindings: tuple[TableEvidenceBindingV1, ...],
-    ) -> tuple[AgentTableMaterializationRecordV1, bool]: ...
-
-    def get(
-        self,
-        *,
-        project_id: str,
-        document_id: str,
-        record_id: str,
-    ) -> AgentTableMaterializationRecordV1 | None: ...
-
-
-__all__ = [
-    "AgentTableMaterializationConflict",
-    "AgentTableMaterializationRepository",
-]
+_sys.modules[__name__] = _import_module("reqpilotx_server.ports.agent_table_materialization_repository")

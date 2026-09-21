@@ -13,11 +13,11 @@ import os
 from pathlib import Path
 from tempfile import NamedTemporaryFile
 
-from app.application.agent_workflow import source_requirement_baseline as core
-from app.application.agent_workflow.source_item_decomposition import (
+from reqpilotx.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.application.agent_workflow.source_item_decomposition import (
     build_source_item_decomposition_packet, validate_source_item_decomposition,
 )
-from app.application.agent_workflow.source_item_visual import (
+from reqpilotx.application.agent_workflow.source_item_visual import (
     build_source_item_image_scope_packet, rebind_source_item_image_annotations,
 )
 from task_change_contracts import source_item_record
@@ -146,7 +146,7 @@ def source_item_read(bundle_dir, *, source_item_id, expected_source_sha256, expe
             linked_context.append({'source_item_id': linked.source_record_id, 'source_display_id': linked.source_display_id,
                 'relation': 'EXPLICIT_CONTEXT_LINK', 'source': linked_facts, 'shared_source_context': linked_shared,
                 'ancestor_path': list(linked.ancestor_path)})
-    from app.application.agent_workflow.source_item_delivery import project_source_item_number
+    from reqpilotx.application.agent_workflow.source_item_delivery import project_source_item_number
     siblings = [r for r in baseline.records if r.node_id == record.node_id]
     number, numbers = project_source_item_number(document_map, baseline, node, record, len(siblings) == 1,
         annotation, tables, source_text='\n'.join(f['text'] for f in facts))
@@ -245,7 +245,7 @@ def _render_image(image, source_path, image_dir, expected_source_sha256, base):
         raise ValueError('Image original differs from the selected task source')
     if source.suffix.lower() != '.pdf':
         raise ValueError('This image transport slice currently supports PDF sources')
-    from app.services.exporter import _build_export_source_image_context, _load_matrix_figure_payload
+    from reqpilotx.services.exporter import _build_export_source_image_context, _load_matrix_figure_payload
     context = _build_export_source_image_context(source_file_path=source, source_sha256=expected_source_sha256)
     location = image.get('native_locator') or {'format': 'pdf', 'page_number': image['page'], 'bbox': image['bbox']}
     loaded = _load_matrix_figure_payload({**image, 'kind': 'image', 'page_number': image['page'],

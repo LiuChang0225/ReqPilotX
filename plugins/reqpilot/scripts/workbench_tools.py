@@ -49,7 +49,7 @@ def binding_path(sha):return Path.cwd()/'runtime-data/workbench-bindings'/f'{sha
 
 
 def _task_workspace(args):
-    from app.application.agent_workflow.task_workspace import find_task_workspace
+    from reqpilotx.application.agent_workflow.task_workspace import find_task_workspace
     explicit=getattr(args,'workspace',None)
     found=find_task_workspace(explicit=explicit)
     if explicit is not None and found is None:
@@ -187,7 +187,7 @@ def _remember_result_url(binding,state):
 
 def _remember_task_binding(task,path,binding):
     if not task:return
-    from app.application.agent_workflow.task_workspace import bind_task_workspace
+    from reqpilotx.application.agent_workflow.task_workspace import bind_task_workspace
     _validate_binding(binding,task[1]['source']['sha256'],task)
     binding['work_id']=task[1]['work_id']
     save(path,binding)

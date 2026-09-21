@@ -14,7 +14,7 @@ def generate(root, output, source_input=None):
     from reqpilot import load_runtime
     load_runtime(root)
     import artifact_tools as tools
-    from app.application.fast_source_capture import capture_fast_source
+    from reqpilotx.application.fast_source_capture import capture_fast_source
     import pymupdf
     output.mkdir(parents=True, exist_ok=False)
     source = output / 'example.pdf'

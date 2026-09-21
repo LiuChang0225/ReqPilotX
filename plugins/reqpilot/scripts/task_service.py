@@ -356,7 +356,7 @@ class TaskService:
         self.project_root = project_root
 
     def state(self, task_id):
-        from app.application.agent_workflow.task_workspace import workspace_status
+        from reqpilotx.application.agent_workflow.task_workspace import workspace_status
         root = find_task_root(self.working_root, task_id)
         return root, workspace_status(root, refresh=False)
 
@@ -384,7 +384,7 @@ class TaskService:
             if budget!=request.max_chars:result['read_budget']={'requested_max_chars':budget,'applied_max_chars':request.max_chars,'content_continuation_preserved':True}
             return result
         if action == 'recover':
-            from app.application.agent_workflow.task_workspace import recover_workspace
+            from reqpilotx.application.agent_workflow.task_workspace import recover_workspace
             recovered = recover_workspace(root)
             return {'status':'RECOVERED', **task_summary(recovered),
                 'incomplete_operations':recovered['incomplete_operations'][:10], 'compiler_reexecuted':False}
@@ -468,11 +468,11 @@ class TaskService:
         return response
 
     def write(self, root, state, action, request):
-        from app.application.agent_workflow import task_workspace as core
+        from reqpilotx.application.agent_workflow import task_workspace as core
         from workspace_tools import run
         requested_pages=None
         if action=='prepare' and request.mode=='pages' and request.pages:
-            from app.adapters.documents.pdf_source_crop_renderer import inspect_pdf_page_geometry
+            from reqpilotx.adapters.documents.pdf_source_crop_renderer import inspect_pdf_page_geometry
             geometry=inspect_pdf_page_geometry(root/state['context']['source']['path'], expected_source_sha256=state['context']['source']['sha256'])
             if max(request.pages)>len(geometry):raise ValueError('INVALID_PAGE: page is outside this original')
             requested_pages={'requested_pages':request.pages,'prepared_pages':list(range(1,len(geometry)+1)),
@@ -506,7 +506,7 @@ class TaskService:
                 covered=()
                 baseline_ref=state['selected'].get('ITEMS')
                 if baseline_ref:
-                    from app.application.agent_workflow import source_requirement_baseline as source_core
+                    from reqpilotx.application.agent_workflow import source_requirement_baseline as source_core
                     baseline=source_core.SourceRequirementBaselineArtifactV1.model_validate_json(Path(baseline_ref['path']).read_bytes())
                     if (baseline.source_sha256,baseline.document_map_artifact_sha256)==(document_map['source_sha256'],document_map['artifact_sha256']):
                         covered=baseline.covered_scope_ids
@@ -610,7 +610,7 @@ class TaskService:
     def ensure_pages(self, state, request):
         """Lazily register the established reading-workspace once per task/capture."""
         import fcntl
-        from app.adapters.documents.pdf_source_crop_renderer import inspect_pdf_page_geometry
+        from reqpilotx.adapters.documents.pdf_source_crop_renderer import inspect_pdf_page_geometry
         root=Path(state['task_root'])
         # A separate derivative-preparation lock serializes concurrent page reads;
         # existing workspace writes keep their own CAS and publication locks.
@@ -754,7 +754,7 @@ class TaskService:
             value = sync_current_review(root, request.expected_revision)
         else:
             from workspace_tools import publish_committed
-            from app.application.agent_workflow.task_workspace import _operation, _verify_inputs
+            from reqpilotx.application.agent_workflow.task_workspace import _operation, _verify_inputs
             if not request.operation_id: raise ValueError('INVALID_DECISION: retry_publication needs operation_id')
             operation = _operation(root, request.operation_id)
             receipt_path = root/operation['output_dir']/'operation-receipt.json'

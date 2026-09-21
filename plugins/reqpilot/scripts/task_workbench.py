@@ -5,8 +5,8 @@ from argparse import Namespace
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
-from app.application.agent_workflow import task_workspace as core
-from app.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
+from reqpilotx.application.agent_workflow import task_workspace as core
+from reqpilotx.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
 from workbench_tools import read, request, resolve_binding, sync_workbench, workbench_result_url, _validate_binding, _validate_state
 from workspace_tools import _publication_lock
 

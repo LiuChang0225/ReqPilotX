@@ -41,7 +41,7 @@ def committed_release_fixture():
     with TemporaryDirectory(prefix="reqpilotx-release-input-test-") as temporary:
         repo = Path(temporary)
         selection = select_core(ROOT)
-        paths = {*build_engine.BUILD_INPUT_FILES, *(f"prototype/{m.source_relative}" for m in selection.members)}
+        paths = {*build_engine.BUILD_INPUT_FILES, *(m.source_relative for m in selection.members)}
         for relative in paths:
             target = repo / relative
             target.parent.mkdir(parents=True, exist_ok=True)
@@ -56,12 +56,13 @@ class EngineDistributionTests(unittest.TestCase):
     def _manifest(self):
         content = b"value = 'safe'\n"
         manifest = {
-            "schema_version": "reqpilotx-engine-core/v1", "distribution": "reqpilotx-engine", "version": "0.1.0",
+            "schema_version": "reqpilotx-engine-core/v2", "distribution": "reqpilotx-engine", "version": "0.1.0",
             "source_repository": "ReqPilotX", "source_commit": "0" * 40, "source_tree": "0" * 40,
             "python_minimum": "3.11", "module_roots": [], "requirements": [],
             "optional_or_unknown_imports": [], "namespace_initializers": [],
+            "runtime_layout": "reqpilotx-package/v1",
             "runtime_files": [{
-                "source_path": "app/example.py", "runtime_path": "app/example.py", "wheel_path": "app/example.py",
+                "source_path": "reqpilotx/example.py", "runtime_path": "reqpilotx/example.py", "wheel_path": "reqpilotx/example.py",
                 "sha256": hashlib.sha256(content).hexdigest(), "upstream_sha256": hashlib.sha256(content).hexdigest(),
                 "bytes": len(content), "namespace_initializer": False,
             }],
@@ -74,13 +75,13 @@ class EngineDistributionTests(unittest.TestCase):
         manifest, content = self._manifest()
         dist = "reqpilotx_engine-0.1.0.dist-info"
         entries = {
-            "app/example.py": content,
+            "reqpilotx/example.py": content,
             "reqpilotx_engine/__init__.py": b"def core_manifest(): return {}\n",
             "reqpilotx_engine/core-manifest.json": json.dumps(manifest).encode(),
-            "reqpilotx_engine_tools/__init__.py": b'"""tools"""\n',
             f"{dist}/METADATA": b"Metadata-Version: 2.4\nName: reqpilotx-engine\nVersion: 0.1.0\nRequires-Python: >=3.11\n\n",
             f"{dist}/WHEEL": b"Wheel-Version: 1.0\nGenerator: test\nRoot-Is-Purelib: true\nTag: py3-none-any\n\n",
-            f"{dist}/top_level.txt": b"app\nreqpilotx_engine\nreqpilotx_engine_tools\n",
+            f"{dist}/entry_points.txt": b"[console_scripts]\nreqpilotx-fast-source-capture = reqpilotx.tools.fast_source_capture:main\n",
+            f"{dist}/top_level.txt": b"reqpilotx\nreqpilotx_engine\n",
         }
         return entries, f"{dist}/RECORD"
 
@@ -106,9 +107,9 @@ class EngineDistributionTests(unittest.TestCase):
         paths = [member.runtime_relative for member in selection.members]
         self.assertGreater(len(paths), 1)
         self.assertEqual(len(paths), len(set(paths)))
-        self.assertIn("scripts/fast_source_capture.py", paths)
+        self.assertIn("reqpilotx/tools/fast_source_capture.py", paths)
         self.assertFalse(any("/persistence/" in f"/{path}/" or "/infrastructure/" in f"/{path}/" for path in paths))
-        self.assertFalse(any(path.startswith("app/adapters/agents/") for path in paths))
+        self.assertFalse(any(path.startswith("reqpilotx_server/") for path in paths))
         self.assertEqual(set(NAMESPACE_INITIALIZERS), {member.runtime_relative for member in selection.members if member.namespace_initializer})
 
     def test_staged_project_contains_manifest_and_no_maintained_source_copy(self):
@@ -118,13 +119,16 @@ class EngineDistributionTests(unittest.TestCase):
             manifest = build_engine.prepare_stage(repo, stage)
             self.assertEqual(manifest["core_identity"], canonical_digest({k: v for k, v in manifest.items() if k != "core_identity"}))
             self.assertEqual(len(manifest["runtime_files"]), len(select_core(ROOT).members))
-            self.assertTrue((stage / "src/app/application/agent_workflow/source_requirement_baseline.py").is_file())
-            self.assertTrue((stage / "src/reqpilotx_engine_tools/fast_source_capture.py").is_file())
+            self.assertTrue((stage / "src/reqpilotx/application/agent_workflow/source_requirement_baseline.py").is_file())
+            self.assertTrue((stage / "src/reqpilotx/tools/fast_source_capture.py").is_file())
             pyproject = (stage / "pyproject.toml").read_text(encoding="utf-8")
             self.assertIn(f'version = "{manifest["version"]}"', pyproject)
             for requirement in manifest["requirements"]:
                 self.assertIn(json.dumps(requirement), pyproject)
-        self.assertFalse((ROOT / "packages/engine/src").exists(), "Generated engine source must not become a maintained copy")
+        self.assertTrue(
+            (ROOT / "packages/engine/src/reqpilotx").is_dir(),
+            "The maintained reqpilotx package is the authoritative engine source",
+        )
 
     def test_uv_version_contract_accepts_verified_versions_and_rejects_old_or_unknown(self):
         for version, accepted in (
@@ -155,8 +159,8 @@ class EngineDistributionTests(unittest.TestCase):
     def test_release_rejects_dirty_source_dependency_and_packaging_inputs_before_staging(self):
         with committed_release_fixture() as repo:
             for relative in (
-                "prototype/app/application/fast_source_capture.py",
-                "prototype/app/__init__.py", "prototype/requirements.txt",
+                "packages/engine/src/reqpilotx/application/fast_source_capture.py",
+                "packages/engine/src/reqpilotx/__init__.py", "packages/engine/pyproject.toml",
                 "plugins/reqpilot/scripts/build_engine.py", "plugins/reqpilot/scripts/portable_core.py",
                 "packages/engine/pyproject.toml", "packages/engine/README.md",
             ):
@@ -173,23 +177,23 @@ class EngineDistributionTests(unittest.TestCase):
 
     def test_release_rejects_staged_new_and_deleted_source_inputs(self):
         with committed_release_fixture() as repo:
-            source = repo / "prototype/app/application/fast_source_capture.py"
+            source = repo / "packages/engine/src/reqpilotx/application/fast_source_capture.py"
             source.write_bytes(source.read_bytes() + b"\n# staged change\n")
             fixture_git(repo, "add", str(source.relative_to(repo)))
             with self.assertRaisesRegex(ValueError, "committed and clean"):
                 build_engine.prepare_stage(repo, repo / "stage")
         with committed_release_fixture() as repo:
-            (repo / "prototype/app/untracked_source.py").write_text("# untracked source\n")
+            (repo / "packages/engine/src/reqpilotx/untracked_source.py").write_text("# untracked source\n")
             with self.assertRaisesRegex(ValueError, "committed and clean"):
                 build_engine.prepare_stage(repo, repo / "stage")
         with committed_release_fixture() as repo:
-            (repo / "prototype/app/__init__.py").unlink()
+            (repo / "packages/engine/src/reqpilotx/__init__.py").unlink()
             with self.assertRaisesRegex(ValueError, "committed and clean"):
                 build_engine.prepare_stage(repo, repo / "stage")
 
     def test_commit_byte_comparison_detects_assume_unchanged_source_edit(self):
         with committed_release_fixture() as repo:
-            relative = "prototype/app/application/fast_source_capture.py"
+            relative = "packages/engine/src/reqpilotx/application/fast_source_capture.py"
             fixture_git(repo, "update-index", "--assume-unchanged", relative)
             source = repo / relative
             source.write_bytes(source.read_bytes() + b"\n# hidden worktree edit\n")
@@ -221,7 +225,7 @@ class EngineDistributionTests(unittest.TestCase):
         with TemporaryDirectory() as temporary:
             wheel = Path(temporary) / "reqpilotx_engine-0.1.0-py3-none-any.whl"
             entries, record = self._entries()
-            entries["app/example.py"] = b"tampered"
+            entries["reqpilotx/example.py"] = b"tampered"
             self._write_wheel(wheel, entries, record)
             with self.assertRaisesRegex(ValueError, "failed its manifest hash"):
                 build_bundle._validated_wheel_manifest(wheel)
@@ -235,8 +239,8 @@ class EngineDistributionTests(unittest.TestCase):
 
     def test_extra_host_pth_unregistered_and_traversal_members_are_rejected_even_with_updated_record(self):
         extras = {
-            "host": ("app/adapters/persistence/review_marker.py", b"marker"),
-            "pth": ("review_marker.pth", b"import app"),
+            "host": ("reqpilotx_server/adapters/persistence/review_marker.py", b"marker"),
+            "pth": ("review_marker.pth", b"import reqpilotx_server"),
             "unregistered": ("reqpilotx_engine/extra.py", b"marker"),
             "traversal": ("../escape.py", b"marker"),
         }
@@ -255,8 +259,8 @@ class EngineDistributionTests(unittest.TestCase):
                 wheel = Path(temporary) / "reqpilotx_engine-0.1.0-py3-none-any.whl"
                 entries, record = self._entries()
                 duplicate = None; valid_record = True
-                if case == "duplicate": duplicate = "app/example.py"
-                elif case == "missing": entries.pop("app/example.py")
+                if case == "duplicate": duplicate = "reqpilotx/example.py"
+                elif case == "missing": entries.pop("reqpilotx/example.py")
                 elif case == "record": valid_record = False
                 else:
                     metadata = next(name for name in entries if name.endswith("/METADATA"))
@@ -273,7 +277,7 @@ class EngineDistributionTests(unittest.TestCase):
             self.assertEqual(result["status"], "BUILT")
             self.assertEqual(receipt["release_mode"], "DEVELOPMENT_SOURCE_COPY")
             self.assertNotIn("engine_release", receipt)
-            self.assertTrue((output / "runtime/prototype/app/application/agent_workflow/source_requirement_baseline.py").is_file())
+            self.assertTrue((output / "runtime/prototype/reqpilotx/application/agent_workflow/source_requirement_baseline.py").is_file())
 
 
 if __name__ == "__main__":

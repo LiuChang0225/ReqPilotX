@@ -1,6 +1,6 @@
 """Expose declared source context for Agent review without inferring applicability."""
 
-from app.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.application.agent_workflow import source_requirement_baseline as core
 from task_reading import _next
 
 

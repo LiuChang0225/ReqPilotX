@@ -12,7 +12,9 @@ import time
 from typing import Iterable
 
 
-_WORKER_COMMAND = re.compile(r"(?:^|\s)-m\s+app\.worker(?:\s|$)")
+_WORKER_COMMAND = re.compile(
+    r"(?:^|\s)-m\s+(?:reqpilotx_server|app)\.worker(?:\s|$)"
+)
 _PORT_MARKER = re.compile(r"(?:^|\s)REQPILOT_LOCAL_RUNTIME_PORT=(\d+)(?:\s|$)")
 _SLOT_MARKER = re.compile(r"(?:^|\s)REQPILOT_LOCAL_WORKER_SLOT=(\d+)(?:\s|$)")
 _INSTANCE_MARKER = re.compile(
@@ -335,7 +337,7 @@ def stop_workers(
 def drain_workers(root: Path, port: int) -> list[int]:
     """Ask owned workers to finish their current handler and stop claiming.
 
-    No timeout and no SIGKILL are used here. The app.worker SIGTERM handler
+    No timeout and no SIGKILL are used here. The worker SIGTERM handler
     turns this into a cooperative drain; forceful termination remains an
     explicit normal-stop operation.
     """

@@ -15,7 +15,7 @@ import shutil
 import tempfile
 from pathlib import Path
 
-from app.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.application.agent_workflow import source_requirement_baseline as core
 from artifact_tools import read, save, required, new_output, analysis_policy_input
 
 
@@ -131,8 +131,8 @@ def state(directory):
 
 
 def validate_state(document_map, baseline, tables, values, evidence_path=None):
-    from app.application.agent_workflow.source_item_delivery import build_delivery_snapshot
-    from app.application.agent_workflow.source_item_analysis import validate_source_item_assessments
+    from reqpilotx.application.agent_workflow.source_item_delivery import build_delivery_snapshot
+    from reqpilotx.application.agent_workflow.source_item_analysis import validate_source_item_assessments
     if values.get("assessments"):
         if not values.get("analysis_packet"):
             raise ValueError("Assessment import requires its exact analysis packet")
@@ -142,7 +142,7 @@ def validate_state(document_map, baseline, tables, values, evidence_path=None):
         if values["knowledge_catalog"]["catalog_sha256"] != values["analysis_packet"]["catalog_sha256"]:
             raise ValueError("Imported analysis packet and knowledge catalog differ")
     if values.get("knowledge_catalog"):
-        from app.application.agent_workflow.source_item_analysis import validate_knowledge_catalog
+        from reqpilotx.application.agent_workflow.source_item_analysis import validate_knowledge_catalog
         validate_knowledge_catalog(values["knowledge_catalog"])
         if values["knowledge_catalog"].get("evidence_catalog"):
             from evidence_tools import verify_catalog
@@ -255,7 +255,7 @@ def open_review(args):
     if digest_file(source) != baseline.source_sha256:
         raise ValueError("Review source differs from the imported baseline")
     if document_map.source_format:
-        from app.application.agent_workflow.office_source_evidence import verify_office_map_against_source
+        from reqpilotx.application.agent_workflow.office_source_evidence import verify_office_map_against_source
         verify_office_map_against_source(source, document_map, tables, baseline=baseline)
     values = state(source_dir)
     for key in STATE_FILES:
@@ -385,7 +385,7 @@ def annotation_diff(before, after):
 
 
 def revise_review(args):
-    from app.application.agent_workflow.source_item_visual import rebind_source_item_annotations, compile_source_item_visual_readings, compile_source_item_annotation_updates
+    from reqpilotx.application.agent_workflow.source_item_visual import rebind_source_item_annotations, compile_source_item_visual_readings, compile_source_item_annotation_updates
     root = required(args.review_dir, "--review-dir"); value = read(required(args.input, "--input"))
     if set(value) & {'manual_decisions', 'engineer_responses', 'manual_decision_import'}:
         raise ValueError('Inline review JSON cannot create or withdraw engineer opinions; use an explicit user import')
@@ -453,7 +453,7 @@ def revise_review(args):
         carry["annotations"] = {key: val for key, val in annotation_carry.items() if key != "artifact"}
     values.update(replacements)
     if old_values.get('manual_decisions') is not None or values.get('manual_decisions') is not None:
-        from app.application.agent_workflow.source_item_manual_decisions import build_manual_decision_context, rebind_manual_decisions
+        from reqpilotx.application.agent_workflow.source_item_manual_decisions import build_manual_decision_context, rebind_manual_decisions
         manual_context = build_manual_decision_context(document_map, baseline, tables,
             decomposition=values.get('decomposition'), annotations=values.get('annotations'))
         if 'manual_decisions' in replacements:
@@ -599,7 +599,7 @@ def carry_state(document_map, previous, baseline, tables, old_values, values, *,
     """Invoke shared lineage-aware carry; keep obsolete state in prior version."""
     report = {"schema_version": "reqpilot-carry-forward/v1", "decomposition": "ABSENT", "assessments": "ABSENT", "stale_parent_ids": [], "stale_unit_ids": []}
     if old_values.get("decomposition") and previous.artifact_sha256 != baseline.artifact_sha256:
-        from app.application.agent_workflow.source_item_decomposition import rebind_source_item_decomposition
+        from reqpilotx.application.agent_workflow.source_item_decomposition import rebind_source_item_decomposition
         details = rebind_source_item_decomposition(previous, baseline, old_values["decomposition"], table_previews=tables,
             previous_table_previews=previous_tables, map_revision_receipt=map_revision_receipt)
         values["decomposition"] = details["artifact"]
@@ -607,7 +607,7 @@ def carry_state(document_map, previous, baseline, tables, old_values, values, *,
     elif values.get("decomposition"):
         report["decomposition"] = "UNCHANGED"
     if old_values.get("assessments"):
-        from app.application.agent_workflow.source_item_analysis import build_source_item_analysis_packet, rebind_source_item_assessments
+        from reqpilotx.application.agent_workflow.source_item_analysis import build_source_item_analysis_packet, rebind_source_item_assessments
         old_packet = old_values["analysis_packet"]
         catalog = values.get("knowledge_catalog")
         if catalog is None:
@@ -650,7 +650,7 @@ def close_review(args):
         delivery = inside(root, value["delivery_path"]); exported = read(delivery / "delivery-receipt.json")
         if exported.get("baseline_artifact_sha256") != baseline.artifact_sha256 or exported.get("source_sha256") != baseline.source_sha256 or not exported.get("source_document_bound_for_visual_export") or digest_file(delivery / "matrix.xlsx") != exported.get("xlsx_sha256"):
             raise ValueError("Delivery must bind the exact candidate and unchanged original source")
-        from app.application.agent_workflow.source_item_delivery import build_delivery_snapshot
+        from reqpilotx.application.agent_workflow.source_item_delivery import build_delivery_snapshot
         expected_snapshot = build_delivery_snapshot(document_map, baseline, tables, annotations=values.get("annotations"), decomposition=values.get("decomposition"), assessments=values.get("assessments"), manual_decisions=values.get('manual_decisions'), analysis_policy=values.get('analysis_policy'))
         if read(delivery / "matrix-snapshot.json") != expected_snapshot:
             raise ValueError("Delivery omits or changes the candidate's current analysis, derivation or annotation state")
@@ -694,7 +694,7 @@ def _delivery_files(directory):
 
 def _check_current_delivery(root,head,directory):
     """Rebuild every current state layer and check the exact exported bytes."""
-    from app.application.agent_workflow.source_item_delivery import build_delivery_snapshot
+    from reqpilotx.application.agent_workflow.source_item_delivery import build_delivery_snapshot
     current,(mapping,baseline,_,tables)=current_bundle(root,head)
     values=state(current)
     validate_state(mapping,baseline,tables,values,current/'knowledge-catalog.json')
@@ -705,7 +705,7 @@ def _check_current_delivery(root,head,directory):
             or exported.get('xlsx_sha256')!=digest_file(directory/'matrix.xlsx')):
         raise ValueError('Delivery must bind the current baseline, original source and exact workbook bytes')
     if mapping.source_format:
-        from app.application.agent_workflow.office_source_evidence import verify_office_map_against_source
+        from reqpilotx.application.agent_workflow.office_source_evidence import verify_office_map_against_source
         verify_office_map_against_source(inside(root,head['source']['path']),mapping,tables,baseline=baseline)
     expected=build_delivery_snapshot(mapping,baseline,tables,annotations=values.get('annotations'),decomposition=values.get('decomposition'),
         assessments=values.get('assessments'),manual_decisions=values.get('manual_decisions'),analysis_policy=values.get('analysis_policy'))
@@ -730,7 +730,7 @@ def attach_current_delivery(args):
         raise ValueError('Select the exact saved delivery directory')
     # When the export belongs to a task, only its committed operation is eligible.
     # Do this outside the review lock: core inspection may read this same owner.
-    from app.application.agent_workflow.task_workspace import find_task_workspace,workspace_status
+    from reqpilotx.application.agent_workflow.task_workspace import find_task_workspace,workspace_status
     explicit_task=getattr(args,'workspace',None)
     task=find_task_workspace(start=delivery,explicit=explicit_task)
     if explicit_task is not None and task is None:
@@ -803,7 +803,7 @@ def attach_current_delivery(args):
 
 def verify_review(args):
     """Read-only publication evidence; shared source/analysis/export validation."""
-    from app.application.agent_workflow.source_item_delivery import build_delivery_snapshot
+    from reqpilotx.application.agent_workflow.source_item_delivery import build_delivery_snapshot
     root = required(args.review_dir, "--review-dir")
     with locked(root):
         head = load_head(root)
@@ -820,7 +820,7 @@ def verify_review(args):
             if baseline.source_sha256 != head["source"]["sha256"]:
                 raise ValueError("Review history replaced the original source")
             if document_map.source_format:
-                from app.application.agent_workflow.office_source_evidence import verify_office_map_against_source
+                from reqpilotx.application.agent_workflow.office_source_evidence import verify_office_map_against_source
                 verify_office_map_against_source(inside(root, head["source"]["path"]), document_map, tables, baseline=baseline)
             values = state(directory)
             validate_state(document_map, baseline, tables, values, directory / "knowledge-catalog.json")
@@ -863,7 +863,7 @@ def verify_review(args):
         snapshot_pin = published_workbook_snapshot_sha256(delivery / "matrix.xlsx")
         compatibility = None
         if published != snapshot:
-            from app.application.agent_workflow.delivery_snapshot_compatibility import verify_published_delivery_snapshot
+            from reqpilotx.application.agent_workflow.delivery_snapshot_compatibility import verify_published_delivery_snapshot
             compatibility = verify_published_delivery_snapshot(document_map=document_map, baseline=baseline,
                 published_snapshot=published, current_snapshot=snapshot, expected_snapshot_sha256=snapshot_pin,
                 annotations=values.get('annotations'))
@@ -873,7 +873,7 @@ def verify_review(args):
         findings = [{"code": "NUMBERED_CLAUSE_NUMBER_MISSING", "source_item_id": record.source_record_id, "source_display_id": record.source_display_id,
             "state": "PENDING_SOURCE_REVIEW", "message": "This item is labelled NUMBERED_CLAUSE but its independent original-number projection is empty; read its own original bounds or correct the source form."}
             for record in baseline.records if record.source_form.value == "NUMBERED_CLAUSE" and not str(nodes.get(record.source_record_id, {}).get("source_number", "")).strip()]
-        from app.application.agent_workflow.source_item_workbench_metadata import numbering_findings
+        from reqpilotx.application.agent_workflow.source_item_workbench_metadata import numbering_findings
         numbering = numbering_findings(document_map)
         findings.extend(numbering['findings'])
         return {"status": "REVIEW_VERIFIED", "review_sha256": head["review_sha256"], "source_sha256": head["source"]["sha256"], "current": head["current"],

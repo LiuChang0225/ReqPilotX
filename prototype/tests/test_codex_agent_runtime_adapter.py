@@ -186,6 +186,7 @@ class CodexAgentRuntimeAdapterTests(unittest.TestCase):
             codex_bin=Path("/opt/reqpilotx/codex"),
             codex_home=Path("/opt/reqpilotx/codex-home"),
             agent_model_id="gpt-5.6-sol",
+            development_root=Path(__file__).resolve().parents[2],
         )
 
         runtime = _build_agent_runtime(settings)
@@ -229,6 +230,7 @@ class CodexAgentRuntimeAdapterTests(unittest.TestCase):
                 codex_bin=Path(sys.executable),
                 codex_home=Path(temporary),
                 agent_model_id="gpt-5.6-sol",
+                development_root=Path(__file__).resolve().parents[2],
             )
 
             executor = _build_source_requirement_window_executor(settings)

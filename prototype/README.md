@@ -1,6 +1,8 @@
 # ReqPilotX 现有应用运行
 
-本目录保留现有 React/Vite/TypeScript、FastAPI、独立 worker、PostgreSQL 和对象存储应用。
+本目录保留 React/Vite/TypeScript 外壳、开发启动脚本和旧 Python import 兼容入口。
+共享业务源码位于 `packages/engine/src/reqpilotx`，FastAPI、独立 worker、PostgreSQL、
+对象存储和 Agent 宿主位于 `apps/server/src/reqpilotx_server`。
 它是目标态探索可复用的工程资产，不意味着新 Agent 的全文条目/分类/拆分已完整验收。
 当前开发顺序见[开发计划](../docs/需求提取/开发计划.md)。
 
@@ -13,6 +15,9 @@ createdb reqpilotx
 cd prototype
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
+cd ..
+prototype/.venv/bin/pip install -e packages/engine -e apps/server
+cd prototype
 ./start.sh
 ```
 
@@ -73,7 +78,7 @@ REQPILOT_READING_DIRECT_INPUT_TOKEN_BUDGET
 从仓库根：
 
 ```bash
-REQPILOT_TEST_MODE=1 PYTHONPATH=prototype prototype/.venv/bin/python -m unittest discover -s prototype/tests -t prototype
+prototype/.venv/bin/python scripts/test_python.py backend
 npm --prefix prototype/frontend run test
 npm --prefix prototype/frontend run typecheck
 npm --prefix prototype/frontend run build

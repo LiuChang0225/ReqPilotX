@@ -1,22 +1,5 @@
-from __future__ import annotations
+"""Compatibility alias for reqpilotx_server.ports.ocr_document_structure_provider."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-from typing import Protocol, runtime_checkable
-
-from app.domain.ocr_document_structure import OcrDocumentStructureSnapshot
-from app.domain.source_visual_text import VisualTextPageInput
-
-
-@runtime_checkable
-class OcrDocumentStructureProviderPort(Protocol):
-    """Capture geometry-free document structure for one exact rendered page."""
-
-    provider_id: str
-    provider_version: str
-
-    def parse_page(
-        self,
-        page_input: VisualTextPageInput,
-    ) -> OcrDocumentStructureSnapshot: ...
-
-
-__all__ = ["OcrDocumentStructureProviderPort"]
+_sys.modules[__name__] = _import_module("reqpilotx_server.ports.ocr_document_structure_provider")

@@ -189,6 +189,7 @@ class NativeLoopCapabilityTests(unittest.TestCase):
             settings = SimpleNamespace(
                 native_capability_mode="development-source",
                 deployment_mode="local",
+                development_root=Path(__file__).resolve().parents[2],
             )
             with patch.object(caps.subprocess, "run", side_effect=build) as process:
                 result = caps.prepare_native_loop_capability(task, settings)

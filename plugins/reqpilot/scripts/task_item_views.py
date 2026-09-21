@@ -39,7 +39,7 @@ def read_item_view(state,request):
         mapping_ref['artifact_sha256'],baseline['artifact_sha256'] if baseline is not None else None)
     if request.view=='items':
         if baseline is None:raise ValueError('ITEMS_REQUIRED')
-        from app.application.agent_workflow.source_item_workbench_metadata import project_workbench_metadata
+        from reqpilotx.application.agent_workflow.source_item_workbench_metadata import project_workbench_metadata
         numbering=project_workbench_metadata(mapping,baseline,table_previews=tables,annotations=_overlay(state,'ANNOTATIONS'))['numbers']
         entries=[{**{k:row.get(k) for k in ('source_record_id','source_display_id','requirement_display_id','source_form','requirementness','requirement_kinds')},
             'source_number':numbering[row['source_record_id']]['source_number'],

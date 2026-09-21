@@ -367,8 +367,8 @@ class ParsingDiagnosticsTests(unittest.TestCase):
             / "0012_parsing_risk_acknowledgements.sql"
         ).read_text(encoding="utf-8")
         cutover = (
-            prototype_dir
-            / "app"
+            prototype_dir.parent
+            / "apps/server/src/reqpilotx_server"
             / "application"
             / "cutover"
             / "sqlite_to_postgres.py"

@@ -453,8 +453,8 @@ class EntryClassificationRepositoryTests(unittest.TestCase):
             / "0013_entry_classification_snapshots.sql"
         ).read_text(encoding="utf-8")
         cutover = (
-            prototype_dir
-            / "app"
+            prototype_dir.parent
+            / "apps/server/src/reqpilotx_server"
             / "application"
             / "cutover"
             / "sqlite_to_postgres.py"

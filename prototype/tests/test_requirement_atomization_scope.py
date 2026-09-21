@@ -331,7 +331,8 @@ class RequirementAtomizationScopeContractTests(unittest.TestCase):
             / "0016_atomization_scope_running_index.sql"
         ).read_text(encoding="utf-8")
         cutover = (
-            prototype_dir / "app" / "application" / "cutover" / "sqlite_to_postgres.py"
+            prototype_dir.parent
+            / "apps/server/src/reqpilotx_server/application/cutover/sqlite_to_postgres.py"
         ).read_text(encoding="utf-8")
 
         self.assertIn("FROM pg_constraint", migration)

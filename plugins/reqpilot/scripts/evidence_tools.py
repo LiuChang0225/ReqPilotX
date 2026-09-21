@@ -11,9 +11,9 @@ import hashlib
 from pathlib import Path
 import shutil
 
-from app.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
-from app.application.agent_workflow.source_item_analysis import validate_knowledge_catalog
-from app.application.knowledge_evidence_capture import capture_knowledge_facts
+from reqpilotx.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
+from reqpilotx.application.agent_workflow.source_item_analysis import validate_knowledge_catalog
+from reqpilotx.application.knowledge_evidence_capture import capture_knowledge_facts
 from artifact_tools import read, save, required, new_output
 
 
@@ -116,7 +116,7 @@ def verify_packet_evidence(packet, packet_path):
 
 def verify_source_packet(document_map, baseline, tables, packet, catalog, *, annotations=None, decomposition=None):
     """Rebuild from the actual source artifacts, not a packet's self-declared SHA."""
-    from app.application.agent_workflow.source_item_analysis import build_source_item_analysis_packet
+    from reqpilotx.application.agent_workflow.source_item_analysis import build_source_item_analysis_packet
     expected = build_source_item_analysis_packet(document_map, baseline, tables, catalog,
         decomposition=decomposition, selected_unit_ids=packet.get("selected_unit_ids"), image_annotations=annotations)
     if packet != expected:
@@ -135,7 +135,7 @@ def freeze_analysis_source(output, document_map, baseline, tables, *, annotation
 
 
 def verify_frozen_analysis_source(packet_path, packet, catalog, *, baseline_dir=None):
-    from app.application.agent_workflow import source_requirement_baseline as core
+    from reqpilotx.application.agent_workflow import source_requirement_baseline as core
     directory = baseline_dir or packet_path.parent / "analysis-source"
     if not directory.is_dir() and (packet_path.parent / "document-map.json").is_file() and (packet_path.parent / "source-requirement-baseline.json").is_file():
         directory = packet_path.parent

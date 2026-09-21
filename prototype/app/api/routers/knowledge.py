@@ -1,46 +1,5 @@
-from app.application import knowledge
-from app.application.knowledge_facts import get_project_knowledge_facts
+"""Compatibility alias for reqpilotx_server.api.routers.knowledge."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-from ._factory import RouteSpec, build_router
-
-ROOT = "/api/projects/{project_id}"
-SPECS = (
-    RouteSpec(f"{ROOT}/knowledge-facts", get_project_knowledge_facts, "GET"),
-    RouteSpec(
-        f"{ROOT}/knowledge-documents",
-        knowledge.upload_knowledge_document,
-        "POST",
-    ),
-    RouteSpec(
-        f"{ROOT}/knowledge-documents",
-        knowledge.list_knowledge_documents,
-        "GET",
-    ),
-    RouteSpec(
-        f"{ROOT}/knowledge-documents/{{document_id}}",
-        knowledge.delete_knowledge_document,
-        "DELETE",
-    ),
-    RouteSpec(
-        f"{ROOT}/knowledge-documents/{{document_id}}/file",
-        knowledge.get_knowledge_document_file,
-        "GET",
-    ),
-    RouteSpec(
-        f"{ROOT}/knowledge-documents/{{document_id}}/resync",
-        knowledge.resync_knowledge_document,
-        "POST",
-    ),
-    RouteSpec(
-        f"{ROOT}/knowledge-sync-jobs/{{job_id}}",
-        knowledge.get_knowledge_sync_job,
-        "GET",
-    ),
-)
-
-
-def build():
-    return build_router(tag="knowledge", specs=SPECS)
-
-
-__all__ = ["build"]
+_sys.modules[__name__] = _import_module("reqpilotx_server.api.routers.knowledge")

@@ -1,11 +1,12 @@
-from __future__ import annotations
+"""Checkout-only compatibility exports for the installed server package."""
 
-# Prefer the OS trust store so Azure HTTPS calls survive enterprise TLS interception
-# on Windows developer machines.
-try:
-	import truststore
-except Exception:
-	truststore = None
-else:
-	truststore.inject_into_ssl()
+from pathlib import Path as _Path
+import sys as _sys
 
+
+_ROOT = _Path(__file__).resolve().parents[2]
+for _source in (_ROOT / "apps/server/src", _ROOT / "packages/engine/src"):
+    if str(_source) not in _sys.path:
+        _sys.path.insert(0, str(_source))
+
+from reqpilotx_server import *  # noqa: F401,F403,E402

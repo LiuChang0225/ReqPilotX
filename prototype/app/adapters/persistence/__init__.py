@@ -1,7 +1,2 @@
-"""Persistence adapter package.
-
-Concrete adapters are imported from their explicit modules so selecting a
-production repository never loads SQLite-only test adapters as a side effect.
-"""
-
-__all__: list[str] = []
+"""Compatibility exports; authoritative host implementation lives in reqpilotx_server.adapters.persistence."""
+from reqpilotx_server.adapters.persistence import *  # noqa: F401,F403

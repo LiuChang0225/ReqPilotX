@@ -66,6 +66,7 @@ A 任务继续验证和使用自己的 A 副本。相同创建命令仍返回原
 
 ```bash
 export REQPILOT_NATIVE_CAPABILITY_MODE=development-source
+export REQPILOT_DEVELOPMENT_ROOT=/absolute/path/to/ReqPilotX
 ```
 
 `local` 本身不会启用该模式，cloud 明确拒绝该模式。`REQPILOT_AGENT_RUNTIME=none`

@@ -15,7 +15,7 @@ def _progress(output, value):
 
 def _save_projection(base, snapshots, output, source_path, input_sha256=None):
     from artifact_tools import save
-    from app.application.project_visual_source import project_visual_source
+    from reqpilotx.application.project_visual_source import project_visual_source
     updated = project_visual_source(base, snapshots)
     if hashlib.sha256(source_path.read_bytes()).hexdigest() != base.source_sha256:
         raise ValueError('Original changed during visual reading')
@@ -40,9 +40,9 @@ def read_pdf_visual(args):
     import os
     import time
     from artifact_tools import required,new_output,save
-    from app.domain.extraction.source_ir import SourceIRSnapshot
-    from app.adapters.documents.pdf_source_ir_adapter import render_pdf_visual_page_input
-    from app.adapters.documents.tesseract_reading import read_page
+    from reqpilotx.domain.extraction.source_ir import SourceIRSnapshot
+    from reqpilotx.adapters.documents.pdf_source_ir_adapter import render_pdf_visual_page_input
+    from reqpilotx.adapters.documents.tesseract_reading import read_page
     source=required(args.source,'--source');ir_path=required(args.source_ir,'--source-ir')
     base=SourceIRSnapshot.model_validate_json(ir_path.read_bytes())
     if hashlib.sha256(source.read_bytes()).hexdigest()!=base.source_sha256:
@@ -120,8 +120,8 @@ def read_pdf_visual(args):
 def revise_visual_text(args):
     """Record Agent visual corrections separately; never overwrite recognizer output."""
     from artifact_tools import required,new_output,save
-    from app.domain.extraction.source_ir import SourceIRSnapshot
-    from app.domain.source_visual_text import VisualTextSnapshot,VisualTextObservation,stable_visual_text_observation_id,stable_visual_text_snapshot_id
+    from reqpilotx.domain.extraction.source_ir import SourceIRSnapshot
+    from reqpilotx.domain.source_visual_text import VisualTextSnapshot,VisualTextObservation,stable_visual_text_observation_id,stable_visual_text_snapshot_id
     source=required(args.source,'--source');ir_path=required(args.source_ir,'--source-ir');input_path=required(args.input,'--input')
     base=SourceIRSnapshot.model_validate_json(ir_path.read_bytes())
     if hashlib.sha256(source.read_bytes()).hexdigest()!=base.source_sha256:raise ValueError('Visual correction original mismatch')
@@ -196,9 +196,9 @@ def revise_visual_text(args):
 
 def capture_visual_source(args):
     from artifact_tools import required, new_output, save
-    from app.domain.extraction.source_ir import SourceIRSnapshot
-    from app.domain.source_visual_text import VisualTextSnapshot
-    from app.application.project_visual_source import project_visual_source
+    from reqpilotx.domain.extraction.source_ir import SourceIRSnapshot
+    from reqpilotx.domain.source_visual_text import VisualTextSnapshot
+    from reqpilotx.application.project_visual_source import project_visual_source
 
     source = required(args.source, '--source')
     ir_path = required(args.source_ir, '--source-ir')
