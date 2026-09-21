@@ -119,8 +119,8 @@ elif configured_storage_dir:
 elif getattr(sys, 'frozen', False) or os.environ.get("REQPILOT_PORTABLE_MODE") == "1":
     storage_dir = _default_user_storage_dir()
 else:
-    # Development mode uses the local prototype/storage directory
-    prototype_dir = Path(__file__).resolve().parent
+    # Both checkout entrypoints retain the pre-migration development store.
+    prototype_dir = Path(__file__).resolve().parents[2] / "prototype"
     storage_dir = resolve_storage_dir(prototype_dir)
 
 storage_dir.mkdir(parents=True, exist_ok=True)
