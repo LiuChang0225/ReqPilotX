@@ -1,0 +1,39 @@
+{
+  "name": "reqpilotx-workspaces",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "workspaces": ["apps/web", "packages/workbench-ui"],
+  "scripts": {
+    "dev": "npm run dev --workspace @reqpilotx/web",
+    "build": "npm run typecheck && npm run build --workspace @reqpilotx/web",
+    "build:panel": "npm run typecheck && npm run build --workspace @reqpilotx/workbench-ui",
+    "typecheck": "tsc --noEmit",
+    "test": "vitest run --config vitest.config.ts",
+    "test:watch": "vitest --config vitest.config.ts",
+    "test:css": "node --test packages/workbench-ui/scripts/scope-panel-css.test.mjs"
+  },
+  "dependencies": {
+    "lucide-react": "^1.27.0",
+    "pdfjs-dist": "4.10.38",
+    "react": "19.2.8",
+    "react-dom": "19.2.8"
+  },
+  "devDependencies": {
+    "@testing-library/jest-dom": "7.0.0",
+    "@testing-library/react": "16.3.2",
+    "@testing-library/user-event": "14.6.1",
+    "@types/node": "25.5.0",
+    "@types/react": "19.2.17",
+    "@types/react-dom": "19.2.3",
+    "@vitejs/plugin-react": "6.0.4",
+    "jsdom": "29.0.0",
+    "postcss-selector-parser": "^7.1.0",
+    "typescript": "7.0.2",
+    "vite": "8.1.5",
+    "vitest": "4.1.10"
+  },
+  "engines": {
+    "node": ">=22.12.0"
+  }
+}

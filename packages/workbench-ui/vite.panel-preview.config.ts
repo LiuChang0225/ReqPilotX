@@ -2,7 +2,7 @@ import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
 import { resolve } from "node:path";
 
-const reactFixture = resolve(process.cwd(), "../runtime-data/ui-pair-panel-20260914/react18/node_modules");
+const reactFixture = resolve(process.env.PAIR_REACT_ROOT || "../../integrations/pair/tests/react-host", "node_modules");
 export default defineConfig({
   plugins: [react()],
   resolve: { alias: [

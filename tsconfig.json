@@ -17,5 +17,5 @@
     "jsx": "react-jsx",
     "types": ["vitest/globals", "@testing-library/jest-dom"]
   },
-  "include": ["src", "vite.config.ts"]
+  "include": ["apps/web/src", "apps/web/vite.config.ts", "packages/workbench-ui/src", "packages/workbench-ui/vite.config.ts", "vitest.config.ts"]
 }

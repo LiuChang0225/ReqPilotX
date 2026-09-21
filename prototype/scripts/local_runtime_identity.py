@@ -34,9 +34,10 @@ def _source_files(root: Path) -> list[Path]:
         (root.parent / "apps" / "server" / "src", {".py", ".json", ".sql"}),
         (root / "migrations" / "postgresql", {".sql"}),
         (
-            root / "frontend" / "src",
+            root.parent / "packages/workbench-ui/src",
             {".css", ".js", ".jsx", ".json", ".scss", ".svg", ".ts", ".tsx"},
         ),
+        (root.parent / "apps/web/src", {".ts", ".tsx"}),
     ):
         if directory.exists():
             candidates.extend(
@@ -60,6 +61,12 @@ def _source_files(root: Path) -> list[Path]:
         "status.sh",
     ):
         path = root / relative
+        if path.is_file():
+            candidates.append(path)
+    for relative in ("package.json", "package-lock.json", "tsconfig.json",
+                     "apps/web/index.html", "apps/web/package.json", "apps/web/vite.config.ts",
+                     "packages/workbench-ui/package.json"):
+        path = root.parent / relative
         if path.is_file():
             candidates.append(path)
     return sorted(set(candidates), key=lambda path: path.resolve().as_posix())

@@ -21,6 +21,9 @@ R1 构建输入保护 `86437a17` 和独立 R2 固定能力包提交。
 普通模块 import 仍保留别名身份。能力包 `inspect` 与任务准备共用受控注册路径
 解析，旧 capability 脚本仅转发到 server CLI，不维护第二份检查实现。
 
+后继 Web、共享工作台、Pair 安装版和桌面归属见
+[R4 交付说明](repository-productization-r4.md)。
+
 可写状态只由 `REQPILOT_STORAGE_DIR`、`REQPILOT_OBJECT_ROOT`、capability registry
 和任务私有根决定；前端由 `REQPILOT_FRONTEND_DIR` 指定。需要 checkout 中 Agent Kit
 或显式源码构建时必须设置 `REQPILOT_DEVELOPMENT_ROOT`，发行缺包不会据此自动降级。

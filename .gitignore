@@ -22,6 +22,9 @@ lib/
 lib64/
 !prototype/frontend/src/shared/lib/
 !prototype/frontend/src/shared/lib/format.ts
+!packages/workbench-ui/src/shared/lib/
+!packages/workbench-ui/src/shared/lib/format.ts
+packages/workbench-ui/dist-panel/
 parts/
 sdist/
 var/

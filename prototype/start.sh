@@ -8,7 +8,7 @@ cd "$ROOT_DIR"
 export PYTHONPATH="$REPO_ROOT/packages/engine/src:$REPO_ROOT/apps/server/src:$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
 export REQPILOT_STORAGE_DIR="${REQPILOT_STORAGE_DIR:-$ROOT_DIR/storage}"
 export REQPILOT_OBJECT_ROOT="${REQPILOT_OBJECT_ROOT:-$ROOT_DIR/runtime-data}"
-export REQPILOT_FRONTEND_DIR="${REQPILOT_FRONTEND_DIR:-$ROOT_DIR/frontend/dist}"
+export REQPILOT_FRONTEND_DIR="${REQPILOT_FRONTEND_DIR:-$REPO_ROOT/apps/web/dist}"
 export REQPILOT_DEVELOPMENT_ROOT="${REQPILOT_DEVELOPMENT_ROOT:-$REPO_ROOT}"
 
 HOST="${HOST:-127.0.0.1}"
@@ -127,7 +127,7 @@ WORKER_GUARD="$ROOT_DIR/scripts/local_worker_guard.py"
 RUNTIME_IDENTITY="$ROOT_DIR/scripts/local_runtime_identity.py"
 RUNTIME_INSTANCE_FILE="$LOG_DIR/runtime_${PORT}.instance"
 WORKER_DRAIN_FILE="$LOG_DIR/workers_${PORT}.draining"
-FRONTEND_DIR="$ROOT_DIR/frontend"
+FRONTEND_DIR="$REPO_ROOT/apps/web"
 FRONTEND_LOG_FILE="$LOG_DIR/frontend_${PORT}.log"
 FRONTEND_PID_FILE="$LOG_DIR/frontend_${PORT}.pid"
 LOCAL_QDRANT_CLI="$ROOT_DIR/scripts/local_qdrant.py"
@@ -323,17 +323,17 @@ if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number
   exit 1
 fi
 
-FRONTEND_LOCK_FILE="$FRONTEND_DIR/package-lock.json"
-FRONTEND_STAMP="$FRONTEND_DIR/node_modules/.reqpilotx-lock.sha256"
+FRONTEND_LOCK_FILE="$REPO_ROOT/package-lock.json"
+FRONTEND_STAMP="$REPO_ROOT/node_modules/.reqpilotx-lock.sha256"
 FRONTEND_LOCK_HASH="$(
   .venv/bin/python -c \
     'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' \
     "$FRONTEND_LOCK_FILE"
 )"
 INSTALLED_FRONTEND_HASH="$(cat "$FRONTEND_STAMP" 2>/dev/null || true)"
-if [[ ! -d "$FRONTEND_DIR/node_modules" || "$INSTALLED_FRONTEND_HASH" != "$FRONTEND_LOCK_HASH" ]]; then
+if [[ ! -d "$REPO_ROOT/node_modules" || "$INSTALLED_FRONTEND_HASH" != "$FRONTEND_LOCK_HASH" ]]; then
   echo "[INFO] 正在同步 React/Vite 前端依赖..."
-  npm --prefix "$FRONTEND_DIR" ci --no-audit --no-fund
+  npm --prefix "$REPO_ROOT" ci --no-audit --no-fund
   printf '%s\n' "$FRONTEND_LOCK_HASH" > "$FRONTEND_STAMP"
 fi
 
@@ -343,14 +343,15 @@ FRONTEND_BUILD_SOURCE="$(
     "$FRONTEND_DIR/src" \
     "$FRONTEND_DIR/index.html" \
     "$FRONTEND_DIR/package.json" \
-    "$FRONTEND_DIR/package-lock.json" \
-    "$FRONTEND_DIR/tsconfig.json" \
+    "$REPO_ROOT/package-lock.json" \
+    "$REPO_ROOT/tsconfig.json" \
+    "$REPO_ROOT/packages/workbench-ui/src" \
     "$FRONTEND_DIR/vite.config.ts" \
     -type f -newer "$FRONTEND_ENTRY" -print -quit 2>/dev/null || true
 )"
 if [[ ! -f "$FRONTEND_ENTRY" || -n "$FRONTEND_BUILD_SOURCE" ]]; then
   echo "[INFO] 正在构建 React/Vite 正式前端..."
-  npm --prefix "$FRONTEND_DIR" run build
+  npm --prefix "$REPO_ROOT" run build
 fi
 
 REQUIREMENTS_FILE="$ROOT_DIR/requirements.txt"
@@ -458,7 +459,7 @@ if [[ "$MODE" == "dev" ]]; then
   (
     cd "$FRONTEND_DIR"
     REQPILOT_API_ORIGIN="http://127.0.0.1:$PORT" \
-      exec "$FRONTEND_DIR/node_modules/.bin/vite"
+      exec "$REPO_ROOT/node_modules/.bin/vite"
   ) >"$FRONTEND_LOG_FILE" 2>&1 &
   FRONTEND_PID="$!"
   echo "$FRONTEND_PID" > "$FRONTEND_PID_FILE"

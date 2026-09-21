@@ -6,7 +6,9 @@ never carries a second copy of the engine implementation.
 
 Installed entrypoints are `reqpilotx-api` and `reqpilotx-worker`. The legacy
 `prototype/start.sh` and `prototype/app` imports remain development compatibility
-routes while R4 migrates the outer application packaging.
+routes. Desktop packaging composes `reqpilotx` and `reqpilotx_server` directly;
+the PyInstaller search roots and release preflight do not consume the legacy
+`app` namespace.
 
 Writable state is always host configured with `REQPILOT_STORAGE_DIR` and
 `REQPILOT_OBJECT_ROOT`; installed code never writes beside site-packages.

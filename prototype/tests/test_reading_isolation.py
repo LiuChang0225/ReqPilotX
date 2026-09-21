@@ -36,7 +36,7 @@ from reqpilotx_server.domain.reading_catalog import (
 
 PROTOTYPE_ROOT = Path(__file__).resolve().parents[1]
 APP_ROOT = PROTOTYPE_ROOT.parent / "apps/server/src/reqpilotx_server"
-FRONTEND_ROOT = PROTOTYPE_ROOT / "frontend" / "src"
+FRONTEND_ROOT = PROTOTYPE_ROOT.parent / "packages/workbench-ui/src"
 
 _READING_APPLICATION_FORBIDDEN_PREFIXES = (
     "reqpilotx_server.application.extraction",

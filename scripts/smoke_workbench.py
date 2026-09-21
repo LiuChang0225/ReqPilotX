@@ -63,7 +63,7 @@ def isolate(directory: Path, database_url: str) -> dict[str, str]:
         "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1",
         "HF_DATASETS_OFFLINE": "1", "DO_NOT_TRACK": "1",
         "REQPILOT_DEVELOPMENT_ROOT": str(ROOT),
-        "REQPILOT_FRONTEND_DIR": str(ROOT / "prototype/frontend/dist"),
+        "REQPILOT_FRONTEND_DIR": str(ROOT / "apps/web/dist"),
         "PYTHONPATH": os.pathsep.join(
             (
                 str(ROOT / "packages/engine/src"),
