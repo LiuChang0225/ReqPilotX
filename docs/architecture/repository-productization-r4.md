@@ -67,9 +67,18 @@ Pair 使用规范 `RuntimeSettings` / `build_runtime_container(..., apply_migrat
   缺失/不兼容合同拒绝。真实 installed smoke：仓库外非 editable wheel，37 个迁移，
   合成项目/文档、原件字节、固定成果/导出及重启 ID/快照连续性通过。
   `pair-installed-receipt.json` 记录安装来源、实际身份和 HTTP 结果。
-- C：最终路径的桌面实际构建和自检结果在后续回执中记录，早期桌面 smoke 仅属历史切片。
+- C：`f767603` 上完成 apps/desktop 实际 macOS arm64 构建（Python 3.13.2，
+  PyInstaller 6.20.0，macOS 27）与 artifact self-test。runtime/full readiness、
+  静态资源、Host/Origin、优雅退出/锁释放、Qdrant 状态保持全部通过。
+  `desktop-build.log`、`desktop-artifact-receipt.json`、`desktop-artifact-manifest.json`
+  保存实际构建 SHA/环境/hash。后续仅文档和测试 fixture 修订不冒充重建。
 - D：保留全部原后端、插件/MCP、发行和 PostgreSQL smoke CI；新增非 editable Pair
   实际进程链与 React 18 fixture 检查。PR/最终 head CI 在交付时记录。
+
+源码审计曾因测试迁移失去原路径/hash 例外而报出两个合成 fixture：URL userinfo 和
+无效测试 token。URL 改用标准 example.invalid，token 以运行时合成保留完全相同
+测试字节及断言；未放宽审计或修改全局例外清单。桌面迁移的聚焦 Python 回归共
+88 项通过；必要 fixture 修订后再跑其 44 项预检和 PDF URL 聚焦测试。
 
 独立托管进程复现（fixture 由原 worked-example 生成，adapter 和 Web 已复制到仓库外）：
 

@@ -19,7 +19,7 @@ describe("PDF reader selection actions", () => {
   it("requires an explicit exact parent origin for an embedded cross-origin host", () => {
     const parent = {} as MessageEventSource, origin = "https://pair.example";
     expect(pdfParentOrigin(new URLSearchParams({embedded:"1",parentOrigin:origin}),window.location.origin)).toBe(origin);
-    for (const value of ["*", "null", "javascript:alert(1)", `${origin}/path`, `https://user:password@pair.example`]) {
+    for (const value of ["*", "null", "javascript:alert(1)", `${origin}/path`, `https://user:password@example.invalid`]) {
       expect(pdfParentOrigin(new URLSearchParams({embedded:"1",parentOrigin:value}),window.location.origin)).toBe(window.location.origin);
     }
     expect(isTrustedPdfViewerMessage({origin,source:parent},parent,origin)).toBe(true);

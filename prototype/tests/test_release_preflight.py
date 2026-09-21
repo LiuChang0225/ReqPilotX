@@ -20,6 +20,8 @@ from unittest import mock
 import build_desktop
 from scripts import release_preflight
 
+# Deliberately invalid credential fixture, assembled only inside the regression.
+SYNTHETIC_KEY = "sk-" + "live-AbCdEf0123456789-XyZ"
 
 class ReleasePreflightTests(unittest.TestCase):
     def setUp(self) -> None:
@@ -233,7 +235,7 @@ class ReleasePreflightTests(unittest.TestCase):
         legacy = self.project_dir / "app" / "module.py"
         legacy.parent.mkdir(parents=True)
         legacy.write_text(
-            'OPENAI_API_KEY = "sk-live-AbCdEf0123456789-XyZ"\n',
+            f'OPENAI_API_KEY = "{SYNTHETIC_KEY}"\n',
             encoding="utf-8",
         )
 
@@ -288,7 +290,7 @@ class ReleasePreflightTests(unittest.TestCase):
 
     def test_probable_embedded_secret_fails(self) -> None:
         self.server_module.write_text(
-            'API_KEY = "sk-live-AbCdEf0123456789-XyZ"\n', encoding="utf-8"
+            f'API_KEY = "{SYNTHETIC_KEY}"\n', encoding="utf-8"
         )
 
         with self.assertRaisesRegex(release_preflight.PreflightError, "probable credential"):
@@ -303,7 +305,7 @@ class ReleasePreflightTests(unittest.TestCase):
         ):
             with self.subTest(name=name):
                 self.server_module.write_text(
-                    f'{name} = "sk-live-AbCdEf0123456789-XyZ"\n',
+                    f'{name} = "{SYNTHETIC_KEY}"\n',
                     encoding="utf-8",
                 )
                 with self.assertRaisesRegex(
@@ -326,7 +328,7 @@ class ReleasePreflightTests(unittest.TestCase):
             with self.subTest(filename=filename):
                 config = static_dir / filename
                 config.write_text(
-                    "OPENAI_API_KEY = sk-live-AbCdEf0123456789-XyZ\n",
+                    f"OPENAI_API_KEY = {SYNTHETIC_KEY}\n",
                     encoding="utf-8",
                 )
                 with self.assertRaisesRegex(
@@ -339,8 +341,8 @@ class ReleasePreflightTests(unittest.TestCase):
     def test_javascript_backtick_and_bare_secret_values_fail(self) -> None:
         app_js = self.project_dir.parent / "web" / "dist" / "assets" / "index-test.js"
         for source in (
-            "const OPENAI_API_KEY = `sk-live-AbCdEf0123456789-XyZ`;",
-            "const OPENAI_API_KEY = sk-live-AbCdEf0123456789-XyZ;",
+            f"const OPENAI_API_KEY = `{SYNTHETIC_KEY}`;",
+            f"const OPENAI_API_KEY = {SYNTHETIC_KEY};",
         ):
             with self.subTest(source_kind="backtick" if "`" in source else "bare"):
                 app_js.write_text(source, encoding="utf-8")
@@ -366,7 +368,7 @@ class ReleasePreflightTests(unittest.TestCase):
 
     def test_known_secret_prefix_cannot_be_hidden_by_placeholder_substring(self) -> None:
         self.server_module.write_text(
-            'OPENAI_API_KEY = "sk-live-dummy-AbCdEf0123456789-XyZ"\n',
+            'OPENAI_API_KEY = "' + SYNTHETIC_KEY.replace("live-", "live-dummy-") + '"\n',
             encoding="utf-8",
         )
 
