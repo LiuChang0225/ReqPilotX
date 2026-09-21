@@ -3,6 +3,11 @@ from __future__ import annotations
 from pathlib import Path
 import unittest
 
+from .runtime_isolation import activate_test_runtime
+
+
+activate_test_runtime()
+
 
 ROOT = Path(__file__).resolve().parents[2]
 
