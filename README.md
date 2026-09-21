@@ -11,6 +11,7 @@ ReqPilotX 是面向汽车 SOR 的需求工程工作台，把复杂文档转成�
 - [开发计划](docs/需求提取/开发计划.md)：唯一实施顺序；[当前接续](docs/active-context.md)提供当前证据入口。
 - [应用运行](prototype/README.md)、[本地部署](docs/deployment/local-native-postgresql.md)、[原生任务能力包](docs/deployment/native-loop-capabilities.md)：依赖、启动、能力登记与恢复。
 - [可安装引擎发行](packages/engine/README.md)、[服务包](apps/server/README.md)、[可移植插件](plugins/reqpilot/README.md)、[Pair 适配](integrations/pair/README.md)：共享能力、发行物和宿主边界。
+- [Web 应用](apps/web/README.md)、[共享工作台](packages/workbench-ui/README.md)、[桌面应用](apps/desktop/README.md)：同源 UI、Panel 合同与桌面成品入口；[R6 集成约定](docs/architecture/repository-productization-r6.md)说明组合构建和验证边界。
 - [Agent 资产](agent-assets/README.md)、[Agent 评测](evals/agent_evals/README.md)、[实验](experiments/README.md)：技能/vendor 权威源、程序与语义评核、非生产实验边界。
 - [UI/UX 合同](DESIGN.md)、[架构](docs/architecture/target-architecture.md)、[参考资料](docs/参考资料索引.md)。
 
