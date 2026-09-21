@@ -62,7 +62,15 @@ def isolate(directory: Path, database_url: str) -> dict[str, str]:
         "REQPILOT_ALLOWED_HOSTS": "127.0.0.1,localhost",
         "HF_HUB_OFFLINE": "1", "TRANSFORMERS_OFFLINE": "1",
         "HF_DATASETS_OFFLINE": "1", "DO_NOT_TRACK": "1",
-        "PYTHONPATH": str(ROOT / "prototype"),
+        "REQPILOT_DEVELOPMENT_ROOT": str(ROOT),
+        "REQPILOT_FRONTEND_DIR": str(ROOT / "prototype/frontend/dist"),
+        "PYTHONPATH": os.pathsep.join(
+            (
+                str(ROOT / "packages/engine/src"),
+                str(ROOT / "apps/server/src"),
+                str(ROOT / "prototype"),
+            )
+        ),
     })
     return env
 
@@ -214,7 +222,12 @@ def run(args: Namespace) -> int:
     env = isolate(directory, database_url)
     os.environ.clear()
     os.environ.update(env)
-    sys.path[:0] = [str(PLUGIN / "scripts"), str(ROOT / "prototype")]
+    sys.path[:0] = [
+        str(PLUGIN / "scripts"),
+        str(ROOT / "packages/engine/src"),
+        str(ROOT / "apps/server/src"),
+        str(ROOT / "prototype"),
+    ]
     sys.addaudithook(block_external_connections)
     import httpx
 
@@ -443,7 +456,11 @@ def main() -> int:
         require(os.environ.get("REQPILOT_ENV") == "local" and os.environ.get("REQPILOT_AGENT_RUNTIME") == "none"
                 and "reqpilot_smoke@127.0.0.1:" in os.environ.get("REQPILOT_DATABASE_URL", ""),
                 "Internal server requires the isolated local PostgreSQL configuration")
-        sys.path.insert(0, str(ROOT / "prototype"))
+        sys.path[:0] = [
+            str(ROOT / "packages/engine/src"),
+            str(ROOT / "apps/server/src"),
+            str(ROOT / "prototype"),
+        ]
         sys.addaudithook(block_external_connections)
         import uvicorn
         uvicorn.run(
