@@ -6,6 +6,8 @@ import { resolve, join } from 'node:path';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { createHash, randomUUID } from 'node:crypto';
+import { execFileSync } from 'node:child_process';
+import { fileURLToPath } from 'node:url';
 import { ManagedRuntime } from '../host/src/managed-runtime.js';
 import { createHandler } from '../host/src/index.js';
 import { nativeSubprocess } from '../tests/native-subprocess.mjs';
@@ -30,9 +32,10 @@ async function request(path,init={},direct=false) {
 const json=async (path,init,direct)=>(await request(path,init,direct)).json();
 let receipt={status:'FAIL',scope:'synthetic installed Pair adapter; external Pair UI not tested'};
 try {
-  for(const invalid of [{...config,python:undefined},{...config,frontendRoot:join(temporary,'missing')}]) {
+  for(const invalid of [{...config,python:undefined},{...config,python:join(temporary,'missing-python')},{...config,frontendRoot:join(temporary,'missing')}]) {
     const candidate=new ManagedRuntime(nativeSubprocess,invalid);await candidate.start();assert.equal(candidate.snapshot.status,'ERROR');await candidate.stop();
   }
+  assert.throws(()=>execFileSync(python,['-I','-S',fileURLToPath(new URL('../host/src/managed_api.py',import.meta.url)),'probe'],{cwd:temporary,stdio:'pipe'}), /Command failed/);
   await runtime.start();assert.equal(runtime.snapshot.status,'READY',runtime.snapshot.message);
   const competing=new ManagedRuntime(nativeSubprocess,config);await competing.start();assert.equal(competing.snapshot.status,'ERROR');assert.match(competing.snapshot.message,/already in use/);
   const source=await readFile(join(fixture,'example.pdf'));
@@ -67,7 +70,7 @@ try {
   const readiness=await json('/api/runtime-readiness');assert.equal(readiness.database_backend,'postgresql');
   const index=await fetch(runtime.snapshot.serviceOrigin+'/workspace');assert.equal(index.status,200);assert.match(await index.text(),/ReqPilotX/);
   receipt={status:'PASS',installation:first.installation,source_sha256:sha(source),project_id:project.id,document_id:document.id,revision_id:state.revision_id,
-    snapshot_sha256:sha(JSON.stringify(snapshot)),restart_identity_preserved:true,frontend_served:true,worker_started:false,model_called:false,external_pair_ui:'NOT_RUN',requests};
+    snapshot_sha256:sha(JSON.stringify(snapshot)),restart_identity_preserved:true,frontend_served:true,missing_service_and_frontend_rejected:true,competing_owner_rejected:true,worker_started:false,model_called:false,external_pair_ui:'NOT_RUN',requests};
 } finally {
   await runtime.stop();await new Promise(ok=>proxy.close(ok));
   await writeFile(report,JSON.stringify(receipt,null,2)+'\n');
