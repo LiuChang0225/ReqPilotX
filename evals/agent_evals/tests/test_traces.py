@@ -7,7 +7,7 @@ from pathlib import Path
 import tempfile
 import unittest
 
-from prototype.eval.agent_evals.traces import analyze
+from evals.agent_evals.traces import analyze
 
 
 def digest(value):
@@ -355,8 +355,11 @@ class TraceTests(unittest.TestCase):
 
     def test_runtime_artifact_and_operation_catalogs_are_supported_by_the_evaluator(self):
         import ast
-        from prototype.eval.agent_evals.traces import ARTIFACT_KINDS,OPERATION_KINDS
-        path=Path(__file__).resolve().parents[3]/'app/application/agent_workflow/artifact_kind_catalog.py'
+        from evals.agent_evals.traces import ARTIFACT_KINDS,OPERATION_KINDS
+        path=(
+            Path(__file__).resolve().parents[3]
+            / 'packages/engine/src/reqpilotx/application/agent_workflow/artifact_kind_catalog.py'
+        )
         module=ast.parse(path.read_text())
         catalogs={}
         for node in module.body:

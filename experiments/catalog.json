@@ -1,0 +1,44 @@
+{
+  "schema_version": "reqpilotx-experiment-catalog/v1",
+  "groups": [
+    {
+      "id": "codex-app-server-canary-schemas",
+      "classification": "EXPERIMENT",
+      "source": "experiments/codex-app-server/schemas",
+      "consumers": [
+        "reqpilotx_server.adapters.agents.codex_app_server.pdf_skill_canary",
+        "synthetic canary contract tests"
+      ],
+      "retirement_condition": "Retire only after the canary output schemas have a versioned production owner or the canary exits."
+    },
+    {
+      "id": "codex-app-server-compatibility-modules",
+      "classification": "COMPATIBILITY",
+      "source": "prototype/spikes/codex_app_server",
+      "consumers": [
+        "legacy module commands",
+        "prototype/tests/spikes"
+      ],
+      "retirement_condition": "Retire after old module commands and focused tests use installed server entry points directly."
+    },
+    {
+      "id": "target-review",
+      "classification": "UNRESOLVED",
+      "source": "prototype/target_review",
+      "consumers": [
+        "local source-bound review URLs",
+        "append-only private feedback and baseline-loop readers"
+      ],
+      "retirement_condition": "Move only after private feedback continuity and every documented launch/import path have a tested replacement."
+    },
+    {
+      "id": "type-review",
+      "classification": "UNRESOLVED",
+      "source": "prototype/type_review",
+      "consumers": [
+        "all-types campaign review and historical decision exports"
+      ],
+      "retirement_condition": "Move only after campaign/feedback continuity and historical result readers are verified."
+    }
+  ]
+}

@@ -8,7 +8,7 @@
 | 逻辑表直属章节 | 查节点`content_blocks`中的`LOGICAL_TABLE.logical_table_scope_id`；Map编辑输入中的`owner_node_id`会编译成该关系 |
 | 原文与标签 | `label/title`不是唯一原文容器。核对source_content/text_bindings、表格单元及source_number，不能只比较标签 |
 | 全文保留与分析上下文 | 定义在其它SRC中保留，不代表使用该定义的条目或派生项已经得到关联；应核对实际有效读取包及父级/共享上下文，而非只看字段是否为空 |
-| 试验方法与过程类别 | 按项目[分类V1](../../../docs/需求提取/分类与验证关联规则V1.md)，完整试验的条件/方法/判据不因带步骤就自动成为独立PROCESS义务 |
+| 试验方法与过程类别 | 按项目[分类V1](../../docs/需求提取/分类与验证关联规则V1.md)，完整试验的条件/方法/判据不因带步骤就自动成为独立PROCESS义务 |
 | 程序检查与业务质量 | BYTES_MATCH、REVIEW_VERIFIED、CONTENT_MATCH等只按其真实实现计证据，不自动等于语义、泛化或工程师接受 |
 
 章节归属的代码入口是 `plugins/reqpilot/scripts/artifact_tools.py` 的逻辑表编译及 `source_requirement_baseline.build_source_requirement_scope_request`。不要凭相似字段名推断关系；格式疑问先查当前合同。

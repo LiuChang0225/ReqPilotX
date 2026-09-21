@@ -4,8 +4,8 @@ import unittest
 from pathlib import Path
 import sys
 
-from prototype.eval.agent_evals.hosts import public_event
-from prototype.eval.agent_evals.runner import execute_process
+from evals.agent_evals.hosts import public_event
+from evals.agent_evals.runner import execute_process
 
 
 class HostTraceTests(unittest.TestCase):

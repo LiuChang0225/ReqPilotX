@@ -7,10 +7,10 @@ from tempfile import TemporaryDirectory
 import unittest
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from eval.agent_evals.contracts import digest, file_sha, save
-from eval.agent_evals.micro_cases import CASES, generate
-from eval.agent_evals.stage_fixtures import inventory, relation_checks, verify_seed
-from eval.agent_evals.runner import prepare
+from evals.agent_evals.contracts import digest, file_sha, save
+from evals.agent_evals.micro_cases import CASES, generate
+from evals.agent_evals.stage_fixtures import inventory, relation_checks, verify_seed
+from evals.agent_evals.runner import prepare
 
 
 class StageFixtureTests(unittest.TestCase):

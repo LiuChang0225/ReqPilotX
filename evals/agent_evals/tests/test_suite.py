@@ -9,7 +9,7 @@ import unittest
 from unittest.mock import patch
 
 sys.path.insert(0, str(Path(__file__).resolve().parents[3]))
-from eval.agent_evals.contracts import (
+from evals.agent_evals.contracts import (
     digest,
     file_sha,
     freeze_run,
@@ -18,8 +18,8 @@ from eval.agent_evals.contracts import (
     save,
     selected_case,
 )
-from eval.agent_evals.runner import execute_process, prepare
-from eval.agent_evals.reporting import grade, review_template, automatic, table, applicable
+from evals.agent_evals.runner import execute_process, prepare
+from evals.agent_evals.reporting import grade, review_template, automatic, table, applicable
 
 
 class SuiteTests(unittest.TestCase):
@@ -59,7 +59,7 @@ class SuiteTests(unittest.TestCase):
         )
         metrics["error_codes"] = ["HOST_UI_UNAVAILABLE"]
         with patch(
-            "eval.agent_evals.reporting.inspect_run",
+            "evals.agent_evals.reporting.inspect_run",
             return_value=(result, metrics, basis),
         ):
             report_path = self.root / "host-gap.json"
@@ -180,7 +180,7 @@ print(json.dumps({"type":"turn.completed","usage":{"input_tokens":1,"output_toke
     def test_case_tamper_fails_and_all_program_passes_do_not_resolve_semantics(self):
         out, run, result, metrics, basis = self.run_fixture()
         with patch(
-            "eval.agent_evals.reporting.inspect_run",
+            "evals.agent_evals.reporting.inspect_run",
             return_value=(result, metrics, basis),
         ):
             report = grade(out, self.root / "grade.json")
@@ -199,7 +199,7 @@ print(json.dumps({"type":"turn.completed","usage":{"input_tokens":1,"output_toke
     def test_source_review_requires_correct_run_and_evidence_revision(self):
         out, run, result, metrics, basis = self.run_fixture()
         with patch(
-            "eval.agent_evals.reporting.inspect_run",
+            "evals.agent_evals.reporting.inspect_run",
             return_value=(result, metrics, basis),
         ):
             review_template(out, self.root / "template.json")

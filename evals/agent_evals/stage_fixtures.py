@@ -26,7 +26,7 @@ def seed(workspace, source, recipe_path, python, workbench_url, goal, operator):
     recipe = read(recipe_path)
     if recipe["source_sha256"] != file_sha(source):
         raise ValueError("Stage recipe is for a different original")
-    script = Path(__file__).resolve().parents[2] / "scripts/agent_eval.py"
+    script = Path(__file__).resolve().parents[2] / "prototype/scripts/agent_eval.py"
     request = {
         "workspace": str(workspace),
         "source": str(source),

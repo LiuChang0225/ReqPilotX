@@ -1,7 +1,7 @@
 import unittest
 from pathlib import Path
 
-from prototype.eval.agent_evals.host_install import pair_patch
+from evals.agent_evals.host_install import pair_patch
 
 
 class PairPatchTests(unittest.TestCase):
