@@ -1,8 +1,5 @@
-"""ReqPilotX ASGI composition entrypoint."""
+"""Compatibility alias for reqpilotx_server.main."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-from __future__ import annotations
-
-from app.api.app_factory import create_app
-
-
-app = create_app()
+_sys.modules[__name__] = _import_module("reqpilotx_server.main")

@@ -441,7 +441,12 @@ def main() -> int:
         sys.path.insert(0, str(ROOT / "prototype"))
         sys.addaudithook(block_external_connections)
         import uvicorn
-        uvicorn.run("app.main:app", host="127.0.0.1", port=args.port, log_level="info")
+        uvicorn.run(
+            "reqpilotx_server.main:app",
+            host="127.0.0.1",
+            port=args.port,
+            log_level="info",
+        )
         return 0
     return run(args)
 

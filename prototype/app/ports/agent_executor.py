@@ -1,36 +1,5 @@
-from __future__ import annotations
+"""Compatibility alias for reqpilotx_server.ports.agent_executor."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-from typing import Callable, Protocol, runtime_checkable
-
-from app.application.agent_workflow.extraction_runtime import (
-    AgentExecutionRequestV1,
-    AgentExecutionResultV1,
-    AgentKitIdentityV1,
-    AgentRunEventV1,
-    AgentRunnerKind,
-)
-
-
-@runtime_checkable
-class AgentDocumentExecutorPort(Protocol):
-    """Stage-neutral execution seam shared by desktop and embedded runners."""
-
-    @property
-    def kit_identity(self) -> AgentKitIdentityV1: ...
-
-    @property
-    def runner_profile_id(self) -> str: ...
-
-    @property
-    def runner_kind(self) -> AgentRunnerKind: ...
-
-    def execute(
-        self,
-        request: AgentExecutionRequestV1,
-        *,
-        emit_event: Callable[[AgentRunEventV1], None],
-        cancellation_requested: Callable[[], bool],
-    ) -> AgentExecutionResultV1: ...
-
-
-__all__ = ["AgentDocumentExecutorPort"]
+_sys.modules[__name__] = _import_module("reqpilotx_server.ports.agent_executor")

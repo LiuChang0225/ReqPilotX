@@ -1,24 +1,5 @@
-from __future__ import annotations
+"""Compatibility alias for reqpilotx_server.ports.attachment_store."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-from os import PathLike
-from typing import Protocol
-
-from app.domain.extraction.attachment import AttachmentArtifactReceipt
-
-
-class AttachmentArtifactStorePort(Protocol):
-    def preserve(
-        self,
-        source_path: str | PathLike[str],
-        *,
-        expected_sha256: str,
-        expected_size: int,
-        media_type: str,
-    ) -> AttachmentArtifactReceipt:
-        """Persist exact source bytes and return a verified, path-safe receipt."""
-
-    def verify(self, receipt: AttachmentArtifactReceipt) -> bool:
-        """Return whether the stored artifact still matches its receipt."""
-
-
-__all__ = ["AttachmentArtifactStorePort"]
+_sys.modules[__name__] = _import_module("reqpilotx_server.ports.attachment_store")

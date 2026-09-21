@@ -1,9 +1,5 @@
-from pydantic import BaseModel, Field
+"""Compatibility alias for reqpilotx_server.application.projects_contracts."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-
-class CreateProjectRequest(BaseModel):
-    name: str = Field(min_length=1, max_length=255)
-    customer_name: str = Field(min_length=1, max_length=255)
-
-
-__all__ = ["CreateProjectRequest"]
+_sys.modules[__name__] = _import_module("reqpilotx_server.application.projects_contracts")

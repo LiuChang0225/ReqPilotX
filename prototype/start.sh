@@ -2,10 +2,15 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
 cd "$ROOT_DIR"
 
+export PYTHONPATH="$REPO_ROOT/packages/engine/src:$REPO_ROOT/apps/server/src:$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+export REQPILOT_STORAGE_DIR="${REQPILOT_STORAGE_DIR:-$ROOT_DIR/storage}"
+export REQPILOT_FRONTEND_DIR="${REQPILOT_FRONTEND_DIR:-$ROOT_DIR/frontend/dist}"
+
 HOST="${HOST:-127.0.0.1}"
-APP_MODULE="${APP_MODULE:-app.main:app}"
+APP_MODULE="${APP_MODULE:-reqpilotx_server.main:app}"
 HEALTH_PATH="${HEALTH_PATH:-/api/runtime-readiness}"
 LOG_DIR="$ROOT_DIR/tmp"
 
@@ -196,7 +201,7 @@ start_stable_worker() {
       REQPILOT_LOCAL_RUNTIME_INSTANCE_ID="$RUNTIME_INSTANCE_ID" \
       REQPILOT_RUNTIME_SOURCE_REVISION="$CURRENT_SOURCE_REVISION" \
       REQPILOT_LOCAL_WORKER_COUNT="$WORKER_COUNT" \
-      screen -dmS "$worker_screen_name" bash -lc 'cd "$ROOT_DIR" && printf "%s\n" "$$" > "$WORKER_PID_FILE" && export REQPILOT_PROCESS_ROLE=worker REQPILOT_LOCAL_RUNTIME_PORT REQPILOT_LOCAL_RUNTIME_INSTANCE_ID REQPILOT_RUNTIME_SOURCE_REVISION REQPILOT_LOCAL_WORKER_COUNT REQPILOT_LOCAL_WORKER_SLOT="$WORKER_SLOT" && exec .venv/bin/python -m app.worker $WORKER_LANE_ARGS >> "$WORKER_LOG_FILE" 2>&1'
+      screen -dmS "$worker_screen_name" bash -lc 'cd "$ROOT_DIR" && printf "%s\n" "$$" > "$WORKER_PID_FILE" && export REQPILOT_PROCESS_ROLE=worker REQPILOT_LOCAL_RUNTIME_PORT REQPILOT_LOCAL_RUNTIME_INSTANCE_ID REQPILOT_RUNTIME_SOURCE_REVISION REQPILOT_LOCAL_WORKER_COUNT REQPILOT_LOCAL_WORKER_SLOT="$WORKER_SLOT" && exec .venv/bin/python -m reqpilotx_server.worker $WORKER_LANE_ARGS >> "$WORKER_LOG_FILE" 2>&1'
     echo "$worker_screen_name" > "$worker_session_file"
   else
       REQPILOT_LOCAL_RUNTIME_PORT="$PORT" \
@@ -204,7 +209,7 @@ start_stable_worker() {
       REQPILOT_RUNTIME_SOURCE_REVISION="$CURRENT_SOURCE_REVISION" \
       REQPILOT_LOCAL_WORKER_COUNT="$WORKER_COUNT" \
       REQPILOT_LOCAL_WORKER_SLOT="$slot" REQPILOT_PROCESS_ROLE=worker \
-      nohup .venv/bin/python -m app.worker $worker_lane_args \
+      nohup .venv/bin/python -m reqpilotx_server.worker $worker_lane_args \
       >"$worker_log_file" 2>&1 < /dev/null &
     echo "$!" > "$worker_pid_file"
   fi
@@ -442,7 +447,7 @@ if [[ "$MODE" == "dev" ]]; then
     REQPILOT_RUNTIME_SOURCE_REVISION="$CURRENT_SOURCE_REVISION" \
     REQPILOT_LOCAL_WORKER_COUNT="$WORKER_COUNT" \
     REQPILOT_LOCAL_WORKER_SLOT="$slot" REQPILOT_PROCESS_ROLE=worker \
-      .venv/bin/python -m app.worker "${worker_lane_args[@]}" \
+      .venv/bin/python -m reqpilotx_server.worker "${worker_lane_args[@]}" \
       >"$(worker_log_file "$slot")" 2>&1 &
     worker_pid="$!"
     DEV_WORKER_PIDS+=("$worker_pid")

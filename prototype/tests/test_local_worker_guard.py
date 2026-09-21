@@ -41,16 +41,16 @@ class LocalWorkerGuardTests(unittest.TestCase):
                 root=Path("/tmp/reqpilotx"),
                 command=(
                     "SCREEN -dmS reqpilotx_worker_8000 bash -lc "
-                    "exec .venv/bin/python -m app.worker"
+                    "exec .venv/bin/python -m reqpilotx_server.worker"
                 ),
             )
 
         self.assertIsNone(observed)
 
     def _prepare_worker_module(self, root: Path) -> None:
-        package = root / "app" / "worker"
+        package = root / "reqpilotx_server" / "worker"
         package.mkdir(parents=True)
-        (root / "app" / "__init__.py").write_text("", encoding="utf-8")
+        (root / "reqpilotx_server" / "__init__.py").write_text("", encoding="utf-8")
         (package / "__init__.py").write_text("", encoding="utf-8")
         (package / "__main__.py").write_text(
             "import time\nwhile True:\n    time.sleep(1)\n",
@@ -104,7 +104,7 @@ class LocalWorkerGuardTests(unittest.TestCase):
                 else ()
             )
         process = subprocess.Popen(
-            [sys.executable, "-m", "app.worker", *lane_args],
+            [sys.executable, "-m", "reqpilotx_server.worker", *lane_args],
             cwd=root,
             env=environment,
             stdout=subprocess.DEVNULL,

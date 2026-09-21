@@ -2,6 +2,7 @@
 set -euo pipefail
 
 prototype_dir="$(cd "$(dirname "$0")/.." && pwd)"
+repo_dir="$(cd "$prototype_dir/.." && pwd)"
 worker_pid_file="$prototype_dir/runtime-data/agent-workbench-worker.pid"
 worker_cli="$prototype_dir/scripts/agent_workflow.py"
 worker_python="$prototype_dir/.venv/bin/python"
@@ -37,5 +38,8 @@ mkdir -p "$prototype_dir/runtime-data"
 cd "$prototype_dir"
 export REQPILOT_CODEX_AUTH_STORE="${REQPILOT_CODEX_AUTH_STORE:-file}"
 export REQPILOT_AGENT_CUSTOMER_DATA_ENABLED="${REQPILOT_AGENT_CUSTOMER_DATA_ENABLED:-1}"
+export PYTHONPATH="$repo_dir/packages/engine/src:$repo_dir/apps/server/src:$prototype_dir${PYTHONPATH:+:$PYTHONPATH}"
+export REQPILOT_STORAGE_DIR="${REQPILOT_STORAGE_DIR:-$prototype_dir/storage}"
+export REQPILOT_FRONTEND_DIR="${REQPILOT_FRONTEND_DIR:-$prototype_dir/frontend/dist}"
 echo "$$" > "$worker_pid_file"
 exec "$worker_python" "$worker_cli" serve
