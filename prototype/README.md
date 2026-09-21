@@ -1,12 +1,14 @@
 # ReqPilotX 现有应用运行
 
-本目录保留 React/Vite/TypeScript 外壳、开发启动脚本和旧 Python import 兼容入口。
+本目录保留开发启动脚本和旧 Python import/前端命令兼容入口。
+React/Vite Web 外壳位于 `apps/web`，共享业务 UI 位于 `packages/workbench-ui`，
+桌面启动与打包位于 `apps/desktop`。
 共享业务源码位于 `packages/engine/src/reqpilotx`，FastAPI、独立 worker、PostgreSQL、
 对象存储和 Agent 宿主位于 `apps/server/src/reqpilotx_server`。
 它是目标态探索可复用的工程资产，不意味着新 Agent 的全文条目/分类/拆分已完整验收。
 当前开发顺序见[开发计划](../docs/需求提取/开发计划.md)。
 
-桌面构建入口 `app_desktop.py` 与 `ReqPilotX.spec` 直接组合上述两个权威包；
+桌面旧构建入口转发到 `apps/desktop`，直接组合上述两个权威包；
 `prototype/app` 不进入正式桌面依赖图。发布预检扫描权威 runtime 源码与前端构建，
 PyInstaller 显式收集引擎动态兼容转发所需的 `reqpilotx` 子模块、引擎包数据和
 服务只读资源，并把冻结前端目录注入安装版运行设置。旧命名空间只保留给尚未迁移的
@@ -44,7 +46,7 @@ cd prototype
 ```
 
 现有运行身份不一致时，启动器会拒绝新前端/旧 worker 混跑；排空让在手任务完成后退出。
-开发模式提供 Vite 5173 与 API 8010。常规启动复用/生成 frontend/dist，不提交构建产物。
+开发模式提供 Vite 5173 与 API 8010。常规启动复用/生成 apps/web/dist，不提交构建产物。
 具体 worker、Qdrant、备份与恢复边界见[本地部署](../docs/deployment/local-native-postgresql.md)。
 
 ## Codex 运行配置
@@ -77,7 +79,7 @@ REQPILOT_READING_DIRECT_INPUT_TOKEN_BUDGET
 - `/api/runtime-readiness`：基础运行状态；Agent 能力另有就绪检查。
 - `/openapi.json`：当前进程的 API schema，不以历史文档固定路由数量作真值。
 
-前端命令见[frontend README](frontend/README.md)；
+前端命令见[Web README](../apps/web/README.md)；
 接口与工件位置见[数据/API 索引](../docs/sor-ai-app-data-api-v1.md)。
 
 ## 测试
@@ -86,9 +88,9 @@ REQPILOT_READING_DIRECT_INPUT_TOKEN_BUDGET
 
 ```bash
 prototype/.venv/bin/python scripts/test_python.py backend
-npm --prefix prototype/frontend run test
-npm --prefix prototype/frontend run typecheck
-npm --prefix prototype/frontend run build
+npm test
+npm run typecheck
+npm run build
 ```
 
 保留正确 top-level，使历史兼容测试正常导入。测试使用隔离 profile，不重置生产数据。

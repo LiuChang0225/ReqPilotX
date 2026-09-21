@@ -25,8 +25,9 @@ class ReleasePreflightTests(unittest.TestCase):
     def setUp(self) -> None:
         self.temp_dir = tempfile.TemporaryDirectory()
         self.addCleanup(self.temp_dir.cleanup)
-        self.project_dir = Path(self.temp_dir.name) / "prototype"
-        frontend_dir = self.project_dir / "frontend" / "dist"
+        self.project_dir = Path(self.temp_dir.name) / "apps" / "desktop"
+        self.project_dir.mkdir(parents=True)
+        frontend_dir = self.project_dir.parent / "web" / "dist"
         assets_dir = frontend_dir / "assets"
         manifest_dir = frontend_dir / ".vite"
         assets_dir.mkdir(parents=True)
@@ -59,14 +60,14 @@ class ReleasePreflightTests(unittest.TestCase):
             "// worker", encoding="utf-8"
         )
         self.server_source = (
-            self.project_dir.parent
+            self.project_dir.parents[1]
             / "apps"
             / "server"
             / "src"
             / "reqpilotx_server"
         )
         self.engine_source = (
-            self.project_dir.parent
+            self.project_dir.parents[1]
             / "packages"
             / "engine"
             / "src"
@@ -120,7 +121,7 @@ class ReleasePreflightTests(unittest.TestCase):
         return manifest
 
     def _commit_path(self, path: Path) -> None:
-        repo_dir = self.project_dir.parent
+        repo_dir = self.project_dir.parents[1]
         if not (repo_dir / ".git").exists():
             subprocess.run(["git", "init", "-q"], cwd=repo_dir, check=True)
             subprocess.run(
@@ -241,7 +242,7 @@ class ReleasePreflightTests(unittest.TestCase):
         self.assertTrue(report["ok"])
 
     def test_missing_referenced_static_asset_fails(self) -> None:
-        (self.project_dir / "frontend" / "dist" / "assets" / "index-test.js").write_text(
+        (self.project_dir.parent / "web" / "dist" / "assets" / "index-test.js").write_text(
             'const missing = "/assets/not-present.js";', encoding="utf-8"
         )
 
@@ -249,7 +250,7 @@ class ReleasePreflightTests(unittest.TestCase):
             release_preflight.run_preflight(self.project_dir)
 
     def test_vite_entry_and_manifest_are_required(self) -> None:
-        frontend_dir = self.project_dir / "frontend" / "dist"
+        frontend_dir = self.project_dir.parent / "web" / "dist"
         for required in release_preflight._REQUIRED_FRONTEND_FILES:
             with self.subTest(required=required):
                 page = frontend_dir / required
@@ -263,13 +264,13 @@ class ReleasePreflightTests(unittest.TestCase):
                 page.write_text(original, encoding="utf-8")
 
     def test_unknown_vite_asset_type_does_not_create_a_release_gate(self) -> None:
-        (self.project_dir / "frontend" / "dist" / "assets" / "font.woff2").write_bytes(
+        (self.project_dir.parent / "web" / "dist" / "assets" / "font.woff2").write_bytes(
             b"opaque"
         )
         self.assertTrue(release_preflight.run_preflight(self.project_dir)["ok"])
 
     def test_explicit_static_png_binary_is_allowed(self) -> None:
-        (self.project_dir / "frontend" / "dist" / "assets" / "logo.png").write_bytes(
+        (self.project_dir.parent / "web" / "dist" / "assets" / "logo.png").write_bytes(
             b"\x89PNG\r\n"
         )
 
@@ -312,7 +313,7 @@ class ReleasePreflightTests(unittest.TestCase):
                     release_preflight.run_preflight(self.project_dir)
 
     def test_static_config_formats_and_bare_values_are_scanned(self) -> None:
-        static_dir = self.project_dir / "frontend" / "dist" / "assets"
+        static_dir = self.project_dir.parent / "web" / "dist" / "assets"
         for filename in (
             ".env",
             "settings.cfg",
@@ -336,7 +337,7 @@ class ReleasePreflightTests(unittest.TestCase):
                 config.unlink()
 
     def test_javascript_backtick_and_bare_secret_values_fail(self) -> None:
-        app_js = self.project_dir / "frontend" / "dist" / "assets" / "index-test.js"
+        app_js = self.project_dir.parent / "web" / "dist" / "assets" / "index-test.js"
         for source in (
             "const OPENAI_API_KEY = `sk-live-AbCdEf0123456789-XyZ`;",
             "const OPENAI_API_KEY = sk-live-AbCdEf0123456789-XyZ;",
@@ -354,7 +355,7 @@ class ReleasePreflightTests(unittest.TestCase):
             'config.openai_api_key = str(getattr(config, "openai_api_key", ""))\n',
             encoding="utf-8",
         )
-        (self.project_dir / "frontend" / "dist" / "assets" / "index-test.js").write_text(
+        (self.project_dir.parent / "web" / "dist" / "assets" / "index-test.js").write_text(
             'const setupAliyunApiKey = document.getElementById("aliyun-api-key");',
             encoding="utf-8",
         )
@@ -390,7 +391,7 @@ class ReleasePreflightTests(unittest.TestCase):
                     release_preflight.run_preflight(self.project_dir)
 
     def test_humanized_secret_field_labels_do_not_fail(self) -> None:
-        (self.project_dir / "frontend" / "dist" / "assets" / "index-test.js").write_text(
+        (self.project_dir.parent / "web" / "dist" / "assets" / "index-test.js").write_text(
             """const labels = {
   AZURE_OPENAI_API_KEY: "Azure OpenAI API Key",
   "AZURE_AI_SEARCH_API_KEY": "Azure AI Search API Key",
@@ -695,8 +696,8 @@ class ReleasePreflightTests(unittest.TestCase):
 
     def test_repository_desktop_packaging_uses_canonical_packages(self) -> None:
         repo = Path(__file__).resolve().parents[2]
-        entrypoint = (repo / "prototype/app_desktop.py").read_text(encoding="utf-8")
-        spec = (repo / "prototype/ReqPilotX.spec").read_text(encoding="utf-8")
+        entrypoint = (repo / "apps/desktop/app_desktop.py").read_text(encoding="utf-8")
+        spec = (repo / "apps/desktop/ReqPilotX.spec").read_text(encoding="utf-8")
 
         self.assertIn("from reqpilotx_server.main import app", entrypoint)
         self.assertNotRegex(entrypoint, r"(?m)^\s*(?:from|import)\s+app(?:\.|\s|$)")
