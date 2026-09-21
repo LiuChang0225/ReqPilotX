@@ -79,6 +79,9 @@ def create_server(bridge):
                 result = {'status':'FAILED','error_code':'INVALID_REQUEST_OR_EVIDENCE','message':str(exc)}
                 return CallToolResult(content=[TextContent(text=json.dumps(result, ensure_ascii=False))],
                     structuredContent=result, isError=True)
+            finally:
+                from runtime_origin_audit import write_test_origin_receipt
+                write_test_origin_receipt('mcp-server')
     return TaskMCPServer('reqpilot',version='0.1.1',instructions=instructions)
 
 
@@ -89,12 +92,16 @@ def main():
     parser.add_argument('--project-root', type=Path)
     parser.add_argument('--tool-timeout', type=float, default=120)
     args = parser.parse_args()
-    from reqpilot import load_runtime
-    load_runtime(args.project_root)
-    from task_bridge import TaskBridge
-    bridge = TaskBridge(args.working_root, Path(__file__).with_name('reqpilot.py'),
-        project_root=args.project_root, timeout=args.tool_timeout, source_roots=args.source_root)
-    create_server(bridge).run(transport='stdio')
+    try:
+        from reqpilot import load_runtime
+        load_runtime(args.project_root)
+        from task_bridge import TaskBridge
+        bridge = TaskBridge(args.working_root, Path(__file__).with_name('reqpilot.py'),
+            project_root=args.project_root, timeout=args.tool_timeout, source_roots=args.source_root)
+        create_server(bridge).run(transport='stdio')
+    finally:
+        from runtime_origin_audit import write_test_origin_receipt
+        write_test_origin_receipt('mcp-server')
 
 
 if __name__ == '__main__': main()

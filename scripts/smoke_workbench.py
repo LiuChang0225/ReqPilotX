@@ -186,7 +186,7 @@ def stop_server(process: subprocess.Popen) -> None:
 
 def fixture_module():
     # This module creates an invented PDF now; it never loads a frozen answer.
-    path = PLUGIN / "tests" / "test_portable.py"
+    path = PLUGIN / "tests" / "portable_fixtures.py"
     spec = importlib.util.spec_from_file_location("reqpilot_synthetic_fixture", path)
     require(spec is not None and spec.loader is not None, "Synthetic fixture module unavailable")
     module = importlib.util.module_from_spec(spec)

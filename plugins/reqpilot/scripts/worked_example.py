@@ -6,10 +6,11 @@ The decisions are an explicit worked answer, not an automatic PDF extractor.
 from argparse import ArgumentParser, Namespace
 from pathlib import Path
 import json
+import shutil
 import sys
 
 
-def generate(root, output):
+def generate(root, output, source_input=None):
     from reqpilot import load_runtime
     load_runtime(root)
     import artifact_tools as tools
@@ -17,28 +18,34 @@ def generate(root, output):
     import pymupdf
     output.mkdir(parents=True, exist_ok=False)
     source = output / 'example.pdf'
-    pdf = pymupdf.open()
-    page = pdf.new_page()
     lines = [(60, 'Demo specification'), (100, 'Document ID: DEMO-01'), (125, 'Revision: A'),
              (200, 'Contents'), (240, '1.1 Opening response ........ 2'),
              (265, '1.2 Closing response ........ 2'), (290, '2 Reference BOM ............. 2')]
-    for y, text in lines:
-        page.insert_text((40, y), text, fontsize=11)
-    page = pdf.new_page()
     body = [(60, '1.1 Opening response'), (95, 'The valve shall open within 30 ms at 12 V.'),
             (140, '1.2 Closing response'), (175, 'The valve shall close within 40 ms at 12 V.'),
             (220, '2 Reference BOM')]
-    page.insert_text((40,60), '\n'.join(text for _,text in body[:4]), fontsize=11)
-    page.insert_text((40,body[4][0]),body[4][1],fontsize=11)
-    for x in (40, 100, 280, 440):
-        page.draw_line((x, 250), (x, 370))
-    for y in (250, 290, 330, 370):
-        page.draw_line((40, y), (440, y))
-    for x,y,text in [(45,275,'No.'),(105,275,'Component'),(285,275,'Quantity'),
-                     (45,315,'1'),(105,315,'Housing'),(285,315,'1'),
-                     (45,355,'2'),(105,355,'Seal'),(285,355,'1')]:
-        page.insert_text((x,y),text,fontsize=10)
-    pdf.save(source); pdf.close()
+    if source_input is None:
+        pdf = pymupdf.open()
+        page = pdf.new_page()
+        for y, text in lines:
+            page.insert_text((40, y), text, fontsize=11)
+        page = pdf.new_page()
+        page.insert_text((40,60), '\n'.join(text for _,text in body[:4]), fontsize=11)
+        page.insert_text((40,body[4][0]),body[4][1],fontsize=11)
+        for x in (40, 100, 280, 440):
+            page.draw_line((x, 250), (x, 370))
+        for y in (250, 290, 330, 370):
+            page.draw_line((40, y), (440, y))
+        for x,y,text in [(45,275,'No.'),(105,275,'Component'),(285,275,'Quantity'),
+                         (45,315,'1'),(105,315,'Housing'),(285,315,'1'),
+                         (45,355,'2'),(105,355,'Seal'),(285,355,'1')]:
+            page.insert_text((x,y),text,fontsize=10)
+        pdf.save(source); pdf.close()
+    else:
+        source_input = Path(source_input).expanduser().resolve(strict=True)
+        if not source_input.is_file() or source_input.is_symlink():
+            raise ValueError('Worked example comparison source must be a regular file')
+        shutil.copyfile(source_input, source)
     capture_fast_source(source, output_dir=output/'capture')
     ir = json.loads((output/'capture/source_ir.json').read_text())
     by_text = {n['raw_text']:n for n in ir['nodes']}
@@ -107,6 +114,7 @@ def generate(root, output):
 if __name__=='__main__':
     parser=ArgumentParser(description=__doc__)
     parser.add_argument('--project-root',type=Path)
+    parser.add_argument('--source',type=Path,help='Reuse one exact synthetic source for release comparison')
     parser.add_argument('--output-dir',type=Path,required=True)
     args=parser.parse_args()
-    print(json.dumps(generate(args.project_root,args.output_dir),ensure_ascii=False))
+    print(json.dumps(generate(args.project_root,args.output_dir,args.source),ensure_ascii=False))

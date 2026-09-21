@@ -55,8 +55,10 @@ def doctor(args: argparse.Namespace) -> dict:
     receipt_path = PLUGIN_ROOT / "build-receipt.json"
     integrity = []
     dependency_versions = {}
+    engine_release = None
     if receipt_path.is_file():
         receipt = read_json(receipt_path)
+        engine_release = receipt.get("engine_release")
         for requirement in receipt.get("requirements", []):
             name, _, version = requirement.partition("==")
             try:
@@ -90,7 +92,7 @@ def doctor(args: argparse.Namespace) -> dict:
         'optional_table_requirements':str(PLUGIN_ROOT/'requirements-ocr.txt'),
         'tessdata_override_configured':bool(os.environ.get('REQPILOT_TESSDATA_DIR')),
         'source_semantics_verified':False}
-    return {"status": "READY" if all(deps.values()) and all(item["satisfied"] for item in dependency_versions.values()) and all(tool_files.values()) and not integrity else "NOT_READY", "runtime": "BUNDLED" if receipt_path.is_file() else "EXPLICIT_DEVELOPMENT_CHECKOUT", "dependencies": deps, "dependency_versions": dependency_versions, "tools": tool_files, "local_ocr":local_ocr, "integrity_mismatches": integrity, "semantic_validation": "NOT_RUN", "independent_agent_verification": "NOT_RUN", "input_formats": input_formats, "codex_available": shutil.which("codex") is not None}
+    return {"status": "READY" if all(deps.values()) and all(item["satisfied"] for item in dependency_versions.values()) and all(tool_files.values()) and not integrity else "NOT_READY", "runtime": "BUNDLED" if receipt_path.is_file() else "EXPLICIT_DEVELOPMENT_CHECKOUT", "engine_release": engine_release, "dependencies": deps, "dependency_versions": dependency_versions, "tools": tool_files, "local_ocr":local_ocr, "integrity_mismatches": integrity, "semantic_validation": "NOT_RUN", "independent_agent_verification": "NOT_RUN", "input_formats": input_formats, "codex_available": shutil.which("codex") is not None}
 
 
 def bootstrap(args: argparse.Namespace) -> dict:
@@ -383,6 +385,9 @@ def main() -> int:
     except (ValueError, OSError, ImportError, KeyError, TypeError) as exc:
         print(json.dumps({"status": "FAILED", "command": args.command, "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 2
+    finally:
+        from runtime_origin_audit import write_test_origin_receipt
+        write_test_origin_receipt("reqpilot-cli")
 
 
 def workbench_pull(args: argparse.Namespace) -> dict:
@@ -432,7 +437,7 @@ def artifact_operation(args: argparse.Namespace) -> dict:
         from worked_example import generate
         import contextlib
         with contextlib.redirect_stdout(sys.stderr):
-            result = generate(args.project_root, args.output_dir.resolve())
+            result = generate(args.project_root, args.output_dir.resolve(), args.source)
         return {**result, 'output_dir': str(args.output_dir.resolve()),
                 'example_only': True, 'next': 'Read generated map-decisions.json, item-decisions.json and requests for complete syntax. These are synthetic worked answers, not customer results.'}
     if args.command == "reading-packet":
