@@ -7,7 +7,7 @@ import { loadSharedArtifacts } from './shared-artifacts.mjs';
 const root = fileURLToPath(new URL('..', import.meta.url));
 const args = process.argv.slice(2);
 if (args.length && (args.length !== 2 || args[0] !== '--shared-ui')) throw Error('Usage: node build.mjs [--shared-ui <built directory>]');
-const panelRoot = args[1] ? resolve(args[1]) : resolve(root, '../../prototype/frontend/dist-panel');
+const panelRoot = args[1] ? resolve(args[1]) : resolve(root, '../../packages/workbench-ui/dist-panel');
 const adapter = JSON.parse(await readFile(resolve(root, 'client/adapter-contract.json'), 'utf8'));
 const shared = await loadSharedArtifacts(panelRoot, adapter);
 const { panel, css, requests } = shared;

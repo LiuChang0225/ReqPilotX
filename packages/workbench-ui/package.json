@@ -1,0 +1,9 @@
+{
+  "name": "@reqpilotx/workbench-ui",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "exports": { ".": "./src/host/index.ts", "./web": "./src/web.ts", "./styles/*": "./src/styles/*" },
+  "scripts": { "build": "vite build" },
+  "peerDependencies": { "react": "^18.3.1 || ^19.0.0", "react-dom": "^18.3.1 || ^19.0.0" }
+}

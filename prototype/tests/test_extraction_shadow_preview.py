@@ -3222,7 +3222,7 @@ class ExtractionShadowPreviewApiTests(unittest.TestCase):
         self,
     ) -> None:
         html = (main.STATIC_DIR / "index.html").read_text(encoding="utf-8")
-        frontend_source = Path(__file__).resolve().parents[1] / "frontend" / "src"
+        frontend_source = Path(__file__).resolve().parents[2] / "packages/workbench-ui/src"
         extraction = (
             frontend_source / "features" / "extraction" / "RequirementTreePanel.tsx"
         ).read_text(encoding="utf-8")

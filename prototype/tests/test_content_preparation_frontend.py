@@ -11,7 +11,7 @@ else:
 activate_test_runtime()
 
 _PROTOTYPE_DIR = Path(__file__).resolve().parents[1]
-_FRONTEND = _PROTOTYPE_DIR / "frontend"
+_FRONTEND = _PROTOTYPE_DIR.parent / "packages/workbench-ui"
 _SOURCE = _FRONTEND / "src"
 
 
@@ -99,7 +99,7 @@ class ContentPreparationFrontendTests(unittest.TestCase):
         self.assertTrue(legacy_names.isdisjoint(current_names))
 
     def test_pdf_restoration_is_a_lazy_react_route(self) -> None:
-        app = (_SOURCE / "app" / "App.tsx").read_text(encoding="utf-8")
+        app = (_PROTOTYPE_DIR.parent / "apps/web/src/app/App.tsx").read_text(encoding="utf-8")
         panel = (
             _SOURCE / "features" / "extraction" / "RequirementTreePanel.tsx"
         ).read_text(encoding="utf-8")

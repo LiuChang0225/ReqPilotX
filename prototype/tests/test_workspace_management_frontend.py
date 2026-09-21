@@ -13,22 +13,23 @@ from pathlib import Path
 
 
 _PROTOTYPE_DIR = Path(__file__).resolve().parents[1]
-_FRONTEND = _PROTOTYPE_DIR / "frontend"
-_SOURCE = _FRONTEND / "src"
+_FRONTEND = _PROTOTYPE_DIR.parent / "apps/web"
+_SOURCE = _PROTOTYPE_DIR.parent / "packages/workbench-ui/src"
 
 
 class WorkspaceManagementFrontendTests(unittest.TestCase):
     def test_react_vite_is_the_only_frontend_runtime(self) -> None:
         package = json.loads(
-            (_FRONTEND / "package.json").read_text(encoding="utf-8")
+            (_PROTOTYPE_DIR.parent / "package.json").read_text(encoding="utf-8")
         )
-        self.assertEqual(package["scripts"]["build"], "tsc --noEmit && vite build")
+        self.assertIn("npm run typecheck", package["scripts"]["build"])
+        self.assertIn("@reqpilotx/web", package["scripts"]["build"])
         self.assertEqual(package["dependencies"]["react"], "19.2.8")
         self.assertEqual(package["dependencies"]["react-dom"], "19.2.8")
         self.assertEqual(package["dependencies"]["pdfjs-dist"], "4.10.38")
         self.assertNotIn("react-router-dom", package["dependencies"])
 
-        app = (_SOURCE / "app" / "App.tsx").read_text(encoding="utf-8")
+        app = (_FRONTEND / "src/app/App.tsx").read_text(encoding="utf-8")
         for route in (
             'location.pathname === "/"',
             'location.pathname === "/home"',

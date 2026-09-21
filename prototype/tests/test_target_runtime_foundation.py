@@ -1424,7 +1424,7 @@ class PostgresCompatibilityTests(unittest.TestCase):
 
 class AppFactoryBoundaryTests(unittest.TestCase):
     def test_cloud_host_and_origin_are_explicit(self) -> None:
-        static_dir = Path(__file__).resolve().parents[1] / "frontend" / "dist"
+        static_dir = Path(__file__).resolve().parents[2] / "apps/web/dist"
         settings = RuntimeSettings(
             deployment_mode=DeploymentMode.CLOUD,
             process_role=ProcessRole.API,

@@ -1,37 +1,12 @@
 {
-  "name": "reqpilotx-frontend",
-  "version": "2.0.0",
+  "name": "reqpilotx-frontend-compat",
   "private": true,
-  "type": "module",
   "scripts": {
-    "dev": "vite",
-    "build": "tsc --noEmit && vite build",
-    "build:panel": "tsc --noEmit && vite build --config vite.panel.config.ts",
-    "typecheck": "tsc --noEmit",
-    "test": "vitest run",
-    "test:watch": "vitest"
-  },
-  "dependencies": {
-    "lucide-react": "^1.27.0",
-    "pdfjs-dist": "4.10.38",
-    "react": "19.2.8",
-    "react-dom": "19.2.8"
-  },
-  "devDependencies": {
-    "@testing-library/jest-dom": "7.0.0",
-    "@testing-library/react": "16.3.2",
-    "@testing-library/user-event": "14.6.1",
-    "@types/node": "25.5.0",
-    "@types/react": "19.2.17",
-    "@types/react-dom": "19.2.3",
-    "@vitejs/plugin-react": "6.0.4",
-    "jsdom": "29.0.0",
-    "postcss-selector-parser": "^7.1.0",
-    "typescript": "7.0.2",
-    "vite": "8.1.5",
-    "vitest": "4.1.10"
-  },
-  "engines": {
-    "node": ">=22.12.0"
+    "dev": "npm --prefix ../.. run dev",
+    "build": "npm --prefix ../.. run build",
+    "build:panel": "npm --prefix ../.. run build:panel",
+    "typecheck": "npm --prefix ../.. run typecheck",
+    "test": "npm --prefix ../.. run test",
+    "test:watch": "npm --prefix ../.. run test:watch"
   }
 }

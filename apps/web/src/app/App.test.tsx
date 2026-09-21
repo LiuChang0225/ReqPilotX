@@ -7,14 +7,12 @@ const renderSpies = vi.hoisted(() => ({
   workspace: vi.fn(),
 }));
 
-vi.mock("../features/workspace/WorkspacePage", () => ({
+vi.mock("@reqpilotx/workbench-ui/web", async (importOriginal) => ({
+  ...await importOriginal<typeof import("@reqpilotx/workbench-ui/web")>(),
   WorkspacePage: () => {
     renderSpies.workspace();
     return <div>workspace-page</div>;
   },
-}));
-
-vi.mock("./preferences", () => ({
   PreferencesProvider: ({ children }: { children: ReactNode }) => children,
 }));
 

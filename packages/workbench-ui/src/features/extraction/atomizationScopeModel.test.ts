@@ -6,7 +6,7 @@ import type {
   RequirementTreeNode,
   RequirementTreeSnapshot,
 } from "../../shared/api/contracts";
-import atomizationScopeCommandGolden from "../../../../contracts/fixtures/atomization_scope_command_v2.json";
+import atomizationScopeCommandGolden from "../../../../../prototype/contracts/fixtures/atomization_scope_command_v2.json";
 import {
   ATOMIZATION_SCOPE_MAX_TREE_DEPTH,
   atomizationAttemptActionGate,

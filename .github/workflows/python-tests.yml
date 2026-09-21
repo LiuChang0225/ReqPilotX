@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: prototype/frontend/package-lock.json
+          cache-dependency-path: package-lock.json
       - uses: astral-sh/setup-uv@v6
         with:
           version: '0.12.13'
@@ -38,8 +38,8 @@ jobs:
           uv pip check --python prototype/.venv/bin/python
       - name: Build frontend consumed by API composition tests
         run: |
-          npm --prefix prototype/frontend ci
-          npm --prefix prototype/frontend run build
+          npm ci
+          npm run build
       - name: Backend isolated tests
         run: prototype/.venv/bin/python scripts/test_python.py backend
       - name: Portable plugin and real MCP stdio tests

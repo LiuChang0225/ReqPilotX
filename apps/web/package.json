@@ -1,0 +1,8 @@
+{
+  "name": "@reqpilotx/web",
+  "version": "2.0.0",
+  "private": true,
+  "type": "module",
+  "scripts": { "dev": "vite", "build": "vite build" },
+  "dependencies": { "@reqpilotx/workbench-ui": "2.0.0" }
+}

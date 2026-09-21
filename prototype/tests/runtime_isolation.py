@@ -54,7 +54,7 @@ def _apply_isolated_environment(storage_dir: Path) -> None:
             SCRATCH_ROOT_ENV_VAR: str(scratch_dir),
             AGENT_RUNTIME_ENV_VAR: "none",
             DEVELOPMENT_ROOT_ENV_VAR: str(_PROTOTYPE_DIR.parent),
-            FRONTEND_ROOT_ENV_VAR: str(_PROTOTYPE_DIR / "frontend/dist"),
+            FRONTEND_ROOT_ENV_VAR: str(_PROTOTYPE_DIR.parent / "apps/web/dist"),
         }
     )
 

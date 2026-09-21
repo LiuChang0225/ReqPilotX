@@ -15,7 +15,7 @@ import {
   canonicalJsonSha256,
   withoutCanonicalField,
 } from "./canonicalJsonSha256";
-import canonicalHashFixture from "../../../../contracts/fixtures/semantic_publication_v2_canonical_hash.json";
+import canonicalHashFixture from "../../../../../prototype/contracts/fixtures/semantic_publication_v2_canonical_hash.json";
 import { parseJsonWithNumberSources } from "../../shared/api/jsonNumberSources";
 import {
   assertRequirementSemanticPublicationPreviewV2,

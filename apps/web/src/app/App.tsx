@@ -1,19 +1,15 @@
 import { lazy, Suspense, useEffect } from "react";
-import { ErrorBoundary } from "./ErrorBoundary";
-import { PreferencesProvider } from "./preferences";
-import { HomePage } from "../features/home/HomePage";
-import { WorkspacePage } from "../features/workspace/WorkspacePage";
-import { navigate, useBrowserLocation } from "../shared/navigation";
-import { LoadingBlock } from "../shared/ui/Feedback";
 import {
+  ErrorBoundary, PreferencesProvider, HomePage, WorkspacePage,
+  navigate, useBrowserLocation, LoadingBlock, loadCandidateReview, loadPdfViewer,
   parseWorkspaceRoute,
   serializeWorkspaceRoute,
-} from "../features/workspace/route";
+} from "@reqpilotx/workbench-ui/web";
 
-const CandidateReviewWorkspace = lazy(async () => ({ default: (await import("../features/extraction/CandidateReviewWorkspace")).CandidateReviewWorkspace }));
+const CandidateReviewWorkspace = lazy(async () => ({ default: (await loadCandidateReview()).CandidateReviewWorkspace }));
 
 const PdfViewerPage = lazy(async () => ({
-  default: (await import("../features/pdf/PdfViewerPage")).PdfViewerPage,
+  default: (await loadPdfViewer()).PdfViewerPage,
 }));
 
 function LegacyWorkspaceRedirect({ search }: { search: string }) {
