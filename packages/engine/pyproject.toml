@@ -1,0 +1,19 @@
+[build-system]
+requires = ["setuptools==84.0.0"]
+build-backend = "setuptools.build_meta"
+
+[project]
+name = "reqpilotx-engine"
+version = "0.0.0"
+description = "Transitional installable release of the existing ReqPilotX portable business engine"
+readme = "README.md"
+requires-python = ">=3.11"
+dependencies = []
+
+[tool.setuptools.packages.find]
+where = ["src"]
+include = ["app*", "reqpilotx_engine*", "reqpilotx_engine_tools*"]
+namespaces = true
+
+[tool.setuptools.package-data]
+reqpilotx_engine = ["core-manifest.json"]

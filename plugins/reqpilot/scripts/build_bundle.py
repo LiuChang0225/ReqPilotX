@@ -1,191 +1,323 @@
 #!/usr/bin/env python3
-"""Build a portable plugin from the same, allowlisted ReqPilotX source modules.
+"""Build a portable plugin from the shared selection or an engine wheel.
 
-This is a packaging operation, not a second implementation of the domain model.
-No runtime/customer artifacts, databases, environment files or old answers enter
-the bundle. The receipt records relative paths and hashes for reproducibility.
+The R1 release path consumes an explicit engine wheel generated from the same
+centrally selected source closure. The no-wheel path preserves the existing
+checkout development build used by native tasks. No runtime/customer artifacts,
+databases, environment files or old answers enter either form.
 """
 from __future__ import annotations
 
 import argparse
-import ast
+import base64
+import csv
 import hashlib
+import io
 import json
 import shutil
 import sys
-from pathlib import Path
+from email.parser import BytesParser
+from email.policy import default as email_policy
+from pathlib import Path, PurePosixPath
+from zipfile import BadZipFile, ZipFile
 
-
-PLUGIN_ROOT = Path(__file__).resolve().parents[1]
-MODULE_ROOTS = (
-    "app.adapters.documents.tesseract_reading",
-    "app.adapters.documents.pdf_reading_views",
-    "app.adapters.documents.pdf_source_crop_renderer",
-    "app.application.build_source_ir",
-    "app.application.agent_workflow.source_requirement_baseline",
-    "app.application.agent_workflow.source_item_delivery",
-    "app.application.agent_workflow.source_item_workbench_metadata",
-    "app.application.agent_workflow.source_item_decomposition",
-    "app.application.agent_workflow.source_item_visual",
-    "app.application.agent_workflow.source_item_analysis",
-    "app.application.knowledge_evidence_capture",
-    "app.application.agent_workflow.document_map_revision",
-    "app.application.agent_workflow.delivery_snapshot_compatibility",
-    "app.application.agent_workflow.artifact_kind_catalog",
-    "app.application.agent_workflow.task_workspace",
+from portable_core import (
+    DEPENDENCIES,
+    BANNED_PARTS,
+    ENGINE_DISTRIBUTION,
+    MODULE_ROOTS,
+    NAMESPACE_INITIALIZERS,
+    NAMESPACE_SOURCE,
+    PLUGIN_ROOT,
+    SCRIPT_ROOTS,
+    TRANSITIVE_DEPENDENCIES,
+    canonical_digest,
+    digest,
+    digest_bytes,
+    find_repo,
+    module_file,
+    python_closure,
+    select_core,
 )
-SCRIPT_ROOTS = ("fast_source_capture.py",)
-DEPENDENCIES = {
-    "pydantic": "pydantic", "pypdf": "pypdf", "pymupdf": "pymupdf",
-    "fitz": "pymupdf", "pdfplumber": "pdfplumber", "docx": "python-docx",
-    "openpyxl": "openpyxl", "xlsxwriter": "xlsxwriter", "PIL": "Pillow",
-    "jsonschema": "jsonschema", "pyxlsb": "pyxlsb",
-}
-TRANSITIVE_DEPENDENCIES = {"lxml": "python-docx"}
-NAMESPACE_INITIALIZERS = frozenset({"app/__init__.py", "app/application/extraction/__init__.py"})
-NAMESPACE_SOURCE = '"""Portable namespace; import concrete modules, without host startup side effects."""\n'
 
 
-def digest(path: Path) -> str:
-    return hashlib.sha256(path.read_bytes()).hexdigest()
+ENGINE_WRAPPER_MEMBERS = frozenset({
+    "reqpilotx_engine/__init__.py",
+    "reqpilotx_engine/core-manifest.json",
+    "reqpilotx_engine_tools/__init__.py",
+})
+DIST_INFO_MEMBERS = frozenset({"METADATA", "WHEEL", "top_level.txt", "RECORD"})
 
 
-def find_repo(explicit: Path | None) -> Path:
-    candidates = (explicit,) if explicit else (PLUGIN_ROOT, *PLUGIN_ROOT.parents)
-    for path in candidates:
-        if path and (path / "prototype/app/application/agent_workflow/source_requirement_baseline.py").is_file():
-            return path.resolve()
-    raise ValueError("Build requires the ReqPilotX source checkout via --repo; a built plugin needs no checkout at runtime")
+def _safe_wheel_member(name: str) -> PurePosixPath:
+    pure = PurePosixPath(name)
+    if (
+        not name or name.endswith("/") or "\\" in name or "\x00" in name
+        or pure.is_absolute() or ".." in pure.parts or pure.as_posix() != name
+    ):
+        raise ValueError(f"Engine wheel contains an unsafe or non-canonical member: {name!r}")
+    return pure
 
 
-def module_file(prototype: Path, module: str) -> Path | None:
-    base = prototype.joinpath(*module.split("."))
-    for candidate in (base.with_suffix(".py"), base / "__init__.py"):
-        if candidate.is_file():
-            return candidate
-    return None
+def _record_hash(data: bytes) -> str:
+    encoded = base64.urlsafe_b64encode(hashlib.sha256(data).digest()).rstrip(b"=").decode("ascii")
+    return f"sha256={encoded}"
 
 
-def python_closure(prototype: Path, roots: tuple[str, ...], script_paths: list[Path]) -> tuple[set[Path], set[str]]:
-    pending = list(script_paths)
-    for module in roots:
-        path = module_file(prototype, module)
-        if path is None:
-            raise ValueError(f"Required runtime module is missing: {module}")
-        pending.append(path)
-    files: set[Path] = set()
-    external: set[str] = set()
-    while pending:
-        path = pending.pop()
-        if path in files:
+def _validate_record(archive: ZipFile, names: list[str], record_path: str) -> None:
+    rows = list(csv.reader(io.StringIO(archive.read(record_path).decode("utf-8"))))
+    if any(len(row) != 3 for row in rows):
+        raise ValueError("Engine wheel RECORD must contain path, hash and size columns")
+    by_path = {}
+    for path, digest_value, size in rows:
+        if path in by_path:
+            raise ValueError(f"Engine wheel RECORD repeats a member: {path}")
+        by_path[path] = (digest_value, size)
+    if set(by_path) != set(names):
+        missing = sorted(set(names) - set(by_path))
+        extra = sorted(set(by_path) - set(names))
+        raise ValueError(f"Engine wheel RECORD inventory mismatch: missing={missing}, extra={extra}")
+    for name in names:
+        digest_value, size = by_path[name]
+        if name == record_path:
+            if digest_value or size:
+                raise ValueError("Engine wheel RECORD must leave its own hash and size empty")
             continue
-        if path.is_symlink() or prototype not in path.resolve().parents:
-            raise ValueError(f"Runtime source must be a regular file within prototype: {path.name}")
-        files.add(path)
-        relative = path.relative_to(prototype)
-        if relative.parts[0] == "app":
-            for parent in path.parents:
-                if parent == prototype:
-                    break
-                init = parent / "__init__.py"
-                if init.is_file() and init not in files:
-                    pending.append(init)
-        package_parts = list(relative.with_suffix("").parts[:-1])
-        if path.name == "__init__.py":
-            package_parts = list(relative.parts[:-1])
-        if str(relative) in NAMESPACE_INITIALIZERS:
-            continue
-        for node in ast.walk(ast.parse(path.read_text(encoding="utf-8"), filename=str(relative))):
-            modules: list[str] = []
-            if isinstance(node, ast.Import):
-                modules = [alias.name for alias in node.names]
-            elif isinstance(node, ast.ImportFrom):
-                if node.level:
-                    prefix = package_parts[:len(package_parts) - node.level + 1]
-                    base = ".".join(prefix + ([node.module] if node.module else []))
-                else:
-                    base = node.module or ""
-                modules = [base, *(f"{base}.{alias.name}" for alias in node.names if alias.name != "*")]
-            for module in modules:
-                if not module:
-                    continue
-                if module == "app" or module.startswith("app."):
-                    target = module_file(prototype, module)
-                    if target and target not in files:
-                        pending.append(target)
-                elif not module.startswith("__future__"):
-                    external.add(module.split(".")[0])
-    return files, external
+        data = archive.read(name)
+        if digest_value != _record_hash(data) or size != str(len(data)):
+            raise ValueError(f"Engine wheel RECORD hash or size mismatch: {name}")
 
 
-def build(repo: Path, output: Path, *, extraction_only: bool = False) -> dict:
+def _validate_distribution_metadata(archive: ZipFile, dist_info: str, manifest: dict) -> None:
+    metadata = BytesParser(policy=email_policy).parsebytes(archive.read(f"{dist_info}/METADATA"))
+    if metadata.get("Name") != ENGINE_DISTRIBUTION or metadata.get("Version") != manifest.get("version"):
+        raise ValueError("Engine wheel METADATA distribution or version differs from the core manifest")
+    if metadata.get("Requires-Python") != f">={manifest.get('python_minimum')}":
+        raise ValueError("Engine wheel METADATA Requires-Python differs from the core manifest")
+    actual_requirements = sorted(metadata.get_all("Requires-Dist") or [], key=str.casefold)
+    expected_requirements = sorted(manifest.get("requirements") or [], key=str.casefold)
+    if actual_requirements != expected_requirements:
+        raise ValueError("Engine wheel METADATA dependencies differ from the core manifest")
+    wheel_metadata = BytesParser(policy=email_policy).parsebytes(archive.read(f"{dist_info}/WHEEL"))
+    if wheel_metadata.get("Root-Is-Purelib", "").lower() != "true" or "py3-none-any" not in (wheel_metadata.get_all("Tag") or []):
+        raise ValueError("Engine wheel must be a pure Python py3-none-any distribution")
+    top_level = {line.strip() for line in archive.read(f"{dist_info}/top_level.txt").decode("utf-8").splitlines() if line.strip()}
+    if top_level != {"app", "reqpilotx_engine", "reqpilotx_engine_tools"}:
+        raise ValueError("Engine wheel top-level packages differ from the release contract")
+
+
+def _wheel_content_inventory(wheel: Path) -> dict[str, str]:
+    with ZipFile(wheel) as archive:
+        names = [item.filename for item in archive.infolist()]
+        if len(names) != len(set(names)):
+            raise ValueError("Engine wheel contains duplicate ZIP members")
+        for name in names:
+            _safe_wheel_member(name)
+        return {name: digest_bytes(archive.read(name)) for name in sorted(names)}
+
+
+def _validated_wheel_manifest(wheel: Path) -> dict:
+    wheel = wheel.expanduser().resolve(strict=True)
+    if not wheel.is_file() or wheel.suffix != ".whl":
+        raise ValueError("--engine-wheel must be an existing wheel file")
+    try:
+        with ZipFile(wheel) as archive:
+            names_list = [item.filename for item in archive.infolist()]
+            if len(names_list) != len(set(names_list)):
+                raise ValueError("Engine wheel contains duplicate ZIP members")
+            for name in names_list:
+                _safe_wheel_member(name)
+            names = set(names_list)
+            manifest_path = "reqpilotx_engine/core-manifest.json"
+            if manifest_path not in names:
+                raise ValueError("Engine wheel is missing reqpilotx_engine/core-manifest.json")
+            manifest = json.loads(archive.read(manifest_path))
+            runtime_files = manifest.get("runtime_files") if isinstance(manifest, dict) else None
+            if not isinstance(runtime_files, list) or not runtime_files:
+                raise ValueError("Engine wheel identity manifest has no runtime file list")
+            seen_runtime = set()
+            for entry in runtime_files:
+                if not isinstance(entry, dict):
+                    raise ValueError("Engine wheel identity manifest has an invalid runtime entry")
+                wheel_path = str(entry.get("wheel_path", ""))
+                runtime_path = str(entry.get("runtime_path", ""))
+                pure = PurePosixPath(wheel_path)
+                if runtime_path in seen_runtime:
+                    raise ValueError(f"Engine manifest repeats a runtime path: {runtime_path}")
+                seen_runtime.add(runtime_path)
+                if not wheel_path or pure.is_absolute() or ".." in pure.parts or wheel_path not in names:
+                    raise ValueError(f"Engine manifest has an invalid or missing wheel member: {wheel_path}")
+                if digest_bytes(archive.read(wheel_path)) != entry.get("sha256"):
+                    raise ValueError(f"Engine wheel member failed its manifest hash: {wheel_path}")
+    except (BadZipFile, json.JSONDecodeError, UnicodeDecodeError) as exc:
+        raise ValueError("Engine wheel or identity manifest is unreadable") from exc
+    expected_identity = canonical_digest({key: value for key, value in manifest.items() if key != "core_identity"})
+    if (
+        manifest.get("schema_version") != "reqpilotx-engine-core/v1"
+        or manifest.get("distribution") != ENGINE_DISTRIBUTION
+        or manifest.get("source_repository") != "ReqPilotX"
+        or manifest.get("core_identity") != expected_identity
+    ):
+        raise ValueError("Engine wheel identity manifest is invalid")
+    if manifest.get("customer_data_included") is not False or manifest.get("banned_host_members_found") != 0:
+        raise ValueError("Engine wheel does not satisfy the portable release boundary")
+    declared = {str(entry["wheel_path"]) for entry in manifest["runtime_files"]}
+    expected_dist_info = (
+        f"{ENGINE_DISTRIBUTION.replace('-', '_')}-{str(manifest['version']).replace('-', '_')}.dist-info"
+    )
+    dist_info_members = {f"{expected_dist_info}/{name}" for name in DIST_INFO_MEMBERS}
+    expected_members = declared | set(ENGINE_WRAPPER_MEMBERS) | dist_info_members
+    if names != expected_members:
+        missing = sorted(expected_members - names)
+        extra = sorted(names - expected_members)
+        raise ValueError(f"Engine wheel contains missing or undeclared members: missing={missing}, extra={extra}")
+    for name in names:
+        parts = PurePosixPath(name).parts
+        if name.endswith(".pth") or any(part in BANNED_PARTS for part in parts) or parts[:3] == ("app", "adapters", "agents"):
+            raise ValueError(f"Engine wheel contains a forbidden install member: {name}")
+    with ZipFile(wheel) as archive:
+        _validate_record(archive, names_list, f"{expected_dist_info}/RECORD")
+        _validate_distribution_metadata(archive, expected_dist_info, manifest)
+    return manifest
+
+
+def _assert_same_selection(selection, manifest: dict) -> None:
+    expected = [(member.runtime_relative, member.packaged_sha256) for member in selection.members]
+    actual = [(str(entry.get("runtime_path")), str(entry.get("sha256"))) for entry in manifest.get("runtime_files", [])]
+    if actual != expected:
+        raise ValueError("Engine wheel does not match the current shared portable selection")
+    if manifest.get("module_roots") != list(selection.module_roots):
+        raise ValueError("Engine wheel module roots do not match the current shared selection")
+    if manifest.get("requirements") != list(selection.requirements):
+        raise ValueError("Engine wheel dependency pins do not match the current shared selection")
+
+
+def _install_wheel_runtime(wheel: Path, manifest: dict, runtime: Path) -> list[dict]:
+    entries = []
+    with ZipFile(wheel) as archive:
+        for item in manifest["runtime_files"]:
+            relative = PurePosixPath(str(item["runtime_path"]))
+            if relative.is_absolute() or ".." in relative.parts:
+                raise ValueError(f"Engine runtime path is unsafe: {relative}")
+            allowed = relative.parts[:1] == ("app",) or relative.parts == ("scripts", "fast_source_capture.py")
+            if not allowed:
+                raise ValueError(f"Engine wheel attempted to install an unexpected runtime path: {relative}")
+            data = archive.read(item["wheel_path"])
+            destination = runtime.joinpath(*relative.parts)
+            destination.parent.mkdir(parents=True, exist_ok=True)
+            destination.write_bytes(data)
+            entries.append({
+                "path": str(relative),
+                "sha256": digest_bytes(data),
+                "upstream_sha256": item["upstream_sha256"],
+                "bytes": len(data),
+            })
+    return entries
+
+
+def _install_direct_selection(selection, runtime: Path) -> list[dict]:
+    entries = []
+    for member in selection.members:
+        destination = runtime / member.runtime_relative
+        destination.parent.mkdir(parents=True, exist_ok=True)
+        destination.write_bytes(member.content)
+        entries.append({
+            "path": member.runtime_relative,
+            "sha256": member.packaged_sha256,
+            "upstream_sha256": member.upstream_sha256,
+            "bytes": len(member.content),
+        })
+    return entries
+
+
+def build(repo: Path, output: Path, *, extraction_only: bool = False, engine_wheel: Path | None = None) -> dict:
+    repo = find_repo(repo)
+    output = output.expanduser().resolve()
     if output.exists():
         raise ValueError("Bundle output must not exist; each build gets a new immutable directory")
     if output == PLUGIN_ROOT or output in PLUGIN_ROOT.parents or PLUGIN_ROOT in output.parents:
         raise ValueError("Build output must be outside plugin source")
-    prototype = repo / "prototype"
-    scripts = [prototype / "scripts" / name for name in SCRIPT_ROOTS]
-    for script in scripts:
-        if not script.is_file():
-            raise ValueError(f"Required tool is missing: {script.name}")
-    selected_roots = tuple(module for module in MODULE_ROOTS if not (extraction_only and module.endswith(("source_item_delivery", "source_item_decomposition", "source_item_visual", "source_item_analysis"))))
-    files, external = python_closure(prototype, selected_roots, scripts)
-    # Fail if bundling accidentally reaches infrastructure/credentials/network hosts.
-    banned = [path for path in files if any(part in {"persistence", "infrastructure"} for part in path.relative_to(prototype).parts)
-              or path.relative_to(prototype).parts[:3] == ('app', 'adapters', 'agents')]
-    if banned:
-        raise ValueError("Portable closure reached host infrastructure: " + ", ".join(str(path.relative_to(prototype)) for path in sorted(banned)))
-    shutil.copytree(PLUGIN_ROOT, output, ignore=shutil.ignore_patterns("runtime", "runtime-data", "tests", "__pycache__", "*.pyc", "*.zip", ".pytest_cache"))
-    runtime = output / "runtime/prototype"
-    for path in sorted(files):
-        destination = runtime / path.relative_to(prototype)
-        destination.parent.mkdir(parents=True, exist_ok=True)
-        if str(path.relative_to(prototype)) in NAMESPACE_INITIALIZERS:
-            destination.write_text(NAMESPACE_SOURCE, encoding="utf-8")
+    selection = select_core(repo, extraction_only=extraction_only)
+    engine_manifest = None
+    if engine_wheel is not None and extraction_only:
+        raise ValueError("Extraction-only bundles are not full engine release consumers")
+    try:
+        if not extraction_only and engine_wheel is not None:
+            engine_wheel = engine_wheel.expanduser().resolve(strict=True)
+            engine_manifest = _validated_wheel_manifest(engine_wheel)
+            _assert_same_selection(selection, engine_manifest)
+        shutil.copytree(
+            PLUGIN_ROOT,
+            output,
+            ignore=shutil.ignore_patterns("runtime", "runtime-data", "tests", "__pycache__", "*.pyc", "*.zip", ".pytest_cache"),
+        )
+        runtime = output / "runtime/prototype"
+        if extraction_only or engine_manifest is None:
+            runtime_files = _install_direct_selection(selection, runtime)
         else:
-            shutil.copyfile(path, destination)
-    # Requirements are derived from actual imports and the checkout's pins.
-    wanted = {DEPENDENCIES[name] for name in external if name in DEPENDENCIES}
-    source_requirements = (prototype / "requirements.txt").read_text(encoding="utf-8").splitlines()
-    selected = [line for line in source_requirements if line.split("==")[0] in wanted]
-    selected_names = {line.split("==")[0] for line in selected}
-    missing_pins = wanted - selected_names
-    if missing_pins:
-        shutil.rmtree(output)
-        raise ValueError("Dependencies need explicit pins before release: " + ", ".join(sorted(missing_pins)))
-    (output / "requirements.txt").write_text("\n".join(sorted(selected, key=str.casefold)) + "\n", encoding="utf-8")
-    unknown_external = sorted(external - set(DEPENDENCIES) - set(TRANSITIVE_DEPENDENCIES) - set(sys.stdlib_module_names) - {"scripts"})
-    receipt = {
-        "schema_version": "reqpilot-portable-build/v1",
-        "plugin_name": "reqpilot",
-        "source_repository": "ReqPilotX",
-        "domain_implementation": "UNCHANGED_ALLOWLIST_COPY",
-        "namespace_initializers": [{"path": path, "reason": "Suppress eager host/provider exports; every concrete implementation remains unchanged"} for path in sorted(NAMESPACE_INITIALIZERS)],
-        "source_checkout_required_at_runtime": False,
-        "delivery_included": not extraction_only,
-        "decomposition_included": not extraction_only,
-        "customer_data_included": False,
-        "module_roots": list(selected_roots),
-        "python_minimum": "3.11",
-        "requirements": sorted(selected, key=str.casefold),
-        "optional_local_ocr_requirements": (PLUGIN_ROOT / "requirements-ocr.txt").read_text().splitlines(),
-        "optional_or_unknown_imports": unknown_external,
-        "runtime_files": [{"path": str(path.relative_to(prototype)), "sha256": digest(runtime / path.relative_to(prototype)), "upstream_sha256": digest(path), "bytes": (runtime / path.relative_to(prototype)).stat().st_size} for path in sorted(files)],
-    }
-    receipt["plugin_files"] = [{"path": str(path.relative_to(output)), "sha256": digest(path), "bytes": path.stat().st_size} for path in sorted(output.rglob("*")) if path.is_file() and "runtime" not in path.relative_to(output).parts]
-    receipt["bundle_sha256"] = hashlib.sha256(json.dumps(receipt, sort_keys=True, ensure_ascii=False, separators=(",", ":")).encode("utf-8")).hexdigest()
-    (output / "build-receipt.json").write_text(json.dumps(receipt, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    return {"status": "EXTRACTION_ONLY_BUILT" if extraction_only else "BUILT", "output": str(output), "runtime_file_count": len(files), "runtime_bytes": sum(path.stat().st_size for path in files), "optional_or_unknown_imports": unknown_external}
+            runtime_files = _install_wheel_runtime(engine_wheel, engine_manifest, runtime)
+        (output / "requirements.txt").write_text("\n".join(selection.requirements) + "\n", encoding="utf-8")
+        receipt = {
+            "schema_version": "reqpilot-portable-build/v1",
+            "plugin_name": "reqpilot",
+            "source_repository": "ReqPilotX",
+            "domain_implementation": "UNCHANGED_SHARED_ENGINE_RELEASE" if engine_manifest is not None else "UNCHANGED_ALLOWLIST_COPY",
+            "release_mode": "ENGINE_WHEEL" if engine_manifest is not None else "DEVELOPMENT_SOURCE_COPY",
+            "namespace_initializers": [
+                {"path": path, "reason": "Suppress eager host/provider exports; every concrete implementation remains unchanged"}
+                for path in sorted(NAMESPACE_INITIALIZERS)
+            ],
+            "source_checkout_required_at_runtime": False,
+            "delivery_included": not extraction_only,
+            "decomposition_included": not extraction_only,
+            "customer_data_included": False,
+            "module_roots": list(selection.module_roots),
+            "python_minimum": "3.11",
+            "requirements": list(selection.requirements),
+            "optional_local_ocr_requirements": (PLUGIN_ROOT / "requirements-ocr.txt").read_text(encoding="utf-8").splitlines(),
+            "optional_or_unknown_imports": list(selection.optional_or_unknown_imports),
+            "runtime_files": runtime_files,
+        }
+        if engine_manifest is not None:
+            receipt["engine_release"] = {
+                "distribution": engine_manifest["distribution"],
+                "version": engine_manifest["version"],
+                "core_identity": engine_manifest["core_identity"],
+                "source_commit": engine_manifest["source_commit"],
+                "source_tree": engine_manifest["source_tree"],
+                "wheel_filename": engine_wheel.name,
+                "wheel_sha256": digest(engine_wheel),
+                "runtime_file_count": len(runtime_files),
+            }
+        receipt["plugin_files"] = [
+            {"path": str(path.relative_to(output)), "sha256": digest(path), "bytes": path.stat().st_size}
+            for path in sorted(output.rglob("*"))
+            if path.is_file() and "runtime" not in path.relative_to(output).parts
+        ]
+        receipt["bundle_sha256"] = canonical_digest(receipt)
+        (output / "build-receipt.json").write_text(json.dumps(receipt, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
+        return {
+            "status": "EXTRACTION_ONLY_BUILT" if extraction_only else "BUILT",
+            "output": str(output),
+            "runtime_file_count": len(runtime_files),
+            "runtime_bytes": sum(item["bytes"] for item in runtime_files),
+            "optional_or_unknown_imports": list(selection.optional_or_unknown_imports),
+            "engine_core_identity": engine_manifest["core_identity"] if engine_manifest else None,
+        }
+    except Exception:
+        shutil.rmtree(output, ignore_errors=True)
+        raise
 
 
 def main() -> int:
     parser = argparse.ArgumentParser(description=__doc__)
     parser.add_argument("--repo", type=Path, help="ReqPilotX checkout; used only at build time")
     parser.add_argument("--output", type=Path, required=True, help="New bundle directory outside plugin source")
+    parser.add_argument("--engine-wheel", type=Path, help="Previously built and verified reqpilotx-engine wheel")
     parser.add_argument("--extraction-only", action="store_true", help="Explicit intermediate bundle without the delivery bridge; never a full release")
     args = parser.parse_args()
     try:
-        print(json.dumps(build(find_repo(args.repo), args.output.expanduser().resolve(), extraction_only=args.extraction_only), ensure_ascii=False))
+        print(json.dumps(build(find_repo(args.repo), args.output, extraction_only=args.extraction_only, engine_wheel=args.engine_wheel), ensure_ascii=False))
     except (ValueError, OSError) as exc:
         print(json.dumps({"status": "BUILD_FAILED", "error": str(exc)}, ensure_ascii=False), file=sys.stderr)
         return 2

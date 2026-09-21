@@ -43,6 +43,8 @@ jobs:
         run: prototype/.venv/bin/python scripts/test_python.py backend
       - name: Portable plugin and real MCP stdio tests
         run: prototype/.venv/bin/python scripts/test_python.py plugin
+      - name: Installable engine release and wheel-derived plugin
+        run: prototype/.venv/bin/python scripts/verify_engine_release.py --repo .
       - name: Disposable PostgreSQL and HTTP workbench recovery
         run: |
           sudo apt-get install -y postgresql

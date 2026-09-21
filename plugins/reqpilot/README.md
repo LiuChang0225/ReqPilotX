@@ -8,15 +8,36 @@ or authorize access to the separate ReqPilot project.
 
 The native PDF reading capability is pinned separately under `capabilities/pdf`, with unchanged official skill files and provenance. Updated native tasks verify the matching runtime, enable read-only Python/Poppler/image inspection, and keep shared compilers as the artifact-writing interface. PDF Map decision v2 adds exact source ranges, local table-fragment row coordinates and non-owning title references; existing v1 artifacts retain their replay behavior. This does not claim OCR-to-SourceIR enrichment or all-document semantic correctness.
 
-The plugin has five discoverable skills and one tool entry, `scripts/reqpilot.py`. Text, table and image SourceItems use the same source ledger. A whole graphical requirement receives SRC/REQ and can be analyzed; original pixels and Agent visual readings remain separate. A built bundle contains a small, allowlisted copy of the existing application's Python modules, with hashes and dependency pins in `build-receipt.json`. Business implementations are copied unchanged. Broad package initializers are replaced by documented namespace shims so importing capture does not initialize model providers, databases or unrelated workflows.
+The plugin has five discoverable skills and one tool entry, `scripts/reqpilot.py`. Text, table and image SourceItems use the same source ledger. A whole graphical requirement receives SRC/REQ and can be analyzed; original pixels and Agent visual readings remain separate. The shared selector in `scripts/portable_core.py` produces an internal `reqpilotx-engine` wheel/sdist and the portable plugin consumes that same core identity. Business implementations remain unchanged. Broad package initializers are replaced by documented namespace shims so importing capture does not initialize model providers, databases or unrelated workflows.
 
-Build from the ReqPilotX checkout into private/ignored output:
+Build the engine release and then the plugin into private/ignored output:
 
 ```bash
-python3 plugins/reqpilot/scripts/build_bundle.py --repo . --output prototype/runtime-data/reqpilot-release/reqpilot
+python3 plugins/reqpilot/scripts/build_engine.py \
+  --repo . \
+  --output prototype/runtime-data/reqpilot-release/engine
+
+python3 plugins/reqpilot/scripts/build_bundle.py \
+  --repo . \
+  --engine-wheel prototype/runtime-data/reqpilot-release/engine/reqpilotx_engine-*.whl \
+  --output prototype/runtime-data/reqpilot-release/reqpilot
 ```
 
-Install the built `requirements.txt` in a Python 3.11+ virtual environment, then run its `scripts/reqpilot.py doctor`. Move/copy the **whole built directory** to another machine; no source checkout is required for the portable path. The source plugin directory alone is not a complete release bundle.
+An explicit `--engine-wheel` selects the R1 release path and makes the consumed identity reviewable. Omitting it preserves the existing source-checkout development build used by current native task creation; that compatibility path still uses the same selector but is not an installable-engine release claim. This avoids pulling package construction into the runtime task path before R2. Both paths reuse the same module roots, dependency mapping, host-layer ban and namespace-initializer rules; there is no second allowlist. Engine build preparation may resolve the pinned setuptools backend. Runtime never installs packages or accesses the network implicitly.
+
+Run the release contract before handing off a new engine/plugin pair:
+
+```bash
+python3 scripts/verify_engine_release.py --repo .
+```
+
+The verifier rebuilds a wheel from the sdist outside the checkout and validates the complete wheel inventory, `RECORD`, package metadata and project host-layer bans. It uses three isolated consumers: the direct-selection control, a non-editable installed engine, and a dependency-only environment whose only ReqPilotX implementation is the frozen plugin runtime. Each runs the synthetic Map → SRC → skipped-analysis → Excel path and records the actual origins of every loaded `app` module. The installed group uses the wheel rebuilt from the sdist; missing-module negatives must fail without another implementation to fall back to.
+
+Business JSON remains an exact comparison. Excel comparison permits only `_ReqPilotXMeta!B30` when `A30` is `ExportedAt`; other dates, values, formulas, fonts, fills, borders, alignment, protection, number formats, merges and row/column layout remain checked. Charts and media retain their content hashes, while drawing bindings additionally resolve workbook → worksheet → drawing → resource relationships and compare each image/chart object's worksheet, anchor positions/offsets, extent and referenced asset hash. Real stdio MCP uses structured per-test results: every named contract test must execute successfully with zero skip/error/failure. `--skip-mcp` returns `PARTIAL`, never a full release pass. Dependency preparation completes before the provider-offline business checks. Generated wheel, sdist, plugin and virtual environments remain temporary; `--output <new-dir>` retains the non-sensitive verification and module-origin receipts.
+
+R1 deliberately retains the internal `app` namespace. Install `reqpilotx-engine` only in an isolated portable environment; do not place it beside the full server's `app` package. Moving the authoritative source to `src/reqpilotx` is a later migration slice.
+
+Install the built plugin's `requirements.txt` in a Python 3.11+ virtual environment, then run its `scripts/reqpilot.py doctor`. Move/copy the **whole built directory** to another machine; no source checkout is required for the portable path. The source plugin directory alone is not a complete release bundle. `build-receipt.json.engine_release.core_identity` must match the engine manifest used for the release.
 
 Prepare a new workspace with project-level discovery:
 

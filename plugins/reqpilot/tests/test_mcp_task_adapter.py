@@ -2,14 +2,16 @@
 import asyncio
 import importlib.util
 import json
+import os
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
 import unittest
 
-ROOT=Path(__file__).resolve().parents[3]
-SCRIPTS=ROOT/'plugins/reqpilot/scripts'
-sys.path[:0]=[str(SCRIPTS),str(ROOT/'prototype')]
+ROOT=Path(os.environ.get('REQPILOT_TEST_PROJECT_ROOT', Path(__file__).resolve().parents[3]))
+SCRIPTS=Path(os.environ.get('REQPILOT_TEST_PLUGIN_SCRIPTS', ROOT/'plugins/reqpilot/scripts'))
+RUNTIME=Path(os.environ.get('REQPILOT_TEST_RUNTIME', ROOT/'prototype'))
+sys.path[:0]=[str(SCRIPTS),str(RUNTIME)]
 HAS_MCP=importlib.util.find_spec('mcp') is not None
 
 
@@ -102,7 +104,7 @@ class McpTaskAdapterTests(unittest.TestCase):
     def test_typed_cli_and_stdio_mcp_produce_equal_business_artifacts(self):
         from mcp import Client, StdioServerParameters
         from task_bridge import TaskBridge
-        from test_portable import make_fixture,item_decisions
+        from portable_fixtures import make_fixture,item_decisions
         import base64,hashlib
         with TemporaryDirectory() as temporary:
             root=Path(temporary);source,_,mapping=make_fixture(root/'fixture',table_image=True)
@@ -235,7 +237,7 @@ class McpTaskAdapterTests(unittest.TestCase):
 
     def test_actual_stdio_discovery_create_capture_replay_and_restart(self):
         from mcp import Client, StdioServerParameters
-        from test_portable import make_fixture
+        from portable_fixtures import make_fixture
         with TemporaryDirectory() as temporary:
             root=Path(temporary);source,_,mapping=make_fixture(root/'fixture')
             params=StdioServerParameters(command=sys.executable,args=[str(SCRIPTS/'mcp_server.py'),
