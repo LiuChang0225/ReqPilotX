@@ -26,6 +26,8 @@ CLASSIFICATIONS = frozenset(
     }
 )
 PROJECTION_MODES = frozenset({"mirror", "subset"})
+# Discovery roots of the supported portable plugin, not receipt-controlled roots.
+FROZEN_ASSET_ROOTS = (PurePosixPath("skills"), PurePosixPath("capabilities/pdf"))
 
 
 class AssetRegistryError(ValueError):
@@ -68,7 +70,11 @@ def _safe_relative(value: object, *, field: str) -> PurePosixPath:
 
 def _path(root: Path, relative: object, *, field: str) -> Path:
     pure = _safe_relative(relative, field=field)
-    candidate = root.joinpath(*pure.parts)
+    candidate = root
+    for part in pure.parts:
+        candidate = candidate / part
+        if candidate.is_symlink():
+            raise AssetRegistryError(f"{field} contains a symlink: {pure}")
     resolved = candidate.resolve(strict=False)
     if resolved != root and not resolved.is_relative_to(root):
         raise AssetRegistryError(f"{field} escapes the repository: {pure}")
@@ -86,6 +92,8 @@ def _regular_files(root: Path) -> dict[str, Path]:
             relative = path.relative_to(root).as_posix()
             _safe_relative(relative, field="asset file")
             files[relative] = path
+        elif not path.is_dir():
+            raise AssetRegistryError(f"Asset tree contains a non-regular member: {path}")
     if not files:
         raise AssetRegistryError(f"Asset directory is empty: {root}")
     return files
@@ -291,11 +299,45 @@ def release_asset_manifest(repo: Path) -> dict[str, Any]:
     }
 
 
+def verify_asset_inventory(bundle: Path, declared_paths: Iterable[str]) -> None:
+    """Reject undeclared discoverable assets, including linked roots/parents.
+
+    Shared with the evaluation host installer, including retained pre-R5 bundles.
+    Tools, runtime files and host installation markers outside these roots are
+    governed by their existing contracts, not mistaken for additional assets.
+    """
+    bundle = bundle.expanduser().absolute()
+    if bundle.is_symlink() or not bundle.is_dir():
+        raise AssetRegistryError("Frozen plugin bundle must be a regular directory")
+    bundle = bundle.resolve(strict=True)
+    expected: set[str] = set()
+    for value in declared_paths:
+        pure = _safe_relative(value, field="frozen asset path")
+        if not any(pure != root and pure.is_relative_to(root) for root in FROZEN_ASSET_ROOTS):
+            raise AssetRegistryError(f"Frozen asset is outside supported discovery roots: {pure}")
+        if pure.as_posix() in expected:
+            raise AssetRegistryError(f"Frozen Agent asset path is repeated: {pure}")
+        expected.add(pure.as_posix())
+    actual: set[str] = set()
+    for relative in FROZEN_ASSET_ROOTS:
+        root = _path(bundle, relative.as_posix(), field="frozen asset root")
+        if not root.exists():
+            continue
+        for name in _regular_files(root):
+            actual.add(relative.joinpath(name).as_posix())
+    if actual != expected:
+        raise AssetRegistryError(
+            "Frozen Agent asset inventory differs: "
+            f"missing={sorted(expected - actual)}, undeclared={sorted(actual - expected)}"
+        )
+
+
 def verify_frozen_bundle(bundle: Path) -> dict[str, Any]:
-    bundle = bundle.expanduser().resolve(strict=True)
+    bundle = bundle.expanduser().absolute()
     if not bundle.is_dir() or bundle.is_symlink():
         raise AssetRegistryError("Frozen plugin bundle must be a regular directory")
-    receipt_path = bundle / "build-receipt.json"
+    bundle = bundle.resolve(strict=True)
+    receipt_path = _path(bundle, "build-receipt.json", field="frozen receipt")
     try:
         receipt = json.loads(receipt_path.read_text(encoding="utf-8"))
     except (OSError, UnicodeError, json.JSONDecodeError) as exc:
@@ -325,12 +367,13 @@ def verify_frozen_bundle(bundle: Path) -> dict[str, Any]:
             if pure.as_posix() in seen_paths:
                 raise AssetRegistryError(f"Frozen Agent asset path is repeated: {pure}")
             seen_paths.add(pure.as_posix())
-            path = bundle.joinpath(*pure.parts)
+            path = _path(bundle, pure.as_posix(), field="frozen asset file")
             if path.is_symlink() or not path.is_file():
                 raise AssetRegistryError(f"Frozen Agent asset is missing or is a symlink: {pure}")
             if path.stat().st_size != item["bytes"] or sha256_file(path) != item["sha256"]:
                 raise AssetRegistryError(f"Frozen Agent asset failed identity verification: {pure}")
             verified_files += 1
+    verify_asset_inventory(bundle, seen_paths)
     return {
         "status": "VERIFIED",
         "schema_version": BUNDLE_SCHEMA_VERSION,
@@ -434,23 +477,46 @@ def assert_release_inputs_match_commit(repo: Path, commit: str) -> None:
         raise AssetRegistryError(
             "Release Agent assets must be committed and clean:\n" + status
         )
-    tracked = subprocess.run(
-        ["git", "-C", str(repo), "ls-tree", "-r", "--name-only", commit, "--", *scopes],
-        check=True,
-        capture_output=True,
-        text=True,
-    ).stdout.splitlines()
-    if not tracked:
-        raise AssetRegistryError("Release Agent asset inputs are not committed")
-    for relative in tracked:
-        pure = _safe_relative(relative, field="committed asset input")
-        path = repo.joinpath(*pure.parts)
-        if path.is_symlink() or not path.is_file():
-            raise AssetRegistryError(f"Release Agent asset input is not a regular file: {relative}")
+    # Enumerate the same real input trees used by the builder. Git status alone
+    # deliberately hides ignored files, so it cannot prove input completeness.
+    actual: dict[str, Path] = {}
+    for scope in scopes:
+        path = _path(repo, scope, field="release input")
+        if path.is_dir():
+            for relative, member in _regular_files(path).items():
+                actual[(PurePosixPath(scope) / relative).as_posix()] = member
+        elif path.is_file():
+            actual[scope] = path
+        else:
+            raise AssetRegistryError(f"Release input is missing or not regular: {scope}")
+    listing = subprocess.run(
+        ["git", "-C", str(repo), "ls-tree", "-rz", "--full-tree", commit, "--", *scopes],
+        check=True, capture_output=True, text=True,
+    ).stdout
+    tracked: dict[str, tuple[str, str]] = {}
+    for record in listing.split("\0"):
+        if not record:
+            continue
+        header, relative = record.split("\t", 1)
+        mode, kind, oid = header.split()
+        _safe_relative(relative, field="committed asset input")
+        if kind != "blob" or mode not in {"100644", "100755"}:
+            raise AssetRegistryError(f"Committed asset input is not a regular file: {relative}")
+        tracked[relative] = (mode, oid)
+    if not tracked or set(actual) != set(tracked):
+        raise AssetRegistryError(
+            "Release Agent asset inventory must match the commit: "
+            f"uncommitted_or_ignored={sorted(set(actual) - set(tracked))}, "
+            f"missing={sorted(set(tracked) - set(actual))}"
+        )
+    for relative, (mode, oid) in tracked.items():
+        path = actual[relative]
+        actual_mode = "100755" if path.stat().st_mode & 0o111 else "100644"
+        if actual_mode != mode:
+            raise AssetRegistryError(f"Release Agent asset mode differs from the commit: {relative}")
         committed = subprocess.run(
-            ["git", "-C", str(repo), "show", f"{commit}:{relative}"],
-            check=True,
-            capture_output=True,
+            ["git", "-C", str(repo), "cat-file", "blob", oid],
+            check=True, capture_output=True,
         ).stdout
         if path.read_bytes() != committed:
             raise AssetRegistryError(

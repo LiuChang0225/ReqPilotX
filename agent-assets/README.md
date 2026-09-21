@@ -32,6 +32,18 @@ the source checkout:
 python3 agent-assets/scripts/asset_registry.py verify-bundle --bundle /absolute/path/to/reqpilot
 ```
 
+Verification compares the complete `skills/` and `capabilities/pdf/` inventories
+with declared assets, rejecting extra files, linked roots/parents and special
+files. The evaluation host installer uses the same inventory guard, including
+for retained pre-R5 bundles; ordinary host installation markers remain allowed
+outside asset roots. Its verifier is trusted tool code, never loaded from the
+bundle being inspected.
+
+Release inputs are compared with the exact commit's member set, regular-file
+modes and blob bytes. Git-ignored files are not exempt, and hidden working-tree
+changes cannot be accepted merely because `git status` is clean. Rejection does
+not delete files or stage them automatically.
+
 The compatibility Agent Kit remains at `agent-kit/` because it has live runtime
 and replay consumers. Its locked contents are not silently upgraded from the
 current skills.

@@ -3,6 +3,7 @@
 from __future__ import annotations
 
 import hashlib
+import importlib.util
 import json
 import os
 from pathlib import Path
@@ -79,7 +80,10 @@ def selected_case(case_id):
 
 
 def bundle_integrity(path, expected=None):
-    root = Path(path).resolve(strict=True)
+    root = Path(path).expanduser().absolute()
+    if root.is_symlink():
+        raise ValueError("Frozen bundle root cannot be a symlink")
+    root = root.resolve(strict=True)
     receipt = read(root / "build-receipt.json")
     if receipt.get("bundle_sha256") != digest(
         {k: v for k, v in receipt.items() if k != "bundle_sha256"}
@@ -87,6 +91,23 @@ def bundle_integrity(path, expected=None):
         raise ValueError("Bundle receipt hash changed")
     if expected and expected != receipt["bundle_sha256"]:
         raise ValueError("Different frozen bundle")
+    # Use the trusted checkout's shared guard, never executable code from the
+    # bundle under test. The guard itself reads only the frozen bundle.
+    registry_path = Path(__file__).resolve().parents[2] / "agent-assets/scripts/asset_registry.py"
+    if not registry_path.is_file() or registry_path.is_symlink():
+        raise ValueError("Trusted Agent asset verifier is missing or unsafe")
+    spec = importlib.util.spec_from_file_location("reqpilot_eval_asset_guard", registry_path)
+    if spec is None or spec.loader is None:
+        raise ValueError("Trusted Agent asset verifier cannot be loaded")
+    assets = importlib.util.module_from_spec(spec)
+    spec.loader.exec_module(assets)
+    asset_paths = [
+        row["path"] for row in receipt["plugin_files"]
+        if row["path"].startswith(("skills/", "capabilities/pdf/"))
+    ]
+    assets.verify_asset_inventory(root, asset_paths)
+    if "agent_assets" in receipt:
+        assets.verify_frozen_bundle(root)
     for area, entries in [
         (root, receipt["plugin_files"]),
         (root / "runtime/prototype", receipt["runtime_files"]),

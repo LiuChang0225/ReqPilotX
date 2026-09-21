@@ -40,6 +40,14 @@ R5 基线为 `9a8c08fd655b6155f3fe02bd5f351253abe16120`。本切片只整理技�
    但必须先通过源/投影校验。
 6. `verify-bundle` 只读取冻结 bundle 和它的回执；因此可以在没有原 checkout 的目录核验
    缺失、篡改、重复身份和 symlink，不从另一份技能目录兜底。
+7. 冻结校验同时枚举固定发现根 `skills/` 与 `capabilities/pdf/`，要求实际成员集合与声明
+   完全相同；额外技能、额外文件、根/父级 symlink 和非普通文件均拒绝。根目录的合法工具、
+   runtime 与宿主安装标记不被误当作额外资产。评测宿主安装门禁复用同一完整资产清单检查；
+   校验代码来自受信任的本工具源码，不执行待校验 bundle 中的代码。
+8. 正式发行输入先枚举实际 source/projection 文件（包含 Git 忽略项），再与同一 commit
+   的 NUL 分隔完整清单逐项对齐，核对普通文件类型、执行模式与原始 blob 字节。`git status`
+   干净不代表输入完整；被忽略或 assume-unchanged 隐藏的文件也不能绕过。发现异常仅拒绝，
+   不自动删除、强制提交或静默丢弃文件。开发源码构建的显式迭代方式保持。
 
 旧 R2 bundle 和任务继续使用各自冻结的完整 `bundle_sha256`，不会因新 catalog 或新 bundle
 重算身份。Engine core identity 仍不能代替插件 bundle identity。
