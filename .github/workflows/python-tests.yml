@@ -26,6 +26,7 @@ jobs:
           cache-dependency-path: prototype/frontend/package-lock.json
       - uses: astral-sh/setup-uv@v6
         with:
+          version: '0.12.13'
           enable-cache: true
           cache-dependency-glob: prototype/requirements-test-linux-py313.lock
       - name: Install local OCR binary and OpenCV system libraries

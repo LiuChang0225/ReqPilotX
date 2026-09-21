@@ -6,10 +6,14 @@ import csv
 import hashlib
 import io
 import json
+import shutil
+import subprocess
 import sys
+from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
 import unittest
+from unittest.mock import patch
 from zipfile import ZIP_DEFLATED, ZipFile
 
 
@@ -19,6 +23,33 @@ sys.path.insert(0, str(ROOT / "plugins/reqpilot/scripts"))
 import build_bundle
 import build_engine
 from portable_core import NAMESPACE_INITIALIZERS, canonical_digest, select_core
+
+
+def fixture_git(repo: Path, *arguments: str) -> str:
+    return subprocess.run(
+        ["git", "-C", str(repo), "-c", "user.name=ReqPilotX test",
+         "-c", "user.email=fixture@example.invalid", "-c", "commit.gpgsign=false",
+         "-c", f"core.hooksPath={repo / '.git/no-hooks'}", *arguments],
+        check=True, capture_output=True, text=True,
+    ).stdout.strip()
+
+
+@contextmanager
+def committed_release_fixture():
+    # Real Git provenance tests never dirty the caller's checkout or require
+    # developers to commit their current edits merely to run unit tests.
+    with TemporaryDirectory(prefix="reqpilotx-release-input-test-") as temporary:
+        repo = Path(temporary)
+        selection = select_core(ROOT)
+        paths = {*build_engine.BUILD_INPUT_FILES, *(f"prototype/{m.source_relative}" for m in selection.members)}
+        for relative in paths:
+            target = repo / relative
+            target.parent.mkdir(parents=True, exist_ok=True)
+            shutil.copyfile(ROOT / relative, target)
+        fixture_git(repo, "init", "--quiet")
+        fixture_git(repo, "add", ".")
+        fixture_git(repo, "commit", "--quiet", "-m", "committed engine test inputs")
+        yield repo
 
 
 class EngineDistributionTests(unittest.TestCase):
@@ -81,10 +112,10 @@ class EngineDistributionTests(unittest.TestCase):
         self.assertEqual(set(NAMESPACE_INITIALIZERS), {member.runtime_relative for member in selection.members if member.namespace_initializer})
 
     def test_staged_project_contains_manifest_and_no_maintained_source_copy(self):
-        with TemporaryDirectory() as temporary:
+        with committed_release_fixture() as repo, TemporaryDirectory() as temporary:
             stage = Path(temporary) / "stage"
             stage.mkdir()
-            manifest = build_engine.prepare_stage(ROOT, stage)
+            manifest = build_engine.prepare_stage(repo, stage)
             self.assertEqual(manifest["core_identity"], canonical_digest({k: v for k, v in manifest.items() if k != "core_identity"}))
             self.assertEqual(len(manifest["runtime_files"]), len(select_core(ROOT).members))
             self.assertTrue((stage / "src/app/application/agent_workflow/source_requirement_baseline.py").is_file())
@@ -94,6 +125,97 @@ class EngineDistributionTests(unittest.TestCase):
             for requirement in manifest["requirements"]:
                 self.assertIn(json.dumps(requirement), pyproject)
         self.assertFalse((ROOT / "packages/engine/src").exists(), "Generated engine source must not become a maintained copy")
+
+    def test_uv_version_contract_accepts_verified_versions_and_rejects_old_or_unknown(self):
+        for version, accepted in (
+            ("uv 0.10.2 (Homebrew)", True), ("uv 0.12.13 (build)", True),
+            ("uv 0.7.22", False), ("uv 0.10.1", False),
+            ("uv 0.12.13.dev1", False), ("unknown", False),
+        ):
+            with self.subTest(version=version), patch.object(build_engine.shutil, "which", return_value="/test/uv"), patch.object(
+                build_engine.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout=version, stderr=""),
+            ):
+                if accepted:
+                    self.assertEqual(build_engine.require_uv_frontend(), ("/test/uv", version))
+                else:
+                    with self.assertRaisesRegex(ValueError, "requires stable uv >= 0.10.2"):
+                        build_engine.require_uv_frontend()
+
+    def test_old_uv_is_rejected_before_creating_build_output(self):
+        with TemporaryDirectory() as temporary, patch.object(build_engine.shutil, "which", return_value="/test/uv"), patch.object(
+            build_engine.subprocess, "run", return_value=subprocess.CompletedProcess([], 0, stdout="uv 0.7.22", stderr=""),
+        ) as process:
+            output = Path(temporary) / "release"
+            with self.assertRaisesRegex(ValueError, "Unsupported uv version"):
+                build_engine.build(ROOT, output)
+            self.assertFalse(output.exists())
+            self.assertEqual(process.call_count, 1)
+            self.assertEqual(process.call_args.args[0], ["/test/uv", "--version"])
+
+    def test_release_rejects_dirty_source_dependency_and_packaging_inputs_before_staging(self):
+        with committed_release_fixture() as repo:
+            for relative in (
+                "prototype/app/application/fast_source_capture.py",
+                "prototype/app/__init__.py", "prototype/requirements.txt",
+                "plugins/reqpilot/scripts/build_engine.py", "plugins/reqpilot/scripts/portable_core.py",
+                "packages/engine/pyproject.toml", "packages/engine/README.md",
+            ):
+                with self.subTest(path=relative):
+                    path = repo / relative
+                    before = path.read_bytes()
+                    path.write_bytes(before + b"\n# uncommitted test change\n")
+                    try:
+                        with self.assertRaisesRegex(ValueError, "Release inputs must be committed and clean"):
+                            build_engine.prepare_stage(repo, repo / "stage")
+                        self.assertFalse((repo / "stage").exists())
+                    finally:
+                        path.write_bytes(before)
+
+    def test_release_rejects_staged_new_and_deleted_source_inputs(self):
+        with committed_release_fixture() as repo:
+            source = repo / "prototype/app/application/fast_source_capture.py"
+            source.write_bytes(source.read_bytes() + b"\n# staged change\n")
+            fixture_git(repo, "add", str(source.relative_to(repo)))
+            with self.assertRaisesRegex(ValueError, "committed and clean"):
+                build_engine.prepare_stage(repo, repo / "stage")
+        with committed_release_fixture() as repo:
+            (repo / "prototype/app/untracked_source.py").write_text("# untracked source\n")
+            with self.assertRaisesRegex(ValueError, "committed and clean"):
+                build_engine.prepare_stage(repo, repo / "stage")
+        with committed_release_fixture() as repo:
+            (repo / "prototype/app/__init__.py").unlink()
+            with self.assertRaisesRegex(ValueError, "committed and clean"):
+                build_engine.prepare_stage(repo, repo / "stage")
+
+    def test_commit_byte_comparison_detects_assume_unchanged_source_edit(self):
+        with committed_release_fixture() as repo:
+            relative = "prototype/app/application/fast_source_capture.py"
+            fixture_git(repo, "update-index", "--assume-unchanged", relative)
+            source = repo / relative
+            source.write_bytes(source.read_bytes() + b"\n# hidden worktree edit\n")
+            with self.assertRaisesRegex(ValueError, "Selected source differs from release commit"):
+                build_engine.prepare_stage(repo, repo / "stage")
+            self.assertFalse((repo / "stage").exists())
+
+    def test_release_allows_unrelated_dirty_documentation(self):
+        with committed_release_fixture() as repo:
+            (repo / "notes.md").write_text("Unrelated developer note; not an engine input.\n")
+            manifest = build_engine.prepare_stage(repo, repo / "stage")
+            self.assertEqual(manifest["source_commit"], fixture_git(repo, "rev-parse", "HEAD"))
+            self.assertEqual(manifest["source_tree"], fixture_git(repo, "rev-parse", "HEAD^{tree}"))
+
+    def test_release_detects_input_change_during_selection(self):
+        real_selection = build_engine.select_core
+        with committed_release_fixture() as repo:
+            def change_after_reading(path):
+                selection = real_selection(path)
+                target = repo / "packages/engine/README.md"
+                target.write_bytes(target.read_bytes() + b"\nchanged during selection\n")
+                return selection
+            with patch.object(build_engine, "select_core", side_effect=change_after_reading):
+                with self.assertRaisesRegex(ValueError, "Build input differs from release commit"):
+                    build_engine.prepare_stage(repo, repo / "stage")
+            self.assertFalse((repo / "stage").exists())
 
     def test_wheel_manifest_tampering_is_rejected_before_plugin_copy(self):
         with TemporaryDirectory() as temporary:
