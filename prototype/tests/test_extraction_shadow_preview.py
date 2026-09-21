@@ -3226,7 +3226,7 @@ class ExtractionShadowPreviewApiTests(unittest.TestCase):
         extraction = (
             frontend_source / "features" / "extraction" / "RequirementTreePanel.tsx"
         ).read_text(encoding="utf-8")
-        routes = (frontend_source / "app" / "App.tsx").read_text(encoding="utf-8")
+        routes = (Path(__file__).resolve().parents[2] / "apps/web/src/app/App.tsx").read_text(encoding="utf-8")
 
         self.assertIn('<div id="root"></div>', html)
         self.assertIn("需求结构树", extraction)
