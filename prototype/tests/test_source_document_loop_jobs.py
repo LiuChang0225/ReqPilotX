@@ -9,13 +9,18 @@ from datetime import UTC, datetime
 import base64
 import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
 import unittest
 from unittest.mock import patch
+from concurrent.futures import ThreadPoolExecutor
 
 from app.application.agent_workflow import source_document_loop_jobs as raw_loop
+from app.application.agent_workflow import native_loop_capabilities as caps
+from app.adapters.agents.codex_app_server.native_loop_driver import _digest
+from app.application.errors import ApplicationError
 from app.ports.job_queue import JobStatus
 
 
@@ -61,6 +66,121 @@ class Jobs:
 
 
 class SourceDocumentLoopTests(unittest.TestCase):
+    def test_missing_release_rejects_before_enqueue_and_preserves_preparation(self):
+        with tempfile.TemporaryDirectory() as directory:
+            base = Path(directory)
+            original = base / "source.pdf"
+            original.write_bytes(b"source")
+            source_sha = hashlib.sha256(original.read_bytes()).hexdigest()
+            container = SimpleNamespace(
+                settings=SimpleNamespace(
+                    object_root=base / "objects",
+                    codex_bin=Path("codex"),
+                    codex_home=Path("auth"),
+                    agent_customer_data_enabled=True,
+                ),
+                jobs=Jobs(),
+            )
+            request = raw_loop.SourceDocumentLoopStartV1(
+                command_id="missing-release",
+                expected_source_sha256=source_sha,
+                goal="Prepare only with a registered release.",
+            )
+            document = {"source_sha256": source_sha, "file_name": original.name}
+            with (
+                patch.object(raw_loop, "_container", return_value=container),
+                patch.object(
+                    raw_loop, "_require_project_document", return_value=document
+                ),
+                patch.object(raw_loop, "resolve_source_record_path", return_value=original),
+                patch.object(raw_loop, "load_native_source_graph", return_value=None),
+            ):
+                with self.assertRaises(ApplicationError) as rejected:
+                    raw_loop.start_source_document_loop(
+                        "project",
+                        "document",
+                        request,
+                        SimpleNamespace(headers={}),
+                    )
+                self.assertEqual(rejected.exception.status_code, 503)
+                with self.assertRaises(ApplicationError) as replay:
+                    raw_loop.start_source_document_loop(
+                        "project",
+                        "document",
+                        request,
+                        SimpleNamespace(headers={}),
+                    )
+            self.assertEqual(replay.exception.status_code, 409)
+            task_id = "loop-" + raw_loop.canonical_json_sha256(
+                {
+                    "mode": "RAW_SOURCE",
+                    "project_id": "project",
+                    "document_id": "document",
+                    **request.model_dump(mode="json"),
+                }
+            )[:32]
+            root = raw_loop._task_root(
+                container, "project", "document", task_id
+            )
+            self.assertEqual(
+                (root / "workspace/source/source.pdf").read_bytes(), b"source"
+            )
+            self.assertFalse((root / "task.json").exists())
+            self.assertFalse((root / "plugin").exists())
+            self.assertFalse(container.jobs.jobs)
+
+    def test_concurrent_same_creation_prepares_once(self):
+        with tempfile.TemporaryDirectory() as directory:
+            container = SimpleNamespace(
+                settings=SimpleNamespace(
+                    object_root=Path(directory),
+                    codex_bin=Path("codex"),
+                    codex_home=Path("auth"),
+                    agent_customer_data_enabled=True,
+                ),
+                jobs=Jobs(),
+            )
+            request = raw_loop.SourceDocumentLoopStartV1(
+                command_id="same-concurrent-create",
+                expected_source_sha256="a" * 64,
+                goal="Prepare once.",
+            )
+            calls = []
+
+            def prepare(_container, root, task_id, *_):
+                calls.append(task_id)
+                meta = {"task_id": task_id, "plugin_bundle_sha256": "b" * 64}
+                raw_loop._write_json(root / "task.json", meta)
+                return meta
+
+            with (
+                patch.object(raw_loop, "_container", return_value=container),
+                patch.object(
+                    raw_loop,
+                    "_require_project_document",
+                    return_value={"source_sha256": "a" * 64},
+                ),
+                patch.object(raw_loop, "load_native_source_graph", return_value=None),
+                patch.object(
+                    raw_loop, "_prepare_source_document_loop", side_effect=prepare
+                ),
+                patch.object(raw_loop, "_public", side_effect=lambda _c, _r, m: m),
+            ):
+                with ThreadPoolExecutor(max_workers=2) as executor:
+                    results = list(
+                        executor.map(
+                            lambda _: raw_loop.start_source_document_loop(
+                                "project",
+                                "document",
+                                request,
+                                SimpleNamespace(headers={}),
+                            ),
+                            range(2),
+                        )
+                    )
+            self.assertEqual(len(calls), 1)
+            self.assertEqual(results[0]["task_id"], results[1]["task_id"])
+
     def test_new_native_policy_is_autonomous_and_legacy_omitted_retry_keeps_original_true_task(self):
         omitted=raw_loop.SourceDocumentLoopStartV1(command_id='same-create',expected_source_sha256='a'*64,goal='Prepare the full source draft.')
         explicit=raw_loop.SourceDocumentLoopStartV1(command_id='same-create',expected_source_sha256='a'*64,goal='Prepare the full source draft.',require_map_confirmation=True)
@@ -389,29 +509,55 @@ class SourceDocumentLoopTests(unittest.TestCase):
                 "file_name": "uploaded.pdf",
                 "source_sha256": source_sha,
             }
+            configured_release = os.getenv("REQPILOT_R2_REAL_BUNDLE")
+            if configured_release:
+                release = Path(configured_release).resolve(strict=True)
+                receipt = json.loads(
+                    (release / "build-receipt.json").read_text()
+                )
+            else:
+                release = temporary / "release"
+                script = release / "scripts/reqpilot.py"
+                script.parent.mkdir(parents=True)
+                script.write_text("# frozen release\n")
+                receipt = {
+                    "source_repository": "ReqPilotX",
+                    "release_mode": "ENGINE_WHEEL",
+                    "delivery_included": True,
+                    "decomposition_included": True,
+                    "source_checkout_required_at_runtime": False,
+                    "engine_release": {
+                        "core_identity": "c" * 64,
+                        "wheel_sha256": "e" * 64,
+                    },
+                    "plugin_files": [
+                        {
+                            "path": "scripts/reqpilot.py",
+                            "sha256": hashlib.sha256(
+                                script.read_bytes()
+                            ).hexdigest(),
+                        }
+                    ],
+                    "runtime_files": [],
+                }
+                receipt["bundle_sha256"] = _digest(receipt)
+                raw_loop._write_json(release / "build-receipt.json", receipt)
+            registry = temporary / "registry"
+            caps.register_native_loop_capability_bundle(
+                release, registry_root=registry, require_engine_release=True
+            )
             container = SimpleNamespace(
                 settings=SimpleNamespace(
                     object_root=temporary / "objects",
                     codex_bin=Path("codex"),
                     codex_home=temporary / "auth",
                     agent_customer_data_enabled=True,
+                    native_capability_mode="registered-release",
+                    native_capability_registry_root=registry,
+                    native_capability_bundle_sha256=receipt["bundle_sha256"],
                 ),
                 jobs=Jobs(),
             )
-            commands = []
-
-            def build(command, **kwargs):
-                commands.append(command)
-                self.assertTrue(command[1].endswith("build_bundle.py"))
-                output = Path(command[command.index("--output") + 1])
-                output.mkdir(parents=True)
-                (output / "build-receipt.json").write_text(
-                    json.dumps({"bundle_sha256": "b" * 64})
-                )
-                return SimpleNamespace(
-                    returncode=0, stdout='{"status":"BUILT"}', stderr=""
-                )
-
             request = raw_loop.SourceDocumentLoopStartV1(
                 command_id="start-once",
                 expected_source_sha256=source_sha,
@@ -426,7 +572,7 @@ class SourceDocumentLoopTests(unittest.TestCase):
                 patch.object(
                     raw_loop, "resolve_source_record_path", return_value=original
                 ),
-                patch.object(raw_loop.subprocess, "run", side_effect=build),
+                patch.object(raw_loop.subprocess, "run") as process,
                 patch.object(raw_loop, "LocalCodexAppServerNativeLoopDriver") as model,
                 patch(
                     "app.application.knowledge_facts.build_project_knowledge_catalog",
@@ -440,7 +586,7 @@ class SourceDocumentLoopTests(unittest.TestCase):
                     "project", "document", request, SimpleNamespace(headers={})
                 )
             self.assertEqual(result["task_id"], replay["task_id"])
-            self.assertEqual(len(commands), 1)
+            process.assert_not_called()
             self.assertFalse(model.called)
             self.assertEqual(len(container.jobs.jobs), 1)
             job = next(iter(container.jobs.jobs.values()))
@@ -448,6 +594,9 @@ class SourceDocumentLoopTests(unittest.TestCase):
             self.assertIsNone(job.payload["baseline_sha256"])
             self.assertEqual(
                 job.payload["application_entrypoint"], "source-item-workbench-v1"
+            )
+            self.assertEqual(
+                job.payload["plugin_bundle_sha256"], receipt["bundle_sha256"]
             )
             root = raw_loop._task_root(
                 container, "project", "document", result["task_id"]

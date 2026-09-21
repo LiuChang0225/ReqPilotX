@@ -12,7 +12,6 @@ import json
 from pathlib import Path
 import shutil
 import subprocess
-import sys
 import time
 from typing import Literal
 from uuid import uuid4
@@ -233,6 +232,17 @@ def _enqueue(container, root, meta, *, command_id, goal, origin):
             "operation_namespace": "working",
             "publication_mode": "WORKING_PROPOSAL",
             "capability_epoch": meta.get("capability_epoch"),
+            **(
+                {
+                    "plugin_bundle_sha256": meta.get(
+                        "active_plugin_bundle_sha256"
+                    )
+                    or meta.get("plugin_bundle_sha256")
+                }
+                if meta.get("active_plugin_bundle_sha256")
+                or meta.get("plugin_bundle_sha256")
+                else {}
+            ),
         },
     )
     meta["latest_job_id"] = job.job_id
@@ -370,7 +380,11 @@ def start_source_document_loop(
         aggregate_type="sor-document",
         aggregate_id=document_id,
     )
-    if latest and latest.status.value in ACTIVE:
+    if (
+        latest
+        and latest.status.value in ACTIVE
+        and latest.payload.get("task_id") != task_id
+    ):
         raise ApplicationError(
             status_code=409,
             detail={
@@ -378,7 +392,29 @@ def start_source_document_loop(
                 "task_id": latest.payload.get("task_id"),
             },
         )
-    root.mkdir(parents=True, exist_ok=False, mode=0o700)
+    root.mkdir(parents=True, exist_ok=True, mode=0o700)
+    with _locked(root):
+        if (root / "task.json").exists():
+            return _public(container, root, _read(root / "task.json"))
+        if (root / "workspace").exists() or (root / "plugin").exists():
+            raise ApplicationError(
+                status_code=409,
+                detail="这个任务的准备过程未完成，保留现场供恢复；请勿重复覆盖。",
+            )
+        return _prepare_source_document_loop(
+            container, root, task_id, project_id, document_id, document, payload
+        )
+
+
+def _prepare_source_document_loop(
+    container,
+    root: Path,
+    task_id: str,
+    project_id: str,
+    document_id: str,
+    document: dict,
+    payload: SourceDocumentLoopStartV1,
+):
     workspace = root / "workspace"
     (workspace / "source").mkdir(parents=True, mode=0o700)
     source = resolve_source_record_path(document).resolve(strict=True)
@@ -391,21 +427,17 @@ def start_source_document_loop(
         != payload.expected_source_sha256
     ):
         raise ValueError("Uploaded source changed while creating the native task")
-    built = subprocess.run(
-        [
-            sys.executable,
-            str(ROOT / "plugins/reqpilot/scripts/build_bundle.py"),
-            "--repo",
-            str(ROOT),
-            "--output",
-            str(root / "plugin"),
-        ],
-        capture_output=True,
-        text=True,
-        timeout=90,
+    from app.application.agent_workflow.native_loop_capabilities import (
+        prepare_native_loop_capability,
     )
-    if built.returncode:
-        raise ValueError((built.stderr or built.stdout)[-12000:])
+
+    try:
+        capability = prepare_native_loop_capability(root, container.settings)
+    except (OSError, ValueError) as exc:
+        raise ApplicationError(
+            status_code=503,
+            detail=f"原生任务能力包准备失败：{exc}",
+        ) from exc
     from app.application.knowledge_facts import build_project_knowledge_catalog
 
     knowledge = workspace / "knowledge"
@@ -424,9 +456,11 @@ def start_source_document_loop(
         "source_sha256": payload.expected_source_sha256,
         "source_path": str(target.relative_to(workspace)),
         "origin": payload.origin,
-        "plugin_bundle_sha256": _read(root / "plugin/build-receipt.json")[
-            "bundle_sha256"
-        ],
+        "plugin_bundle_sha256": capability["bundle_sha256"],
+        "plugin_capability_source": capability["capability_source"],
+        "engine_core_identity": (capability.get("engine_release") or {}).get(
+            "core_identity"
+        ),
         "request": payload.model_dump(mode="json"),
         "workflow_version": 1,
         "analysis_policy": policy,
@@ -1201,10 +1235,10 @@ def run_durable_source_document_loop(job, context):
         }
 
     from app.application.agent_workflow.native_loop_capabilities import (
-        active_native_loop_plugin,
+        native_loop_plugin_for_job,
     )
 
-    plugin_root = active_native_loop_plugin(root)
+    plugin_root = native_loop_plugin_for_job(root, meta, job.payload)
     host = SourceDocumentToolHost(
         task_root=root,
         meta=meta,

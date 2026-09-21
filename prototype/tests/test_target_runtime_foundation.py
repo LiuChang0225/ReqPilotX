@@ -47,6 +47,7 @@ from app.infrastructure.runtime_settings import (
     DatabaseBackend,
     DeploymentMode,
     ObjectStoreBackend,
+    NativeCapabilityMode,
     ProcessRole,
     RuntimeConfigurationError,
     RuntimeSettings,
@@ -66,6 +67,65 @@ from scripts.sqlite_cutover_inventory import build_inventory
 
 
 class RuntimeSettingsTests(unittest.TestCase):
+    def test_native_capability_release_configuration_is_host_owned(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            registry = root / "registry"
+            settings = RuntimeSettings.from_environment(
+                environment={
+                    "REQPILOT_TEST_MODE": "1",
+                    "REQPILOT_STORAGE_DIR": temporary,
+                    "REQPILOT_NATIVE_CAPABILITY_MODE": "registered-release",
+                    "REQPILOT_NATIVE_CAPABILITY_REGISTRY": str(registry),
+                    "REQPILOT_NATIVE_CAPABILITY_BUNDLE_SHA256": "a" * 64,
+                },
+                prototype_dir=root,
+            )
+        self.assertEqual(
+            settings.native_capability_mode,
+            NativeCapabilityMode.REGISTERED_RELEASE,
+        )
+        self.assertEqual(settings.native_capability_registry_root, registry.resolve())
+        self.assertEqual(settings.native_capability_bundle_sha256, "a" * 64)
+
+    def test_agent_none_does_not_require_a_capability_bundle(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            settings = RuntimeSettings.from_environment(
+                environment={
+                    "REQPILOT_TEST_MODE": "1",
+                    "REQPILOT_STORAGE_DIR": temporary,
+                    "REQPILOT_AGENT_RUNTIME": "none",
+                },
+                prototype_dir=Path(temporary),
+            )
+        self.assertEqual(settings.agent_runtime_backend, AgentRuntimeBackend.NONE)
+        self.assertEqual(settings.native_capability_bundle_sha256, "")
+
+    def test_native_capability_configuration_rejects_bad_identity_and_cloud_source(self) -> None:
+        with self.assertRaisesRegex(
+            RuntimeConfigurationError,
+            "REQPILOT_NATIVE_CAPABILITY_BUNDLE_SHA256",
+        ):
+            RuntimeSettings.from_environment(
+                environment={
+                    "REQPILOT_TEST_MODE": "1",
+                    "REQPILOT_NATIVE_CAPABILITY_BUNDLE_SHA256": "not-a-sha",
+                }
+            )
+        with self.assertRaisesRegex(RuntimeConfigurationError, "development-source"):
+            RuntimeSettings.from_environment(
+                environment={
+                    "REQPILOT_ENV": "cloud",
+                    "REQPILOT_DATABASE_URL": "postgresql://db/reqpilotx",
+                    "REQPILOT_OBJECT_STORE": "oss",
+                    "REQPILOT_ALLOWED_HOSTS": "reqpilot.example.com",
+                    "REQPILOT_ALLOWED_ORIGINS": "https://reqpilot.example.com",
+                    "REQPILOT_OSS_REGION": "cn-hangzhou",
+                    "REQPILOT_OSS_BUCKET": "private-bucket",
+                    "REQPILOT_NATIVE_CAPABILITY_MODE": "development-source",
+                }
+            )
+
     def test_test_mode_never_requires_postgres_or_cloud(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             settings = RuntimeSettings.from_environment(
