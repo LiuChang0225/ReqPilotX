@@ -4,8 +4,9 @@ import { readFile } from 'node:fs/promises';
 import { createRequire } from 'node:module';
 import vm from 'node:vm';
 const pair = process.env.PAIR_REPO;
-if (!pair) throw Error('Set PAIR_REPO to the tested Pair checkout; no model is called.');
-const hostRequire = createRequire(pair + '/packages/client/web/package.json');
+const fixture = process.env.PAIR_REACT_ROOT;
+if (!pair && !fixture) throw Error('Set PAIR_REPO or PAIR_REACT_ROOT to an explicit React 18 host fixture.');
+const hostRequire = createRequire(pair ? pair + '/packages/client/web/package.json' : fixture + '/package.json');
 test('built client is lazy and uses only the shared host React modules; registers/disposes panel effects', async () => {
   const code = await readFile(new URL('../client/lib/client.js', import.meta.url), 'utf8');
   const calls = []; const styles = []; const disposers = []; const registrations = []; let entry;

@@ -28,5 +28,6 @@ jobs:
       - run: npm run build
       - run: npm run build:panel
       - run: node integrations/pair/scripts/build.mjs
+      - run: npm --prefix integrations/pair/tests/react-host ci --ignore-scripts
       - name: Pair independent adapter contracts
-        run: node --test integrations/pair/tests/host.test.mjs integrations/pair/tests/runtime.test.mjs integrations/pair/tests/shared-artifacts.test.mjs
+        run: PAIR_REACT_ROOT="$PWD/integrations/pair/tests/react-host" node --test integrations/pair/tests/*.test.mjs
