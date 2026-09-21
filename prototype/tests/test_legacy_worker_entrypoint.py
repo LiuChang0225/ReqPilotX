@@ -1,5 +1,12 @@
 from __future__ import annotations
 
+if __package__:
+    from .runtime_isolation import activate_test_runtime
+else:
+    from runtime_isolation import activate_test_runtime
+
+activate_test_runtime()
+
 import json
 import os
 from pathlib import Path
