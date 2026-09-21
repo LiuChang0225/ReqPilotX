@@ -9,6 +9,7 @@ from pathlib import Path
 import sys
 
 from reqpilotx_server.application.agent_workflow.native_loop_capabilities import (
+    _registered_bundle_path,
     _verify_bundle,
     register_native_loop_capability_bundle,
 )
@@ -74,10 +75,8 @@ def main() -> int:
                 require_engine_release=True,
             )
         else:
-            bundle = (
-                args.registry_root
-                / args.bundle_sha256
-                / "reqpilot"
+            bundle = _registered_bundle_path(
+                args.registry_root, args.bundle_sha256
             )
             receipt = _verify_bundle(
                 bundle,

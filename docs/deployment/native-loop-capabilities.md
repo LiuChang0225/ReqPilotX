@@ -46,6 +46,8 @@ prototype/.venv/bin/python prototype/scripts/prepare_native_loop_capability.py \
 `inspect` 要求完整 `ENGINE_WHEEL` 插件、完整声明清单、受控路径、实际文件 SHA、
 引擎来源和无需运行期 checkout 的发行回执全部成立。缺包、开发包、身份错误、额外或
 缺失文件、symlink/路径逃逸都会拒绝；不会改用当前 checkout，也不会安装或下载依赖。
+预检与任务准备共用注册路径解析：SHA 目录或其 `reqpilot` 子目录为 symlink 时，
+即使链接目标是内容有效的包也拒绝，避免预检通过却无法创建任务。
 
 ## 默认切换与回滚
 
