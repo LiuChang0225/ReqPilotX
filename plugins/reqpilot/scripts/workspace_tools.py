@@ -53,7 +53,7 @@ def runtime_reference(entrypoint, project_root=None):
         ref.update(kind='BUNDLED',bundle_sha256=_bundle_receipt(plugin_root)['bundle_sha256'])
     elif project_root is not None:
         project = Path(project_root).expanduser().resolve(strict=True)
-        if not (project/'prototype/app/application/agent_workflow/task_workspace.py').is_file():
+        if not (project/'packages/engine/src/reqpilotx/application/agent_workflow/task_workspace.py').is_file():
             raise ValueError('Explicit development checkout has no task workspace runtime')
         ref.update(kind='DEVELOPMENT_CHECKOUT',project_root=str(project),freeze_state='EXPLICIT_CHECKOUT_NOT_FROZEN')
     else:
@@ -77,14 +77,14 @@ def _runtime(context):
             raise ValueError('Pinned task capability bundle SHA differs')
     else:
         project = Path(ref.get('project_root','')).expanduser()
-        if not (project/'prototype/app/application/agent_workflow/task_workspace.py').is_file():
+        if not (project/'packages/engine/src/reqpilotx/application/agent_workflow/task_workspace.py').is_file():
             raise ValueError('Task development checkout is no longer available')
         command += ['--project-root',str(project)]
     return command
 
 
 def _task(args):
-    from app.application.agent_workflow.task_workspace import find_task_workspace
+    from reqpilotx.application.agent_workflow.task_workspace import find_task_workspace
     found = find_task_workspace(explicit=getattr(args,'workspace',None))
     if found is None:
         raise ValueError('No task-context.json found. Use workspace init or provide the actual --workspace task root.')
@@ -92,7 +92,7 @@ def _task(args):
 
 
 def initialize(args, entrypoint):
-    from app.application.agent_workflow.task_workspace import initialize_workspace, workspace_status
+    from reqpilotx.application.agent_workflow.task_workspace import initialize_workspace, workspace_status
     from workbench_tools import requested_confirmation
     project,document = getattr(args,'project_id',None),getattr(args,'document_id',None)
     url = getattr(args,'workbench_url',None)
@@ -130,12 +130,12 @@ def initialize(args, entrypoint):
 
 
 def status(args):
-    from app.application.agent_workflow.task_workspace import workspace_status
+    from reqpilotx.application.agent_workflow.task_workspace import workspace_status
     return {'status':'WORKSPACE_STATUS',**workspace_status(_task(args)[0])}
 
 
 def recover(args):
-    from app.application.agent_workflow.task_workspace import recover_workspace
+    from reqpilotx.application.agent_workflow.task_workspace import recover_workspace
     return {'status':'WORKSPACE_RECOVERED',**recover_workspace(_task(args)[0])}
 
 
@@ -170,7 +170,7 @@ def _inputs(args, root, state):
         reading=values['source_ir'] or saved('READING')
         map_dir=values['map_dir'] or saved('MAP','output_dir')
         if reading is None and map_dir is not None and (map_dir/'map-compilation-receipt.json').is_file():
-            from app.application.agent_workflow.artifact_kind_catalog import inside
+            from reqpilotx.application.agent_workflow.artifact_kind_catalog import inside
             original=_json(map_dir/'map-compilation-receipt.json').get('source_inputs',{})
             if original.get('source_ir_path'):
                 reading=inside(map_dir,original['source_ir_path'])
@@ -245,7 +245,7 @@ def _run_request(args, root):
 
 def _replay_operation(root, operation):
     """Reconcile saved facts only; an interrupted executable is never guessed idle."""
-    from app.application.agent_workflow import task_workspace as core
+    from reqpilotx.application.agent_workflow import task_workspace as core
     current=core.workspace_status(root,refresh=False)
     state=operation['state']
     response={'status':'WORKSPACE_OPERATION_REPLAYED',**current,'operation_id':operation['operation_id'],
@@ -332,7 +332,7 @@ def _selected_publication(root,state,operation_id,args,result):
 
 def publish_committed(root,operation_id,args,result):
     """Only automatic workspace publication uses this per-task host-local lock."""
-    from app.application.agent_workflow import task_workspace as core
+    from reqpilotx.application.agent_workflow import task_workspace as core
     from workbench_tools import sync_after_operation
     if args.command not in {'compile-map','compile-items','compile-images','review-open'}:
         return {'publication':{'status':'LOCAL_ONLY','reason':'This operation saves evidence, an overlay or a delivery; review-open gathers current overlays into the versioned workbench bundle.'}}
@@ -359,7 +359,7 @@ def publish_committed(root,operation_id,args,result):
 
 
 def run(args, entrypoint):
-    from app.application.agent_workflow import task_workspace as core
+    from reqpilotx.application.agent_workflow import task_workspace as core
     root,context=_task(args)
     request=_run_request(args,root);command_id=getattr(args,'command_id',None)
     if command_id is not None:

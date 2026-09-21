@@ -8,11 +8,11 @@ from pathlib import Path
 import shutil
 from types import SimpleNamespace
 
-from app.adapters.documents.pdf_reading_views import (
+from reqpilotx.adapters.documents.pdf_reading_views import (
     _page_markdown, _table_html, _write_page_renders, _write_contact_sheet,
 )
-from app.adapters.documents.pdf_source_crop_renderer import inspect_pdf_page_geometry
-from app.domain.extraction.source_ir import SourceIRSnapshot
+from reqpilotx.adapters.documents.pdf_source_crop_renderer import inspect_pdf_page_geometry
+from reqpilotx.domain.extraction.source_ir import SourceIRSnapshot
 
 
 def reading_workspace(args):

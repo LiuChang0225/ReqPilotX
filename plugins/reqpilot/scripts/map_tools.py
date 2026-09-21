@@ -5,8 +5,8 @@ from tempfile import TemporaryDirectory
 import hashlib
 
 from artifact_tools import read, compile_map
-from app.application.agent_workflow import source_requirement_baseline as core
-from app.application.agent_workflow.document_map_revision import compile_document_map_revision, rebind_baseline_for_document_map_revision
+from reqpilotx.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.application.agent_workflow.document_map_revision import compile_document_map_revision, rebind_baseline_for_document_map_revision
 
 
 def _inside(root, value):

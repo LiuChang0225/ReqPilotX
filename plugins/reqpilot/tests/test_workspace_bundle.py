@@ -10,13 +10,17 @@ import build_bundle
 
 class WorkspaceBundleTests(unittest.TestCase):
     def test_workspace_closure_keeps_native_agent_hosts_out(self):
-        prototype = ROOT/'prototype'
-        files, external = build_bundle.python_closure(prototype, build_bundle.MODULE_ROOTS,
-            [prototype/'scripts'/name for name in build_bundle.SCRIPT_ROOTS])
-        paths = {str(path.relative_to(prototype)) for path in files}
-        self.assertIn('app/application/agent_workflow/task_workspace.py', paths)
-        self.assertIn('app/application/agent_workflow/native_task_brief.py', paths)
-        self.assertFalse([path for path in paths if path.startswith('app/adapters/agents/')])
+        source_root = ROOT/'packages/engine/src'
+        scripts = [build_bundle.module_file(source_root, name) for name in build_bundle.SCRIPT_ROOTS]
+        files, external = build_bundle.python_closure(
+            source_root,
+            build_bundle.MODULE_ROOTS,
+            [path for path in scripts if path is not None],
+        )
+        paths = {str(path.relative_to(source_root)) for path in files}
+        self.assertIn('reqpilotx/application/agent_workflow/task_workspace.py', paths)
+        self.assertIn('reqpilotx/application/agent_workflow/native_task_brief.py', paths)
+        self.assertFalse([path for path in paths if path.startswith('reqpilotx_server/')])
         self.assertFalse({'openai', 'azure', 'haystack', 'qdrant_client', 'dashvector'} & external)
 
 

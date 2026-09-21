@@ -14,7 +14,7 @@ from app.application.agent_workflow.native_structure_bridge import (
     acknowledge_native_structure_handoff,
     record_native_structure_handoff_outcome,
 )
-from app.adapters.agents.codex_app_server.canonical_document_session import (
+from reqpilotx.ports.agent_structure_handoff_executor import (
     CanonicalStructureHandoffBindingV1,
 )
 from app.application.source_runtime import resolve_source_record_path

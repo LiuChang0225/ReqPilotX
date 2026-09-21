@@ -1,14 +1,5 @@
-from __future__ import annotations
+"""Compatibility alias for reqpilotx.ports.document_preflight."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-from os import PathLike
-from typing import Protocol, runtime_checkable
-
-from app.domain.extraction.preflight import DocumentPreflightReport
-
-
-@runtime_checkable
-class DocumentPreflightPort(Protocol):
-    """Read-only boundary for validating an original document before parsing."""
-
-    def inspect(self, source_path: str | PathLike[str]) -> DocumentPreflightReport:
-        ...
+_sys.modules[__name__] = _import_module("reqpilotx.ports.document_preflight")

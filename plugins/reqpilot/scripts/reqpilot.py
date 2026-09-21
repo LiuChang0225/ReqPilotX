@@ -34,8 +34,8 @@ def runtime_root(project_root: Path | None = None) -> Path:
     if bundled.is_dir():
         return bundled
     if project_root is not None:
-        candidate = project_root.expanduser().resolve() / "prototype"
-        if (candidate / "app/application/agent_workflow/source_requirement_baseline.py").is_file():
+        candidate = project_root.expanduser().resolve() / "packages/engine/src"
+        if (candidate / "reqpilotx/application/agent_workflow/source_requirement_baseline.py").is_file():
             return candidate
     raise ValueError("Portable runtime is absent. Build the bundle first; --project-root is an explicit development-only alternative")
 
@@ -75,7 +75,7 @@ def doctor(args: argparse.Namespace) -> dict:
             if not path.is_file() or hashlib.sha256(path.read_bytes()).hexdigest() != entry["sha256"]:
                 integrity.append(entry["path"])
     import platform
-    office_ready = (root / "app/application/agent_workflow/office_source_evidence.py").is_file()
+    office_ready = (root / "reqpilotx/application/agent_workflow/office_source_evidence.py").is_file()
     input_formats = {
         "PDF": {"pipeline": "NATIVE_PDF", "available": all(deps.values()), "semantic_validation": "NOT_RUN"},
         "DOCX": {"pipeline": "NATIVE_OFFICE" if office_ready else "CAPTURE_ONLY", "available": office_ready and all(deps.values()), "semantic_validation": "NOT_RUN"},
@@ -86,7 +86,7 @@ def doctor(args: argparse.Namespace) -> dict:
                                       "/usr/bin/sandbox-exec": Path("/usr/bin/sandbox-exec").is_file()},
             "required_libreoffice_version": "26.2.4.2", "binary_version_validation": "NOT_RUN"},
     }
-    tool_files = {"capture": (root / "scripts/fast_source_capture.py").is_file(), "delivery": (root / "app/application/agent_workflow/source_item_delivery.py").is_file(), "decomposition": (root / "app/application/agent_workflow/source_item_decomposition.py").is_file()}
+    tool_files = {"capture": (root / "reqpilotx/tools/fast_source_capture.py").is_file(), "delivery": (root / "reqpilotx/application/agent_workflow/source_item_delivery.py").is_file(), "decomposition": (root / "reqpilotx/application/agent_workflow/source_item_decomposition.py").is_file()}
     local_ocr={'tesseract_available':shutil.which('tesseract') is not None,
         'table_dependencies_available':all(importlib.util.find_spec(name) is not None for name in ('cv2','numpy')),
         'optional_table_requirements':str(PLUGIN_ROOT/'requirements-ocr.txt'),
@@ -211,7 +211,7 @@ def workbench(args: argparse.Namespace) -> dict:
         load_runtime(args.project_root)
         pending_overlays=[]
         if getattr(args,'workspace',None) and not any(getattr(args,key,None) for key in ('source','map_dir','baseline_dir','review_dir')):
-            from app.application.agent_workflow.task_workspace import find_task_workspace,workspace_status
+            from reqpilotx.application.agent_workflow.task_workspace import find_task_workspace,workspace_status
             found=find_task_workspace(explicit=args.workspace)
             if found is None:raise ValueError('Explicit --workspace has no task-context.json')
             state=workspace_status(found[0]);selected=state['selected'];args=argparse.Namespace(**vars(args))

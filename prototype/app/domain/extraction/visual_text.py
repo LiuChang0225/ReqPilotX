@@ -1,4 +1,5 @@
-"""Compatibility exports for neutral visual source-fact contracts."""
+"""Compatibility alias for reqpilotx.domain.extraction.visual_text."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-from app.domain.source_visual_text import *  # noqa: F401,F403
-from app.domain.source_visual_text import __all__ as __all__
+_sys.modules[__name__] = _import_module("reqpilotx.domain.extraction.visual_text")

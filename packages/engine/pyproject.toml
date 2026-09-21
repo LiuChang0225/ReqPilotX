@@ -8,11 +8,23 @@ version = "0.0.0"
 description = "Transitional installable release of the existing ReqPilotX portable business engine"
 readme = "README.md"
 requires-python = ">=3.11"
-dependencies = []
+dependencies = [
+  "openpyxl==3.1.5",
+  "pdfplumber==0.11.7",
+  "Pillow==11.3.0",
+  "pydantic==2.13.4",
+  "pymupdf==1.27.1",
+  "pypdf==5.9.0",
+  "python-docx==1.2.0",
+  "xlsxwriter==3.2.9",
+]
+
+[project.scripts]
+reqpilotx-fast-source-capture = "reqpilotx.tools.fast_source_capture:main"
 
 [tool.setuptools.packages.find]
 where = ["src"]
-include = ["app*", "reqpilotx_engine*", "reqpilotx_engine_tools*"]
+include = ["reqpilotx*", "reqpilotx_engine*"]
 namespaces = true
 
 [tool.setuptools.package-data]

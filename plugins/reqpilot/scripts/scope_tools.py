@@ -1,7 +1,7 @@
 """Source-bound TEXT/TABLE scope revision adapters; no semantic decisions."""
 from copy import deepcopy
 
-from app.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.application.agent_workflow import source_requirement_baseline as core
 
 
 def scope_template(document_map, baseline, tables, scope_id):

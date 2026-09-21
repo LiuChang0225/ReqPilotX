@@ -12,8 +12,8 @@ from pathlib import Path
 import re
 import struct
 
-from app.application.agent_workflow import source_requirement_baseline as core
-from app.domain.extraction.source_ir import SourceIRSnapshot
+from reqpilotx.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.domain.extraction.source_ir import SourceIRSnapshot
 from source_authoring_tools import authoring_view
 
 

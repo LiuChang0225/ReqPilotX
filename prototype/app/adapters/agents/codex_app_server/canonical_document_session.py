@@ -13,6 +13,10 @@ from uuid import uuid4
 
 from pydantic import BaseModel, ConfigDict, Field, model_validator
 
+from reqpilotx.ports.agent_structure_handoff_executor import (
+    CanonicalStructureHandoffBindingV1,
+)
+
 from app.adapters.agents.agent_kit_materializer import (
     MaterializedAgentKit,
     materialize_agent_kit,
@@ -249,33 +253,6 @@ class CanonicalStagePredecessorBindingV1(_StrictFrozenModel):
         }[self.stage]
         if self.predecessor_stage is not expected:
             raise ValueError("canonical stage predecessor is not adjacent")
-        return self
-
-
-class CanonicalStructureHandoffBindingV1(_StrictFrozenModel):
-    schema_version: Literal["canonical-structure-handoff-binding/v1"] = (
-        "canonical-structure-handoff-binding/v1"
-    )
-    content_free: Literal[True] = True
-    run_id: str = Field(pattern=r"^agent-run-[0-9a-f]{32}$")
-    source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-    artifact_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
-    handoff_id: str = Field(pattern=r"^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$")
-    input_fingerprint: str = Field(pattern=r"^[0-9a-f]{64}$")
-    status: Literal["ACKNOWLEDGED"] = "ACKNOWLEDGED"
-    affected_scope_ids: tuple[str, ...] = Field(min_length=1, max_length=64)
-    work_item_count: int = Field(ge=1, le=256)
-    binding_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
-
-    @model_validator(mode="after")
-    def validate_binding(self) -> CanonicalStructureHandoffBindingV1:
-        if self.affected_scope_ids != tuple(sorted(set(self.affected_scope_ids))):
-            raise ValueError("handoff scopes must be unique and sorted")
-        expected = canonical_sha256(
-            self.model_dump(mode="json", exclude={"binding_sha256"})
-        )
-        if self.binding_sha256 != expected:
-            raise ValueError("handoff binding digest drifted")
         return self
 
 

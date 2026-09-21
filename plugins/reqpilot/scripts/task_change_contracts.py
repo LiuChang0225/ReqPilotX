@@ -7,11 +7,11 @@ from __future__ import annotations
 
 from typing import Annotated, Literal
 from pydantic import Field, StrictInt, StrictStr, model_validator
-from app.application.agent_workflow import source_requirement_baseline as core
-from app.application.agent_workflow.source_item_decomposition import (
+from reqpilotx.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.application.agent_workflow.source_item_decomposition import (
     build_source_item_decomposition_packet, compile_source_item_decomposition,
 )
-from app.application.agent_workflow.source_item_visual import SourceItemImageDecisionV1
+from reqpilotx.application.agent_workflow.source_item_visual import SourceItemImageDecisionV1
 from task_contracts import (
     InputModel, Nonempty, ItemDecisionsRequest, TextDecisionInput, TableDecisionInput,
     TextItemInput, TableRecordInput, LocalItemKey,
@@ -137,7 +137,7 @@ class ImageItemsRequest(InputModel):
 
 
 def bind_image_items(value, document_map, baseline=None, *, table_previews=None):
-    from app.application.agent_workflow.source_item_visual import build_source_item_image_scope_packet
+    from reqpilotx.application.agent_workflow.source_item_visual import build_source_item_image_scope_packet
     document_map = core.DocumentMapArtifactV1.model_validate(document_map)
     if baseline is not None:
         document_map, baseline = _pair(document_map, baseline)
@@ -307,7 +307,7 @@ def bind_annotation_changes(value, document_map, baseline, *, table_previews=Non
     value = AnnotationChangesRequest.model_validate(value)
     result = _resolved_changes(value, document_map, baseline)
     # Reuse source-number/location validation; no artifact is saved by this binder.
-    from app.application.agent_workflow.source_item_visual import compile_source_item_annotation_updates
+    from reqpilotx.application.agent_workflow.source_item_visual import compile_source_item_annotation_updates
     if result.get('annotation_updates'):
         compile_source_item_annotation_updates(document_map, baseline, result['annotation_updates'], table_previews=table_previews)
     return {'schema_version': 'reqpilot-annotation-decisions/v1', 'source_sha256': baseline.source_sha256,

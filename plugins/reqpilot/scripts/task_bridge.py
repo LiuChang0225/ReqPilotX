@@ -49,7 +49,7 @@ class TaskBridge:
             root = find_task_root(self.working_root, request.get('task_id', ''))
             # Validate the source and sealed context BEFORE it can select an
             # executable. Validation inside the selected child would be too late.
-            from app.application.agent_workflow.task_workspace import _resolve_task
+            from reqpilotx.application.agent_workflow.task_workspace import _resolve_task
             root, context = _resolve_task(root)
             from workspace_tools import _runtime
             command = _runtime(context)

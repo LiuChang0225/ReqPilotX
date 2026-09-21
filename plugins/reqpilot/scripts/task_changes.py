@@ -4,7 +4,7 @@ import json
 
 from task_change_contracts import (bind_annotation_changes, bind_decomposition_decisions,
     bind_existing_item_changes, bind_image_items, source_item_record)
-from app.application.agent_workflow import task_workspace as core
+from reqpilotx.application.agent_workflow import task_workspace as core
 
 INITIAL={'images':'compile-images','annotations':'compile-annotations','decomposition':'compile-decomposition'}
 

@@ -6,7 +6,7 @@ import hashlib
 import json
 from pathlib import Path
 
-from app.domain.extraction.source_ir import SourceIRSnapshot
+from reqpilotx.domain.extraction.source_ir import SourceIRSnapshot
 
 
 MAX_CHARS = 30000

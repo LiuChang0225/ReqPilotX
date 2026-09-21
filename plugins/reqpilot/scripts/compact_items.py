@@ -8,7 +8,7 @@ from __future__ import annotations
 
 from copy import deepcopy
 
-from app.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.application.agent_workflow import source_requirement_baseline as core
 
 
 def _requests(document_map, scope_requests):

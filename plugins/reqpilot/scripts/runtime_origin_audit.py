@@ -10,7 +10,7 @@ from pathlib import Path
 def product_module_origins() -> dict[str, list[str]]:
     result = {}
     for name, module in sorted(sys.modules.items()):
-        if name == "app" or name.startswith("app.") or name == "reqpilotx_engine" or name.startswith("reqpilotx_engine."):
+        if name == "reqpilotx" or name.startswith("reqpilotx.") or name == "reqpilotx_engine" or name.startswith("reqpilotx_engine."):
             source = getattr(module, "__file__", None)
             paths = [str(Path(source).resolve())] if source else [str(Path(item).resolve()) for item in getattr(module, "__path__", [])]
             result[name] = paths

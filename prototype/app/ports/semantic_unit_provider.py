@@ -1,25 +1,5 @@
-from __future__ import annotations
+"""Compatibility alias for reqpilotx.ports.semantic_unit_provider."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-from typing import Protocol, runtime_checkable
-
-from app.domain.extraction.semantic_unit_decisions import (
-    SemanticUnitDecision,
-    SemanticUnitDecisionRequest,
-)
-
-
-@runtime_checkable
-class ControlledSemanticUnitProviderPort(Protocol):
-    """Inactive provider boundary for one-request/one-unit contract proof."""
-
-    provider_id: str
-    provider_version: str
-    model_id: str
-
-    def classify_semantic_unit(
-        self,
-        request: SemanticUnitDecisionRequest,
-    ) -> SemanticUnitDecision: ...
-
-
-__all__ = ["ControlledSemanticUnitProviderPort"]
+_sys.modules[__name__] = _import_module("reqpilotx.ports.semantic_unit_provider")

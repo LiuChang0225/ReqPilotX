@@ -378,7 +378,7 @@ def product_origins() -> str:
     return """
 origins={}
 for name,module in sorted(sys.modules.items()):
-    if name == 'app' or name.startswith('app.') or name == 'reqpilotx_engine' or name.startswith('reqpilotx_engine.'):
+    if name == 'reqpilotx' or name.startswith('reqpilotx.') or name == 'reqpilotx_engine' or name.startswith('reqpilotx_engine.'):
         source=getattr(module,'__file__',None)
         origins[name]=[str(Path(source).resolve())] if source else [str(Path(item).resolve()) for item in getattr(module,'__path__',[])]
 outside={name:paths for name,paths in origins.items() if not paths or any(not Path(source).is_relative_to(allowed) for source in paths)}
@@ -464,10 +464,10 @@ def read_origin_receipts(directory: Path, *, require_components: set[str]) -> di
 
 def summarize_module_origins(origins: dict[str, list[str]], allowed_root: Path) -> dict:
     representative_names = (
-        "app.application.fast_source_capture",
-        "app.application.agent_workflow.source_requirement_baseline",
-        "app.application.agent_workflow.source_item_delivery",
-        "app.services.exporter",
+        "reqpilotx.application.fast_source_capture",
+        "reqpilotx.application.agent_workflow.source_requirement_baseline",
+        "reqpilotx.application.agent_workflow.source_item_delivery",
+        "reqpilotx.services.exporter",
     )
     return {
         "allowed_root": str(allowed_root.resolve()),
@@ -534,8 +534,8 @@ site_root=Path(reqpilotx_engine.__file__).resolve().parent.parent
 repo=Path({json.dumps(str(repo))}).resolve()
 assert 'site-packages' in str(site_root), site_root
 assert not site_root.is_relative_to(repo), site_root
-assert importlib.util.find_spec('app.adapters.persistence') is None
-assert importlib.util.find_spec('app.infrastructure') is None
+assert importlib.util.find_spec('app') is None
+assert importlib.util.find_spec('reqpilotx_server') is None
 assert not {{'fastapi','psycopg','openai','qdrant_client'}} & set(sys.modules)
 print(json.dumps({{'core_identity':manifest['core_identity'],'site_root':str(site_root)}}))
 """
@@ -545,7 +545,7 @@ print(json.dumps({{'core_identity':manifest['core_identity'],'site_root':str(sit
         engine_site_root = Path(origin["site_root"])
         no_plugin_engine = """
 import importlib.util
-assert importlib.util.find_spec('app') is None
+assert importlib.util.find_spec('reqpilotx') is None
 assert importlib.util.find_spec('reqpilotx_engine') is None
 """
         run([str(plugin_python), "-I", "-c", no_plugin_engine], cwd=root, env=env)
@@ -599,7 +599,7 @@ assert importlib.util.find_spec('reqpilotx_engine') is None
 
         broken_plugin = root / "broken-plugin"
         shutil.copytree(plugin, broken_plugin)
-        (broken_plugin / "runtime/prototype/app/application/agent_workflow/source_requirement_baseline.py").unlink()
+        (broken_plugin / "runtime/prototype/reqpilotx/application/agent_workflow/source_requirement_baseline.py").unlink()
         broken_origins = root / "broken-origins"; broken_origins.mkdir()
         run_plugin_cli(
             plugin_python, broken_plugin / "scripts/reqpilot.py",
@@ -609,7 +609,7 @@ assert importlib.util.find_spec('reqpilotx_engine') is None
         )
         broken_target = root / "broken-engine-target"
         run([uv, "pip", "install", "--python", str(plugin_python), "--target", str(broken_target), "--no-deps", str(rebuilt_wheel)], cwd=root)
-        (broken_target / "app/application/agent_workflow/source_requirement_baseline.py").unlink()
+        (broken_target / "reqpilotx/application/agent_workflow/source_requirement_baseline.py").unlink()
         try:
             run_installed_example(
                 plugin_python, fixture_dir, root / "broken-engine-example", source=development / "example.pdf",

@@ -22,15 +22,11 @@ from pathlib import Path, PurePosixPath
 from zipfile import BadZipFile, ZipFile
 
 from portable_core import (
-    DEPENDENCIES,
-    BANNED_PARTS,
     ENGINE_DISTRIBUTION,
     MODULE_ROOTS,
     NAMESPACE_INITIALIZERS,
-    NAMESPACE_SOURCE,
     PLUGIN_ROOT,
     SCRIPT_ROOTS,
-    TRANSITIVE_DEPENDENCIES,
     canonical_digest,
     digest,
     digest_bytes,
@@ -44,9 +40,10 @@ from portable_core import (
 ENGINE_WRAPPER_MEMBERS = frozenset({
     "reqpilotx_engine/__init__.py",
     "reqpilotx_engine/core-manifest.json",
-    "reqpilotx_engine_tools/__init__.py",
 })
-DIST_INFO_MEMBERS = frozenset({"METADATA", "WHEEL", "top_level.txt", "RECORD"})
+DIST_INFO_MEMBERS = frozenset(
+    {"METADATA", "WHEEL", "entry_points.txt", "top_level.txt", "RECORD"}
+)
 
 
 def _safe_wheel_member(name: str) -> PurePosixPath:
@@ -102,8 +99,14 @@ def _validate_distribution_metadata(archive: ZipFile, dist_info: str, manifest: 
     if wheel_metadata.get("Root-Is-Purelib", "").lower() != "true" or "py3-none-any" not in (wheel_metadata.get_all("Tag") or []):
         raise ValueError("Engine wheel must be a pure Python py3-none-any distribution")
     top_level = {line.strip() for line in archive.read(f"{dist_info}/top_level.txt").decode("utf-8").splitlines() if line.strip()}
-    if top_level != {"app", "reqpilotx_engine", "reqpilotx_engine_tools"}:
+    if top_level != {"reqpilotx", "reqpilotx_engine"}:
         raise ValueError("Engine wheel top-level packages differ from the release contract")
+    entry_points = archive.read(f"{dist_info}/entry_points.txt").decode("utf-8")
+    if entry_points.strip().splitlines() != [
+        "[console_scripts]",
+        "reqpilotx-fast-source-capture = reqpilotx.tools.fast_source_capture:main",
+    ]:
+        raise ValueError("Engine wheel console entry point differs from the release contract")
 
 
 def _wheel_content_inventory(wheel: Path) -> dict[str, str]:
@@ -153,7 +156,7 @@ def _validated_wheel_manifest(wheel: Path) -> dict:
         raise ValueError("Engine wheel or identity manifest is unreadable") from exc
     expected_identity = canonical_digest({key: value for key, value in manifest.items() if key != "core_identity"})
     if (
-        manifest.get("schema_version") != "reqpilotx-engine-core/v1"
+        manifest.get("schema_version") != "reqpilotx-engine-core/v2"
         or manifest.get("distribution") != ENGINE_DISTRIBUTION
         or manifest.get("source_repository") != "ReqPilotX"
         or manifest.get("core_identity") != expected_identity
@@ -173,7 +176,11 @@ def _validated_wheel_manifest(wheel: Path) -> dict:
         raise ValueError(f"Engine wheel contains missing or undeclared members: missing={missing}, extra={extra}")
     for name in names:
         parts = PurePosixPath(name).parts
-        if name.endswith(".pth") or any(part in BANNED_PARTS for part in parts) or parts[:3] == ("app", "adapters", "agents"):
+        if (
+            name.endswith(".pth")
+            or parts[:1] == ("app",)
+            or parts[:1] == ("reqpilotx_server",)
+        ):
             raise ValueError(f"Engine wheel contains a forbidden install member: {name}")
     with ZipFile(wheel) as archive:
         _validate_record(archive, names_list, f"{expected_dist_info}/RECORD")
@@ -199,7 +206,7 @@ def _install_wheel_runtime(wheel: Path, manifest: dict, runtime: Path) -> list[d
             relative = PurePosixPath(str(item["runtime_path"]))
             if relative.is_absolute() or ".." in relative.parts:
                 raise ValueError(f"Engine runtime path is unsafe: {relative}")
-            allowed = relative.parts[:1] == ("app",) or relative.parts == ("scripts", "fast_source_capture.py")
+            allowed = relative.parts[:1] == ("reqpilotx",)
             if not allowed:
                 raise ValueError(f"Engine wheel attempted to install an unexpected runtime path: {relative}")
             data = archive.read(item["wheel_path"])

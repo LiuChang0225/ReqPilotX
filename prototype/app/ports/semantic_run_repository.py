@@ -1,27 +1,5 @@
-from __future__ import annotations
+"""Compatibility alias for reqpilotx.ports.semantic_run_repository."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-from typing import Protocol, runtime_checkable
-
-from app.domain.extraction.semantic_provider import SemanticProviderRunRecord
-
-
-class SemanticProviderRunRepositoryError(RuntimeError):
-    pass
-
-
-class SemanticProviderRunConflictError(SemanticProviderRunRepositoryError):
-    pass
-
-
-@runtime_checkable
-class SemanticProviderRunRepositoryPort(Protocol):
-    def append(self, run: SemanticProviderRunRecord) -> bool: ...
-
-    def get(self, provider_run_id: str) -> SemanticProviderRunRecord | None: ...
-
-
-__all__ = [
-    "SemanticProviderRunConflictError",
-    "SemanticProviderRunRepositoryError",
-    "SemanticProviderRunRepositoryPort",
-]
+_sys.modules[__name__] = _import_module("reqpilotx.ports.semantic_run_repository")
