@@ -1,0 +1,43 @@
+{
+  "schema_version": "reqpilotx-evaluation-catalog/v1",
+  "groups": [
+    {
+      "id": "agent-evals",
+      "classification": "CURRENT",
+      "source": "evals/agent_evals",
+      "consumers": [
+        "prototype/scripts/agent_eval.py",
+        "evaluation operators and independent reviewers"
+      ],
+      "preservation": "Case IDs, rubrics, schemas and synthetic fixture recipes keep their existing bytes and meaning."
+    },
+    {
+      "id": "legacy-eval-contracts",
+      "classification": "COMPATIBILITY",
+      "source": "prototype/eval",
+      "consumers": [
+        "legacy extraction, fidelity, IRPS and visual-review scripts",
+        "private eval root layout"
+      ],
+      "preservation": "Retained in place until each CLI default and private sidecar contract has a tested successor."
+    },
+    {
+      "id": "program-registry",
+      "classification": "HISTORICAL",
+      "source": "prototype/eval/progress/program_registry.json",
+      "consumers": [
+        "historical progress-board compatibility only"
+      ],
+      "preservation": "Does not choose work or grant execution authority; retain without updating stale paths as product truth."
+    },
+    {
+      "id": "private-eval-inputs-and-results",
+      "classification": "PRIVATE",
+      "source": "explicit REQPILOTX_PRIVATE_EVAL_ROOT or ignored prototype/eval/private directories",
+      "consumers": [
+        "authorized local evaluation only"
+      ],
+      "preservation": "Never scan, migrate or commit customer originals, model traces, answers or run results as part of R5."
+    }
+  ]
+}

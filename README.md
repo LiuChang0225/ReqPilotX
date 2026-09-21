@@ -11,7 +11,7 @@ ReqPilotX 是面向汽车 SOR 的需求工程工作台，把复杂文档转成�
 - [开发计划](docs/需求提取/开发计划.md)：唯一实施顺序；[当前接续](docs/active-context.md)提供当前证据入口。
 - [应用运行](prototype/README.md)、[本地部署](docs/deployment/local-native-postgresql.md)、[原生任务能力包](docs/deployment/native-loop-capabilities.md)：依赖、启动、能力登记与恢复。
 - [可安装引擎发行](packages/engine/README.md)、[服务包](apps/server/README.md)、[可移植插件](plugins/reqpilot/README.md)、[Pair 适配](integrations/pair/README.md)：共享能力、发行物和宿主边界。
-- [Agent 评测](prototype/eval/agent_evals/README.md)：执行、程序检查和独立语义评核。
+- [Agent 资产](agent-assets/README.md)、[Agent 评测](evals/agent_evals/README.md)、[实验](experiments/README.md)：技能/vendor 权威源、程序与语义评核、非生产实验边界。
 - [UI/UX 合同](DESIGN.md)、[架构](docs/architecture/target-architecture.md)、[参考资料](docs/参考资料索引.md)。
 
 ## 本地运行
@@ -29,6 +29,8 @@ cd prototype
 ## 源码与资料
 
 源码基线包含实现、测试、配置模板和明确合成的示例。客户原件、真实案例答案、知识库、运行数据、模型轨迹、凭据与构建产物保留在私有环境；详见[资料边界](docs/源码与私有资料边界.md)。历史文档中的私有入口不代表源码包含对应原件。
+
+当前业务技能从 `agent-assets/` 维护；`.agents/skills` 与 `plugins/reqpilot/skills` 是宿主发现投影，发行构建会核对后直接复制权威源。兼容 `agent-kit/` 保留自身版本锁与旧任务身份，不自动升级成当前工作流。详见 [R5 资产生命周期](docs/architecture/repository-productization-r5.md)。
 
 原文、稳定身份、既有版本和有效人工决定不得被整理工作覆盖。无内部依据时跳过自动符合性分析，继续来源整理、自查和人工响应。默认自主形成草稿，正式工程师接受独立记录。
 

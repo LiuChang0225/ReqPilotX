@@ -74,7 +74,7 @@ flowchart TB
 | 层次 | 具体内容与用途 | 文件 / 注入位置 |
 |---|---|---|
 | P1 原生运行指令 | 执行授权目标、自由调查、保持来源/身份/人工意见；说明实际工具、工作目录与PDF环境 | [native_loop_driver.py](../../prototype/app/adapters/agents/codex_app_server/native_loop_driver.py)中的`developerInstructions` |
-| P2 稳定业务委托 | 汽车SOR业务、Agent/程序/工程师分工、六步成果、反馈规则 | [reqpilot/SKILL.md](../../plugins/reqpilot/skills/reqpilot/SKILL.md)，原生`turn/start`显式提供；PDF可用时另显式挂载官方PDF skill |
+| P2 稳定业务委托 | 汽车SOR业务、Agent/程序/工程师分工、六步成果、反馈规则 | 维护源 [reqpilot/SKILL.md](../../agent-assets/current/plugin-skills/reqpilot/SKILL.md)，`plugins/reqpilot/skills`为发现投影；原生`turn/start`显式提供；PDF可用时另显式挂载官方PDF skill |
 | P3 本轮动态简报 | 完整用户请求、来源、当前工件、确认、依据、焦点、工作台路由、运行上限 | [native_task_brief.py](../../prototype/app/application/agent_workflow/native_task_brief.py)；两个worker调用，`reqpilot_context.task_brief`可更新；实际goal保存在`task-briefs/<hash>.json` |
 | P4 阶段方法 | 结构、条目、拆分/分析、核验的语义方法及案例 | `reqpilot_skill`按需读取阶段SKILL.md和references；不是每阶段宿主自动换一个Agent |
 | P5 工具提示 | 参数schema、作用、可用operation、下一步读取参数、编译错误和回执 | [native_loop_tools.py](../../prototype/app/application/agent_workflow/native_loop_tools.py)的`specs()`、context及程序返回值 |
@@ -82,7 +82,7 @@ flowchart TB
 
 上述内容共同构成执行上下文，不是某个孤立的“万能prompt.txt”。`skills/*/agents/openai.yaml`目前只有显示名称和简述，**没有额外的角色default_prompt，也不会创建一个子Agent**。
 
-开发上下文skill位于`<private-local-path>`；项目内[reqpilotx-extraction-loop](../../.agents/skills/reqpilotx-extraction-loop/SKILL.md)用于主工作台提取/反馈实作。这些开发上下文、项目AGENTS和当前长会话不会自动注入隔离的原生执行Agent。生产需要的方法必须实际进入它所挂载的技能包或宿主简报。
+开发上下文skill位于`<private-local-path>`；项目内 `reqpilotx-extraction-loop` 的[维护源](../../agent-assets/current/project-skills/reqpilotx-extraction-loop/SKILL.md)投影到[项目发现入口](../../.agents/skills/reqpilotx-extraction-loop/SKILL.md)，用于主工作台提取/反馈实作。这些开发上下文、项目AGENTS和当前长会话不会自动注入隔离的原生执行Agent。生产需要的方法必须实际进入它所挂载的技能包或宿主简报。
 
 ## 4. 六个原生工具与脚本的关系
 
@@ -116,7 +116,7 @@ Map/Items的渐进展示来自编译后[阶段保存](../../prototype/app/applic
 
 ## 6. Reference实际有哪些
 
-根目录为[plugins/reqpilot/skills/reqpilot/references](../../plugins/reqpilot/skills/reqpilot/references)。
+维护源为[agent-assets/current/plugin-skills/reqpilot/references](../../agent-assets/current/plugin-skills/reqpilot/references)，`plugins/reqpilot/skills/reqpilot/references`保留为宿主发现投影。
 
 | 文件 | 覆盖内容 |
 |---|---|
