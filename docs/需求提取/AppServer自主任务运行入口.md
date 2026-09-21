@@ -166,8 +166,10 @@ PYTHONPATH=prototype prototype/.venv/bin/python -m unittest prototype.tests.test
 
 生产适配在 `source_item_loop_jobs.py`，durable job kind 为 `agent.source-item.loop`，沿用
 `source-item-workbench-v1` marker。专用工作台 worker 的 `serve` 会注册这一类型；不得为它启动领取全部历史任务的 worker。
-任务首次准备时调用同一插件的 `build_bundle.py` 冻结完整技能、脚本和领域运行代码，此后每个 CLI 操作直接使用任务包，
-不依赖开发仓库。原文件、当前 Map/基线、已有派生/分析/图注及知识原件登记导入 portable review workspace。
+任务首次准备时从宿主配置选择已登记的精确完整插件身份，校验登记包、复制到任务私有目录并再次校验后固定；发行模式不调用
+`build_bundle.py`，此后每个 CLI 操作和恢复/重试继续使用任务包，不随全局默认变化。只有显式 `development-source` 模式保留
+源码构建。原文件、当前 Map/基线、已有派生/分析/图注及知识原件登记导入 portable review workspace。构建、登记、切换和回滚见
+[原生任务能力包](../deployment/native-loop-capabilities.md)。
 
 接口前缀为：
 

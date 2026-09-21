@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import os
+import re
 import tempfile
 from collections.abc import Mapping
 from dataclasses import dataclass
@@ -33,6 +34,11 @@ class ObjectStoreBackend(StrEnum):
 class AgentRuntimeBackend(StrEnum):
     NONE = "none"
     CODEX_APP_SERVER = "codex-app-server"
+
+
+class NativeCapabilityMode(StrEnum):
+    REGISTERED_RELEASE = "registered-release"
+    DEVELOPMENT_SOURCE = "development-source"
 
 
 class RuntimeConfigurationError(ValueError):
@@ -68,6 +74,13 @@ class RuntimeSettings:
     codex_home: Path | None = None
     agent_model_id: str = "gpt-5.6-sol"
     agent_customer_data_enabled: bool = False
+    native_capability_mode: NativeCapabilityMode = (
+        NativeCapabilityMode.REGISTERED_RELEASE
+    )
+    native_capability_registry_root: Path = Path(tempfile.gettempdir()) / (
+        "reqpilotx/native-loop-capabilities"
+    )
+    native_capability_bundle_sha256: str = ""
 
     @classmethod
     def from_environment(
@@ -183,6 +196,42 @@ class RuntimeSettings:
             source.get("REQPILOT_AGENT_CUSTOMER_DATA_ENABLED"),
             field_name="REQPILOT_AGENT_CUSTOMER_DATA_ENABLED",
         )
+        native_capability_mode = _enum_value(
+            NativeCapabilityMode,
+            source.get(
+                "REQPILOT_NATIVE_CAPABILITY_MODE",
+                NativeCapabilityMode.REGISTERED_RELEASE.value,
+            ),
+            "REQPILOT_NATIVE_CAPABILITY_MODE",
+        )
+        raw_capability_registry = str(
+            source.get("REQPILOT_NATIVE_CAPABILITY_REGISTRY")
+            or object_root.parent / "native-loop-capabilities"
+        ).strip()
+        native_capability_registry_root = Path(raw_capability_registry).expanduser()
+        if not native_capability_registry_root.is_absolute():
+            native_capability_registry_root = root / native_capability_registry_root
+        native_capability_registry_root = native_capability_registry_root.resolve(
+            strict=False
+        )
+        native_capability_bundle_sha256 = str(
+            source.get("REQPILOT_NATIVE_CAPABILITY_BUNDLE_SHA256") or ""
+        ).strip().lower()
+        if native_capability_bundle_sha256 and not re.fullmatch(
+            r"[0-9a-f]{64}", native_capability_bundle_sha256
+        ):
+            raise RuntimeConfigurationError(
+                "REQPILOT_NATIVE_CAPABILITY_BUNDLE_SHA256 must be a lowercase "
+                "64-character SHA-256 identity."
+            )
+        if (
+            native_capability_mode is NativeCapabilityMode.DEVELOPMENT_SOURCE
+            and deployment_mode is DeploymentMode.CLOUD
+        ):
+            raise RuntimeConfigurationError(
+                "Cloud mode cannot use REQPILOT_NATIVE_CAPABILITY_MODE="
+                "development-source."
+            )
         if agent_runtime_backend is AgentRuntimeBackend.CODEX_APP_SERVER:
             if deployment_mode is not DeploymentMode.LOCAL:
                 raise RuntimeConfigurationError(
@@ -243,6 +292,9 @@ class RuntimeSettings:
             codex_home=codex_home,
             agent_model_id=agent_model_id,
             agent_customer_data_enabled=agent_customer_data_enabled,
+            native_capability_mode=native_capability_mode,
+            native_capability_registry_root=native_capability_registry_root,
+            native_capability_bundle_sha256=native_capability_bundle_sha256,
         )
 
     @property
@@ -366,6 +418,7 @@ __all__ = [
     "DatabaseBackend",
     "DeploymentMode",
     "ObjectStoreBackend",
+    "NativeCapabilityMode",
     "ProcessRole",
     "RuntimeConfigurationError",
     "RuntimeSettings",

@@ -6,7 +6,10 @@ from .runtime_isolation import activate_test_runtime
 activate_test_runtime()
 
 from contextlib import contextmanager
+from datetime import UTC, datetime
+import hashlib
 import json
+import os
 from pathlib import Path
 import tempfile
 from types import SimpleNamespace
@@ -15,6 +18,9 @@ from unittest.mock import patch
 
 from app.adapters.persistence import postgres_jobs as queue
 from app.application.agent_workflow import source_item_loop_jobs as loop
+from app.application.agent_workflow import native_loop_capabilities as caps
+from app.adapters.agents.codex_app_server.native_loop_driver import _digest
+from app.ports.job_queue import JobStatus
 from app.application.agent_workflow.source_requirement_jobs import (
     SourceItemNativeLoopRunReceiptV1,
 )
@@ -205,6 +211,186 @@ class PublicationFenceTests(unittest.TestCase):
 
 
 class TaskTests(unittest.TestCase):
+    def test_start_uses_registered_release_without_runtime_builder(self):
+        document_map, baseline, validation = fixture()
+        source_bundle = {
+            "document_map": document_map,
+            "baseline": baseline,
+            "receipt": validation,
+        }
+
+        class Jobs:
+            def __init__(self):
+                self.jobs = {}
+
+            def get_by_idempotency(self, *, kind, idempotency_key):
+                return next(
+                    (
+                        job
+                        for job in self.jobs.values()
+                        if job.idempotency_key == idempotency_key
+                    ),
+                    None,
+                )
+
+            def enqueue(self, **kwargs):
+                job = SimpleNamespace(
+                    job_id="job-release-" + str(len(self.jobs)),
+                    payload=kwargs["payload"],
+                    idempotency_key=kwargs["idempotency_key"],
+                    status=JobStatus.PENDING,
+                    progress={},
+                    result=None,
+                    updated_at=datetime.now(UTC),
+                    error_code="",
+                    error_message="",
+                )
+                self.jobs[job.job_id] = job
+                return job
+
+            def get(self, job_id):
+                return self.jobs.get(job_id)
+
+        with tempfile.TemporaryDirectory() as raw:
+            base = Path(raw)
+            def make_release(name, marker):
+                release = base / name
+                script = release / "scripts/reqpilot.py"
+                script.parent.mkdir(parents=True)
+                script.write_text("# frozen release " + marker + "\n")
+                receipt = {
+                    "source_repository": "ReqPilotX",
+                    "release_mode": "ENGINE_WHEEL",
+                    "delivery_included": True,
+                    "decomposition_included": True,
+                    "source_checkout_required_at_runtime": False,
+                    "engine_release": {
+                        "core_identity": "c" * 64,
+                        "wheel_sha256": "e" * 64,
+                    },
+                    "plugin_files": [
+                        {
+                            "path": "scripts/reqpilot.py",
+                            "sha256": hashlib.sha256(
+                                script.read_bytes()
+                            ).hexdigest(),
+                        }
+                    ],
+                    "runtime_files": [],
+                }
+                receipt["bundle_sha256"] = _digest(receipt)
+                loop._write_json(release / "build-receipt.json", receipt)
+                return release, receipt
+
+            configured_release = os.getenv("REQPILOT_R2_REAL_BUNDLE")
+            if configured_release:
+                release = Path(configured_release).resolve(strict=True)
+                receipt = json.loads(
+                    (release / "build-receipt.json").read_text()
+                )
+            else:
+                release, receipt = make_release("release-a", "A")
+            release_b, receipt_b = make_release("release-b", "B")
+            registry = base / "registry"
+            caps.register_native_loop_capability_bundle(
+                release, registry_root=registry, require_engine_release=True
+            )
+            caps.register_native_loop_capability_bundle(
+                release_b, registry_root=registry, require_engine_release=True
+            )
+            settings = SimpleNamespace(
+                object_root=base / "objects",
+                codex_bin=Path("codex"),
+                codex_home=base / "auth",
+                agent_customer_data_enabled=True,
+                native_capability_mode="registered-release",
+                native_capability_registry_root=registry,
+                native_capability_bundle_sha256=receipt["bundle_sha256"],
+            )
+            container = SimpleNamespace(settings=settings, jobs=Jobs())
+
+            def portable(root, operation, **arguments):
+                if operation == "review-open":
+                    review = Path(arguments["review_dir"])
+                    review.mkdir(parents=True)
+                    loop._write_json(
+                        review / "workspace-manifest.json",
+                        {
+                            "review_sha256": "r" * 64,
+                            "current": {
+                                "baseline_sha256": baseline.artifact_sha256
+                            },
+                            "feedback": [],
+                        },
+                    )
+                    return {"review_sha256": "r" * 64}
+                if operation == "review-feedback":
+                    return {"added_feedback_ids": ["feedback-1"]}
+                raise AssertionError(operation)
+
+            request = loop.LoopStartRequestV1(
+                command_id="create-release-task",
+                expected_source_sha256=baseline.source_sha256,
+                expected_baseline_sha256=baseline.artifact_sha256,
+                goal="Review the current source items.",
+            )
+            with (
+                patch.object(loop, "_container", return_value=container),
+                patch.object(loop, "_require_project_document"),
+                patch.object(
+                    loop,
+                    "_source_context",
+                    return_value=(None, source_bundle, None, {}),
+                ),
+                patch.object(
+                    loop,
+                    "export_current_review_input",
+                    return_value={"source_path": "source.pdf"},
+                ),
+                patch.object(loop, "_portable", side_effect=portable),
+                patch.object(loop, "_bound_review_feedback", return_value=[]),
+                patch.object(
+                    caps.subprocess,
+                    "run",
+                    side_effect=AssertionError("runtime builder forbidden"),
+                ) as builder,
+            ):
+                result = loop.start_source_item_loop(
+                    "project", "document", request, SimpleNamespace(headers={})
+                )
+                settings.native_capability_bundle_sha256 = receipt_b["bundle_sha256"]
+                replay = loop.start_source_item_loop(
+                    "project", "document", request, SimpleNamespace(headers={})
+                )
+                result_b = loop.start_source_item_loop(
+                    "project",
+                    "document",
+                    request.model_copy(update={"command_id": "create-release-task-b"}),
+                    SimpleNamespace(headers={}),
+                )
+            builder.assert_not_called()
+            self.assertEqual(result["task_id"], replay["task_id"])
+            root = loop._task_root(
+                container, "project", "document", result["task_id"]
+            )
+            meta = json.loads((root / "task.json").read_text())
+            self.assertEqual(meta["plugin_bundle_sha256"], receipt["bundle_sha256"])
+            job = container.jobs.get(meta["latest_job_id"])
+            self.assertEqual(
+                job.payload["plugin_bundle_sha256"], receipt["bundle_sha256"]
+            )
+            self.assertEqual(
+                caps._verify_bundle(root / "plugin")["bundle_sha256"],
+                receipt["bundle_sha256"],
+            )
+            root_b = loop._task_root(
+                container, "project", "document", result_b["task_id"]
+            )
+            meta_b = json.loads((root_b / "task.json").read_text())
+            self.assertEqual(
+                meta_b["plugin_bundle_sha256"], receipt_b["bundle_sha256"]
+            )
+
     def test_resume_command_idempotency_survives_baseline_advance(self):
         jobs = {}
 

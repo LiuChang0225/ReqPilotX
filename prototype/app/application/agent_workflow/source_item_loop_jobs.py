@@ -217,6 +217,17 @@ def _enqueue(
             "operation_namespace": "working",
             "publication_mode": "WORKING_PROPOSAL",
             "capability_epoch": meta.get("capability_epoch"),
+            **(
+                {
+                    "plugin_bundle_sha256": meta.get(
+                        "active_plugin_bundle_sha256"
+                    )
+                    or meta.get("plugin_bundle_sha256")
+                }
+                if meta.get("active_plugin_bundle_sha256")
+                or meta.get("plugin_bundle_sha256")
+                else {}
+            ),
         },
     )
     meta["latest_job_id"] = job.job_id
@@ -321,26 +332,26 @@ def start_source_item_loop(
     with _locked(root):
         if (root / "task.json").exists():
             return _public(container, root, _read(root / "task.json"))
-        if (root / "import").exists() or (root / "review").exists():
+        if (
+            (root / "import").exists()
+            or (root / "review").exists()
+            or (root / "plugin").exists()
+        ):
             raise ApplicationError(
                 status_code=409,
                 detail="这个任务的准备过程未完成，保留现场供恢复；请勿重复覆盖。",
             )
-        built = subprocess.run(
-            [
-                sys.executable,
-                str(ROOT / "plugins/reqpilot/scripts/build_bundle.py"),
-                "--repo",
-                str(ROOT),
-                "--output",
-                str(root / "plugin"),
-            ],
-            text=True,
-            capture_output=True,
-            timeout=90,
+        from app.application.agent_workflow.native_loop_capabilities import (
+            prepare_native_loop_capability,
         )
-        if built.returncode:
-            raise ValueError((built.stderr or built.stdout)[-12000:])
+
+        try:
+            capability = prepare_native_loop_capability(root, container.settings)
+        except (OSError, ValueError) as exc:
+            raise ApplicationError(
+                status_code=503,
+                detail=f"原生任务能力包准备失败：{exc}",
+            ) from exc
         exported = export_current_review_input(
             project_id,
             document_id,
@@ -395,9 +406,11 @@ def start_source_item_loop(
             "document_map_sha256": bundle["document_map"].artifact_sha256,
             "initial_baseline_sha256": baseline.artifact_sha256,
             "origin": payload.origin,
-            "plugin_bundle_sha256": _read(root / "plugin/build-receipt.json")[
-                "bundle_sha256"
-            ],
+            "plugin_bundle_sha256": capability["bundle_sha256"],
+            "plugin_capability_source": capability["capability_source"],
+            "engine_core_identity": (
+                capability.get("engine_release") or {}
+            ).get("core_identity"),
             "source_item_ids": list(payload.source_item_ids),
             "feedback_ids": list(payload.feedback_ids),
             "request": payload.model_dump(mode="json"),
@@ -787,10 +800,10 @@ def run_durable_source_item_loop(job, context):
         }
 
     from app.application.agent_workflow.native_loop_capabilities import (
-        active_native_loop_plugin,
+        native_loop_plugin_for_job,
     )
 
-    plugin_root = active_native_loop_plugin(root)
+    plugin_root = native_loop_plugin_for_job(root, meta, job.payload)
     host = NativeLoopToolHost(
         workspace=root / "review",
         plugin_root=plugin_root,

@@ -23,7 +23,7 @@ python3 plugins/reqpilot/scripts/build_bundle.py \
   --output prototype/runtime-data/reqpilot-release/reqpilot
 ```
 
-An explicit `--engine-wheel` selects the R1 release path and makes the consumed identity reviewable. Omitting it preserves the existing source-checkout development build used by current native task creation; that compatibility path still uses the same selector but is not an installable-engine release claim. This avoids pulling package construction into the runtime task path before R2. Both paths reuse the same module roots, dependency mapping, host-layer ban and namespace-initializer rules; there is no second allowlist. Engine build preparation may resolve the pinned setuptools backend. Runtime never installs packages or accesses the network implicitly.
+An explicit `--engine-wheel` selects the R1 release path and makes the consumed identity reviewable. Omitting it is now only the explicitly configured `development-source` build; normal native task creation consumes a prebuilt, host-registered complete bundle and never falls back to the checkout. Both build paths reuse the same module roots, dependency mapping, host-layer ban and namespace-initializer rules; there is no second allowlist. Engine build preparation may resolve the pinned setuptools backend. Runtime never installs packages or accesses the network implicitly. See the [native capability deployment guide](../../docs/deployment/native-loop-capabilities.md) for registration, exact identity selection, default switching and rollback.
 
 Run the release contract before handing off a new engine/plugin pair:
 
