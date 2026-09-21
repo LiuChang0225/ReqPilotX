@@ -20,8 +20,11 @@ from typing import Any, Iterable
 from urllib import error as urllib_error
 from urllib import request as urllib_request
 
-from app.infrastructure.local_runtime import LOOPBACK_HOST
-from app.infrastructure.storage_lock import StorageLockError, acquire_storage_lease
+from reqpilotx_server.infrastructure.local_runtime import LOOPBACK_HOST
+from reqpilotx_server.infrastructure.storage_lock import (
+    StorageLockError,
+    acquire_storage_lease,
+)
 
 from scripts.release_preflight import (
     PreflightError,

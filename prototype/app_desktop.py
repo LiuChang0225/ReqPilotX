@@ -67,8 +67,13 @@ def _prefer_bundled_runtime_packages() -> None:
 
 _prefer_bundled_runtime_packages()
 os.environ["REQPILOT_DESKTOP_EMBEDDED"] = "1"
+if getattr(sys, "frozen", False):
+    os.environ.setdefault(
+        "REQPILOT_FRONTEND_DIR",
+        str(Path(sys._MEIPASS) / "frontend" / "dist"),
+    )
 
-from app.infrastructure.local_runtime import (
+from reqpilotx_server.infrastructure.local_runtime import (
     LOOPBACK_HOST,
     QDRANT_HTTP_PORT,
     loopback_url,
@@ -79,7 +84,7 @@ from app.infrastructure.local_runtime import (
     uvicorn_loopback_kwargs,
     wait_for_local_readiness,
 )
-from app.runtime_paths import resolve_storage_dir
+from reqpilotx_server.runtime_paths import resolve_storage_dir
 
 ARTIFACT_SMOKE_SERVER_FLAG = "--artifact-smoke-server"
 ARTIFACT_SMOKE_HANDSHAKE_FLAG = "--artifact-smoke-handshake"
@@ -197,14 +202,14 @@ if has_key:
 
 import uvicorn
 import webview
-from app.application.runtime import (
+from reqpilotx_server.application.runtime import (
     acquire_runtime_storage_lease,
     manage_runtime_storage_lease_from_launcher,
     register_artifact_smoke_shutdown,
     release_runtime_storage_lease,
 )
-from app.infrastructure.storage_lock import StorageLockError
-from app.main import app
+from reqpilotx_server.infrastructure.storage_lock import StorageLockError
+from reqpilotx_server.main import app
 
 # Qdrant process reference for cleanup
 qdrant_process = None

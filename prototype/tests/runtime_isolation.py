@@ -1,7 +1,7 @@
 """Process-wide writable-path isolation for the unittest suite.
 
-This module must be activated before importing any ``app`` module because the
-legacy application binds several storage paths at module import time.
+This module must be activated before importing the server package or any legacy
+``app`` alias because application composition binds storage paths at import time.
 """
 
 from __future__ import annotations
@@ -29,8 +29,14 @@ _ACTIVE_STORAGE_DIR: Path | None = None
 _TEMPORARY_STORAGE: tempfile.TemporaryDirectory[str] | None = None
 
 _PROTOTYPE_DIR = Path(__file__).resolve().parents[1]
-if str(_PROTOTYPE_DIR) not in sys.path:
-    sys.path.insert(0, str(_PROTOTYPE_DIR))
+_REPO_ROOT = _PROTOTYPE_DIR.parent
+for _source_root in (
+    _REPO_ROOT / "packages" / "engine" / "src",
+    _REPO_ROOT / "apps" / "server" / "src",
+    _PROTOTYPE_DIR,
+):
+    if str(_source_root) not in sys.path:
+        sys.path.insert(0, str(_source_root))
 
 
 def _apply_isolated_environment(storage_dir: Path) -> None:

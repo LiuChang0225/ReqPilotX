@@ -15,7 +15,6 @@ from scripts.release_preflight import (
     run_preflight,
     validate_bundled_qdrant,
 )
-from scripts.artifact_self_test import run_artifact_self_test, write_artifact_manifest
 
 
 def resolve_venv_pyinstaller(
@@ -224,6 +223,11 @@ def main(argv: list[str] | None = None) -> int:
         if qdrant is not None:
             bundled = validate_bundled_qdrant(project_dir / "dist", qdrant)
             print(f"[ReqPilotX Build] Bundled Qdrant verified: {bundled}")
+        from scripts.artifact_self_test import (
+            run_artifact_self_test,
+            write_artifact_manifest,
+        )
+
         artifact_manifest = write_artifact_manifest(
             project_dir / "dist",
             project_dir=project_dir,

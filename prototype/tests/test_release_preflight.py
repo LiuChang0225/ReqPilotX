@@ -58,12 +58,33 @@ class ReleasePreflightTests(unittest.TestCase):
         (assets_dir / "pdf.worker-test.mjs").write_text(
             "// worker", encoding="utf-8"
         )
-        (self.project_dir / "app").mkdir(parents=True)
-        (self.project_dir / "app" / "module.py").write_text(
+        self.server_source = (
+            self.project_dir.parent
+            / "apps"
+            / "server"
+            / "src"
+            / "reqpilotx_server"
+        )
+        self.engine_source = (
+            self.project_dir.parent
+            / "packages"
+            / "engine"
+            / "src"
+            / "reqpilotx"
+        )
+        self.server_source.mkdir(parents=True)
+        self.engine_source.mkdir(parents=True)
+        self.server_module = self.server_source / "module.py"
+        self.server_module.write_text(
+            "VALUE = 'safe'\n", encoding="utf-8"
+        )
+        (self.engine_source / "module.py").write_text(
             "VALUE = 'safe'\n", encoding="utf-8"
         )
         (self.project_dir / "app_desktop.py").write_text(
-            "def main():\n    return 0\n", encoding="utf-8"
+            "from reqpilotx_server.main import app\n"
+            "def main():\n    return int(app is None)\n",
+            encoding="utf-8",
         )
 
     def _write_manifest(
@@ -179,8 +200,45 @@ class ReleasePreflightTests(unittest.TestCase):
         report = release_preflight.run_preflight(self.project_dir)
 
         self.assertTrue(report["ok"])
+        self.assertEqual(
+            report["desktop_runtime_namespace"], "reqpilotx_server"
+        )
         self.assertFalse(report["qdrant_embedded"])
         self.assertFalse((self.project_dir / "bin").exists())
+
+    def test_missing_canonical_runtime_source_root_fails(self) -> None:
+        self.server_module.unlink()
+        self.server_source.rmdir()
+
+        with self.assertRaisesRegex(
+            release_preflight.PreflightError,
+            "canonical runtime source root is missing",
+        ):
+            release_preflight.run_preflight(self.project_dir)
+
+    def test_desktop_entrypoint_rejects_legacy_app_namespace(self) -> None:
+        (self.project_dir / "app_desktop.py").write_text(
+            "from app.main import app\n",
+            encoding="utf-8",
+        )
+
+        with self.assertRaisesRegex(
+            release_preflight.PreflightError,
+            "prototype/app compatibility namespace",
+        ):
+            release_preflight.run_preflight(self.project_dir)
+
+    def test_legacy_app_tree_is_not_a_packaged_runtime_source(self) -> None:
+        legacy = self.project_dir / "app" / "module.py"
+        legacy.parent.mkdir(parents=True)
+        legacy.write_text(
+            'OPENAI_API_KEY = "sk-live-AbCdEf0123456789-XyZ"\n',
+            encoding="utf-8",
+        )
+
+        report = release_preflight.run_preflight(self.project_dir)
+
+        self.assertTrue(report["ok"])
 
     def test_missing_referenced_static_asset_fails(self) -> None:
         (self.project_dir / "frontend" / "dist" / "assets" / "index-test.js").write_text(
@@ -220,7 +278,7 @@ class ReleasePreflightTests(unittest.TestCase):
         self.assertTrue(report["ok"])
 
     def test_development_absolute_path_fails(self) -> None:
-        (self.project_dir / "app" / "module.py").write_text(
+        self.server_module.write_text(
             'CACHE = "/Users/alice/Documents/ReqPilotX/cache"\n', encoding="utf-8"
         )
 
@@ -228,7 +286,7 @@ class ReleasePreflightTests(unittest.TestCase):
             release_preflight.run_preflight(self.project_dir)
 
     def test_probable_embedded_secret_fails(self) -> None:
-        (self.project_dir / "app" / "module.py").write_text(
+        self.server_module.write_text(
             'API_KEY = "sk-live-AbCdEf0123456789-XyZ"\n', encoding="utf-8"
         )
 
@@ -243,7 +301,7 @@ class ReleasePreflightTests(unittest.TestCase):
             "SERVICE_CLIENT_SECRET",
         ):
             with self.subTest(name=name):
-                (self.project_dir / "app" / "module.py").write_text(
+                self.server_module.write_text(
                     f'{name} = "sk-live-AbCdEf0123456789-XyZ"\n',
                     encoding="utf-8",
                 )
@@ -292,7 +350,7 @@ class ReleasePreflightTests(unittest.TestCase):
                     release_preflight.run_preflight(self.project_dir)
 
     def test_code_expression_assigned_to_secret_field_is_not_a_literal(self) -> None:
-        (self.project_dir / "app" / "module.py").write_text(
+        self.server_module.write_text(
             'config.openai_api_key = str(getattr(config, "openai_api_key", ""))\n',
             encoding="utf-8",
         )
@@ -306,7 +364,7 @@ class ReleasePreflightTests(unittest.TestCase):
         self.assertTrue(report["ok"])
 
     def test_known_secret_prefix_cannot_be_hidden_by_placeholder_substring(self) -> None:
-        (self.project_dir / "app" / "module.py").write_text(
+        self.server_module.write_text(
             'OPENAI_API_KEY = "sk-live-dummy-AbCdEf0123456789-XyZ"\n',
             encoding="utf-8",
         )
@@ -321,7 +379,7 @@ class ReleasePreflightTests(unittest.TestCase):
             ("SECRET_KEY", "abcdef0123456789" * 4),
         ):
             with self.subTest(name=name):
-                (self.project_dir / "app" / "module.py").write_text(
+                self.server_module.write_text(
                     f'{name} = "{value}"\n',
                     encoding="utf-8",
                 )
@@ -634,6 +692,24 @@ class ReleasePreflightTests(unittest.TestCase):
         self.assertIn("--clean", command)
         self.assertNotIn("app_desktop.py", command)
         self.assertNotIn("--add-data", command)
+
+    def test_repository_desktop_packaging_uses_canonical_packages(self) -> None:
+        repo = Path(__file__).resolve().parents[2]
+        entrypoint = (repo / "prototype/app_desktop.py").read_text(encoding="utf-8")
+        spec = (repo / "prototype/ReqPilotX.spec").read_text(encoding="utf-8")
+
+        self.assertIn("from reqpilotx_server.main import app", entrypoint)
+        self.assertNotRegex(entrypoint, r"(?m)^\s*(?:from|import)\s+app(?:\.|\s|$)")
+        self.assertIn('"REQPILOT_FRONTEND_DIR"', entrypoint)
+        self.assertIn('_repo_root / "packages" / "engine" / "src"', spec)
+        self.assertIn('_repo_root / "apps" / "server" / "src"', spec)
+        self.assertIn('collect_submodules("reqpilotx")', spec)
+        self.assertIn('collect_submodules("reqpilotx.adapters.documents")', spec)
+        self.assertIn('collect_submodules("reqpilotx.domain")', spec)
+        self.assertIn('collect_data_files("reqpilotx")', spec)
+        self.assertIn('collect_submodules("reqpilotx_server.resources")', spec)
+        self.assertIn('collect_data_files("reqpilotx_server")', spec)
+        self.assertIn('"app",', spec)
 
     def test_full_build_requires_clean_source_even_without_optional_flag(self) -> None:
         self.assertTrue(

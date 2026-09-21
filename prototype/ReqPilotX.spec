@@ -5,8 +5,11 @@ import platform
 import sys
 from pathlib import Path
 
+from PyInstaller.utils.hooks import collect_data_files, collect_submodules
+
 
 _project_dir = Path(SPECPATH).resolve()
+_repo_root = _project_dir.parent
 if str(_project_dir) not in sys.path:
     sys.path.insert(0, str(_project_dir))
 
@@ -19,6 +22,16 @@ _parser.add_argument("--qdrant-manifest")
 _options = _parser.parse_args()
 
 _binaries = []
+_runtime_datas = [
+    *collect_data_files("reqpilotx"),
+    *collect_data_files("reqpilotx_server"),
+]
+_runtime_hiddenimports = [
+    *collect_submodules("reqpilotx"),
+    *collect_submodules("reqpilotx.adapters.documents"),
+    *collect_submodules("reqpilotx.domain"),
+    *collect_submodules("reqpilotx_server.resources"),
+]
 if _options.with_qdrant:
     _manifest = (
         Path(_options.qdrant_manifest).expanduser().resolve()
@@ -36,14 +49,22 @@ if _options.with_qdrant:
 
 a = Analysis(
     [str(_project_dir / "app_desktop.py")],
-    pathex=[str(_project_dir)],
+    pathex=[
+        str(_repo_root / "packages" / "engine" / "src"),
+        str(_repo_root / "apps" / "server" / "src"),
+        str(_project_dir),
+    ],
     binaries=_binaries,
-    datas=[(str(_project_dir / "frontend" / "dist"), "frontend/dist")],
-    hiddenimports=[],
+    datas=[
+        (str(_project_dir / "frontend" / "dist"), "frontend/dist"),
+        *_runtime_datas,
+    ],
+    hiddenimports=_runtime_hiddenimports,
     hookspath=[],
     hooksconfig={},
     runtime_hooks=[],
     excludes=[
+        "app",
         "torch",
         "sentence_transformers",
         "transformers",

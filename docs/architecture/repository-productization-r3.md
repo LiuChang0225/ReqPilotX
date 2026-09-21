@@ -21,6 +21,12 @@ R1 构建输入保护 `86437a17` 和独立 R2 固定能力包提交。
 普通模块 import 仍保留别名身份。能力包 `inspect` 与任务准备共用受控注册路径
 解析，旧 capability 脚本仅转发到 server CLI，不维护第二份检查实现。
 
+后继 R4 已把桌面发布入口和 PyInstaller 搜索根切到 `reqpilotx` /
+`reqpilotx_server`，并让发布预检扫描这两个权威源码树、拒绝桌面入口重新导入
+`prototype/app`。构建显式收集动态转发的 engine 模块、包数据和 server 只读资源，
+冻结前端路径由桌面入口注入。旧别名仍可服务开发兼容，但不再是桌面发行装配路径；
+完整目标系统构建、签名和启动验收仍单独记录，不能由源码预检替代。
+
 可写状态只由 `REQPILOT_STORAGE_DIR`、`REQPILOT_OBJECT_ROOT`、capability registry
 和任务私有根决定；前端由 `REQPILOT_FRONTEND_DIR` 指定。需要 checkout 中 Agent Kit
 或显式源码构建时必须设置 `REQPILOT_DEVELOPMENT_ROOT`，发行缺包不会据此自动降级。

@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 import argparse
+import ast
 import hashlib
 import json
 import math
@@ -130,6 +131,10 @@ _TEXT_SUFFIXES = {
     ".yml",
 }
 _STATIC_BINARY_SUFFIXES = {".png"}
+_CANONICAL_RUNTIME_SOURCE_ROOTS = (
+    Path("packages/engine/src/reqpilotx"),
+    Path("apps/server/src/reqpilotx_server"),
+)
 
 
 def normalize_platform(value: str) -> str:
@@ -621,11 +626,54 @@ def _is_humanized_identifier_label(name: str, value: str) -> bool:
     return bool(normalized_value) and normalized_name == normalized_value
 
 
+def _canonical_runtime_source_roots(project_dir: Path) -> tuple[Path, ...]:
+    project_dir = Path(project_dir).resolve()
+    repo_dir = project_dir.parent
+    roots = []
+    for relative in _CANONICAL_RUNTIME_SOURCE_ROOTS:
+        declared = repo_dir / relative
+        if declared.is_symlink():
+            raise PreflightError(
+                f"canonical runtime source root must not be a symlink: {declared}"
+            )
+        root = declared.resolve()
+        if not _path_within(root, repo_dir) or not root.is_dir():
+            raise PreflightError(f"canonical runtime source root is missing: {declared}")
+        roots.append(root)
+    return tuple(roots)
+
+
+def validate_desktop_entrypoint_namespace(project_dir: Path) -> str:
+    entrypoint = Path(project_dir).resolve() / "app_desktop.py"
+    try:
+        source = entrypoint.read_text(encoding="utf-8")
+        tree = ast.parse(source, filename=str(entrypoint))
+    except (OSError, UnicodeDecodeError, SyntaxError) as exc:
+        raise PreflightError(
+            f"desktop entrypoint is not valid UTF-8 Python: {entrypoint}"
+        ) from exc
+
+    imported_roots = set()
+    for node in ast.walk(tree):
+        if isinstance(node, ast.Import):
+            imported_roots.update(alias.name.split(".", 1)[0] for alias in node.names)
+        elif isinstance(node, ast.ImportFrom) and node.module:
+            imported_roots.add(node.module.split(".", 1)[0])
+    if "app" in imported_roots:
+        raise PreflightError(
+            "desktop entrypoint still imports the prototype/app compatibility namespace"
+        )
+    if "reqpilotx_server" not in imported_roots:
+        raise PreflightError(
+            "desktop entrypoint must compose the canonical reqpilotx_server package"
+        )
+    return "reqpilotx_server"
+
+
 def _iter_packaged_text_files(project_dir: Path) -> Iterable[Path]:
     project_dir = Path(project_dir).resolve()
-    app_dir = project_dir / "app"
-    if app_dir.is_dir():
-        for path in sorted(app_dir.rglob("*")):
+    for source_root in _canonical_runtime_source_roots(project_dir):
+        for path in sorted(source_root.rglob("*")):
             if not path.is_file():
                 continue
             suffix = path.suffix.lower()
@@ -724,6 +772,7 @@ def run_preflight(
         raise PreflightError(f"desktop entrypoint is missing: {project_dir / 'app_desktop.py'}")
 
     python_version = validate_python_version(require_python)
+    desktop_namespace = validate_desktop_entrypoint_namespace(project_dir)
     static_references = validate_static_asset_closure(project_dir)
     scanned_files = validate_packaged_sources(project_dir)
     if require_clean_tree:
@@ -745,6 +794,7 @@ def run_preflight(
         "ok": True,
         "project_dir": str(project_dir),
         "python": python_version,
+        "desktop_runtime_namespace": desktop_namespace,
         "static_references_checked": static_references,
         "packaged_text_files_scanned": scanned_files,
         "clean_tree_required": require_clean_tree,
