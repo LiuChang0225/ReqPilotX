@@ -2,10 +2,17 @@
 set -euo pipefail
 
 ROOT_DIR="$(cd "$(dirname "$0")" && pwd)"
+REPO_ROOT="$(cd "$ROOT_DIR/.." && pwd)"
 cd "$ROOT_DIR"
 
+export PYTHONPATH="$REPO_ROOT/packages/engine/src:$REPO_ROOT/apps/server/src:$ROOT_DIR${PYTHONPATH:+:$PYTHONPATH}"
+export REQPILOT_STORAGE_DIR="${REQPILOT_STORAGE_DIR:-$ROOT_DIR/storage}"
+export REQPILOT_OBJECT_ROOT="${REQPILOT_OBJECT_ROOT:-$ROOT_DIR/runtime-data}"
+export REQPILOT_FRONTEND_DIR="${REQPILOT_FRONTEND_DIR:-$REPO_ROOT/apps/web/dist}"
+export REQPILOT_DEVELOPMENT_ROOT="${REQPILOT_DEVELOPMENT_ROOT:-$REPO_ROOT}"
+
 HOST="${HOST:-127.0.0.1}"
-APP_MODULE="${APP_MODULE:-app.main:app}"
+APP_MODULE="${APP_MODULE:-reqpilotx_server.main:app}"
 HEALTH_PATH="${HEALTH_PATH:-/api/runtime-readiness}"
 LOG_DIR="$ROOT_DIR/tmp"
 
@@ -120,7 +127,7 @@ WORKER_GUARD="$ROOT_DIR/scripts/local_worker_guard.py"
 RUNTIME_IDENTITY="$ROOT_DIR/scripts/local_runtime_identity.py"
 RUNTIME_INSTANCE_FILE="$LOG_DIR/runtime_${PORT}.instance"
 WORKER_DRAIN_FILE="$LOG_DIR/workers_${PORT}.draining"
-FRONTEND_DIR="$ROOT_DIR/frontend"
+FRONTEND_DIR="$REPO_ROOT/apps/web"
 FRONTEND_LOG_FILE="$LOG_DIR/frontend_${PORT}.log"
 FRONTEND_PID_FILE="$LOG_DIR/frontend_${PORT}.pid"
 LOCAL_QDRANT_CLI="$ROOT_DIR/scripts/local_qdrant.py"
@@ -196,7 +203,7 @@ start_stable_worker() {
       REQPILOT_LOCAL_RUNTIME_INSTANCE_ID="$RUNTIME_INSTANCE_ID" \
       REQPILOT_RUNTIME_SOURCE_REVISION="$CURRENT_SOURCE_REVISION" \
       REQPILOT_LOCAL_WORKER_COUNT="$WORKER_COUNT" \
-      screen -dmS "$worker_screen_name" bash -lc 'cd "$ROOT_DIR" && printf "%s\n" "$$" > "$WORKER_PID_FILE" && export REQPILOT_PROCESS_ROLE=worker REQPILOT_LOCAL_RUNTIME_PORT REQPILOT_LOCAL_RUNTIME_INSTANCE_ID REQPILOT_RUNTIME_SOURCE_REVISION REQPILOT_LOCAL_WORKER_COUNT REQPILOT_LOCAL_WORKER_SLOT="$WORKER_SLOT" && exec .venv/bin/python -m app.worker $WORKER_LANE_ARGS >> "$WORKER_LOG_FILE" 2>&1'
+      screen -dmS "$worker_screen_name" bash -lc 'cd "$ROOT_DIR" && printf "%s\n" "$$" > "$WORKER_PID_FILE" && export REQPILOT_PROCESS_ROLE=worker REQPILOT_LOCAL_RUNTIME_PORT REQPILOT_LOCAL_RUNTIME_INSTANCE_ID REQPILOT_RUNTIME_SOURCE_REVISION REQPILOT_LOCAL_WORKER_COUNT REQPILOT_LOCAL_WORKER_SLOT="$WORKER_SLOT" && exec .venv/bin/python -m reqpilotx_server.worker $WORKER_LANE_ARGS >> "$WORKER_LOG_FILE" 2>&1'
     echo "$worker_screen_name" > "$worker_session_file"
   else
       REQPILOT_LOCAL_RUNTIME_PORT="$PORT" \
@@ -204,7 +211,7 @@ start_stable_worker() {
       REQPILOT_RUNTIME_SOURCE_REVISION="$CURRENT_SOURCE_REVISION" \
       REQPILOT_LOCAL_WORKER_COUNT="$WORKER_COUNT" \
       REQPILOT_LOCAL_WORKER_SLOT="$slot" REQPILOT_PROCESS_ROLE=worker \
-      nohup .venv/bin/python -m app.worker $worker_lane_args \
+      nohup .venv/bin/python -m reqpilotx_server.worker $worker_lane_args \
       >"$worker_log_file" 2>&1 < /dev/null &
     echo "$!" > "$worker_pid_file"
   fi
@@ -316,17 +323,17 @@ if ! node -e 'const [major, minor] = process.versions.node.split(".").map(Number
   exit 1
 fi
 
-FRONTEND_LOCK_FILE="$FRONTEND_DIR/package-lock.json"
-FRONTEND_STAMP="$FRONTEND_DIR/node_modules/.reqpilotx-lock.sha256"
+FRONTEND_LOCK_FILE="$REPO_ROOT/package-lock.json"
+FRONTEND_STAMP="$REPO_ROOT/node_modules/.reqpilotx-lock.sha256"
 FRONTEND_LOCK_HASH="$(
   .venv/bin/python -c \
     'import hashlib, sys; print(hashlib.sha256(open(sys.argv[1], "rb").read()).hexdigest())' \
     "$FRONTEND_LOCK_FILE"
 )"
 INSTALLED_FRONTEND_HASH="$(cat "$FRONTEND_STAMP" 2>/dev/null || true)"
-if [[ ! -d "$FRONTEND_DIR/node_modules" || "$INSTALLED_FRONTEND_HASH" != "$FRONTEND_LOCK_HASH" ]]; then
+if [[ ! -d "$REPO_ROOT/node_modules" || "$INSTALLED_FRONTEND_HASH" != "$FRONTEND_LOCK_HASH" ]]; then
   echo "[INFO] 正在同步 React/Vite 前端依赖..."
-  npm --prefix "$FRONTEND_DIR" ci --no-audit --no-fund
+  npm --prefix "$REPO_ROOT" ci --no-audit --no-fund
   printf '%s\n' "$FRONTEND_LOCK_HASH" > "$FRONTEND_STAMP"
 fi
 
@@ -336,14 +343,15 @@ FRONTEND_BUILD_SOURCE="$(
     "$FRONTEND_DIR/src" \
     "$FRONTEND_DIR/index.html" \
     "$FRONTEND_DIR/package.json" \
-    "$FRONTEND_DIR/package-lock.json" \
-    "$FRONTEND_DIR/tsconfig.json" \
+    "$REPO_ROOT/package-lock.json" \
+    "$REPO_ROOT/tsconfig.json" \
+    "$REPO_ROOT/packages/workbench-ui/src" \
     "$FRONTEND_DIR/vite.config.ts" \
     -type f -newer "$FRONTEND_ENTRY" -print -quit 2>/dev/null || true
 )"
 if [[ ! -f "$FRONTEND_ENTRY" || -n "$FRONTEND_BUILD_SOURCE" ]]; then
   echo "[INFO] 正在构建 React/Vite 正式前端..."
-  npm --prefix "$FRONTEND_DIR" run build
+  npm --prefix "$REPO_ROOT" run build
 fi
 
 REQUIREMENTS_FILE="$ROOT_DIR/requirements.txt"
@@ -442,7 +450,7 @@ if [[ "$MODE" == "dev" ]]; then
     REQPILOT_RUNTIME_SOURCE_REVISION="$CURRENT_SOURCE_REVISION" \
     REQPILOT_LOCAL_WORKER_COUNT="$WORKER_COUNT" \
     REQPILOT_LOCAL_WORKER_SLOT="$slot" REQPILOT_PROCESS_ROLE=worker \
-      .venv/bin/python -m app.worker "${worker_lane_args[@]}" \
+      .venv/bin/python -m reqpilotx_server.worker "${worker_lane_args[@]}" \
       >"$(worker_log_file "$slot")" 2>&1 &
     worker_pid="$!"
     DEV_WORKER_PIDS+=("$worker_pid")
@@ -451,7 +459,7 @@ if [[ "$MODE" == "dev" ]]; then
   (
     cd "$FRONTEND_DIR"
     REQPILOT_API_ORIGIN="http://127.0.0.1:$PORT" \
-      exec "$FRONTEND_DIR/node_modules/.bin/vite"
+      exec "$REPO_ROOT/node_modules/.bin/vite"
   ) >"$FRONTEND_LOG_FILE" 2>&1 &
   FRONTEND_PID="$!"
   echo "$FRONTEND_PID" > "$FRONTEND_PID_FILE"

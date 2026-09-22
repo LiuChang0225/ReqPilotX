@@ -6,7 +6,7 @@ import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { loadSharedArtifacts } from '../scripts/shared-artifacts.mjs';
 const required = JSON.parse(await readFile(new URL('../client/adapter-contract.json', import.meta.url), 'utf8'));
-const source = new URL('../../../prototype/frontend/dist-panel', import.meta.url);
+const source = new URL('../../../packages/workbench-ui/dist-panel', import.meta.url);
 test('built shared artifact relocates independently of checkout and retains identity', async () => {
   const temp = await mkdtemp(join(tmpdir(), 'reqpilot-ui-portable-'));
   try { await cp(source, temp, { recursive: true }); const original = await loadSharedArtifacts(source, required); const moved = await loadSharedArtifacts(temp, required); assert.equal(original.identity, moved.identity); assert.deepEqual(original.contract, moved.contract); }

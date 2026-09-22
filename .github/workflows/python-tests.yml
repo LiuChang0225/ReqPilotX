@@ -23,7 +23,7 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: prototype/frontend/package-lock.json
+          cache-dependency-path: package-lock.json
       - uses: astral-sh/setup-uv@v6
         with:
           version: '0.12.13'
@@ -38,8 +38,8 @@ jobs:
           uv pip check --python prototype/.venv/bin/python
       - name: Build frontend consumed by API composition tests
         run: |
-          npm --prefix prototype/frontend ci
-          npm --prefix prototype/frontend run build
+          npm ci
+          npm run build
       - name: Backend isolated tests
         run: prototype/.venv/bin/python scripts/test_python.py backend
       - name: Portable plugin and real MCP stdio tests
@@ -50,3 +50,13 @@ jobs:
         run: |
           sudo apt-get install -y postgresql
           prototype/.venv/bin/python scripts/smoke_workbench.py --postgres-bin "$(pg_config --bindir)" --output output/ci-smoke
+      - name: Relocated Pair with non-editable installed engine and server
+        run: |
+          prototype/.venv/bin/python plugins/reqpilot/scripts/build_engine.py --repo . --output output/r4-engine
+          uv build --wheel --no-build-logs --out-dir output/r4-server apps/server
+          uv venv --python python3.13 "$RUNNER_TEMP/r4-installed"
+          uv pip install --python "$RUNNER_TEMP/r4-installed/bin/python" output/r4-engine/*.whl output/r4-server/*.whl
+          prototype/.venv/bin/python plugins/reqpilot/scripts/reqpilot.py --project-root . worked-example --output-dir output/r4-synthetic
+          cp -R integrations/pair "$RUNNER_TEMP/r4-pair"
+          cp -R apps/web/dist "$RUNNER_TEMP/r4-web"
+          node "$RUNNER_TEMP/r4-pair/scripts/installed-smoke.mjs" "$RUNNER_TEMP/r4-installed/bin/python" "$RUNNER_TEMP/r4-web" "$(pg_config --bindir)" "$PWD/output/r4-synthetic" "$PWD/output/r4-installed-receipt.json"

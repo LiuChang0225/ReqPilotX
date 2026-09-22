@@ -3355,12 +3355,7 @@ class ExporterTableLayersTests(unittest.TestCase):
             )
             table_node["label"] = long_table_title
             table_node["display_title"] = long_table_title
-            repository_logo = (
-                Path(exporter_module.__file__).resolve().parents[2]
-                / "resources"
-                / "branding"
-                / "schaeffler-logo.png.base64"
-            )
+            repository_logo = exporter_module._BRAND_LOGO_PATH_CANDIDATES[1]
             with patch.object(
                 exporter_module,
                 "_BRAND_LOGO_PATH_CANDIDATES",

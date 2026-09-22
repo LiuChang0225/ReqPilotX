@@ -6,7 +6,7 @@ semantic ownership. The Agent must compare the original before choosing them.
 import hashlib
 from pathlib import Path
 
-from app.domain.extraction.source_ir import (
+from reqpilotx.domain.extraction.source_ir import (
     SourceIRSnapshot, SourceNode, SourceNodeKind, NativeLocator, stable_node_id,
 )
 
@@ -82,7 +82,7 @@ def verify_trace_nodes(snapshot, source_path):
 def verify_capture_extension(previous, snapshot, source_path):
     if (previous.visual_text_snapshots != snapshot.visual_text_snapshots
         or any(n.visual_text_ref is not None for n in snapshot.nodes[len(previous.nodes):])):
-        from app.application.project_visual_source import verify_visual_capture_extension
+        from reqpilotx.application.project_visual_source import verify_visual_capture_extension
         if hashlib.sha256(Path(source_path).read_bytes()).hexdigest() != previous.source_sha256:
             raise ValueError('Visual observations belong to another original')
         verify_visual_capture_extension(previous, snapshot)

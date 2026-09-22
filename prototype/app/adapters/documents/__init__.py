@@ -1,7 +1,2 @@
-"""Document adapter package.
-
-Adapters are selected from explicit modules so importing one format does not
-load every provider or the isolated test parser.
-"""
-
-__all__: list[str] = []
+"""Compatibility exports; authoritative implementation lives in reqpilotx.adapters.documents."""
+from reqpilotx.adapters.documents import *  # noqa: F401,F403

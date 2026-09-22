@@ -19,7 +19,7 @@ def uncovered_ranges(length, spans):
 
 
 def build_map_audit(snapshot, artifact, previews, decisions, *, page_count=None):
-    from app.application.agent_workflow.source_item_workbench_metadata import numbering_findings
+    from reqpilotx.application.agent_workflow.source_item_workbench_metadata import numbering_findings
     sources = snapshot['nodes']
     indexes = {node['source_node_id']: i for i, node in enumerate(sources)}
     by_source = {node['source_node_id']: node for node in sources}
@@ -223,7 +223,7 @@ def audit_map(args):
     snapshot, decisions = read('map-source-ir.json'), read('map-decisions.json')
     if not (artifact['source_sha256'] == snapshot['source_sha256'] == receipt['source_sha256'] == decisions['source_sha256']):
         raise ValueError('Map audit inputs do not bind the same source')
-    from app.application.agent_workflow.source_requirement_baseline import DocumentMapArtifactV1
+    from reqpilotx.application.agent_workflow.source_requirement_baseline import DocumentMapArtifactV1
     DocumentMapArtifactV1.model_validate(artifact)
     if artifact['artifact_sha256'] != receipt['document_map_artifact_sha256']:
         raise ValueError('Map audit receipt belongs to another Map version')

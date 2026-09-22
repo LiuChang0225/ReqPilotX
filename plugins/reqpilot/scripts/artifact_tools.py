@@ -12,8 +12,8 @@ from argparse import Namespace
 from pathlib import Path
 from typing import Any
 
-from app.application.agent_workflow import source_requirement_baseline as core
-from app.domain.extraction.source_ir import SourceIRSnapshot
+from reqpilotx.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.domain.extraction.source_ir import SourceIRSnapshot
 
 
 def read(path: Path) -> Any:
@@ -85,7 +85,7 @@ def _task_source_name(args, source_sha256):
     """Source filename metadata, never a substitute for quoted customer text."""
     name = getattr(args, '_source_display_name', '') or ''
     if getattr(args, 'workspace', None):
-        from app.application.agent_workflow.task_workspace import find_task_workspace
+        from reqpilotx.application.agent_workflow.task_workspace import find_task_workspace
         task = find_task_workspace(explicit=args.workspace)
         if task is None or task[1]['source']['sha256'] != source_sha256:
             raise ValueError('Workspace must own the original source')
@@ -134,7 +134,7 @@ def compile_map(args: Namespace) -> dict:
     if ranged and native_format:
         raise ValueError('Map v2 ranges currently bind PDF originals; use v1 for native Office')
     if native_format:
-        from app.application.agent_workflow.office_source_evidence import verify_office_source_ir
+        from reqpilotx.application.agent_workflow.office_source_evidence import verify_office_source_ir
         if verify_office_source_ir(source_path, snapshot) != native_format:
             raise ValueError("Office source format changed")
         bounds = {}
@@ -164,7 +164,7 @@ def compile_map(args: Namespace) -> dict:
 
     def source_position(source: Any) -> tuple[int, float, float]:
         if native_format:
-            from app.application.agent_workflow.source_locations import source_position as original_position
+            from reqpilotx.application.agent_workflow.source_locations import source_position as original_position
             from types import SimpleNamespace
             return original_position(SimpleNamespace(native_locator=source.native_locator, source_sequence=source.source_order))
         page, bbox, _ = locator(source)
@@ -564,7 +564,7 @@ def compile_items(args: Namespace) -> dict:
     artifact = core.DocumentMapArtifactV1.model_validate_json((directory / "document-map.json").read_text(encoding="utf-8"))
     scopes = read(directory / "scope-requests.json")
     if artifact.source_format:
-        from app.application.agent_workflow.office_source_evidence import verify_office_map_against_source
+        from reqpilotx.application.agent_workflow.office_source_evidence import verify_office_map_against_source
         source = getattr(args, "source", None)
         if source is None:
             inputs = read(directory / "map-compilation-receipt.json").get("source_inputs", {})
@@ -619,7 +619,7 @@ def compile_items(args: Namespace) -> dict:
     if growth:
         from copy import deepcopy
         from revision_tools import state, carry_state, validate_state, STATE_FILES
-        from app.application.agent_workflow.source_item_visual import rebind_source_item_annotations
+        from reqpilotx.application.agent_workflow.source_item_visual import rebind_source_item_annotations
         old_values = state(args.baseline_dir); values = deepcopy(old_values); tables = read(directory / "table-previews.json")
         if values.get("annotations"):
             values["annotations"] = rebind_source_item_annotations(artifact, artifact, previous, baseline, values["annotations"], table_previews=tables)["artifact"]
@@ -640,7 +640,7 @@ def compile_items(args: Namespace) -> dict:
 def schemas(args: Namespace) -> dict:
     names = ("DocumentMapArtifactV1", "SourceItemTextSliceCandidateV1", "SourceRequirementSliceCandidateV1", "SourceRequirementBaselineArtifactV1", "SourceRequirementClassificationCoordinationDecisionV1")
     payload = {name: getattr(core, name).model_json_schema() for name in names}
-    from app.application.agent_workflow.source_item_visual import SourceItemImageScopeCandidateV1
+    from reqpilotx.application.agent_workflow.source_item_visual import SourceItemImageScopeCandidateV1
     payload["SourceItemImageScopeCandidateV1"] = SourceItemImageScopeCandidateV1.model_json_schema()
     if args.output_dir:
         output = new_output(args.output_dir)
@@ -708,7 +708,7 @@ def analysis_policy_input(value, source_sha256, baseline_sha256=None):
 
 def deliver(args: Namespace) -> dict:
     # The API/UI and portable plugin call this same pure bridge.
-    from app.application.agent_workflow import source_item_delivery as delivery
+    from reqpilotx.application.agent_workflow import source_item_delivery as delivery
     directory = required(args.baseline_dir, "--baseline-dir")
     document_map = core.DocumentMapArtifactV1.model_validate_json((directory / "document-map.json").read_text(encoding="utf-8"))
     baseline = core.SourceRequirementBaselineArtifactV1.model_validate_json((directory / "source-requirement-baseline.json").read_text(encoding="utf-8"))
@@ -718,7 +718,7 @@ def deliver(args: Namespace) -> dict:
     if document_map.source_format:
         if source_path is None:
             raise ValueError("Office delivery requires the original DOCX/XLSX for native location verification")
-        from app.application.agent_workflow.office_source_evidence import verify_office_map_against_source
+        from reqpilotx.application.agent_workflow.office_source_evidence import verify_office_map_against_source
         verify_office_map_against_source(source_path, document_map, read(directory / "table-previews.json"), baseline=baseline)
     review = read(args.input) if args.input else {}
     if set(review) & {'manual_decisions', 'engineer_responses'}:
@@ -727,11 +727,11 @@ def deliver(args: Namespace) -> dict:
     if explicit_annotations:
         if review.get("annotations") is not None:
             raise ValueError("Supply the annotation artifact once")
-        from app.application.agent_workflow.source_item_visual import rebind_source_item_image_annotations
+        from reqpilotx.application.agent_workflow.source_item_visual import rebind_source_item_image_annotations
         review["annotations"] = rebind_source_item_image_annotations(document_map, baseline, read(explicit_annotations))
     image_annotations_path = directory / "image-annotations.json"
     if image_annotations_path.is_file() and not explicit_annotations:
-        from app.application.agent_workflow.source_item_visual import rebind_source_item_image_annotations
+        from reqpilotx.application.agent_workflow.source_item_visual import rebind_source_item_image_annotations
         image_annotations = rebind_source_item_image_annotations(document_map, baseline, read(image_annotations_path))
         supplied_annotations = review.get("annotations")
         if supplied_annotations is None:
@@ -758,7 +758,7 @@ def deliver(args: Namespace) -> dict:
         assessment_path = directory / 'source-item-assessments.json'
         review['assessments'] = read(assessment_path)
     if review.get("assessments") is not None:
-        from app.application.agent_workflow.source_item_analysis import validate_source_item_assessments
+        from reqpilotx.application.agent_workflow.source_item_analysis import validate_source_item_assessments
         packet_path = getattr(args, "analysis_packet", None)
         if packet_path is None and assessment_path is not None:
             packet_path = assessment_path.parent / "analysis-packet.json"
@@ -787,7 +787,7 @@ def deliver(args: Namespace) -> dict:
     if explicit_manual and not manual_path.is_file():
         raise ValueError('The requested engineer-opinion artifact is missing')
     if manual_path.is_file():
-        from app.application.agent_workflow.source_item_manual_decisions import build_manual_decision_context, validate_manual_decisions
+        from reqpilotx.application.agent_workflow.source_item_manual_decisions import build_manual_decision_context, validate_manual_decisions
         context = build_manual_decision_context(document_map, baseline, read(directory / 'table-previews.json'),
             decomposition=review.get('decomposition'), annotations=review.get('annotations'))
         if manual_path.parent != directory:
@@ -807,7 +807,7 @@ def deliver(args: Namespace) -> dict:
     source_name = _task_source_name(args, baseline.source_sha256)
     output = new_output(args.output_dir)
     save(output, "matrix-snapshot.json", snapshot)
-    from app.application.agent_workflow.source_item_workbench_metadata import numbering_findings
+    from reqpilotx.application.agent_workflow.source_item_workbench_metadata import numbering_findings
     source_findings = numbering_findings(document_map)
     source_findings['baseline_sha256'] = baseline.artifact_sha256
     save(output, 'source-findings.json', source_findings)
@@ -823,7 +823,7 @@ def deliver(args: Namespace) -> dict:
 
 
 def decomposition_operation(args: Namespace) -> dict:
-    from app.application.agent_workflow.source_item_decomposition import (
+    from reqpilotx.application.agent_workflow.source_item_decomposition import (
         build_source_item_decomposition_packet, compile_source_item_decomposition,
     )
     directory = required(args.baseline_dir, "--baseline-dir")
@@ -923,7 +923,7 @@ def _empty_image_binding_note(document_map, directory, *, source_ir_path=None, n
 
 
 def image_operation(args: Namespace) -> dict:
-    from app.application.agent_workflow.source_item_visual import build_source_item_image_scope_packet, compile_source_item_images
+    from reqpilotx.application.agent_workflow.source_item_visual import build_source_item_image_scope_packet, compile_source_item_images
     directory = required(args.map_dir or args.baseline_dir, "--map-dir or --baseline-dir")
     document_map = core.DocumentMapArtifactV1.model_validate_json((directory / "document-map.json").read_text(encoding="utf-8"))
     previous = None
@@ -953,7 +953,7 @@ def image_operation(args: Namespace) -> dict:
         if args.source:
             import pymupdf
             from PIL import Image
-            from app.services.exporter import _build_export_source_image_context, _load_matrix_figure_payload
+            from reqpilotx.services.exporter import _build_export_source_image_context, _load_matrix_figure_payload
             source = args.source.expanduser().resolve(strict=True)
             if hashlib.sha256(source.read_bytes()).hexdigest() != document_map.source_sha256:
                 raise ValueError("Image rendering original does not match the Document Map")
@@ -1008,7 +1008,7 @@ def image_operation(args: Namespace) -> dict:
 
 
 def analysis_operation(args: Namespace) -> dict:
-    from app.application.agent_workflow.source_item_analysis import build_source_item_analysis_packet, compile_source_item_assessments, source_item_analysis_output_schema
+    from reqpilotx.application.agent_workflow.source_item_analysis import build_source_item_analysis_packet, compile_source_item_assessments, source_item_analysis_output_schema
     if args.command == "analysis-packet":
         directory = required(args.baseline_dir, "--baseline-dir")
         document_map = core.DocumentMapArtifactV1.model_validate_json((directory / "document-map.json").read_text(encoding="utf-8"))
@@ -1023,7 +1023,7 @@ def analysis_operation(args: Namespace) -> dict:
         images = None
         annotation_path = getattr(args, "annotations", None) or directory / "image-annotations.json"
         if annotation_path.is_file():
-            from app.application.agent_workflow.source_item_visual import rebind_source_item_image_annotations
+            from reqpilotx.application.agent_workflow.source_item_visual import rebind_source_item_image_annotations
             images = rebind_source_item_image_annotations(document_map, baseline, read(annotation_path))
         packet = build_source_item_analysis_packet(document_map, baseline, read(directory / "table-previews.json"), catalog, decomposition=decomposition, selected_unit_ids=args.unit_id, image_annotations=images)
         output = new_output(args.output_dir)
@@ -1063,7 +1063,7 @@ def analysis_operation(args: Namespace) -> dict:
 
 
 def annotation_operation(args: Namespace) -> dict:
-    from app.application.agent_workflow.source_item_visual import compile_source_item_visual_readings, compile_source_item_annotation_updates
+    from reqpilotx.application.agent_workflow.source_item_visual import compile_source_item_visual_readings, compile_source_item_annotation_updates
     directory = required(args.baseline_dir, "--baseline-dir")
     document_map = core.DocumentMapArtifactV1.model_validate(read(directory / "document-map.json"))
     baseline = core.SourceRequirementBaselineArtifactV1.model_validate(read(directory / "source-requirement-baseline.json"))

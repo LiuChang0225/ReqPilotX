@@ -7,9 +7,9 @@ from argparse import Namespace
 from copy import deepcopy
 from pathlib import Path
 
-from app.application.agent_workflow import task_workspace as core
-from app.application.agent_workflow.artifact_kind_catalog import validate_bundle
-from app.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
+from reqpilotx.application.agent_workflow import task_workspace as core
+from reqpilotx.application.agent_workflow.artifact_kind_catalog import validate_bundle
+from reqpilotx.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
 import artifact_tools
 import revision_tools as review
 
@@ -93,7 +93,7 @@ def _delivery(directory, candidate, source_sha):
     validate_bundle(directory, source_sha, operation='deliver', dependency_dirs=[candidate])
     mapping, baseline, _, tables = review.bundle(candidate)
     values = review.state(candidate)
-    from app.application.agent_workflow.source_item_delivery import build_delivery_snapshot
+    from reqpilotx.application.agent_workflow.source_item_delivery import build_delivery_snapshot
     expected = build_delivery_snapshot(mapping, baseline, tables, **{key: values[key] for key in
         ('annotations', 'decomposition', 'assessments', 'manual_decisions', 'analysis_policy') if key in values})
     if core.read_json(directory / 'matrix-snapshot.json') != expected:

@@ -309,7 +309,7 @@ class LaunchSurfaceSecurityTests(unittest.TestCase):
         )
 
     def test_desktop_uses_loopback_uvicorn_qdrant_and_http_readiness(self) -> None:
-        source = (self.prototype_dir / "app_desktop.py").read_text(encoding="utf-8")
+        source = (self.repo_root / "apps/desktop/app_desktop.py").read_text(encoding="utf-8")
 
         self.assertIn("uvicorn.Config(app, **uvicorn_loopback_kwargs(port))", source)
         self.assertIn("backend_server = uvicorn.Server(config)", source)
@@ -323,7 +323,7 @@ class LaunchSurfaceSecurityTests(unittest.TestCase):
 
     def test_embedded_secret_obfuscation_workflow_is_disabled(self) -> None:
         secret = "secret-that-must-never-be-echoed"
-        desktop_source = (self.prototype_dir / "app_desktop.py").read_text(encoding="utf-8")
+        desktop_source = (self.repo_root / "apps/desktop/app_desktop.py").read_text(encoding="utf-8")
         script_path = self.prototype_dir / "scripts" / "obfuscate_key.py"
         script_source = script_path.read_text(encoding="utf-8")
         result = subprocess.run(

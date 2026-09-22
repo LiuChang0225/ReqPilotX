@@ -11,8 +11,8 @@ from typing import Annotated, Literal
 
 from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, model_validator
 
-from app.application.agent_workflow import source_requirement_baseline as core
-from app.application.agent_workflow.source_item_numbering import _POSSIBLE_START, _prefix
+from reqpilotx.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.application.agent_workflow.source_item_numbering import _POSSIBLE_START, _prefix
 from map_edit_tools import bind_map_edit
 
 

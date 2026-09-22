@@ -117,11 +117,11 @@ def _preflight(workspace, root, context, index, operations, files, skipped):
 
 def _core():
     try:
-        from app.application.agent_workflow import task_workspace
+        from reqpilotx.application.agent_workflow import task_workspace
     except ModuleNotFoundError:
         from reqpilot import load_runtime
         load_runtime(None)  # The accompanying frozen bundle, never a guessed checkout.
-        from app.application.agent_workflow import task_workspace
+        from reqpilotx.application.agent_workflow import task_workspace
     return task_workspace
 
 

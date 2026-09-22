@@ -551,8 +551,8 @@ class EntryClassificationApiTests(unittest.TestCase):
         self.assertEqual(caught.exception.status_code, 409)
 
         router_source = (
-            Path(__file__).resolve().parents[1]
-            / "app"
+            Path(__file__).resolve().parents[2]
+            / "apps/server/src/reqpilotx_server"
             / "api"
             / "routers"
             / "extraction.py"

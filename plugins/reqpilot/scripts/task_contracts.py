@@ -9,7 +9,7 @@ import hashlib
 import json
 from typing import Annotated, Literal
 from pydantic import BaseModel, ConfigDict, Field, StrictBool, StrictInt, StrictStr, model_validator, field_validator
-from app.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.application.agent_workflow import source_requirement_baseline as core
 
 Nonempty = Annotated[StrictStr, Field(min_length=1)]
 SourceRef = Annotated[StrictInt, Field(ge=0)] | Nonempty

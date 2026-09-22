@@ -1,9 +1,9 @@
 /** Pair-owned local runtime. Uses DSH subprocess handles; never adopts an unrelated service. */
-import { mkdir, readFile, writeFile, open, unlink, realpath, readdir, stat } from 'node:fs/promises';
-import { resolve, dirname, join } from 'node:path';
+import { mkdir, readFile, writeFile, open, unlink, realpath, readdir, stat, lstat } from 'node:fs/promises';
+import { resolve, dirname, join, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { randomBytes, randomUUID, createHash } from 'node:crypto';
+import { randomBytes, randomUUID } from 'node:crypto';
 import { createServer } from 'node:net';
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -18,15 +18,21 @@ export function ownerAlive(pid) {
 export class ManagedRuntime {
   constructor(subprocess, config = {}) {
     this.subprocess = subprocess;
-    this.appRoot = resolve(config.appRoot || fileURLToPath(new URL('../../../../prototype', import.meta.url)));
+    this.legacyAppRoot = config.appRoot;
+    this.invalidDataRoot = config.dataRoot && !isAbsolute(config.dataRoot);
     this.dataRoot = resolve(config.dataRoot || join(homedir(), '.local/share/reqpilotx/pair'));
-    this.python = config.python || join(this.appRoot, '.venv/bin/python');
+    this.python = config.python;
+    this.frontendRoot = config.frontendRoot;
+    this.wrapper = fileURLToPath(new URL('./managed_api.py', import.meta.url));
     this.binDir = config.postgresBinDir;
     this.token = randomUUID(); this.handles = []; this.cancel = new AbortController();
     this.snapshot = { mode: 'managed', status: 'STARTING', stage: 'dependencies', message: '正在准备 ReqPilotX 服务', owned: true };
   }
   async privateWrite(name, value) { await writeFile(join(this.dataRoot, name), JSON.stringify(value, null, 2) + '\n', { mode: 0o600 }); }
   async claim() {
+    if (this.invalidDataRoot) throw Error('Data directory must be absolute.');
+    try { if ((await lstat(this.dataRoot)).isSymbolicLink()) throw Error('Data directory must not be a symlink.'); }
+    catch (e) { if (e.code !== 'ENOENT') throw e; }
     await mkdir(this.dataRoot, { recursive: true, mode: 0o700 });
     const marker = join(this.dataRoot, 'owner.json');
     let owner;
@@ -34,7 +40,8 @@ export class ManagedRuntime {
     catch (e) {
       if (e.code !== 'ENOENT') throw e;
       if ((await readdir(this.dataRoot)).length) throw Error('Data directory is not an empty ReqPilotX-owned directory.');
-      owner = { application: 'reqpilotx-pair', version: 1, id: randomUUID() }; await this.privateWrite('owner.json', owner);
+      owner = { application: 'reqpilotx-pair', version: 1, id: randomUUID() };
+      await writeFile(marker, JSON.stringify(owner) + '\n', { mode: 0o600, flag: 'wx' });
     }
     if (owner.application !== 'reqpilotx-pair' || owner.version !== 1) throw Error('Data directory ownership does not match.');
     this.ownerId = owner.id;
@@ -47,7 +54,7 @@ export class ManagedRuntime {
   }
   spawn(argv, env = {}, collect = true) {
     this.cancel.signal.throwIfAborted();
-    const handle = this.subprocess.spawn({ argv, cwd: this.appRoot, env, signal: this.cancel.signal,
+    const handle = this.subprocess.spawn({ argv, cwd: this.dataRoot, env, signal: this.cancel.signal,
       stdio: { stdin: 'ignore', stdout: { maxBytes: collect ? 65536 : 16384 }, stderr: { maxBytes: 65536 } }, graceMs: 15000 });
     this.handles.push(handle); return handle;
   }
@@ -70,9 +77,16 @@ export class ManagedRuntime {
     return this.starting;
   }
   async startInner() {
+    if (this.legacyAppRoot) throw Error('appRoot checkout mode is no longer supported; configure installed python and frontendRoot.');
+    if (!this.python || !isAbsolute(this.python)) throw Error('An absolute installed engine/server Python executable is required.');
+    if (!this.frontendRoot || !isAbsolute(this.frontendRoot)) throw Error('An absolute built frontendRoot is required.');
+    this.frontendRoot = await realpath(this.frontendRoot);
+    for (const name of ['index.html', '.vite/manifest.json']) {
+      if (!(await stat(join(this.frontendRoot, name))).isFile()) throw Error('Frontend artifact is missing: ' + name);
+    }
     await this.claim();
     this.python = await this.subprocess.resolveExecutable(this.python);
-    await stat(join(this.appRoot, 'app/main.py'));
+    const installation = JSON.parse(await this.command([this.python, '-I', this.wrapper, 'probe']));
     const initdb = this.binDir ? join(this.binDir, 'initdb') : await this.subprocess.resolveExecutable('initdb');
     this.binDir = dirname(await realpath(initdb));
     for (const name of ['postgres', 'psql', 'createdb', 'pg_isready']) await this.subprocess.resolveExecutable(join(this.binDir, name));
@@ -105,13 +119,13 @@ export class ManagedRuntime {
     if (!ready) throw Error('Managed database did not become ready.');
     const exists = await this.command([join(this.binDir, 'psql'), '-Atqc', "SELECT 1 FROM pg_database WHERE datname='reqpilotx'"], dbEnv);
     if (exists.trim() !== '1') await this.command([join(this.binDir, 'createdb'), 'reqpilotx'], dbEnv);
-    const env = { REQPILOT_ENV: 'local', REQPILOT_PROCESS_ROLE: 'api', REQPILOT_AGENT_RUNTIME: 'none', REQPILOT_DATABASE_URL: 'postgresql://reqpilotx:' + this.secret + '@127.0.0.1:' + pgPort + '/reqpilotx', REQPILOT_OBJECT_ROOT: join(this.dataRoot, 'storage'), REQPILOT_SCRATCH_ROOT: join(this.dataRoot, 'scratch'), REQPILOT_ALLOWED_HOSTS: '127.0.0.1,localhost', REQPILOT_MANAGED_INSTANCE: this.token };
+    const env = { REQPILOT_ENV: 'local', REQPILOT_PROCESS_ROLE: 'api', REQPILOT_AGENT_RUNTIME: 'none', REQPILOT_DATABASE_URL: 'postgresql://reqpilotx:' + this.secret + '@127.0.0.1:' + pgPort + '/reqpilotx', REQPILOT_STORAGE_DIR: join(this.dataRoot, 'storage'), REQPILOT_FRONTEND_DIR: this.frontendRoot, REQPILOT_OBJECT_ROOT: join(this.dataRoot, 'storage'), REQPILOT_SCRATCH_ROOT: join(this.dataRoot, 'scratch'), REQPILOT_ALLOWED_HOSTS: '127.0.0.1,localhost', REQPILOT_MANAGED_INSTANCE: this.token };
     this.stage('migrations', '正在恢复项目与文档存储');
-    await this.command([this.python, join(this.appRoot, 'scripts/runtime_admin.py'), 'migrate'], env);
+    await this.command([this.python, '-I', this.wrapper, 'migrate'], env);
     this.stage('api', '正在启动 ReqPilotX');
     const descriptor = join(this.dataRoot, 'api-instance.json');
     try { await unlink(descriptor); } catch (e) { if (e.code !== 'ENOENT') throw e; }
-    const api = this.spawn([this.python, fileURLToPath(new URL('./managed_api.py', import.meta.url)), this.appRoot, descriptor], env, false);
+    const api = this.spawn([this.python, '-I', this.wrapper, 'serve', descriptor], env, false);
     let apiExit; api.done.then(result => { apiExit = result; }, error => { apiExit = { error: error.message }; });
     let info;
     for (let i = 0; i < 200; i++) {
@@ -120,15 +134,15 @@ export class ManagedRuntime {
       try {
         info = JSON.parse(await readFile(descriptor, 'utf8'));
         if (info.instanceId !== this.token) throw Error('Managed API identity mismatch.');
-        const response = await fetch(info.origin + '/api/projects', { signal: AbortSignal.timeout(1500) });
-        await response.body?.cancel(); if (response.ok) break;
+        const response = await fetch(info.origin + '/api/runtime-readiness', { signal: AbortSignal.timeout(1500), redirect: 'error' });
+        const readiness = await response.json(); if (response.ok && readiness.runtime_ready === true) break;
       } catch { info = null; }
       info = null; await delay(150);
     }
     if (!info) throw Error('Managed API did not become ready.');
     const pgPid = Number((await readFile(join(pgData, 'postmaster.pid'), 'utf8')).split('\n')[0]);
     this.snapshot = { mode: 'managed', status: 'READY', stage: 'ready', message: 'ReqPilotX 已就绪', owned: true, serviceOrigin: info.origin, instanceId: this.token };
-    await this.privateWrite('runtime-receipt.json', { ownerId: this.ownerId, ownerPid: process.pid, instanceId: this.token, apiPid: info.pid, apiOrigin: info.origin, postgresPid: pgPid, postgresPort: pgPort, appRoot: this.appRoot, responseMatrixSha256: createHash('sha256').update(await readFile(join(this.appRoot, 'app/services/response_matrix.py'))).digest('hex'), workerStarted: false });
+    await this.privateWrite('runtime-receipt.json', { ownerId: this.ownerId, ownerPid: process.pid, instanceId: this.token, apiPid: info.pid, apiOrigin: info.origin, postgresPid: pgPid, postgresPort: pgPort, installation, frontendRoot: this.frontendRoot, workerStarted: false });
     const exited = () => { if (!this.stopping && this.snapshot.status === 'READY') { this.snapshot = { mode: 'managed', status: 'ERROR', stage: 'runtime', message: 'ReqPilotX 服务已停止，请重新启用插件恢复。', owned: true }; void this.cleanup().catch(() => { this.snapshot = { ...this.snapshot, message: '自有进程尚未完全停止，已保留所有权记录。' }; }); } };
     api.done.then(exited, exited); pg.done.then(exited, exited);
   }

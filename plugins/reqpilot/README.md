@@ -10,6 +10,8 @@ The native PDF reading capability is pinned separately under `capabilities/pdf`,
 
 The plugin has five discoverable skills and one tool entry, `scripts/reqpilot.py`. Text, table and image SourceItems use the same source ledger. A whole graphical requirement receives SRC/REQ and can be analyzed; original pixels and Agent visual readings remain separate. The shared selector in `scripts/portable_core.py` produces an internal `reqpilotx-engine` wheel/sdist and the portable plugin consumes that same core identity. Business implementations remain unchanged. Broad package initializers are replaced by documented namespace shims so importing capture does not initialize model providers, databases or unrelated workflows.
 
+The maintained skill/reference source and versioned PDF vendor snapshots live in [`agent-assets`](../../agent-assets/README.md). `skills/` and `capabilities/pdf/` in this source plugin remain deterministic host-discovery projections. Bundle construction validates those projections, copies regular files from the canonical sources, records their hashes in `build-receipt.json.agent_assets`, and supports checkout-independent `verify-bundle`. Release mode additionally requires these asset inputs to be committed, clean and from the engine wheel's exact commit; it never downloads or falls back to another checkout.
+
 Build the engine release with stable uv >= 0.10.2 on PATH (CI pins 0.12.13), then the plugin into private/ignored output. Engine source/build inputs must be committed and clean; unrelated documentation/UI changes are allowed. See [release prerequisites](../../packages/engine/README.md). The no-wheel development path remains unchanged:
 
 ```bash

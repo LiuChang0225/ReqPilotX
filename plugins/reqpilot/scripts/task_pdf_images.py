@@ -7,7 +7,7 @@ import tempfile
 
 
 def source_region_image(state, request):
-    from app.adapters.documents.pdf_source_crop_renderer import (
+    from reqpilotx.adapters.documents.pdf_source_crop_renderer import (
         inspect_pdf_page_geometry, render_pdf_source_crop, PdfSourceCropRejected,
     )
     root=Path(state['task_root']).resolve(strict=True)

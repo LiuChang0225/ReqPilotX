@@ -15,7 +15,6 @@ from pathlib import Path
 import portable_core
 from portable_core import (
     ENGINE_BASE_VERSION,
-    SCRIPT_ROOTS,
     build_core_manifest,
     canonical_digest,
     digest,
@@ -27,7 +26,6 @@ from portable_core import (
 ENGINE_PROJECT = Path(__file__).resolve().parents[3] / "packages/engine"
 MIN_UV_VERSION = (0, 10, 2)
 BUILD_INPUT_FILES = (
-    "prototype/requirements.txt",
     "plugins/reqpilot/scripts/build_engine.py",
     "plugins/reqpilot/scripts/portable_core.py",
     "packages/engine/pyproject.toml",
@@ -36,8 +34,7 @@ BUILD_INPUT_FILES = (
 # Check the source tree, not just the current closure: a deleted module or
 # initializer can disappear from that closure. Unrelated docs/UI may be dirty.
 RELEASE_INPUT_SCOPES = (
-    "prototype/app",
-    *(f"prototype/scripts/{name}" for name in SCRIPT_ROOTS),
+    "packages/engine",
     *BUILD_INPUT_FILES,
 )
 
@@ -81,7 +78,7 @@ def assert_release_sources_clean(repo: Path, commit: str) -> None:
 
 
 def committed_inputs(repo: Path, commit: str, selection) -> dict[str, bytes]:
-    paths = sorted({*BUILD_INPUT_FILES, *(f"prototype/{member.source_relative}" for member in selection.members)})
+    paths = sorted({*BUILD_INPUT_FILES, *(member.source_relative for member in selection.members)})
     if any("\n" in path or "\r" in path for path in paths):
         raise ValueError("Release input paths cannot contain line breaks")
     result = subprocess.run(
@@ -99,7 +96,7 @@ def committed_inputs(repo: Path, commit: str, selection) -> dict[str, bytes]:
         if stream.read(1) != b"\n":
             raise ValueError(f"Cannot read committed release input: {path}")
     for member in selection.members:
-        original = contents[f"prototype/{member.source_relative}"]
+        original = contents[member.source_relative]
         if portable_core.digest_bytes(original) != member.upstream_sha256 or (not member.namespace_initializer and original != member.content):
             raise ValueError(f"Selected source differs from release commit: {member.source_relative}")
     # Also reject hidden/assume-unchanged edits and a builder loaded from a
@@ -164,9 +161,6 @@ def prepare_stage(repo: Path, stage: Path) -> dict:
         encoding="utf-8",
     )
     (metadata_package / "core-manifest.json").write_text(json.dumps(manifest, indent=2, ensure_ascii=False) + "\n", encoding="utf-8")
-    tools_package = source_root / "reqpilotx_engine_tools"
-    tools_package.mkdir(parents=True, exist_ok=True)
-    (tools_package / "__init__.py").write_text('"""Packaged transitional command modules for ReqPilotX engine."""\n', encoding="utf-8")
     (stage / "pyproject.toml").write_text(render_pyproject(
         version, selection.requirements, template=inputs["packages/engine/pyproject.toml"].decode("utf-8"),
     ), encoding="utf-8")

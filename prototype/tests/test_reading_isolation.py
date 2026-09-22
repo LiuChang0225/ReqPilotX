@@ -15,7 +15,7 @@ import sys
 import unittest
 from pathlib import Path
 
-from app.domain.reading import (
+from reqpilotx_server.domain.reading import (
     DocumentReadingOverviewV1,
     ReadingAIReadinessV1,
     ReadingActionRequestV1,
@@ -28,31 +28,31 @@ from app.domain.reading import (
     ReadingRetrievalV1,
     ReadingStructureMapV1,
 )
-from app.domain.reading_catalog import (
+from reqpilotx_server.domain.reading_catalog import (
     ReadingDocumentCatalogV1,
     ReadingProjectCatalogV1,
 )
 
 
 PROTOTYPE_ROOT = Path(__file__).resolve().parents[1]
-APP_ROOT = PROTOTYPE_ROOT / "app"
-FRONTEND_ROOT = PROTOTYPE_ROOT / "frontend" / "src"
+APP_ROOT = PROTOTYPE_ROOT.parent / "apps/server/src/reqpilotx_server"
+FRONTEND_ROOT = PROTOTYPE_ROOT.parent / "packages/workbench-ui/src"
 
 _READING_APPLICATION_FORBIDDEN_PREFIXES = (
-    "app.application.extraction",
-    "app.application.requirements",
-    "app.application.requirement_matrix",
-    "app.application.assessment",
-    "app.application.exports",
-    "app.application.knowledge",
-    "app.application.runtime",
-    "app.domain.extraction.structure",
-    "app.domain.extraction.semantics",
-    "app.domain.extraction.requirement",
-    "app.services.extractor",
-    "app.services.extraction_preview",
-    "app.services.extraction_shadow_runs",
-    "app.services.llm_extraction",
+    "reqpilotx_server.application.extraction",
+    "reqpilotx_server.application.requirements",
+    "reqpilotx_server.application.requirement_matrix",
+    "reqpilotx_server.application.assessment",
+    "reqpilotx_server.application.exports",
+    "reqpilotx_server.application.knowledge",
+    "reqpilotx_server.application.runtime",
+    "reqpilotx_server.domain.extraction.structure",
+    "reqpilotx_server.domain.extraction.semantics",
+    "reqpilotx_server.domain.extraction.requirement",
+    "reqpilotx_server.services.extractor",
+    "reqpilotx_server.services.extraction_preview",
+    "reqpilotx_server.services.extraction_shadow_runs",
+    "reqpilotx_server.services.llm_extraction",
 )
 
 _READING_SLICE_FILES = (
@@ -103,11 +103,11 @@ class ReadingIsolationTests(unittest.TestCase):
     def test_source_capture_bridge_stops_at_source_ir(self) -> None:
         modules = _python_imports(APP_ROOT / "application" / "source_capture.py")
         extraction_imports = tuple(
-            module for module in modules if module.startswith("app.application.extraction")
+            module for module in modules if module.startswith("reqpilotx_server.application.extraction")
         )
         self.assertEqual(extraction_imports, ())
-        self.assertIn("app.application.build_source_ir", modules)
-        self.assertNotIn("app.application.runtime", modules)
+        self.assertIn("reqpilotx_server.application.build_source_ir", modules)
+        self.assertNotIn("reqpilotx_server.application.runtime", modules)
         source = (APP_ROOT / "application" / "source_capture.py").read_text(
             encoding="utf-8"
         )
@@ -140,12 +140,12 @@ class ReadingIsolationTests(unittest.TestCase):
         script = """
 import json
 import sys
-import app.application.reading
+import reqpilotx_server.application.reading
 forbidden = [
     name for name in sys.modules
-    if name == 'app.application.runtime'
-    or name.startswith('app.application.processing_profiles')
-    or name.startswith('app.services.ai_copilot')
+    if name == 'reqpilotx_server.application.runtime'
+    or name.startswith('reqpilotx_server.application.processing_profiles')
+    or name.startswith('reqpilotx_server.services.ai_copilot')
 ]
 print(json.dumps(sorted(forbidden)))
 """
@@ -177,10 +177,10 @@ print(json.dumps(sorted(forbidden)))
                 for module in _python_imports(path):
                     if module.startswith(
                         (
-                            "app.application.reading",
-                            "app.domain.reading",
-                            "app.ports.reading",
-                            "app.adapters.persistence.sql_reading",
+                            "reqpilotx_server.application.reading",
+                            "reqpilotx_server.domain.reading",
+                            "reqpilotx_server.ports.reading",
+                            "reqpilotx_server.adapters.persistence.sql_reading",
                         )
                     ):
                         violations.append(f"{path.relative_to(APP_ROOT)}:{module}")

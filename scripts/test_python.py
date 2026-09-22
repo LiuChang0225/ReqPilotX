@@ -41,7 +41,13 @@ def main() -> int:
             "TRANSFORMERS_OFFLINE": "1",
             "HF_DATASETS_OFFLINE": "1",
             "DO_NOT_TRACK": "1",
-            "PYTHONPATH": str(ROOT / "prototype"),
+            "PYTHONPATH": os.pathsep.join(
+                (
+                    str(ROOT / "packages/engine/src"),
+                    str(ROOT / "apps/server/src"),
+                    str(ROOT / "prototype"),
+                )
+            ),
         })
         suites = ("backend", "plugin") if args.suite == "all" else (args.suite,)
         results = []

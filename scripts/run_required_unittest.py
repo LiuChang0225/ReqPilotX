@@ -49,7 +49,7 @@ def run_test_file(path: Path, *, verbosity: int = 2) -> tuple[dict, bool]:
         allowed = Path(allowed_value).expanduser().resolve(strict=True)
         origins = {}
         for name, loaded in sorted(sys.modules.items()):
-            if name == "app" or name.startswith("app.") or name == "reqpilotx_engine" or name.startswith("reqpilotx_engine."):
+            if name == "reqpilotx" or name.startswith("reqpilotx.") or name == "reqpilotx_engine" or name.startswith("reqpilotx_engine."):
                 source = getattr(loaded, "__file__", None)
                 origins[name] = [str(Path(source).resolve())] if source else [str(Path(item).resolve()) for item in getattr(loaded, "__path__", [])]
         summary["module_origins"] = origins

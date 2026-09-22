@@ -12,7 +12,11 @@ $ErrorActionPreference = "Stop"
 
 $RootDir = Split-Path -Parent $MyInvocation.MyCommand.Path
 Set-Location $RootDir
-$env:PYTHONPATH = "."
+$RepoRoot = Split-Path -Parent $RootDir
+$env:PYTHONPATH = "$RepoRoot/packages/engine/src;$RepoRoot/apps/server/src;$RootDir"
+$env:REQPILOT_DEVELOPMENT_ROOT = $RepoRoot
+if (-not $env:REQPILOT_STORAGE_DIR) { $env:REQPILOT_STORAGE_DIR = "$RootDir/storage" }
+if (-not $env:REQPILOT_FRONTEND_DIR) { $env:REQPILOT_FRONTEND_DIR = "$RepoRoot/apps/web/dist" }
 
 if ($BindHost -ne "127.0.0.1") {
     throw "ReqPilotX local services must bind to 127.0.0.1."
@@ -164,4 +168,4 @@ if (Test-PortListening -LocalPort $Port) {
 
 $pythonExe = Get-PythonExecutable
 Write-Output "[INFO] Starting ReqPilotX: http://${BindHost}:${Port}"
-& $pythonExe -m uvicorn app.main:app --host $BindHost --port $Port
+& $pythonExe -m uvicorn reqpilotx_server.main:app --host $BindHost --port $Port

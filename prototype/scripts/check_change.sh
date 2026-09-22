@@ -13,11 +13,11 @@ fi
 echo "[check] Python / React/Vite / shell"
 "$PYTHON_BIN" -m compileall -q app
 "$PYTHON_BIN" -m py_compile scripts/local_worker_guard.py
-if [[ ! -d frontend/node_modules ]]; then
-  npm --prefix frontend ci --no-audit --no-fund
+if [[ ! -d ../node_modules ]]; then
+  npm --prefix .. ci --no-audit --no-fund
 fi
-npm --prefix frontend run test
-npm --prefix frontend run build
+npm --prefix .. run test
+npm --prefix .. run build
 bash -n \
   start.sh \
   stop.sh \

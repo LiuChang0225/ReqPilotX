@@ -6,8 +6,8 @@ import hashlib
 import json
 from pathlib import Path
 
-from app.application.agent_workflow import source_requirement_baseline as core
-from app.domain.extraction.source_ir import SourceIRSnapshot
+from reqpilotx.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.domain.extraction.source_ir import SourceIRSnapshot
 
 
 NODE_FIELDS = {'node_id', 'parent_id', 'kind', 'title', 'label', 'title_source_ids',

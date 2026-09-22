@@ -21,12 +21,13 @@ jobs:
         with:
           node-version: '22'
           cache: npm
-          cache-dependency-path: prototype/frontend/package-lock.json
-      - run: npm --prefix prototype/frontend ci
-      - run: npm --prefix prototype/frontend run test
-      - run: node --test prototype/frontend/scripts/scope-panel-css.test.mjs
-      - run: npm --prefix prototype/frontend run build
-      - run: npm --prefix prototype/frontend run build:panel
+          cache-dependency-path: package-lock.json
+      - run: npm ci
+      - run: npm run test
+      - run: node --test packages/workbench-ui/scripts/scope-panel-css.test.mjs
+      - run: npm run build
+      - run: npm run build:panel
       - run: node integrations/pair/scripts/build.mjs
+      - run: npm --prefix integrations/pair/tests/react-host ci --ignore-scripts
       - name: Pair independent adapter contracts
-        run: node --test integrations/pair/tests/host.test.mjs integrations/pair/tests/runtime.test.mjs integrations/pair/tests/shared-artifacts.test.mjs
+        run: PAIR_REACT_ROOT="$PWD/integrations/pair/tests/react-host" node --test integrations/pair/tests/*.test.mjs

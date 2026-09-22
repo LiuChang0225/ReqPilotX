@@ -13,7 +13,7 @@ def write(path: Path, value: object) -> None:
 def make_fixture(directory: Path, *, table_image=False, numbered_targets=False) -> tuple[Path, Path, dict]:
     """Raw invented obligations cover all five classes and a complete test table."""
     import pymupdf
-    from app.application.fast_source_capture import capture_fast_source
+    from reqpilotx.application.fast_source_capture import capture_fast_source
 
     directory.mkdir(parents=True, exist_ok=True)
     source = directory / "synthetic.pdf"

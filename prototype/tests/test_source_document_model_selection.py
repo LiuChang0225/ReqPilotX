@@ -14,7 +14,7 @@ class SourceDocumentModelSelectionTests(TestCase):
                                      ({}, ('gpt-5.6-sol','high'))]:
             with self.subTest(selection=selection), TemporaryDirectory() as directory:
                 root=Path(directory)
-                settings=SimpleNamespace(codex_bin=root/'codex',codex_home=root/'home',agent_model_id='gpt-5.6-sol')
+                settings=SimpleNamespace(codex_bin=root/'codex',codex_home=root/'home',agent_model_id='gpt-5.6-sol',development_root=root)
                 container=SimpleNamespace(settings=settings)
                 meta={'latest_job_id':'job','task_id':'task','project_id':'p','document_id':'d','source_sha256':'a'*64,'request':selection}
                 job=SimpleNamespace(job_id='job',aggregate_id='d',payload={'project_id':'p','task_id':'task',

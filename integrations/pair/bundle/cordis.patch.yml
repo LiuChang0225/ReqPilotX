@@ -5,5 +5,8 @@
         mode: !!js process.env.REQPILOT_SERVICE_ORIGIN ? 'connect' : 'managed'
         serviceOrigin: !!js process.env.REQPILOT_SERVICE_ORIGIN
         dataRoot: !!js process.env.REQPILOT_PAIR_DATA_ROOT
+        python: !!js process.env.REQPILOT_PAIR_PYTHON
+        frontendRoot: !!js process.env.REQPILOT_PAIR_FRONTEND_ROOT
+        postgresBinDir: !!js process.env.REQPILOT_PAIR_POSTGRES_BIN
     - id: reqpilotx-client
       name: '@reqpilotx/dsh-pair-client'

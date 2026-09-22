@@ -1,0 +1,3 @@
+interface:
+  display_name: "ReqPilot source map"
+  short_description: "Recover source-owned document and table structure"

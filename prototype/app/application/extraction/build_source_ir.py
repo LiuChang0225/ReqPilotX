@@ -1,14 +1,5 @@
-"""Compatibility import for the neutral SourceIR capture use case."""
+"""Compatibility alias for reqpilotx_server.application.extraction.build_source_ir."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-from app.application.build_source_ir import (
-    SourceIRBuildRejected,
-    SourceIRBuildRejectionCode,
-    build_source_ir,
-)
-
-
-__all__ = [
-    "SourceIRBuildRejected",
-    "SourceIRBuildRejectionCode",
-    "build_source_ir",
-]
+_sys.modules[__name__] = _import_module("reqpilotx_server.application.extraction.build_source_ir")

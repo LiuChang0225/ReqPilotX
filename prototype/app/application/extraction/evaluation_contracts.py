@@ -1,32 +1,5 @@
-from typing import Literal
+"""Compatibility alias for reqpilotx_server.application.extraction.evaluation_contracts."""
+from importlib import import_module as _import_module
+import sys as _sys
 
-from pydantic import BaseModel, Field
-
-
-class ExtractionShadowPreviewRequest(BaseModel):
-    """Historical read-only evaluator request; never registered as a route."""
-
-    model_config = {"extra": "forbid"}
-
-    visual_provider: Literal[
-        "off",
-        "bailian",
-        "bailian-qwen3.7-plus-layout",
-        "bailian-qwen3.6-flash-layout",
-        "azure-document-intelligence",
-    ] = "off"
-    collection: Literal[
-        "full",
-        "document_outline",
-        "llm_requirement_batch",
-        "llm_requirement_document",
-    ] = "full"
-    section_paths: tuple[tuple[str, ...], ...] = Field(
-        default=(),
-        max_length=12,
-    )
-    offset: int = Field(default=0, ge=0)
-    limit: int = Field(default=500, ge=1, le=5000)
-
-
-__all__ = ["ExtractionShadowPreviewRequest"]
+_sys.modules[__name__] = _import_module("reqpilotx_server.application.extraction.evaluation_contracts")

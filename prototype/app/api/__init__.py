@@ -1,3 +1,2 @@
-from .app_factory import create_app, create_http_app
-
-__all__ = ["create_app", "create_http_app"]
+"""Compatibility exports; authoritative host implementation lives in reqpilotx_server.api."""
+from reqpilotx_server.api import *  # noqa: F401,F403

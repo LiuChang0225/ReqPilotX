@@ -1,0 +1,14 @@
+{
+  "schema_version": "reqpilot-native-pdf-reading/v1",
+  "scope": "SOURCE_READING",
+  "skill_path": ".agents/skills/pdf/SKILL.md",
+  "provenance_path": "provenance/openai-primary-runtime-pdf.v1.json",
+  "files": {
+    ".agents/skills/pdf/SKILL.md": "afc4472ec4d625f703e9f414fe6814ce3cfa0ec51c7a07887fe587264c8b561e",
+    ".agents/skills/pdf/agents/openai.yaml": "74623eb0387951f4c6d0d02e6daf1c8a2dd449599c92a0edcafd12a2049c1a00",
+    ".agents/skills/pdf/container_tools/mark_artifact_operation_started.mjs": "e0578762dc2a8f44a26323062c8afcf6c72ef197649f349c8b40e9f2a03c8942",
+    "provenance/openai-primary-runtime-pdf.plugin.json": "8cf6f5d8067c166fa4000e9b3a0ad3f600f453d7d2f8601ac48c8f6be7c4f97b"
+  },
+  "source_write_allowed": false,
+  "dependency_installation_allowed": false
+}

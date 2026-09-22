@@ -1,9 +1,1 @@
-{
-  "binary_sha256": "c147aa90d34139599711fb568102ceefc6319ca1ac5cb6f4056ca46a1834edd9",
-  "codex_version": "codex-cli 0.153.4",
-  "experimental_protocol_schema_sha256": "b06f77062369d481a59cc70720c12b89cb9dd49c385863923262102d3ad6c978",
-  "experimental_protocol_v2_schema_sha256": "e5f798fd1343c539f01fedea0e8a84a43c080fcca4615c80eb04a5edab4f7d0a",
-  "protocol_schema_sha256": "e8284c5cb8157554a3dd1e035aadbd4325aea501af56887e9c2e12eb1b9b9448",
-  "protocol_v2_schema_sha256": "d3eace08be5dca386bfd1f1e8df650058b4113f1e10870a284d775d75517576a",
-  "schema": "reqpilotx-codex-protocol-lock/v1"
-}
+../../../../../apps/server/src/reqpilotx_server/adapters/agents/codex_app_server/protocol_lock.json

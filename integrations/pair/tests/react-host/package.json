@@ -1,0 +1,5 @@
+{
+  "name": "reqpilotx-react18-host-test-fixture",
+  "private": true,
+  "dependencies": { "react": "18.3.1", "react-dom": "18.3.1" }
+}

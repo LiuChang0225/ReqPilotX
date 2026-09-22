@@ -1424,7 +1424,7 @@ class PostgresCompatibilityTests(unittest.TestCase):
 
 class AppFactoryBoundaryTests(unittest.TestCase):
     def test_cloud_host_and_origin_are_explicit(self) -> None:
-        static_dir = Path(__file__).resolve().parents[1] / "frontend" / "dist"
+        static_dir = Path(__file__).resolve().parents[2] / "apps/web/dist"
         settings = RuntimeSettings(
             deployment_mode=DeploymentMode.CLOUD,
             process_role=ProcessRole.API,
@@ -1504,7 +1504,10 @@ class AppFactoryBoundaryTests(unittest.TestCase):
         )
 
     def test_main_and_worker_keep_the_composition_boundary(self) -> None:
-        app_dir = Path(__file__).resolve().parents[1] / "app"
+        app_dir = (
+            Path(__file__).resolve().parents[2]
+            / "apps/server/src/reqpilotx_server"
+        )
         main_source = (app_dir / "main.py").read_text(encoding="utf-8")
         worker_source = (app_dir / "worker" / "handlers.py").read_text(encoding="utf-8")
         extraction_router_source = (
@@ -1587,24 +1590,24 @@ class AppFactoryBoundaryTests(unittest.TestCase):
         self.assertEqual(
             {handler.__module__ for handler in handlers.values()},
             {
-                "app.application.agent_workflow.document_map_jobs",
-                "app.application.agent_workflow.source_document_loop_jobs",
-                "app.application.agent_workflow.source_item_loop_jobs",
-                "app.application.agent_workflow.source_item_direct_revision",
-                "app.application.agent_workflow.source_item_image_jobs",
-                "app.application.agent_workflow.source_item_classification_jobs",
-                "app.application.agent_workflow.source_item_agent_jobs",
-                "app.application.agent_workflow.native_parent_provision_jobs",
-                "app.application.agent_workflow.native_structure_baseline_jobs",
-                "app.application.agent_workflow.native_structure_handoff_jobs",
-                "app.application.agent_workflow.source_requirement_jobs",
-                "app.application.agent_workflow.structure_proposal_jobs",
-                "app.application.assessment",
-                "app.application.exports",
-                "app.application.extraction.document_jobs",
-                "app.application.extraction.restoration",
-                "app.application.extraction.structure_optimization_jobs",
-                "app.application.knowledge",
+                "reqpilotx_server.application.agent_workflow.document_map_jobs",
+                "reqpilotx_server.application.agent_workflow.source_document_loop_jobs",
+                "reqpilotx_server.application.agent_workflow.source_item_loop_jobs",
+                "reqpilotx_server.application.agent_workflow.source_item_direct_revision",
+                "reqpilotx_server.application.agent_workflow.source_item_image_jobs",
+                "reqpilotx_server.application.agent_workflow.source_item_classification_jobs",
+                "reqpilotx_server.application.agent_workflow.source_item_agent_jobs",
+                "reqpilotx_server.application.agent_workflow.native_parent_provision_jobs",
+                "reqpilotx_server.application.agent_workflow.native_structure_baseline_jobs",
+                "reqpilotx_server.application.agent_workflow.native_structure_handoff_jobs",
+                "reqpilotx_server.application.agent_workflow.source_requirement_jobs",
+                "reqpilotx_server.application.agent_workflow.structure_proposal_jobs",
+                "reqpilotx_server.application.assessment",
+                "reqpilotx_server.application.exports",
+                "reqpilotx_server.application.extraction.document_jobs",
+                "reqpilotx_server.application.extraction.restoration",
+                "reqpilotx_server.application.extraction.structure_optimization_jobs",
+                "reqpilotx_server.application.knowledge",
             },
         )
 

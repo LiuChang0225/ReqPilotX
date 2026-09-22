@@ -1,4 +1,2 @@
-from .local_object_store import LocalObjectStore
-from .oss_object_store import AliyunOssObjectStore
-
-__all__ = ["AliyunOssObjectStore", "LocalObjectStore"]
+"""Compatibility exports; authoritative host implementation lives in reqpilotx_server.adapters.storage."""
+from reqpilotx_server.adapters.storage import *  # noqa: F401,F403

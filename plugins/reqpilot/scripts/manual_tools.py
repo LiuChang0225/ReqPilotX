@@ -9,7 +9,7 @@ import os
 import shutil
 
 from artifact_tools import read, save, required, new_output
-from app.application.agent_workflow.source_item_manual_decisions import (
+from reqpilotx.application.agent_workflow.source_item_manual_decisions import (
     build_manual_decision_context, compile_manual_decisions, rebind_manual_decisions, validate_manual_decisions,
 )
 
