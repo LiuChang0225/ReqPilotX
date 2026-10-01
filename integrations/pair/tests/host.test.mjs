@@ -39,20 +39,54 @@ test('Cordis disposal unregisters owned route and owns no backend process', () =
   assert.equal(disposed, false); stop(); assert.equal(disposed, true);
 });
 
-test('owned application permits only project creation/import writes and reports starting state', async () => {
+test('owned application permits project creation, import and scoped feedback writes', async () => {
   let state = { mode: 'managed', status: 'STARTING', message: 'Preparing' };
   const seen = [];
   const backend = await serve(async (req, res) => { let body = ''; for await (const part of req) body += part; seen.push({ url: req.url, body, type: req.headers['content-type'] }); res.writeHead(200, { 'content-type': 'application/json' }); res.end('{"id":"created"}'); });
   const proxy = await serve(createHandler(null, () => undefined, fetch, () => state));
   try {
     assert.equal((await fetch(proxy.url + '/reqpilotx/service/api/projects')).status, 503);
+    assert.equal((await fetch(proxy.url + '/reqpilotx/service/api/projects', { method: 'POST' })).status, 503);
     assert.equal((await (await fetch(proxy.url + '/reqpilotx/config')).json()).status, 'STARTING');
-    state = { mode: 'managed', status: 'READY', serviceOrigin: backend.url };
+    state = { mode: 'managed', status: 'READY', serviceOrigin: backend.url, ownerId: '12345678-1234-4234-8234-123456789abc', secret: 'private-sentinel', dataRoot: '/private-sentinel' };
+    const config = await (await fetch(proxy.url + '/reqpilotx/config')).json();
+    assert.equal(config.schema, 'reqpilot-application-host/v1');
+    assert.equal(config.applicationId, 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc');
+    assert.equal(config.capabilities['agent.start'], false);
+    assert.doesNotMatch(JSON.stringify(config), /private-sentinel/);
     const r = await fetch(proxy.url + '/reqpilotx/service/api/projects', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"name":"demo"}' }); assert.equal(r.status, 200);
     const form = new FormData(); form.append('file', new Blob(['source']), 'demo.pdf');
     assert.equal((await fetch(proxy.url + '/reqpilotx/service/api/projects/p/sor-documents', { method: 'POST', body: form })).status, 200);
+    const work = '/reqpilotx/service/api/projects/p/sor-documents/d/agent-structure/delivery/plugin-workbench/plugin-' + 'a'.repeat(32);
+    assert.equal((await fetch(proxy.url + work + '/feedback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"text":"fix"}' })).status, 200);
+    assert.equal((await fetch(proxy.url + work + '/confirm-map', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"confirm":true}' })).status, 200);
+    for (const suffix of ['/engineer-responses', '/versions']) {
+      assert.equal((await fetch(proxy.url + work + suffix, { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"expected_version":"bound-token"}' })).status, 200);
+    }
+    assert.equal((await fetch(proxy.url + work + '/export', { method: 'POST' })).status, 405);
+    assert.equal((await fetch(proxy.url + work.replace(/a{32}/, 'invalid') + '/feedback', { method: 'POST' })).status, 405);
     assert.equal((await fetch(proxy.url + '/reqpilotx/service/api/projects/p/sor-documents/d', { method: 'DELETE' })).status, 405);
     assert.equal((await fetch(proxy.url + '/reqpilotx/service/api/runtime', { method: 'POST' })).status, 405);
     assert.equal(seen[0].body, '{"name":"demo"}'); assert.match(seen[1].body, /source/); assert.match(seen[1].type, /multipart\/form-data; boundary=/);
+    assert.equal(seen[2].body, '{"text":"fix"}'); assert.equal(seen[3].body, '{"confirm":true}');
   } finally { await proxy.close(); await backend.close(); }
+});
+
+test('task launch and control routes retain authentication and exact command binding', async () => {
+  const commands = [];
+  const launch = { async start(value) { commands.push(value); return { status: 'ACCEPTED', commandId: value.commandId, semanticAcceptance: 'NOT_CLAIMED' }; },
+    async inspect(id) { return { commandId: id, status: 'START_REQUESTED' }; },
+    async control(value) { commands.push(value); return { commandId: value.commandId, control: { controlId: value.controlId, status: 'ACCEPTED' } }; } };
+  const proxy = await serve(createHandler(null, req => req.headers.cookie === 'pair=ok' ? undefined : 401, fetch, () => ({ mode: 'managed', status: 'READY' }), launch));
+  try {
+    const body = JSON.stringify({ commandId: 'one', goal: '整理中文原文' });
+    assert.equal((await fetch(proxy.url + '/reqpilotx/tasks/start', { method: 'POST', body })).status, 401); assert.equal(commands.length, 0);
+    const response = await fetch(proxy.url + '/reqpilotx/tasks/start', { method: 'POST', headers: { cookie: 'pair=ok' }, body });
+    assert.equal(response.status, 202); assert.equal((await response.json()).semanticAcceptance, 'NOT_CLAIMED'); assert.equal(commands[0].goal, '整理中文原文');
+    assert.equal((await fetch(proxy.url + '/reqpilotx/tasks/one', { headers: { cookie: 'pair=ok' } })).status, 200);
+    assert.equal((await fetch(proxy.url + '/reqpilotx/tasks/one/control', { method: 'POST', body: '{"commandId":"other"}', headers: { cookie: 'pair=ok' } })).status, 422);
+    assert.equal((await fetch(proxy.url + '/reqpilotx/tasks/one/control', { method: 'POST', body: '{"commandId":"one","controlId":"control"}', headers: { cookie: 'pair=ok' } })).status, 202);
+    assert.equal(commands.length, 2);
+    assert.equal((await fetch(proxy.url + '/reqpilotx/tasks/start', { method: 'POST', headers: { cookie: 'pair=ok' }, body: 'invalid' })).status, 422);
+  } finally { await proxy.close(); }
 });

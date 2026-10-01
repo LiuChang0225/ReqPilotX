@@ -7,6 +7,8 @@ from reqpilotx.application.agent_workflow import source_requirement_baseline as 
 def scope_template(document_map, baseline, tables, scope_id):
     records = [record for record in baseline.records if core._record_scope_id(record) == scope_id]
     if scope_id.startswith("text:"):
+        mixed = [record for record in baseline.records if record.table_fragments and record.text_bindings
+                 and f"text:{record.node_id}" == scope_id]
         request = core.build_source_item_text_scope_request(document_map, node_id=scope_id.removeprefix("text:"))
         items = []
         for record in records:
@@ -18,9 +20,15 @@ def scope_template(document_map, baseline, tables, scope_id):
                 "confidence": record.confidence, "decision_summary": record.decision_summary, "reason_codes": list(record.reason_codes)})
         candidate = {"scope_id": scope_id, "items": items, "structure_only_spans": [
             {"text_span": {"content_id": item.content_id, "start_offset": item.start_offset, "end_offset": item.end_offset}, "reason_codes": list(item.reason_codes)}
-            for item in baseline.text_context_dispositions if item.scope_id == scope_id]}
+            for item in baseline.text_context_dispositions if item.scope_id == scope_id],
+            "table_owned_spans": [{"logical_table_scope_id": record.logical_table_scope_id,
+                "record_key": "existing-" + record.source_display_id.lower(),
+                "text_span": {"content_id": binding.content_id, "start_offset": binding.start_offset,
+                    "end_offset": binding.end_offset}}
+                for record in mixed for binding in record.text_bindings]}
         return {"scope_kind": "TEXT", "request": request.model_dump(mode="json"), "candidate_template": candidate,
-            "existing_source_item_ids": [record.source_record_id for record in records]}
+            "existing_source_item_ids": [record.source_record_id for record in (*records, *mixed)],
+            "coupled_scope_ids": sorted({record.logical_table_scope_id for record in mixed})}
     if scope_id not in tables:
         raise ValueError("The selected table scope has no original preview")
     request = core.build_source_requirement_scope_request(document_map, tables[scope_id])
@@ -28,6 +36,8 @@ def scope_template(document_map, baseline, tables, scope_id):
     for record in records:
         items.append({"record_key": "existing-" + record.source_display_id.lower(), "label": record.label, "source_form": record.source_form.value,
             "row_groups": [{"fragment_id": binding.fragment_id, "row_start": binding.row_start, "row_end": binding.row_end} for binding in record.table_fragments],
+            "owning_text_spans": [{"content_id": binding.content_id, "start_offset": binding.start_offset,
+                "end_offset": binding.end_offset} for binding in record.text_bindings],
             "shared_source_content_ids": list(record.shared_source_content_ids),
             "requirementness": record.requirementness.value, "requirement_kinds": [kind.value for kind in record.requirement_kinds],
             "non_requirement_role": record.non_requirement_role.value if record.non_requirement_role else None,
@@ -36,7 +46,8 @@ def scope_template(document_map, baseline, tables, scope_id):
         **({"exact_placeholder_values": list(item.exact_placeholder_values), "empty_template_reason": item.empty_template_reason} if item.exact_placeholder_values else {})}
         for item in baseline.context_dispositions if item.logical_table_scope_id == scope_id]
     return {"scope_kind": "TABLE", "request": request.model_dump(mode="json"), "candidate_template": {"logical_table_scope_id": scope_id, "records": items, "context_row_groups": contexts},
-        "existing_source_item_ids": [record.source_record_id for record in records]}
+        "existing_source_item_ids": [record.source_record_id for record in records],
+        "coupled_scope_ids": sorted({f"text:{record.node_id}" for record in records if record.text_bindings})}
 
 
 def compile_scope(document_map, previous, receipt, tables, value, *, feedback_ids, previous_scope_receipt=None, undo_target=None,

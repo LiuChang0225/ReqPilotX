@@ -11,6 +11,7 @@ from reqpilotx.application.agent_workflow.source_requirement_baseline import (
     DocumentMapArtifactV1, SourceRequirementBaselineArtifactV1, Requirementness,
     canonical_json_sha256,
 )
+from reqpilotx.application.agent_workflow.source_path_labels import compose_source_path_segment
 
 SOURCE_ITEM_LEDGER_SCHEMA_VERSION = "source-item-ledger/v1"
 REQIF_MAPPING_PROFILE_ID = "reqpilotx-reqif-1.2-draft/v1"
@@ -227,9 +228,7 @@ def source_item_display_label(
     if has_structure_children or has_logical_table:
         return f"{node_title or node_label} · 直接正文"
 
-    if node_title.startswith(node_label):
-        return node_title
-    return " ".join(value for value in (node_label, node_title) if value) or label
+    return compose_source_path_segment(node_label, node_title) or label
 
 
 def document_node_position(node: Any) -> tuple[int, float, float, int, int]:
@@ -259,10 +258,8 @@ def source_item_position(record: Any) -> tuple[int, float, float, int, int]:
         return (image.page, float(image.bbox[1]), float(image.bbox[0]), 1, record.source_order)
     fragments = tuple(getattr(record, "table_fragments", ()) or ())
     if fragments:
-        fragment = min(
-            fragments,
-            key=lambda item: (item.page, item.bbox[1], item.bbox[0]),
-        )
+        evidence = (*fragments, *tuple(getattr(record, "text_bindings", ()) or ()))
+        fragment = min(evidence, key=lambda item: (item.page, item.bbox[1], item.bbox[0]))
         return (
             fragment.page,
             float(fragment.bbox[1]),

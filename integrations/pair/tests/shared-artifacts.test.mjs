@@ -25,6 +25,7 @@ test('adapter rebuild outside checkout consumes only relocated shared outputs', 
   const temp = await mkdtemp(join(tmpdir(), 'reqpilot-adapter-portable-'));
   try {
     const adapter = join(temp, 'adapter'), ui = join(temp, 'shared-ui');
+    await cp(new URL('../host/src', import.meta.url), join(adapter, 'host/src'), { recursive: true });
     await cp(new URL('../scripts', import.meta.url), join(adapter, 'scripts'), { recursive: true });
     await cp(new URL('../client/src', import.meta.url), join(adapter, 'client/src'), { recursive: true });
     await cp(new URL('../client/adapter-contract.json', import.meta.url), join(adapter, 'client/adapter-contract.json'));

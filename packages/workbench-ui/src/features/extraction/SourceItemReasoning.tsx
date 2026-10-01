@@ -228,10 +228,10 @@ export function SourceDispositionNote({ state, sourceItemId }: { state: SourceIt
   </details>;
 }
 
-export function SourceItemReasoningDetail({ workflow, sourceItemId, requirementId, onPageChange, reviewMode = false, matchingUnitIds, selectedUnitId, onSelectUnit, showUnitPicker = true, showUnitText = true, readOnly = false, purpose }: {
+export function SourceItemReasoningDetail({ workflow, sourceItemId, requirementId, onPageChange, reviewMode = false, matchingUnitIds, selectedUnitId, onSelectUnit, showUnitPicker = true, showUnitText = true, readOnly = false, engineerReadOnly = readOnly, purpose }: {
   workflow: SourceItemReasoningController; sourceItemId: string; requirementId: string;
   onPageChange: (page: number) => void;
-  readOnly?: boolean; reviewMode?: boolean; showUnitPicker?: boolean; showUnitText?: boolean; matchingUnitIds?: string[]; selectedUnitId?: string; onSelectUnit?: (unitId: string) => void;
+  readOnly?: boolean; engineerReadOnly?: boolean; reviewMode?: boolean; showUnitPicker?: boolean; showUnitText?: boolean; matchingUnitIds?: string[]; selectedUnitId?: string; onSelectUnit?: (unitId: string) => void;
   purpose?: "review" | "analysis";
 }) {
   const state = workflow.state;
@@ -286,7 +286,7 @@ export function SourceItemReasoningDetail({ workflow, sourceItemId, requirementI
         {showUnitText && unit.text && <p>{unit.text}</p>}
         {unit.source_excerpts?.length ? <details><summary>派生依据</summary>{unit.source_excerpts.map((part, index) =>
           <p key={index}>{part.text}{part.page ? <button type="button" onClick={() => onPageChange(part.page!)}>P{part.page}</button> : null}</p>)}</details> : null}
-        {!readOnly && !reviewMode && purpose !== "review" && <EngineerOpinion unitId={unit.unitId} view={state?.engineer_responses} onSave={workflow.saveEngineerResponse} onLoad={workflow.loadEngineerResponses}
+        {!reviewMode && purpose !== "review" && <EngineerOpinion unitId={unit.unitId} view={state?.engineer_responses} onSave={workflow.saveEngineerResponse} onLoad={workflow.loadEngineerResponses} readOnly={engineerReadOnly}
           defaultExpanded draftScope={workflow.scopeKey} suggestion={decision} />}
         {decision && <div className="analysis-suggestion"><strong>{engineer?.state === "CURRENT" ? "AI分析建议（保留）" : "Agent 分析建议"}</strong><details className="analysis-rationale" open={reviewMode}><summary>判断依据</summary><p>{decision.reason}</p></details>{decision.clarification_question && <p><strong>待补充：</strong>{decision.clarification_question}</p>}
           {decision.evidence.map((citation, index) => {

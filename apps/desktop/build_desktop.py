@@ -45,6 +45,7 @@ def build_pyinstaller_command(
     *,
     with_qdrant: bool = False,
     qdrant_manifest: Path | None = None,
+    postgres_root: Path | None = None,
 ) -> list[str]:
     """Build the minimal command; all packaging policy lives in the spec file."""
     command = [
@@ -64,7 +65,40 @@ def build_pyinstaller_command(
                 str(qdrant_manifest),
             ]
         )
+    if postgres_root is not None:
+        if "--" not in command:
+            command.append("--")
+        command.extend(["--postgres-root", str(postgres_root)])
     return command
+
+
+def validate_postgres_distribution(root: Path) -> Path:
+    """Accept only an explicit database runtime tree, never a data cluster."""
+    candidate = Path(root).expanduser()
+    if not candidate.is_absolute() or candidate.is_symlink() or not candidate.is_dir():
+        raise PreflightError("PostgreSQL distribution root must be an absolute real directory.")
+    candidate = candidate.resolve()
+    suffix = ".exe" if sys.platform == "win32" else ""
+    for name in ("initdb", "pg_ctl", "postgres", "psql", "createdb"):
+        if not (candidate / "bin" / f"{name}{suffix}").is_file():
+            raise PreflightError(f"PostgreSQL distribution is missing bin/{name}{suffix}.")
+    for name in ("lib", "share"):
+        if not (candidate / name).is_dir():
+            raise PreflightError(f"PostgreSQL distribution is missing {name}/.")
+    forbidden_names = {
+        "pg_hba.conf", "postgresql.conf", "postmaster.pid", "PG_VERSION",
+        "password", "database-password", ".env", "config.json",
+    }
+    for directory in (candidate / "bin", candidate / "lib", candidate / "share"):
+        for path in directory.rglob("*"):
+            if (
+                path.is_symlink()
+                or path.name in forbidden_names
+                or path.suffix.lower() in {".key", ".pem", ".p12", ".pfx"}
+                or path.name.lower() == ".pgpass"
+            ):
+                raise PreflightError("PostgreSQL distribution contains unsafe runtime data.")
+    return candidate
 
 
 def _qdrant_from_preflight(report: dict[str, object]) -> QdrantArtifact | None:
@@ -168,6 +202,11 @@ def _build_parser() -> argparse.ArgumentParser:
         action="store_true",
         help="Run validation without invoking PyInstaller.",
     )
+    parser.add_argument(
+        "--postgres-root",
+        type=Path,
+        help="Complete local PostgreSQL distribution root containing bin, lib and share.",
+    )
     return parser
 
 
@@ -202,12 +241,19 @@ def main(argv: list[str] | None = None) -> int:
             print("[ReqPilotX Build] Preflight passed; build was not started.")
             return 0
 
+        if args.postgres_root is None:
+            raise PreflightError(
+                "A complete --postgres-root is required for a working desktop artifact."
+            )
+        postgres_root = validate_postgres_distribution(args.postgres_root)
+
         pyinstaller = resolve_venv_pyinstaller(project_dir)
         command = build_pyinstaller_command(
             pyinstaller,
             project_dir / "ReqPilotX.spec",
             with_qdrant=args.with_qdrant,
             qdrant_manifest=manifest if args.with_qdrant else None,
+            postgres_root=postgres_root,
         )
         print(f"[ReqPilotX Build] Executing: {' '.join(command)}")
         subprocess.run(command, cwd=project_dir, check=True)

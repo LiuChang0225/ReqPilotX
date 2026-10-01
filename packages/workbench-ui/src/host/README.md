@@ -48,7 +48,7 @@
 
 `panel-preview.html`及`vite.panel-preview.config.ts`是开发期宿主兼容验证页，不是Pair产品界面。它加载真正构建的库，React18fixture与临时类型检查配置放在忽略提交的`prototype/runtime-data/ui-pair-panel-20260914/`。主Web应用保留React19依赖。
 
-实际Pair的sidebar/main注册、Session持久绑定与真实Pair事件转发仍由DSH集成任务完成；此面板的契约／模拟事件通过不等于这些宿主动作已部署。完整项目管理、上传、阅读问答和业务写操作属于后续接入切片。
+实际Pair的sidebar/main注册、Session持久绑定与真实Pair事件转发仍由DSH集成任务完成；此面板的契约／模拟事件通过不等于这些宿主动作已部署。完整项目管理、上传与阅读问答的宿主验收仍需分别完成。受控宿主设置 `feedbackWrites=true` 且使用允许精确 session 路径写入的 transport 后，共用工作面现在可保存人工响应和交付版本；该字段保留兼容名称，但不会使历史版可写。人工响应使用来源／会话／结果／响应 CAS，保存返回新的不可变成果版；正式交付须用户明确核对并接受快照。默认只读 transport 与 provider 双重拒绝写入，仍可读取意见理由、条件、证据请求、历史及冻结 Excel。合成组件测试与构建通过不等于实际 Pair 注册和员工操作验收。
 
 ## 共源升级合同
 

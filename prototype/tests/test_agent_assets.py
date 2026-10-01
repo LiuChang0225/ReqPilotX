@@ -54,10 +54,10 @@ class AgentAssetRegistryTests(unittest.TestCase):
         self.assertEqual(by_id["current-portable-skills"]["file_count"], 36)
         self.assertEqual(by_id["vendor-pdf-26-905-11957"]["file_count"], 6)
         self.assertEqual(by_id["compatibility-runtime-skills"]["file_count"], 16)
-        self.assertEqual(
-            load_portable_agent_kit(ROOT / "agent-kit").lock.bundle_sha256,
-            "ca93f30d82f564ea7f1aac612f5a936bf222860c3480191f45e7f046e7c8fcf7",
-        )
+        kit = load_portable_agent_kit(ROOT / "agent-kit")
+        self.assertEqual(kit.lock.kit_version, "0.16.0")
+        self.assertEqual(kit.lock.bundle_sha256,
+            "b07f2285b26400fce3e119f48b25b804b94c66feabe349441a6a3bb72506ffb9")
 
     def test_projection_tamper_missing_file_and_path_escape_fail_closed(self) -> None:
         with tempfile.TemporaryDirectory(prefix="reqpilotx-agent-assets-") as raw:

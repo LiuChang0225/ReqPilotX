@@ -32,6 +32,7 @@ prototype/.venv/bin/python scripts/test_python.py plugin
 ```
 
 入口移除继承的 ReqPilot/ReqPilotX（含私有评测根）、Azure、OpenAI、百炼/阿里云配置，创建临时存储目录，
+同时移除测试子进程继承的 HTTP/SOCKS proxy 变量，避免离线 SDK 构造受宿主代理及可选依赖影响；实际 socket 阻断保持启用。
 强制测试部署、SQLite 测试数据库、本地临时对象存储及禁用 Agent runtime。
 它关闭 Hugging Face 在线下载，并在测试进程中阻断实际 socket 连接；
 ASGI 内存 transport、mock provider 与 MCP stdio 仍可运行。

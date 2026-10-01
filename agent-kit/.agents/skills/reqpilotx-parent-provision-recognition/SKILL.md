@@ -82,6 +82,15 @@ Do not load that reference merely to restate an already clear numbered record.
   `text_spans` as shared evidence.
 - Multiple fragments or text blocks belong to one item only when they are a
   physical continuation or one complete business record.
+- A table business record may directly own exact body-text spans that form one
+  complete provision with its table. Express those as `owning_text_spans`; they
+  are distinct from shared references. Do not also emit an independent text
+  item owning the same characters.
+- When `table-ownership-context.json` is present, its `table_owned_spans` are
+  Host-reserved ownership already accepted from table stages. Return that exact
+  reservation unchanged in the text boundary plan, and partition only the
+  remaining text. Never omit, extend or relabel a reservation to satisfy coverage.
+  Without that Host context, `table_owned_spans` must be empty.
 - Do not hide a table preamble as context merely because it also contains a
   purpose, scope or explanation label. If the same row prescribes a default
   standard, conditional deliverable, approval input or other independently

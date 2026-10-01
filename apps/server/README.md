@@ -16,3 +16,5 @@ Writable state is always host configured with `REQPILOT_STORAGE_DIR` and
 Agent Kit and development-source bundle operations require the explicit absolute
 `REQPILOT_DEVELOPMENT_ROOT`. PostgreSQL migrations and the App Server protocol
 lock are read-only package resources.
+
+Provider-backed windowed table/text execution uses the separately released compatibility kit, configured by absolute `REQPILOT_STRUCTURED_AGENT_KIT_ROOT`; the bare server wheel does not embed it. Exact kit identity and source/provider/model binding are checked before execution and resume. See `docs/issues/provider-tool-loop-foundation.md` for the current synthetic evidence and live-acceptance boundaries.

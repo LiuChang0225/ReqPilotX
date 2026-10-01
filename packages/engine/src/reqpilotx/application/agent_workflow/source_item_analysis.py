@@ -176,6 +176,7 @@ def build_source_item_analysis_packet(
     decomposition=None,
     selected_unit_ids=None,
     image_annotations=None,
+    allow_empty=False,
 ):
     document_map = DocumentMapArtifactV1.model_validate(document_map)
     baseline = SourceRequirementBaselineArtifactV1.model_validate(baseline)
@@ -294,7 +295,7 @@ def build_source_item_analysis_packet(
                 "Selected analysis units leave the current SourceItem/decomposition scope"
             )
         units = [unit for unit in units if unit["unit_id"] in selected]
-    if not units:
+    if not units and not allow_empty:
         raise SourceItemAnalysisError("No requirement analysis units are available")
     value = {
         "schema_version": "source-item-analysis-packet/v1",

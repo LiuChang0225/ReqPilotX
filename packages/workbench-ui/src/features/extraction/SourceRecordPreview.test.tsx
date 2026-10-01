@@ -21,6 +21,14 @@ it("loads only when visible and displays the exact bound paragraph without chang
   expect(screen.getByText(/The module shall report a fault/)).toHaveTextContent("Keep the original paragraph.");
   expect(screen.getByText("原文摘录")).toBeInTheDocument(); expect(JSON.stringify(record)).toBe(before);
 });
+it("shows an explicitly owned lead paragraph next to a table record label",async()=>{
+  const mixed={...record,source_form:"TABLE_RECORD" as const,has_owned_text:true};
+  expect(needsSourcePreview("Complete BOM",mixed)).toBe(true);
+  const source=reader(); render(<SourceRecordPreview label="Complete BOM" record={mixed} reader={source}/>);
+  await screen.findByText("原文摘录");
+  expect(screen.getByText(/Complete BOM/)).toBeInTheDocument();
+  expect(screen.getByText(/The module shall report a fault/)).toBeInTheDocument();
+});
 it("rejects mismatched source versions and retains the original label",async()=>{
   const source=reader(); source.loadRecord=vi.fn(async()=>({...detail,baseline_artifact_sha256:"other"}));
   render(<SourceRecordPreview label="2.1" record={record} reader={source}/>);

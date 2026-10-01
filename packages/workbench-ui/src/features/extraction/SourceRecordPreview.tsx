@@ -8,7 +8,8 @@ export type SourcePreviewReader = {
 };
 
 export function needsSourcePreview(label: string, record: SourceRequirementOutlineRecordV1) {
-  if (record.source_form?.startsWith("TABLE") || record.source_form === "IMAGE") return false;
+  if (record.source_form?.startsWith("TABLE")) return Boolean(record.has_owned_text);
+  if (record.source_form === "IMAGE") return false;
   const numbers = [record.source_number, ...(record.source_numbers || []).map(value => typeof value === "string" ? value : value.value)].filter(Boolean);
   return Boolean(label.trim() && numbers.some(value => value?.trim() === label.trim()));
 }
@@ -46,5 +47,5 @@ export function SourceRecordPreview({ label, record, reader }: { label: string; 
     }).catch(() => { /* The original label and full-detail action remain available. */ });
     return () => controller.abort();
   }, [key, record.source_record_id, reader, visible, label]);
-  return <span ref={element} className="ledger-record-label">{text ? <><span className="ledger-source-excerpt">{text}</span><span className="ledger-excerpt-origin">原文摘录</span></> : <strong>{label}</strong>}</span>;
+  return <span ref={element} className="ledger-record-label">{text ? <>{record.source_form.startsWith("TABLE") && <strong>{label} · </strong>}<span className="ledger-source-excerpt">{text}</span><span className="ledger-excerpt-origin">原文摘录</span></> : <strong>{label}</strong>}</span>;
 }

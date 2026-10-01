@@ -1718,6 +1718,7 @@ export function NativeStructureReferenceDock({
   const viewerUrl = host.pdfViewerUrl(sourceFileUrl, 1, true);
   const viewerOrigin = new URL(viewerUrl, window.location.origin).origin;
   const documentAgent = useDocumentAgent();
+  const externalContentIdentity = sourceReader ? `${sourceReader.reference.artifact_id}:${sourceReader.outline?.baseline?.artifact_sha256 || sourceReader.revision_id}` : undefined;
   const [reviewPresentation, setReviewPresentation] = useState<"table" | "source">(() => documentAgent ? "table" : "source");
 
   const [reference, setReference] =
@@ -1772,7 +1773,13 @@ export function NativeStructureReferenceDock({
     useState<SourceRequirementBaselineOutlineV1 | null>(null);
   const nativeReasoning = useSourceItemReasoning(projectId, documentId,
     !sourceReader && mode === "SOURCE_REQUIREMENTS" ? sourceRequirementOutline?.baseline.artifact_sha256 || "" : "", initialReasoningState);
-  const sourceItemReasoning = sourceReader ? { ...nativeReasoning, state: sourceReader.reasoning ? { ...sourceReader.reasoning, analysis_policy: sourceReader.analysis_policy } : null } : nativeReasoning;
+  const sourceItemReasoning = sourceReader ? { ...nativeReasoning,
+    scopeKey: sourceReader.responseScope || `${projectId}:${documentId}:${sourceSha256}:${sourceReader.outline?.baseline?.artifact_sha256 || sourceReader.revision_id}`,
+    state: sourceReader.reasoning ? { ...sourceReader.reasoning, analysis_policy: sourceReader.analysis_policy } : null,
+    saveEngineerResponse: sourceReader.saveEngineerResponse || (async () => { throw new Error("当前连接尚未提供人工响应保存能力。"); }),
+    loadEngineerResponses: sourceReader.loadEngineerResponses || (async () => { throw new Error("当前连接尚未提供人工响应读取能力。"); }),
+    run: async () => { throw new Error("请在关联外部会话中发起分析或拆分。"); },
+  } : nativeReasoning;
   const previewReader = useMemo<SourcePreviewReader | undefined>(() => sourceRequirementOutline ? {
     scope: `${projectId}:${documentId}:${sourceSha256}:${sourceReader?.revision_id || sourceRequirementOutline.baseline.artifact_sha256}`,
     sourceSha256, baselineSha256: sourceRequirementOutline.baseline.artifact_sha256,
@@ -2067,7 +2074,7 @@ export function NativeStructureReferenceDock({
     documentId,
     projectId,
     sourceSha256,
-    sourceReader?.revision_id,
+    externalContentIdentity,
   ]);
 
   useEffect(() => {
@@ -2997,7 +3004,7 @@ export function NativeStructureReferenceDock({
   const externalBind = documentAgent?.bind;
   useEffect(() => {
     if (!sourceReader || !externalBind) return;
-    return externalBind({ sourceSha256, baselineSha256: sourceReader.outline?.baseline.artifact_sha256 || "", revisionId: sourceReader.revision_id,
+    return externalBind({ sourceSha256, baselineSha256: sourceReader.outline?.baseline?.artifact_sha256 || "", revisionId: sourceReader.revision_id,
       selectedSourceItemId, selectedNodeId, selectedDerivedUnitId: selectedDerivedId || undefined, selectedLabel: selectedSourceItem ? `${selectedDerivedId ? "父条款 " : ""}${selectedSourceItem.requirement_display_id || selectedSourceItem.source_display_id}` : nodesById.get(selectedNodeId)?.title || "当前结构",
       onUpdated: () => setSourceRequirementRefreshToken(value => value + 1) });
   }, [externalBind, sourceReader?.revision_id, sourceSha256, selectedSourceItemId, selectedNodeId, selectedDerivedId, selectedSourceItem, nodesById]);

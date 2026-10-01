@@ -472,7 +472,7 @@ class NativeSourceRequirementReferenceTests(unittest.TestCase):
         self.assertIn("Host injects them deterministically", observed_prompt)
         self.assertIn("BEGIN_UNTRUSTED_SOURCE_EVIDENCE_JSON", observed_prompt)
         self.assertIn("document-map.full.json", observed_prompt)
-        self.assertEqual(result.run_receipt.kit_version, "0.15.2")
+        self.assertEqual(result.run_receipt.kit_version, "0.16.0")
         self.assertNotEqual(result.run_receipt.kit_bundle_sha256, "0" * 64)
         self.assertEqual(result.run_receipt.visual_source_sha256, source_sha256)
         self.assertEqual(result.run_receipt.visual_page_numbers, (2,))

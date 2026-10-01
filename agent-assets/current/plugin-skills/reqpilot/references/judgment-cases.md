@@ -13,6 +13,12 @@ First establish the source role and complete governed statement. The examples ar
 | J05 A principle explanation, definition, example or descriptive product table | Retained non-requirement when explanatory; use its actual content role | A table value or test equipment/objective can inherit normative force without “shall/应”. Read the governing section and purpose/method/criteria together. Required test configuration stays with its verification target; only a separate execution duty is PROCESS. Neither lack of a modal word nor a heading called “information” proves non-requirement |
 | J06 A standards list and an informative annex | Retain references and source-declared normative/informative roles | An explicit “the following documents apply” provision can be a requirement while list entries remain referenced content. A bare citation does not import every external clause or establish compliance. Follow this document's drafting conventions; do not classify arbitrary SOR notes solely by ISO-style wording |
 
+### Pure heading or substantive content
+
+`Symbol definitions` followed by three separately numbered definitions is an organizational heading: retain the heading as structure and the actual definitions as source items. Labelling that heading NON_REQUIREMENT/HEADING does not justify issuing another SRC. If the Map currently treats it as body, repair the title/content role rather than inventing an item to pass compilation.
+
+Countercases: `Symbol X denotes a safety-critical characteristic` is a definition; `The following limits apply only to variant B` is a governing condition. Preserve those statements and their applicable relations even if styled like headings. Decide from the statement's meaning, not typography or the absence of “shall”.
+
 ### Capture completeness and content judgment
 
 A parts catalogue that only describes available products can be retained reference content. A BOM whose notes prescribe wiring, materials or assembly carries constraints even if its heading says “product information”; keeping the BOM whole does not make it non-requirement. Document-control metadata means facts such as document revision/date, not all descriptive product text.

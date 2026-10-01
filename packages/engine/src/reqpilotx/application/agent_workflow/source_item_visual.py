@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictFloat, field_validator,
 from reqpilotx.application.agent_workflow import source_requirement_baseline as core
 from reqpilotx.application.agent_workflow.source_item_ledger import source_item_position
 from reqpilotx.application.agent_workflow.source_locations import original_format, native_location_fields, source_position
+from reqpilotx.application.agent_workflow.source_path_labels import compose_source_path_segment
 
 
 class SourceItemVisualError(ValueError):
@@ -274,10 +275,18 @@ def _source_number_evidence(document_map, baseline, source_item_id, number, refe
                     raise SourceItemVisualError("A source number must occupy the leading numbering position, not an arbitrary value in prose")
         else:
             direct_text = [item for item in baseline.records if item.node_id == record.node_id and item.text_bindings]
-            if not content.is_title or node.label != number or not direct_text or direct_text[0].source_record_id != source_item_id:
+            if not content.is_title or not direct_text or direct_text[0].source_record_id != source_item_id:
                 raise SourceItemVisualError("A Map heading number belongs only to its first directly owned text item and exact source label")
             if content.text[:start].strip():
                 raise SourceItemVisualError("Map heading number must occupy its visible leading position")
+            if node.label != number:
+                # Older Agent Maps sometimes stored the whole heading as label.
+                # A separately selected exact original numeric prefix can repair
+                # its projection without rewriting that Map or its source units.
+                from .source_item_numbering import _prefix
+                prefix = _prefix(content.text)
+                if prefix is None or prefix.group('label') != number or (prefix.start('label'), prefix.end('label')) != (start, end):
+                    raise SourceItemVisualError("Heading number must match its source label or exact original numeric heading prefix")
         text, page, bbox = content.text, content.page, list(content.bbox) if content.bbox is not None else None
         native = native_location_fields(content)
     elif kind == "TABLE_CELL":
@@ -692,7 +701,7 @@ def compile_source_item_images(document_map, decisions, *, previous_baseline=Non
                 requirement_display_id="REQ-" + display_id.removeprefix("SRC-") if item.requirementness is core.Requirementness.REQUIREMENT else None,
                 source_order=0, document_map_artifact_id=document_map.artifact_id,
                 document_map_artifact_sha256=document_map.artifact_sha256, node_id=candidate.node_id,
-                ancestor_path=tuple(packet["ancestor_path"] + [" ".join(filter(None, (packet["node_label"], packet["node_title"]))) ]),
+                ancestor_path=tuple(packet["ancestor_path"] + [compose_source_path_segment(packet["node_label"], packet["node_title"])]),
                 label=item.display_label, source_form=core.SourceRecordForm.IMAGE, image_bindings=bindings,
                 pages=tuple(sorted({binding.page for binding in bindings if binding.page is not None})), requirementness=item.requirementness,
                 requirement_kinds=item.requirement_kinds, non_requirement_role=item.non_requirement_role,

@@ -22,6 +22,11 @@ from reqpilotx_server.adapters.agents.codex_app_server.native_loop_driver import
     LocalCodexAppServerNativeLoopDriver,
     _write_json,
 )
+from reqpilotx_server.adapters.agents.provider_tool_loop import (
+    build_provider_tool_loop_driver,
+    provider_loop_ready,
+)
+from reqpilotx_server.infrastructure.runtime_settings import AgentRuntimeBackend
 from reqpilotx_server.application.agent_workflow.native_loop_tools import NativeLoopToolHost
 from reqpilotx_server.application.agent_workflow.native_loop_progress import native_tool_activity
 from reqpilotx_server.application.agent_workflow.native_loop_workspace import (
@@ -321,10 +326,14 @@ def start_source_document_loop(
     document = _require_project_document(project_id, document_id)
     if _document_source_sha256(document) != payload.expected_source_sha256:
         raise ApplicationError(status_code=409, detail="上传的原文件版本已改变。")
-    if (
-        not container.settings.codex_bin
-        or not container.settings.codex_home
-        or not container.settings.agent_customer_data_enabled
+    provider_runtime = (
+        getattr(container.settings, "agent_runtime_backend", None)
+        is AgentRuntimeBackend.PROVIDER_TOOL_LOOP
+    )
+    if not container.settings.agent_customer_data_enabled or (
+        not provider_loop_ready(container.settings)
+        if provider_runtime
+        else not container.settings.codex_bin or not container.settings.codex_home
     ):
         raise ApplicationError(status_code=503, detail="自主 Agent 运行环境尚未配置。")
     task_id = (
@@ -1289,13 +1298,18 @@ def run_durable_source_document_loop(job, context):
                                 phase=job.payload["phase"], reading_v1=host.reading_v1, brief=brief)
     from reqpilotx_server.application.agent_workflow.native_task_brief import save_task_brief
     save_task_brief(root, brief, goal)
-    driver = LocalCodexAppServerNativeLoopDriver(
-        codex_bin=container.settings.codex_bin,
-        codex_home=container.settings.codex_home,
-        repository_root=container.settings.development_root or root,
-        model_id=meta.get("request", {}).get("model_id") or container.settings.agent_model_id,
-        reasoning_effort=meta.get("request", {}).get("reasoning_effort") or "high",
-    )
+    if getattr(container.settings, "agent_runtime_backend", None) is AgentRuntimeBackend.PROVIDER_TOOL_LOOP:
+        driver = build_provider_tool_loop_driver(
+            container.settings, model_id=meta.get("request", {}).get("model_id")
+        )
+    else:
+        driver = LocalCodexAppServerNativeLoopDriver(
+            codex_bin=container.settings.codex_bin,
+            codex_home=container.settings.codex_home,
+            repository_root=container.settings.development_root or root,
+            model_id=meta.get("request", {}).get("model_id") or container.settings.agent_model_id,
+            reasoning_effort=meta.get("request", {}).get("reasoning_effort") or "high",
+        )
     from reqpilotx_server.adapters.agents.codex_app_server.native_loop_pdf import native_loop_skill_paths
     result = driver.run(
         session_dir=root / "runtime",
@@ -1480,7 +1494,7 @@ def _publish_initial_graph(
             "structure_head_revision_sha256"
         ),
         "application_saved": True,
-        "transport_kind": "CODEX_APP_SERVER_NATIVE_LOOP",
+        "transport_kind": runtime_receipt.get("transport_kind", "CODEX_APP_SERVER_NATIVE_LOOP"),
         "is_human_accepted": False,
         "runtime_receipt": dict(runtime_receipt),
         "record_count": len(graph["baseline"]["records"]),

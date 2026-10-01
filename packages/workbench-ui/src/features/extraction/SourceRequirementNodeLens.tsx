@@ -588,7 +588,8 @@ export function SourceItemLens({
           </section>
   ) : null;
   const analysisBlock = !parentOverview && reasoning && selected.requirementness === "REQUIREMENT" && <div ref={derivedRef} className="source-review-derived">
-            <SourceItemReasoningDetail workflow={reasoning} readOnly={Boolean(sourceReader)} sourceItemId={selected.source_record_id}
+            <SourceItemReasoningDetail workflow={reasoning} readOnly={host.readOnly || Boolean(sourceReader)}
+              engineerReadOnly={host.readOnly || Boolean(sourceReader && !sourceReader.responseCapability?.enabled)} sourceItemId={selected.source_record_id}
               requirementId={selected.requirement_display_id || selected.source_display_id} reviewMode={!responseMode}
               purpose={analysisMode ? "analysis" : "review"}
               showUnitPicker={!tableView} showUnitText={!selectedChild}

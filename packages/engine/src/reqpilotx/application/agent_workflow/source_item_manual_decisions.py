@@ -47,7 +47,7 @@ def build_manual_decision_context(document_map, baseline, table_previews, *, dec
     catalog = {'schema_version': 'project-knowledge-facts/v1', 'project_id': 'source-manual-context',
         'knowledge_base_version': 0, 'documents': [], 'evidence_catalog': {}, 'gaps': []}
     packet = build_source_item_analysis_packet(document_map, baseline, table_previews,
-        _seal(catalog, 'catalog_sha256'), decomposition=decomposition, image_annotations=annotations)
+        _seal(catalog, 'catalog_sha256'), decomposition=decomposition, image_annotations=annotations, allow_empty=True)
 
     def original_identity(value):
         # Logical scope/node names are presentation identities. Real evidence,

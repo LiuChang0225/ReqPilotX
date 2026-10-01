@@ -1641,6 +1641,7 @@ export interface SourceItemOutlineV1 extends JsonRecord, SourceNumberFieldsV1 {
     | "TABLE_RECORD"
     | "TABLE_BRANCH"
     | "IMAGE";
+  has_owned_text?: boolean;
   pages: number[];
   requirementness: SourceRequirementnessV1;
   requirement_kinds: SourceRequirementKindV1[];

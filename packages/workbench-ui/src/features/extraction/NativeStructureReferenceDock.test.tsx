@@ -4696,3 +4696,17 @@ it("keeps legacy structure proposal decisions readonly in a hosted saved result"
   const undo=screen.getByRole("button",{name:"撤销"});expect(undo).toBeDisabled();fireEvent.click(undo);
   expect(decide).not.toHaveBeenCalled();expect(screen.queryByLabelText("给 Agent 的节点指引")).not.toBeInTheDocument();
 });
+
+it("preserves selected structure and expansion after a response-only result revision",async()=>{
+  const reader={revision_id:'e'.repeat(64),source_sha256:reference.source_sha256,reference,
+    outline:{baseline:{artifact_sha256:'same-ledger'}},tables:{},reasoning:null,review:null,saveFeedback:vi.fn(),loadRecord:vi.fn()} as unknown as NonNullable<Parameters<typeof NativeStructureReferenceDock>[0]['sourceReader']>;
+  const props={projectId:'response-preserve',documentId:'document',sourceSha256:reference.source_sha256,onPageChange:vi.fn()};
+  const page=render(<NativeStructureReferenceDock {...props} sourceReader={reader}/>);
+  fireEvent.click(await screen.findByRole('button',{name:'展开 3 车型/产品信息'}));
+  fireEvent.click(screen.getByRole('button',{name:'展开 3.2 产品技术要求及说明'}));
+  const target=screen.getByRole('button',{name:/3.2.1 产品信息/});fireEvent.click(target);
+  expect(target.closest('[role=treeitem]')).toHaveAttribute('aria-selected','true');
+  page.rerender(<NativeStructureReferenceDock {...props} sourceReader={{...reader,revision_id:'f'.repeat(64)}}/>);
+  await waitFor(()=>expect(screen.getByRole('button',{name:/3.2.1 产品信息/}).closest('[role=treeitem]')).toHaveAttribute('aria-selected','true'));
+  expect(screen.getByRole('button',{name:'收起 3.2 产品技术要求及说明'})).toBeInTheDocument();
+});

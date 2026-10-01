@@ -466,8 +466,14 @@ class NativeLoopToolHost:
                 raise ValueError('Unsupported portable argument: ' + name)
         if operation == 'capture' and capture_source_sha and 'expected_sha256' not in arguments:
             command += ['--expected-sha256', capture_source_sha]
+        child_environment = {**os.environ, 'PYTHONDONTWRITEBYTECODE': '1', 'REQPILOT_NATIVE_AGENT_TOOLS': '1'}
+        if getattr(sys, 'frozen', False):
+            child_environment.update({
+                'REQPILOT_FROZEN_PYTHON_CHILD': '1',
+                'REQPILOT_FROZEN_PYTHON_SCRIPT_ROOT': str(self.plugin_root),
+            })
         result = subprocess.run(command, capture_output=True, text=True, timeout=300, cwd=self.workspace,
-                                env={**os.environ, 'PYTHONDONTWRITEBYTECODE': '1', 'REQPILOT_NATIVE_AGENT_TOOLS': '1'})
+                                env=child_environment)
         if result.returncode:
             raise ValueError((result.stderr or result.stdout)[-10000:])
         try:

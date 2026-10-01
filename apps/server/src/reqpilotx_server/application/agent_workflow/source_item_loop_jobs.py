@@ -3,7 +3,6 @@
 from __future__ import annotations
 
 from contextlib import contextmanager
-import fcntl
 import hashlib
 import json
 import os
@@ -19,6 +18,11 @@ from reqpilotx_server.adapters.agents.codex_app_server.native_loop_driver import
     LocalCodexAppServerNativeLoopDriver,
     _write_json,
 )
+from reqpilotx_server.adapters.agents.provider_tool_loop import (
+    build_provider_tool_loop_driver,
+    provider_loop_ready,
+)
+from reqpilotx_server.infrastructure.runtime_settings import AgentRuntimeBackend
 from reqpilotx_server.application.agent_workflow.document_map_jobs import _container
 from reqpilotx_server.application.agent_workflow.native_loop_tools import NativeLoopToolHost
 from reqpilotx_server.application.agent_workflow.native_loop_workspace import (
@@ -50,6 +54,7 @@ from reqpilotx_server.application.agent_workflow.source_requirement_jobs import 
 from reqpilotx_server.application.errors import ApplicationError
 from reqpilotx_server.application.transport import ResponseSink
 from reqpilotx_server.ports.job_queue import NonRetryableJobError
+from reqpilotx_server.infrastructure.storage_lock import acquire_file_lease
 
 LOOP_JOB_KIND = "agent.source-item.loop"
 ENTRYPOINT = "source-item-workbench-v1"
@@ -108,12 +113,8 @@ def _task_root(container, project_id, document_id, task_id):
 
 @contextmanager
 def _locked(root):
-    with (root / "task.lock").open("a+b") as stream:
-        fcntl.flock(stream, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(stream, fcntl.LOCK_UN)
+    with acquire_file_lease(root / "task.lock"):
+        yield
 
 
 def _existing(project_id, document_id, task_id):
@@ -147,13 +148,19 @@ def _portable(root, operation, **arguments):
             for item in value if isinstance(value, (list, tuple)) else [value]:
                 flag = '--' + name.replace('_', '-')
                 command += [flag + '=' + str(item)] if name == 'query' else [flag, str(item)]
+    child_environment = {**os.environ, "PYTHONDONTWRITEBYTECODE": "1"}
+    if getattr(sys, "frozen", False):
+        child_environment.update({
+            "REQPILOT_FROZEN_PYTHON_CHILD": "1",
+            "REQPILOT_FROZEN_PYTHON_SCRIPT_ROOT": str(active_native_loop_plugin(root)),
+        })
     result = subprocess.run(
         command,
         cwd=root,
         text=True,
         capture_output=True,
         timeout=300,
-        env={**os.environ, "PYTHONDONTWRITEBYTECODE": "1"},
+        env=child_environment,
     )
     if result.returncode:
         raise ValueError((result.stderr or result.stdout)[-12000:])
@@ -296,10 +303,14 @@ def start_source_item_loop(
 ):
     response.headers.update(_no_store_headers())
     container = _container()
-    if (
-        not container.settings.codex_bin
-        or not container.settings.codex_home
-        or not container.settings.agent_customer_data_enabled
+    provider_runtime = (
+        getattr(container.settings, "agent_runtime_backend", None)
+        is AgentRuntimeBackend.PROVIDER_TOOL_LOOP
+    )
+    if not container.settings.agent_customer_data_enabled or (
+        not provider_loop_ready(container.settings)
+        if provider_runtime
+        else not container.settings.codex_bin or not container.settings.codex_home
     ):
         raise ApplicationError(
             status_code=503, detail="当前自主 Agent 执行器尚未配置。"
@@ -857,12 +868,15 @@ def run_durable_source_item_loop(job, context):
                 }
             )
 
-    driver = LocalCodexAppServerNativeLoopDriver(
-        codex_bin=container.settings.codex_bin,
-        codex_home=container.settings.codex_home,
-        repository_root=container.settings.development_root or root,
-        model_id=container.settings.agent_model_id,
-    )
+    if getattr(container.settings, "agent_runtime_backend", None) is AgentRuntimeBackend.PROVIDER_TOOL_LOOP:
+        driver = build_provider_tool_loop_driver(container.settings)
+    else:
+        driver = LocalCodexAppServerNativeLoopDriver(
+            codex_bin=container.settings.codex_bin,
+            codex_home=container.settings.codex_home,
+            repository_root=container.settings.development_root or root,
+            model_id=container.settings.agent_model_id,
+        )
     from reqpilotx_server.adapters.agents.codex_app_server.native_loop_pdf import native_loop_skill_paths
     from reqpilotx_server.application.agent_workflow.native_task_brief import render_task_goal, save_task_brief
     timeout_seconds = 1800
@@ -1029,7 +1043,7 @@ def _publish_loop(
             "document_map_artifact_sha256": previous.document_map_artifact_sha256,
             "baseline_sha256": previous.artifact_sha256,
             "expected_live_baseline_sha256": previous.artifact_sha256,
-            "transport_kind": "CODEX_APP_SERVER_NATIVE_LOOP",
+            "transport_kind": runtime_receipt.get("transport_kind", "CODEX_APP_SERVER_NATIVE_LOOP"),
             "native_loop_provenance": provenance.model_dump(mode="json"),
             "is_human_accepted": False,
         }
@@ -1097,6 +1111,9 @@ def _publish_loop(
             image_annotations=annotations,
             expected_live_baseline_sha256=job.payload["baseline_sha256"],
             native_provenance={
+                "transport_kind": runtime_receipt.get(
+                    "transport_kind", "CODEX_APP_SERVER_NATIVE_LOOP"
+                ),
                 "model_id": runtime_receipt["identity"]["model_id"],
                 "runtime_thread_id": runtime_receipt["thread_id"],
                 "runtime_turn_id": runtime_receipt["turn_id"],

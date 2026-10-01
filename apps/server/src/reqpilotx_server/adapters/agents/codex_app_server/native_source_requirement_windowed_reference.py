@@ -54,6 +54,7 @@ from reqpilotx_server.application.agent_workflow.source_requirement_baseline imp
     RequirementKind,
     Requirementness,
     SourceRecordForm,
+    SourceItemTextSpanV1,
     SourceRequirementBaselineError,
     SourceRequirementBoundaryCandidateV1,
     SourceRequirementContextRowGroupV1,
@@ -99,6 +100,9 @@ class _BoundaryAgentRecordV1(_StrictFrozenModel):
     source_form: SourceRecordForm
     row_groups: tuple[_AgentRowGroupV1, ...] = Field(min_length=1, max_length=512)
     shared_source_content_ids: tuple[str, ...] = Field(default=(), max_length=256)
+    owning_text_spans: tuple[SourceItemTextSpanV1, ...] = Field(
+        default=(), max_length=4096, exclude_if=lambda value: not value
+    )
 
     @model_validator(mode="after")
     def validate_table_form(self) -> _BoundaryAgentRecordV1:
@@ -134,6 +138,9 @@ class SourceRequirementBoundaryPlanRecordV1(_StrictFrozenModel):
         min_length=1, max_length=512
     )
     shared_source_content_ids: tuple[str, ...] = Field(default=(), max_length=256)
+    owning_text_spans: tuple[SourceItemTextSpanV1, ...] = Field(
+        default=(), max_length=4096, exclude_if=lambda value: not value
+    )
 
 
 class SourceRequirementBoundaryPlanV1(_StrictFrozenModel):
@@ -1063,6 +1070,7 @@ def _compile_boundary_plan(
         )
 
     available_content_ids = {item.content_id for item in request.source_content}
+    content_by_id = {item.content_id: item for item in request.source_content}
     reserved_keys: set[str] = set()
     records: list[SourceRequirementBoundaryPlanRecordV1] = []
     for item in candidate.records:
@@ -1071,6 +1079,16 @@ def _compile_boundary_plan(
             raise SourceRequirementBaselineError(
                 "SOURCE_REQUIREMENT_SHARED_CONTENT_UNKNOWN"
             )
+        if {span.content_id for span in item.owning_text_spans} - available_content_ids:
+            raise SourceRequirementBaselineError("SOURCE_REQUIREMENT_OWNED_TEXT_UNKNOWN")
+        if {span.content_id for span in item.owning_text_spans}.intersection(
+            item.shared_source_content_ids
+        ):
+            raise SourceRequirementBaselineError("SOURCE_REQUIREMENT_OWNED_TEXT_SHARED")
+        for span in item.owning_text_spans:
+            content = content_by_id[span.content_id]
+            if span.end_offset > len(content.text) or not content.text[span.start_offset:span.end_offset].strip():
+                raise SourceRequirementBaselineError("SOURCE_REQUIREMENT_OWNED_TEXT_RANGE_INVALID")
         key = _host_record_key(
             request=request,
             row_groups=groups,
@@ -1086,6 +1104,7 @@ def _compile_boundary_plan(
                 shared_source_content_ids=tuple(
                     dict.fromkeys(item.shared_source_content_ids)
                 ),
+                owning_text_spans=item.owning_text_spans,
             )
         )
     records.sort(
@@ -1478,6 +1497,12 @@ def _classification_window_payload(
                     item.model_dump(mode="json") for item in record.row_groups
                 ],
                 "shared_source_content_ids": record.shared_source_content_ids,
+                "owning_text_spans": [
+                    {**span.model_dump(mode="json"),
+                     "text": next(content.text for content in request.source_content
+                                  if content.content_id == span.content_id)[span.start_offset:span.end_offset]}
+                    for span in record.owning_text_spans
+                ],
                 "cells": cells_for(record),
             }
         )
@@ -1523,6 +1548,7 @@ def _aggregate_candidate(
             source_form=boundary.source_form,
             row_groups=boundary.row_groups,
             shared_source_content_ids=boundary.shared_source_content_ids,
+            owning_text_spans=boundary.owning_text_spans,
             requirementness=decisions[boundary.record_key].requirementness,
             requirement_kinds=decisions[boundary.record_key].requirement_kinds,
             non_requirement_role=decisions[boundary.record_key].non_requirement_role,
@@ -1708,8 +1734,12 @@ def _boundary_prompt(
         "row exactly once to one record or typed context group. DVP tests keep complete "
         "numbered tests and continuations; BOM tables keep product branches. Each row_group "
         "uses fragment_id, local zero-based row_start and positive row_count. Preserve source "
-        "numbering and a concise source-visible label. Full document-map.full.json, "
-        "scope.full.json are read-only and available on demand; global context is readable but "
+        "numbering and a concise source-visible label. "
+        "When a lead sentence and a table row group form one business item, declare "
+        "the exact non-title Unicode offsets in owning_text_spans on that table record; "
+        "leave independent numbered duties as separate text records. A shared content ID "
+        "is context, never ownership. Full document-map.full.json and scope.full.json "
+        "are read-only and available on demand; global context is readable but "
         "selectable rows remain this scope."
         + visual_instruction
         + f" Kit version is {kit_version}. "
@@ -1739,7 +1769,8 @@ def _boundary_correction_prompt(
         "Use $reqpilotx-parent-provision-recognition for "
         "execution_mode=SOURCE_REQUIREMENT_BOUNDARY_PLAN. Read scope.json, "
         "previous-candidate.json and validation-feedback.json. Return one complete corrected "
-        "boundary plan using row_start + positive row_count, exact row partition and no A/B/F. "
+        "boundary plan using row_start + positive row_count, exact row partition, any "
+        "source-faithful owning_text_spans and no A/B/F. "
         + visual_instruction
         + f" Kit version is {kit_version}. "
         "Return only schema-valid JSON."
@@ -1863,6 +1894,9 @@ def _boundary_identity_sha256(plan: SourceRequirementBoundaryPlanV1) -> str:
                         item.model_dump(mode="json") for item in record.row_groups
                     ],
                     "shared_source_content_ids": record.shared_source_content_ids,
+                    **({"owning_text_spans": [
+                        span.model_dump(mode="json") for span in record.owning_text_spans
+                    ]} if record.owning_text_spans else {}),
                 }
                 for record in plan.records
             ],

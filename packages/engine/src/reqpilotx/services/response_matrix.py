@@ -485,7 +485,7 @@ def write_response_workbook(*, workbook, formats, snapshot, nodes, table_details
             direct = [str(block.get('text') or '') for block in node.get('content_blocks', [])
                       if str(block.get('type') or '').upper() == 'TEXT' and str(block.get('text') or '').strip()]
             text = '\n'.join(dict.fromkeys([title, *direct]))
-        elif not text or (node.get('table_record_id') and not derived):
+        elif not text:
             text = title or '原表条目'
         elif node.get('structure_node_id') == node['node_id']:
             source_title = item.get('source_title', '')

@@ -1,4 +1,4 @@
-"""Real HTTP, synthetic PDF smoke; no model, worker or existing database.
+"""Real HTTP/PostgreSQL synthetic lifecycle smoke; no live model or existing data.
 
 Run with prototype/.venv/bin/python scripts/smoke_workbench.py.
 Use --keep-server to retain an isolated browser review window after success.
@@ -85,7 +85,7 @@ def postgres_tools(explicit: Path | None) -> Path:
     located = shutil.which("pg_ctl")
     directory = explicit.expanduser().resolve() if explicit else Path(located).resolve().parent if located else None
     require(directory is not None, "PostgreSQL binaries unavailable; provide --postgres-bin")
-    for name in ("initdb", "pg_ctl", "createdb", "postgres"):
+    for name in ("initdb", "pg_ctl", "createdb", "postgres", "pg_dump", "pg_restore"):
         require((directory / name).is_file() and os.access(directory / name, os.X_OK),
                 f"Missing executable: {directory / name}")
     return directory
@@ -163,6 +163,11 @@ def stop_retained(directory: Path) -> int:
 
 
 def block_external_connections(event: str, args: tuple) -> None:
+    forbidden = os.environ.get("REQPILOT_SMOKE_FORBIDDEN_STORAGE_ROOT")
+    if event == "open" and forbidden and isinstance(args[0], (str, bytes, os.PathLike)):
+        path = Path(os.fsdecode(args[0])).resolve(strict=False)
+        if path.is_relative_to(Path(forbidden).resolve(strict=False)):
+            raise RuntimeError("Restored smoke API must not read the original storage root")
     if event != "socket.connect":
         return
     address = args[1]
@@ -235,7 +240,7 @@ def run(args: Namespace) -> int:
     require(port != postgres_port, "Random API and database ports collided; rerun")
     base = f"http://127.0.0.1:{port}"
     receipt = {
-        "schema_version": "reqpilotx-synthetic-http-smoke/v1", "status": "RUNNING",
+        "schema_version": "reqpilotx-synthetic-http-smoke/v2", "status": "RUNNING",
         "started_at": datetime.now(timezone.utc).isoformat(), "source_kind": "INVENTED_SYNTHETIC_PDF",
         "model_dispatch": "NOT_PERFORMED", "worker_started": False,
         "semantic_model_acceptance": "NOT_CLAIMED", "database_backend": "postgresql",
@@ -368,6 +373,64 @@ def run(args: Namespace) -> int:
         require(request("GET", session_path + "/snapshot", params={"revision": first_state["revision_id"]}).json() == first_snapshot,
                 "Historical snapshot changed after a successor revision")
 
+        # Exercise the shared human-response contract through real HTTP, not a
+        # producer upload. Freeze one explicitly accepted synthetic delivery,
+        # then withdraw an opinion without changing its historical bytes.
+        responses_path = session_path + "/engineer-responses"
+        before_responses = request("GET", responses_path).json()
+        require(bool(before_responses["units"]), "Synthetic response units unavailable")
+
+        def response_payload(view, command, choices):
+            return {"command_id": command, "expected_source_sha256": source_sha,
+                    "expected_revision_id": view["revision_id"], "expected_version": view["version"],
+                    "expected_response_revision": view["response_revision"],
+                    "expected_baseline_sha256": view["baseline_sha256"], "decisions": choices}
+
+        response_command = response_payload(before_responses, "synthetic-engineer-opinions", [
+            {"unit_id": uid, "expected_unit_context_sha256": unit["unit_context_sha256"],
+             "decision": "COMPLIANT", "reason": "Invented synthetic lifecycle opinion, not customer acceptance"}
+            for uid, unit in before_responses["units"].items()
+        ])
+        authored = request("POST", responses_path, json=response_command).json()
+        require(authored["response_revision"] == 1 and authored["revision_id"] != final_state["revision_id"],
+                "Human response did not create a new immutable result")
+        require(request("POST", responses_path, json=response_command).json() == authored,
+                "Human response retry did not replay its exact revision")
+        request("POST", responses_path, expected=409, json={**response_command, "command_id": "stale-opinion"})
+        require(request("GET", session_path + "/snapshot", params={"revision": final_state["revision_id"]}).json() == snapshot,
+                "Human response mutated its historical predecessor")
+        preview = request("GET", session_path + "/versions/preview").json()
+        require(preview["readiness"]["can_lock"], "Complete synthetic opinions did not permit formal freeze")
+        delivery_command = {"command_id": "synthetic-formal-delivery", "expected_source_sha256": source_sha,
+            "expected_revision_id": preview["revision_id"], "expected_version": preview["version"],
+            "expected_response_revision": preview["response_revision"],
+            "expected_delivery_sha256": preview["delivery_sha256"], "mode": "FORMAL", "accept_snapshot": True}
+        request("POST", session_path + "/versions", expected=409,
+                json={**delivery_command, "command_id": "unaccepted-formal", "accept_snapshot": False})
+        formal = request("POST", session_path + "/versions", json=delivery_command).json()
+        require(request("POST", session_path + "/versions", json=delivery_command).json() == formal,
+                "Formal delivery retry duplicated or changed the frozen version")
+        frozen = request("GET", session_path + "/versions/1").json()
+        frozen_bytes = request("GET", session_path + "/versions/1/export").content
+        require(frozen["snapshot"] == preview["snapshot"] and sha(frozen_bytes) == formal["export_sha256"],
+                "Formal delivery does not bind the accepted preview and exact Excel bytes")
+        (directory / "formal-delivery.xlsx").write_bytes(frozen_bytes)
+        first_unit, first_context = next(iter(authored["units"].items()))
+        withdrawn = request("POST", responses_path, json=response_payload(authored, "synthetic-withdraw-opinion", [{
+            "unit_id": first_unit, "expected_unit_context_sha256": first_context["unit_context_sha256"],
+            "action": "WITHDRAW", "reason": "Synthetic withdrawal after immutable delivery",
+        }])).json()
+        require(withdrawn["records"][first_unit]["state"] == "WITHDRAWN"
+                and not request("GET", session_path + "/versions/preview").json()["readiness"]["can_lock"],
+                "Withdrawal retained an effective conclusion")
+        require(request("GET", session_path + "/versions/1/export").content == frozen_bytes,
+                "Later opinion changed a frozen delivery")
+        require(request("POST", responses_path, json=response_command).json()["revision_id"] == authored["revision_id"],
+                "Historical command replay followed a newer head")
+        final_state = request("GET", session_path).json()
+        snapshot = request("GET", session_path + "/snapshot", params={"revision": final_state["revision_id"]}).json()
+        final_responses = request("GET", responses_path).json()
+
         def export(name: str):
             response = request("GET", session_path + "/export", params={"revision": final_state["revision_id"]})
             require(response.headers.get("x-reqpilot-revision") == final_state["revision_id"], "Excel revision header mismatch")
@@ -391,7 +454,52 @@ def run(args: Namespace) -> int:
         require(request("GET", session_path + "/snapshot", params={"revision": final_state["revision_id"]}).json() == snapshot,
                 "Restart changed the saved delivery snapshot")
         require(sha(request("GET", source_path + "/file").content) == source_sha, "Restart changed the original source")
+        require(request("GET", responses_path).json() == final_responses, "Restart changed engineer response history")
+        require(request("GET", session_path + "/versions/1").json() == frozen
+                and request("GET", session_path + "/versions/1/export").content == frozen_bytes,
+                "Restart changed the formal delivery")
         after_export = export("matrix-after-restart.xlsx")
+        restart_pid = process.pid
+
+        # Recover into a second, previously nonexistent database and a copied
+        # storage root. Never overwrite or remove the original synthetic state.
+        stop_server(process)
+        process = None
+        dump = directory / "postgres-backup.dump"
+        restored_database = "reqpilot_smoke_restored"
+        restored_url = f"postgresql://reqpilot_smoke@127.0.0.1:{postgres_port}/{restored_database}"
+        restored_directory = directory / "restored"
+        restored_directory.mkdir(mode=0o700)
+        shutil.copytree(directory / "storage", restored_directory / "storage")
+        storage_inventory = {
+            str(path.relative_to(directory / "storage")): sha(path.read_bytes())
+            for path in (directory / "storage").rglob("*") if path.is_file()
+        }
+        require(storage_inventory == {
+            str(path.relative_to(restored_directory / "storage")): sha(path.read_bytes())
+            for path in (restored_directory / "storage").rglob("*") if path.is_file()
+        }, "Copied recovery storage differs from the original snapshot")
+        with (directory / "backup-restore.log").open("ab") as log:
+            subprocess.run([str(binaries / "pg_dump"), "--format=custom", "--file", str(dump), database_url],
+                           env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+            subprocess.run([str(binaries / "createdb"), "-h", "127.0.0.1", "-p", str(postgres_port),
+                            "-U", "reqpilot_smoke", restored_database], env=env,
+                           stdout=log, stderr=subprocess.STDOUT, check=True)
+            subprocess.run([str(binaries / "pg_restore"), "--exit-on-error", "--no-owner", "--dbname", restored_url, str(dump)],
+                           env=env, stdout=log, stderr=subprocess.STDOUT, check=True)
+        restored_env = isolate(restored_directory, restored_url)
+        restored_env["REQPILOT_SMOKE_FORBIDDEN_STORAGE_ROOT"] = str(directory / "storage")
+        process = start_server(directory, port, restored_env)
+        ready()
+        require(request("GET", session_path).json() == final_state, "Backup restore changed external task state")
+        require(request("GET", responses_path).json() == final_responses, "Backup restore changed engineer responses")
+        require(request("GET", session_path + "/snapshot", params={"revision": final_state["revision_id"]}).json() == snapshot,
+                "Backup restore changed the current snapshot")
+        require(request("GET", session_path + "/versions/1").json() == frozen
+                and request("GET", session_path + "/versions/1/export").content == frozen_bytes,
+                "Backup restore changed formal delivery content or bytes")
+        require(sha(request("GET", source_path + "/file").content) == source_sha, "Backup restore changed source bytes")
+        restored_export = export("matrix-after-backup-restore.xlsx")
         listing = request("GET", api + "/sessions").json()
         require(len(listing["sessions"]) == 1 and not listing["unavailable"], "Restored work is not listed")
         reader = request("GET", session_path + "/reader", params={"revision": final_state["revision_id"]}).json()
@@ -405,12 +513,20 @@ def run(args: Namespace) -> int:
         save(directory / "reader.json", reader)
         receipt.update({
             "status": "PASS", "source_sha256": source_sha, "project_id": project_id, "document_id": document_id,
-            "session_id": session, "revision_id": final_state["revision_id"], "revision_number": 3,
+            "session_id": session, "revision_id": final_state["revision_id"], "revision_number": final_state["revision_number"],
             "baseline_sha256": final_state["baseline_sha256"], "delivery_sha256": snapshot["delivery_sha256"],
             "snapshot_sha256": canonical_json_sha256(snapshot),
             "source_items": 8, "requirements": 7, "feedback_id": feedback_id,
             "map_compilation": map_result, "item_compilation": item_result,
-            "exports": [before_export, after_export], "restart": {"old_pid": old_pid, "new_pid": process.pid, "state_unchanged": True},
+            "exports": [before_export, after_export, restored_export],
+            "human_responses": {"authored_revision_id": authored["revision_id"], "response_revision": final_responses["response_revision"],
+                                "withdrawn_unit_id": first_unit, "replay_exact": True},
+            "formal_delivery": {"revision": 1, "export_sha256": formal["export_sha256"], "immutable_after_withdrawal": True},
+            "restart": {"old_pid": old_pid, "new_pid": restart_pid, "state_unchanged": True},
+            "backup_restore": {"dump_sha256": sha(dump.read_bytes()), "database": restored_database,
+                               "storage_root": str(restored_directory / "storage"), "api_pid": process.pid,
+                               "storage_file_count": len(storage_inventory), "copied_storage_hashes_verified": True,
+                               "original_storage_reads_blocked": True, "state_unchanged": True},
             "workbench_url": url, "server_pid": process.pid if args.keep_server else None,
             "server_retained": args.keep_server, "browser_interaction": "NOT_RUN",
             "limits": ["Synthetic deterministic decisions, not model quality", "Isolated local PostgreSQL, not cloud/deployment recovery",
@@ -431,6 +547,15 @@ def run(args: Namespace) -> int:
                 stop_postgres(directory, env)
             except Exception as exc:
                 receipt.update(status="FAIL", postgres_shutdown_error=str(exc))
+        receipt["process_cleanup"] = {
+            "retained_for_browser": bool(successful and args.keep_server),
+            "api_stopped": process is None or process.poll() is not None,
+            "postgres_stopped": not (directory / "postgres-data/postmaster.pid").exists(),
+        }
+        if not (successful and args.keep_server) and not all(
+            receipt["process_cleanup"][key] for key in ("api_stopped", "postgres_stopped")
+        ):
+            receipt.update(status="FAIL", cleanup_error="An owned smoke service did not stop")
         receipt["finished_at"] = datetime.now(timezone.utc).isoformat()
         save(directory / "receipt.json", receipt)
         print(json.dumps({key: receipt.get(key) for key in (

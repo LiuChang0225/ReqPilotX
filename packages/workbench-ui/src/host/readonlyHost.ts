@@ -24,6 +24,8 @@ export type ExecutionSource = {
 export type WorkUpdatedEvent = Pick<ReadonlyWorkSelection, "projectId" | "documentId" | "sourceSha256" | "workRef"> & { revisionId: string };
 export type ReadonlyWorkbenchHost = {
   id: string; label: string; client: WorkbenchReadClient;
+  /** A managed host may enable source-bound feedback, Map confirmation, human responses and frozen deliveries. */
+  feedbackWrites?: boolean;
   resourceUrl: WorkbenchPresentation["resourceUrl"];
   pdfViewerUrl: WorkbenchPresentation["pdfViewerUrl"];
   sessionBinding?: SessionBinding | null;

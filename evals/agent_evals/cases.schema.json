@@ -183,7 +183,7 @@
               ],
               "properties": {
                 "scope": {
-                  "const": "SCOPED_REVISION"
+                  "enum": ["SCOPED_REVISION", "SCOPED_EXTRACTION"]
                 }
               }
             }

@@ -1,6 +1,6 @@
 import type { SourceStage } from "../extraction/SourceDocumentStageResults";
 
-export type WorkAction = "save_feedback" | "confirm_map" | "export_draft" | "start" | "steer" | "interrupt" | "resume" | "open_external_task";
+export type WorkAction = "save_feedback" | "confirm_map" | "save_engineer_response" | "save_delivery_version" | "export_draft" | "start" | "steer" | "interrupt" | "resume" | "open_external_task";
 export type WorkCapability = { supported: boolean; enabled: boolean; reason?: string; reason_code?: string; effect?: string };
 export type PluginFeedback = { feedback_id: string; text: string; expected_revision_id: string; target_label?: string;
   created_at?: string; node_id?: string | null; source_item_ids?: string[]; status?: string; delivery_status?: string };
@@ -18,7 +18,7 @@ export type PluginState = {
 export function pluginCapability(state: PluginState | null, action: WorkAction, current = true): WorkCapability {
   const capability = state?.capabilities?.[action];
   if (!capability) return { supported: false, enabled: false, reason: "当前连接尚未提供此操作能力。" };
-  if (!current && (action === "save_feedback" || action === "confirm_map")) return { ...capability, enabled: false, reason: "正在查看历史版本；保留草稿，切换最新成果后再提交。" };
+  if (!current && ["save_feedback", "confirm_map", "save_engineer_response", "save_delivery_version"].includes(action)) return { ...capability, enabled: false, reason: "正在查看历史版本；保留草稿，切换最新成果后再提交。" };
   return { ...capability, supported: capability.supported === true, enabled: capability.supported === true && capability.enabled === true };
 }
 export function externalExecutionLabel(state: PluginState | null) {

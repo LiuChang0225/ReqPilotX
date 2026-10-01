@@ -2,7 +2,6 @@ from __future__ import annotations
 
 from datetime import datetime
 from enum import StrEnum
-import fcntl
 import hashlib
 import math
 import os
@@ -23,6 +22,7 @@ from pydantic import (
 )
 
 from reqpilotx_server.application.agent_workflow.extraction_runtime import AgentExtractionStage
+from reqpilotx_server.infrastructure.storage_lock import acquire_file_lease
 
 
 class _StrictFrozenModel(BaseModel):
@@ -543,52 +543,56 @@ def append_activity_event(
         directory_flags |= os.O_DIRECTORY
     if hasattr(os, "O_NOFOLLOW"):
         directory_flags |= os.O_NOFOLLOW
-    directory_descriptor = os.open(trusted_parent, directory_flags)
-    try:
-        descriptor = os.open(path.name, flags, dir_fd=directory_descriptor)
-    finally:
-        os.close(directory_descriptor)
-    try:
-        if not stat.S_ISREG(os.fstat(descriptor).st_mode):
-            raise ValueError("activity ledger must be an existing regular file")
-        with os.fdopen(descriptor, "r+", encoding="utf-8", closefd=False) as stream:
-            fcntl.flock(stream.fileno(), fcntl.LOCK_EX)
-            ledger_size = os.fstat(stream.fileno()).st_size
-            if ledger_size and os.pread(stream.fileno(), 1, ledger_size - 1) != b"\n":
-                raise ValueError("activity ledger has a torn tail")
-            stream.seek(0)
-            last_sequence = 0
-            event_ids: set[str] = set()
-            for line in stream:
-                if not line.strip():
-                    continue
-                if len(line.encode("utf-8")) > _MAX_ACTIVITY_EVENT_BYTES:
-                    raise ValueError("activity ledger event exceeds the byte budget")
-                current = AgentActivityEventV2.model_validate_json(line)
-                if current.run_id != expected_run_id:
-                    raise ValueError("activity ledger cannot mix run identities")
-                if current.source_sha256 != expected_source_sha256:
-                    raise ValueError("activity ledger cannot mix source identities")
-                if current.sequence != last_sequence + 1:
-                    raise ValueError("activity ledger history must be contiguous")
-                if current.event_id in event_ids:
+    with acquire_file_lease(trusted_parent / ".activity.lock"):
+        if os.name == "nt":
+            descriptor = os.open(path, flags)
+        else:
+            directory_descriptor = os.open(trusted_parent, directory_flags)
+            try:
+                descriptor = os.open(path.name, flags, dir_fd=directory_descriptor)
+            finally:
+                os.close(directory_descriptor)
+        try:
+            if path.is_symlink() or not stat.S_ISREG(os.fstat(descriptor).st_mode):
+                raise ValueError("activity ledger must be an existing regular file")
+            with os.fdopen(descriptor, "r+", encoding="utf-8", closefd=False) as stream:
+                ledger_size = os.fstat(stream.fileno()).st_size
+                if ledger_size:
+                    os.lseek(stream.fileno(), ledger_size - 1, os.SEEK_SET)
+                if ledger_size and os.read(stream.fileno(), 1) != b"\n":
+                    raise ValueError("activity ledger has a torn tail")
+                stream.seek(0)
+                last_sequence = 0
+                event_ids: set[str] = set()
+                for line in stream:
+                    if not line.strip():
+                        continue
+                    if len(line.encode("utf-8")) > _MAX_ACTIVITY_EVENT_BYTES:
+                        raise ValueError("activity ledger event exceeds the byte budget")
+                    current = AgentActivityEventV2.model_validate_json(line)
+                    if current.run_id != expected_run_id:
+                        raise ValueError("activity ledger cannot mix run identities")
+                    if current.source_sha256 != expected_source_sha256:
+                        raise ValueError("activity ledger cannot mix source identities")
+                    if current.sequence != last_sequence + 1:
+                        raise ValueError("activity ledger history must be contiguous")
+                    if current.event_id in event_ids:
+                        raise ValueError("activity ledger event identities must be unique")
+                    event_ids.add(current.event_id)
+                    last_sequence = current.sequence
+                if event.sequence != last_sequence + 1:
+                    raise ValueError("activity event sequence must be contiguous")
+                if event.event_id in event_ids:
                     raise ValueError("activity ledger event identities must be unique")
-                event_ids.add(current.event_id)
-                last_sequence = current.sequence
-            if event.sequence != last_sequence + 1:
-                raise ValueError("activity event sequence must be contiguous")
-            if event.event_id in event_ids:
-                raise ValueError("activity ledger event identities must be unique")
-            stream.seek(0, os.SEEK_END)
-            event_payload = event.model_dump_json()
-            if len(event_payload.encode("utf-8")) > _MAX_ACTIVITY_EVENT_BYTES:
-                raise ValueError("activity ledger event exceeds the byte budget")
-            stream.write(event_payload + "\n")
-            stream.flush()
-            os.fsync(stream.fileno())
-            fcntl.flock(stream.fileno(), fcntl.LOCK_UN)
-    finally:
-        os.close(descriptor)
+                stream.seek(0, os.SEEK_END)
+                event_payload = event.model_dump_json()
+                if len(event_payload.encode("utf-8")) > _MAX_ACTIVITY_EVENT_BYTES:
+                    raise ValueError("activity ledger event exceeds the byte budget")
+                stream.write(event_payload + "\n")
+                stream.flush()
+                os.fsync(stream.fileno())
+        finally:
+            os.close(descriptor)
 
 
 def stable_activity_event_id(

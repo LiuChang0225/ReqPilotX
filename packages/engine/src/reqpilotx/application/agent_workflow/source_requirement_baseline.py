@@ -24,6 +24,9 @@ from reqpilotx.application.agent_workflow.source_locations import validate_origi
 from reqpilotx.application.agent_workflow.runner_output_schema import (
     compile_strict_runner_output_schema,
 )
+from reqpilotx.application.agent_workflow.source_path_labels import (
+    compose_source_path_segment,
+)
 
 DOCUMENT_MAP_ARTIFACT_SCHEMA_VERSION = "document-map-artifact/v1"
 SOURCE_REQUIREMENT_SCOPE_REQUEST_SCHEMA_VERSION = "source-requirement-scope-request/v1"
@@ -558,6 +561,14 @@ class SourceItemStructureOnlySpanV1(_StrictFrozenModel):
         return _validate_reason_codes(value)
 
 
+class SourceItemTableOwnedTextSpanV1(_StrictFrozenModel):
+    """A text-scope disposition owned by one explicit table boundary record."""
+
+    logical_table_scope_id: str = Field(min_length=1, max_length=200)
+    record_key: str = Field(pattern=r"^[a-z][a-z0-9._:-]{0,199}$")
+    text_span: SourceItemTextSpanV1
+
+
 class SourceItemTextSliceCandidateV1(_StrictFrozenModel):
     schema_version: Literal["source-item-text-slice-candidate/v1"] = (
         SOURCE_ITEM_TEXT_SLICE_CANDIDATE_SCHEMA_VERSION
@@ -573,6 +584,9 @@ class SourceItemTextSliceCandidateV1(_StrictFrozenModel):
     structure_only_spans: tuple[SourceItemStructureOnlySpanV1, ...] = Field(
         default=(), max_length=4096
     )
+    table_owned_spans: tuple[SourceItemTableOwnedTextSpanV1, ...] = Field(
+        default=(), max_length=4096, exclude_if=lambda value: not value
+    )
     diagnostic_codes: tuple[str, ...] = Field(default=(), max_length=64)
 
     @field_validator("diagnostic_codes")
@@ -585,7 +599,7 @@ class SourceItemTextSliceCandidateV1(_StrictFrozenModel):
         keys = tuple(item.item_key for item in self.items)
         if len(keys) != len(set(keys)):
             raise ValueError("source-item keys must be unique")
-        if not self.items and not self.structure_only_spans:
+        if not self.items and not self.structure_only_spans and not self.table_owned_spans:
             raise ValueError("source-item text scope must disposition content")
         return self
 
@@ -642,6 +656,9 @@ class SourceRequirementBoundaryCandidateV1(_StrictFrozenModel):
         min_length=1, max_length=512
     )
     shared_source_content_ids: tuple[str, ...] = Field(default=(), max_length=256)
+    owning_text_spans: tuple[SourceItemTextSpanV1, ...] = Field(
+        default=(), max_length=4096, exclude_if=lambda value: not value
+    )
     requirementness: Requirementness
     requirement_kinds: tuple[RequirementKind, ...] = Field(default=(), max_length=5)
     non_requirement_role: NonRequirementRole | None = None
@@ -676,6 +693,10 @@ class SourceRequirementBoundaryCandidateV1(_StrictFrozenModel):
             set(self.shared_source_content_ids)
         ):
             raise ValueError("shared source content IDs must be unique")
+        if {getattr(span, "content_id", None) for span in self.owning_text_spans}.intersection(
+            self.shared_source_content_ids
+        ):
+            raise ValueError("Owned text cannot also be shared context")
         return self
 
 
@@ -846,12 +867,10 @@ class SourceRequirementRecordV1(_StrictFrozenModel):
             raise ValueError('Source item cannot mix original locator formats')
         if formats == {'pdf'} and not self.pages or formats and formats != {'pdf'} and self.pages:
             raise ValueError('Source item pages differ from its original locator format')
-        if sum(bool(value) for value in (self.table_fragments, self.text_bindings, self.image_bindings)) != 1:
-            raise ValueError("compiled source item requires exactly one of table, text or image bindings")
-        if self.table_fragments and not self.logical_table_scope_id:
-            raise ValueError("table source item requires a logical table scope")
-        if (self.text_bindings or self.image_bindings) and self.logical_table_scope_id:
-            raise ValueError("non-table source item cannot claim a logical table scope")
+        if self.image_bindings and (self.table_fragments or self.text_bindings) or not bindings:
+            raise ValueError("compiled source item requires table, text or image bindings")
+        if bool(self.table_fragments) != bool(self.logical_table_scope_id):
+            raise ValueError("logical table scope and original table bindings must occur together")
         if bool(self.image_bindings) != (self.source_form is SourceRecordForm.IMAGE):
             raise ValueError("IMAGE form and original image bindings must occur together")
         if len({binding.anchor_id for binding in self.image_bindings}) != len(self.image_bindings):
@@ -1489,7 +1508,7 @@ def compile_document_map_artifact(
             parent = raw_by_id[parent_id]
             label = str(parent.get("label") or "").strip()
             title = str(parent.get("title") or "").strip()
-            result.append(" ".join(item for item in (label, title) if item))
+            result.append(compose_source_path_segment(label, title))
             parent_id = str(parent.get("parent_id") or "")
         return tuple(reversed(result))
 
@@ -1841,6 +1860,12 @@ def validate_source_item_text_slice_candidate(
             f"structure:{index}",
             structure_only=True,
         )
+    for disposition in candidate.table_owned_spans:
+        assign(
+            disposition.text_span,
+            f"table:{disposition.logical_table_scope_id}:{disposition.record_key}",
+            structure_only=False,
+        )
     expected = {
         (content.content_id, offset)
         for content in request.source_content
@@ -1958,6 +1983,16 @@ def validate_source_requirement_slice_candidate(
             raise SourceRequirementBaselineError(
                 "SOURCE_REQUIREMENT_SHARED_CONTENT_UNKNOWN"
             )
+        if not {span.content_id for span in record.owning_text_spans}.issubset(available_content_ids):
+            raise SourceRequirementBaselineError("SOURCE_REQUIREMENT_OWNED_TEXT_UNKNOWN")
+        content_order = {item.content_id: index for index, item in enumerate(request.source_content)}
+        positions = [(content_order[span.content_id], span.start_offset) for span in record.owning_text_spans]
+        if positions != sorted(positions):
+            raise SourceRequirementBaselineError("SOURCE_REQUIREMENT_OWNED_TEXT_ORDER_INVALID")
+        for span in record.owning_text_spans:
+            content = next(item for item in request.source_content if item.content_id == span.content_id)
+            if span.end_offset > len(content.text) or not content.text[span.start_offset:span.end_offset].strip():
+                raise SourceRequirementBaselineError("SOURCE_REQUIREMENT_OWNED_TEXT_RANGE_INVALID")
 
 
 def _validate_empty_table_revision_headers(previous, candidates):
@@ -2079,6 +2114,34 @@ def compile_source_requirement_baseline(
         or not (request_by_scope or text_request_by_scope)
     ):
         raise SourceRequirementBaselineError("SOURCE_REQUIREMENT_SCOPE_SET_INVALID")
+    # The two independently reviewed scope candidates must name the same exact
+    # non-whitespace source ranges. A shared context reference is never ownership.
+    table_owned_text: set[tuple[str, str, str, int, int]] = set()
+    text_dispositions: set[tuple[str, str, str, int, int]] = set()
+    table_owned_span_count = 0
+    for table_scope, candidate in candidate_by_scope.items():
+        table_request = request_by_scope[table_scope]
+        text_request = text_request_by_scope.get(f"text:{table_request.node_id}")
+        for record in candidate.records:
+            for span in record.owning_text_spans:
+                table_owned_span_count += 1
+                if text_request is None or span.content_id not in {
+                    item.content_id for item in text_request.source_content
+                }:
+                    raise SourceRequirementBaselineError("SOURCE_REQUIREMENT_OWNED_TEXT_SCOPE_MISSING")
+                table_owned_text.add((table_scope, record.record_key, span.content_id, span.start_offset, span.end_offset))
+    if table_owned_span_count != len(table_owned_text):
+        raise SourceRequirementBaselineError("SOURCE_REQUIREMENT_OWNED_TEXT_DUPLICATE")
+    for text_scope, candidate in text_candidate_by_scope.items():
+        text_request = text_request_by_scope[text_scope]
+        for disposition in candidate.table_owned_spans:
+            table_request = request_by_scope.get(disposition.logical_table_scope_id)
+            if table_request is None or table_request.node_id != text_request.node_id:
+                raise SourceRequirementBaselineError("SOURCE_REQUIREMENT_OWNED_TEXT_TABLE_SCOPE_INVALID")
+            span = disposition.text_span
+            text_dispositions.add((disposition.logical_table_scope_id, disposition.record_key, span.content_id, span.start_offset, span.end_offset))
+    if table_owned_text != text_dispositions:
+        raise SourceRequirementBaselineError("SOURCE_REQUIREMENT_OWNED_TEXT_DISPOSITION_MISMATCH")
     requested_scope_ids = set(request_by_scope).union(text_request_by_scope)
     retained_image_records = tuple(item for item in previous_artifact.records if item.image_bindings) if previous_artifact is not None else ()
     requested_scope_ids.update(_record_scope_id(item) for item in retained_image_records)
@@ -2183,6 +2246,7 @@ def compile_source_requirement_baseline(
             )
         for record in candidate.records:
             bindings: list[SourceRequirementTableFragmentBindingV1] = []
+            text_bindings: list[SourceItemTextBindingV1] = []
             pages: set[int] = set()
             first_key: tuple[int, float, int, str] | None = None
             record_cell_ids: set[str] = set()
@@ -2235,6 +2299,22 @@ def compile_source_requirement_baseline(
                 )
                 key = (fragment.page, float(bbox[1]), group.row_start, record.record_key) if original_format(fragment.native_locator) == "pdf" else (*source_position(fragment, row_offset=group.row_start), record.record_key)
                 first_key = key if first_key is None else min(first_key, key)
+            content_by_id = {item.content_id: item for item in request.source_content}
+            for span in record.owning_text_spans:
+                content = content_by_id[span.content_id]
+                selected = content.text[span.start_offset:span.end_offset]
+                text_bindings.append(SourceItemTextBindingV1(
+                    content_id=content.content_id, page=content.page,
+                    start_offset=span.start_offset, end_offset=span.end_offset,
+                    text=selected, text_sha256=canonical_text_sha256(selected),
+                    bbox=content.bbox, source_bounds=content.source_bounds,
+                    precision=content.precision, **native_location_fields(content),
+                ))
+                if content.page is not None:
+                    pages.add(content.page)
+                owned_text_character_count += sum(not character.isspace() for character in selected)
+                key = (content.page, float(content.bbox[1]), span.start_offset, record.record_key) if original_format(content.native_locator) == "pdf" else (*source_position(content, offset=span.start_offset), record.record_key)
+                first_key = key if first_key is None else min(first_key, key)
             owned_cell_ids.update(record_cell_ids)
             assert first_key is not None
             working_records.append(
@@ -2248,6 +2328,7 @@ def compile_source_requirement_baseline(
                         tuple(sorted(pages)),
                         record_header_cell_ids,
                         tuple(sorted(record_shared_cell_ids)),
+                        tuple(text_bindings),
                     ),
                 )
             )
@@ -2324,6 +2405,7 @@ def compile_source_requirement_baseline(
                         tuple(sorted(pages)),
                         (),
                         (),
+                        (),
                     ),
                 )
             )
@@ -2356,6 +2438,7 @@ def compile_source_requirement_baseline(
             pages,
             header_cells,
             record_shared_cell_ids,
+            mixed_text_bindings,
         ) = values
         identity_sha = canonical_json_sha256(
             {
@@ -2372,6 +2455,7 @@ def compile_source_requirement_baseline(
                 ),
                 "evidence_kind": evidence_kind,
                 "bindings": [item.model_dump(mode="json") for item in bindings],
+                **({"owning_text_bindings": [item.model_dump(mode="json") for item in mixed_text_bindings]} if mixed_text_bindings else {}),
             }
         )
         source_record_id = f"source-record-{identity_sha[:32]}"
@@ -2413,7 +2497,7 @@ def compile_source_requirement_baseline(
                 label=candidate_record.label,
                 source_form=candidate_record.source_form,
                 table_fragments=bindings if evidence_kind == "TABLE" else (),
-                text_bindings=bindings if evidence_kind == "TEXT" else (),
+                text_bindings=bindings if evidence_kind == "TEXT" else mixed_text_bindings,
                 shared_header_cell_ids=header_cells,
                 shared_table_cell_ids=record_shared_cell_ids,
                 shared_source_content_ids=candidate_record.shared_source_content_ids,
@@ -3086,12 +3170,8 @@ def _record_source_position(
         return min(source_position(item, offset=getattr(item, "start_offset", 0)) for item in bindings)
     if record.table_fragments:
         return min(
-            (
-                item.page,
-                float(item.bbox[1]),
-                item.row_start,
-            )
-            for item in record.table_fragments
+            [(item.page, float(item.bbox[1]), item.row_start) for item in record.table_fragments]
+            + [(item.page, float(item.bbox[1]), item.start_offset) for item in record.text_bindings]
         )
     if record.image_bindings:
         return min((item.page, float(item.bbox[1]), 0) for item in record.image_bindings)
@@ -3284,6 +3364,11 @@ def compile_source_item_scope_revision(
         raise SourceRequirementBaselineError(
             "SOURCE_ITEM_SCOPE_REVISION_SCOPE_NOT_IN_CURRENT_BASELINE"
         )
+    for record in current_artifact.records:
+        if record.table_fragments and record.text_bindings:
+            coupled = {record.logical_table_scope_id, f"text:{record.node_id}"}
+            if coupled.intersection(affected_scope_ids) and not coupled.issubset(affected_scope_ids):
+                raise SourceRequirementBaselineError("SOURCE_ITEM_SCOPE_REVISION_MIXED_OWNER_SCOPES_MUST_MOVE_TOGETHER")
 
     if scope_revision.operation is SourceItemScopeRevisionOperation.REPLACE:
         if undo_target_artifact is not None:
@@ -3314,6 +3399,11 @@ def compile_source_item_scope_revision(
             text_requests=text_requests,
             text_candidates=text_candidates,
         )
+        for record in desired_records:
+            if record.table_fragments and record.text_bindings and not {
+                record.logical_table_scope_id, f"text:{record.node_id}"
+            }.issubset(affected_scope_ids):
+                raise SourceRequirementBaselineError("SOURCE_ITEM_SCOPE_REVISION_MIXED_OWNER_SCOPES_MUST_MOVE_TOGETHER")
     else:
         if any((requests, candidates, text_requests, text_candidates)):
             raise SourceRequirementBaselineError(
@@ -3973,6 +4063,7 @@ def _record_coverage_atoms(
     record: SourceRequirementRecordV1,
 ) -> set[tuple[str, str, str, int]]:
     scope_id = _record_scope_id(record)
+    text_scope_id = f"text:{record.node_id}"
     atoms: set[tuple[str, str, str, int]] = set()
     for fragment in record.table_fragments:
         atoms.update(
@@ -3985,7 +4076,7 @@ def _record_coverage_atoms(
                 "SOURCE_ITEM_SCOPE_REVISION_TEXT_BINDING_LENGTH_DRIFT"
             )
         atoms.update(
-            ("TEXT", scope_id, binding.content_id, binding.start_offset + index)
+            ("TEXT", text_scope_id, binding.content_id, binding.start_offset + index)
             for index, character in enumerate(binding.text)
             if not character.isspace()
         )
@@ -4025,6 +4116,17 @@ def _scope_partition_snapshot(
             raise SourceRequirementBaselineError(
                 f"SOURCE_ITEM_SCOPE_REVISION_{subject}_SCOPE_LEAK"
             )
+        if record.text_bindings and f"text:{record.node_id}" not in scope_ids:
+            raise SourceRequirementBaselineError(
+                f"SOURCE_ITEM_SCOPE_REVISION_{subject}_SCOPE_LEAK"
+            )
+        for binding in record.text_bindings:
+            original = content_catalog.get((record.node_id, binding.content_id))
+            if (original is None or binding.end_offset > len(original)
+                    or original[binding.start_offset:binding.end_offset] != binding.text):
+                raise SourceRequirementBaselineError(
+                    f"SOURCE_ITEM_SCOPE_REVISION_{subject}_TEXT_BINDING_DRIFT"
+                )
         validate_source_image_record_against_map(document_map, record)
         evidence_payload = _record_exact_evidence_payload(record)
         evidence_sha256 = canonical_json_sha256(evidence_payload)

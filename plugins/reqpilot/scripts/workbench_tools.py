@@ -234,6 +234,14 @@ def _target(args,previous):
     return base,project,document
 
 
+def initial_session_id(task, source_sha256, project_id, document_id):
+    """A task's first bind can be safely retried after a lost HTTP acknowledgement."""
+    if not task:
+        return 'plugin-' + uuid.uuid4().hex
+    identity = json.dumps([task[1]['work_id'], source_sha256, project_id, document_id], separators=(',', ':'))
+    return 'plugin-' + hashlib.sha256(identity.encode()).hexdigest()[:32]
+
+
 def sync_workbench(args):
     path,sha,task=resolve_binding(args,allow_create=True)
     args=_task_args(args,task)
@@ -251,7 +259,7 @@ def sync_workbench(args):
         if previous:_validate_binding(previous,sha,task)
         base,project,document=_target(args,previous)
         requested=requested_confirmation(args)
-        binding=previous or {'schema_version':'reqpilot-workbench-binding/v1','session_id':'plugin-'+uuid.uuid4().hex,
+        binding=previous or {'schema_version':'reqpilot-workbench-binding/v1','session_id':initial_session_id(task,sha,project,document),
             'base_url':base,'project_id':project,'document_id':document,'source_sha256':sha,'revision_id':None,
             'require_map_confirmation':task[1]['request']['require_map_confirmation'] if task else requested if requested is not None else False,'imported_feedback':{}}
         if task:binding['work_id']=task[1]['work_id']

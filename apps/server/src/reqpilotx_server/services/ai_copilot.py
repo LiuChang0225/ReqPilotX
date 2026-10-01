@@ -6454,6 +6454,11 @@ def _normalize_azure_openai_endpoint(endpoint: str) -> str:
 
 @lru_cache(maxsize=6)
 def _azure_openai_client(config: AICopilotConfig):
+    return _new_azure_openai_client(config)
+
+
+def _new_azure_openai_client(config: AICopilotConfig):
+    """Owned SDK client for bounded stages; closing it cannot poison a cache."""
     from openai import AzureOpenAI
 
     kwargs: dict[str, Any] = {
@@ -6475,6 +6480,11 @@ def _azure_openai_client(config: AICopilotConfig):
 
 @lru_cache(maxsize=6)
 def _aliyun_openai_client(config: AICopilotConfig):
+    return _new_aliyun_openai_client(config)
+
+
+def _new_aliyun_openai_client(config: AICopilotConfig):
+    """Owned SDK client for bounded stages; cached application clients stay open."""
     if not config.dashscope_api_key:
         raise RuntimeError("Aliyun DashScope API key is not configured.")
     if not is_ascii_runtime_secret(config.dashscope_api_key):

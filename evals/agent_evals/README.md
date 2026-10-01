@@ -18,7 +18,7 @@ prototype/.venv/bin/python prototype/scripts/agent_eval.py --help
 | 命令 | 作用 |
 |---|---|
 | `prepare-micro-inputs` | 在私有目录确定性生成两个L2原件、准备recipe、独立判据及bindings；不会自动启动模型 |
-| `grade-stage` | 针对STAGE_FIXTURE核对冻结判据、原文定位和实际关联，单列L2成绩，不声称整链通过 |
+| `grade-stage` | 针对已有Items的关联STAGE_FIXTURE核对冻结判据；只有Map的初次编制使用`grade`及来源复核 |
 | `prepare` | 校验私有原件绑定/冻结包，复用 bootstrap 与实际 Codex prompt/SDK discovery，不运行模型 |
 | `run` | 执行一次已冻结的原件或明确阶段任务，保存真实公开事件与终态，无整次时长自动截止 |
 | `import` | 只读接入已有运行结果、事件和工作区，另存带哈希的历史引用，不改旧成绩 |
@@ -98,3 +98,21 @@ ruff check evals/agent_evals prototype/scripts/agent_eval.py
 两项 v1 阶段准备已标记 RETIRED，禁止用其启动新任务。`prepare-micro-inputs` 生成 v2 案例与显式 source_form 配方，条件引导段为 PARAGRAPH。历史私有运行使用的评测器快照随私有 run 保存，避免评测器变更影响追溯。
 
 `SCOPED_EXTRACTION` 支持原件冷启动，仅提供用户业务范围，不预制原文答案。公开 `synthetic-scoped-extraction` 用合成原件测试该范围的 rubric 选择；真实 catalogue 通过 `REQPILOTX_AGENT_EVAL_CASES=/controlled/cases.json` 显式提供并使用公开 Schema 校验。程序准备成绩与新会话执行成绩分别记录，不能用合成程序测试宣称真实案例或模型执行通过。
+
+
+## 预制 Map 上的初次编制
+
+`MAP_BUNDLE` 私有 recipe 固定目录和文件哈希，以明确的 `eval-map-seed` 登记阶段输入。提供的 Map 不计为本轮 Agent 提取成果，也不自动成为标准答案；不移植旧操作回执。`provided_stages` 描述实际输入阶段，run/report 使用 `PREPARED_INPUT_STAGE`，历史运行保持原分类。只有 Map 的任务使用通用 `grade` 和来源复核；`grade-stage` 继续限定已有 Items 的关系微测。
+
+准备器同时导入并选用Map编译时的精确SourceIR，保留视觉观察及捕获身份；资产从同一原件捕获按哈希核对，登记为明确的准备输入，不冒充新模型输出。不能把重新生成的原生捕获与已有视觉Map直接组合。准备验收需包含页图读取后的合法Map修订，不能只测Map可读/Items可编制。修复前的运行保持原记录，重新评测创建新run。
+
+通过 `REQPILOTX_AGENT_EVAL_CASES` 选择授权私有案例目录，默认 `cases.json` 只保留可分发案例。recipe、oracle、原件和历史答案不进入源码，也不能把私有 oracle 放入模型可见目录。准备程序通过不等于模型通过。
+
+在现有应用 Python 环境中准备可选 MCP 依赖时，同时使用应用约束，避免升级其固定依赖：
+
+```bash
+uv pip install --python prototype/.venv/bin/python -r plugins/reqpilot/requirements-mcp.txt -c prototype/requirements.txt
+uv pip check --python prototype/.venv/bin/python
+```
+
+这段命令从仓库根执行。本次Python3.13环境的兼容组合已实测；独立宿主仍按其自身运行环境和锁定依赖验证。

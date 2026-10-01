@@ -10,9 +10,11 @@ import json
 from pathlib import Path
 import tempfile
 import unittest
+from types import SimpleNamespace
 from unittest.mock import patch
 
 from app.application.agent_workflow.native_loop_tools import NativeLoopToolHost
+from app.application.agent_workflow import native_loop_tools
 
 
 class NativeToolHostTests(unittest.TestCase):
@@ -29,6 +31,18 @@ class NativeToolHostTests(unittest.TestCase):
 
     def tearDown(self):
         self.temp.cleanup()
+
+    def test_frozen_tool_child_receives_only_registered_script_root(self):
+        with (
+            patch.object(native_loop_tools.sys, 'frozen', True, create=True),
+            patch.object(native_loop_tools.subprocess, 'run', return_value=SimpleNamespace(returncode=0, stdout='{}')) as run,
+        ):
+            self.host._run('catalog', {})
+        command = run.call_args.args[0]
+        environment = run.call_args.kwargs['env']
+        self.assertEqual(command[:2], [native_loop_tools.sys.executable, str(self.plugin.resolve() / 'scripts/reqpilot.py')])
+        self.assertEqual(environment['REQPILOT_FROZEN_PYTHON_CHILD'], '1')
+        self.assertEqual(environment['REQPILOT_FROZEN_PYTHON_SCRIPT_ROOT'], str(self.plugin.resolve()))
 
     def test_evidence_reader_preserves_structure_and_rejects_escape(self):
         result = self.host.invoke('reqpilot_read', {'path': 'source.json', 'json_pointer': '/nodes/0'})

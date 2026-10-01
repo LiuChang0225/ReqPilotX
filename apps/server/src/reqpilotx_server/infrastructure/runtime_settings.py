@@ -41,6 +41,12 @@ class ObjectStoreBackend(StrEnum):
 class AgentRuntimeBackend(StrEnum):
     NONE = "none"
     CODEX_APP_SERVER = "codex-app-server"
+    PROVIDER_TOOL_LOOP = "provider-tool-loop"
+
+
+class AgentProvider(StrEnum):
+    AZURE = "azure"
+    ALIYUN = "aliyun"
 
 
 class NativeCapabilityMode(StrEnum):
@@ -77,6 +83,7 @@ class RuntimeSettings:
     oss_endpoint: str = ""
     oss_prefix: str = "reqpilotx"
     agent_runtime_backend: AgentRuntimeBackend = AgentRuntimeBackend.NONE
+    agent_provider: AgentProvider | None = None
     codex_bin: Path | None = None
     codex_home: Path | None = None
     agent_model_id: str = "gpt-5.6-sol"
@@ -89,6 +96,7 @@ class RuntimeSettings:
     )
     native_capability_bundle_sha256: str = ""
     development_root: Path | None = None
+    structured_agent_kit_root: Path | None = None
     frontend_root: Path = Path(tempfile.gettempdir()) / "reqpilotx/frontend"
 
     @classmethod
@@ -194,12 +202,23 @@ class RuntimeSettings:
             source.get("REQPILOT_AGENT_RUNTIME", AgentRuntimeBackend.NONE.value),
             "REQPILOT_AGENT_RUNTIME",
         )
+        raw_agent_provider = str(source.get("REQPILOT_AGENT_PROVIDER") or "").strip()
+        agent_provider = (
+            _enum_value(AgentProvider, raw_agent_provider, "REQPILOT_AGENT_PROVIDER")
+            if raw_agent_provider
+            else None
+        )
+        raw_structured_kit = str(source.get("REQPILOT_STRUCTURED_AGENT_KIT_ROOT") or "").strip()
+        structured_agent_kit_root = Path(raw_structured_kit).expanduser() if raw_structured_kit else None
+        if structured_agent_kit_root is not None and not structured_agent_kit_root.is_absolute():
+            raise RuntimeConfigurationError("REQPILOT_STRUCTURED_AGENT_KIT_ROOT must be absolute.")
         raw_codex_bin = str(source.get("REQPILOT_CODEX_BIN") or "").strip()
         raw_codex_home = str(source.get("REQPILOT_CODEX_HOME") or "").strip()
         codex_bin = Path(raw_codex_bin).expanduser() if raw_codex_bin else None
         codex_home = Path(raw_codex_home).expanduser() if raw_codex_home else None
         agent_model_id = str(
-            source.get("REQPILOT_AGENT_MODEL_ID") or "gpt-5.6-sol"
+            source.get("REQPILOT_AGENT_MODEL_ID")
+            or ("" if agent_runtime_backend is AgentRuntimeBackend.PROVIDER_TOOL_LOOP else "gpt-5.6-sol")
         ).strip()
         agent_customer_data_enabled = _boolean_flag(
             source.get("REQPILOT_AGENT_CUSTOMER_DATA_ENABLED"),
@@ -271,6 +290,15 @@ class RuntimeSettings:
                 raise RuntimeConfigurationError(
                     "REQPILOT_AGENT_MODEL_ID must not be blank."
                 )
+        if agent_runtime_backend is AgentRuntimeBackend.PROVIDER_TOOL_LOOP:
+            if deployment_mode is DeploymentMode.CLOUD:
+                raise RuntimeConfigurationError(
+                    "Provider tool loop is currently a local application runtime."
+                )
+            if agent_provider is None:
+                raise RuntimeConfigurationError(
+                    "REQPILOT_AGENT_PROVIDER must be azure or aliyun for provider-tool-loop."
+                )
 
         if deployment_mode is DeploymentMode.CLOUD:
             if object_store_backend is not ObjectStoreBackend.OSS:
@@ -302,6 +330,7 @@ class RuntimeSettings:
             oss_endpoint=oss_endpoint,
             oss_prefix=oss_prefix,
             agent_runtime_backend=agent_runtime_backend,
+            agent_provider=agent_provider,
             codex_bin=codex_bin,
             codex_home=codex_home,
             agent_model_id=agent_model_id,
@@ -310,6 +339,7 @@ class RuntimeSettings:
             native_capability_registry_root=native_capability_registry_root,
             native_capability_bundle_sha256=native_capability_bundle_sha256,
             development_root=development_root,
+            structured_agent_kit_root=structured_agent_kit_root,
             frontend_root=frontend_root,
         )
 
@@ -431,6 +461,7 @@ def _normalized_object_prefix(value: str) -> str:
 
 __all__ = [
     "AgentRuntimeBackend",
+    "AgentProvider",
     "DatabaseBackend",
     "DeploymentMode",
     "ObjectStoreBackend",

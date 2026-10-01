@@ -4,7 +4,6 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from datetime import UTC, datetime
-import fcntl
 import hashlib
 from pathlib import Path
 from pathlib import PurePosixPath
@@ -171,12 +170,10 @@ def _registered_bundle_path(registry: Path, bundle_sha256: str) -> Path:
 @contextmanager
 def _registration_lock(parent: Path):
     parent.mkdir(parents=True, exist_ok=True, mode=0o700)
-    with (parent / ".registration.lock").open("a+b") as stream:
-        fcntl.flock(stream, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(stream, fcntl.LOCK_UN)
+    from reqpilotx_server.infrastructure.storage_lock import acquire_file_lease
+
+    with acquire_file_lease(parent / ".registration.lock"):
+        yield
 
 
 def register_native_loop_capability_bundle(
@@ -254,6 +251,10 @@ def prepare_native_loop_capability(root: Path, settings: RuntimeSettings | objec
                 staging, expected, require_engine_release=True
             )
         else:
+            if getattr(sys, "frozen", False):
+                raise ValueError(
+                    "Frozen desktop tasks require a registered release capability bundle"
+                )
             deployment = getattr(settings, "deployment_mode", DeploymentMode.LOCAL)
             if str(deployment) == DeploymentMode.CLOUD.value:
                 raise ValueError("Cloud tasks cannot build capabilities from source")
