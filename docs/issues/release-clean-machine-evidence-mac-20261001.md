@@ -39,10 +39,23 @@ Private logs, databases, receipts, backups, wheels and fixture outputs remain ou
 
 ## Remaining acceptance
 
-Actual Pair/plugin autonomous hosts, rendered employee UI/PDF, live Bailian/Azure, authorized customer-document quality, Windows 11 installation/runtime and colleague independent use remain unverified. The separately authorized 200 CNY cumulative synthetic-model budget has not been spent; the budget guard must be installed and verified before any live call.
+Actual Pair/plugin autonomous hosts, rendered employee UI/PDF, live Bailian/Azure, authorized customer-document quality, Windows 11 installation/runtime and colleague independent use remain unverified. The later bounded Bailian canary below is the current synthetic-model result; the broader live routes remain unverified.
 
 ## CI follow-up
 
 The first development-branch CI run rejected seven historical machine paths and a synthetic credential-bearing URL fixture under the existing repository safety rules. The paths now use portable workspace/evaluation placeholders; the URL remains a userinfo rejection case with a loopback host. No safety rule was weakened. Original bytes remain in the private local reconciliation evidence. CI status must be read from the current PR head; the Mac receipts above do not establish a GitHub or Windows pass.
 
 The broader GitHub Python discovery run also exposed a missing engine compatibility alias, two new tests lacking the standard runtime isolation preamble, and a saved-number test fixture missing the session identity now required by the response view. The aliases and fixtures were brought into the existing contracts; production session identity checks remain strict. Focused local contract tests verify these corrections; the full Linux discovery result is recorded by CI.
+
+## Bounded live Bailian canary
+
+The original issued guard passed 30 local guard checks, one actual provider-driver/SDK mock and the four-stage SDK mock. A preserved usage-schema revision accepts documented inclusive text/image subdivisions without charging them twice; positive audio/video, explicit cache creation, contradictory totals and unknown billed categories still fail closed. The revision passed 45 guard/application/usage checks plus the updated four-stage mock and was saved separately to Library with its diff, manifest and original package provenance.
+
+The authorized live run used the existing DSH read-only credential resolver, `qwen3.8-max-0902`, reasoning `high` and the reviewed Beijing endpoint. The credential document was unchanged, no key or provider reasoning was logged, and only invented synthetic inputs were sent.
+
+- Startup: PASS, exact expected marker; 75 prompt and 51 full-completion tokens, conservatively priced at 0.002736 CNY.
+- Tool selection: STOPPED at the second dispatch with `ambiguous_dispatch_or_usage_no_retry`. The guard retained the complete 12.590184 CNY reservation and halted the shared ledger. This evidence does not distinguish a provider rejection, timeout or usage validation failure because the original guard deliberately discards underlying error details.
+- Tool roundtrip and page vision: NOT RUN.
+- Total: two dispatches; 12.592920 CNY conservatively accounted against the single 200 CNY approval. Actual second-call charge is unknown. No retry, alternative ledger, fallback model or customer-document run was attempted.
+
+Provider billing reconciliation is required before any resumption. The raw stage receipt retained its intermediate `RUNNING` label on failure; the separate terminal summary and halted ledger establish STOPPED. This canary establishes startup authentication/model availability only and does not establish tool, vision, document quality, Pair/plugin autonomy or Windows acceptance.
