@@ -40,3 +40,7 @@ Private logs, databases, receipts, backups, wheels and fixture outputs remain ou
 ## Remaining acceptance
 
 Actual Pair/plugin autonomous hosts, rendered employee UI/PDF, live Bailian/Azure, authorized customer-document quality, Windows 11 installation/runtime and colleague independent use remain unverified. The separately authorized 200 CNY cumulative synthetic-model budget has not been spent; the budget guard must be installed and verified before any live call.
+
+## CI follow-up
+
+The first development-branch CI run rejected seven historical machine paths and a synthetic credential-bearing URL fixture under the existing repository safety rules. The paths now use portable workspace/evaluation placeholders; the URL remains a userinfo rejection case with a loopback host. No safety rule was weakened. Original bytes remain in the private local reconciliation evidence. CI status must be read from the current PR head; the Mac receipts above do not establish a GitHub or Windows pass.

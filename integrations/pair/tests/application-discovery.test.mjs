@@ -49,7 +49,7 @@ test('client fails closed on incompatible protocol, missing capabilities/identit
   assert.throws(() => discovery.assertCompatibleConfiguration({ ...value, schema: 'future/v2' }), /INCOMPATIBLE/);
   assert.throws(() => discovery.assertCompatibleConfiguration({ ...value, capabilities: {} }), /INCOMPATIBLE/);
   assert.throws(() => discovery.assertCompatibleConfiguration({ ...value, applicationId: null }), /IDENTITY/);
-  assert.throws(() => discovery.assertCompatibleConfiguration({ ...value, serviceOrigin: 'https://user:secret@service.example' }), /ENDPOINT/);
+  assert.throws(() => discovery.assertCompatibleConfiguration({ ...value, serviceOrigin: 'https://user:secret@127.0.0.1' }), /ENDPOINT/);
 });
 test('human responses and immutable saves are limited to managed session-bound routes', () => {
   const work = '/reqpilotx/service/api/projects/p/sor-documents/d/agent-structure/delivery/plugin-workbench/plugin-' + 'a'.repeat(32);
