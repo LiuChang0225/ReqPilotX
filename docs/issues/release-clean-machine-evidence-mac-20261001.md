@@ -59,3 +59,5 @@ The authorized live run used the existing DSH read-only credential resolver, `qw
 - Total: two dispatches; 12.592920 CNY conservatively accounted against the single 200 CNY approval. Actual second-call charge is unknown. No retry, alternative ledger, fallback model or customer-document run was attempted.
 
 Provider billing reconciliation is required before any resumption. The raw stage receipt retained its intermediate `RUNNING` label on failure; the separate terminal summary and halted ledger establish STOPPED. This canary establishes startup authentication/model availability only and does not establish tool, vision, document quality, Pair/plugin autonomy or Windows acceptance.
+
+The next full plugin discovery run passed 287 of 288 tests and exposed one obsolete error-message assertion after text/table coupling changed the shared validator wording. Its valid image-record control and invalid image/text mixture now assert model validation behavior and the record-level error type instead of the old phrase; image/text mixing remains rejected. Production validation was unchanged.
