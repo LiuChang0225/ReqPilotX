@@ -1,5 +1,9 @@
 from __future__ import annotations
 
+from .runtime_isolation import activate_test_runtime
+
+activate_test_runtime()
+
 import tempfile
 import unittest
 from pathlib import Path

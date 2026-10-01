@@ -44,3 +44,5 @@ Actual Pair/plugin autonomous hosts, rendered employee UI/PDF, live Bailian/Azur
 ## CI follow-up
 
 The first development-branch CI run rejected seven historical machine paths and a synthetic credential-bearing URL fixture under the existing repository safety rules. The paths now use portable workspace/evaluation placeholders; the URL remains a userinfo rejection case with a loopback host. No safety rule was weakened. Original bytes remain in the private local reconciliation evidence. CI status must be read from the current PR head; the Mac receipts above do not establish a GitHub or Windows pass.
+
+The broader GitHub Python discovery run also exposed a missing engine compatibility alias, two new tests lacking the standard runtime isolation preamble, and a saved-number test fixture missing the session identity now required by the response view. The aliases and fixtures were brought into the existing contracts; production session identity checks remain strict. Focused local contract tests verify these corrections; the full Linux discovery result is recorded by CI.
