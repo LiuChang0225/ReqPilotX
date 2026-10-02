@@ -628,10 +628,19 @@ class RequirementAtomizationScopeExecutionTests(unittest.TestCase):
         self,
     ) -> None:
         from app.adapters.persistence import sql_requirement_enrichment
+        from app.application.extraction import atomization_scope as scope_module
 
         provider_entered = Event()
         release_provider = Event()
         heartbeat_observed = Event()
+        renewed_after_original_expiry = Event()
+        lease_clock = SimpleNamespace(now=datetime.now(timezone.utc))
+
+        class LeaseClock(datetime):
+            @classmethod
+            def now(cls, tz=None):
+                value = lease_clock.now
+                return value.astimezone(tz) if tz is not None else value.replace(tzinfo=None)
         first_error: list[BaseException] = []
         first_result = []
         heartbeat_count = 0
@@ -654,6 +663,8 @@ class RequirementAtomizationScopeExecutionTests(unittest.TestCase):
                     heartbeat_count += 1
                     if heartbeat_count >= 3:
                         heartbeat_observed.set()
+                    if refreshed.updated_at_utc - refreshed.started_at_utc > timedelta(seconds=0.1):
+                        renewed_after_original_expiry.set()
                 return refreshed
 
             def __getattr__(_, name):
@@ -683,19 +694,24 @@ class RequirementAtomizationScopeExecutionTests(unittest.TestCase):
             except BaseException as exc:  # pragma: no cover - asserted below
                 first_error.append(exc)
 
-        with patch.object(
-            sql_requirement_enrichment,
-            "_ATOMIZATION_SCOPE_RUNNING_ATTEMPT_STALE_AFTER",
-            timedelta(seconds=0.1),
+        # Advance the lease clock past the original stale boundary, then wait
+        # for an actual repository heartbeat at that instant. A loaded CI worker
+        # must not expire a 100 ms test lease merely due to scheduler delays.
+        with (
+            patch.object(sql_requirement_enrichment, "datetime", LeaseClock),
+            patch.object(scope_module, "datetime", LeaseClock),
+            patch.object(
+                sql_requirement_enrichment,
+                "_ATOMIZATION_SCOPE_RUNNING_ATTEMPT_STALE_AFTER",
+                timedelta(seconds=0.1),
+            ),
         ):
-            started = time.monotonic()
             worker = Thread(target=run_first, daemon=True)
             worker.start()
             self.assertTrue(provider_entered.wait(timeout=3))
             self.assertTrue(heartbeat_observed.wait(timeout=3))
-            remaining = 0.25 - (time.monotonic() - started)
-            if remaining > 0:
-                Event().wait(remaining)
+            lease_clock.now += timedelta(seconds=0.25)
+            self.assertTrue(renewed_after_original_expiry.wait(timeout=3))
             second_provider = _RecordingAtomizationProvider()
             try:
                 with self.assertRaisesRegex(

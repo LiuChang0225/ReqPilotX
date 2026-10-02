@@ -116,3 +116,17 @@ external Pair browser, canonical delivery-version integration or Windows 11
 acceptance. The earlier 68-test PoC result is cloud provenance, not a Mac rerun.
 The existing repository CI covers its backend/plugin/engine/Pair workflows;
 these new opt-in OpenKB pytest checks were run separately as described above.
+
+
+### Full CI reconciliation
+
+The first integrated-head frontend CI passed. Its full backend run reported two
+failures among 4,811 tests (154 skipped): the new engine context module lacked the
+required server compatibility alias, and a lease-heartbeat test depended on a
+100 ms wall-clock window. The standard alias now reuses the identical engine
+module. The test advances a controlled lease clock past the original expiry,
+waits for a real database heartbeat and still rejects a competing owner; it no
+longer treats CI scheduling delays as lease expiration. Production lease timing
+and ownership rules were not changed. Five productization and 58 atomization
+scope tests passed locally after these corrections. Final-head remote CI is
+tracked separately; the earlier failed run is retained as evidence.
