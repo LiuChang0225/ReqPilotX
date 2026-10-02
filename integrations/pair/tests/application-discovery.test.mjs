@@ -65,3 +65,20 @@ test('human responses and immutable saves are limited to managed session-bound r
   assert.equal(discovery.allowsWrite(ready, 'POST', work + '/versions/1'), false);
   assert.equal(discovery.allowsWrite(ready, 'POST', work + '/versions/preview'), false);
 });
+
+
+test('Client requires every human-operation flag and embeds the same exact-path policy as Host', () => {
+  const value = discovery.publicConfiguration(ready);
+  for (const operation of ['results.engineer_responses', 'results.save_version']) {
+    const flags = { ...value.capabilities }; delete flags[operation];
+    assert.throws(() => discovery.assertCompatibleConfiguration({ ...value, capabilities: flags }), /INCOMPATIBLE/);
+    assert.throws(() => discovery.assertCompatibleConfiguration({ ...value, capabilities: { ...value.capabilities, [operation]: 'true' } }), /INCOMPATIBLE/);
+  }
+  const root = '/api/projects/p/sor-documents/d/agent-structure/delivery/plugin-workbench/plugin-' + 'a'.repeat(32);
+  for (const [suffix, operation] of Object.entries({ feedback:'results.feedback', 'confirm-map':'results.confirm_map', 'engineer-responses':'results.engineer_responses', versions:'results.save_version' })) {
+    assert.equal(discovery.resultWriteOperation('POST', root + '/' + suffix), operation);
+    assert.equal(discovery.resultWriteOperation('DELETE', root + '/' + suffix), null);
+    assert.equal(discovery.resultWriteOperation('POST', root + '/' + suffix + '/extra'), null);
+    assert.equal(discovery.resultWriteOperation('POST', root + '/' + suffix + '?revision=older'), null);
+  }
+});

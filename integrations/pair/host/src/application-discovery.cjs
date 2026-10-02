@@ -1,6 +1,6 @@
 /** Host transport contract only: business schemas and task/acceptance states stay in ReqPilotX. */
 const APPLICATION_SCHEMA = 'reqpilot-application-host/v1';
-const OPERATION_IDS = ['projects.read', 'projects.create', 'documents.read', 'documents.import', 'results.read', 'results.feedback', 'results.confirm_map', 'agent.start', 'agent.resume', 'agent.cancel', 'events.agent'];
+const OPERATION_IDS = ['projects.read', 'projects.create', 'documents.read', 'documents.import', 'results.read', 'results.feedback', 'results.confirm_map', 'results.engineer_responses', 'results.save_version', 'agent.start', 'agent.resume', 'agent.cancel', 'events.agent'];
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 function applicationId(ownerId) { return typeof ownerId === 'string' && UUID.test(ownerId) ? 'reqpilotx-pair:' + ownerId : null; }
 function capabilities(state) {
@@ -20,16 +20,21 @@ function capabilities(state) {
     'agent.cancel': ready && state.mode === 'managed' && state.taskCancelReady === true, 'events.agent': false,
   };
 }
+/** One exact-path policy is embedded into the Client and enforced again by the Host. */
+const RESULT_WRITE_OPERATIONS = Object.freeze({ feedback: 'results.feedback', 'confirm-map': 'results.confirm_map',
+  'engineer-responses': 'results.engineer_responses', versions: 'results.save_version' });
+function resultWriteOperation(method, pathname) {
+  if (method !== 'POST' || typeof pathname !== 'string') return null;
+  const match = /^\/api\/projects\/[^/]+\/sor-documents\/[^/]+\/agent-structure\/delivery\/plugin-workbench\/plugin-[a-f0-9]{32}\/(feedback|confirm-map|engineer-responses|versions)$/.exec(pathname);
+  return match ? RESULT_WRITE_OPERATIONS[match[1]] : null;
+}
 /** Transport write policy and capability discovery share the same implemented operations. */
 function allowsWrite(state, method, pathname) {
   if (method !== 'POST') return false;
   const available = capabilities({ ...state, status: 'READY' });
   return (pathname === '/reqpilotx/service/api/projects' && available['projects.create'])
     || (/^\/reqpilotx\/service\/api\/projects\/[^/]+\/sor-documents$/.test(pathname) && available['documents.import'])
-    || (/^\/reqpilotx\/service\/api\/projects\/[^/]+\/sor-documents\/[^/]+\/agent-structure\/delivery\/plugin-workbench\/plugin-[a-f0-9]{32}\/feedback$/.test(pathname) && available['results.feedback'])
-    || (/^\/reqpilotx\/service\/api\/projects\/[^/]+\/sor-documents\/[^/]+\/agent-structure\/delivery\/plugin-workbench\/plugin-[a-f0-9]{32}\/engineer-responses$/.test(pathname) && available['results.engineer_responses'])
-    || (/^\/reqpilotx\/service\/api\/projects\/[^/]+\/sor-documents\/[^/]+\/agent-structure\/delivery\/plugin-workbench\/plugin-[a-f0-9]{32}\/versions$/.test(pathname) && available['results.save_version'])
-    || (/^\/reqpilotx\/service\/api\/projects\/[^/]+\/sor-documents\/[^/]+\/agent-structure\/delivery\/plugin-workbench\/plugin-[a-f0-9]{32}\/confirm-map$/.test(pathname) && available['results.confirm_map']);
+    || (pathname.startsWith('/reqpilotx/service/') && available[resultWriteOperation(method, pathname.slice('/reqpilotx/service'.length))] === true);
 }
 /** Whitelist public fields; never serialize a process snapshot or an installed-package descriptor wholesale. */
 function publicConfiguration(state) {
@@ -64,4 +69,4 @@ function connectionIdentity(id, origin) {
   const hostId = id || 'pair-connect:' + origin;
   return { hostId, clientId: hostId + '@' + origin };
 }
-module.exports = { APPLICATION_SCHEMA, OPERATION_IDS, capabilities, allowsWrite, publicConfiguration, assertCompatibleConfiguration, connectionIdentity };
+module.exports = { APPLICATION_SCHEMA, OPERATION_IDS, capabilities, allowsWrite, publicConfiguration, assertCompatibleConfiguration, connectionIdentity, resultWriteOperation };

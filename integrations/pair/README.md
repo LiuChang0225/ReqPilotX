@@ -9,7 +9,7 @@ exposes native projects/document import and saved results. Task preparation, per
 - Installable Cordis bundle with separate Host and Client leaves. The R4 adapter is independently tested; no external Pair profile is modified by its verification.
 - On activation, the Host checks existing Python/PostgreSQL dependencies, acquires its own data-directory lease, initializes a private password-protected PostgreSQL cluster when needed, applies the shared migrations and starts the shared Python API on an OS-assigned loopback port. No worker or model process is launched.
 - Native Pair project creation, project selection, PDF upload and original-page viewing. Reads/creates use the existing ReqPilotX API and storage; no second project/document ledger.
-- Existing saved works are listed under the selected document and open the same shared workbench. Managed Pair enables source-bound feedback and Map confirmation through the application's persisted plugin-workbench API; connect mode remains readonly. Pair automatically provides internal addresses and scope. A bound task may stop its live Pair turn or submit an explicit continuation to the same Session. Business completion, endpoint reconnection and push Agent events remain pending.
+- Existing saved works are listed under the selected document and open the same shared workbench. Managed Pair enables source-bound feedback, Map confirmation, engineer opinions and immutable delivery saves through the application's persisted plugin-workbench API; connect mode remains readonly. Pair automatically provides internal addresses and scope. A bound task may stop its live Pair turn or submit an explicit continuation to the same Session. Business completion, endpoint reconnection and push Agent events remain pending.
 - Disable/stop terminates only owned DSH subprocess handles; the API closes before the database. Data remains. Restart reuses the same cluster and project/document identities. Unknown nonempty directories and competing live owners are rejected, not adopted.
 
 ## Code and ownership
@@ -17,7 +17,7 @@ exposes native projects/document import and saved results. Task preparation, per
 - `host/src/managed-runtime.js`: runtime identity, private data lease, dependency checks, cluster/API preparation, readiness and teardown.
 - `host/src/managed_api.py`: checks installed distribution origins and rejects editable/legacy `app` imports; invokes installed migration capabilities and serves `reqpilotx_server.main` on a child-allocated loopback socket, with no worker.
 - `host/src/index.js`: authenticated Pair route, runtime status and fixed-target transport. Managed mode allows project creation, document import, and feedback/Map-confirmation, engineer-response and immutable delivery-save POSTs only for a concrete plugin work ID. Other writes remain unavailable. Pair cookies/auth are not forwarded to the backend; redirects are rejected. Range and revision headers are preserved.
-- `client/src/catalog.cjs`: native projects/documents entry and service readiness, consuming shared APIs.
+- `client/src/catalog.cjs`: native projects/documents entry and service readiness, consuming shared APIs. Its exact-path write policy is embedded from Host discovery and grants each result operation separately; a feedback grant cannot authorize human opinions or delivery saves.
 - `client/src/client.cjs`: shared-panel host adaptation and the explicit connect-mode development probe.
 - `scripts/build.mjs`: packages the existing shared UI CJS/CSS into DSH lazy-CJS; React, JSX and ReactDOM use the Host instance.
 
@@ -166,7 +166,7 @@ Managed Pair advertises feedback and Map confirmation only after its owned servi
 
 These controls have build, browser transport and authenticated loopback proxy tests. They have not yet been exercised in an external Pair browser against the managed PostgreSQL service after this change. Saved feedback is an inbox entry for the associated task, not proof that an Agent retrieved it or revised the draft. Local Pair authentication protects the route, while the owned single-user service has no separate per-project user authorization.
 
-The explicit task control endpoint checks the saved command, Pair application, Session, work reference and source hash before calling DSH. A continuation reuses its durable request ID and can repair a lost acknowledgement from that Session's exact user message; a cancel calls DSH `sessionController.cancel` for only the bound Session and retains queued inbox work. The UI offers cancel during a reported running turn and continuation after a reported terminal/idle turn. These are Agent-turn controls; a successful control receipt does not claim document-task recovery or a correct revised version. The isolated Mac DSH probe with a scripted model and synthetic PDF recorded one same-Session continuation and an active turn ending `aborted` after cancel at `task/pair-dsh-cancel-fixed-20261001/receipt.json`; remote model calls were zero. A full manual response editor and managed-service/real-model end-to-end run remain open.
+The explicit task control endpoint checks the saved command, Pair application, Session, work reference and source hash before calling DSH. A continuation reuses its durable request ID and can repair a lost acknowledgement from that Session's exact user message; a cancel calls DSH `sessionController.cancel` for only the bound Session and retains queued inbox work. The UI offers cancel during a reported running turn and continuation after a reported terminal/idle turn. These are Agent-turn controls; a successful control receipt does not claim document-task recovery or a correct revised version. The isolated Mac DSH probe with a scripted model and synthetic PDF recorded one same-Session continuation and an active turn ending `aborted` after cancel at `task/pair-dsh-cancel-fixed-20261001/receipt.json`; remote model calls were zero. Installed Pair UI and managed-service/real-model end-to-end acceptance remain open.
 
 
 ### External response and delivery API (2026-10-01 candidate)
@@ -203,3 +203,53 @@ opinion, not formal acceptance. Source re-extraction and model calls are absent.
 Focused synthetic backend/ASGI, task-facade and managed-proxy tests cover these
 contracts. This API evidence does not establish installed Pair UI, Windows,
 company authorization or real customer-material acceptance.
+
+
+## Managed result-write transport correction (2026-10-02)
+
+The 67bb444 source snapshot already advertised and proxied human opinions and
+immutable delivery saves, but the browser Client rejected their POST routes.
+This increment connects those existing business APIs rather than introducing
+another response/version store. Four independent discovery flags cover feedback,
+Map confirmation, engineer responses and immutable saves. Unknown/missing flags,
+malformed work IDs, mutation descendants and other methods stay blocked. The
+Client protocol requires both newer result flags; incompatible mixed releases
+fail before showing controls. Rebuild the shared panel and Pair Client together.
+
+The embedded shared provider intersects the host's optional `workCapabilities`
+with the business service capabilities. A writable feedback surface cannot make
+an undiscovered human-response or save-version action writable; historical
+versions remain read-only. Legacy `makePairWorkbenchHost(..., true)` retains only
+its original feedback/Map grants. Connect mode cannot become writable by passing
+flags without a verified managed application identity.
+
+Offline source verification uses actual Client JavaScript, the authenticated
+Host proxy and actual FastAPI routes around the existing synthetic compiler
+fixture. It exercises exact command replay, stale-write rejection, result/reader
+binding, a frozen delivery and unchanged Excel bytes after a later opinion and
+reopening. Test storage and project lookup are isolated fixture adapters; this is
+not PostgreSQL, RBAC/tenant, external Pair browser or model-semantic acceptance.
+The added built React host/provider regressions must run with the matching shared
+panel before target-platform acceptance.
+
+
+### Mac validation of the matched build (2026-10-02)
+
+The existing Mac dependencies passed typecheck, the Web build, the shared panel
+build and the Pair Client build. Focused shared React regressions passed 25 tests;
+the Pair suite, including its built React 18 host fixture, passed 44 tests; the
+affected plugin/native delivery Python regressions passed 29 tests. Six additional
+source/Host/FastAPI HTTP checks passed with isolated synthetic data. The original
+HTTP fixture stalled in this Mac's reverse DNS lookup; the private test fixture
+used numeric loopback binding without changing application or resolver settings.
+
+An additional actual built Client / React 18 DOM / authenticated Host / FastAPI
+synthetic regression passed: submit an opinion, select its returned result
+revision, freeze and download a draft, edit later, reject writes in the historical
+view and re-download identical frozen Excel bytes. Catalog reads and project
+lookup were fixture adapters; this was not an external installed Pair browser.
+The built Client SHA-256 was
+`060b3d62c20733d51d0c6daf64310d709bbd92079f9bd44ca97f4d5a9701cee8`.
+No customer document, paid model call, PostgreSQL restart, company identity or
+Windows execution was part of these checks. Those acceptance boundaries remain
+open.

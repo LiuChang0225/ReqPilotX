@@ -5,15 +5,22 @@ Object.assign(copy.zh, { activityMODEL: 'Agent 正在处理', activityTOOLS: '�
 Object.assign(copy.en, { activityMODEL: 'Agent is processing', activityTOOLS: 'Executing tools', activityRETRY: 'Request failed; waiting to retry', activityTURN_ENDED: 'Turn ended; results still require review', activityFAILED: 'Turn failed; inspect the conversation', activityBLOCKED: 'Waiting for a blocked conversation', activityINTERRUPTED: 'Execution interrupted', activityIDLE: 'Conversation is idle', activityUNOBSERVED: 'Execution status is unconfirmed', progressUnavailable: 'Execution status is unavailable', progressSteps: 'Model step', progressTools: 'Tool calls', progressRetries: 'Retries', progressToolFailures: 'Tool errors' });
 Object.assign(copy.zh, { stopTurn: '停止本轮', continueTask: '继续同一任务', controlBusy: '正在提交控制请求…', stopAccepted: '已请求停止当前 Pair 会话轮次；请核对持久化成果。', continueAccepted: '已提交到原 Pair 会话；继续执行和成果仍需核对。' });
 Object.assign(copy.en, { stopTurn: 'Stop current turn', continueTask: 'Continue this task', controlBusy: 'Submitting control request…', stopAccepted: 'Asked Pair to stop this turn; review the saved result.', continueAccepted: 'Submitted to the original Pair session; verify continuation and saved work.' });
-const feedbackPath = /^\/api\/projects\/[^/]+\/sor-documents\/[^/]+\/agent-structure\/delivery\/plugin-workbench\/plugin-[a-f0-9]{32}\/(?:feedback|confirm-map)$/;
-function makeReadonlyHost(origin, onSelectionChange, applicationId, feedbackWrites = false) {
+const pairWorkOperations = Object.freeze({ save_feedback: 'results.feedback', confirm_map: 'results.confirm_map',
+  save_engineer_response: 'results.engineer_responses', save_delivery_version: 'results.save_version' });
+function makeReadonlyHost(origin, onSelectionChange, applicationId, writes = false) {
   const identity = connectionIdentity(applicationId, origin);
+  // Legacy true grants its original two operations; newer writes require explicit discovery.
+  const supplied = writes === true ? { 'results.feedback': true, 'results.confirm_map': true } : writes || {};
+  const discovered = Object.freeze(Object.fromEntries(Object.values(pairWorkOperations).map(operation => [operation, supplied[operation] === true])));
+  const managed = /^reqpilotx-pair:[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i.test(applicationId || '');
+  const workCapabilities = Object.freeze(Object.fromEntries(Object.entries(pairWorkOperations).map(([action, operation]) => [action, managed && discovered[operation] === true])));
+  const feedbackWrites = Object.values(workCapabilities).some(value => value === true);
   const client = feedbackWrites ? { id: identity.clientId, request: (path, init, options) => {
-    const method = (init?.method || 'GET').toUpperCase();
-    if (!['GET', 'HEAD'].includes(method) && !(method === 'POST' && feedbackPath.test(path))) throw Error('Pair 当前只允许保存来源反馈与结构确认。');
+    const method = (init?.method || 'GET').toUpperCase(), operation = resultWriteOperation(method, path);
+    if (!['GET', 'HEAD'].includes(method) && !(operation && managed && discovered[operation] === true)) throw Error('Pair 当前不允许此工作面写入操作。');
     return requestWithTransport(fetch, assetUrl(path, origin), init, options);
   } } : createReadonlyHttpClient(identity.clientId, path => assetUrl(path, origin));
-  return { id: identity.hostId, label: 'Pair', client, feedbackWrites, resourceUrl: path => assetUrl(path, origin), onSelectionChange,
+  return { id: identity.hostId, label: 'Pair', client, feedbackWrites, workCapabilities, resourceUrl: path => assetUrl(path, origin), onSelectionChange,
     pdfViewerUrl: (source, page, embedded) => {
       const parsed = new URL(source, window.location.origin);
       const original = parsed.pathname.startsWith(PREFIX + '/service/api/') ? new URL(parsed.pathname.slice((PREFIX + '/service').length) + parsed.search, origin) : new URL(source, origin);
@@ -100,7 +107,7 @@ function Catalog({ config, t, openSession }) {
   }, [bound?.commandId, bound?.sessionId, bound?.workRef, config.applicationId, projectId, document]);
   const host = React.useMemo(() => {
     const result = makeReadonlyHost(origin, setSelection, config.applicationId,
-      config.capabilities['results.feedback'] && config.capabilities['results.confirm_map']);
+      config.capabilities);
     if (bound?.workspaceId && bound.sessionId && bound.workRef) {
       result.sessionBinding = { hostId: config.applicationId, workspaceId: bound.workspaceId, sessionId: bound.sessionId,
         projectId, documentId: document.id, sourceSha256: document.source_sha256, workRef: bound.workRef };
@@ -109,7 +116,7 @@ function Catalog({ config, t, openSession }) {
       result.execution = { getSnapshot: () => snapshot, subscribe: () => () => {} };
     }
     return result;
-  }, [origin, config.applicationId, bound, projectId, document, openSession, execution, t]);
+  }, [origin, config.applicationId, config.capabilities, bound, projectId, document, openSession, execution, t]);
   async function startTask(event) {
     event.preventDefault(); if (!document || launching || !goal.trim() || !config.capabilities['agent.start']) return;
     setLaunching(true); setError('');

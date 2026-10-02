@@ -1,4 +1,5 @@
 import { requestWithTransport } from "../shared/api/client";
+import type { WorkAction } from "../features/workspace/documentWorkProvider";
 import type { WorkbenchReadClient } from "../features/workspace/usePluginWorkbench";
 import type { WorkbenchPresentation } from "../features/workspace/WorkbenchHostContext";
 
@@ -26,6 +27,8 @@ export type ReadonlyWorkbenchHost = {
   id: string; label: string; client: WorkbenchReadClient;
   /** A managed host may enable source-bound feedback, Map confirmation, human responses and frozen deliveries. */
   feedbackWrites?: boolean;
+  /** When supplied, each business write must be explicitly true in both the host and service. */
+  workCapabilities?: Partial<Record<WorkAction, boolean>>;
   resourceUrl: WorkbenchPresentation["resourceUrl"];
   pdfViewerUrl: WorkbenchPresentation["pdfViewerUrl"];
   sessionBinding?: SessionBinding | null;

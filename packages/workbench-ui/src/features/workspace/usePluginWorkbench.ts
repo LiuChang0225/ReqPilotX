@@ -3,15 +3,15 @@ import { ApiError, request } from "../../shared/api/client";
 import type { SourceRequirementRecordDetailV1 } from "../../shared/api/contracts";
 import type { SourceWorkbenchReadModel, SourceWorkbenchReader } from "../extraction/SourceWorkbenchReader";
 import { retainedCommand, settleCommand } from "../extraction/agentTaskTransport";
-import { pluginCapability, type PluginState, type WorkAction } from "./documentWorkProvider";
+import { workbenchCapability, type PluginState, type WorkAction } from "./documentWorkProvider";
 import type { EngineerChoice, EngineerResponseView } from "../extraction/EngineerOpinion";
 
 export type WorkbenchReadClient = { id: string; request: typeof request };
 
-export function usePluginWorkbench({ projectId, documentId, sessionId, sourceSha256, revisionId, onRevision, readClient, readOnly = false, pollIntervalMs = 3000 }: {
+export function usePluginWorkbench({ projectId, documentId, sessionId, sourceSha256, revisionId, onRevision, readClient, readOnly = false, hostCapabilities, pollIntervalMs = 3000 }: {
   projectId: string; documentId: string; sessionId?: string; sourceSha256: string; revisionId?: string;
   onRevision: (revision: string) => void;
-  readClient?: WorkbenchReadClient; readOnly?: boolean; pollIntervalMs?: number;
+  readClient?: WorkbenchReadClient; readOnly?: boolean; hostCapabilities?: Partial<Record<WorkAction, boolean>>; pollIntervalMs?: number;
 }) {
   const send = readClient?.request || request;
   const root = `/api/projects/${encodeURIComponent(projectId)}/sor-documents/${encodeURIComponent(documentId)}/agent-structure/delivery/plugin-workbench/${encodeURIComponent(sessionId || "")}`;
@@ -70,7 +70,7 @@ export function usePluginWorkbench({ projectId, documentId, sessionId, sourceSha
   }, [scope, state]);
   const command = useCallback(async (action: "save_feedback" | "confirm_map", body: Record<string, unknown>) => {
     if (readOnly) throw new Error("当前面板只读，请在关联会话中处理修改。");
-    const capability = pluginCapability(state, action, !pinned || current);
+    const capability = workbenchCapability(state, action, !pinned || current, readOnly, hostCapabilities);
     if (!capability.enabled) throw new Error(capability.reason || "此操作当前不可用。");
     if (!pinned || !readModel) throw new Error("请先读取正在核对的版本。");
     const payload = { expected_source_sha256: sourceSha256, expected_revision_id: pinned, ...body };
@@ -89,12 +89,11 @@ export function usePluginWorkbench({ projectId, documentId, sessionId, sourceSha
       if (cause instanceof ApiError && cause.status >= 400 && cause.status < 500) commands.current.delete(key);
       throw cause;
     } finally { if (identity.current === scope) setPendingScope(""); }
-  }, [state, current, pinned, readModel, sourceSha256, scope, root, accept, readOnly, send]);
+  }, [state, current, pinned, readModel, sourceSha256, scope, root, accept, readOnly, hostCapabilities, send]);
   const saveFeedback = useCallback((text: string, nodeId: string, sourceIds: string[]) => command("save_feedback", { text: text.trim(), node_id: nodeId || null, source_item_ids: sourceIds }), [command]);
   const loadRecord = useCallback((sourceId: string, signal?: AbortSignal) => send<SourceRequirementRecordDetailV1>(`${root}/records/${encodeURIComponent(sourceId)}?revision=${encodeURIComponent(pinned || "")}`, { signal }), [root, pinned, send]);
-  const capability = useCallback((action: WorkAction) => readOnly && action !== "export_draft"
-    ? { supported: false, enabled: false, reason: "当前面板只读，请在关联会话中处理修改。" }
-    : pluginCapability(state, action, !pinned || current), [state, current, pinned, readOnly]);
+  const capability = useCallback((action: WorkAction) => workbenchCapability(state, action, !pinned || current, readOnly, hostCapabilities),
+    [state, current, pinned, readOnly, hostCapabilities]);
   const validateResponses = useCallback((view: EngineerResponseView, revision: string) => {
     if (view.source_sha256 !== sourceSha256 || view.session_id !== sessionId || view.revision_id !== revision || !view.version || !view.baseline_sha256)
       throw new Error("人工响应与当前原件、会话或成果版本不一致，请重新同步。");

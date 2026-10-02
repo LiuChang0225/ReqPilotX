@@ -46,25 +46,54 @@ test('selected source context is inserted with draft revision guard, never auto-
   assert.equal(insertions.length, 1);
 });
 
-test('managed workbench writes only source-bound feedback and Map confirmation', async () => {
+test('managed workbench writes only explicitly discovered session-bound operations', async () => {
   let entry; const calls = [];
   vm.runInNewContext(await readFile(new URL('../client/lib/client.js', import.meta.url), 'utf8'), {
     window: { __ModuleLoader__: { load(value) { entry = value; } }, location: { origin: 'http://pair.local' } },
     URL, Headers, FormData, fetch: async (url, init) => { calls.push({ url, method: init.method, credentials: init.credentials }); return new Response('{}', { headers: { 'content-type': 'application/json' } }); },
   });
   const plugin = entry.factory(hostRequire), origin = 'http://127.0.0.1:9000';
-  const host = plugin.makePairWorkbenchHost(origin, () => {}, 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc', true);
+  const host = plugin.makePairWorkbenchHost(origin, () => {}, 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc', { 'results.feedback': true, 'results.confirm_map': true, 'results.engineer_responses': true, 'results.save_version': true });
   const path = '/api/projects/p/sor-documents/d/agent-structure/delivery/plugin-workbench/plugin-' + 'a'.repeat(32);
   assert.equal(host.feedbackWrites, true);
   await host.client.request(path + '/feedback', { method: 'POST', body: '{"text":"review"}' });
   await host.client.request(path + '/confirm-map', { method: 'POST', body: '{"confirmed":true}' });
+  await host.client.request(path + '/engineer-responses', { method: 'POST', body: '{"expected_version":"cas"}' });
+  await host.client.request(path + '/versions', { method: 'POST', body: '{"expected_version":"cas"}' });
   assert.deepEqual(calls.map(value => [value.url, value.method, value.credentials]), [
     ['/reqpilotx/service' + path + '/feedback', 'POST', 'same-origin'],
     ['/reqpilotx/service' + path + '/confirm-map', 'POST', 'same-origin'],
+    ['/reqpilotx/service' + path + '/engineer-responses', 'POST', 'same-origin'],
+    ['/reqpilotx/service' + path + '/versions', 'POST', 'same-origin'],
   ]);
-  assert.throws(() => host.client.request(path + '/export', { method: 'POST' }), /只允许/);
-  assert.throws(() => host.client.request(path + '/feedback', { method: 'DELETE' }), /只允许/);
+  assert.throws(() => host.client.request(path + '/export', { method: 'POST' }), /不允许/);
+  assert.throws(() => host.client.request(path + '/feedback', { method: 'DELETE' }), /不允许/);
   const connected = plugin.makePairWorkbenchHost(origin, () => {}, null, false);
   await assert.rejects(connected.client.request(path + '/feedback', { method: 'POST' }), /只读/);
+  assert.equal(calls.length, 4);
+});
+
+
+test('managed operation flags cannot grant one another or enable a connect-mode host', async () => {
+  let entry; const calls = [];
+  vm.runInNewContext(await readFile(new URL('../client/lib/client.js', import.meta.url), 'utf8'), {
+    window: { __ModuleLoader__: { load(value) { entry = value; } }, location: { origin: 'http://pair.local' } }, URL, Headers, FormData,
+    fetch: async (url) => { calls.push(url); return new Response('{}', { headers: { 'content-type': 'application/json' } }); },
+  });
+  const plugin = entry.factory(hostRequire), origin = 'http://127.0.0.1:9000', id = 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc';
+  const path = '/api/projects/p/sor-documents/d/agent-structure/delivery/plugin-workbench/plugin-' + 'a'.repeat(32);
+  const flags = { 'results.feedback': true, 'results.engineer_responses': false, 'results.save_version': true };
+  const host = plugin.makePairWorkbenchHost(origin, () => {}, id, flags);
+  assert.equal(host.workCapabilities.save_engineer_response, false);
+  await host.client.request(path + '/feedback', { method: 'POST' });
+  await host.client.request(path + '/versions', { method: 'POST' });
+  for (const suffix of ['/engineer-responses', '/confirm-map', '/versions/1', '/versions/preview', '/versions/1/export'])
+    assert.throws(() => host.client.request(path + suffix, { method: 'POST' }), /不允许/);
+  flags['results.engineer_responses'] = true;
+  assert.throws(() => host.client.request(path + '/engineer-responses', { method: 'POST' }), /不允许/);
+  const legacy = plugin.makePairWorkbenchHost(origin, () => {}, id, true);
+  assert.throws(() => legacy.client.request(path + '/versions', { method: 'POST' }), /不允许/);
+  const connect = plugin.makePairWorkbenchHost(origin, () => {}, null, flags);
+  await assert.rejects(connect.client.request(path + '/versions', { method: 'POST' }), /只读/);
   assert.equal(calls.length, 2);
 });

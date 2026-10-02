@@ -93,3 +93,13 @@ it("rejects a wrong-session response receipt without switching the selected resu
   await act(async()=>{await expect(page.result.current.reader!.saveEngineerResponse!("u",choice)).rejects.toThrow("不一致");});
   expect(page.result.current.pinned).toBe(first);
 });
+
+it("blocks human and delivery writes when the embedded host does not expose them",async()=>{
+  state={...state,capabilities:{...state.capabilities,save_feedback:{supported:true,enabled:true}}};
+  const page=renderHook(()=>usePluginWorkbench({...options,hostCapabilities:{save_feedback:true,save_engineer_response:false}}));
+  await waitFor(()=>expect(page.result.current.reader).toBeDefined());
+  expect(page.result.current.reader!.feedbackCapability!.enabled).toBe(true);
+  expect(page.result.current.reader!.responseCapability!.enabled).toBe(false);
+  await expect(page.result.current.reader!.saveEngineerResponse!("u",choice)).rejects.toThrow("宿主未开放");
+  expect(page.result.current.deliveryTransport.writable).toBe(false);expect(writes).toEqual([]);
+});

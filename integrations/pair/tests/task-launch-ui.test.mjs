@@ -21,7 +21,7 @@ test('native task form preserves command across retry and opens only its returne
   dom.window.localStorage.setItem('reqpilotx:view:' + id, JSON.stringify({ projectId: 'p', documentId: 'd' }));
   const calls = [], controls = [], opened = [], panels = [], effects = [], timers = new Set(); let definitions, application, plugin;
   const config = { schema: 'reqpilot-application-host/v1', mode: 'managed', status: 'READY', applicationId: id, instanceId: 'one', serviceOrigin: 'http://127.0.0.1:5555', capabilities: {
-    'projects.read': true, 'projects.create': true, 'documents.read': true, 'documents.import': true, 'results.read': true, 'results.feedback': true, 'results.confirm_map': true, 'agent.start': true, 'agent.resume': true, 'agent.cancel': true, 'events.agent': false,
+    'projects.read': true, 'projects.create': true, 'documents.read': true, 'documents.import': true, 'results.read': true, 'results.feedback': true, 'results.confirm_map': true, 'results.engineer_responses': true, 'results.save_version': true, 'agent.start': true, 'agent.resume': true, 'agent.cancel': true, 'events.agent': false,
   } };
   const json = value => new Response(JSON.stringify(value), { headers: { 'content-type': 'application/json' } });
   async function fetcher(url, init = {}) {

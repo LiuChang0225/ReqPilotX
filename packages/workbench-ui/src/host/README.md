@@ -55,3 +55,11 @@
 项目/文档业务客户端在`shared/api/projectDocuments.ts`，独立App的`api`与宿主导出共同使用。Pair通过`createProjectDocumentClient`注入transport，禁止在适配层重写create/import请求字段。`requestWithTransport`继续复用错误/JSON解析；上传进度由真实upload transport提供。
 
 `contract.ts`定义共享导出面的major/minor；构建检查实际exports并生成`dist-panel/host-contract.json`。消费端声明所需major与exports，兼容新增不会强迫适配器改代码。contract版本、能力包版本和具体成果revision分别记录，不能互相替代。
+
+
+受控嵌入宿主现在可传 `workCapabilities`（`save_feedback`、`confirm_map`、
+`save_engineer_response`、`save_delivery_version`）。传入时各项须显式为 true，
+并与业务服务 capability 取交集；缺项不授权写入。`feedbackWrites` 保留兼容
+名称，只表示工作面是否可进入受控写入模式，不能覆盖细粒度 capability
+或历史版本限制。未传该可选字段的既有宿主保持原兼容行为；Pair Client
+使用四项已发现权限传入。必须重建配套共享 UI 与 Client 后再执行真实宿主验收。

@@ -48,7 +48,7 @@ function ReadonlyPanel({ selection: initial, host, documentName, theme = "light"
   }, [changeSelection]);
   const provider = usePluginWorkbench({ projectId: selection.projectId, documentId: selection.documentId,
     sourceSha256: selection.sourceSha256, sessionId: selection.workRef, revisionId: selection.revisionId,
-    onRevision, readClient: host.client, readOnly: !host.feedbackWrites, pollIntervalMs: active && !host.subscribeWorkUpdates ? 5000 : 0 });
+    onRevision, readClient: host.client, readOnly: !host.feedbackWrites, hostCapabilities: host.workCapabilities, pollIntervalMs: active && !host.subscribeWorkUpdates ? 5000 : 0 });
   versionsRef.current = provider.state?.versions || [];
   const binding = matchingSession(selection, host.sessionBinding);
   const reported = useSyncExternalStore(host.execution?.subscribe || noSubscription, host.execution?.getSnapshot || emptySnapshot, emptySnapshot);

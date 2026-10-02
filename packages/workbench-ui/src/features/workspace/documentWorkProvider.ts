@@ -21,6 +21,13 @@ export function pluginCapability(state: PluginState | null, action: WorkAction, 
   if (!current && ["save_feedback", "confirm_map", "save_engineer_response", "save_delivery_version"].includes(action)) return { ...capability, enabled: false, reason: "正在查看历史版本；保留草稿，切换最新成果后再提交。" };
   return { ...capability, supported: capability.supported === true, enabled: capability.supported === true && capability.enabled === true };
 }
+/** The business service and embedded host must both offer a write; neither can widen the other. */
+export function workbenchCapability(state: PluginState | null, action: WorkAction, current = true, readOnly = false, hostCapabilities?: Partial<Record<WorkAction, boolean>>): WorkCapability {
+  if (readOnly && action !== "export_draft") return { supported: false, enabled: false, reason: "当前面板只读，请在关联会话中处理修改。" };
+  if (["save_feedback", "confirm_map", "save_engineer_response", "save_delivery_version"].includes(action)
+    && hostCapabilities && hostCapabilities[action] !== true) return { supported: false, enabled: false, reason: "当前宿主未开放此操作；已保存成果仍可核对和下载。" };
+  return pluginCapability(state, action, current);
+}
 export function externalExecutionLabel(state: PluginState | null) {
   const value = state?.execution?.state || state?.execution?.status || state?.execution_state;
   return ({ RUNNING: "外部任务报告处理中", COMPLETED: "外部任务报告本轮结束", SUCCEEDED: "外部任务报告本轮结束", FAILED: "外部任务报告未完成", INTERRUPTED: "外部任务报告已暂停", CANCELLED: "外部任务报告已暂停" } as Record<string,string>)[value || ""] || "外部运行状态未报告";
