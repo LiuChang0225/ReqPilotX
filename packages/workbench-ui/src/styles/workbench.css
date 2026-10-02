@@ -643,3 +643,22 @@
   .knowledge-document-detail > header { flex-wrap: wrap; }
   .knowledge-document-detail { padding-left: 16px; }
 }
+.native-evidence-registration { margin: 12px 0; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.native-evidence-registration > summary { cursor: pointer; font-weight: 600; }
+.native-evidence-registration p, .native-evidence-review-dialog p { line-height: 1.55; }
+.native-evidence-file-pickers, .native-evidence-metadata { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 12px; margin: 12px 0; }
+.native-evidence-file-pickers label, .native-evidence-metadata label { display: grid; gap: 6px; min-width: 0; }
+.native-evidence-metadata input, .native-evidence-metadata select, .native-evidence-file-pickers input { width: 100%; min-width: 0; }
+.native-evidence-actions { display: flex; gap: 8px; flex-wrap: wrap; margin: 12px 0; }
+.native-evidence-upload-result { padding: 12px; background: var(--canvas); border-radius: var(--radius-sm); overflow-wrap: anywhere; }
+.native-evidence-review-dialog { width: min(980px, calc(100vw - 32px)); max-height: calc(100dvh - 32px); }
+.native-evidence-review-dialog .modal-card { max-height: calc(100dvh - 64px); overflow-y: auto; }
+.native-evidence-review-header { display: flex; align-items: flex-start; justify-content: space-between; gap: 16px; }
+.native-evidence-review-header h2 { margin: 0; font-size: 18px; }
+.native-evidence-originals { margin-top: 16px; }
+.native-evidence-original { padding: 12px; margin: 12px 0; border: 1px solid var(--line); border-radius: var(--radius-sm); }
+.native-evidence-original label { display: flex; align-items: flex-start; gap: 8px; overflow-wrap: anywhere; }
+.native-evidence-quote { white-space: pre-wrap; overflow-wrap: anywhere; }
+.native-evidence-locator { font-family: monospace; overflow-wrap: anywhere; }
+.native-evidence-review-trigger { margin: 12px 0; }
+@media (max-width: 640px) { .native-evidence-file-pickers, .native-evidence-metadata { grid-template-columns: 1fr; } .native-evidence-review-header { flex-direction: column; } }

@@ -1471,6 +1471,7 @@ class AppFactoryBoundaryTests(unittest.TestCase):
                 "matrix",
                 "assessment",
                 "knowledge",
+                "openkb-evidence",
                 "export",
             ),
         )

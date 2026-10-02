@@ -9,6 +9,7 @@ from . import (
     extraction,
     ingestion,
     knowledge,
+    openkb_evidence,
     matrix,
     projects,
     reading,
@@ -35,6 +36,7 @@ def build_domain_routers() -> tuple[APIRouter, ...]:
         matrix.build(),
         assessment.build(),
         knowledge.build(),
+        openkb_evidence.build(),
         export.build(),
     )
 

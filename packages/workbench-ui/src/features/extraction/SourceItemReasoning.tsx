@@ -4,6 +4,7 @@ import { request } from "../../shared/api/client";
 import { Icon } from "../../shared/ui/Icon";
 import { projectKnowledgeFileUrl, useAnalysisKnowledgeSelection } from "../knowledge/projectKnowledge";
 import { useWorkbenchHost } from "../workspace/WorkbenchHostContext";
+import { NativeEvidenceReview } from "../knowledge/NativeEvidenceReview";
 import { EngineerOpinion, ENGINEER_DECISION_LABELS, type EngineerChoice, type EngineerResponseView } from "./EngineerOpinion";
 
 type Carry = { operation?: string; from_baseline_sha256?: string; retained_parent_ids?: string[];
@@ -22,6 +23,7 @@ export type SourceItemDeliveryState = {
   unassessed_unit_count?: number; awaiting_evidence_unit_count?: number; clarification_unit_count?: number;
   decomposition_job_id: string | null; analysis_job_id: string | null; notices: string[];
   active_jobs: Job[];
+  openkb_preparation?: { semantic_validation: "NOT_PERFORMED"; live_openkb: "NOT_RUN"; human_acceptance: "NOT_CLAIMED"; model_call_count: 0; assessment_sha256: string; prepared_at: string };
   analysis_policy?: { status: string; reason: string } | null;
   engineer_responses?: EngineerResponseView | null;
   business_basis_sha256?: string;
@@ -168,6 +170,7 @@ export function useSourceItemReasoning(projectId: string, documentId: string, ba
     } finally { if (currentKey.current === startedKey) setPending(""); }
   };
   return { scopeKey: key, state, error, pending, job, run, exportMatrix, saveEngineerResponse, loadEngineerResponses, knowledgeSelection,
+    sourceEvidenceScope: { projectId, documentId, sourceSha256: state?.source_sha256 || "", baselineSha256: baselineSha },
     knowledgeFileUrl: (documentId: string, sha: string) => { const url = projectKnowledgeFileUrl(projectId, documentId, sha); return url ? host.resourceUrl(url) : ""; },
     refresh: () => { setError(""); setRefresh(value => value + 1); },
     busy: Boolean(pending || ["PENDING", "RUNNING"].includes(job?.status || "")) };
@@ -190,10 +193,12 @@ export function SourceItemDeliveryActions({ workflow, compact = false, exportOnl
 
 export function SourceItemReasoningStatus({ workflow, showSummary = true }: { workflow: SourceItemReasoningController; showSummary?: boolean }) {
   const { state, job } = workflow;
+  const host = useWorkbenchHost();
   return <div className="source-item-reasoning-status">
     {state && showSummary && <span>全局：{state.analysis_unit_count} 个分析单元 · 已分析 {state.assessed_unit_count}
       {state.unassessed_unit_count !== undefined ? <> · 待分析 {state.unassessed_unit_count} · 待内部证据 {state.awaiting_evidence_unit_count || 0} · 待澄清 {state.clarification_unit_count || 0}</> : <> · 未关闭 {state.pending_unit_count}</>}</span>}
     {job && ["PENDING", "RUNNING"].includes(job.status) && <span role="status">{job.progress?.message || job.message || "Agent 正在处理，已有结果可继续查看。"}</span>}
+    {host.nativeEvidence === true && state?.openkb_preparation && <span role="status">登记原件待证据草稿 · 语义比较未执行（{state.openkb_preparation.semantic_validation}） · 实时检索未运行（{state.openkb_preparation.live_openkb}） · 人工接受未声明（{state.openkb_preparation.human_acceptance}）</span>}
     {state?.notices.map(notice => <span key={notice}>{notice}</span>)}
     {workflow.error && <span role="alert">{workflow.error} <button type="button" className="button ghost compact" onClick={workflow.refresh}>刷新状态</button></span>}
   </div>;
@@ -236,6 +241,9 @@ export function SourceItemReasoningDetail({ workflow, sourceItemId, requirementI
 }) {
   const state = workflow.state;
   const [selectedUnit, setSelectedUnit] = useState("");
+  const host = useWorkbenchHost();
+  const [evidenceUnit, setEvidenceUnit] = useState<{ id: string; label: string } | null>(null);
+  useEffect(() => { setEvidenceUnit(null); }, [workflow.scopeKey, sourceItemId, selectedUnitId]);
   const children = state?.decomposition?.records[sourceItemId] || [];
   const splitCarry = state?.decomposition?.carry_forward;
   const splitStale = splitCarry?.operation === "SOURCE_VALIDATED_REBIND" && Boolean(splitCarry.stale_parent_ids?.includes(sourceItemId));
@@ -288,6 +296,7 @@ export function SourceItemReasoningDetail({ workflow, sourceItemId, requirementI
           <p key={index}>{part.text}{part.page ? <button type="button" onClick={() => onPageChange(part.page!)}>P{part.page}</button> : null}</p>)}</details> : null}
         {!reviewMode && purpose !== "review" && <EngineerOpinion unitId={unit.unitId} view={state?.engineer_responses} onSave={workflow.saveEngineerResponse} onLoad={workflow.loadEngineerResponses} readOnly={engineerReadOnly}
           defaultExpanded draftScope={workflow.scopeKey} suggestion={decision} />}
+        {!reviewMode && purpose !== "review" && host.nativeEvidence === true && !host.readOnly && !readOnly && workflow.sourceEvidenceScope?.projectId && <button type="button" className="button secondary compact native-evidence-review-trigger" disabled={!state || workflow.busy} onClick={() => setEvidenceUnit({ id: unit.unitId, label: unit.requirement_display_id })}>核对证据并准备评审草稿</button>}
         {decision && <div className="analysis-suggestion"><strong>{engineer?.state === "CURRENT" ? "AI分析建议（保留）" : "Agent 分析建议"}</strong><details className="analysis-rationale" open={reviewMode}><summary>判断依据</summary><p>{decision.reason}</p></details>{decision.clarification_question && <p><strong>待补充：</strong>{decision.clarification_question}</p>}
           {decision.evidence.map((citation, index) => {
             const fact = state?.assessments?.evidence_catalog[citation.fact_id];
@@ -298,5 +307,8 @@ export function SourceItemReasoningDetail({ workflow, sourceItemId, requirementI
           })}</div>}
       </article>;
     })}
+    {evidenceUnit && state && <NativeEvidenceReview key={`${workflow.scopeKey}:${evidenceUnit.id}`} scope={workflow.sourceEvidenceScope} unitIds={[evidenceUnit.id]} unitLabel={evidenceUnit.label}
+      knowledgeIds={workflow.knowledgeSelection.ids} onKnowledgeChange={workflow.knowledgeSelection.setIds} durable={workflow.knowledgeSelection.durable}
+      onPrepared={workflow.refresh} onClose={() => setEvidenceUnit(null)} />}
   </section>;
 }

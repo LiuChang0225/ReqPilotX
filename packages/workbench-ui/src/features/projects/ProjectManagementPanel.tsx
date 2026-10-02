@@ -7,6 +7,7 @@ import { FileName } from "../../shared/ui/FileName";
 import { Icon } from "../../shared/ui/Icon";
 import { ProjectDocumentLibrary } from "./ProjectDocumentLibrary";
 import { useWorkspace } from "../workspace/WorkspaceContext";
+import { useWorkbenchHost } from "../workspace/WorkbenchHostContext";
 import { UploadQueueDialog } from "../documents/UploadQueueDialog";
 import {
   createUploadItems,
@@ -15,6 +16,8 @@ import {
 } from "../documents/uploadQueue";
 
 export function ProjectManagementPanel() {
+  const host = useWorkbenchHost();
+  const nativeEvidence = host.nativeEvidence === true && !host.readOnly;
   const {
     projects,
     route,
@@ -252,11 +255,15 @@ export function ProjectManagementPanel() {
             type="button"
             disabled={!selectedProject}
             title={
-              knowledgeReady
+              nativeEvidence ? "登记证据原件，不运行索引或模型" : knowledgeReady
                 ? "添加知识依据"
                 : "文件会先安全保存；检索能力连接后再同步"
             }
             onClick={() => {
+              if (nativeEvidence) {
+                updateRoute({ task: "knowledge", knowledgeSpace: "project", knowledgePage: undefined, knowledgeView: undefined });
+                return;
+              }
               setActiveKind("knowledge");
               knowledgeInput.current?.click();
             }}

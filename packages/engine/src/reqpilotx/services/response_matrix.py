@@ -35,7 +35,8 @@ _DECISION_LABELS = {'COMPLIANT': '符合', 'NON_COMPLIANT': '不符合', 'PARTIA
 def _engineer_ai_background(node):
     ai = node.get('ai_assessment') or {}
     if not ai: return ''
-    lines = ['AI分析建议（保留，不覆盖人工意见）：' + _DECISION_LABELS.get(ai.get('decision'), ai.get('decision', ''))]
+    prepared = ai.get('assessment_mode') == 'host-evidence-preparation'
+    lines = [('原件准备记录（模型未运行，不覆盖人工意见）：' if prepared else 'AI分析建议（保留，不覆盖人工意见）：') + _DECISION_LABELS.get(ai.get('decision'), ai.get('decision', ''))]
     if ai.get('reason'): lines.append(ai['reason'])
     if ai.get('clarification_question'): lines.append('AI待补充：' + ai['clarification_question'])
     return '\n'.join(lines)
@@ -171,6 +172,8 @@ def _result(node):
             reason += '\n\n' + (background if len(reason) + len(background) < 30000
                                 else 'AI分析建议仍完整保留，请通过“完整内容”查看。')
         return ('工程师工作意见：' if engineer else '人工：') + label, reason
+    if current and ai.get('assessment_mode') == 'host-evidence-preparation':
+        return '原件已准备 · 待审（模型未运行）', '\n'.join(value for value in (ai.get('reason'), ai.get('clarification_question')) if value)
     if current and token:
         label = ('AI建议：' + label) if contract.effective_conclusion else label
         return label, '\n'.join(v for v in (ai.get('reason'),
@@ -202,6 +205,9 @@ def group_assessment(node, by_id):
         if child.get('analysis_result_state') == 'STALE_REFERENCE':
             analysis['STALE'] += 1
             continue
+        if (child.get('ai_assessment') or {}).get('assessment_mode') == 'host-evidence-preparation' and not child.get('manual_decision'):
+            analysis['PREPARED'] += 1
+            continue
         token = ''
         if child.get('analysis_result_state') == 'CURRENT':
             token = (child.get('manual_decision') or {}).get('decision') or (child.get('ai_assessment') or {}).get('decision') or ''
@@ -209,7 +215,7 @@ def group_assessment(node, by_id):
         analysis[token if token and token != 'UNKNOWN' else 'NOT_ANALYZED'] += 1
     skipped = sum((c.get('source_item') or c.get('decomposition') or {}).get('analysis_policy', {}).get('status') == 'SKIPPED'
         and not matrix_conclusion_contract(c).effective_conclusion and c.get('analysis_result_state') != 'STALE_REFERENCE' for c in descendants)
-    analyzed = len(descendants) - analysis['NOT_ANALYZED'] - analysis['STALE']
+    analyzed = len(descendants) - analysis['NOT_ANALYZED'] - analysis['STALE'] - analysis['PREPARED']
     evidence = analysis['PENDING_EVIDENCE'] + analysis['INSUFFICIENT_INFORMATION']
     clarification = analysis['NEEDS_CLARIFICATION'] + analysis['NEED_CLARIFICATION']
     bad = sum(counts[k] for k in ('NON_COMPLIANT', 'REJECT'))
@@ -220,6 +226,8 @@ def group_assessment(node, by_id):
         status = '存在条件/偏离'
     elif skipped == len(descendants):
         status = '未执行符合性分析'
+    elif analysis['PREPARED'] and not analyzed:
+        status = '原件已准备 · 待审（模型未运行）'
     elif analyzed < len(descendants):
         status = '部分已分析 · 仍需补全' if analyzed else '需重新分析' if analysis['STALE'] else '待分析'
     elif completed == len(descendants):
@@ -236,6 +244,7 @@ def group_assessment(node, by_id):
     if skipped: summary += f" · 未执行符合性分析 {skipped}"
     if analysis['NOT_ANALYZED'] > skipped: summary += f" · 待分析 {analysis['NOT_ANALYZED'] - skipped}"
     if analysis['STALE']: summary += f" · 需重新分析 {analysis['STALE']}"
+    if analysis['PREPARED']: summary += f" · 原件已准备/模型未运行 {analysis['PREPARED']}"
     return status, summary
 
 
@@ -258,7 +267,7 @@ def write_response_workbook(*, workbook, formats, snapshot, nodes, table_details
                      for key, detail in table_details.items()}
 
     main = workbook.add_worksheet('ComplianceMatrix')
-    used = {'ComplianceMatrix', '图文依据', '_ReqPilotXMeta'}
+    used = {'ComplianceMatrix', '图文依据', '内部原件引用', '_ReqPilotXMeta'}
     table_names = {}
     for i, table_id in enumerate(table_catalog.first_seen_order, 1):
         name = e._matrix_table_sheet_name(index=i, detail=table_details.get(table_id, {}), used_names=used)
@@ -705,6 +714,7 @@ def write_response_workbook(*, workbook, formats, snapshot, nodes, table_details
     if evidence: finish(evidence, evidence_cursor-3, 3)
     if missing_images or stats['cell_images_failed']:
         raise ValueError(f"SOURCE_IMAGE_EXPORT_INCOMPLETE: figure failures={missing_images}; table cell failures={stats['cell_images_failed']}")
+    _write_original_reference_sheet(workbook, snapshot)
     e._append_hidden_matrix_meta_sheet(workbook=workbook, formats=formats, snapshot=snapshot, nodes=nodes,
         matrix_row_by_node=navigation_rows, matrix_row_span_by_node={k:(v,v) for k,v in navigation_rows.items()},
         table_sheet_names=table_names, project_name=project_name, customer_name=customer_name,
@@ -714,3 +724,49 @@ def write_response_workbook(*, workbook, formats, snapshot, nodes, table_details
         unresolved_figure_reference_count=missing_images)
     return {'rendered_source_keys': sorted(rendered_figures), 'figure_placements': figure_placements,
             'inserted_placement_count': image_count + stats['cell_images_inserted']}
+
+
+def _write_original_reference_sheet(workbook, snapshot):
+    """Canonical provenance sheet; quoted candidates are never coverage proof."""
+    source = snapshot.get('source_item_baseline') or {}
+    references = source.get('analysis_original_evidence') or []
+    if not references:
+        return
+    sheet = workbook.add_worksheet('内部原件引用')
+    header = workbook.add_format({'bold': True, 'bg_color': '#183B56', 'font_color': '#FFFFFF', 'text_wrap': True})
+    body = workbook.add_format({'valign': 'top', 'text_wrap': True})
+    titles = ['工程判断单元', '提案状态', '登记原件名称', '原件ID', '原件SHA256', '原生fact_id', '原生定位JSON',
+              '引用原文', '分段', '原件权威', '依据类型', '适用声明', '知识版本', '知识目录SHA256', '分析工件SHA256', '原文工作版SHA256', '引用含义',
+              '登记证据ID', '知识原件代次', '完整登记引用JSON', '引用JSON分段']
+    sheet.write_row(0, 0, titles, header)
+    sheet.freeze_panes(1, 1)
+    sheet.set_column(0, 5, 28)
+    sheet.set_column(6, 7, 70)
+    sheet.set_column(8, 16, 34)
+    row = 1
+    receipt = source.get('original_reference_receipt') or {}
+    exact = {(item['reference']['fact_id'], item['reference']['excerpt']): item for item in receipt.get('references', [])}
+    for ref in references:
+        quote = ref['quote']
+        chunks = [quote[index:index + 8000] for index in range(0, len(quote), 8000)] or ['']
+        original = exact.get((ref['fact_id'], quote))
+        encoded = json.dumps(original['reference'], ensure_ascii=False, sort_keys=True) if original else ''
+        original_chunks = [encoded[index:index + 8000] for index in range(0, len(encoded), 8000)] or ['']
+        for number in range(1, max(len(chunks), len(original_chunks)) + 1):
+            chunk = chunks[number - 1] if number <= len(chunks) else ''
+            values = [ref['unit_id'], ref['decision'], ref['document_name'], ref['document_id'], ref['source_sha256'], ref['fact_id'],
+                json.dumps(ref['source_ref'], ensure_ascii=False, sort_keys=True), chunk, str(number) + '/' + str(len(chunks)) if number <= len(chunks) else '',
+                ref['authority'], ref['claim_role'], ref['applicability'], str(source['knowledge_base_version']), source['catalog_sha256'],
+                source['analysis_artifact_sha256'], source['artifact_sha256'], '引用原文；不等同完整覆盖证明，以主表本版有效响应为准',
+                original['evidence_id'] if original else '', receipt.get('generation', '') if original else '',
+                original_chunks[number - 1] if number <= len(original_chunks) else '', str(number) + '/' + str(len(original_chunks)) if original and number <= len(original_chunks) else '']
+            if row >= 1_048_576 or any(len(str(value)) > 32767 for value in values):
+                raise ValueError('Original evidence exceeds Excel limits; no silent truncation')
+            for column, value in enumerate(values):
+                if str(value):
+                    sheet.write_string(row, column, str(value), body)
+                else:
+                    sheet.write_blank(row, column, None, body)
+            sheet.set_row(row, 100)
+            row += 1
+    sheet.autofilter(0, 0, row - 1, len(titles) - 1)

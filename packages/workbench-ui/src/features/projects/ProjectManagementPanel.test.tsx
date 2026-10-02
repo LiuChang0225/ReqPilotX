@@ -11,6 +11,7 @@ import {
 } from "../workspace/WorkspaceContext";
 import { ProjectManagementPanel } from "./ProjectManagementPanel";
 import { api } from "../../shared/api/client";
+import { WorkbenchHostContext } from "../workspace/WorkbenchHostContext";
 
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
@@ -136,6 +137,20 @@ function renderPanel(
 }
 
 describe("ProjectManagementPanel workflow truth", () => {
+  it("routes standalone source registration into native project evidence without legacy indexing", () => {
+    const value = renderPanel();
+    fireEvent.click(screen.getByRole("button", { name: "添加知识依据" }));
+    expect(value.updateRoute).toHaveBeenCalledWith({ task: "knowledge", knowledgeSpace: "project", knowledgePage: undefined, knowledgeView: undefined });
+  });
+
+  it("preserves legacy file selection for an external presentation that omits the native flag", () => {
+    const value = workspaceValue();
+    const { container } = render(<WorkbenchHostContext.Provider value={{ readOnly: false, resourceUrl: path => path, pdfViewerUrl: () => "" }}><WorkspaceProvider value={value}><ProjectManagementPanel /></WorkspaceProvider></WorkbenchHostContext.Provider>);
+    const click = vi.spyOn(container.querySelectorAll('input[type="file"]')[1] as HTMLInputElement, "click");
+    fireEvent.click(screen.getByRole("button", { name: "添加知识依据" }));
+    expect(click).toHaveBeenCalledTimes(1);
+    expect(value.updateRoute).not.toHaveBeenCalled();
+  });
   it("creates the first project without a selected project", async () => {
     const value = workspaceValue();
     value.projects = []; value.documents = []; value.selectedProject = null;
