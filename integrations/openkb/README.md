@@ -169,10 +169,24 @@ tracked separately; the earlier failed run is retained as evidence.
 排版、PDF 视觉保真或浏览器文件夹选择对话框。原生 Chrome 页面脚本不可用，
 没有开启其安全选项；Mac 实屏交互验收为 **NOT_RUN**。
 
-本地提交命令未启动：自动审批将父任务传来的 Git 授权视为不可信转述。
-因此候选仍为未提交源码，官方 engine release 的已提交/干净输入门禁阻止
-发布构建；新的非 editable 安装、推送和新 HEAD CI 为 **NOT_RUN**。
-现有远端 `79458fd` CI 不能证明这个未提交候选。
+首轮提交曾因委派许可未进入审批可信上下文而被拒，命令未启动；
+补充已有用户原话后，同一调用获准执行。30 路径候选提交为 `c14dfb5`；
+必要分发修正补入新 helper 的 5 行标准 server 兼容别名，保持同一 module
+identity，产品化回归 5 项通过。新 helper 的冗余 EOF 空行已清理，Python
+AST 完全相同；没有复制业务实现或放宽门禁。
+
+从干净提交 `8f37031652ebf81639d35eda178ec2fb33ee35fb` 通过官方 engine
+wheel/sdist 和 server wheel 构建。引擎版本为 `0.2.0+g8f37031652eb.i98d4a502e65e`；
+wheel 含 `reqpilotx/application/openkb_originals.py`。离线缓存未含构建
+setuptools wheel，已核对本机现有 `84.0.0` 与要求相同，通过正常 uv
+no-build-isolation 选项复用，没有下载新依赖。
+
+新建私有环境非 editable 安装两份 wheel，helper 与证据应用从安装目录
+导入，未注入 server/engine 源码路径。依赖复用已有测试环境，因此不是
+封闭依赖安装或干净机器验收。安装版真实 main API/PG 和复制的 Web 构建
+完成原件引用、canonical XLSX、既有意见保留、过期拒绝和实际重启；
+冻结 Excel 字节保留，安装版 Web 主入口 DOM 也通过，新 durable job 为 0。
+Mac 构建和安装证据不能代替最终 HEAD CI；同开发分支 CI 结果由 PR10 跟踪。
 临时 main API、两次限定 worker、脚本模型服务及私有 PG 均已关闭，
 合成验证工件及前像备份保留在仓库外。Live OpenKB、公司生产 PG、真实模型
 部署认证、客户语义和 Windows 11 验收均未运行。
