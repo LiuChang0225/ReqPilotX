@@ -3,7 +3,7 @@ import { mkdir, readFile, writeFile, open, unlink, realpath, readdir, stat, lsta
 import { resolve, dirname, join, isAbsolute } from 'node:path';
 import { homedir } from 'node:os';
 import { fileURLToPath } from 'node:url';
-import { randomBytes, randomUUID } from 'node:crypto';
+import { randomBytes, randomUUID, createHmac, timingSafeEqual } from 'node:crypto';
 import { createServer } from 'node:net';
 
 const delay = ms => new Promise(resolve => setTimeout(resolve, ms));
@@ -25,7 +25,7 @@ export class ManagedRuntime {
     this.frontendRoot = config.frontendRoot;
     this.wrapper = fileURLToPath(new URL('./managed_api.py', import.meta.url));
     this.binDir = config.postgresBinDir;
-    this.token = randomUUID(); this.handles = []; this.cancel = new AbortController();
+    this.token = randomUUID(); this.endpointProofKey = randomBytes(32).toString('hex'); this.handles = []; this.cancel = new AbortController();
     this.snapshot = { mode: 'managed', status: 'STARTING', stage: 'dependencies', message: '正在准备 ReqPilotX 服务', owned: true };
   }
   async privateWrite(name, value) { await writeFile(join(this.dataRoot, name), JSON.stringify(value, null, 2) + '\n', { mode: 0o600 }); }
@@ -52,14 +52,45 @@ export class ManagedRuntime {
     try { await lease.writeFile(JSON.stringify({ pid: process.pid, token: this.token })); } finally { await lease.close(); }
     this.claimed = true;
   }
-  spawn(argv, env = {}, collect = true) {
+  /** Verify a freshly challenged API against this exact live lease, never a supplied endpoint. */
+  async verifyEndpoint(transport = fetch) {
+    const state = this.snapshot, origin = state.serviceOrigin;
+    const url = new URL(origin);
+    if (!this.claimed || this.stopping || state.status !== 'READY' || state.mode !== 'managed' || state.owned !== true
+      || state.instanceId !== this.token || url.protocol !== 'http:' || url.hostname !== '127.0.0.1'
+      || !url.port || url.origin !== origin) throw Error('TASK_RECONNECT_ENDPOINT_UNTRUSTED');
+    const checkLease = async () => {
+      const owner = JSON.parse(await readFile(join(this.dataRoot, 'owner.json'), 'utf8'));
+      const lease = JSON.parse(await readFile(join(this.dataRoot, 'runtime.lock'), 'utf8'));
+      const descriptor = JSON.parse(await readFile(join(this.dataRoot, 'api-instance.json'), 'utf8'));
+      if (owner.application !== 'reqpilotx-pair' || owner.version !== 1 || owner.id !== this.ownerId
+        || lease.token !== this.token || lease.pid !== process.pid || descriptor.instanceId !== this.token
+        || descriptor.origin !== origin || !ownerAlive(descriptor.pid) || this.snapshot !== state)
+        throw Error('TASK_RECONNECT_ENDPOINT_UNTRUSTED');
+    };
+    await checkLease();
+    const challenge = randomBytes(32).toString('hex');
+    const response = await transport(origin + '/api/pair-managed-identity?challenge=' + challenge,
+      { redirect: 'error', signal: AbortSignal.timeout(5000) });
+    if (!response.ok) throw Error('TASK_RECONNECT_ENDPOINT_UNTRUSTED');
+    const value = await response.json();
+    const expected = createHmac('sha256', Buffer.from(this.endpointProofKey, 'hex'))
+      .update(JSON.stringify([this.ownerId, this.token, origin, challenge])).digest('hex');
+    if (value.ownerId !== this.ownerId || value.instanceId !== this.token || value.challenge !== challenge
+      || !/^[a-f0-9]{64}$/.test(value.proof || '')
+      || !timingSafeEqual(Buffer.from(expected, 'hex'), Buffer.from(value.proof, 'hex')))
+      throw Error('TASK_RECONNECT_ENDPOINT_UNTRUSTED');
+    await checkLease();
+    return { ownerId: this.ownerId, instanceId: this.token, serviceOrigin: origin };
+  }
+  spawn(argv, env = {}, collect = true, signal = this.cancel.signal) {
     this.cancel.signal.throwIfAborted();
-    const handle = this.subprocess.spawn({ argv, cwd: this.dataRoot, env, signal: this.cancel.signal,
+    const handle = this.subprocess.spawn({ argv, cwd: this.dataRoot, env, signal: AbortSignal.any([this.cancel.signal, signal]),
       stdio: { stdin: 'ignore', stdout: { maxBytes: collect ? 65536 : 16384 }, stderr: { maxBytes: 65536 } }, graceMs: 15000 });
     this.handles.push(handle); return handle;
   }
-  async command(argv, env = {}) {
-    const handle = this.spawn(argv, env); const result = await handle.done;
+  async command(argv, env = {}, options = {}) {
+    const handle = this.spawn(argv, env, true, options.signal); const result = await handle.done;
     if (result.exitCode !== 0) {
       const detail = handle.collected.stderr?.readFrom(0).text || handle.collected.stdout?.readFrom(0).text || '';
       throw Error('Runtime preparation command failed: ' + dirname(argv[0]).split('/').pop() + '/' + argv[0].split('/').pop() + ': ' + detail.slice(-1600));
@@ -119,7 +150,7 @@ export class ManagedRuntime {
     if (!ready) throw Error('Managed database did not become ready.');
     const exists = await this.command([join(this.binDir, 'psql'), '-Atqc', "SELECT 1 FROM pg_database WHERE datname='reqpilotx'"], dbEnv);
     if (exists.trim() !== '1') await this.command([join(this.binDir, 'createdb'), 'reqpilotx'], dbEnv);
-    const env = { REQPILOT_ENV: 'local', REQPILOT_PROCESS_ROLE: 'api', REQPILOT_AGENT_RUNTIME: 'none', REQPILOT_DATABASE_URL: 'postgresql://reqpilotx:' + this.secret + '@127.0.0.1:' + pgPort + '/reqpilotx', REQPILOT_STORAGE_DIR: join(this.dataRoot, 'storage'), REQPILOT_FRONTEND_DIR: this.frontendRoot, REQPILOT_OBJECT_ROOT: join(this.dataRoot, 'storage'), REQPILOT_SCRATCH_ROOT: join(this.dataRoot, 'scratch'), REQPILOT_ALLOWED_HOSTS: '127.0.0.1,localhost', REQPILOT_MANAGED_INSTANCE: this.token };
+    const env = { REQPILOT_ENV: 'local', REQPILOT_PROCESS_ROLE: 'api', REQPILOT_AGENT_RUNTIME: 'none', REQPILOT_DATABASE_URL: 'postgresql://reqpilotx:' + this.secret + '@127.0.0.1:' + pgPort + '/reqpilotx', REQPILOT_STORAGE_DIR: join(this.dataRoot, 'storage'), REQPILOT_FRONTEND_DIR: this.frontendRoot, REQPILOT_OBJECT_ROOT: join(this.dataRoot, 'storage'), REQPILOT_SCRATCH_ROOT: join(this.dataRoot, 'scratch'), REQPILOT_ALLOWED_HOSTS: '127.0.0.1,localhost', REQPILOT_MANAGED_INSTANCE: this.token, REQPILOT_MANAGED_OWNER: this.ownerId, REQPILOT_MANAGED_PROOF_KEY: this.endpointProofKey };
     this.stage('migrations', '正在恢复项目与文档存储');
     await this.command([this.python, '-I', this.wrapper, 'migrate'], env);
     this.stage('api', '正在启动 ReqPilotX');

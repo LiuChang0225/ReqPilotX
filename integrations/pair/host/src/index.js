@@ -108,7 +108,7 @@ export function apply(ctx, config = {}) {
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: PREFIX,
     handler: createHandler(origin, req => ctx.connection.requestRejection(req), fetch, runtime ? () => ({ ...runtime.snapshot, ownerId: runtime.ownerId,
       taskLaunchReady: taskLauncher?.available() === true, taskCancelReady: taskLauncher?.canCancel() === true,
-      taskContinueReady: taskLauncher?.canContinue() === true }) : undefined, taskLauncher),
+      taskContinueReady: taskLauncher?.canContinue() === true, taskReconnectReady: taskLauncher?.canReconnect() === true }) : undefined, taskLauncher),
   }), 'reqpilotx: application route');
   if (runtime) void runtime.start().then(async () => { if (runtime.snapshot.status === 'READY') await taskLauncher?.initialize(); }).catch(() => { if (taskLauncher) taskLauncher.ready = false; });
 }

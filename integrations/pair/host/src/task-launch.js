@@ -1,6 +1,7 @@
 /** Persist only host receipts/bindings. Source semantics, preparation and task identity come from the fixed shared package. */
 import { readFile, writeFile, mkdir, rename, stat, realpath, readdir } from 'node:fs/promises';
 import { resolve, join, basename, isAbsolute } from 'node:path';
+import { fileURLToPath } from 'node:url';
 import { createHash, randomUUID } from 'node:crypto';
 import discovery from './application-discovery.cjs';
 import { executionObservation } from './execution-observation.js';
@@ -19,7 +20,10 @@ export class TaskLauncher {
     return services;
   }
   available() { try { this.services(); return !this.closing && this.ready && this.runtime.snapshot.status === 'READY'; } catch { return false; } }
+  endpointCurrent(record) { return record.serviceOrigin === this.runtime.snapshot.serviceOrigin
+    && (!this.runtime.snapshot.instanceId || record.serviceInstanceId === this.runtime.snapshot.instanceId); }
   canCancel() { return this.available() && typeof this.services().sessions.cancel === 'function'; }
+  canReconnect() { return this.canContinue() && typeof this.runtime.verifyEndpoint === 'function'; }
   canContinue() { return this.available() && this.config.taskMcp === true && typeof this.services().sessions.inspect === 'function'; }
   async initialize() {
     if (!this.config.capabilityRoot) return;
@@ -49,12 +53,13 @@ export class TaskLauncher {
       taskId: record.prepared?.task_id, workRef: record.prepared?.work_ref,
       sessionId: record.sessionId, workspaceId: record.workspaceId,
       capabilityVersion: record.bundleSha, status: record.phase, semanticAcceptance: 'NOT_CLAIMED',
-      controlCapabilities: { cancel: record.phase === 'ACCEPTED' && this.canCancel(),
+      controlCapabilities: { reconnect: record.phase === 'ACCEPTED' && record.toolTransport === 'MCP'
+          && !this.endpointCurrent(record) && this.canReconnect(), cancel: record.phase === 'ACCEPTED' && this.canCancel(),
         continue: record.phase === 'ACCEPTED' && record.toolTransport === 'MCP'
-          && record.serviceOrigin === this.runtime.snapshot.serviceOrigin && this.canContinue() } };
+          && this.endpointCurrent(record) && this.canContinue() } };
   }
   assertActive(record) {
-    if (!this.available() || this.runtime.snapshot.serviceOrigin !== record.serviceOrigin) throw new TaskLaunchError('TASK_LAUNCH_INTERRUPTED', 503);
+    if (!this.available() || !this.endpointCurrent(record)) throw new TaskLaunchError('TASK_LAUNCH_INTERRUPTED', 503);
   }
   async close() { this.closing = true; await Promise.allSettled([...this.inflight.values(), ...this.controlInflight.values()].map(value => value.promise)); }
   async inspect(commandId) {
@@ -86,7 +91,7 @@ export class TaskLauncher {
   control(input) {
     const allowed = ['commandId', 'controlId', 'action', 'sessionId', 'workRef', 'sourceSha256'];
     if (!input || Object.keys(input).some(key => !allowed.includes(key)) || !COMMAND.test(input.commandId || '')
-      || !COMMAND.test(input.controlId || '') || !['cancel', 'continue'].includes(input.action)
+      || !COMMAND.test(input.controlId || '') || !['cancel', 'continue', 'reconnect'].includes(input.action)
       || typeof input.sessionId !== 'string' || !input.sessionId || !/^plugin-[a-f0-9]{32}$/.test(input.workRef || '')
       || !/^[a-f0-9]{64}$/.test(input.sourceSha256 || '')) throw new TaskLaunchError('INVALID_CONTROL_REQUEST', 422);
     const fingerprint = sha(JSON.stringify([input.action, input.sessionId, input.workRef, input.sourceSha256]));
@@ -99,7 +104,7 @@ export class TaskLauncher {
     if (!this.available()) throw new TaskLaunchError('TASK_LAUNCH_NOT_READY', 503);
     if (this.inflight.has(input.commandId)) throw new TaskLaunchError('TASK_LAUNCH_IN_PROGRESS');
     const record = JSON.parse(await readFile(join(this.root, input.commandId + '.json'), 'utf8'));
-    if (record.schema !== 'reqpilot-pair-launch-record/v1' || record.phase !== 'ACCEPTED'
+    if (record.schema !== 'reqpilot-pair-launch-record/v1' || record.commandId !== input.commandId || record.phase !== 'ACCEPTED'
       || record.sessionId !== input.sessionId || record.prepared?.work_ref !== input.workRef
       || record.sourceSha256 !== input.sourceSha256) throw new TaskLaunchError('TASK_CONTROL_BINDING_MISMATCH');
     const applicationId = discovery.publicConfiguration({ ...this.runtime.snapshot, ownerId: this.runtime.ownerId }).applicationId;
@@ -107,13 +112,20 @@ export class TaskLauncher {
     record.controls ||= {};
     let control = record.controls[input.controlId];
     if (control && control.fingerprint !== fingerprint) throw new TaskLaunchError('CONTROL_CONFLICT');
+    if (control?.status === 'ACCEPTED' && input.action === 'reconnect'
+      && (control.targetInstanceId !== this.runtime.snapshot.instanceId || control.targetOrigin !== this.runtime.snapshot.serviceOrigin))
+      throw new TaskLaunchError('CONTROL_RECONNECT_GENERATION_CONFLICT');
     if (control?.status === 'ACCEPTED') return { ...this.public(record), control: { controlId: input.controlId, action: input.action, status: 'ACCEPTED' } };
     if (!control) {
-      control = { action: input.action, fingerprint, status: 'REQUESTED', requestId: 'reqpilotx-control-' + input.controlId };
+      control = { action: input.action, fingerprint, status: 'REQUESTED', dispatchAttempted: false, requestId: 'reqpilotx-control-' + input.controlId };
       record.controls[input.controlId] = control; await this.save(record);
     }
     const sessions = this.services().sessions;
-    if (input.action === 'continue') {
+    if (input.action === 'reconnect') {
+      await this.reconnect(record);
+      control.targetInstanceId = record.serviceInstanceId; control.targetOrigin = record.serviceOrigin;
+      control.status = 'ACCEPTED'; await this.save(record);
+    } else if (input.action === 'continue') {
       if (record.toolTransport !== 'MCP') throw new TaskLaunchError('TASK_CONTINUE_REQUIRES_MCP');
       // DSH's durable user rpcId repairs a lost prompt acknowledgement without another model turn.
       if (typeof sessions.inspect === 'function') {
@@ -125,6 +137,7 @@ export class TaskLauncher {
       }
       if (control.status !== 'ACCEPTED') {
         this.assertActive(record);
+        control.dispatchAttempted = true; await this.save(record);
         const accepted = await sessions.prompt({ sessionId: record.sessionId, requestId: control.requestId,
           mode: 'queue', content: [{ type: 'text', text: `继续当前已绑定的 ReqPilotX 任务 ${record.prepared.task_id}。先用当前任务的 mcp__reqpilot__task_open（mode=resume）读取持久化任务与人工反馈，再核对来源和已保存版本，只修订受影响范围。不要创建新任务；完成后回报实际保存的版本和未解决问题。` }] }, new AbortController().signal);
         if (accepted.accepted !== true) throw new TaskLaunchError('PAIR_CONTINUE_NOT_CONFIRMED');
@@ -132,11 +145,93 @@ export class TaskLauncher {
       }
     } else {
       if (typeof sessions.cancel !== 'function') throw new TaskLaunchError('PAIR_CANCEL_UNAVAILABLE', 503);
+      control.dispatchAttempted = true; await this.save(record);
       const accepted = await sessions.cancel({ sessionId: record.sessionId });
       if (accepted.accepted !== true) throw new TaskLaunchError('PAIR_CANCEL_NOT_CONFIRMED');
       control.status = 'ACCEPTED'; await this.save(record);
     }
     return { ...this.public(record), control: { controlId: input.controlId, action: input.action, status: 'ACCEPTED' } };
+  }
+  /** An explicit reconnect authenticates the owned listener and every frozen task identity. */
+  async reconnect(record) {
+    if (!this.canReconnect() || record.toolTransport !== 'MCP') throw new TaskLaunchError('TASK_RECONNECT_UNAVAILABLE', 503);
+    if (record.bundleSha !== this.bundleSha || record.python !== this.runtime.python)
+      throw new TaskLaunchError('TASK_RECONNECT_PACKAGE_MISMATCH');
+    const workspace = resolve(this.runtime.dataRoot, 'task-workspaces', record.commandId);
+    if (record.workspaceRelative !== 'task-workspaces/' + record.commandId || record.prepared?.workspace !== workspace
+      || record.prepared?.bundle_sha256 !== record.bundleSha || record.prepared?.source_sha256 !== record.sourceSha256)
+      throw new TaskLaunchError('TASK_RECONNECT_WORKSPACE_MISMATCH');
+    const inspection = await this.services().sessions.inspect(record.sessionId);
+    // This adapter contract requires an explicit Session/workspace identity. Missing metadata fails closed.
+    if (inspection?.session?.sessionId !== record.sessionId || inspection.session.workspaceId !== record.workspaceId)
+      throw new TaskLaunchError('TASK_RECONNECT_SESSION_MISMATCH');
+    const sessionFingerprint = sha(JSON.stringify([inspection.session, inspection.events]));
+    const userEvent = requestId => inspection.events?.find(value => value.type === 'user/message'
+      && value.data?.source?.kind === 'user' && value.data.source.rpcId === requestId);
+    if (!userEvent(record.requestId)) throw new TaskLaunchError('TASK_MUTATION_OUTCOME_UNKNOWN');
+    const latestStart = inspection.events.findLastIndex(event => event.type === 'turn/start');
+    const latestEnd = inspection.events.findLastIndex(event => event.type === 'turn/end');
+    if (latestStart < 0 || latestEnd < latestStart) throw new TaskLaunchError('TASK_RECONNECT_SESSION_RUNNING');
+    const execution = executionObservation(record, inspection.events || [], this.services().liveStatus?.(record.sessionId));
+    if (execution?.connected !== true || !['SUCCEEDED', 'FAILED', 'INTERRUPTED', 'IDLE'].includes(execution.status)
+      || this.services().liveStatus?.(record.sessionId) === 'running')
+      throw new TaskLaunchError('TASK_RECONNECT_SESSION_RUNNING');
+    for (const saved of Object.values(record.controls || {})) {
+      if (saved.status === 'ACCEPTED' || saved.dispatchAttempted === false || saved.action === 'reconnect') continue;
+      const event = saved.action === 'continue' && userEvent(saved.requestId);
+      if (!event) throw new TaskLaunchError('TASK_MUTATION_OUTCOME_UNKNOWN');
+      saved.status = 'ACCEPTED'; saved.acceptanceEvidence = { kind: 'SESSION_LOG', seq: event.seq ?? null };
+    }
+    let endpoint;
+    try { endpoint = await this.runtime.verifyEndpoint(this.transport); }
+    catch { throw new TaskLaunchError('TASK_RECONNECT_ENDPOINT_UNTRUSTED'); }
+    if (endpoint.ownerId !== this.runtime.ownerId || endpoint.serviceOrigin !== this.runtime.snapshot.serviceOrigin)
+      throw new TaskLaunchError('TASK_RECONNECT_ENDPOINT_UNTRUSTED');
+    const identity = { applicationId: record.applicationId, sessionId: record.sessionId, workspaceId: record.workspaceId,
+      taskId: record.prepared.task_id, workRef: record.prepared.work_ref, sourceSha256: record.sourceSha256,
+      bundleSha: record.bundleSha, workspace };
+    const previous = record.reconnectIntent;
+    if (previous && (previous.schema !== 'reqpilot-pair-reconnect-intent/v1' || JSON.stringify(previous.identity) !== JSON.stringify(identity)
+      || !Array.isArray(previous.knownOrigins))) throw new TaskLaunchError('TASK_RECONNECT_BINDING_MISMATCH');
+    const knownOrigins = [...new Set([record.serviceOrigin, ...(previous ? [...previous.knownOrigins, previous.targetOrigin] : [])])];
+    // The helper can commit before this host persists its new endpoint. Save the exact trusted intent first.
+    record.reconnectIntent = { schema: 'reqpilot-pair-reconnect-intent/v1', identity, knownOrigins,
+      targetOrigin: endpoint.serviceOrigin, targetInstanceId: endpoint.instanceId };
+    await this.save(record);
+    const file = join(this.root, record.commandId + '-reconnect.json');
+    const payload = { workspace, task_root: record.prepared.task_root, task_id: record.prepared.task_id,
+      work_ref: record.prepared.work_ref, source_sha256: record.sourceSha256, bundle_sha256: record.bundleSha,
+      application_id: record.applicationId, command_id: record.commandId, goal: record.goal,
+      require_map_confirmation: record.requireMapConfirmation || false, project_id: record.projectId,
+      document_id: record.documentId, from_origin: record.serviceOrigin, to_origin: endpoint.serviceOrigin, known_origins: knownOrigins };
+    await writeFile(file, JSON.stringify(payload), { mode: 0o600 });
+    let receipt;
+    try {
+      receipt = JSON.parse(await this.runtime.command([record.python, '-I', fileURLToPath(new URL('./task-reconnect.py', import.meta.url)), file],
+        { PYTHONPATH: undefined, PYTHONHOME: undefined, REQPILOT_DEVELOPMENT_ROOT: undefined }, { signal: AbortSignal.timeout(60000) }));
+    } catch (error) {
+      const code = /TASK_(?:RECONNECT_[A-Z_]+|MUTATION_OUTCOME_UNKNOWN)/.exec(String(error.message))?.[0];
+      throw new TaskLaunchError(code || 'TASK_RECONNECT_NOT_CONFIRMED');
+    }
+    if (receipt.schema !== 'reqpilot-pair-reconnect/v1' || receipt.workspace !== workspace
+      || receipt.task_id !== record.prepared.task_id || receipt.work_ref !== record.prepared.work_ref
+      || receipt.source_sha256 !== record.sourceSha256 || receipt.bundle_sha256 !== record.bundleSha
+      || receipt.service_origin !== endpoint.serviceOrigin || receipt.mutation_replayed !== false)
+      throw new TaskLaunchError('TASK_RECONNECT_NOT_CONFIRMED');
+    let after;
+    try { after = await this.runtime.verifyEndpoint(this.transport); }
+    catch { throw new TaskLaunchError('TASK_RECONNECT_ENDPOINT_UNTRUSTED'); }
+    if (JSON.stringify(after) !== JSON.stringify(endpoint)) throw new TaskLaunchError('TASK_RECONNECT_ENDPOINT_UNTRUSTED');
+    const finalInspection = await this.services().sessions.inspect(record.sessionId);
+    if (sha(JSON.stringify([finalInspection?.session, finalInspection?.events])) !== sessionFingerprint
+      || this.services().liveStatus?.(record.sessionId) === 'running')
+      throw new TaskLaunchError('TASK_RECONNECT_SESSION_CHANGED');
+    const prior = record.serviceOrigin;
+    record.serviceOrigin = endpoint.serviceOrigin; record.serviceInstanceId = endpoint.instanceId;
+    record.reconnectEvidence = { fromOrigin: prior, instanceId: endpoint.instanceId, ownerId: endpoint.ownerId,
+      taskId: record.prepared.task_id, workRef: record.prepared.work_ref, sessionId: record.sessionId, workspaceId: record.workspaceId };
+    delete record.reconnectIntent;
+    await this.save(record);
   }
   async toolBinding(sessionId) {
     const files = await readdir(this.root).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
@@ -145,7 +240,7 @@ export class TaskLauncher {
       const record = JSON.parse(await readFile(join(this.root, file), 'utf8'));
       if (record.sessionId !== sessionId || record.toolTransport !== 'MCP') continue;
       if (record.schema !== 'reqpilot-pair-launch-record/v1' || !['START_REQUESTED', 'ACCEPTED'].includes(record.phase)) throw new TaskLaunchError('TASK_TOOL_BINDING_NOT_READY');
-      if (record.serviceOrigin !== this.runtime.snapshot.serviceOrigin) throw new TaskLaunchError('TASK_ENDPOINT_RECONNECT_REQUIRED');
+      if (!this.endpointCurrent(record)) throw new TaskLaunchError('TASK_ENDPOINT_RECONNECT_REQUIRED');
       const workspace = resolve(this.runtime.dataRoot, record.workspaceRelative), tools = record.prepared?.tools;
       const expected = [join(workspace, '.reqpilot/scripts/mcp_server.py'), '--working-root', workspace, '--source-root', workspace];
       if (tools?.schema !== 'reqpilot-host-tools/v1' || tools.mcp?.command !== record.python || tools.mcp?.cwd !== workspace
@@ -178,9 +273,9 @@ export class TaskLauncher {
       if (record.schema !== 'reqpilot-pair-launch-record/v1') throw new TaskLaunchError('UNSUPPORTED_LAUNCH_RECORD');
       if (record.fingerprint !== fingerprint || record.applicationId !== applicationId) throw new TaskLaunchError('COMMAND_CONFLICT');
       if (record.phase === 'ACCEPTED' || await this.recoverAcceptance(record)) return this.public(record);
-      if (record.serviceOrigin !== origin) throw new TaskLaunchError('TASK_ENDPOINT_RECONNECT_REQUIRED');
+      if (!this.endpointCurrent(record)) throw new TaskLaunchError('TASK_ENDPOINT_RECONNECT_REQUIRED');
     } else {
-      record = { schema: 'reqpilot-pair-launch-record/v1', agentPreset: this.config.agentPreset || 'standard', toolTransport: this.config.taskMcp === true ? 'MCP' : 'CLI', ...input, fingerprint, applicationId, serviceOrigin: origin, commandId: input.commandId,
+      record = { schema: 'reqpilot-pair-launch-record/v1', agentPreset: this.config.agentPreset || 'standard', toolTransport: this.config.taskMcp === true ? 'MCP' : 'CLI', ...input, fingerprint, applicationId, serviceOrigin: origin, serviceInstanceId: this.runtime.snapshot.instanceId || null, commandId: input.commandId,
         sessionId: 'session-' + randomUUID(), requestId: 'reqpilotx-' + input.commandId, phase: 'RECORDED',
         bundleSha: this.bundleSha, capabilityRoot: this.capabilityRoot, python: this.runtime.python,
         workspaceRelative: 'task-workspaces/' + input.commandId };

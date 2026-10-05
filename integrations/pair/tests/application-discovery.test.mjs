@@ -32,7 +32,7 @@ test('transport availability is not agent execution or semantic acceptance', () 
   const available = discovery.capabilities(ready);
   assert.equal(available['projects.create'], true); assert.equal(available['documents.import'], true);
   assert.equal(available['results.feedback'], true); assert.equal(available['results.confirm_map'], true);
-  for (const key of ['agent.start', 'agent.resume', 'agent.cancel', 'events.agent']) assert.equal(available[key], false);
+  for (const key of ['agent.start', 'agent.resume', 'agent.cancel', 'agent.reconnect', 'events.agent']) assert.equal(available[key], false);
   const connected = discovery.publicConfiguration({ ...ready, mode: 'readonly-connect' });
   assert.equal(connected.applicationId, null); assert.equal(connected.capabilities['projects.create'], false);
   assert.equal(connected.capabilities['results.feedback'], false);
@@ -69,7 +69,7 @@ test('human responses and immutable saves are limited to managed session-bound r
 
 test('Client requires every human-operation flag and embeds the same exact-path policy as Host', () => {
   const value = discovery.publicConfiguration(ready);
-  for (const operation of ['results.engineer_responses', 'results.save_version']) {
+  for (const operation of ['results.engineer_responses', 'results.save_version', 'agent.reconnect']) {
     const flags = { ...value.capabilities }; delete flags[operation];
     assert.throws(() => discovery.assertCompatibleConfiguration({ ...value, capabilities: flags }), /INCOMPATIBLE/);
     assert.throws(() => discovery.assertCompatibleConfiguration({ ...value, capabilities: { ...value.capabilities, [operation]: 'true' } }), /INCOMPATIBLE/);

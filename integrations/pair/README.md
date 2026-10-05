@@ -253,3 +253,57 @@ The built Client SHA-256 was
 No customer document, paid model call, PostgreSQL restart, company identity or
 Windows execution was part of these checks. Those acceptance boundaries remain
 open.
+
+## Explicit trusted task reconnect (development candidate, 2026-10-05 UTC)
+
+An accepted MCP task can explicitly reconnect after its Pair-owned API restarts.
+`POST /reqpilotx/tasks/{commandId}/control` accepts `action: "reconnect"` with
+exactly the same saved command, Pair Session, work reference and source hash as
+continue/cancel. The matched Client discovers `agent.reconnect`, refreshes the
+saved task's control capabilities and offers “Verify and reconnect this task”.
+A reconnect performs read-only service checks and changes the existing local
+transport binding; it never creates work or submits a model prompt. Continue is
+still a separate action on the original Session.
+
+Both origin and managed-process generation are pinned. Reusing the old port does
+not bypass reconnect. The Host authenticates the live owned lease/descriptor and
+an ephemeral challenge proof from the API listener, then checks the fixed
+bundle's complete source closure, workspace preparation/creation receipts,
+original bytes, task, deterministic work reference and service source/revision.
+Reads bypass proxies and cannot redirect. Cached bytecode cannot replace checked
+source; undeclared source, sourceless shadow packages and symlinks are rejected.
+
+The Pair `sessions.inspect` adapter must return explicit
+`session.sessionId`, `session.workspaceId` and durable `events`. Missing identity
+metadata fails closed. The exact original user RPC must be present, the latest
+turn must be closed, and the journal/live state must remain unchanged through
+reconnect. An accepted retry does not resubmit a lost-ack continuation. Unknown
+prompt/cancel outcomes, incomplete local mutations, unestablished publication
+receipts or a divergent remote revision block reconnect instead of replaying a
+mutation. Repair those original outcomes before retrying.
+
+A frozen-identity reconnect intent is saved before changing the portable binding.
+This permits recovery if the helper commits but the Host stops before saving its
+new origin, including another subsequent lease/port change. The helper follows
+publication → binding → task lock order and has a bounded command timeout. An
+accepted reconnect control ID belongs to its target generation; a later restart
+requires a fresh reconnect control ID.
+
+Offline verification builds the unchanged shared portable package and matched
+shared panel/Client. Set `PAIR_RECONNECT_PYTHON` to an existing dependency-ready
+Python and `PAIR_RECONNECT_BUNDLE` to the new built bundle, then run
+`node --test integrations/pair/tests/trusted-reconnect.test.mjs`. These tests use
+actual loopback listeners, actual owned-directory lease release/reclaim and the
+real fixed shared task/compile/publication/resume/feedback facade around synthetic
+HTTP state. They cover new continuation, lost acknowledgement, same-port and
+repeated restart, helper/Host crash recovery, identity/import/proxy rejection,
+unknown publication/cancel outcomes and overlapping locks. The wrapper challenge
+contract also has a standard-library ASGI test. The built Client has a synthetic
+DOM reconnect/two-generation test using `PAIR_UI_REACT_ROOT`.
+
+These are development program checks, not an installed Pair/DSH acceptance claim.
+The actual DSH inspect schema/stable journal, original-Session MCP remount after
+Host restart, PostgreSQL restart, target-platform employee UI, real providers and
+source semantics still require their own same-candidate evidence. Rebuild the
+Host, shared panel and Client together. The new Client rejects Host
+configurations missing `agent.reconnect` before displaying controls.

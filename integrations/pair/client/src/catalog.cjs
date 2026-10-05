@@ -3,8 +3,8 @@ Object.assign(copy.zh, { goal: '任务目标', goalHint: '例如：整理原文�
 Object.assign(copy.en, { goal: 'Task goal', goalHint: 'For example: organize the source and requirements, self-check and deliver a matrix', startTask: 'Start task', confirmMap: 'Wait for structure confirmation', openTask: 'Open task conversation', accepted: 'Task submitted to Pair. Follow execution in its conversation.', preparing: 'Preparing and binding task…', projects: 'Projects and documents', newProject: 'New project', projectName: 'Project name', customer: 'Customer name', create: 'Create project', cancel: 'Cancel', choose: 'Select project', noProjects: 'Create a project to organize customer documents.', upload: 'Import customer document (PDF)', noDocs: 'No customer documents in this project yet.', documents: 'Customer documents', back: 'Back to documents', original: 'Source document', results: 'Saved work', noResults: 'Source document saved. No extraction result yet.', opening: 'Loading…', saved: 'Source saved', unavailableRuntime: 'ReqPilotX is unavailable', incompatibleRuntime: 'Plugin and service interfaces are incompatible. Check the installed release.', work: 'Open result', ready: 'Service ready' });
 Object.assign(copy.zh, { activityMODEL: 'Agent 正在处理', activityTOOLS: '正在执行工具', activityRETRY: '请求失败，等待重试', activityTURN_ENDED: '会话本轮已结束，成果仍需核对', activityFAILED: '本轮执行失败，请查看会话', activityBLOCKED: '等待处理会话中的阻塞', activityINTERRUPTED: '执行已中断', activityIDLE: '会话当前空闲', activityUNOBSERVED: '暂时无法确认执行状态', progressUnavailable: '暂时无法读取执行状态', progressSteps: '模型步骤', progressTools: '工具调用', progressRetries: '重试', progressToolFailures: '工具错误' });
 Object.assign(copy.en, { activityMODEL: 'Agent is processing', activityTOOLS: 'Executing tools', activityRETRY: 'Request failed; waiting to retry', activityTURN_ENDED: 'Turn ended; results still require review', activityFAILED: 'Turn failed; inspect the conversation', activityBLOCKED: 'Waiting for a blocked conversation', activityINTERRUPTED: 'Execution interrupted', activityIDLE: 'Conversation is idle', activityUNOBSERVED: 'Execution status is unconfirmed', progressUnavailable: 'Execution status is unavailable', progressSteps: 'Model step', progressTools: 'Tool calls', progressRetries: 'Retries', progressToolFailures: 'Tool errors' });
-Object.assign(copy.zh, { stopTurn: '停止本轮', continueTask: '继续同一任务', controlBusy: '正在提交控制请求…', stopAccepted: '已请求停止当前 Pair 会话轮次；请核对持久化成果。', continueAccepted: '已提交到原 Pair 会话；继续执行和成果仍需核对。' });
-Object.assign(copy.en, { stopTurn: 'Stop current turn', continueTask: 'Continue this task', controlBusy: 'Submitting control request…', stopAccepted: 'Asked Pair to stop this turn; review the saved result.', continueAccepted: 'Submitted to the original Pair session; verify continuation and saved work.' });
+Object.assign(copy.zh, { reconnectTask: '核对并重新连接原任务', reconnectAccepted: '已核对并连接到原任务；可继续同一会话。', stopTurn: '停止本轮', continueTask: '继续同一任务', controlBusy: '正在提交控制请求…', stopAccepted: '已请求停止当前 Pair 会话轮次；请核对持久化成果。', continueAccepted: '已提交到原 Pair 会话；继续执行和成果仍需核对。' });
+Object.assign(copy.en, { reconnectTask: 'Verify and reconnect this task', reconnectAccepted: 'Verified and reconnected the original task. You can continue this session.', stopTurn: 'Stop current turn', continueTask: 'Continue this task', controlBusy: 'Submitting control request…', stopAccepted: 'Asked Pair to stop this turn; review the saved result.', continueAccepted: 'Submitted to the original Pair session; verify continuation and saved work.' });
 const pairWorkOperations = Object.freeze({ save_feedback: 'results.feedback', confirm_map: 'results.confirm_map',
   save_engineer_response: 'results.engineer_responses', save_delivery_version: 'results.save_version' });
 function makeReadonlyHost(origin, onSelectionChange, applicationId, writes = false) {
@@ -97,9 +97,12 @@ function Catalog({ config, t, openSession }) {
         const response = await fetch(PREFIX + '/tasks/' + bound.commandId, { signal: abort.signal });
         if (!response.ok) throw Error();
         const value = await response.json();
-        if (live) { setExecutionUnavailable(false); setExecution(value.applicationId === config.applicationId && value.sessionId === bound.sessionId
+        if (live) { setExecutionUnavailable(false);
+          const matches = value.applicationId === config.applicationId && value.sessionId === bound.sessionId
           && value.projectId === projectId && value.documentId === document.id && value.sourceSha256 === document.source_sha256
-          && value.workRef === bound.workRef ? value.execution || null : null); }
+          && value.workRef === bound.workRef;
+          setExecution(matches ? value.execution || null : null);
+          if (matches) setLaunch(previous => ({ ...previous, controlCapabilities: value.controlCapabilities })); }
       } catch { if (live) { setExecution(null); setExecutionUnavailable(true); } }
       if (live) timer = setTimeout(poll, 3000);
     }
@@ -131,8 +134,8 @@ function Catalog({ config, t, openSession }) {
   }
   async function controlTask(action) {
     if (!bound || !execution?.connected || !execution.runId || controlling || !bound.controlCapabilities?.[action]
-      || !config.capabilities[action === 'cancel' ? 'agent.cancel' : 'agent.resume']) return;
-    const key = 'reqpilotx:control:' + config.applicationId + ':' + bound.commandId + ':' + action + ':' + execution.runId;
+      || !config.capabilities[action === 'cancel' ? 'agent.cancel' : action === 'reconnect' ? 'agent.reconnect' : 'agent.resume']) return;
+    const key = 'reqpilotx:control:' + config.applicationId + ':' + bound.commandId + ':' + action + ':' + execution.runId + (action === 'reconnect' ? ':' + config.instanceId : '');
     let controlId;
     try { controlId = localStorage.getItem(key); } catch {}
     if (!controlId) { controlId = crypto.randomUUID(); try { localStorage.setItem(key, controlId); } catch {} }
@@ -145,7 +148,8 @@ function Catalog({ config, t, openSession }) {
       if (result.control?.controlId !== controlId || result.control?.status !== 'ACCEPTED'
         || result.sessionId !== bound.sessionId || result.workRef !== bound.workRef || result.sourceSha256 !== bound.sourceSha256)
         throw Error(t('unavailable'));
-      setControlNote(t(action === 'cancel' ? 'stopAccepted' : 'continueAccepted'));
+      if (action === 'reconnect') setLaunch(result);
+      setControlNote(t(action === 'cancel' ? 'stopAccepted' : action === 'reconnect' ? 'reconnectAccepted' : 'continueAccepted'));
     } catch (cause) { setError(cause.message || t('unavailable')); } finally { setControlling(''); }
   }
   async function create(event) {
@@ -174,6 +178,7 @@ function Catalog({ config, t, openSession }) {
             h('button', { disabled: launching || !goal.trim() }, launching ? t('preparing') : t('startTask'))),
           bound?.status === 'ACCEPTED' && h('div', { className: 'reqpilotx-pair-toolbar' }, h('p', { role: 'status' }, execution ? t('activity' + execution.activity) : executionUnavailable ? t('progressUnavailable') : t('accepted')), execution && h('span', null, t('progressSteps') + ' ' + execution.step + ' · ' + t('progressTools') + ' ' + execution.toolCalls + ' · ' + t('progressRetries') + ' ' + execution.retries + ' · ' + t('progressToolFailures') + ' ' + execution.toolFailures), h('button', { onClick: () => openSession(bound.sessionId) }, t('openTask'))),
           bound?.status === 'ACCEPTED' && execution?.connected && h('div', { className: 'reqpilotx-pair-toolbar' },
+            config.capabilities['agent.reconnect'] && bound.controlCapabilities?.reconnect && ['SUCCEEDED', 'FAILED', 'INTERRUPTED', 'IDLE'].includes(execution.status) && h('button', { type: 'button', disabled: Boolean(controlling), onClick: () => void controlTask('reconnect') }, controlling ? t('controlBusy') : t('reconnectTask')),
             config.capabilities['agent.cancel'] && bound.controlCapabilities?.cancel && execution.status === 'RUNNING' && h('button', { type: 'button', disabled: Boolean(controlling), onClick: () => void controlTask('cancel') }, controlling ? t('controlBusy') : t('stopTurn')),
             config.capabilities['agent.resume'] && bound.controlCapabilities?.continue && ['SUCCEEDED', 'FAILED', 'INTERRUPTED', 'IDLE'].includes(execution.status) && h('button', { type: 'button', disabled: Boolean(controlling), onClick: () => void controlTask('continue') }, controlling ? t('controlBusy') : t('continueTask')),
             controlNote && h('p', { role: 'status' }, controlNote)),

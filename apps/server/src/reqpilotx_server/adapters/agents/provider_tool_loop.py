@@ -53,6 +53,14 @@ class ProviderToolLoopError(RuntimeError):
     """Redacted provider or transport failure for the durable job boundary."""
 
 
+class _ToolOutcomeUnknown(RuntimeError):
+    """An invoked host tool must be inspected before this task can proceed."""
+
+
+class _ControlReadFailed(RuntimeError):
+    """The task's lease/cancellation heartbeat could not be read safely."""
+
+
 def _configuration(settings: RuntimeSettings, *, fresh_client: bool = False) -> tuple[str, str, Callable[[], Any]]:
     """Resolve the existing provider profile without returning credentials to callers."""
     from reqpilotx_server.services.ai_copilot import (
@@ -312,33 +320,48 @@ class ProviderToolLoopDriver:
                  for spec in specs]
         available = {spec.name: spec for spec in specs}
         status = "UNKNOWN"
+
+        def control_stopped() -> bool:
+            nonlocal status, final_message
+            try:
+                cancelled = cancellation_requested()
+            except Exception:
+                raise _ControlReadFailed() from None
+            if cancelled:
+                status = "INTERRUPTED"
+                receipt["reason_code"] = "PROVIDER_LOOP_CANCELLED"
+            elif time.monotonic() >= deadline:
+                status = "FAILED"
+                receipt["reason_code"] = "PROVIDER_LOOP_TIMEOUT"
+            else:
+                return False
+            final_message = None
+            return True
+
         try:
             client = None
             for _ in range(_MAX_TOOL_STEPS):
+                # Controls also apply to a saved terminal response on resume.
+                if control_stopped():
+                    break
                 if state.get("terminal_model_message"):
                     final_message = state["terminal_model_message"]["text"]
                     status = "COMPLETED"
-                    break
-                if cancellation_requested():
-                    status = "INTERRUPTED"
-                    break
-                if time.monotonic() >= deadline:
-                    status = "FAILED"
-                    receipt["reason_code"] = "PROVIDER_LOOP_TIMEOUT"
                     break
                 pending = self._pending_calls(state["messages"])
                 if pending:
                     pending_images = list(state.get("pending_images") or [])
                     for call in pending:
-                        if cancellation_requested():
-                            status = "INTERRUPTED"
+                        if control_stopped():
                             break
                         response = self._call_tool(
                             root=root, thread_id=state["thread_id"],
                             turn_id=state["call_turn_ids"][call["id"]], call=call,
                             available=available, host=tool_host, emit=emit,
-                            receipt=receipts,
+                            receipt=receipts, control_stopped=control_stopped,
                         )
+                        if response is None:
+                            break
                         texts = [item["text"] for item in response["contentItems"] if item["type"] == "inputText"]
                         images = [item["imageUrl"] for item in response["contentItems"] if item["type"] == "inputImage"]
                         state["messages"].append({"role": "tool", "tool_call_id": call["id"],
@@ -348,7 +371,9 @@ class ProviderToolLoopDriver:
                             pending_images.extend(images)
                             state["pending_images"] = pending_images
                         save()
-                    if status == "INTERRUPTED":
+                        if control_stopped():
+                            break
+                    if status in {"INTERRUPTED", "FAILED"}:
                         break
                     continue
                 if state.get("pending_images"):
@@ -378,10 +403,20 @@ class ProviderToolLoopDriver:
                         elif steer_failed:
                             steer_failed(command_id, "STEER_ACKNOWLEDGER_MISSING")
                 if client is None:
-                    client = self.client_factory()
+                    # with_options retains the shared HTTP transport. Never close
+                    # this view or change the cached application's retry policy.
+                    # Fail closed if a client cannot expose this SDK contract.
+                    client = self.client_factory().with_options(max_retries=0)
+                if control_stopped():
+                    break
+                remaining = deadline - time.monotonic()
+                if remaining <= 0:
+                    status = "FAILED"
+                    receipt["reason_code"] = "PROVIDER_LOOP_TIMEOUT"
+                    break
                 response = client.chat.completions.create(
                     model=self.model_id, messages=_provider_messages(state["messages"]),
-                    tools=tools, tool_choice="auto",
+                    tools=tools, tool_choice="auto", timeout=remaining,
                 )
                 message, finish = _response_message(response)
                 state["messages"].append(message)
@@ -401,6 +436,10 @@ class ProviderToolLoopDriver:
                         for name in ("prompt_tokens", "completion_tokens", "total_tokens"):
                             if isinstance(usage.get(name), int):
                                 receipt["token_usage"][name] = receipt["token_usage"].get(name, 0) + usage[name]
+                # Keep the provider call IDs for safe resume, but do not run a
+                # host tool or accept a stop response after a control fires.
+                if control_stopped():
+                    break
                 if finish == "stop":
                     final_message, status = message["content"], "COMPLETED"
                     emit({"type": "agent_message", "thread_id": state["thread_id"],
@@ -409,21 +448,44 @@ class ProviderToolLoopDriver:
                           "version": 0})
                     break
             else:
-                status = "FAILED"
-                receipt["reason_code"] = "PROVIDER_LOOP_STEP_LIMIT"
+                if not control_stopped():
+                    status = "FAILED"
+                    receipt["reason_code"] = "PROVIDER_LOOP_STEP_LIMIT"
+            # Keep the final lease/cancel read in the redacted error boundary.
+            # The independent PostgreSQL publication fence still protects any
+            # cancellation racing with subsequent application finalization.
+            if status == "COMPLETED":
+                control_stopped()
         except Exception as exc:
-            receipt["reason_code"] = "PROVIDER_LOOP_" + type(exc).__name__.upper()
-            state["status"] = "UNKNOWN"
-            state["reason_code"] = receipt["reason_code"]
-            save()
-            emit({"type": "runtime_error", "thread_id": state["thread_id"],
-                  "turn_id": turn_id, "reason_code": receipt["reason_code"]})
-            receipt["status"] = "UNKNOWN"
-            receipt["elapsed_milliseconds"] = round((time.monotonic() - started) * 1000)
-            _write_json(root / ("receipt-" + attempt_id + ".json"), receipt)
-            error = ProviderToolLoopError(receipt["reason_code"])
-            error.runtime_receipt = receipt
-            raise error from None
+            if isinstance(exc, _ToolOutcomeUnknown):
+                reason = "PROVIDER_LOOP_TOOL_OUTCOME_UNKNOWN"
+            elif isinstance(exc, _ControlReadFailed):
+                reason = "PROVIDER_LOOP_CONTROL_UNAVAILABLE"
+            else:
+                reason = "PROVIDER_LOOP_" + type(exc).__name__.upper()
+            stopped = False
+            if not isinstance(exc, (_ToolOutcomeUnknown, _ControlReadFailed)):
+                try:
+                    stopped = control_stopped()
+                except _ControlReadFailed:
+                    reason = "PROVIDER_LOOP_CONTROL_UNAVAILABLE"
+            # A transport exception after cancellation/deadline is that control's
+            # terminal result. An ambiguous host mutation always remains UNKNOWN.
+            if stopped:
+                receipt["transport_error_code"] = reason
+            else:
+                receipt["reason_code"] = reason
+                state["status"] = "UNKNOWN"
+                state["reason_code"] = reason
+                save()
+                emit({"type": "runtime_error", "thread_id": state["thread_id"],
+                      "turn_id": turn_id, "reason_code": reason})
+                receipt["status"] = "UNKNOWN"
+                receipt["elapsed_milliseconds"] = round((time.monotonic() - started) * 1000)
+                _write_json(root / ("receipt-" + attempt_id + ".json"), receipt)
+                error = ProviderToolLoopError(reason)
+                error.runtime_receipt = receipt
+                raise error from None
         state["status"] = status
         state["final_message"] = final_message
         emit({"type": "turn/completed", "thread_id": state["thread_id"],
@@ -456,7 +518,8 @@ class ProviderToolLoopDriver:
                    call: Mapping[str, Any],
                    available: Mapping[str, NativeLoopToolSpec], host: NativeLoopToolHost,
                    emit: Callable[[Mapping[str, Any]], None],
-                   receipt: list[dict[str, Any]]) -> dict[str, Any]:
+                   receipt: list[dict[str, Any]],
+                   control_stopped: Callable[[], bool]) -> dict[str, Any] | None:
         name = call["function"]["name"]
         try:
             args = json.loads(call["function"]["arguments"])
@@ -478,9 +541,12 @@ class ProviderToolLoopDriver:
                 if row not in receipt:
                     receipt.append(row)
                 return old["response"]
-            return _tool_failure("TOOL_OUTCOME_UNKNOWN_INSPECT_WORKSPACE_BEFORE_RETRY")
-        _write_json(path, {"identity": identity, "status": "INVOKING", "arguments": args})
+            raise _ToolOutcomeUnknown()
         emit({"type": "tool_started", **identity})
+        # A heartbeat/event callback can observe cancellation after the batch
+        # check. Do not create an ambiguous INVOKING receipt for an uncalled tool.
+        if control_stopped():
+            return None
         spec = available.get(name)
         errors = (
             list(Draft202012Validator(dict(spec.input_schema)).iter_errors(args))
@@ -489,13 +555,24 @@ class ProviderToolLoopDriver:
         if errors:
             response = _tool_failure("TOOL_ARGUMENTS_INVALID_CHECK_SCHEMA")
         else:
+            _write_json(path, {"identity": identity, "status": "INVOKING", "arguments": args})
             try:
                 response = _tool_response(host.invoke(name, dict(args)))
-            except Exception as exc:
-                response = _tool_failure("HOST_TOOL_FAILED_" + type(exc).__name__)
-        _write_json(path, {"identity": identity, "status": "RETURNED",
-                           "arguments": args, "response": response,
-                           "response_sha256": _digest(response)})
+            except Exception:
+                # The host may have mutated before failing or returning an
+                # invalid response. Keep INVOKING durable and do not invite the
+                # provider to retry the same mutation under a new call ID.
+                raise _ToolOutcomeUnknown() from None
+        try:
+            _write_json(path, {"identity": identity, "status": "RETURNED",
+                               "arguments": args, "response": response,
+                               "response_sha256": _digest(response)})
+        except Exception:
+            if not errors:
+                # A returned in-memory outcome is not durable proof. Preserve
+                # INVOKING and UNKNOWN even if a control also fired meanwhile.
+                raise _ToolOutcomeUnknown() from None
+            raise
         row = {**identity, "success": response["success"], "response_sha256": _digest(response)}
         receipt.append(row)
         emit({"type": "tool_completed", **row})

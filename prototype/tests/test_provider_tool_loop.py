@@ -10,13 +10,16 @@ import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
+
+import httpx
+from openai import AzureOpenAI, OpenAI
 from unittest import TestCase
 from unittest.mock import Mock, patch
 
 from app.adapters.agents.codex_app_server.native_loop_driver import NativeLoopToolSpec, _digest
 from reqpilotx_server.adapters.agents.provider_tool_loop import (
-    ADAPTER_ID, TRANSPORT_KIND, ProviderToolLoopDriver,
-    build_provider_tool_loop_driver,
+    ADAPTER_ID, TRANSPORT_KIND, ProviderToolLoopDriver, ProviderToolLoopError,
+    build_provider_tool_loop_driver, _write_json,
 )
 from app.infrastructure.runtime_settings import (
     AgentProvider, AgentRuntimeBackend, RuntimeSettings, RuntimeConfigurationError,
@@ -25,18 +28,37 @@ from app.application.agent_workflow import source_document_loop_jobs as document
 from app.application.agent_workflow import source_item_loop_jobs as item_jobs
 from app.application.agent_workflow.native_loop_tools import NativeLoopToolHost
 from app.application.agent_workflow.native_loop_finalization import (
-    verified_finalization_inputs,
+    _completed_provider_result, verified_finalization_inputs,
 )
 
 
 class FakeCompletions:
-    def __init__(self, responses):
+    def __init__(self, responses, on_call=None):
         self.responses = list(responses)
         self.calls = []
+        self.on_call = on_call
+        self.options = []
+
+    def client(self):
+        owner = self
+
+        class Client:
+            chat = SimpleNamespace(completions=owner)
+
+            def with_options(self, **kwargs):
+                owner.options.append(kwargs)
+                return self
+
+        return Client()
 
     def create(self, **kwargs):
         self.calls.append(kwargs)
-        return self.responses.pop(0)
+        if self.on_call:
+            self.on_call()
+        response = self.responses.pop(0)
+        if isinstance(response, Exception):
+            raise response
+        return response
 
 
 def tool_choice(call_id="call-1", name="reqpilot_read", arguments='{"path":"source"}'):
@@ -69,13 +91,12 @@ class ToolHost:
 
 
 class ProviderToolLoopTests(TestCase):
-    def _run(self, root, provider, responses, host=None, **kwargs):
-        fake = FakeCompletions(responses)
+    def _run(self, root, provider, responses, host=None, on_call=None, **kwargs):
+        fake = FakeCompletions(responses, on_call=on_call)
         host = host or ToolHost()
         skill = root / "SKILL.md"
         skill.write_text("Registered extraction skill", encoding="utf-8")
-        driver = ProviderToolLoopDriver(provider, "synthetic-model", lambda: SimpleNamespace(
-            chat=SimpleNamespace(completions=fake)))
+        driver = ProviderToolLoopDriver(provider, "synthetic-model", fake.client)
         result = driver.run(session_dir=root / "runtime", goal="Read synthetic source",
             skill_paths={"reqpilot": skill}, tool_host=host,
             binding={"task_id": "synthetic-task", "source_sha256": "a" * 64},
@@ -104,7 +125,7 @@ class ProviderToolLoopTests(TestCase):
                 self.assertNotIn("api_key", json.dumps(result.receipt))
                 self.assertNotIn("secret", json.dumps(result.receipt))
                 followup = FakeCompletions([final_choice("Reviewed")])
-                driver.client_factory = lambda: SimpleNamespace(chat=SimpleNamespace(completions=followup))
+                driver.client_factory = followup.client
                 continued = driver.run(session_dir=root / "runtime", goal="Review latest feedback",
                     skill_paths={"reqpilot": skill}, tool_host=host,
                     binding={"task_id": "synthetic-task", "source_sha256": "a" * 64})
@@ -116,14 +137,15 @@ class ProviderToolLoopTests(TestCase):
     def test_interrupted_pending_tool_resumes_without_duplicate_model_turn(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
-            checks = iter([False, True])
+            controls = {"cancel": False}
             result, fake, host, driver, skill = self._run(
                 root, "aliyun", [tool_choice()],
-                cancellation_requested=lambda: next(checks, False))
+                cancellation_requested=lambda: controls["cancel"],
+                on_call=lambda: controls.update(cancel=True))
             self.assertEqual(result.status, "INTERRUPTED")
             self.assertEqual(len(host.invocations), 0)
             resumed_model = FakeCompletions([final_choice()])
-            driver.client_factory = lambda: SimpleNamespace(chat=SimpleNamespace(completions=resumed_model))
+            driver.client_factory = resumed_model.client
             resumed = driver.run(session_dir=root / "runtime", goal="Read synthetic source",
                 skill_paths={"reqpilot": skill}, tool_host=host,
                 binding={"task_id": "synthetic-task", "source_sha256": "a" * 64})
@@ -135,10 +157,11 @@ class ProviderToolLoopTests(TestCase):
     def test_unknown_tool_outcome_never_replays_mutation(self):
         with TemporaryDirectory() as directory:
             root = Path(directory)
-            checks = iter([False, True])
+            controls = {"cancel": False}
             result, _, host, driver, skill = self._run(
                 root, "azure", [tool_choice()],
-                cancellation_requested=lambda: next(checks, False))
+                cancellation_requested=lambda: controls["cancel"],
+                on_call=lambda: controls.update(cancel=True))
             thread = result.receipt["thread_id"]
             identity = {"thread_id": thread, "turn_id": result.receipt["turn_id"],
                         "call_id": "call-1", "name": "reqpilot_read",
@@ -146,13 +169,477 @@ class ProviderToolLoopTests(TestCase):
             receipt_path = root / "runtime/calls" / (hashlib.sha256((thread + ":" + result.receipt["turn_id"] + ":call-1").encode()).hexdigest() + ".json")
             receipt_path.write_text(json.dumps({"identity": identity, "status": "INVOKING"}))
             model = FakeCompletions([final_choice()])
-            driver.client_factory = lambda: SimpleNamespace(chat=SimpleNamespace(completions=model))
-            continued = driver.run(session_dir=root / "runtime", goal="Read synthetic source",
-                skill_paths={"reqpilot": skill}, tool_host=host,
-                binding={"task_id": "synthetic-task", "source_sha256": "a" * 64})
-            self.assertEqual(continued.status, "COMPLETED")
+            driver.client_factory = model.client
+            with self.assertRaises(ProviderToolLoopError) as raised:
+                driver.run(session_dir=root / "runtime", goal="Read synthetic source",
+                    skill_paths={"reqpilot": skill}, tool_host=host,
+                    binding={"task_id": "synthetic-task", "source_sha256": "a" * 64})
+            self.assertEqual(raised.exception.runtime_receipt["status"], "UNKNOWN")
+            self.assertEqual(raised.exception.runtime_receipt["reason_code"],
+                             "PROVIDER_LOOP_TOOL_OUTCOME_UNKNOWN")
             self.assertEqual(host.invocations, [])
-            self.assertIn("OUTCOME_UNKNOWN", model.calls[0]["messages"][-1]["content"])
+            self.assertEqual(model.calls, [])
+
+    def test_cancel_before_first_request_never_creates_client(self):
+        for provider in ("azure", "aliyun"):
+            with self.subTest(provider=provider), TemporaryDirectory() as directory:
+                result, model, host, _, _ = self._run(
+                    Path(directory), provider, [final_choice()], cancellation_requested=lambda: True)
+                self.assertEqual(result.status, "INTERRUPTED")
+                self.assertEqual(result.receipt["reason_code"], "PROVIDER_LOOP_CANCELLED")
+                self.assertIsNone(result.final_message)
+                self.assertEqual(model.calls, [])
+                self.assertEqual(model.options, [])
+                self.assertEqual(host.invocations, [])
+
+    def test_cancel_during_response_retains_safe_resume_without_completion(self):
+        for provider in ("azure", "aliyun"):
+            for response in (final_choice(), tool_choice()):
+                with self.subTest(provider=provider, response=response), TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    controls = {"cancel": False}
+                    result, model, host, driver, skill = self._run(
+                        root, provider, [response], on_call=lambda: controls.update(cancel=True),
+                        cancellation_requested=lambda: controls["cancel"])
+                    self.assertEqual(result.status, "INTERRUPTED")
+                    self.assertIsNone(result.final_message)
+                    self.assertEqual(len(model.calls), 1)
+                    self.assertEqual(model.options, [{"max_retries": 0}])
+                    self.assertEqual(host.invocations, [])
+                    with self.assertRaises(ValueError):
+                        _completed_provider_result(root / "runtime")
+                    resumed_model = FakeCompletions([final_choice("Resumed")])
+                    driver.client_factory = resumed_model.client
+                    resumed = driver.run(session_dir=root / "runtime", goal="Read synthetic source",
+                        skill_paths={"reqpilot": skill}, tool_host=host,
+                        binding={"task_id": "synthetic-task", "source_sha256": "a" * 64})
+                    self.assertEqual(resumed.status, "COMPLETED")
+                    self.assertEqual(len(resumed_model.calls), 1 if response == tool_choice() else 0)
+                    self.assertEqual(len(host.invocations), 1 if response == tool_choice() else 0)
+
+    def test_deadline_during_response_never_completes_or_invokes_tools(self):
+        for provider in ("azure", "aliyun"):
+            for response in (final_choice(), tool_choice()):
+                with self.subTest(provider=provider, response=response), TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    clock = {"now": 0.0}
+                    with patch("reqpilotx_server.adapters.agents.provider_tool_loop.time.monotonic",
+                               side_effect=lambda: clock["now"]):
+                        result, model, host, _, _ = self._run(
+                            root, provider, [response], timeout_seconds=10,
+                            on_call=lambda: clock.update(now=11.0))
+                    self.assertEqual(result.status, "FAILED")
+                    self.assertEqual(result.receipt["reason_code"], "PROVIDER_LOOP_TIMEOUT")
+                    self.assertIsNone(result.final_message)
+                    self.assertEqual(model.calls[0]["timeout"], 10.0)
+                    self.assertEqual(len(model.calls), 1)
+                    self.assertEqual(host.invocations, [])
+                    with self.assertRaises(ValueError):
+                        _completed_provider_result(root / "runtime")
+
+    def test_timed_out_terminal_response_requires_fresh_completion_on_resume(self):
+        for provider in ("azure", "aliyun"):
+            with self.subTest(provider=provider), TemporaryDirectory() as directory:
+                root = Path(directory)
+                clock = {"now": 0.0}
+                with patch("reqpilotx_server.adapters.agents.provider_tool_loop.time.monotonic",
+                           side_effect=lambda: clock["now"]):
+                    result, _, host, driver, skill = self._run(
+                        root, provider, [final_choice("Expired response")], timeout_seconds=10,
+                        on_call=lambda: clock.update(now=11.0))
+                self.assertEqual(result.status, "FAILED")
+                model = FakeCompletions([final_choice("Fresh completion")])
+                driver.client_factory = model.client
+                resumed = driver.run(session_dir=root / "runtime", goal="Read synthetic source",
+                    skill_paths={"reqpilot": skill}, tool_host=host,
+                    binding={"task_id": "synthetic-task", "source_sha256": "a" * 64})
+                self.assertEqual(resumed.status, "COMPLETED")
+                self.assertEqual(resumed.final_message, "Fresh completion")
+                self.assertEqual(len(model.calls), 1)
+                self.assertEqual(host.invocations, [])
+
+    def test_saved_terminal_response_obeys_cancel_and_deadline_on_resume(self):
+        for provider in ("azure", "aliyun"):
+            for control in ("cancel", "deadline"):
+                with self.subTest(provider=provider, control=control), TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    first_controls = {"cancel": False}
+                    result, _, host, driver, skill = self._run(
+                        root, provider, [final_choice()],
+                        on_call=lambda: first_controls.update(cancel=True),
+                        cancellation_requested=lambda: first_controls["cancel"])
+                    self.assertEqual(result.status, "INTERRUPTED")
+                    clock = {"now": 0.0}
+                    fresh_model = FakeCompletions([final_choice()])
+                    driver.client_factory = fresh_model.client
+
+                    def cancellation():
+                        if control == "deadline":
+                            clock["now"] = 11.0
+                        return control == "cancel"
+
+                    with patch("reqpilotx_server.adapters.agents.provider_tool_loop.time.monotonic",
+                               side_effect=lambda: clock["now"]):
+                        resumed = driver.run(session_dir=root / "runtime", goal="Read synthetic source",
+                            skill_paths={"reqpilot": skill}, tool_host=host,
+                            binding={"task_id": "synthetic-task", "source_sha256": "a" * 64},
+                            timeout_seconds=10, cancellation_requested=cancellation)
+                    self.assertEqual(resumed.status, "INTERRUPTED" if control == "cancel" else "FAILED")
+                    self.assertIsNone(resumed.final_message)
+                    self.assertEqual(fresh_model.calls, [])
+                    self.assertEqual(fresh_model.options, [])
+                    with self.assertRaises(ValueError):
+                        _completed_provider_result(root / "runtime")
+
+    def test_control_between_tools_preserves_returned_call_and_stops_batch(self):
+        for provider in ("azure", "aliyun"):
+            for control in ("cancel", "deadline"):
+                with self.subTest(provider=provider, control=control), TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    controls = {"cancel": False, "now": 0.0}
+                    host = ToolHost()
+                    invoke = host.invoke
+
+                    def controlled_invoke(name, args):
+                        result = invoke(name, args)
+                        controls["cancel"] = control == "cancel"
+                        controls["now"] = 11.0 if control == "deadline" else 0.0
+                        return result
+
+                    host.invoke = controlled_invoke
+                    response = tool_choice()
+                    response["choices"][0]["message"]["tool_calls"].append({
+                        "id": "call-2", "type": "function", "function": {
+                            "name": "reqpilot_read", "arguments": '{"path":"adjacent"}'}})
+                    with patch("reqpilotx_server.adapters.agents.provider_tool_loop.time.monotonic",
+                               side_effect=lambda: controls["now"]):
+                        result, model, _, driver, skill = self._run(
+                            root, provider, [response], host=host, timeout_seconds=10,
+                            cancellation_requested=lambda: controls["cancel"])
+                    self.assertEqual(result.status, "INTERRUPTED" if control == "cancel" else "FAILED")
+                    self.assertEqual(len(model.calls), 1)
+                    self.assertEqual(len(host.invocations), 1)
+                    self.assertEqual(len(result.receipt["tools"]), 1)
+                    host.invoke = invoke
+                    model = FakeCompletions([final_choice()])
+                    driver.client_factory = model.client
+                    resumed = driver.run(session_dir=root / "runtime", goal="Read synthetic source",
+                        skill_paths={"reqpilot": skill}, tool_host=host,
+                        binding={"task_id": "synthetic-task", "source_sha256": "a" * 64})
+                    self.assertEqual(resumed.status, "COMPLETED")
+                    self.assertEqual(host.invocations, [
+                        ("reqpilot_read", {"path": "source"}), ("reqpilot_read", {"path": "adjacent"})])
+
+    def test_deadline_expiring_during_client_setup_blocks_request(self):
+        for provider in ("azure", "aliyun"):
+            with self.subTest(provider=provider), TemporaryDirectory() as directory:
+                root = Path(directory)
+                controls = {"cancel": False, "now": 0.0}
+                result, _, host, driver, skill = self._run(
+                    root, provider, [final_choice()],
+                    on_call=lambda: controls.update(cancel=True),
+                    cancellation_requested=lambda: controls["cancel"])
+                # A new goal deliberately requires a fresh request.
+                model = FakeCompletions([final_choice()])
+
+                def factory():
+                    controls["now"] = 11.0
+                    return model.client()
+
+                driver.client_factory = factory
+                with patch("reqpilotx_server.adapters.agents.provider_tool_loop.time.monotonic",
+                           side_effect=lambda: controls["now"]):
+                    resumed = driver.run(session_dir=root / "runtime", goal="New authorized feedback",
+                        skill_paths={"reqpilot": skill}, tool_host=host,
+                        binding={"task_id": "synthetic-task", "source_sha256": "a" * 64}, timeout_seconds=10)
+                self.assertEqual(resumed.status, "FAILED")
+                self.assertEqual(model.calls, [])
+
+    def test_transport_error_after_control_uses_control_terminal_status(self):
+        for provider in ("azure", "aliyun"):
+            for control in ("cancel", "deadline"):
+                with self.subTest(provider=provider, control=control), TemporaryDirectory() as directory:
+                    controls = {"cancel": False, "now": 0.0}
+
+                    def on_call():
+                        controls["cancel"] = control == "cancel"
+                        controls["now"] = 11.0 if control == "deadline" else 0.0
+
+                    with patch("reqpilotx_server.adapters.agents.provider_tool_loop.time.monotonic",
+                               side_effect=lambda: controls["now"]):
+                        result, model, host, _, _ = self._run(
+                            Path(directory), provider, [RuntimeError("secret provider detail")],
+                            on_call=on_call, cancellation_requested=lambda: controls["cancel"], timeout_seconds=10)
+                    self.assertEqual(result.status, "INTERRUPTED" if control == "cancel" else "FAILED")
+                    self.assertEqual(result.receipt["transport_error_code"], "PROVIDER_LOOP_RUNTIMEERROR")
+                    self.assertNotIn("secret provider detail", json.dumps(result.receipt))
+                    self.assertEqual(len(model.calls), 1)
+                    self.assertEqual(host.invocations, [])
+
+    def test_host_exception_is_unknown_and_cannot_replay_under_new_call_id(self):
+        for provider in ("azure", "aliyun"):
+            with self.subTest(provider=provider), TemporaryDirectory() as directory:
+                root = Path(directory)
+                host = ToolHost()
+
+                def uncertain_invoke(name, args):
+                    host.invocations.append((name, args))
+                    raise RuntimeError("secret detail after mutation")
+
+                host.invoke = uncertain_invoke
+                with self.assertRaises(ProviderToolLoopError) as first:
+                    self._run(root, provider, [tool_choice(), final_choice()], host=host)
+                self.assertEqual(first.exception.runtime_receipt["status"], "UNKNOWN")
+                self.assertEqual(first.exception.runtime_receipt["reason_code"], "PROVIDER_LOOP_TOOL_OUTCOME_UNKNOWN")
+                self.assertNotIn("secret detail", str(first.exception))
+                saved_call = json.loads(next((root / "runtime/calls").glob("*.json")).read_text())
+                self.assertEqual(saved_call["status"], "INVOKING")
+                model = FakeCompletions([tool_choice(call_id="new-id"), final_choice()])
+                driver = ProviderToolLoopDriver(provider, "synthetic-model", model.client)
+                with self.assertRaises(ProviderToolLoopError) as resumed:
+                    driver.run(session_dir=root / "runtime", goal="Read synthetic source",
+                        skill_paths={"reqpilot": root / "SKILL.md"}, tool_host=host,
+                        binding={"task_id": "synthetic-task", "source_sha256": "a" * 64})
+                self.assertEqual(resumed.exception.runtime_receipt["status"], "UNKNOWN")
+                self.assertEqual(len(host.invocations), 1)
+                self.assertEqual(model.calls, [])
+                self.assertEqual(model.options, [])
+
+    def test_tool_started_callback_control_stops_before_host_invocation(self):
+        for provider in ("azure", "aliyun"):
+            for control in ("cancel", "deadline"):
+                with self.subTest(provider=provider, control=control), TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    controls = {"cancel": False, "now": 0.0}
+
+                    def event_sink(event):
+                        if event["type"] == "tool_started":
+                            controls["cancel"] = control == "cancel"
+                            controls["now"] = 11.0 if control == "deadline" else 0.0
+
+                    with patch("reqpilotx_server.adapters.agents.provider_tool_loop.time.monotonic",
+                               side_effect=lambda: controls["now"]):
+                        result, model, host, driver, skill = self._run(
+                            root, provider, [tool_choice()], event_sink=event_sink,
+                            cancellation_requested=lambda: controls["cancel"], timeout_seconds=10)
+                    self.assertEqual(result.status, "INTERRUPTED" if control == "cancel" else "FAILED")
+                    self.assertEqual(host.invocations, [])
+                    self.assertEqual(len(model.calls), 1)
+                    self.assertEqual(list((root / "runtime/calls").glob("*.json")), [])
+                    model = FakeCompletions([final_choice()])
+                    driver.client_factory = model.client
+                    resumed = driver.run(session_dir=root / "runtime", goal="Read synthetic source",
+                        skill_paths={"reqpilot": skill}, tool_host=host,
+                        binding={"task_id": "synthetic-task", "source_sha256": "a" * 64})
+                    self.assertEqual(resumed.status, "COMPLETED")
+                    self.assertEqual(len(host.invocations), 1)
+
+    def test_unsealed_returned_mutation_stays_unknown_even_after_control(self):
+        for provider in ("azure", "aliyun"):
+            for control in ("cancel", "deadline"):
+                with self.subTest(provider=provider, control=control), TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    controls = {"cancel": False, "now": 0.0}
+                    host = ToolHost()
+                    invoke = host.invoke
+
+                    def controlled_invoke(name, args):
+                        result = invoke(name, args)
+                        controls["cancel"] = control == "cancel"
+                        controls["now"] = 11.0 if control == "deadline" else 0.0
+                        return result
+
+                    def fail_returned(path, value):
+                        if path.parent.name == "calls" and value.get("status") == "RETURNED":
+                            raise OSError("synthetic receipt-write failure")
+                        _write_json(path, value)
+
+                    host.invoke = controlled_invoke
+                    with patch("reqpilotx_server.adapters.agents.provider_tool_loop.time.monotonic",
+                               side_effect=lambda: controls["now"]), \
+                         patch("reqpilotx_server.adapters.agents.provider_tool_loop._write_json",
+                               side_effect=fail_returned):
+                        with self.assertRaises(ProviderToolLoopError) as raised:
+                            self._run(root, provider, [tool_choice()], host=host,
+                                cancellation_requested=lambda: controls["cancel"], timeout_seconds=10)
+                    self.assertEqual(raised.exception.runtime_receipt["status"], "UNKNOWN")
+                    self.assertEqual(raised.exception.runtime_receipt["reason_code"],
+                                     "PROVIDER_LOOP_TOOL_OUTCOME_UNKNOWN")
+                    saved_call = json.loads(next((root / "runtime/calls").glob("*.json")).read_text())
+                    self.assertEqual(saved_call["status"], "INVOKING")
+                    model = FakeCompletions([final_choice()])
+                    driver = ProviderToolLoopDriver(provider, "synthetic-model", model.client)
+                    with self.assertRaises(ProviderToolLoopError) as resumed:
+                        driver.run(session_dir=root / "runtime", goal="Read synthetic source",
+                            skill_paths={"reqpilot": root / "SKILL.md"}, tool_host=host,
+                            binding={"task_id": "synthetic-task", "source_sha256": "a" * 64})
+                    self.assertEqual(resumed.exception.runtime_receipt["status"], "UNKNOWN")
+                    self.assertEqual(len(host.invocations), 1)
+                    self.assertEqual(model.calls, [])
+
+    def test_control_in_last_tool_step_takes_precedence_over_step_limit(self):
+        for provider in ("azure", "aliyun"):
+            for control in ("cancel", "deadline"):
+                with self.subTest(provider=provider, control=control), TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    controls = {"cancel": False, "now": 0.0}
+                    host = ToolHost()
+                    invoke = host.invoke
+
+                    def controlled_invoke(name, args):
+                        result = invoke(name, args)
+                        controls["cancel"] = control == "cancel"
+                        controls["now"] = 11.0 if control == "deadline" else 0.0
+                        return result
+
+                    host.invoke = controlled_invoke
+                    with patch("reqpilotx_server.adapters.agents.provider_tool_loop.time.monotonic",
+                               side_effect=lambda: controls["now"]), \
+                         patch("reqpilotx_server.adapters.agents.provider_tool_loop._MAX_TOOL_STEPS", 2):
+                        result, model, _, driver, skill = self._run(
+                            root, provider, [tool_choice()], host=host,
+                            cancellation_requested=lambda: controls["cancel"], timeout_seconds=10)
+                    self.assertEqual(result.status, "INTERRUPTED" if control == "cancel" else "FAILED")
+                    self.assertEqual(result.receipt["reason_code"],
+                                     "PROVIDER_LOOP_CANCELLED" if control == "cancel" else "PROVIDER_LOOP_TIMEOUT")
+                    saved_call = json.loads(next((root / "runtime/calls").glob("*.json")).read_text())
+                    self.assertEqual(saved_call["status"], "RETURNED")
+                    self.assertEqual(len(model.calls), 1)
+                    host.invoke = invoke
+                    model = FakeCompletions([final_choice()])
+                    driver.client_factory = model.client
+                    resumed = driver.run(session_dir=root / "runtime", goal="Read synthetic source",
+                        skill_paths={"reqpilot": skill}, tool_host=host,
+                        binding={"task_id": "synthetic-task", "source_sha256": "a" * 64})
+                    self.assertEqual(resumed.status, "COMPLETED")
+                    self.assertEqual(len(host.invocations), 1)
+                    self.assertEqual(len(model.calls), 1)
+
+    def test_failed_control_read_is_redacted_unknown_at_request_and_final_sealing(self):
+        for provider in ("azure", "aliyun"):
+            for boundary in ("initial", "final", "transport_error"):
+                with self.subTest(provider=provider, boundary=boundary), TemporaryDirectory() as directory:
+                    root = Path(directory)
+                    controls = {"fail": boundary == "initial", "reads": 0}
+
+                    def cancellation():
+                        controls["reads"] += 1
+                        if controls["fail"]:
+                            raise RuntimeError("synthetic-sensitive-control-detail")
+                        return False
+
+                    def event_sink(event):
+                        if boundary == "final" and event["type"] == "agent_message":
+                            controls["fail"] = True
+
+                    def on_call():
+                        if boundary == "transport_error":
+                            controls["fail"] = True
+
+                    response = RuntimeError("synthetic-sensitive-provider-detail") if boundary == "transport_error" else final_choice()
+                    with self.assertRaises(ProviderToolLoopError) as raised:
+                        self._run(root, provider, [response], cancellation_requested=cancellation,
+                            event_sink=event_sink, on_call=on_call)
+                    receipt = raised.exception.runtime_receipt
+                    self.assertEqual(receipt["status"], "UNKNOWN")
+                    self.assertEqual(receipt["reason_code"], "PROVIDER_LOOP_CONTROL_UNAVAILABLE")
+                    self.assertNotIn("synthetic-sensitive", str(raised.exception))
+                    self.assertNotIn("synthetic-sensitive", json.dumps(receipt))
+                    if boundary == "initial":
+                        self.assertEqual(controls["reads"], 1)  # Never read a failed callback twice.
+                    state = json.loads((root / "runtime/run-state.json").read_text())
+                    self.assertEqual(state["status"], "UNKNOWN")
+                    saved_receipt = json.loads((root / "runtime" / ("receipt-" + receipt["attempt_id"] + ".json")).read_text())
+                    self.assertEqual(saved_receipt["status"], "UNKNOWN")
+                    with self.assertRaises(ValueError):
+                        _completed_provider_result(root / "runtime")
+
+    def test_known_tool_failures_keep_normal_response_contract(self):
+        for provider in ("azure", "aliyun"):
+            for failure in ("schema", "host_response"):
+                with self.subTest(provider=provider, failure=failure), TemporaryDirectory() as directory:
+                    host = ToolHost()
+                    if failure == "host_response":
+                        def known_failure(name, args):
+                            host.invocations.append((name, args))
+                            return {"success": False, "content_items": [
+                                {"type": "inputText", "text": "Known safe validation failure"}]}
+                        host.invoke = known_failure
+                    response = tool_choice(arguments='{}') if failure == "schema" else tool_choice()
+                    result, model, _, _, _ = self._run(
+                        Path(directory), provider, [response, final_choice()], host=host)
+                    self.assertEqual(result.status, "COMPLETED")
+                    self.assertEqual(len(model.calls), 2)
+                    self.assertFalse(result.receipt["tools"][0]["success"])
+                    self.assertEqual(len(host.invocations), 0 if failure == "schema" else 1)
+                    tool_result = json.loads(model.calls[-1]["messages"][-1]["content"])
+                    self.assertFalse(tool_result["success"])
+
+    def test_last_completion_boundary_rechecks_control(self):
+        for provider in ("azure", "aliyun"):
+            with self.subTest(provider=provider), TemporaryDirectory() as directory:
+                root = Path(directory)
+                controls = {"cancel": False}
+
+                def event_sink(event):
+                    if event["type"] == "agent_message":
+                        controls["cancel"] = True
+
+                result, model, _, _, _ = self._run(
+                    root, provider, [final_choice()], event_sink=event_sink,
+                    cancellation_requested=lambda: controls["cancel"])
+                self.assertEqual(result.status, "INTERRUPTED")
+                self.assertIsNone(result.final_message)
+                self.assertEqual(len(model.calls), 1)
+                with self.assertRaises(ValueError):
+                    _completed_provider_result(root / "runtime")
+
+    def test_real_sdk_disables_retries_bounds_timeout_and_keeps_shared_client_open(self):
+        for provider in ("azure", "aliyun"):
+            with self.subTest(provider=provider), TemporaryDirectory() as directory:
+                root = Path(directory)
+                requests = []
+                fail = {"enabled": True}
+
+                def handle(request):
+                    requests.append(request)
+                    if fail["enabled"]:
+                        return httpx.Response(429, json={"error": {"message": "synthetic throttle", "type": "rate_limit_error"}})
+                    return httpx.Response(200, json={"id": "synthetic-response", "object": "chat.completion",
+                        "created": 0, "model": "synthetic-model", "choices": final_choice()["choices"]})
+
+                http_client = httpx.Client(transport=httpx.MockTransport(handle))
+                if provider == "azure":
+                    client = AzureOpenAI(api_key="synthetic-not-a-credential", api_version="2024-10-21",
+                        azure_endpoint="https://synthetic.invalid", max_retries=3, timeout=600, http_client=http_client)
+                else:
+                    client = OpenAI(api_key="synthetic-not-a-credential", base_url="https://synthetic.invalid/v1",
+                        max_retries=3, timeout=600, http_client=http_client)
+                try:
+                    skill = root / "SKILL.md"
+                    skill.write_text("Synthetic extraction skill")
+                    driver = ProviderToolLoopDriver(provider, "synthetic-model", lambda: client)
+                    with patch("reqpilotx_server.adapters.agents.provider_tool_loop.time.monotonic", return_value=0):
+                        with self.assertRaises(ProviderToolLoopError) as raised:
+                            driver.run(session_dir=root / "runtime", goal="Read synthetic source",
+                                skill_paths={"reqpilot": skill}, tool_host=ToolHost(),
+                                binding={"task_id": "synthetic-task"}, timeout_seconds=10)
+                    self.assertEqual(raised.exception.runtime_receipt["status"], "UNKNOWN")
+                    self.assertEqual(len(requests), 1)  # 429 must not invoke an SDK retry.
+                    self.assertEqual(requests[0].extensions["timeout"],
+                                     {"connect": 10.0, "read": 10.0, "write": 10.0, "pool": 10.0})
+                    self.assertEqual(client.max_retries, 3)
+                    self.assertFalse(client.is_closed())
+                    self.assertFalse(http_client.is_closed)
+                    fail["enabled"] = False
+                    resumed = driver.run(session_dir=root / "runtime", goal="Read synthetic source",
+                        skill_paths={"reqpilot": skill}, tool_host=ToolHost(),
+                        binding={"task_id": "synthetic-task"})
+                    self.assertEqual(resumed.status, "COMPLETED")
+                    self.assertEqual(len(requests), 2)
+                    self.assertFalse(client.is_closed())
+                finally:
+                    client.close()  # This test owns the SDK/HTTP transport.
 
     def test_image_result_is_sent_as_multimodal_source_context(self):
         with TemporaryDirectory() as directory:
@@ -195,8 +682,7 @@ class ProviderToolLoopTests(TestCase):
             model = FakeCompletions([
                 tool_choice(arguments='{"path":"source.pdf","page":1}'), final_choice(),
             ])
-            driver = ProviderToolLoopDriver("aliyun", "synthetic-model", lambda: SimpleNamespace(
-                chat=SimpleNamespace(completions=model)))
+            driver = ProviderToolLoopDriver("aliyun", "synthetic-model", model.client)
             result = driver.run(session_dir=root / "runtime", goal="Read synthetic page",
                 skill_paths={"reqpilot": plugin / "skills/reqpilot/SKILL.md"},
                 tool_host=host, binding={"task_id": "synthetic-task",
@@ -350,8 +836,7 @@ class ProviderToolLoopTests(TestCase):
             model = FakeCompletions([completion, final_choice("Published")])
             skill = root / "SKILL.md"
             skill.write_text("Synthetic skill")
-            driver = ProviderToolLoopDriver("azure", "synthetic-model", lambda: SimpleNamespace(
-                chat=SimpleNamespace(completions=model)))
+            driver = ProviderToolLoopDriver("azure", "synthetic-model", model.client)
             run = driver.run(session_dir=root / "runtime", goal="Publish synthetic review",
                 skill_paths={"reqpilot": skill}, tool_host=PublicationHost(),
                 binding={"task_id": "task", "project_id": "p", "document_id": "d",

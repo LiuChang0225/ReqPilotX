@@ -1,6 +1,6 @@
 /** Host transport contract only: business schemas and task/acceptance states stay in ReqPilotX. */
 const APPLICATION_SCHEMA = 'reqpilot-application-host/v1';
-const OPERATION_IDS = ['projects.read', 'projects.create', 'documents.read', 'documents.import', 'results.read', 'results.feedback', 'results.confirm_map', 'results.engineer_responses', 'results.save_version', 'agent.start', 'agent.resume', 'agent.cancel', 'events.agent'];
+const OPERATION_IDS = ['projects.read', 'projects.create', 'documents.read', 'documents.import', 'results.read', 'results.feedback', 'results.confirm_map', 'results.engineer_responses', 'results.save_version', 'agent.start', 'agent.resume', 'agent.cancel', 'agent.reconnect', 'events.agent'];
 const UUID = /^[a-f0-9]{8}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{4}-[a-f0-9]{12}$/i;
 function applicationId(ownerId) { return typeof ownerId === 'string' && UUID.test(ownerId) ? 'reqpilotx-pair:' + ownerId : null; }
 function capabilities(state) {
@@ -16,6 +16,7 @@ function capabilities(state) {
     'results.engineer_responses': ready && state.mode === 'managed',
     'results.save_version': ready && state.mode === 'managed',
     'agent.start': ready && state.mode === 'managed' && state.taskLaunchReady === true,
+    'agent.reconnect': ready && state.mode === 'managed' && state.taskReconnectReady === true,
     'agent.resume': ready && state.mode === 'managed' && state.taskContinueReady === true,
     'agent.cancel': ready && state.mode === 'managed' && state.taskCancelReady === true, 'events.agent': false,
   };

@@ -27,6 +27,50 @@ requesting another model turn. It rejects an ambiguous tool outcome, failed
 turn, changed source binding, or altered snapshot. Tool receipts accumulate
 across interrupted turns in the same pinned task.
 
+## Cancellation, deadline and SDK controls (2026-10-05 candidate)
+
+Each native provider-loop request uses a task-local SDK view with
+`max_retries=0` and the remaining task deadline as its request timeout. The
+cached application client's retry settings and shared HTTP transport are left
+unchanged and are never closed by this loop. Clients that cannot expose
+`with_options` fail closed instead of silently retaining hidden SDK retries.
+
+Controls are checked before requests, after provider responses, before each
+host invocation (including after the activity/heartbeat callback), before
+accepting a saved terminal response, and before sealing a completed turn.
+Cancellation yields `INTERRUPTED`; an expired task deadline yields `FAILED`
+with `PROVIDER_LOOP_TIMEOUT`. Provider call IDs already returned are retained
+for safe continuation, but no additional model/tool request is started after
+an observed control. A returned final message after cancellation does not
+create completed proof usable by host-only publication recovery. An explicitly
+continued cancelled turn can reuse its saved terminal response once controls
+are clear. A timed-out `FAILED` turn requires a fresh provider completion; its
+expired terminal prose is not accepted as completion of the new attempt.
+
+Cancellation of an already-waiting synchronous SDK request is cooperative:
+it is observed when the request returns or fails. The remaining-time SDK
+transport timeout limits network operations; it is not a separate hard
+wall-clock thread kill. The normal PostgreSQL lease/cancellation publication
+fence remains authoritative if cancellation races with host finalization.
+
+A prior `INVOKING` tool receipt or an unexpected host exception/invalid response
+or failure to durably seal a returned host result has an uncertain outcome. The
+turn remains `UNKNOWN` with
+`PROVIDER_LOOP_TOOL_OUTCOME_UNKNOWN` and stops before another model or tool
+request. The host must inspect/reconcile that outcome before continuation;
+the loop does not offer it back to the model as an ordinary retryable failure.
+Known host failure responses and schema-rejected arguments retain their normal
+tool-response contract and remain available to the model for correction. If the
+lease/cancellation heartbeat itself fails, the turn is sealed as redacted
+`UNKNOWN` with `PROVIDER_LOOP_CONTROL_UNAVAILABLE`; it cannot supply completed
+proof until the task can safely read its controls again.
+
+The candidate is verified offline with both provider contracts and real
+OpenAI/Azure SDK clients over HTTP-only MockTransport. This establishes control
+status, bounded request options, no SDK retry and shared-client ownership;
+actual provider transport, PostgreSQL end-to-end execution and employee host
+journeys still require separate environment-specific evidence.
+
 ## Windowed table and direct-text stages
 
 `ProviderSourceRequirementWindowExecutor` and `ProviderSourceItemTextExecutor`
@@ -77,7 +121,8 @@ predecessor; cold start remains the source-document tool-loop route.
 
 Cloud offline evidence uses synthetic documents and configured-SDK mocks:
 
-- Existing provider tool loop: 11 tests
+- Baseline provider tool loop: 11 tests; this control candidate adds offline
+  cancellation/deadline, resume, unknown-outcome and real-SDK retry regressions
 - Provider window adapters: 11 tests, plus existing Codex window regression
 - Actual provider executors through durable joint publication, private object
   persistence and same-version Excel: 3 tests, covering both Azure and Bailian,
