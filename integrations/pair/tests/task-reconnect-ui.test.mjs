@@ -8,13 +8,14 @@ import { randomUUID } from 'node:crypto';
 import { JSDOM } from 'jsdom';
 
 test('built reconnect button adopts refreshed capabilities and scopes retries to each owned generation', async () => {
-  assert.ok(process.env.PAIR_UI_REACT_ROOT, 'PAIR_UI_REACT_ROOT is required');
+  const fixture = process.env.PAIR_UI_REACT_ROOT || process.env.PAIR_REACT_ROOT;
+  assert.ok(fixture, 'PAIR_UI_REACT_ROOT or PAIR_REACT_ROOT is required');
   const dom = new JSDOM('<div id="root"></div>', { url: 'http://127.0.0.1:3080/' });
   const prior = new Map(['window', 'document', 'IS_REACT_ACT_ENVIRONMENT'].map(key => [key, Object.getOwnPropertyDescriptor(globalThis, key)]));
   Object.defineProperty(globalThis, 'window', { configurable: true, value: dom.window });
   Object.defineProperty(globalThis, 'document', { configurable: true, value: dom.window.document });
   globalThis.IS_REACT_ACT_ENVIRONMENT = true;
-  const hostRequire = createRequire(process.env.PAIR_UI_REACT_ROOT + '/package.json');
+  const hostRequire = createRequire(fixture + '/package.json');
   const React = hostRequire('react'), { createRoot } = hostRequire('react-dom/client');
   const applicationId = 'reqpilotx-pair:' + randomUUID(), commandId = randomUUID(), hash = 'a'.repeat(64), workRef = 'plugin-' + 'b'.repeat(32);
   let reconnect = true, instanceId = 'two', application, definitions, plugin;
