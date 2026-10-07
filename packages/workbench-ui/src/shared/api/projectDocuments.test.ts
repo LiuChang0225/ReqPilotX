@@ -6,6 +6,13 @@ import { createProjectDocumentClient, projectDocumentPaths } from './projectDocu
 beforeEach(() => { localStorage.clear(); vi.stubGlobal('crypto', webcrypto); });
 afterEach(() => { localStorage.clear(); vi.unstubAllGlobals(); });
 describe('one project/document client across hosts', () => {
+  it('can initialize and read through a host transport before browser storage exists', async () => {
+    vi.stubGlobal('window', undefined);
+    const request = vi.fn().mockResolvedValue([{ id: 'p', name: 'P', customer_name: 'C' }]);
+    const client = createProjectDocumentClient(request);
+    expect(await client.projects()).toEqual([{ id: 'p', name: 'P', customer_name: 'C' }]);
+    expect(request).toHaveBeenCalledWith('/api/projects');
+  });
   it('standalone API and embedded transport emit the same project payload', async () => {
     const fetcher = vi.fn().mockImplementation(async (_path, init) => new Response(JSON.stringify({ ...JSON.parse(init.body), id: 'created' }), { headers: { 'content-type': 'application/json' } }));
     vi.stubGlobal('fetch', fetcher);

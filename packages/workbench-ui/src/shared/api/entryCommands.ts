@@ -14,15 +14,16 @@ export interface EntryCommandOptions {
 export function entryCommandStore(options: EntryCommandOptions) {
   // Pair supplies its stable application ID, independent of service port.
   // The standalone single-owner service uses its browser origin.
-  const prefix = 'reqpilotx:entry:v1:' + (options.namespace ?? window.location.origin) + ':';
+  // Importing/initializing a read-only host must not require browser state.
+  const prefix = () => 'reqpilotx:entry:v1:' + (options.namespace ?? window.location.origin) + ':';
   const storage = () => options.storage ?? localStorage;
   const key = (kind: EntryIntent['kind'], scope: string, payload: EntryIntent['payload']) =>
-    prefix + JSON.stringify([kind, scope, payload]);
+    prefix() + JSON.stringify([kind, scope, payload]);
   const pending = (): EntryIntent[] => {
     const target = storage(), entries: EntryIntent[] = [];
     for (let i = 0; i < target.length; i++) {
       const itemKey = target.key(i);
-      if (!itemKey?.startsWith(prefix)) continue;
+      if (!itemKey?.startsWith(prefix())) continue;
       const item = JSON.parse(target.getItem(itemKey)!);
       if (typeof item?.commandId !== 'string' || !/^[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$/.test(item.commandId)
           || !['project.create', 'document.import'].includes(item.kind)

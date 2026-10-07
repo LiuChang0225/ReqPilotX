@@ -97,6 +97,28 @@ NOT_RUN：真实 Pair 员工浏览器/已安装候选、完整付费模型任务
 
 后续用户授权精确范围提交/推送到既存开发分支、保持 PR10 草稿并等待新提交 CI。已核原 origin 私有属性、远端分支/PR HEAD 均为复核基线；没有改 remote、权限、凭据或部署。23 文件暂存前逐文件调用安全规则，0 findings；仓库规定的 `repository_safety_audit.py --staged` 检查 2,622 blobs，PASS/0 findings，暂存 diffcheck PASS。可选全工作区模式对既存 `prototype/migrations/postgresql` 目录符号链接报 `IsADirectoryError`，未完成，不记 PASS；未修改该审计脚本或链接。实际索引模式读取 Git blob，不受该工作区读取错误影响。维护 11 文件哈希保留用于提交前后比对；GitHub 新 HEAD 的 CI 结果由 PR 同步记录，旧 HEAD CI 不作为本提交通过证据。
 
+### 首次发布及 CI 失败记录
+
+已按授权将精确 23 文件提交为 `6b3ed102dcaf5f37a77b59d9f62facddbdd98276` 并普通推送原 origin。Mac HEAD、origin 跟踪引用、GitHub 开发分支及 PR10 HEAD 相同，PR 仍为草稿；维护 11 文件未改/未暂存。没有 main 合并、部署、权限/凭据修改或发行包构建。
+
+本提交的四个工作流均已终态：两个 push 运行被既有 concurrency 规则取消；[Source/frontend PR 运行](https://github.com/LiuChang0225/ReqPilotX/actions/runs/37587520357) 和 [Python PR 运行](https://github.com/LiuChang0225/ReqPilotX/actions/runs/37587520479) 均 FAIL，不能由本地 105 项或旧提交 CI 推断本次全量通过。
+
+Source/frontend 的源码安全检查、完整前端 1,025 测试、4 项 CSS、Web/shared-panel/Pair 构建通过，Pair adapter aggregate 为 44 PASS / 3 FAIL / 31 SKIP。两个失败源于命令 store 在模块初始化时读取 `window.location.origin`，破坏无浏览器状态的延迟加载；新针对性回归先 FAIL，命名空间改为访问命令时才读取后，四个聚焦 Vitest 文件 55 PASS、typecheck PASS、Node 22 源码 UI 1 PASS。第三个失败的既有重连测试夹具缺少真实 API 必填 `project_id`，拟仅补充合成字段，保留全部重连断言；不放宽生产端项目绑定校验。
+
+Python 后端跑 4,871 项，1 FAIL / 161 SKIP：`test_installed_migration_resource_and_legacy_path_are_same_files` 仍固定断言 37 个迁移，本任务新增 `0038` 后实际为 38。后续 plugin/release/PostgreSQL HTTP/relocated Pair 步骤因此未运行。拟只更新数量为 38，保留目录同源、文件列表及符号链接断言。
+
+两个测试夹具文件均不在原 23 文件清单内，已提交精确一行变更供用户范围确认，未在未授权时修改。原范围内的延迟加载修复与新增回归留在工作区；后续提交/全量 CI 结果以新的实际记录为准。
+
+### 已授权的 CI 契约修复
+
+用户随后明确原 23 文件限制用于排除其他任务，授权加入两个直接受影响的测试文件。已核共享 `SorDocument` 的必填 `project_id` 与正式资源中的 `0038`：重连夹具仅补 `project_id: 'p'`，迁移数量断言仅由 37 改 38，原有字段/目录同源/文件列表/重连断言均保留。生产项目绑定、权限校验、测试 skip 和 workflow 未变。
+
+本次增量严格为 5 个文件：`packages/workbench-ui/src/shared/api/entryCommands.ts`、`packages/workbench-ui/src/shared/api/projectDocuments.test.ts`、`integrations/pair/tests/task-reconnect-ui.test.mjs`、`prototype/tests/test_repository_productization_r3.py` 及本合同。原入口修复总范围因此为 25 文件，维护 11 文件仍未改/未纳入。
+
+本次针对性实跑 77 个唯一测试 PASS，不与首次 105 累加：四个 Vitest 文件 55 PASS；`test_repository_productization_r3.py` 5 PASS；Node 22 Pair Host/discovery/入口源码 UI 12 PASS；当前源码内存探针中的 Client/reconnect 5 PASS。最后一组读取当前 API/readonly transport/catalog 源码，在内存生成小型模块并运行原 5 条断言；readonly 视图组件使用空占位，不代表完整 built panel 或员工宿主验收。未重建旧 `client/lib`、安装依赖或生成发行包，真实完整构建仍由 GitHub 新提交 CI 执行。
+
+TypeScript 和 diffcheck PASS。对刚纳入的既有 productization 测试单独跑 Ruff 曾 FAIL（10 项 E402）；与 HEAD 原文件逐条对比均相同，本次一行数量改动未引入 lint finding。未为此改动测试隔离顺序、增加 noqa 或修改全局 lint 规则。新 HEAD 完整 CI 结果由 PR 实际运行更新，首次失败永久保留，不先宣称通过。
+
 ### 完整差异摘要及建议提交清单
 
 服务端 7 文件与 1 项迁移提供命令验证、同事务唯一回执、冲突/删除状态、结果查询与原件保留；共享客户端 3 文件提供持久 ID、字节身份、在途合并/恢复与 HTTP 状态；Web/Pair 两个入口文件恢复选择并区分已保存与列表刷新；6 个测试文件覆盖数据库、API、共享客户端与宿主源码；4 个说明文件记录接口、迁移、删除语义与真实验证边界。合计 23 文件（16 个原跟踪修改、7 个新增），建议逐路径暂存，避免 `git add .` 混入维护任务。

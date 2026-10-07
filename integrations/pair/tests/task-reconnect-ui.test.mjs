@@ -33,7 +33,7 @@ test('built reconnect button adopts refreshed capabilities and scopes retries to
     if (url === '/reqpilotx/config') return json({ schema: 'reqpilot-application-host/v1', mode: 'managed', status: 'READY', applicationId, instanceId,
       serviceOrigin: 'http://127.0.0.1:' + (instanceId === 'two' ? '5556' : '5557'), capabilities: caps });
     if (url.endsWith('/api/projects')) return json([{ id: 'p', name: 'Synthetic' }]);
-    if (url.endsWith('/sor-documents')) return json([{ id: 'd', file_name: 'source.pdf', source_sha256: hash }]);
+    if (url.endsWith('/sor-documents')) return json([{ id: 'd', project_id: 'p', file_name: 'source.pdf', source_sha256: hash }]);
     if (url.endsWith('/sessions')) return json({ sessions: [] });
     if (url.endsWith('/control')) { const input = JSON.parse(init.body); controls.push(input); reconnect = false; return json({ ...receipt(), control: { controlId: input.controlId, status: 'ACCEPTED' } }); }
     if (url.startsWith('/reqpilotx/tasks/')) return json(receipt());
