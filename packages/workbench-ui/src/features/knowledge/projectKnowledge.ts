@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { saasStorageKey } from "../../shared/api/saasSession";
 import { request } from "../../shared/api/client";
 
 export type ProjectKnowledgeDocument = { id: string; project_id: string; file_name: string; source_sha256: string; doc_version?: string; status?: string;
@@ -42,7 +43,7 @@ function readSelection(key: string): string[] | null {
   try { const value = JSON.parse(localStorage.getItem(key) || "null"); return Array.isArray(value) && value.every(id => typeof id === "string") ? value : null; } catch { return null; }
 }
 export function useAnalysisKnowledgeSelection(scope: string) {
-  const key = `reqpilotx:analysis-knowledge-selection:v1:${scope}`;
+  const key = saasStorageKey(`reqpilotx:analysis-knowledge-selection:v1:${scope}`);
   const [entry, setEntry] = useState(() => ({ key, ids: readSelection(key), durable: true }));
   const ids = entry.key === key ? entry.ids : readSelection(key);
   const setIds = useCallback((next: string[] | null) => {

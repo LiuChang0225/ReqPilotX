@@ -82,7 +82,7 @@ class RepositoryProductizationR3Tests(unittest.TestCase):
             [path.name for path in sorted(installed.glob("*.sql"))],
             [path.name for path in sorted(legacy.glob("*.sql"))],
         )
-        self.assertEqual(len(tuple(installed.glob("*.sql"))), 38)
+        self.assertEqual(len(tuple(installed.glob("*.sql"))), 39)
 
     def test_runtime_paths_are_host_configured_not_package_writable_defaults(self):
         with tempfile.TemporaryDirectory() as temporary:

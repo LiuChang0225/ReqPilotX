@@ -7,6 +7,7 @@ identity here, explicitly prefixed ``provider-structured-stage:<provider>``;
 it does not assert a Codex installation or capability.
 """
 from __future__ import annotations
+from reqpilotx_server.saas.context import owned_task_identity
 
 from collections.abc import Callable
 from contextlib import contextmanager
@@ -121,9 +122,9 @@ class _ProviderWindowedStageMixin:
             execution_mode=execution_mode, files=(*files, *references),
             instructions=instructions + "\n\nHost stage directive:\n" + task_directive,
             output_schema=schema,
-            binding={"executor_id": self.adapter_id, "executor_version": self.adapter_version,
+            binding=owned_task_identity({"executor_id": self.adapter_id, "executor_version": self.adapter_version,
                      "project_id": task.project_id, "document_id": task.document_id,
-                     "kit_bundle_sha256": kit.identity.bundle_sha256},
+                     "kit_bundle_sha256": kit.identity.bundle_sha256}),
         )
         return ProviderStructuredStageTransport(
             provider=self.provider, model_id=self.model_id, client_factory=self._client_factory,

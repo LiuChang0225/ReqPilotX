@@ -3021,12 +3021,23 @@ def claim_unreferenced_source_asset_object_deletion(
 def get_entry_command_result(*, kind: str, scope: str, command_id: str,
                              request_sha256: str | None = None) -> dict | None:
     validate_command_id(command_id)
+    from reqpilotx_server.saas.context import project_command_id
+    if kind == "project.create":
+        command_id = project_command_id(command_id)
+    validate_command_id(command_id)
     with get_conn() as conn:
         return read_receipt(conn, kind=kind, scope=scope, command_id=command_id,
                             request_sha256=request_sha256)
 
 
 def create_project(name: str, customer_name: str, *, command_id: str | None = None) -> dict[str, Any]:
+    validate_command_id(command_id)
+    from reqpilotx_server.saas.context import current_scope, project_command_id
+    from reqpilotx_server.saas.config import SaaSSettings
+    owner = current_scope()
+    if SaaSSettings.from_environment().enabled and owner is None:
+        raise PermissionError("saas_project_requires_trusted_owner")
+    command_id = project_command_id(command_id)
     name, customer_name = name.strip(), customer_name.strip()
     project_id = str(uuid.uuid4())
     created_at = _now_iso()
@@ -3039,6 +3050,10 @@ def create_project(name: str, customer_name: str, *, command_id: str | None = No
             "INSERT INTO projects (id, name, customer_name, created_at, knowledge_base_version) VALUES (?, ?, ?, ?, 0)",
             (project_id, name, customer_name, created_at),
         )
+        if owner is not None:
+            # Business row, ownership and command receipt commit together.
+            conn.execute("INSERT INTO saas_project_owners(project_id, account_id) VALUES(?,?)",
+                         (project_id, owner.account_id))
         row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
         result = _to_dict(row) or {}
         complete_receipt(conn, kind="project.create", scope="", command_id=command_id, result=result)
@@ -3046,14 +3061,28 @@ def create_project(name: str, customer_name: str, *, command_id: str | None = No
 
 
 def list_projects() -> list[dict[str, Any]]:
+    from reqpilotx_server.saas.context import current_scope
+    from reqpilotx_server.saas.config import SaaSSettings
+    owner = current_scope()
+    if SaaSSettings.from_environment().enabled and owner is None:
+        raise PermissionError("saas_catalog_requires_trusted_owner")
     with get_conn() as conn:
-        rows = conn.execute(
-            "SELECT * FROM projects ORDER BY created_at DESC"
-        ).fetchall()
+        if owner is None:
+            rows = conn.execute("SELECT * FROM projects ORDER BY created_at DESC").fetchall()
+        else:
+            rows = conn.execute("""SELECT p.* FROM projects p JOIN saas_project_owners o
+                ON o.project_id=p.id WHERE o.account_id=? ORDER BY p.created_at DESC""",
+                (owner.account_id,)).fetchall()
     return _to_dict_list(rows)
 
 
 def get_project(project_id: str) -> dict[str, Any] | None:
+    from reqpilotx_server.saas.context import current_scope
+    from reqpilotx_server.saas.store import owns_project
+    owner = current_scope()
+    if owner is not None and ((owner.project_id and owner.project_id != project_id)
+                              or not owns_project(owner.account_id, project_id)):
+        return None
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM projects WHERE id = ?", (project_id,)).fetchone()
     return _to_dict(row)
@@ -3171,7 +3200,12 @@ def sor_import_request_hash(*, project_id: str, file_name: str, source_sha256: s
 def get_sor_document(document_id: str) -> dict[str, Any] | None:
     with get_conn() as conn:
         row = conn.execute("SELECT * FROM sor_documents WHERE id = ?", (document_id,)).fetchone()
-    return _to_dict(row)
+    result = _to_dict(row)
+    if result is not None:
+        from reqpilotx_server.saas.context import current_scope
+        if current_scope() is not None and get_project(result["project_id"]) is None:
+            return None
+    return result
 
 
 def get_sor_document_publication_currentness_generation(

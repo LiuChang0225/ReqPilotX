@@ -1,4 +1,5 @@
 import { useEffect, useRef, useState } from "react";
+import { saasStorageKey } from "../../shared/api/saasSession";
 
 export type EngineerDecision = "COMPLIANT" | "PARTIALLY_COMPLIANT" | "NON_COMPLIANT" | "PENDING_EVIDENCE" | "NEEDS_CLARIFICATION" | "NOT_APPLICABLE";
 export type EngineerRecord = { record_id: string; unit_id: string; source_item_id: string; requirement_display_id: string;
@@ -27,7 +28,7 @@ export function EngineerOpinion({ unitId, view, onSave, onLoad, defaultExpanded 
   const [open, setOpen] = useState(defaultExpanded);
   const [draftUnavailable, setDraftUnavailable] = useState(false);
   const businessScope = `${draftScope || ""}:${unitId}:${view?.units[unitId]?.unit_context_sha256 || "unloaded"}`;
-  const draftKey = draftScope ? `reqpilotx:engineer-draft:${businessScope}` : "";
+  const draftKey = draftScope ? saasStorageKey(`reqpilotx:engineer-draft:${businessScope}`) : "";
   const scopeRef = useRef(businessScope); scopeRef.current = businessScope;
   useEffect(() => {
     let draft: { decision?: EngineerDecision; reason?: string; conditions?: string; evidence?: string } | null = null;

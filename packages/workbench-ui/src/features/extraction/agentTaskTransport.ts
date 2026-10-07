@@ -1,4 +1,5 @@
 import { ApiError, request } from "../../shared/api/client";
+import { saasStorageKey } from "../../shared/api/saasSession";
 
 export type PublicAgentEvent = {
   event_cursor?: number; message_id?: string; version?: number; delta?: string; thread_id?: string; turn_id?: string;
@@ -23,6 +24,7 @@ export async function readAgentEventTail(root: string, taskId: string, after: nu
 }
 /** Retry an uncertain HTTP result with the original command and payload. */
 export function retainedCommand(storageKey: string, signature: string) {
+  storageKey = saasStorageKey(storageKey);
   try {
     const previous = JSON.parse(localStorage.getItem(storageKey) || "null");
     if (previous?.signature === signature && typeof previous.command_id === "string") return previous.command_id as string;
@@ -32,6 +34,7 @@ export function retainedCommand(storageKey: string, signature: string) {
   return command_id;
 }
 export function settleCommand(storageKey: string, commandId: string, error?: unknown) {
+  storageKey = saasStorageKey(storageKey);
   if (error && !(error instanceof ApiError && error.status >= 400 && error.status < 500)) return;
   try {
     if (JSON.parse(localStorage.getItem(storageKey) || "null")?.command_id === commandId) localStorage.removeItem(storageKey);

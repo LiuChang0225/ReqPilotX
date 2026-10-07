@@ -1,6 +1,7 @@
 """Durable autonomous ReqPilotX review tasks using the portable tool workspace."""
 
 from __future__ import annotations
+from reqpilotx_server.saas.context import owned_task_identity, verify_owned_task
 
 from contextlib import contextmanager
 import hashlib
@@ -124,6 +125,7 @@ def _existing(project_id, document_id, task_id):
     if not (root / "task.json").is_file():
         raise ApplicationError(status_code=404, detail="当前文档没有这个 Agent 任务。")
     meta = _read(root / "task.json")
+    verify_owned_task(meta)
     if (meta["project_id"], meta["document_id"], meta["task_id"]) != (
         project_id,
         document_id,
@@ -407,7 +409,7 @@ def start_source_item_loop(
                 }
             )
         _record_feedback(root, initial_feedback, payload.command_id)
-        meta = {
+        meta = owned_task_identity({
             "schema_version": TASK_SCHEMA,
             "task_id": task_id,
             "project_id": project_id,
@@ -425,7 +427,7 @@ def start_source_item_loop(
             "feedback_ids": list(payload.feedback_ids),
             "request": payload.model_dump(mode="json"),
             "latest_job_id": None,
-        }
+        })
         _write_json(root / "controls.json", {"steering": [], "interrupt_commands": []})
         _write_json(root / "task.json", meta)
         _enqueue(
@@ -895,13 +897,13 @@ def run_durable_source_item_loop(job, context):
         skill_bundle_root=plugin_root,
         capability_epoch=job.payload.get("capability_epoch"),
         tool_host=host,
-        binding={
+        binding=owned_task_identity({
             "task_id": meta["task_id"],
             "project_id": meta["project_id"],
             "document_id": meta["document_id"],
             "source_sha256": meta["source_sha256"],
             "document_map_sha256": meta["document_map_sha256"],
-        },
+        }),
         timeout_seconds=timeout_seconds,
         cancellation_requested=context.cancellation_requested,
         steer_requested=pending_steer,

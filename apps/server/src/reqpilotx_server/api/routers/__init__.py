@@ -1,6 +1,7 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
+from reqpilotx_server.saas.auth import build_auth_router
 
 from . import (
     agent_workflow,
@@ -24,6 +25,7 @@ from . import (
 def build_domain_routers() -> tuple[APIRouter, ...]:
     return (
         runtime.build(),
+        build_auth_router(),
         projects.build(),
         ingestion.build(),
         reading.build(),

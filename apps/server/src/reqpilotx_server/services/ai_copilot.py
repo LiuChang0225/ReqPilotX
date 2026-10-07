@@ -5096,7 +5096,8 @@ class QdrantIndexer:
 
 
 def _dashvector_source_doc_filter(source_doc_id: str) -> str:
-    return f"source_doc_id = '{source_doc_id.replace("'", "''")}'"
+    escaped_source_id = source_doc_id.replace("'", "''")
+    return f"source_doc_id = '{escaped_source_id}'"
 
 
 def _delete_dashvector_source_doc_chunks(
@@ -7272,15 +7273,16 @@ def _build_dashvector_filter(
     eligible_docs = _eligible_knowledge_documents(knowledge_docs, as_of=as_of)
     filters: list[str] = []
     if project_id:
-        filters.append(f"project_id = '{str(project_id).replace("'", "''")}'")
+        escaped_project_id = str(project_id).replace("'", "''")
+        filters.append(f"project_id = '{escaped_project_id}'")
     doc_ids = [str(doc.get("id") or "").strip() for doc in eligible_docs]
     if doc_ids:
-        quoted = ", ".join(f"'{item.replace("'", "''")}'" for item in doc_ids)
+        quoted = ", ".join("'" + item.replace("'", "''") + "'" for item in doc_ids)
         filters.append(f"source_doc_id in ({quoted})")
         filters.append(f"status = '{ACTIVE_KNOWLEDGE_STATUS}'")
         filters.append(f"evidence_contract_version = '{EVIDENCE_INDEX_CONTRACT_VERSION}'")
         doc_types = sorted({str(doc.get("doc_type") or "").strip().upper() for doc in eligible_docs})
-        quoted_doc_types = ", ".join(f"'{item.replace("'", "''")}'" for item in doc_types)
+        quoted_doc_types = ", ".join("'" + item.replace("'", "''") + "'" for item in doc_types)
         filters.append(f"doc_type in ({quoted_doc_types})")
     else:
         filters.append(f"source_doc_id = '{NO_ELIGIBLE_EVIDENCE_ID}'")

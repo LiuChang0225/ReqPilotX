@@ -4,7 +4,16 @@ This package owns the API, durable worker, configuration, persistence, object
 storage and concrete Agent-host adapters. It depends on `reqpilotx-engine` and
 never carries a second copy of the engine implementation.
 
-Installed entrypoints are `reqpilotx-api` and `reqpilotx-worker`. The legacy
+Installed entrypoints are `reqpilotx-api` and `reqpilotx-worker`.
+`reqpilotx-saas-invite` is an optional local administrator command that writes
+one expiring single-use invite to a new private file without printing its token.
+The Web account boundary is opt-in; see
+[SaaS ownership contract](../../docs/architecture/saas-account-boundary.md) and
+[private pilot deployment](../../docs/deployment/saas-pilot.md). Optional heavyweight
+retrieval adapters are installed with `reqpilotx-server[retrieval]`; OSS uses
+`reqpilotx-server[oss]`. The lightweight local-object profile does not include them.
+
+The legacy
 `prototype/start.sh` and `prototype/app` imports remain development compatibility
 routes. Desktop packaging composes `reqpilotx` and `reqpilotx_server` directly;
 the PyInstaller search roots and release preflight do not consume the legacy

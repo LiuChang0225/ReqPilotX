@@ -236,13 +236,16 @@ def document_node_position(node: Any) -> tuple[int, float, float, int, int]:
     native = (*tuple(getattr(node, "source_anchors", ()) or ()), *tuple(getattr(node, "source_content", ()) or ()))
     if native and original_format(getattr(native[0], "native_locator", None)) != "pdf":
         return (*min(source_position(value) for value in native), 0, node.order)
-    anchors = tuple(getattr(node, "source_anchors", ()) or ())
-    if anchors:
-        anchor = min(
-            anchors,
+    # PDF structure and SourceItems must share the measured source coordinate
+    # scale. A text-only child has no anchor; a table/image anchor may also occur
+    # after its heading or leading prose. Neither case can use node.order as a
+    # page coordinate or let the later anchor hide earlier original text.
+    if native:
+        first = min(
+            native,
             key=lambda item: (item.page, item.bbox[1], item.bbox[0]),
         )
-        return (anchor.page, float(anchor.bbox[1]), float(anchor.bbox[0]), 0, node.order)
+        return (first.page, float(first.bbox[1]), float(first.bbox[0]), 0, node.order)
     first_page = node.pages[0] if node.pages else 1_000_000
     return (first_page, float(node.order), 0.0, 0, node.order)
 

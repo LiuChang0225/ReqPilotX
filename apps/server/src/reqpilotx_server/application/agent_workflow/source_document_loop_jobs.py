@@ -5,6 +5,7 @@ completed graph. It does not capture/map/classify through a scheduled stage DAG.
 """
 
 from __future__ import annotations
+from reqpilotx_server.saas.context import owned_task_identity
 
 import base64
 import hashlib
@@ -455,7 +456,7 @@ def _prepare_source_document_loop(
     policy = analysis_policy(catalog, payload.analysis_mode)
     _write_json(knowledge / "knowledge-catalog.json", catalog)
     export_registered_knowledge(catalog, knowledge)
-    meta = {
+    meta = owned_task_identity({
         "schema_version": SCHEMA,
         "job_kind": EXTRACTION_JOB_KIND,
         "task_id": task_id,
@@ -474,7 +475,7 @@ def _prepare_source_document_loop(
         "analysis_policy": policy,
         "latest_job_id": None,
         "resume_commands": {},
-    }
+    })
     _write_json(
         workspace / "task-input.json",
         {
@@ -1318,13 +1319,13 @@ def run_durable_source_document_loop(job, context):
         skill_bundle_root=plugin_root,
         capability_epoch=job.payload.get("capability_epoch"),
         tool_host=host,
-        binding={
+        binding=owned_task_identity({
             "task_id": meta["task_id"],
             "project_id": meta["project_id"],
             "document_id": meta["document_id"],
             "source_sha256": meta["source_sha256"],
             "mode": "RAW_SOURCE",
-        },
+        }),
         timeout_seconds=timeout_seconds,
         cancellation_requested=context.cancellation_requested,
         steer_requested=steer_requested,

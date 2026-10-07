@@ -40,7 +40,7 @@ class NativeLoopToolHost:
     PATH_ARGS = {
         'input', 'source_ir', 'source', 'map_dir', 'baseline_dir', 'output_dir',
         'decomposition', 'previous_decomposition', 'knowledge_catalog', 'analysis_packet',
-        'assessments', 'previous_assessments', 'annotations',
+        'assessments', 'previous_assessments', 'annotations', 'delivery_dir',
     }
     LIST_ARGS = {'page', 'source_id', 'source_item_id', 'node_id', 'unit_id', 'capture_index'}
 
@@ -51,7 +51,7 @@ class NativeLoopToolHost:
         self.review_dir = (review_dir or self.workspace).resolve(strict=False)
         if not self.review_dir.is_relative_to(self.workspace) or (review_dir is not None and review_dir.is_symlink()):
             raise ValueError('Review directory must belong to the task workspace')
-        self.operations = self.OPERATIONS | ({'review-open'} if self.review_dir != self.workspace else set())
+        self.operations = self.OPERATIONS | ({'review-open', 'review-attach-delivery'} if self.review_dir != self.workspace else set())
         self.plugin_root = plugin_root.resolve(strict=True)
         self.reading_v1 = (self.plugin_root / 'scripts/reading_workspace_tools.py').is_file()
         self.map_edit_v1 = (self.plugin_root / 'scripts/map_edit_tools.py').is_file()
@@ -281,7 +281,7 @@ class NativeLoopToolHost:
                         if 'reading-packet' in self.operations else 'Read navigation TSVs with start_line/line_count to obtain many IDs. Use inspect-source page/source_id batches for complete evidence; avoid hundreds of individual ID reads.'),
                     'plugin_reference': 'skills/reqpilot/references/tools.md' if manifest.is_file() else 'skills/reqpilot-source-map/SKILL.md', 'paths': 'All task paths are relative. Source, Map and historical versions are immutable.',
                     'artifact_citations': 'Cite only artifact paths actually returned by tools, relative to the task workspace. The Skill/runtime execution cwd is a different directory: never prefix business artifact paths with it. The application supplies the final workspace and download links.',
-                    'review_paths': 'Manifest-internal source/version paths and candidate_path/delivery_path in review-close JSON are relative to review_dir. Tool argument paths are relative to the outer task workspace. Before review-open, capture the original and compile Map/items with the same portable tools.',
+                    'review_paths': 'Manifest-internal source/version paths and candidate_path/delivery_path in review-close JSON are relative to review_dir. Tool argument paths are relative to the outer task workspace. Before review-open, capture the original and compile Map/items with the same portable tools. For an unchanged initial review, deliver its current version, then review-attach-delivery with the returned delivery_dir and expected_review_sha256; verify and publish without inventing a revision.',
                     'workflow': ('Read feedback and full relevant evidence, propose scoped changes, run shared compilers, inspect difference/carry-forward, assess affected units, call the internal deterministic exporter, close review, request publication. Normal Excel export needs no second model reading or analysis of the workbook. Source findings are Agent self-review, not human acceptance.' if manifest.is_file() else
                         'Start with the requested source/Map scope. Read its source evidence and relevant original/context, save and compile a meaningful Map edit, then self-check the saved artifact. Load item/classification/decomposition/review guides only when entering those authorized stages. Respect the user Map confirmation point; no extra per-item approvals.')})
             if name == 'reqpilot_skill':
@@ -462,10 +462,16 @@ class NativeLoopToolHost:
                 if not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{64}', value):
                     raise ValueError('expected_sha256 must be a source SHA-256')
                 command += [flag, value]
+            elif name == 'expected_review_sha256' and operation == 'review-attach-delivery':
+                if not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{64}', value):
+                    raise ValueError('expected_review_sha256 must pin the current review')
+                command += [flag, value]
             else:
                 raise ValueError('Unsupported portable argument: ' + name)
         if operation == 'capture' and capture_source_sha and 'expected_sha256' not in arguments:
             command += ['--expected-sha256', capture_source_sha]
+        if operation == 'review-attach-delivery' and set(arguments) != {'delivery_dir', 'expected_review_sha256'}:
+            raise ValueError('Attach only a trusted delivery with an explicit current review pin')
         child_environment = {**os.environ, 'PYTHONDONTWRITEBYTECODE': '1', 'REQPILOT_NATIVE_AGENT_TOOLS': '1'}
         if getattr(sys, 'frozen', False):
             child_environment.update({

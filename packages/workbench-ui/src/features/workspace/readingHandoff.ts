@@ -1,5 +1,6 @@
 import { useEffect, useMemo, useState } from "react";
 import { request } from "../../shared/api/client";
+import { saasStorageKey } from "../../shared/api/saasSession";
 import { sourceFeedbackDraftKey, useSourceFeedbackDraft } from "../extraction/sourceItemDrafts";
 import type { ReadingChatMessageV1, ReadingContextV1, ReadingNoteV1 } from "../reading/contracts";
 import { readExtractionCheckpoint, readViewedWork, type ViewedWork } from "./documentWorkSelection";
@@ -80,15 +81,15 @@ export function storeReadingHandoffIntent(target: ReadingHandoffTarget) {
   if (target.work.producer !== "EXTERNAL_PLUGIN") throw new Error("当前工作尚不支持此草稿交接。");
   const intent = { projectId: target.projectId, documentId: target.documentId, sourceSha256: target.sourceSha256,
     sessionId: target.work.sessionId, revisionId: target.work.revisionId, scope: "document" };
-  try { sessionStorage.setItem(intentKey, JSON.stringify(intent)); }
+  try { sessionStorage.setItem(saasStorageKey(intentKey), JSON.stringify(intent)); }
   catch { throw new Error("草稿已准备，但暂时无法打开交接入口；草稿没有发送，请重试打开。"); }
 }
 export function consumeReadingHandoffIntent(identity: HandoffIdentity): { scope: "document"; draftKey: string } | null {
   if (!identity.sessionId || !identity.revisionId || !identity.sourceSha256) return null;
   try {
-    const intent = JSON.parse(sessionStorage.getItem(intentKey) || "null");
+    const intent = JSON.parse(sessionStorage.getItem(saasStorageKey(intentKey)) || "null");
     if (!intent || intent.scope !== "document" || (["projectId", "documentId", "sourceSha256", "sessionId", "revisionId"] as const).some(key => intent[key] !== identity[key])) return null;
-    sessionStorage.removeItem(intentKey);
+    sessionStorage.removeItem(saasStorageKey(intentKey));
     return { scope: "document", draftKey: sourceFeedbackDraftKey(identity.projectId, identity.documentId, `external:${identity.sessionId}:document`, identity.revisionId) };
   } catch { return null; }
 }

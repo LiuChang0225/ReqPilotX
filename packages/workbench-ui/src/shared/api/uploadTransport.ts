@@ -1,3 +1,5 @@
+import { saasCsrfFor, expireSaasSession } from './saasSession';
+
 export interface UploadTransportOptions {
   signal?: AbortSignal;
   onProgress?: (progress: number) => void;
@@ -15,6 +17,8 @@ export function uploadWithProgress<T>(
     xhr.open("POST", path);
     xhr.responseType = "json";
     xhr.setRequestHeader("Accept", "application/json");
+    const csrf = saasCsrfFor(path);
+    if (csrf) xhr.setRequestHeader("X-ReqPilot-CSRF", csrf);
     xhr.withCredentials = true;
 
     xhr.upload.addEventListener("progress", (event) => {
@@ -29,6 +33,7 @@ export function uploadWithProgress<T>(
     });
     xhr.addEventListener("load", () => {
       options.signal?.removeEventListener("abort", abort);
+      expireSaasSession(xhr.status, csrf);
       const payload =
         xhr.response ??
         (() => {

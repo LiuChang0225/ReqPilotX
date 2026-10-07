@@ -7,6 +7,7 @@
 import { useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { createPortal } from "react-dom";
 import { ApiError, request } from "../../shared/api/client";
+import { saasStorageKey } from "../../shared/api/saasSession";
 import { Icon } from "../../shared/ui/Icon";
 import { AgentPanelFrame } from "../workspace/AgentPanelFrame";
 import { useDocumentAgent } from "../workspace/DocumentAgentContext";
@@ -77,7 +78,7 @@ function SourceItemAgentLoopController({ projectId, documentId, sourceSha256, ba
   embedded = false, onClose, onOpenStage, historyHostRef, taskOverride, startReady = true }: SourceItemAgentLoopProps) {
   const root = `/api/projects/${encodeURIComponent(projectId)}/sor-documents/${encodeURIComponent(documentId)}/agent-structure/delivery/${mode === "extract" ? "extraction-loop" : "loop"}`;
   const key = `${root}:${sourceSha256}`, identity = useRef(key); identity.current = key;
-  const draftKey = `reqpilotx:agent-loop-draft:${key}:${baselineSha256}:${selectedSourceItemId || "document"}`;
+  const draftKey = saasStorageKey(`reqpilotx:agent-loop-draft:${key}:${baselineSha256}:${selectedSourceItemId || "document"}`);
   const draftIdentity = useRef(draftKey); draftIdentity.current = draftKey;
   const updated = useRef(onUpdated); updated.current = onUpdated;
   const taskChanged = useRef(onTaskChange); taskChanged.current = onTaskChange;
