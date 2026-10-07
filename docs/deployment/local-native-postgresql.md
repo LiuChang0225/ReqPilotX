@@ -34,6 +34,8 @@ export REQPILOT_SCRATCH_ROOT='/absolute/private/path/reqpilotx-runtime'
 
 ## 启动
 
+项目创建/来源导入的源码候选使用增量迁移 `0038_entry_command_receipts.sql`。服务端应用迁移后再更新对应客户端；不对旧项目/文档推断或回填命令。保存结果不明时先按原命令查询/重放，禁止手工删除共享来源对象。失败上传及显式移除文档后的原始对象保留，后者仍移除文档绑定及派生缓存；持久删除栅栏/孤立对象 GC 尚未实现。接口与当前单 owner 边界见[入口命令合同](../architecture/project-source-entry-commands.md)。本轮只验证临时测试实例，未迁移业务数据库或部署。
+
 ### App Server 运行与指定任务恢复
 
 2026-09-10新增停止任务的二进制更新核验入口：`prototype/scripts/revalidate_native_task_runtime.py`。调用需提供当前仓库task-root、本机API、配置的codex-bin/codex-home及原因；先核对实际任务状态、来源和无未完成能力升级，再在任务/session锁内进行同线程只读检查。它只更新已验证的新binary pin并记录前后证据，保留历史回执/Map/确认，不重启模型、不清掉历史FAILED记录。运行/排队、前版或来源不匹配、模型/home变化、协议/PDF约束验证失败时拒绝修改。能力包变更仍走原有capability epoch，不能用重签身份绕过差异。

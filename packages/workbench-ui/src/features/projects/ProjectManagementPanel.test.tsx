@@ -166,6 +166,35 @@ describe("ProjectManagementPanel workflow truth", () => {
     expect(value.updateRoute).toHaveBeenCalledWith(expect.objectContaining({ projectId: "new-project", documentId: "", requirementSetId: "" }), { replace: true });
   });
 
+  it("keeps confirmed project creation separate from a failed list refresh", async () => {
+    const value = workspaceValue();
+    value.refreshAll = vi.fn().mockRejectedValue(Error("list unavailable"));
+    const runAction = vi.spyOn(value, "runAction");
+    const create = vi.spyOn(api, "createProject").mockResolvedValue({ id: "saved-project" } as never);
+    render(<WorkspaceProvider value={value}><ProjectManagementPanel /></WorkspaceProvider>);
+    fireEvent.click(screen.getByRole("button", { name: "新建项目" }));
+    fireEvent.change(screen.getByRole("textbox", { name: "项目名称" }), { target: { value: "新项目" } });
+    fireEvent.change(screen.getByRole("textbox", { name: "客户名称" }), { target: { value: "客户" } });
+    fireEvent.click(screen.getByRole("button", { name: "创建并进入" }));
+    await waitFor(() => expect(value.refreshAll).toHaveBeenCalledTimes(1));
+    expect(create).toHaveBeenCalledTimes(1);
+    expect(runAction).toHaveBeenCalledWith("创建项目", expect.any(Function), { refresh: "none", scope: "project" });
+    expect(value.updateRoute).toHaveBeenCalledWith(expect.objectContaining({ projectId: "saved-project" }), { replace: true });
+    expect(value.setNotice).toHaveBeenCalledWith(expect.stringContaining("项目已保存"));
+    expect(screen.queryByRole("textbox", { name: "项目名称" })).not.toBeInTheDocument();
+  });
+
+  it("restores saved pending creation on reload before refreshing the list", async () => {
+    const value = workspaceValue();
+    const intent = { commandId: "pending", kind: "project.create" as const, scope: "", payload: { name: "Pending", customer_name: "Customer" } };
+    vi.spyOn(api, "pendingEntryCommands").mockReturnValue([intent]);
+    vi.spyOn(api, "recoverPendingEntryCommands").mockResolvedValue({ recovered: [{ intent, result: { id: "recovered", name: "Pending", customer_name: "Customer" } }], failures: [] });
+    value.refreshAll = vi.fn().mockRejectedValue(Error("list unavailable"));
+    render(<WorkspaceProvider value={value}><ProjectManagementPanel /></WorkspaceProvider>);
+    await waitFor(() => expect(value.updateRoute).toHaveBeenCalledWith(expect.objectContaining({ projectId: "recovered" }), { replace: true }));
+    expect(screen.queryByRole("textbox", { name: "项目名称" })).not.toBeInTheDocument();
+  });
+
   it("keeps project selection reachable when no project is selected", () => {
     const value = workspaceValue(); value.selectedProject = null;
     render(<WorkspaceProvider value={value}><ProjectManagementPanel /></WorkspaceProvider>);

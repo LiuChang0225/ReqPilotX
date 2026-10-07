@@ -54,8 +54,8 @@ test('owned application permits project creation, import and scoped feedback wri
     assert.equal(config.applicationId, 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc');
     assert.equal(config.capabilities['agent.start'], false);
     assert.doesNotMatch(JSON.stringify(config), /private-sentinel/);
-    const r = await fetch(proxy.url + '/reqpilotx/service/api/projects', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"name":"demo"}' }); assert.equal(r.status, 200);
-    const form = new FormData(); form.append('file', new Blob(['source']), 'demo.pdf');
+    const r = await fetch(proxy.url + '/reqpilotx/service/api/projects', { method: 'POST', headers: { 'content-type': 'application/json', 'idempotency-key': 'not-forwarded' }, body: '{"name":"demo","command_id":"project-one"}' }); assert.equal(r.status, 200);
+    const form = new FormData(); form.append('file', new Blob(['source']), 'demo.pdf'); form.append('command_id', 'import-one');
     assert.equal((await fetch(proxy.url + '/reqpilotx/service/api/projects/p/sor-documents', { method: 'POST', body: form })).status, 200);
     const work = '/reqpilotx/service/api/projects/p/sor-documents/d/agent-structure/delivery/plugin-workbench/plugin-' + 'a'.repeat(32);
     assert.equal((await fetch(proxy.url + work + '/feedback', { method: 'POST', headers: { 'content-type': 'application/json' }, body: '{"text":"fix"}' })).status, 200);
@@ -67,7 +67,7 @@ test('owned application permits project creation, import and scoped feedback wri
     assert.equal((await fetch(proxy.url + work.replace(/a{32}/, 'invalid') + '/feedback', { method: 'POST' })).status, 405);
     assert.equal((await fetch(proxy.url + '/reqpilotx/service/api/projects/p/sor-documents/d', { method: 'DELETE' })).status, 405);
     assert.equal((await fetch(proxy.url + '/reqpilotx/service/api/runtime', { method: 'POST' })).status, 405);
-    assert.equal(seen[0].body, '{"name":"demo"}'); assert.match(seen[1].body, /source/); assert.match(seen[1].type, /multipart\/form-data; boundary=/);
+    assert.equal(seen[0].body, '{"name":"demo","command_id":"project-one"}'); assert.match(seen[1].body, /source/); assert.match(seen[1].body, /name="command_id"\r\n\r\nimport-one/); assert.match(seen[1].type, /multipart\/form-data; boundary=/);
     assert.equal(seen[2].body, '{"text":"fix"}'); assert.equal(seen[3].body, '{"confirm":true}');
   } finally { await proxy.close(); await backend.close(); }
 });

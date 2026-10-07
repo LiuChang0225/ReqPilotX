@@ -96,7 +96,7 @@ and the R4 architecture
 record for exact commands and evidence. Historical DSH/UI checks on the previous
 checkout-based adapter are not acceptance of the current external Pair UI.
 
-Unverified: abrupt-crash/orphan recovery, fresh-machine dependency installation, release distribution, existing-data import, full business writes, push runtime events, Office/Windows/Desktop. An unexplained live database process is refused even under the owned directory; it is not silently adopted or killed. Project/import writes are not yet idempotent across an ambiguous network failure; UI suppresses concurrent submissions but does not promise retry deduplication.
+Unverified: abrupt-crash/orphan recovery, fresh-machine dependency installation, release distribution, existing-data import, full business writes, push runtime events, Office/Windows/Desktop. An unexplained live database process is refused even under the owned directory; it is not silently adopted or killed. The current source candidate adds persistent project/import command IDs, same-command replay and read-only commit recovery; JSON/multipart carry the ID through the existing proxy. Pending intentions survive reload and service-port changes under the same application ID. This requires the matching server/migration and has not been released or verified in the real employee host. See the [entry command contract and focused evidence](../../docs/architecture/project-source-entry-commands.md).
 
 ## Upgrade with shared artifacts
 
@@ -126,7 +126,7 @@ Managed `applicationId` derives from persistent storage ownership and is indepen
 
 Only implemented project/document/result operations are advertised; Agent start is advertised only when the frozen task package passes doctor and the Pair services are available; resume/cancel and real Agent events remain false. The server still enforces authentication, method/route policy and readiness; advertised capabilities are not an authorization token. Public configuration uses a whitelist and does not serialize private installation data or raw failure text. READY is not semantic acceptance.
 
-This increment has contract/module tests and synthetic installed service-process verification. External Pair UI verification must be performed against a matching release. It does not yet restore a selected document or running business task after disconnection. Research, architectural decisions and the next implementation slices are recorded in `docs/需求提取/Pair应用插件最佳实践与实施20260922.md`.
+This increment has contract/module tests and synthetic installed service-process verification. External Pair UI verification must be performed against a matching release. The source candidate restores pending project/import results and saved document selection after reload; recovery of a running business task remains unverified. Research, architectural decisions and the next implementation slices are recorded in `docs/需求提取/Pair应用插件最佳实践与实施20260922.md`.
 
 ## Task launch increment
 

@@ -29,6 +29,7 @@ export function ProjectManagementPanel() {
     runAction,
     busyAction,
     refreshProject,
+    refreshAll,
     setNotice,
   } = useWorkspace();
   const sorInput = useRef<HTMLInputElement>(null);
@@ -76,7 +77,7 @@ export function ProjectManagementPanel() {
     const created = await runAction(
       "创建项目",
       () => api.createProject(projectName.trim(), customerName.trim()),
-      { refresh: "all" },
+      { refresh: "none", scope: "project" },
     );
     if (!created) return;
     setProjectName("");
@@ -91,7 +92,29 @@ export function ProjectManagementPanel() {
       },
       { replace: true },
     );
+    try { await refreshAll(); }
+    catch { setNotice("项目已保存，项目列表暂未更新。请同步项目后查看。"); }
   };
+
+  useEffect(() => {
+    let live = true;
+    try {
+      const pending = api.pendingEntryCommands().find(item => item.kind === 'project.create');
+      if (pending) { setProjectName(String(pending.payload.name)); setCustomerName(String(pending.payload.customer_name)); setShowCreateProject(true); }
+      void api.recoverPendingEntryCommands(route.projectId).then(async ({ recovered, failures }) => {
+        if (!live) return;
+        if (failures.length) setNotice(failures[0].error instanceof Error ? failures[0].error.message : String(failures[0].error));
+        if (!recovered.length) return;
+        const project = recovered.find(item => item.intent.kind === 'project.create');
+        if (project) { setShowCreateProject(false); setProjectName(''); setCustomerName('');
+          updateRoute({ task: 'projects', projectId: project.result.id, documentId: '', requirementSetId: '' }, { replace: true }); }
+        const imported = recovered.find(item => item.intent.kind === 'document.import' && item.intent.scope === route.projectId);
+        if (!project && imported) updateRoute({ documentId: imported.result.id, requirementSetId: '' }, { replace: true });
+        await refreshAll();
+      }).catch(cause => { if (live) setNotice(cause instanceof Error ? cause.message : String(cause)); });
+    } catch (cause) { setNotice(cause instanceof Error ? cause.message : String(cause)); }
+    return () => { live = false; };
+  }, [route.projectId, refreshAll, setNotice, updateRoute]);
 
   useEffect(() => {
     const active = uploadQueue.find((item) =>

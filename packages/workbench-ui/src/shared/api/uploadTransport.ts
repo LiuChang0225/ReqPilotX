@@ -47,11 +47,11 @@ export function uploadWithProgress<T>(
           ? payload.detail ?? payload.message ?? payload.error
           : payload;
       reject(
-        new Error(
+        Object.assign(new Error(
           typeof detail === "string" && detail
             ? detail
             : `上传失败（HTTP ${xhr.status}）`,
-        ),
+        ), { status: xhr.status }),
       );
     });
     xhr.addEventListener("error", () => {

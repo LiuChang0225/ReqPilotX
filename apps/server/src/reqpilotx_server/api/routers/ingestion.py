@@ -7,6 +7,11 @@ DOCUMENT = f"{ROOT}/{{document_id}}"
 SPECS = (
     RouteSpec(ROOT, ingestion.upload_sor_document, "POST"),
     RouteSpec(ROOT, ingestion.list_sor_documents, "GET"),
+    RouteSpec(
+        f"{ROOT}/import-commands/{{command_id}}",
+        ingestion.get_document_import_command,
+        "GET",
+    ),
     RouteSpec(DOCUMENT, ingestion.delete_sor_document, "DELETE"),
     RouteSpec(
         f"{DOCUMENT}/table-assets/{{table_id}}",

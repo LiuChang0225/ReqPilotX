@@ -54,19 +54,44 @@ function Catalog({ config, t, openSession }) {
   const [busy, setBusy] = React.useState(false), [error, setError] = React.useState(''), [works, setWorks] = React.useState([]), [selection, setSelection] = React.useState(null);
   const [goal, setGoal] = React.useState(''), [confirmMap, setConfirmMap] = React.useState(false), [launch, setLaunch] = React.useState(null), [launching, setLaunching] = React.useState(false);
   const attempt = React.useRef(null);
+  const entryBusy = React.useRef(false);
+  const documentLoading = React.useRef(false);
   const [execution, setExecution] = React.useState(null), [executionUnavailable, setExecutionUnavailable] = React.useState(false);
   const [controlling, setControlling] = React.useState(''), [controlNote, setControlNote] = React.useState('');
   const origin = config.serviceOrigin;
   const request = React.useCallback((path, options) => requestWithTransport(fetch, assetUrl(path, origin), options), [origin]);
-  const client = React.useMemo(() => createProjectDocumentClient(request), [request]);
-  React.useEffect(() => { let live = true; client.projects().then(items => { if (live) setProjects(items); }).catch(e => { if (live) setError(e.message); }); return () => { live = false; }; }, [request]);
+  const client = React.useMemo(() => createProjectDocumentClient(request, undefined, { namespace: config.applicationId }), [request, config.applicationId]);
   React.useEffect(() => {
+    let live = true;
+    try {
+      const pending = client.pendingEntryCommands().find(item => item.kind === 'project.create');
+      if (pending) { setName(pending.payload.name); setCustomer(pending.payload.customer_name); setCreating(true); }
+      client.recoverPendingEntryCommands(projectId).then(async ({ recovered, failures }) => {
+        if (!live) return;
+        if (failures.length) setError(failures[0].error.message);
+        const project = recovered.find(item => item.intent.kind === 'project.create');
+        if (project) { setProjectId(project.result.id); setCreating(false); setName(''); setCustomer('');
+          setProjects(items => items.some(item => item.id === project.result.id) ? items : [...items, project.result]); }
+        const imported = recovered.find(item => item.intent.kind === 'document.import' && item.intent.scope === projectId);
+        if (imported) { setDocument(imported.result); setDocuments(items => items.some(item => item.id === imported.result.id) ? items : [...items, imported.result]); }
+        if (recovered.length) { const projects = await client.projects(); if (live) setProjects(projects);
+          if (projectId) { const documents = await client.sorDocuments(projectId); if (live) setDocuments(documents); } }
+      }).catch(cause => { if (live) setError(cause.message); });
+    } catch (cause) { setError(cause.message); }
+    return () => { live = false; };
+  }, [client, projectId]);
+  React.useEffect(() => { let live = true; client.projects().then(items => { if (live) setProjects(current => [...items, ...current.filter(saved => !items.some(item => item.id === saved.id))]); }).catch(e => { if (live) setError(e.message); }); return () => { live = false; }; }, [request]);
+  React.useEffect(() => {
+    documentLoading.current = true;
     setDocuments([]); setDocument(null); setSelection(null); if (!projectId) return;
-    let live = true; client.sorDocuments(projectId).then(items => { if (live) { setDocuments(items); try { const prior = JSON.parse(localStorage.getItem(viewKey)); if (prior?.projectId === projectId) setDocument(items.find(d => d.id === prior.documentId) || null); } catch {} } }).catch(e => { if (live) setError(e.message); }); return () => { live = false; };
+    let prior; try { prior = JSON.parse(localStorage.getItem(viewKey)); } catch {}
+    let live = true; client.sorDocuments(projectId).then(items => { if (live) { setDocuments(items); if (prior?.projectId === projectId) setDocument(current => current || items.find(d => d.id === prior.documentId) || null); } }).catch(e => { if (live) setError(e.message); }).finally(() => { if (live) documentLoading.current = false; }); return () => { live = false; };
   }, [projectId, request]);
   React.useEffect(() => {
-    if (!document) return;
-    try { localStorage.setItem(viewKey, JSON.stringify({ projectId, documentId: document.id })); } catch {}
+    if (!projectId) return;
+    try { const prior = JSON.parse(localStorage.getItem(viewKey));
+      localStorage.setItem(viewKey, JSON.stringify({ projectId,
+        documentId: document?.project_id === projectId ? document.id : !document && documentLoading.current && prior?.projectId === projectId ? prior.documentId || '' : '' })); } catch {}
   }, [viewKey, projectId, document]);
   const intentKey = document ? 'reqpilotx:intent:' + config.applicationId + ':' + projectId + ':' + document.id + ':' + document.source_sha256 : null;
   React.useEffect(() => {
@@ -153,14 +178,18 @@ function Catalog({ config, t, openSession }) {
     } catch (cause) { setError(cause.message || t('unavailable')); } finally { setControlling(''); }
   }
   async function create(event) {
-    event.preventDefault(); if (busy || !config.capabilities['projects.create']) return; setBusy(true); setError('');
-    try { const project = await client.createProject(name.trim(), customer.trim()); setProjects(await client.projects()); setProjectId(project.id); setCreating(false); setName(''); setCustomer(''); }
-    catch (e) { setError(e.message); } finally { setBusy(false); }
+    event.preventDefault(); if (entryBusy.current || busy || !config.capabilities['projects.create']) return; entryBusy.current = true; setBusy(true); setError('');
+    try { const project = await client.createProject(name.trim(), customer.trim()); setProjectId(project.id); setCreating(false); setName(''); setCustomer('');
+      setProjects(items => items.some(item => item.id === project.id) ? items : [...items, project]);
+      try { setProjects(await client.projects()); } catch { setError(t('saved') + ' · ' + t('unavailable')); } }
+    catch (e) { setError(e.message); } finally { entryBusy.current = false; setBusy(false); }
   }
   async function upload(event) {
-    const input = event.currentTarget, file = input.files?.[0]; if (!file || busy || !config.capabilities['documents.import']) return; setBusy(true); setError('');
-    try { const created = await client.uploadSorDocument(projectId, file); setDocuments(await client.sorDocuments(projectId)); setDocument(created); }
-    catch (e) { setError(e.message); } finally { setBusy(false); input.value = ''; }
+    const input = event.currentTarget, file = input.files?.[0]; if (!file || entryBusy.current || busy || !config.capabilities['documents.import']) return; entryBusy.current = true; setBusy(true); setError('');
+    try { const created = await client.uploadSorDocument(projectId, file); setDocument(created);
+      setDocuments(items => items.some(item => item.id === created.id) ? items : [...items, created]);
+      try { setDocuments(await client.sorDocuments(projectId)); } catch { setError(t('saved') + ' · ' + t('unavailable')); } }
+    catch (e) { setError(e.message); } finally { entryBusy.current = false; setBusy(false); input.value = ''; }
   }
   const pdf = document ? host.pdfViewerUrl(new URL(projectDocumentPaths.source(projectId, document.id), origin).href, 1, true) : '';
   return h('section', { className: 'reqpilotx-pair-home' },
