@@ -71,6 +71,79 @@ status, bounded request options, no SDK retry and shared-client ownership;
 actual provider transport, PostgreSQL end-to-end execution and employee host
 journeys still require separate environment-specific evidence.
 
+## Qwen3.8 Max thinking compatibility (2026-10-08 uncommitted candidate)
+
+The native provider loop now explicitly configures thinking for Aliyun
+`qwen3.8-max-0902` (and the documented `qwen3.8-max` alias). The exact configured
+model is sent unchanged; this does not replace the snapshot with an alias.
+`REQPILOT_AGENT_ALIYUN_ENABLE_THINKING=1` is the default and sends
+`extra_body={"enable_thinking": true, "preserve_thinking": true}`. Setting it to
+`0` sends both values as false for a non-thinking acceptance run. Other configured
+Aliyun models retain their previous request parameters because these fields are
+not universally supported. Azure receives neither flag nor `reasoning_content`.
+
+Assistant `reasoning_content` is validated as text and kept separately from
+`content` in the private, hash-bound conversation. Thinking-enabled requests
+replay the complete saved history, including tool-call rounds and continued
+tasks. Non-thinking requests omit reasoning from the outgoing history while
+retaining the original saved messages. Old sessions that lack reasoning can
+continue; previously discarded reasoning cannot be reconstructed. Public events
+do not emit reasoning. Receipts record only the non-secret request policy.
+The shared structured-stage normalizer also retains returned reasoning for
+Aliyun and filters it out of Azure requests; its separate stage profile does
+not inherit the native loop's thinking switch.
+
+The [official deep-thinking guide](https://help.aliyun.com/zh/model-studio/deep-thinking)
+lists this exact snapshot with thinking enabled by default. The
+[official OpenAI-compatible API contract](https://help.aliyun.com/zh/model-studio/qwen-api-via-openai-chat-completions)
+documents default thinking preservation for Qwen3.8 Max, complete history in its
+own reasoning field, and tolerance of missing historical reasoning. It also
+documents `max_completion_tokens` as covering thinking plus the answer, with up
+to 10 tokens of difference. These are vendor statements checked on 2026-10-08,
+not live model measurements. The
+[function-calling guide](https://help.aliyun.com/zh/model-studio/qwen-function-calling)
+keeps returned call IDs associated with tool responses; this candidate retains
+the existing durable ID/receipt contract.
+
+Per the user's latest instruction, **no new request-count limit, cumulative
+budget, output quota, `max_tokens` or `max_completion_tokens` parameter is added**.
+The initially drafted budget/count/output configuration was removed before
+delivery. Existing cancellation, task deadlines, SDK `max_retries=0`, and the
+160-iteration loop guard remain. The guard counts loop iterations, including
+tool handling, rather than a durable provider-request total. There is no new
+monetary ceiling, cumulative billing system, no-progress detector or duplicate
+model-request reconciliation layer. A returned `length` now yields `FAILED`
+with `PROVIDER_LOOP_OUTPUT_TRUNCATED`, without appending a partial assistant
+message, invoking any of its tools or producing completed publication proof.
+
+The existing SDK zero-retry guarantee applies to one dispatch. The existing
+worker may retry a raised provider transport error as a later job attempt; this
+candidate does not change that recovery policy or prove no model re-dispatch
+across attempts with an unknown provider outcome. Unknown host mutations still
+use the existing durable tool fence. Do not equate the timeout regression with
+task-wide exactly-once provider delivery.
+
+This policy is local to the native source-document/review tool loop. Separate
+windowed table/direct-text stages, source capture/OCR, visual transcription,
+structure/semantic/refinement/atomization providers, AI Copilot screening and
+analysis/retrieval/embeddings, and external Codex/Pair/plugin host model calls
+are not governed by a new shared budget or by this native thinking setting.
+The initial SaaS profile already disables the separate Kit-backed write routes.
+No live provider, customer-source quality, production PostgreSQL, ECS/system
+service, deployment, or employee browser acceptance is claimed by these offline
+regressions.
+
+Final candidate offline evidence: 188 Python unittests passed (0 failed, 0
+skipped), including 9 new thinking-compatibility tests, native provider controls,
+source-document/review jobs, runtime/settings, structured windows, plugin
+workbench/delivery and execution contracts. Pair discovery/observation/host
+contracts passed 14 tests (0 failed, 0 skipped). Three host tests initially
+failed because the sandbox denied a temporary loopback listener; the approved
+local-only rerun passed. Tests used the existing Python venv and Node, an empty
+inherited environment, isolated test storage, synthetic source and SDK
+MockTransport. No dependency install, build, real-model request, secret read,
+production DB/service change, commit, push or deployment was performed.
+
 ## Windowed table and direct-text stages
 
 `ProviderSourceRequirementWindowExecutor` and `ProviderSourceItemTextExecutor`

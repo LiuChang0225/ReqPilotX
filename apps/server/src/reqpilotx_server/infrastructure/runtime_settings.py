@@ -88,6 +88,7 @@ class RuntimeSettings:
     codex_home: Path | None = None
     agent_model_id: str = "gpt-5.6-sol"
     agent_customer_data_enabled: bool = False
+    agent_aliyun_thinking_enabled: bool = True
     native_capability_mode: NativeCapabilityMode = (
         NativeCapabilityMode.REGISTERED_RELEASE
     )
@@ -224,6 +225,10 @@ class RuntimeSettings:
             source.get("REQPILOT_AGENT_CUSTOMER_DATA_ENABLED"),
             field_name="REQPILOT_AGENT_CUSTOMER_DATA_ENABLED",
         )
+        agent_aliyun_thinking_enabled = _boolean_flag(
+            source.get("REQPILOT_AGENT_ALIYUN_ENABLE_THINKING", "1"),
+            field_name="REQPILOT_AGENT_ALIYUN_ENABLE_THINKING",
+        )
         native_capability_mode = _enum_value(
             NativeCapabilityMode,
             source.get(
@@ -335,6 +340,7 @@ class RuntimeSettings:
             codex_home=codex_home,
             agent_model_id=agent_model_id,
             agent_customer_data_enabled=agent_customer_data_enabled,
+            agent_aliyun_thinking_enabled=agent_aliyun_thinking_enabled,
             native_capability_mode=native_capability_mode,
             native_capability_registry_root=native_capability_registry_root,
             native_capability_bundle_sha256=native_capability_bundle_sha256,

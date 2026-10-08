@@ -22,7 +22,7 @@ from jsonschema import Draft202012Validator
 from reqpilotx_server.adapters.agents.codex_app_server.canonical_stage_driver import (
     CanonicalStageTransportResult, canonical_sha256,
 )
-from reqpilotx_server.adapters.agents.provider_tool_loop import _response_message
+from reqpilotx_server.adapters.agents.provider_tool_loop import _provider_messages, _response_message
 from reqpilotx_server.application.agent_workflow.extraction_runtime import AgentExtractionStage
 
 PROVIDER_STRUCTURED_STAGE_VERSION = "1.0.0"
@@ -133,7 +133,8 @@ class ProviderStructuredStageTransport:
             for _ in range(_MAX_STEPS):
                 self._check(deadline)
                 response = client.chat.completions.create(
-                    model=self.model_id, messages=messages, tools=tools,
+                    model=self.model_id, messages=_provider_messages(messages,
+                        preserve_thinking=self.provider == "aliyun"), tools=tools,
                     tool_choice="auto", timeout=max(0.001, deadline - time.monotonic()),
                 )
                 counts["provider_completion"] += 1

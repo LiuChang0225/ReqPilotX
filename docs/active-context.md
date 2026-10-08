@@ -1,5 +1,7 @@
 # ReqPilotX 当前接续
 
+2026-10-08 未提交候选：在核实远端 SaaS 分支为 `36bd72589cea3141c4506e287cf75f199be9d730` 后，独立工作树完成[Qwen3.8 Max 思考兼容修复](issues/provider-tool-loop-foundation.md#qwen38-max-thinking-compatibility-2026-10-08-uncommitted-candidate)：完整保留/回传思考历史，显式思考开关、Azure 参数隔离和 `length` 失败回执。按用户最新指令撤除新增次数、累计预算与输出上限；原超时/取消/160 步保护保留。188 项 Python 与 14 项 Pair 离线合同测试通过；原主工作树既有维护改动保留，未提交/推送/部署/真实调用。跨作业 provider 未知结果仍沿既有恢复策略，不能声称 task-wide exactly-once；接入配置与未验证项见专项。
+
 更新：2026-09-23。本文记录源码基线与开发接续边界。产品能力见[项目状态](项目.md)，实施顺序见[开发计划](需求提取/开发计划.md)。
 
 ## 当前基线

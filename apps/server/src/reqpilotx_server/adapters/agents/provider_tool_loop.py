@@ -36,6 +36,10 @@ STATE_SCHEMA = "reqpilotx-provider-tool-loop-session/v1"
 TRANSPORT_KIND = "PROVIDER_TOOL_LOOP"
 _MAX_TOOL_STEPS = 160
 _MAX_IMAGE_BYTES = 8_000_000
+# Only add the new opt-in/out contract to the documented Qwen Max family. Other
+# configured Aliyun models keep their previous request parameters; not every
+# model supports enable_thinking/preserve_thinking.
+_ALIYUN_THINKING_POLICY_MODELS = frozenset({"qwen3.8-max", "qwen3.8-max-0902"})
 
 _SYSTEM_INSTRUCTIONS = (
     "You are the ReqPilotX Agent executing an authorized requirement-engineering task. "
@@ -59,6 +63,10 @@ class _ToolOutcomeUnknown(RuntimeError):
 
 class _ControlReadFailed(RuntimeError):
     """The task's lease/cancellation heartbeat could not be read safely."""
+
+
+class _ProviderOutputTruncated(ValueError):
+    """A known length response cannot authorize tools or completion."""
 
 
 def _configuration(settings: RuntimeSettings, *, fresh_client: bool = False) -> tuple[str, str, Callable[[], Any]]:
@@ -122,7 +130,8 @@ def build_provider_tool_loop_driver(
             replace(settings, agent_model_id=model_id)
         )
     return ProviderToolLoopDriver(
-        provider=provider, model_id=configured_model, client_factory=client_factory
+        provider=provider, model_id=configured_model, client_factory=client_factory,
+        aliyun_thinking_enabled=getattr(settings, "agent_aliyun_thinking_enabled", True),
     )
 
 
@@ -138,6 +147,8 @@ def _response_message(response: Any) -> tuple[dict[str, Any], str]:
         raise ValueError("Provider completion must contain exactly one choice")
     choice = choices[0]
     message, finish = choice.get("message"), choice.get("finish_reason")
+    if finish == "length":
+        raise _ProviderOutputTruncated()
     if not isinstance(message, Mapping) or finish not in {"stop", "tool_calls"}:
         raise ValueError("Provider completion has an unsupported finish reason")
     content = message.get("content")
@@ -147,6 +158,11 @@ def _response_message(response: Any) -> tuple[dict[str, Any], str]:
     if not isinstance(calls, list) or (finish == "tool_calls") != bool(calls):
         raise ValueError("Provider tool call sequence is invalid")
     normalized: dict[str, Any] = {"role": "assistant", "content": content or ""}
+    reasoning = message.get("reasoning_content")
+    if reasoning is not None:
+        if not isinstance(reasoning, str):
+            raise ValueError("Provider reasoning content is invalid")
+        normalized["reasoning_content"] = reasoning
     if calls:
         result = []
         ids = set()
@@ -187,8 +203,10 @@ def _tool_response(value: Any) -> dict[str, Any]:
     return {"success": value["success"], "contentItems": normalized}
 
 
-def _provider_messages(messages: Sequence[Mapping[str, Any]]) -> list[dict[str, Any]]:
-    return [dict(item) for item in messages]
+def _provider_messages(messages: Sequence[Mapping[str, Any]], *, preserve_thinking: bool) -> list[dict[str, Any]]:
+    return [{key: value for key, value in item.items()
+             if key != "reasoning_content" or preserve_thinking}
+            for item in messages]
 
 
 @dataclass(slots=True)
@@ -196,6 +214,13 @@ class ProviderToolLoopDriver:
     provider: str
     model_id: str
     client_factory: Callable[[], Any]
+    aliyun_thinking_enabled: bool = True
+
+    def _request_options(self) -> dict[str, Any]:
+        if self.provider == "aliyun" and self.model_id in _ALIYUN_THINKING_POLICY_MODELS:
+            return {"extra_body": {"enable_thinking": self.aliyun_thinking_enabled,
+                                   "preserve_thinking": self.aliyun_thinking_enabled}}
+        return {}
 
     def run(
         self, *, session_dir: Path, goal: str, skill_paths: Mapping[str, Path],
@@ -212,6 +237,8 @@ class ProviderToolLoopDriver:
         if (self.provider not in {"azure", "aliyun"} or not self.model_id
             or not goal.strip() or not binding or not skill_paths or timeout_seconds <= 0):
             raise ValueError("Provider loop requires a provider, model, goal, skills and binding")
+        if type(self.aliyun_thinking_enabled) is not bool:
+            raise ValueError("Provider loop thinking policy is invalid")
         specs = tuple(tool_host.specs())
         if not specs or len({spec.name for spec in specs}) != len(specs):
             raise ValueError("Provider loop requires distinct registered tools")
@@ -314,6 +341,7 @@ class ProviderToolLoopDriver:
             "is_human_accepted": False, "thread_retained": True,
             "steering_delivered_count": 0, "tools": receipts,
             "token_usage": {}, "capability_epoch_id": (capability_epoch or {}).get("epoch_id"),
+            "request_policy": self._request_options(),
         }
         tools = [{"type": "function", "function": {"name": spec.name,
                   "description": spec.description, "parameters": dict(spec.input_schema)}}
@@ -415,10 +443,19 @@ class ProviderToolLoopDriver:
                     receipt["reason_code"] = "PROVIDER_LOOP_TIMEOUT"
                     break
                 response = client.chat.completions.create(
-                    model=self.model_id, messages=_provider_messages(state["messages"]),
+                    model=self.model_id, messages=_provider_messages(state["messages"],
+                        preserve_thinking=bool(self._request_options().get("extra_body", {}).get("preserve_thinking"))),
                     tools=tools, tool_choice="auto", timeout=remaining,
+                    **self._request_options(),
                 )
-                message, finish = _response_message(response)
+                try:
+                    message, finish = _response_message(response)
+                except _ProviderOutputTruncated:
+                    status = "FAILED"
+                    receipt["reason_code"] = "PROVIDER_LOOP_OUTPUT_TRUNCATED"
+                    final_message = None
+                    control_stopped()
+                    break
                 state["messages"].append(message)
                 if message.get("tool_calls"):
                     state.setdefault("call_turn_ids", {}).update(
