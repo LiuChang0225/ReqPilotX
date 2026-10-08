@@ -27,6 +27,15 @@ requesting another model turn. It rejects an ambiguous tool outcome, failed
 turn, changed source binding, or altered snapshot. Tool receipts accumulate
 across interrupted turns in the same pinned task.
 
+Successful, application-saved provider tasks now have a local candidate for
+source-bound terminal-feedback continuation. It retains the entire audit and
+projects only a verified deterministic handoff plus the active tool chain into
+new requests; unfinished/cancelled recovery keeps its existing path. Usage is
+persisted before length/parse rejection, with private metadata-only request
+records. No quotas or additional model summaries are introduced. See the
+[continuation contract](../architecture/provider-terminal-continuation.md) and
+[offline validation](../validation/provider-terminal-continuation-20261008.md).
+
 ## Cancellation, deadline and SDK controls (2026-10-05 candidate)
 
 Each native provider-loop request uses a task-local SDK view with

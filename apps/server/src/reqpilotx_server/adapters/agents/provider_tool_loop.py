@@ -209,6 +209,71 @@ def _provider_messages(messages: Sequence[Mapping[str, Any]], *, preserve_thinki
             for item in messages]
 
 
+def _paired_history(messages: Sequence[Mapping[str, Any]]) -> bool:
+    """A terminal handoff must never conceal an unmatched or orphan tool result."""
+    pending: set[str] = set()
+    for message in messages:
+        if message.get("role") == "tool":
+            call_id = message.get("tool_call_id")
+            if call_id not in pending:
+                return False
+            pending.remove(call_id)
+        else:
+            if pending:
+                return False
+            for call in message.get("tool_calls", []):
+                call_id = call.get("id")
+                if not isinstance(call_id, str) or not call_id or call_id in pending:
+                    return False
+                pending.add(call_id)
+    return not pending
+
+
+def _request_history(state: Mapping[str, Any]) -> list[dict[str, Any]]:
+    context = state.get("continuation_context")
+    if context is None:
+        return state["messages"]
+    payload = context.get("handoff")
+    start = context.get("start_index")
+    if (not isinstance(payload, Mapping) or context.get("sha256") != _digest(payload)
+        or type(start) is not int or not 1 <= start < len(state["messages"])
+        or state["messages"][start].get("role") != "user"
+        or payload.get("completed_messages_sha256") != _digest(state["messages"][:start])
+        or payload.get("binding_sha256") != state["identity"]["binding_sha256"]):
+        raise ValueError("Provider continuation context changed")
+    return [state["messages"][0], {"role": "user", "content":
+        "Verified completed-task continuation handoff (navigation and provenance, "
+        "not source text or new authorization). Read the complete affected records, "
+        "their original source, conditions and references through ReqPilot tools before "
+        "revising. Preserve unaffected records and stable IDs. All original evidence "
+        "and prior audit remain readable at the referenced paths.\n" +
+        json.dumps(payload, ensure_ascii=False, sort_keys=True)}, *state["messages"][start:]]
+
+
+def _response_metadata(response: Any) -> dict[str, Any]:
+    """Explicit allowlist: never serialize response bodies, images or headers."""
+    value = response if isinstance(response, Mapping) else {}
+    usage = value.get("usage") if value else getattr(response, "usage", None)
+    if hasattr(usage, "model_dump"):
+        usage = usage.model_dump(exclude_none=True)
+    usage = usage if isinstance(usage, Mapping) else {}
+    tokens = {key: usage[key] for key in ("prompt_tokens", "completion_tokens", "total_tokens")
+              if type(usage.get(key)) is int and usage[key] >= 0}
+    details = usage.get("prompt_tokens_details")
+    cached = details.get("cached_tokens") if isinstance(details, Mapping) else None
+    response_id = value.get("id") if value else getattr(response, "id", None)
+    request_id = getattr(response, "_request_id", None)
+    choices = value.get("choices") if value else getattr(response, "choices", None)
+    first = choices[0] if isinstance(choices, list) and choices else None
+    finish = first.get("finish_reason") if isinstance(first, Mapping) else getattr(first, "finish_reason", None)
+    return {"token_usage": tokens,
+            "cached_tokens": cached if type(cached) is int and cached >= 0 else None,
+            "response_id": response_id if isinstance(response_id, str) else None,
+            "request_id": request_id if isinstance(request_id, str) else None,
+            "finish_reason": finish if isinstance(finish, str)
+                and finish in {"stop", "tool_calls", "length", "content_filter"} else None}
+
+
 @dataclass(slots=True)
 class ProviderToolLoopDriver:
     provider: str
@@ -233,6 +298,7 @@ class ProviderToolLoopDriver:
         steer_delivered: Callable[[Any], None] | None = None,
         steer_failed: Callable[[Any, str], None] | None = None,
         event_sink: Callable[[Mapping[str, Any]], None] | None = None,
+        continuation_handoff: Mapping[str, Any] | None = None,
     ) -> NativeLoopResult:
         if (self.provider not in {"azure", "aliyun"} or not self.model_id
             or not goal.strip() or not binding or not skill_paths or timeout_seconds <= 0):
@@ -250,6 +316,7 @@ class ProviderToolLoopDriver:
                 cancellation_requested=cancellation_requested or (lambda: False),
                 steer_requested=steer_requested, steer_delivered=steer_delivered,
                 steer_failed=steer_failed, event_sink=event_sink,
+                continuation_handoff=continuation_handoff,
             )
 
     def _run_locked(
@@ -261,6 +328,7 @@ class ProviderToolLoopDriver:
         steer_delivered: Callable[[Any], None] | None,
         steer_failed: Callable[[Any, str], None] | None,
         event_sink: Callable[[Mapping[str, Any]], None] | None,
+        continuation_handoff: Mapping[str, Any] | None,
     ) -> NativeLoopResult:
         calls_dir = root / "calls"
         if calls_dir.is_symlink() or (calls_dir.exists() and not calls_dir.is_dir()):
@@ -285,6 +353,8 @@ class ProviderToolLoopDriver:
                 raise ValueError("Provider loop session identity drift")
             if state.get("messages_sha256") != _digest(state.get("messages")):
                 raise ValueError("Provider loop saved conversation changed")
+            # Verify an existing projection before replaying even a pending tool.
+            _request_history(state)
         else:
             state = {
                 "schema_version": STATE_SCHEMA, "identity": identity,
@@ -306,6 +376,33 @@ class ProviderToolLoopDriver:
         event_path = root / "events.jsonl"
         from reqpilotx_server.adapters.agents.codex_app_server.public_messages import PublicMessageStore
         public_messages = PublicMessageStore(root / "messages.json")
+
+        if continuation_handoff is not None:
+            handoff = dict(continuation_handoff)
+            context = state.get("continuation_context") or {}
+            if state.get("status") == "COMPLETED":
+                last = state.get("last_receipt") or {}
+                terminal = state.get("terminal_model_message") or {}
+                if (handoff.get("schema_version") != "reqpilotx-continuation-handoff/v1"
+                    or handoff.get("binding_sha256") != identity["binding_sha256"]
+                    or handoff.get("completed_run_state_sha256") != last.get("run_state_sha256")
+                    or handoff.get("completed_receipt_sha256") != _digest(last)
+                    or handoff.get("completed_messages_sha256") != state["messages_sha256"]
+                    or not handoff.get("baseline_sha256")
+                    or not handoff.get("source_sha256")
+                    or handoff.get("source_sha256") != binding.get("source_sha256")
+                    or last.get("status") != "COMPLETED"
+                    or last.get("local_state_persisted") is not True
+                    or not _paired_history(state["messages"])
+                    or state.get("pending_images")
+                    or terminal.get("message_sha256") != _digest(state["messages"][-1])):
+                    raise ValueError("Provider terminal continuation proof is invalid")
+                state["continuation_context"] = {
+                    "handoff": handoff, "sha256": _digest(handoff),
+                    "start_index": len(state["messages"]),
+                }
+            elif context.get("sha256") != _digest(handoff):
+                raise ValueError("Provider continuation requires a verified completed turn")
 
         def save() -> None:
             state["messages_sha256"] = _digest(state["messages"])
@@ -342,6 +439,8 @@ class ProviderToolLoopDriver:
             "steering_delivered_count": 0, "tools": receipts,
             "token_usage": {}, "capability_epoch_id": (capability_epoch or {}).get("epoch_id"),
             "request_policy": self._request_options(),
+            "provider_requests": [],
+            "continuation_handoff_sha256": (state.get("continuation_context") or {}).get("sha256"),
         }
         tools = [{"type": "function", "function": {"name": spec.name,
                   "description": spec.description, "parameters": dict(spec.input_schema)}}
@@ -442,12 +541,31 @@ class ProviderToolLoopDriver:
                     status = "FAILED"
                     receipt["reason_code"] = "PROVIDER_LOOP_TIMEOUT"
                     break
+                messages = _provider_messages(_request_history(state),
+                    preserve_thinking=bool(self._request_options().get("extra_body", {}).get("preserve_thinking")))
+                request_meta = {"schema_version": "reqpilotx-provider-request-metadata/v1",
+                    "attempt_id": attempt_id, "ordinal": len(receipt["provider_requests"]) + 1,
+                    "provider": self.provider, "model_id": self.model_id,
+                    "history_mode": "TERMINAL_HANDOFF" if state.get("continuation_context") else "FULL_HISTORY",
+                    "continuation_handoff_sha256": (state.get("continuation_context") or {}).get("sha256"),
+                    "message_count": len(messages),
+                    "messages_serialized_bytes": len(json.dumps(messages, ensure_ascii=False).encode("utf-8")),
+                    "tools_serialized_bytes": len(json.dumps(tools, ensure_ascii=False).encode("utf-8")),
+                    "status": "STARTED", "token_usage": {}, "cached_tokens": None,
+                    "request_id": None, "response_id": None}
+                metadata_path = root / ("request-" + attempt_id + "-" + str(request_meta["ordinal"]) + ".json")
+                receipt["provider_requests"].append(request_meta)
+                _write_json(metadata_path, request_meta)
                 response = client.chat.completions.create(
-                    model=self.model_id, messages=_provider_messages(state["messages"],
-                        preserve_thinking=bool(self._request_options().get("extra_body", {}).get("preserve_thinking"))),
+                    model=self.model_id, messages=messages,
                     tools=tools, tool_choice="auto", timeout=remaining,
                     **self._request_options(),
                 )
+                request_meta.update(_response_metadata(response), status="RECEIVED")
+                for name, count in request_meta["token_usage"].items():
+                    receipt["token_usage"][name] = receipt["token_usage"].get(name, 0) + count
+                # Save evidence even when length/parse validation rejects the response.
+                _write_json(metadata_path, request_meta)
                 try:
                     message, finish = _response_message(response)
                 except _ProviderOutputTruncated:
@@ -466,13 +584,6 @@ class ProviderToolLoopDriver:
                         "text": message["content"], "message_sha256": _digest(message)
                     }
                 save()  # Persist provider call IDs before any host mutation.
-                usage = getattr(response, "usage", None)
-                if usage is not None:
-                    usage = usage.model_dump(exclude_none=True) if hasattr(usage, "model_dump") else usage
-                    if isinstance(usage, Mapping):
-                        for name in ("prompt_tokens", "completion_tokens", "total_tokens"):
-                            if isinstance(usage.get(name), int):
-                                receipt["token_usage"][name] = receipt["token_usage"].get(name, 0) + usage[name]
                 # Keep the provider call IDs for safe resume, but do not run a
                 # host tool or accept a stop response after a control fires.
                 if control_stopped():

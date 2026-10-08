@@ -158,6 +158,7 @@ def _public(container, root, meta):
 
 
 def _enqueue(container, root, meta, *, command_id, goal, origin):
+    from reqpilotx_server.application.agent_workflow.provider_continuation import saved_predecessor
     identity = canonical_json_sha256(
         {
             "task_id": meta["task_id"],
@@ -219,6 +220,7 @@ def _enqueue(container, root, meta, *, command_id, goal, origin):
         priority=24,
         max_attempts=1,
         payload={
+            **saved_predecessor(container, meta),
             "application_entrypoint": ENTRYPOINT,
             "project_id": meta["project_id"],
             "document_id": meta["document_id"],
@@ -1300,6 +1302,9 @@ def run_durable_source_document_loop(job, context):
     from reqpilotx_server.application.agent_workflow.native_task_brief import save_task_brief
     save_task_brief(root, brief, goal)
     if getattr(container.settings, "agent_runtime_backend", None) is AgentRuntimeBackend.PROVIDER_TOOL_LOOP:
+        from reqpilotx_server.application.agent_workflow.provider_continuation import build_continuation_handoff
+        continuation = build_continuation_handoff(container, root, meta, job,
+            verify_review=lambda review: _portable(root, "review-verify", review_dir=review))
         driver = build_provider_tool_loop_driver(
             container.settings, model_id=meta.get("request", {}).get("model_id")
         )
@@ -1313,6 +1318,8 @@ def run_durable_source_document_loop(job, context):
         )
     from reqpilotx_server.adapters.agents.codex_app_server.native_loop_pdf import native_loop_skill_paths
     result = driver.run(
+        **({"continuation_handoff": continuation} if getattr(container.settings, "agent_runtime_backend", None)
+           is AgentRuntimeBackend.PROVIDER_TOOL_LOOP else {}),
         session_dir=root / "runtime",
         goal=goal,
         skill_paths=native_loop_skill_paths(plugin_root, include_pdf=Path(meta.get('source_path', '')).suffix.lower() == '.pdf'),
