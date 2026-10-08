@@ -6,6 +6,14 @@ export function setSaasAccountIdentity(account: string | null | undefined): void
   accountIdentity = account;
 }
 
+export function getSaasAccountIdentity(): string | null | undefined {
+  return accountIdentity;
+}
+
+export function isSaasAccountMode(): boolean {
+  return accountIdentity !== undefined;
+}
+
 export function saasStorageKey(key: string): string {
   return accountIdentity === undefined ? key : `reqpilotx:account:${encodeURIComponent(accountIdentity || "guest")}:${key}`;
 }

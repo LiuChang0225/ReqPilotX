@@ -6,6 +6,10 @@
 
 首先只运行本机回环地址的私有 pilot。新建付费资源、升级规格、RDS、OSS、Redis、Qdrant、公共镜像仓库和域名购买均不属于本次方案。保留现有 FastAPI、共享 Python engine、React/Vite、PostgreSQL 和独立 durable worker，不改写框架。
 
+Web 文档主入口是 `DocumentWorkSurface → SourceItemAgentLoop`：从原文件开始调用 `POST …/agent-structure/delivery/extraction-loop`；已有工作版的意见调用 `…/delivery/loop`。这两个 native provider-tool-loop 使用本发布的正式注册 engine/plugin tools，已由真实 PostgreSQL 队列和 WorkerRuntime 的 SDK MockTransport 合成闭环验证；模型网络响应仍为模拟，不代表真实付费 provider 已接通。SaaS 页面先读 `GET /api/runtime/agent-readiness` 与 `…/agent-workflow-readiness`，检查同一 provider/model 配置、文档处理授权、来源读取、数据库、对象存储和后台 worker；缺失、未知、不可用或读取失败时禁止新建/继续任务并显示原因，暂停已存在任务仍可用。配置就绪只表示离线配置检查，在线认证、模型权限和 provider 服务可用性需单独验收。
+
+旧“已有 Map 补全原文条目”“处理当前正文/原表”、单条分类复核、独立拆分/分析及 Codex 原文基线重解析属于另一兼容/分窗口路径，可能依赖独立 `agent-kit/` 或本地 Codex 执行器，不等于上述正式 portable tools。首个 SaaS profile 不提供该 Kit，也未开放这些写路由；SaaS UI 明确禁用并提示使用文档 Agent 协作，不能自动切换执行器。单条意见入口可显式打开文档协作工作区，由用户核对后发送；既有本机条款草稿保留，不宣称已保存到服务器。LOCAL/TEST/Pair 原有兼容路径保留。独立 Kit 的资源、版本、许可及执行验证补齐后才能在后续候选开放。
+
 首选最小原生 profile：官方系统仓库并行安装 Python 3.11 和 PostgreSQL，以独立 venv 和 systemd 运行 API / worker。不要替换系统 Python 3.6，不做全系统升级，不在 ECS 上安装 Node 或构建前端，也不在服务器编译 Python 或 ML 库。已通过官方 Workbench 只读核验：系统 systemd239；仓库提供 Python3.11 `3.11.13-7.0.1.al8`、pip `22.3.1-5.al8`，以及 PostgreSQL13 `13.23-3.0.1.al8`（最终执行前仍核对 exact package NVR）。官方 Alibaba Linux 文档明确 3.2104 支持并行 Python 3.11，建议使用版本后缀和 venv：[官方 Python 安装说明](https://www.alibabacloud.com/help/en/alinux/support/install-a-newer-python-3-on-alibaba-cloud-linux-3)。
 
 PG13 upstream 已于 2025-11-13 结束支持，但 Alibaba 的 2026 release notes 明确为该发行包回补 CVE-2026-6478；这证明该补丁，不代表无所有漏洞或未来维护承诺。选择 vendor-maintained13 的私有 pilot 时先核验相关 advisory/package 匹配，不得把兼容性测试当安全维护保证：[PostgreSQL 生命周期](https://www.postgresql.org/support/versioning/)、[Alibaba 安全更新记录](https://help.aliyun.com/zh/alinux/product-overview/release-notes-for-alibaba-cloud-linux)。后续正式公共运行应明确支持期限和更新方案。

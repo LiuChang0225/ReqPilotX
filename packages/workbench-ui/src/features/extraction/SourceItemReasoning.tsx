@@ -1,6 +1,8 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SourceRequirementKindV1, SourceNumberFieldsV1 } from "../../shared/api/contracts";
 import { request } from "../../shared/api/client";
+import { isSaasAccountMode } from "../../shared/api/saasSession";
+import { SAAS_KIT_UNAVAILABLE_MESSAGE } from "./saasAgentAvailability";
 import { Icon } from "../../shared/ui/Icon";
 import { projectKnowledgeFileUrl, useAnalysisKnowledgeSelection } from "../knowledge/projectKnowledge";
 import { useWorkbenchHost } from "../workspace/WorkbenchHostContext";
@@ -91,6 +93,7 @@ export function useSourceItemReasoning(projectId: string, documentId: string, ba
   }, [job, root]);
 
   const run = useCallback(async (action: "decomposition" | "analysis", sourceItemId?: string) => {
+    if (isSaasAccountMode()) { setError(SAAS_KIT_UNAVAILABLE_MESSAGE); return; }
     if (!state || pending || ["PENDING", "RUNNING"].includes(job?.status || "")) return;
     const startedKey = key;
     setPending(action); setError("");
@@ -182,9 +185,12 @@ export function SourceItemDeliveryActions({ workflow, compact = false, exportOnl
   return <div className="source-item-delivery-actions">
     {!exportOnly && (compact ? <details className="source-review-more-actions"><summary>分析操作</summary><div>
       <p>使用已提供的资料分析；缺少证据的内容保持待补充。</p>
-      <button className="button secondary compact" disabled={!workflow.state || workflow.busy} onClick={() => void workflow.run("analysis")}>分析全部需求</button>
-    </div></details> : <button className="button secondary compact" disabled={!workflow.state || workflow.busy}
+      <button className="button secondary compact" disabled={isSaasAccountMode() || !workflow.state || workflow.busy} title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined} onClick={() => void workflow.run("analysis")}>分析全部需求</button>
+      {isSaasAccountMode() && <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p>}
+    </div></details> : <button className="button secondary compact" disabled={isSaasAccountMode() || !workflow.state || workflow.busy}
+      title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined}
       onClick={() => void workflow.run("analysis")}>分析全部需求</button>)}
+    {!exportOnly && !compact && isSaasAccountMode() && <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p>}
     <button className="button secondary compact" disabled={!workflow.state || workflow.pending === "export"}
       onClick={() => void workflow.exportMatrix()}><Icon name="download" size={14} />
       {workflow.pending === "export" ? "正在导出…" : "导出 Matrix 草稿"}</button>
@@ -267,11 +273,12 @@ export function SourceItemReasoningDetail({ workflow, sourceItemId, requirementI
   const activeUnit = queueUnits.some(unit => unit.unitId === selection) ? selection : queueUnits[0]?.unitId;
   return <section className={`source-item-reasoning-detail${reviewMode ? "" : " is-response-analysis"}`} aria-label={reviewMode ? "本条拆分结果" : "分析单元与响应建议"}>
     <header><strong>{reviewMode ? children.length ? `已有派生 · ${children.length} 项` : "本条拆分" : "分析单元与响应建议"}</strong><div className="source-item-delivery-actions">
-      {purpose !== "analysis" && <button className="button secondary compact" disabled={readOnly || !state || workflow.busy}
+      {purpose !== "analysis" && <button className="button secondary compact" disabled={isSaasAccountMode() || readOnly || !state || workflow.busy} title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined}
         onClick={() => void workflow.run("decomposition", sourceItemId)}>{!showUnitPicker && children.length ? "检查父条款拆分" : "检查本条拆分"}</button>}
-      {purpose !== "review" && <button className="button secondary compact" disabled={readOnly || !state || workflow.busy}
+      {purpose !== "review" && <button className="button secondary compact" disabled={isSaasAccountMode() || readOnly || !state || workflow.busy} title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined}
         onClick={() => void workflow.run("analysis", sourceItemId)}>{!showUnitPicker && children.length ? "分析父条款派生项" : "分析本条"}</button>}
     </div></header>
+    {isSaasAccountMode() && <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p>}
     <CarryNotes notes={parentNotes} />
     <SourceDispositionNote state={state} sourceItemId={sourceItemId} />
     {children.length > 0 ? showUnitPicker && <p className="muted">保留完整父项与共同条件；以下是已形成的拆分结果。</p> : reviewMode && !splitStale ? <p className="muted">当前保留为一个完整原文条目，未另行派生。</p> : null}

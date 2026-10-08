@@ -10,6 +10,8 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError, api } from "../../shared/api/client";
+import { setSaasAccountIdentity } from "../../shared/api/saasSession";
+import { SAAS_KIT_UNAVAILABLE_MESSAGE } from "./saasAgentAvailability";
 import type {
   NativeStructureActivityEventV2,
   NativeStructureActivityStreamV1,
@@ -35,6 +37,7 @@ import { WorkbenchHostContext } from "../workspace/WorkbenchHostContext";
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  setSaasAccountIdentity(undefined);
 });
 
 const reference: NativeStructureReferencePublicV1 = {
@@ -1963,7 +1966,8 @@ describe("NativeStructureReferenceDock", () => {
     });
   });
 
-  it("starts direct-text growth from the existing structure node", async () => {
+  it.each([false, true])("preserves local direct-text growth and disables missing-Kit SaaS mode (%s)", async saas => {
+    if (saas) setSaasAccountIdentity("account-a");
     const user = userEvent.setup();
     vi.spyOn(api, "nativeStructureReference").mockResolvedValue(reference);
     vi.spyOn(api, "nativeStructureTablePreview").mockResolvedValue(tablePreview);
@@ -2023,6 +2027,14 @@ describe("NativeStructureReferenceDock", () => {
     const start = await screen.findByRole("button", {
       name: "让 Agent 处理当前正文",
     });
+    if (saas) {
+      expect(start).toBeDisabled();
+      expect(start).toHaveAttribute("title", SAAS_KIT_UNAVAILABLE_MESSAGE);
+      expect(screen.getByText(SAAS_KIT_UNAVAILABLE_MESSAGE)).toBeVisible();
+      await user.click(start);
+      expect(startText).not.toHaveBeenCalled();
+      return;
+    }
     await user.click(start);
 
     expect(startText).toHaveBeenCalledWith(

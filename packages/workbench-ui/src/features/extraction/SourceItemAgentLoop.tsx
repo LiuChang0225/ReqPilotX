@@ -14,6 +14,7 @@ import { useDocumentAgent } from "../workspace/DocumentAgentContext";
 import { agentTaskLabel, agentProgressLabel } from "../workspace/documentWorkSummary";
 import { readAgentEventTail, retainedCommand, settleCommand, reducePublicMessages, messageKey, type PublicAgentMessage, type PublicAgentEvent } from "./agentTaskTransport";
 import { SourceDocumentStageResults, type SourceStage } from "./SourceDocumentStageResults";
+import { useSaasNativeAgentAvailability } from "./saasAgentAvailability";
 
 export type AgentLoopTask = {
   task_id: string; job_id: string; job_status: string; runtime_status?: string;
@@ -76,6 +77,7 @@ export function SourceItemAgentLoop(props: SourceItemAgentLoopProps) {
 function SourceItemAgentLoopController({ projectId, documentId, sourceSha256, baselineSha256, selectedSourceItemId,
   selectedLabel, documentName, baselineRevision, onUpdated, mode = "review", openRequest = 0, onTaskChange, initialGoal = "",
   embedded = false, onClose, onOpenStage, historyHostRef, taskOverride, startReady = true }: SourceItemAgentLoopProps) {
+  const availability = useSaasNativeAgentAvailability();
   const root = `/api/projects/${encodeURIComponent(projectId)}/sor-documents/${encodeURIComponent(documentId)}/agent-structure/delivery/${mode === "extract" ? "extraction-loop" : "loop"}`;
   const key = `${root}:${sourceSha256}`, identity = useRef(key); identity.current = key;
   const draftKey = saasStorageKey(`reqpilotx:agent-loop-draft:${key}:${baselineSha256}:${selectedSourceItemId || "document"}`);
@@ -131,6 +133,11 @@ function SourceItemAgentLoopController({ projectId, documentId, sourceSha256, ba
     const discover = async () => {
       try {
         const value = await request<AgentLoopTask | null>(`${root}/latest`, { signal: controller.signal });
+        if (!controller.signal.aborted && value?.source_sha256 && value.source_sha256 !== sourceSha256) {
+          currentTask.current = ""; setTask(null); setEvents([]); setMessages([]);
+          setError("任务属于此前的原文件版本，请回到当前文档后重新发起或查看原版本历史。");
+          return;
+        }
         if (!controller.signal.aborted && value?.task_id) { currentTask.current = `${value.task_id}:${value.job_id}`; setTask(value); taskChanged.current?.(value); }
       } catch (cause) {
         if (!controller.signal.aborted && !(cause instanceof ApiError && cause.status === 404)) setError("暂时无法读取 Agent 任务，请重试。");
@@ -150,7 +157,11 @@ function SourceItemAgentLoopController({ projectId, documentId, sourceSha256, ba
       try {
         const value = await request<AgentLoopTask>(`${root}/${encodeURIComponent(taskId)}`, { signal: controller.signal });
         if (controller.signal.aborted || currentTask.current !== readingIdentity) return;
-        if (value.source_sha256 && value.source_sha256 !== sourceSha256) throw new Error("任务来源已变化，请回到当前文档。");
+        if (value.source_sha256 && value.source_sha256 !== sourceSha256) {
+          currentTask.current = ""; setTask(null); setEvents([]); setMessages([]);
+          setError("任务属于此前的原文件版本，请回到当前文档后重新发起或查看原版本历史。");
+          return;
+        }
         setTask(value);
         taskChanged.current?.(value);
         setError("");
@@ -206,6 +217,8 @@ function SourceItemAgentLoopController({ projectId, documentId, sourceSha256, ba
     }
   }, [task, baselineSha256]);
   const mutate = async (action: "start" | "steer" | "interrupt" | "resume") => {
+    if ((action === "start" || action === "resume") && !availability.ready) return;
+    if (action !== "start" && (!task || task.source_sha256 && task.source_sha256 !== sourceSha256)) return;
     if (pending || (action === "start" || action === "steer") && !text.trim()) return;
     const current = key, sentText = text, sentDraftKey = draftKey;
     const sourceItemIds = scope === "selected" && selectedSourceItemId ? [selectedSourceItemId] : [];
@@ -278,16 +291,17 @@ function SourceItemAgentLoopController({ projectId, documentId, sourceSha256, ba
               </select>
             </label>
             <div className="source-agent-loop-actions">
-              {!active && <button type="button" className="button primary compact" disabled={!startReady || pending || !sourceSha256 || mode === "review" && !baselineSha256 || !text.trim()} onClick={() => void mutate("start")}>开始新任务<Icon name="arrow" size={14} /></button>}
+              {!active && <button type="button" className="button primary compact" disabled={!availability.ready || !startReady || pending || !sourceSha256 || mode === "review" && !baselineSha256 || !text.trim()} onClick={() => void mutate("start")}>开始新任务<Icon name="arrow" size={14} /></button>}
               {active && task?.can_steer && <button type="button" className="button primary compact" disabled={pending || !text.trim()} onClick={() => void mutate("steer")}>补充给 Agent<Icon name="arrow" size={14} /></button>}
             </div>
           </div>
         </div>
         <div className="agent-composer-footnote"><span>{draftStorageUnavailable ? "本机草稿暂存不可用，未发送文字仅保留在当前页面。" : text ? "草稿 · 尚未发送" : "意见将随当前来源与范围提交"}</span>
           <div>{task?.can_interrupt && <button type="button" className="button ghost compact" disabled={pending} onClick={() => void mutate("interrupt")}><Icon name="stop" size={12} />暂停任务</button>}
-            {task?.can_resume && <button type="button" className="button secondary compact" disabled={pending || !!task.map_confirmation_required && !text.trim()} onClick={() => void mutate("resume")}>继续此任务<Icon name="play" size={12} /></button>}
+            {task?.can_resume && <button type="button" className="button secondary compact" disabled={!availability.ready || pending || !!task.map_confirmation_required && !text.trim()} onClick={() => void mutate("resume")}>继续此任务<Icon name="play" size={12} /></button>}
           </div>
         </div>
+        {availability.message && <p role="status">{availability.message} <button type="button" className="button ghost compact" onClick={availability.refresh}>刷新 Agent 配置</button></p>}
 </>}>
 
         <section className="agent-task-state" data-active={active} aria-label="当前任务状态">

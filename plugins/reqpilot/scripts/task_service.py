@@ -219,7 +219,8 @@ class ItemsRequest(WriteRequest):
 
 
 class ReviewRequest(WriteRequest):
-    analysis_policy: Literal['preserve', 'skip_no_internal_evidence'] = 'preserve'
+    analysis_policy: Literal['preserve', 'skip_no_internal_evidence'] = Field(default='preserve',
+        description='Preserve the current policy, or explicitly record the authorized source-only scope. This is not inferred from failed retrieval. Existing reviews update through an immutable policy revision.')
 
 
 class SelfReviewFinding(Request):
@@ -393,6 +394,13 @@ class TaskService:
         if action == 'open':
             return self.open(request)
         root, state = self.state(request.task_id)
+        if isinstance(request, WriteRequest):
+            from task_review_policy import guard_write_command
+            with guard_write_command(root, state, action, request):
+                return self._invoke_task(action, request, root, state)
+        return self._invoke_task(action, request, root, state)
+
+    def _invoke_task(self, action, request, root, state):
         if action == 'inspect':
             result = {'status': 'READY', **task_summary(state)}
             if request.include_history:
@@ -428,6 +436,9 @@ class TaskService:
         if action in {'annotations','decomposition','revise','images'}:
             from task_changes import execute_change
             return execute_change(self,root,state,action,request)
+        if action == 'review':
+            from task_review_policy import prepare_review
+            return prepare_review(self,root,state,request)
         try:
             return self.write(root, state, action, request)
         except ValueError as exc:
@@ -514,6 +525,11 @@ class TaskService:
         return response
 
     def write(self, root, state, action, request):
+        from task_review_policy import guard_write_command
+        with guard_write_command(root, state, action, request):
+            return self._write(root, state, action, request)
+
+    def _write(self, root, state, action, request):
         from reqpilotx.application.agent_workflow import task_workspace as core
         from workspace_tools import run
         requested_pages=None
