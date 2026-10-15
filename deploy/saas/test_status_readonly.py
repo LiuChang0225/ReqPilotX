@@ -50,6 +50,12 @@ class ReadOnlyStatusTests(unittest.TestCase):
             (base / "current").symlink_to(outside)
             self.assertEqual(status.release_status(base)["status"], "UNKNOWN")
 
+    def test_raw_pointer_parent_traversal_is_not_normalized_into_another_release(self):
+        with TemporaryDirectory() as temporary:
+            base = Path(temporary).resolve() / "opt"; (base / "releases/good").mkdir(parents=True)
+            (base / "current").symlink_to("releases/missing/../good")
+            self.assertEqual(status.release_status(base)["status"], "UNKNOWN")
+
     def test_error_text_and_service_values_are_not_echoed(self):
         def runner(command, **kwargs):
             if command[2] == "reqpilotx-api.service":

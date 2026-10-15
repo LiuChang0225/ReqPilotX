@@ -10,11 +10,21 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 
-def writable_state_preflight(object_root: Path, scratch_root: Path, *, expected_state=None) -> None:
+def writable_state_preflight(object_root: Path, scratch_root: Path, *, expected_state=None,
+                             configured_scratch=None) -> None:
     if expected_state is not None and object_root.resolve() != expected_state.resolve():
         raise ValueError("Pilot state differs from the documented backup or mounted root.")
     if not scratch_root.resolve().is_relative_to(object_root.resolve()):
         raise ValueError("Pilot scratch must stay inside application state.")
+    raw_scratch = Path(configured_scratch or scratch_root)
+    anchors = [root for root in (object_root, object_root.resolve()) if raw_scratch.is_relative_to(root)]
+    if not anchors or ".." in raw_scratch.parts:
+        raise ValueError("Pilot scratch must use its documented state path.")
+    current = anchors[0]
+    for part in ("", *raw_scratch.relative_to(current).parts):
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("Pilot scratch cannot traverse state symlinks.")
     for directory in (object_root, scratch_root):
         if not directory.is_dir() or not os.access(directory, os.W_OK):
             raise ValueError("Private application state is missing or unwritable.")
@@ -86,7 +96,8 @@ def runtime_preflight() -> None:
                 or query != {"host": ["/var/run/postgresql"]}):
             raise ValueError("Native pilot must use Unix socket and peer auth.")
     writable_state_preflight(settings.object_root, settings.scratch_root,
-        expected_state=Path("/var/lib/reqpilotx" if container else "/var/lib/reqpilotx/application"))
+        expected_state=Path("/var/lib/reqpilotx" if container else "/var/lib/reqpilotx/application"),
+        configured_scratch=os.environ.get("REQPILOT_SCRATCH_ROOT"))
     if not (settings.frontend_root / "index.html").is_file():
         raise ValueError("Prebuilt frontend is missing.")
     if not tuple(postgres_migration_dir().glob("*.sql")):

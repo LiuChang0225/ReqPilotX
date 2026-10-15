@@ -107,7 +107,7 @@ systemd 服务使用 `Restart=on-failure`、5 秒 backoff，writer 停机允许 
 
 ## 6. 公网与 HTTPS 是独立决策
 
-用户目前没有域名。Let’s Encrypt 的 IP 证书于 2026-01-15 已正式开放：IPv4/IPv6、shortlived profile，160 小时有效期。Certbot >=5.4 支持 IP webroot 申请；需自动 renewal，并在每次成功更新后让 TLS 服务 reload。IP 证书不要求购买域名，但仍要求该公网 IP 的控制权验证以及 HTTP-01 或 TLS-ALPN-01 可达：[官方 GA](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability)、[官方 Certbot 用法](https://letsencrypt.org/2026/03/11/shorter-certs-certbot)。
+`lsyncai.top` 已购。2026-10-15 14:20 Asia/Shanghai 官方控制台读回为管局审核中、尚未下发备案号且无待补材料/操作；指定北京 ECS 公网 39.107.33.111 与订单一致。当前等待管局，不再等待用户提供 IP/备案截图。旧方案“用户没有域名”已过时。以下 IP 证书路线仅保留为历史技术背景，不代表本轮选用、授权或已经配置：Let’s Encrypt 的 IP 证书说明见[官方 GA](https://letsencrypt.org/2026/01/15/6day-and-ip-general-availability)、[官方 Certbot 用法](https://letsencrypt.org/2026/03/11/shorter-certs-certbot)。本轮没有证书申请、协议接受或公网配置变更。
 
 这是后续可选技术路线，不是本轮开放服务的授权。Certbot staging 证书不受浏览器信任，不可要求绕过警告或将其当作正式可访问 URL。正式申请必须先向用户说明将向 Let’s Encrypt 提交的 IP/域名、可选邮箱、用途，并确认接受适用 Subscriber Agreement。当前公开协议为 [2026-07-06 v1.8](https://letsencrypt.org/documents/LE-SA-v1.8-July-06-2026.pdf)；申请当天仍需重新核对协议版本。
 

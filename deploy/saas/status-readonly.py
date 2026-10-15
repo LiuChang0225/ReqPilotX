@@ -45,6 +45,8 @@ def release_status(base: Path) -> dict:
         if not pointer.is_symlink():
             raise ValueError("expected release pointer")
         link = pointer.readlink()
+        if ".." in link.parts:
+            raise ValueError("ambiguous release pointer")
         target = Path(os.path.normpath(str(link if link.is_absolute() else base / link)))
         if target.parent != releases or not LABEL.fullmatch(target.name) or target.is_symlink():
             raise ValueError("unexpected release path")

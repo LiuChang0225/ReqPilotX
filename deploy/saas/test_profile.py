@@ -53,6 +53,9 @@ class CapabilityPreflightTests(unittest.TestCase):
                 preflight.writable_state_preflight(application, Path(temporary))
             with self.assertRaises(ValueError):
                 preflight.writable_state_preflight(application, scratch, expected_state=Path(temporary) / "other")
+            alias = application / "alias"; alias.symlink_to(scratch, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                preflight.writable_state_preflight(application, scratch, configured_scratch=alias)
 
     def test_missing_pin_or_registry_outside_backup_is_refused(self):
         for overrides in ({"native_capability_bundle_sha256": ""},
