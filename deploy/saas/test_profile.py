@@ -40,12 +40,37 @@ class CapabilityPreflightTests(unittest.TestCase):
         result = preflight.native_capability_preflight(self.settings(agent_runtime_backend=SimpleNamespace(value="none")))
         self.assertEqual(result["status"], "NOT_REQUIRED_AGENT_DISABLED")
 
+    def test_systemd_only_needs_application_and_scratch_writable(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            application = Path(temporary) / "application"; application.mkdir()
+            scratch = application / "scratch"; scratch.mkdir()
+            with patch.object(preflight.os, "access", side_effect=lambda path, mode: path in {application, scratch}) as access:
+                preflight.writable_state_preflight(application, scratch)
+                self.assertEqual({call.args[0] for call in access.call_args_list}, {application, scratch})
+            with patch.object(preflight.os, "access", return_value=False), self.assertRaises(ValueError):
+                preflight.writable_state_preflight(application, scratch)
+            with self.assertRaises(ValueError):
+                preflight.writable_state_preflight(application, Path(temporary))
+            with self.assertRaises(ValueError):
+                preflight.writable_state_preflight(application, scratch, expected_state=Path(temporary) / "other")
+
     def test_missing_pin_or_registry_outside_backup_is_refused(self):
         for overrides in ({"native_capability_bundle_sha256": ""},
                           {"native_capability_registry_root": Path("/var/lib/reqpilotx/native-loop-capabilities")},
+                          {"object_root": Path("/tmp/other-application"), "native_capability_registry_root": Path("/tmp/other-application/registry")},
+                          {"agent_runtime_backend": SimpleNamespace(value="codex-app-server")},
                           {"native_capability_mode": SimpleNamespace(value="development-source")}):
             with self.subTest(overrides=overrides), self.assertRaises(ValueError):
                 preflight.native_capability_preflight(self.settings(**overrides))
+
+    def test_symlink_alias_registry_is_refused_before_bundle_read(self):
+        with tempfile.TemporaryDirectory() as temporary:
+            state = Path(temporary) / "application"; state.mkdir()
+            actual = state / "real"; actual.mkdir()
+            alias = state / "alias"; alias.symlink_to(actual, target_is_directory=True)
+            with self.assertRaises(ValueError):
+                preflight.native_capability_preflight(self.settings(object_root=state,
+                    native_capability_registry_root=actual), state_root=state, configured_registry=alias)
 
     def test_registered_bundle_must_match_installed_engine(self):
         from unittest.mock import Mock

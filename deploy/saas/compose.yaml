@@ -27,6 +27,8 @@ x-app: &app
     REQPILOT_FRONTEND_DIR: /opt/reqpilotx/frontend
     REQPILOT_LOCAL_WORKER_COUNT: "1"
     REQPILOT_AGENT_CUSTOMER_DATA_ENABLED: "0"
+    REQPILOT_NATIVE_CAPABILITY_MODE: registered-release
+    REQPILOT_NATIVE_CAPABILITY_REGISTRY: /var/lib/reqpilotx/native-loop-capabilities
     OMP_NUM_THREADS: "1"
     OPENBLAS_NUM_THREADS: "1"
     MALLOC_ARENA_MAX: "2"

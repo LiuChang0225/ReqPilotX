@@ -10,13 +10,36 @@ from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
 
 
-def native_capability_preflight(settings) -> dict:
-    if settings.agent_runtime_backend.value != "provider-tool-loop":
+def writable_state_preflight(object_root: Path, scratch_root: Path, *, expected_state=None) -> None:
+    if expected_state is not None and object_root.resolve() != expected_state.resolve():
+        raise ValueError("Pilot state differs from the documented backup or mounted root.")
+    if not scratch_root.resolve().is_relative_to(object_root.resolve()):
+        raise ValueError("Pilot scratch must stay inside application state.")
+    for directory in (object_root, scratch_root):
+        if not directory.is_dir() or not os.access(directory, os.W_OK):
+            raise ValueError("Private application state is missing or unwritable.")
+
+
+def native_capability_preflight(settings, *, state_root=Path("/var/lib/reqpilotx/application"),
+                                configured_registry=None) -> dict:
+    if settings.agent_runtime_backend.value == "none":
         return {"status": "NOT_REQUIRED_AGENT_DISABLED"}
+    if settings.agent_runtime_backend.value != "provider-tool-loop":
+        raise ValueError("This pilot does not support another active Agent backend.")
     registry = settings.native_capability_registry_root.resolve()
-    state = settings.object_root.resolve()
+    state = state_root.resolve()
+    raw_registry = Path(configured_registry or settings.native_capability_registry_root)
+    anchors = [root for root in (state_root, state) if raw_registry.is_relative_to(root)]
+    if not anchors or ".." in raw_registry.parts:
+        raise ValueError("Capability registry must use the documented application state.")
+    current = anchors[0]
+    for part in ("", *raw_registry.relative_to(current).parts):
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("Capability registry cannot traverse state symlinks.")
     identity = settings.native_capability_bundle_sha256
     if (settings.native_capability_mode.value != "registered-release"
+            or settings.object_root.resolve() != state
             or registry == state or not registry.is_relative_to(state)
             or not re.fullmatch(r"[0-9a-f]{64}", identity)):
         raise ValueError("Provider pilot needs an exact registered capability inside backed-up application state.")
@@ -48,9 +71,11 @@ def runtime_preflight() -> None:
         raise ValueError("PostgreSQL is required.")
     if settings.object_store_backend.value != "local":
         raise ValueError("Pilot uses existing local disk only.")
-    capability = native_capability_preflight(settings)
     listen = os.environ.get("REQPILOT_LISTEN_HOST", "127.0.0.1")
     container = os.environ.get("REQPILOT_DATABASE_HOST") == "db"
+    capability = native_capability_preflight(settings,
+        state_root=Path("/var/lib/reqpilotx" if container else "/var/lib/reqpilotx/application"),
+        configured_registry=os.environ.get("REQPILOT_NATIVE_CAPABILITY_REGISTRY"))
     if listen != ("0.0.0.0" if container else "127.0.0.1"):
         raise ValueError("Unexpected private listener.")
     if not container:
@@ -60,9 +85,8 @@ def runtime_preflight() -> None:
                 or database.path != "/reqpilotx"
                 or query != {"host": ["/var/run/postgresql"]}):
             raise ValueError("Native pilot must use Unix socket and peer auth.")
-    for directory in (settings.object_root.parent, settings.scratch_root):
-        if not directory.is_dir() or not os.access(directory, os.W_OK):
-            raise ValueError("Private application state is missing or unwritable.")
+    writable_state_preflight(settings.object_root, settings.scratch_root,
+        expected_state=Path("/var/lib/reqpilotx" if container else "/var/lib/reqpilotx/application"))
     if not (settings.frontend_root / "index.html").is_file():
         raise ValueError("Prebuilt frontend is missing.")
     if not tuple(postgres_migration_dir().glob("*.sql")):

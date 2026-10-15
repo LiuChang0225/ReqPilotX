@@ -14,7 +14,7 @@ spec.loader.exec_module(status)
 class ReadOnlyStatusTests(unittest.TestCase):
     def test_bounded_release_and_backup_metadata_without_payloads(self):
         with TemporaryDirectory() as temporary:
-            root = Path(temporary)
+            root = Path(temporary).resolve()
             base = root / "opt"; release = base / "releases/candidate-1"
             release.mkdir(parents=True); (base / "current").symlink_to(release)
             (release / "release.json").write_text(json.dumps({
@@ -44,9 +44,9 @@ class ReadOnlyStatusTests(unittest.TestCase):
 
     def test_unknown_release_target_is_not_read(self):
         with TemporaryDirectory() as temporary:
-            base = Path(temporary) / "opt"; base.mkdir()
+            base = Path(temporary).resolve() / "opt"; base.mkdir()
             (base / "releases").mkdir()
-            outside = Path(temporary) / "unapproved"; outside.mkdir()
+            outside = Path(temporary).resolve() / "unapproved"; outside.mkdir()
             (base / "current").symlink_to(outside)
             self.assertEqual(status.release_status(base)["status"], "UNKNOWN")
 
@@ -62,8 +62,21 @@ class ReadOnlyStatusTests(unittest.TestCase):
 
     def test_backup_root_symlink_is_refused(self):
         with TemporaryDirectory() as temporary:
-            root = Path(temporary); (root / "alias").symlink_to(root, target_is_directory=True)
+            root = Path(temporary).resolve(); (root / "alias").symlink_to(root, target_is_directory=True)
             self.assertEqual(status.backup_status(root / "alias")["status"], "UNKNOWN")
+
+    def test_symlink_ancestor_cannot_redirect_release_backup_or_state(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary).resolve(); actual = root / "actual"; actual.mkdir()
+            (actual / "backups").mkdir(); (actual / "state").mkdir()
+            (actual / "opt/releases/candidate-1").mkdir(parents=True)
+            (actual / "opt/current").symlink_to(actual / "opt/releases/candidate-1")
+            alias = root / "alias"; alias.symlink_to(actual, target_is_directory=True)
+            def runner(command, **kwargs):
+                return SimpleNamespace(returncode=0, stdout="ActiveState=active\n")
+            result = status.collect(base=alias / "opt", backups=alias / "backups", state=alias / "state", runner=runner)
+            for key in ("release", "backups", "state_filesystem"):
+                self.assertEqual(result[key]["status"], "UNKNOWN", key)
 
 
 if __name__ == "__main__":

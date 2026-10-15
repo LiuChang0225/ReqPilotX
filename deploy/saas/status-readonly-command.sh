@@ -30,11 +30,20 @@ def _unavailable(exc: Exception) -> dict:
     return {"status": "UNKNOWN", "reason": type(exc).__name__}
 
 
+def _no_symlink_ancestors(path: Path) -> None:
+    if not path.is_absolute() or ".." in path.parts:
+        raise ValueError("unexpected path")
+    current = Path(path.anchor)
+    for part in path.parts[1:]:
+        current = current / part
+        if current.is_symlink():
+            raise ValueError("symlink layout is outside this observation contract")
+
+
 def release_status(base: Path) -> dict:
     try:
         releases = base / "releases"
-        if base.is_symlink() or releases.is_symlink():
-            raise ValueError("unsafe root")
+        _no_symlink_ancestors(releases)
         pointer = base / "current"
         if not pointer.is_symlink():
             raise ValueError("expected release pointer")
@@ -42,7 +51,10 @@ def release_status(base: Path) -> dict:
         target = Path(os.path.normpath(str(link if link.is_absolute() else base / link)))
         if target.parent != releases or not LABEL.fullmatch(target.name) or target.is_symlink():
             raise ValueError("unexpected release path")
+        _no_symlink_ancestors(target)
         target = target.resolve(strict=True)
+        if target.parent != releases.resolve(strict=True):
+            raise ValueError("release escaped documented layout")
         path = target / "release.json"
         if path.is_symlink() or not path.is_file() or path.stat().st_size > 8 * 1024 * 1024:
             raise ValueError("unsafe manifest")
@@ -90,6 +102,7 @@ def service_status(runner=subprocess.run) -> dict:
 
 def backup_status(root: Path) -> dict:
     try:
+        _no_symlink_ancestors(root)
         if root.is_symlink() or not root.is_dir():
             raise ValueError("unsafe backup root")
         candidates = sorted(p for p in root.iterdir()
@@ -121,6 +134,7 @@ def collect(*, base=Path("/opt/reqpilotx"), state=Path("/var/lib/reqpilotx/appli
               "application_health": "NOT_CHECKED", "configuration_read": False,
               "configuration_changed": False}
     try:
+        _no_symlink_ancestors(state)
         if state.is_symlink() or not state.is_dir():
             raise ValueError("unsafe state root")
         usage = shutil.disk_usage(state)

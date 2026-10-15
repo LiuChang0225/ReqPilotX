@@ -14,6 +14,10 @@
 
 此处没有在现有 ECS 注册或启用能力，注册是待核实目标和备份后才能执行的持久写操作。旧 hash 目录须保留以支持旧任务恢复。
 
+只读复核指出并已修正：仅 `none` 可报告 Agent 关闭，其它不支持的活动 backend 拒绝；原生 object/registry/scratch 绑定实际 application 备份根；registry 原配置的 symlink 别名拒绝；状态脚本拒绝合同目录任意祖先 symlink；继承的预检要求父目录可写与 systemd 沙箱冲突，改为仅检查 application 与 scratch。新增反例后部署聚焦 20 项通过；另有真实 SQLite/ASGI SaaS 账户、上传、隔离、回放及导出 21 项通过（66.261 秒），不是 PG 或真实模型验收。
+
+首次正式 engine 离线构建因临时 cache 无 setuptools 84.0.0 失败。未下载，随后明确复用本机已安装的相同版本，以 `UV_OFFLINE=1`、`UV_NO_BUILD_ISOLATION=1` 正式构建 engine wheel/sdist 和 server wheel 成功；构建 Python 3.13.2、产物 py3-none-any，不能据此声称 Linux 3.11 安装已验收。中间构建绑定 `ce8ad3c…`；后续修订必须重建 engine 与 bundle，不重标该旧 wheel。实际失败日志保留。
+
 ## 用户原会话的只读脚本
 
 源码为 `deploy/saas/status-readonly.py`；同目录 `status-readonly-command.sh` 是其可直接粘贴的 `python3.11` heredoc，不在服务器创建文件。用户只在原已登录服务器会话自行执行，不需要 sudo、新登录或新授权。当前电脑工具已实际安全拒绝访问 Terminal，Agent 不以 shell、另一终端、SSH 或远程连接替代。
