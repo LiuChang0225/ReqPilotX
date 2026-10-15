@@ -6,6 +6,7 @@ import json
 import os
 import tempfile
 import unittest
+from types import SimpleNamespace
 from pathlib import Path
 from unittest.mock import patch
 
@@ -21,6 +22,47 @@ def load_module(name: str, filename: str):
 
 entrypoint = load_module("pilot_entrypoint", "entrypoint.py")
 verifier = load_module("pilot_verifier", "verify-release.py")
+preflight = load_module("pilot_preflight", "preflight.py")
+
+
+class CapabilityPreflightTests(unittest.TestCase):
+    def settings(self, **overrides):
+        return SimpleNamespace(**{
+            "agent_runtime_backend": SimpleNamespace(value="provider-tool-loop"),
+            "native_capability_mode": SimpleNamespace(value="registered-release"),
+            "native_capability_registry_root": Path("/var/lib/reqpilotx/application/native-loop-capabilities"),
+            "object_root": Path("/var/lib/reqpilotx/application"),
+            "native_capability_bundle_sha256": "a" * 64,
+            **overrides,
+        })
+
+    def test_disabled_agent_does_not_claim_capability_ready(self):
+        result = preflight.native_capability_preflight(self.settings(agent_runtime_backend=SimpleNamespace(value="none")))
+        self.assertEqual(result["status"], "NOT_REQUIRED_AGENT_DISABLED")
+
+    def test_missing_pin_or_registry_outside_backup_is_refused(self):
+        for overrides in ({"native_capability_bundle_sha256": ""},
+                          {"native_capability_registry_root": Path("/var/lib/reqpilotx/native-loop-capabilities")},
+                          {"native_capability_mode": SimpleNamespace(value="development-source")}):
+            with self.subTest(overrides=overrides), self.assertRaises(ValueError):
+                preflight.native_capability_preflight(self.settings(**overrides))
+
+    def test_registered_bundle_must_match_installed_engine(self):
+        from unittest.mock import Mock
+        verify = Mock(return_value={"engine_release": {"core_identity": "b" * 64}})
+        modules = {
+            "reqpilotx_server.application.agent_workflow.native_loop_capabilities": SimpleNamespace(
+                _registered_bundle_path=lambda root, sha: root / sha / "reqpilot", _verify_bundle=verify),
+            "reqpilotx_engine": SimpleNamespace(core_manifest=lambda: {"core_identity": "b" * 64}),
+        }
+        with patch.dict("sys.modules", modules):
+            result = preflight.native_capability_preflight(self.settings())
+            self.assertEqual(result["status"], "VERIFIED")
+            verify.assert_called_once_with(Path("/var/lib/reqpilotx/application/native-loop-capabilities").resolve() / ("a" * 64) / "reqpilot",
+                                           "a" * 64, require_engine_release=True)
+            modules["reqpilotx_engine"].core_manifest = lambda: {"core_identity": "c" * 64}
+            with self.assertRaises(ValueError):
+                preflight.native_capability_preflight(self.settings())
 
 
 class DeploymentBoundaryTests(unittest.TestCase):

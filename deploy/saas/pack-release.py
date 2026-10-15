@@ -126,7 +126,7 @@ def main() -> int:
     deploy = output / "deploy"
     deploy.mkdir()
     # Allowlist release operations only; never include .env, user data or local secrets.
-    for name in ("entrypoint.py", "preflight.py", "backup-native.sh", "verify-release.py", "requirements-runtime.lock"):
+    for name in ("entrypoint.py", "preflight.py", "backup-native.sh", "verify-release.py", "status-readonly.py", "requirements-runtime.lock"):
         shutil.copy2(root / "deploy/saas" / name, deploy / name)
     for name in ("application.env.example", "pg_hba.conf.example", "postgresql.conf.fragment"):
         shutil.copy2(root / "deploy/saas" / name, deploy / name)

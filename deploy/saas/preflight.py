@@ -4,9 +4,34 @@ from __future__ import annotations
 import importlib.util
 import json
 import os
+import re
 import sys
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
+
+
+def native_capability_preflight(settings) -> dict:
+    if settings.agent_runtime_backend.value != "provider-tool-loop":
+        return {"status": "NOT_REQUIRED_AGENT_DISABLED"}
+    registry = settings.native_capability_registry_root.resolve()
+    state = settings.object_root.resolve()
+    identity = settings.native_capability_bundle_sha256
+    if (settings.native_capability_mode.value != "registered-release"
+            or registry == state or not registry.is_relative_to(state)
+            or not re.fullmatch(r"[0-9a-f]{64}", identity)):
+        raise ValueError("Provider pilot needs an exact registered capability inside backed-up application state.")
+    from reqpilotx_server.application.agent_workflow.native_loop_capabilities import (
+        _registered_bundle_path, _verify_bundle,
+    )
+    from reqpilotx_engine import core_manifest
+
+    receipt = _verify_bundle(_registered_bundle_path(registry, identity), identity,
+                             require_engine_release=True)
+    installed = core_manifest()
+    if receipt["engine_release"]["core_identity"] != installed["core_identity"]:
+        raise ValueError("Registered capability differs from the installed engine.")
+    return {"status": "VERIFIED", "bundle_sha256": identity,
+            "engine_core_identity": installed["core_identity"]}
 
 
 def runtime_preflight() -> None:
@@ -23,6 +48,7 @@ def runtime_preflight() -> None:
         raise ValueError("PostgreSQL is required.")
     if settings.object_store_backend.value != "local":
         raise ValueError("Pilot uses existing local disk only.")
+    capability = native_capability_preflight(settings)
     listen = os.environ.get("REQPILOT_LISTEN_HOST", "127.0.0.1")
     container = os.environ.get("REQPILOT_DATABASE_HOST") == "db"
     if listen != ("0.0.0.0" if container else "127.0.0.1"):
@@ -58,4 +84,5 @@ def runtime_preflight() -> None:
     app = create_app()
     if not app.state.saas_settings.enabled:
         raise ValueError("Authentication composition was disabled")
-    print(json.dumps({"ok": True, "database": "postgresql", "object_store": "local", "auth_required": True, "frontend_built": True}))
+    print(json.dumps({"ok": True, "database": "postgresql", "object_store": "local", "auth_required": True,
+                      "frontend_built": True, "native_capability": capability}))

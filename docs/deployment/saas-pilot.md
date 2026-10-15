@@ -69,6 +69,28 @@ python3.11 -m venv /opt/reqpilotx/releases/<revision>/venv
 
 示例命令是维护操作说明，不是未确认授权的自动脚本。先前发布需保留。安装服务后必须先停写入、备份 DB+objects，再运行 `reqpilotx-migrate.service`，通过后运行 `entrypoint.py preflight`，最后才启动 API/worker。版本化迁移核对历史 checksum 并用 PostgreSQL advisory transaction lock；不要改写已应用 migration 或用旧 SQLite 覆盖新 PG。
 
+### 注册与固定同版原生能力
+
+发布物已有 `capability/reqpilot`，但仅复制发布目录不能使 Agent 可用。启用 provider-tool-loop 前，由获准的现有服务操作员以 `reqpilotx` 服务身份注册完整能力包，并使用这份 `release.json` 中的 `native_capability_bundle_sha256`，不能使用其它发行的 hash：
+
+```sh
+<release>/venv/bin/reqpilotx-capability register \
+  --bundle <release>/capability/reqpilot \
+  --registry-root /var/lib/reqpilotx/application/native-loop-capabilities \
+  --expected-bundle-sha256 <exact-native_capability_bundle_sha256>
+<release>/venv/bin/reqpilotx-capability inspect \
+  --registry-root /var/lib/reqpilotx/application/native-loop-capabilities \
+  --bundle-sha256 <exact-native_capability_bundle_sha256>
+```
+
+注册是本地持久写操作，不属于只读状态检查；此处是部署准备说明，不是当前服务器已执行的声明。保留旧 hash 目录供已有任务恢复，不覆盖或回收旧能力。将返回的 `REQPILOT_NATIVE_CAPABILITY_MODE=registered-release`、registry 路径及 exact bundle hash 写入已批准的服务配置后，才启用 provider-tool-loop。registry 明确位于 `application/` 内，现有 systemd 写路径和同一时点 application 冷备份将覆盖它；不能依赖位于 `object_root.parent` 的默认目录。预检会拒绝缺少 pin、registry 在备份范围外或 bundle 与已安装 engine 身份不一致。Agent 关闭时预检明确输出 `NOT_REQUIRED_AGENT_DISABLED`，不宣称模型或能力就绪。
+
+### 用户原会话的只读状态核对
+
+`deploy/saas/status-readonly.py` 仅查看本页固定路径的发行元数据、三个既定 systemd unit 的少量状态和备份目录元数据，不读 env/配置全文、凭据、journal、数据库或客户正文，不请求网络、不提权、不更改服务。权限不足或布局不符返回 `UNKNOWN`，不探测别的目录或备用连接。即使存在 dump/tar，结果仍明确 `backup_integrity_verified=false`、`restore_verified=false`。输出含内部发行 hash、服务状态、剩余磁盘及备份时间/大小，应只交给授权维护者；不要附原始配置、日志、cookie 或数据库内容。
+
+只由用户在原已登录服务器会话运行，不能因电脑工具拒绝 Terminal 而由 Agent 改用 shell/SSH/另一终端或连接。本地交付另提供可直接粘贴的 `status-readonly-command.sh`；它把相同 Python 源码通过 heredoc 传入 `python3.11`，不在服务器写脚本文件。无需 sudo 或新增认证。该读回不能证明进程使用 manifest 所指发行或应用健康，后续仍须独立核验。
+
 不要仅凭 systemd active 或 `/api/healthz` 的 sanitized DB healthcheck 认定业务 ready。迁移失败、配置失败、缺失 auth 表、owner/context 失败、启动失败都必须停止发布；不打开公网作为调试绕路。
 
 ## 5. 备份、重启与回滚
