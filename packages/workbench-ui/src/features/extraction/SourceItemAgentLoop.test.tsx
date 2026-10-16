@@ -17,6 +17,33 @@ function setup(task: AgentLoopTask | null = null, overrides: Partial<Parameters<
 afterEach(() => { cleanup(); vi.clearAllMocks(); localStorage.clear(); });
 
 describe("SourceItemAgentLoop", () => {
+  it.each([
+    ["PROVIDER_LOOP_AUTHENTICATIONERROR", "模型服务认证失败"],
+    ["PROVIDER_LOOP_PERMISSIONDENIEDERROR", "模型服务拒绝访问"],
+  ])("explains a persisted provider failure and keeps the same-task recovery path: %s", async (code, message) => {
+    setup({ ...finished, job_status: "FAILED", error_message: code });
+    expect(await screen.findByRole("alert")).toHaveTextContent(message);
+    expect(screen.getByText("诊断代码")).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "继续此任务" })).toBeEnabled();
+    expect(screen.queryByText("本轮已结束")).not.toBeInTheDocument();
+    expect(vi.mocked(request).mock.calls.every(([, options]) => options?.method !== "POST")).toBe(true);
+    expect(props.onUpdated).not.toHaveBeenCalled();
+  });
+  it("restores selected-item scope on each explicit item feedback entry after document scope was used", async () => {
+    const view = setup();
+    fireEvent.change(screen.getByLabelText("修改范围"), { target: { value: "document" } });
+    const enterItem = (id: number) => view.rerender(<SourceItemAgentLoop {...props} openRequest={id} requestedScope={{ id, scope: "selected" }} />);
+    enterItem(1);
+    expect(screen.getByLabelText("修改范围")).toHaveValue("selected");
+    fireEvent.change(screen.getByLabelText("修改范围"), { target: { value: "document" } });
+    enterItem(2);
+    expect(screen.getByLabelText("修改范围")).toHaveValue("selected");
+    fireEvent.change(screen.getByLabelText("任务或修改意见"), { target: { value: "只核对当前条目" } });
+    fireEvent.click(screen.getByRole("button", { name: "开始新任务" }));
+    await waitFor(() => expect(vi.mocked(request).mock.calls.some(([, options]) => options?.method === "POST")).toBe(true));
+    const sent = vi.mocked(request).mock.calls.find(([, options]) => options?.method === "POST")!;
+    expect(JSON.parse(String(sent[1]?.body))).toMatchObject({ source_item_ids: ["src-1"], expected_baseline_sha256: props.baselineSha256 });
+  });
   it.each([false, true])("starts an autonomous task unless structure confirmation is explicitly selected: %s", async (requireConfirmation) => {
     setup(null, { mode: "extract" });
     const checkbox = screen.getByRole("checkbox", { name: "先核对文档结构，确认后继续" });

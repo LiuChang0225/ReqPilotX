@@ -29,6 +29,10 @@ export type AgentLoopTask = {
 type PublicEvent = PublicAgentEvent;
 const ACTIVE = new Set(["PENDING", "RUNNING", "CANCEL_REQUESTED"]);
 const labels: Record<string, string> = { PENDING: "已排队", RUNNING: "处理中", CANCEL_REQUESTED: "正在暂停", SUCCEEDED: "本轮已结束", FAILED: "本轮未完成", CANCELLED: "已暂停" };
+const providerFailureMessages: Record<string, string> = {
+  PROVIDER_LOOP_AUTHENTICATIONERROR: "模型服务认证失败，本轮未完成。请联系维护人员核对现有模型凭据；修复配置后可继续此任务。",
+  PROVIDER_LOOP_PERMISSIONDENIEDERROR: "模型服务拒绝访问，本轮未完成。请联系维护人员核对模型权限；修复配置后可继续此任务。",
+};
 const toolLabels: Record<string, string> = { reqpilot_context: "读取任务与当前版本", reqpilot_skill: "读取工作方法",
   reqpilot_read: "查阅原文与工件", reqpilot_candidate: "准备修订建议", reqpilot_run: "执行校验与交付工具", reqpilot_publish: "准备保存工作版" };
 function activityLabel(event: PublicEvent) {
@@ -54,6 +58,7 @@ export interface SourceItemAgentLoopProps {
   selectedSourceItemId: string; selectedLabel?: string; documentName?: string; baselineRevision?: number;
   onUpdated: () => void; mode?: "review" | "extract"; openRequest?: number;
   onTaskChange?: (task: AgentLoopTask) => void; initialGoal?: string;
+  requestedScope?: { id: number; scope: "selected" | "document" };
   embedded?: boolean; onClose?: () => void; onOpenStage?: (stage: SourceStage) => void;
   historyHostRef?: (element: HTMLDivElement | null) => void; taskOverride?: AgentLoopTask | null;
   startReady?: boolean;
@@ -75,7 +80,7 @@ export function SourceItemAgentLoop(props: SourceItemAgentLoopProps) {
   return workspace && !props.embedded ? <BoundAgentEntry {...props} /> : <SourceItemAgentLoopController {...props} />;
 }
 function SourceItemAgentLoopController({ projectId, documentId, sourceSha256, baselineSha256, selectedSourceItemId,
-  selectedLabel, documentName, baselineRevision, onUpdated, mode = "review", openRequest = 0, onTaskChange, initialGoal = "",
+  selectedLabel, documentName, baselineRevision, onUpdated, mode = "review", openRequest = 0, onTaskChange, initialGoal = "", requestedScope,
   embedded = false, onClose, onOpenStage, historyHostRef, taskOverride, startReady = true }: SourceItemAgentLoopProps) {
   const availability = useSaasNativeAgentAvailability();
   const root = `/api/projects/${encodeURIComponent(projectId)}/sor-documents/${encodeURIComponent(documentId)}/agent-structure/delivery/${mode === "extract" ? "extraction-loop" : "loop"}`;
@@ -89,6 +94,9 @@ function SourceItemAgentLoopController({ projectId, documentId, sourceSha256, ba
   const [analysisMode, setAnalysisMode] = useState<"AUTO" | "SKIP">("AUTO");
   const [confirmMap, setConfirmMap] = useState(false);
   const [scope, setScope] = useState<"selected" | "document">("selected");
+  useEffect(() => {
+    if (requestedScope) setScope(requestedScope.scope);
+  }, [requestedScope?.id, requestedScope?.scope]);
   const [pending, setPending] = useState(false), [error, setError] = useState("");
   const [draftStorageUnavailable, setDraftStorageUnavailable] = useState(false);
   const [notice, setNotice] = useState(""), [events, setEvents] = useState<PublicEvent[]>([]), [retry, setRetry] = useState(0);
@@ -327,7 +335,10 @@ function SourceItemAgentLoopController({ projectId, documentId, sourceSha256, ba
           </article>)}
         </section>}
         {error && <p className="agent-inline-notice is-error" role="alert">{error} <button type="button" className="button ghost compact" onClick={() => setRetry(value => value + 1)}>重新同步</button></p>}
-        {task?.error_message && <p className="agent-inline-notice is-error" role="alert">{task.error_message}</p>}
+        {task?.error_message && <div className="agent-inline-notice is-error" role="alert">
+          <p>{providerFailureMessages[task.error_message] || task.error_message}</p>
+          {providerFailureMessages[task.error_message] && <details><summary>诊断代码</summary><code>{task.error_message}</code></details>}
+        </div>}
         {notice && <p className="agent-inline-notice" role="status">{notice}</p>}
 
 

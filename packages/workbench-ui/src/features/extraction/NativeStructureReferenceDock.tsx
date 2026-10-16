@@ -3186,6 +3186,7 @@ export function NativeStructureReferenceDock({
   useEffect(() => {
     const handoff = reference?.continuation.latest_handoff;
     if (
+      isSaasAccountMode() ||
       !reference ||
       !handoff ||
       !verificationAttempt ||

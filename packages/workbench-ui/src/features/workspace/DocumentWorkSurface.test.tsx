@@ -7,7 +7,7 @@ import type { AgentLoopTask } from "../extraction/SourceItemAgentLoop";
 import type { SourceStage } from "../extraction/SourceDocumentStageResults";
 import type { WorkspaceRoute } from "./route";
 let emitTask: (task: AgentLoopTask) => void;
-let agentProps: { selectedSourceItemId: string; onUpdated: () => void; onOpenStage: (stage: SourceStage) => void };
+let agentProps: { selectedSourceItemId: string; onUpdated: () => void; onOpenStage: (stage: SourceStage) => void; requestedScope?: { id: number; scope: "selected" | "document" } };
 let suppliedSummary: unknown = { delivery: null, task: null, deliveryError: "", taskError: "" };
 const harness = vi.hoisted(() => ({ route: { task: "extraction", mode: "organize", checkpoint: "structure", projectId: "p", documentId: "d", requirementSetId: "" } as WorkspaceRoute,
   updateRoute: vi.fn(), source: "source" }));
@@ -55,6 +55,20 @@ it("releases the previous item's scope and refresh callback after leaving its vi
   expect(agentProps.selectedSourceItemId).toBe("");
   act(() => agentProps.onUpdated());
   expect(refreshSource).not.toHaveBeenCalled();
+});
+
+it("forwards every explicit item feedback scope to the native controller", () => {
+  function FeedbackEntry() {
+    const workspace = useDocumentAgent()!;
+    useEffect(() => workspace.bind({ sourceSha256: "source", baselineSha256: "basis", selectedSourceItemId: "src-1", onUpdated: vi.fn() }), [workspace.bind]);
+    return <><button onClick={() => workspace.show("复核全文", "document")}>全文反馈</button><button onClick={() => workspace.show("核对此条", "selected")}>条目反馈</button></>;
+  }
+  render(<DocumentWorkSurface><FeedbackEntry /></DocumentWorkSurface>);
+  fireEvent.click(screen.getByText("全文反馈"));
+  expect(agentProps.requestedScope?.scope).toBe("document");
+  fireEvent.click(screen.getByText("条目反馈"));
+  expect(agentProps.requestedScope).toEqual({ id: 2, scope: "selected" });
+  expect(agentProps.selectedSourceItemId).toBe("src-1");
 });
 
 const savedMap: SourceStage = { stage: "MAP", artifact_sha256: "saved-map", count: 3 };

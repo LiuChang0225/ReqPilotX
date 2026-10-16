@@ -42,3 +42,19 @@ npm run typecheck
 同版b321103安装核576个server文件、engine闭包和Web11个文件通过，API/worker/全新PG实际启动；浏览器登录成功后，项目入口显示`saas_route_not_enabled`。独立HTTP确认账户项目GET=200、全局管理员配置GET=403、runtime能力GET=200。旧UI无条件并行请求管理员配置，项目/文档加载还读旧知识/Set台账/导出接口，导致员工路径失败；模拟旅程曾将这些拒绝接口返回200而漏检。
 
 先令模拟HTTP遵守真实私有profile的拒绝边界，原5项旅程全部失败；再修共享工作台在已确认SaaS模式只请求账户内项目/文档和当前原文Agent接口，跳过未开放的管理/旧台账读取，并移除员工入口中的管理员/知识写操作。没有扩服务白名单或弱化授权；本地/Pair模式继续原读取。相关旅程及Workspace回归26项通过，TypeScript通过。该次环境尚未建业务job或发模型请求（实际job数0）；停止记录与失败证据保留在私有trial-live-1目录，不能记为模型失败或员工接受。
+
+## 真实模型首次请求：认证失败，尚无语义验收
+
+同版`7e9c08e`的已安装engine/server、正式能力包及生产Web通过启动前身份校验。浏览器实际完成登录、项目创建、PDF上传、发起原生文档任务；没有预置项目、任务、结构或条目答案。仅使用本runner生成的1页合成PDF，模型选择沿批准的`qwen3.8-max-0902`，开启思考，不添加新的调用/输出预算上限。
+
+百炼北京兼容端点实际返回HTTP401，任务自然终止为`FAILED / PROVIDER_LOOP_AUTHENTICATIONERROR`，stages为空；`SKIP / USER_SKIPPED`已保存。刷新后同一任务可继续、原文件仍可从实际PDF阅读器读到。该次没有成功模型输出，不能报告来源语义、完整员工链、反馈或Excel通过，不能沿用历史模型成绩。私有`trial-live-2/browser-model-auth-failure.json`保留版本、任务/来源身份和实际步骤；未保存凭据。
+
+用户确认欠费并选择复用既有ECS模型配置，无需在聊天发送key。员工界面将已知认证/权限失败译为具体原因及修复后继续原任务的指引，诊断代码仍可展开；不会自动重试或把已保存任务标成成功。
+
+独立复核另发现条目反馈范围可能沿用之前的“当前文档”。现已将工作台的显式范围请求传入原生控制器，每次条目反馈重设为所选条目，后续手选范围仍可用；请求测试核`source_item_ids`与基线hash，工作台测试核实际范围传递。SaaS旧结构`rendered-reopen`自动写入现已与其它旧结构写操作一样禁用；本地/Pair仍保留原行为。5个相关UI测试文件共139项通过，无失败/跳过，TypeScript通过。
+
+## ECS 只读现场
+
+通过官方已登录Chrome进入指定现有ECS Workbench，沿已启用的免密连接核对。实际`current`指向`reqpilotx-saas-812a4f18fb5e`，manifest源码`812a4f18fb5e057bf8727301893fd74665d4a046`，API/worker均active/running。既有`application.env`与私有`provider.env`存在；脱敏核对显示aliyun、`qwen3.8-max-0902`、官方北京端点、key已配置，但`REQPILOT_AGENT_RUNTIME=none`。没有输出/下载key，没有更改配置、服务、网络或当前发行。
+
+模型在线探针尚未执行。共享Chrome前台窗口同时变化，待执行脚本误贴至另一页面未发送输入框；已确认误贴内容清除，脚本无key值。已暂停原生浏览器输入，等待用户提供稳定的Workbench操作时段或自行执行脱敏探针；不能把连接成功、key存在或服务active记为模型在线成功。

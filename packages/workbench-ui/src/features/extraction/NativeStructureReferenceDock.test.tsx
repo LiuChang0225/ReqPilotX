@@ -3859,7 +3859,8 @@ describe("NativeStructureReferenceDock", () => {
     }
   });
 
-  it("waits for the authoritative working projection before acknowledging rendered reopen", async () => {
+  it.each([false, true])("acknowledges only the authoritative working projection in a supported profile; SaaS=%s", async saas => {
+    if (saas) setSaasAccountIdentity("account-a");
     const attempt = {
       schema_version: "native-structure-handoff-attempt-receipt/v1" as const,
       attempt_id: "native-structure-handoff-attempt-deferred-" + "1".repeat(24),
@@ -3973,7 +3974,12 @@ describe("NativeStructureReferenceDock", () => {
     expect(acknowledge).not.toHaveBeenCalled();
 
     resolveWorkingReference(workingReference);
-    await waitFor(() => expect(acknowledge).toHaveBeenCalledTimes(1));
+    if (saas) {
+      await act(async () => { await new Promise(resolve => window.setTimeout(resolve, 80)); });
+      expect(acknowledge).not.toHaveBeenCalled();
+    } else {
+      await waitFor(() => expect(acknowledge).toHaveBeenCalledTimes(1));
+    }
   });
 
   it("retries a failed authoritative terminal refresh and applies the next success", async () => {

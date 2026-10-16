@@ -161,6 +161,7 @@ function DocumentSurface({ children }: PropsWithChildren) {
             selectedLabel={activeBinding?.selectedLabel} documentName={selectedDocument?.file_name}
             mode={baseline ? "review" : "extract"} onUpdated={updated} onTaskChange={receiveTask}
             openRequest={openRequest} initialGoal={initialGoal} onOpenStage={openStage} taskOverride={override}
+            requestedScope={requestedFeedbackScope || undefined}
             historyHostRef={setHistoryHost} startReady={Boolean(summary && !summary.deliveryError && !summary.taskError)}
             onClose={() => { setOpened(false); trigger.current?.focus(); }} />}
         </aside>
