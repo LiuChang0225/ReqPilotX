@@ -18,6 +18,24 @@ from app.application.agent_workflow import native_loop_tools
 
 
 class NativeToolHostTests(unittest.TestCase):
+    def test_worked_method_selection_reaches_public_cli_and_rejects_other_values(self):
+        from types import SimpleNamespace
+        (self.plugin / 'scripts/reading_workspace_tools.py').write_text('')
+        host = NativeLoopToolHost(workspace=self.workspace, plugin_root=self.plugin)
+        with patch('subprocess.run', return_value=SimpleNamespace(returncode=0,
+                stdout='{"status":"GENERATED","example_only":true}', stderr='')) as run:
+            result = host.invoke('reqpilot_run', {'operation': 'worked-example',
+                'arguments': {'example': 'source-units', 'output_dir': 'examples/methods'}})
+            self.assertTrue(result['success'], result)
+            self.assertIn('--example', run.call_args.args[0])
+            self.assertIn('source-units', run.call_args.args[0])
+        for value in ('unknown', '--project-root=/outside', ['source-units']):
+            with patch('subprocess.run') as run:
+                result = host.invoke('reqpilot_run', {'operation': 'worked-example',
+                    'arguments': {'example': value, 'output_dir': 'examples/methods'}})
+                self.assertFalse(result['success'], result)
+                run.assert_not_called()
+
     def setUp(self):
         self.temp = tempfile.TemporaryDirectory()
         self.root = Path(self.temp.name)

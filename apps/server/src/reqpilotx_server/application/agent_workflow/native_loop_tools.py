@@ -466,6 +466,8 @@ class NativeLoopToolHost:
                 if not isinstance(value, str) or not re.fullmatch(r'[0-9a-f]{64}', value):
                     raise ValueError('expected_review_sha256 must pin the current review')
                 command += [flag, value]
+            elif name == 'example' and operation == 'worked-example' and isinstance(value, str) and value in {'front-matter', 'source-units'}:
+                command += [flag, value]
             else:
                 raise ValueError('Unsupported portable argument: ' + name)
         if operation == 'capture' and capture_source_sha and 'expected_sha256' not in arguments:

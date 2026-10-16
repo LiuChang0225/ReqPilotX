@@ -45,6 +45,7 @@ The snippets below are synthetic. They describe target semantics, not a claim th
 | Whole table or records, DVP/BOM, protocol matrix, merges, footnotes, continuation, choices, blanks | [Tables and relationships: T01–T12](tables-and-relations.md) |
 | Requirementness, five classes, normative scope, optional/TBD/conflicting values, Snn, evidence or export mismatch | [Judgment cases: J01–J10](judgment-cases.md) |
 | Need a complete input/output reference that runs through the real tools | [Worked example](worked-examples.md) |
+| Milestone/BOM/test grouping or a saved local correction with unchanged-result handling | [Runnable source-unit methods](source-unit-methods.md) |
 | Ready to check a candidate or localized revision | [Semantic self-check](semantic-self-check.md) |
 
 For command syntax, jump to the relevant [capture](tools-capture.md), [Map](tools-map.md), [items](tools-items.md), [images](tools-images.md), [decomposition](tools-decomposition.md), or [analysis/delivery](tools-analysis-delivery.md) section. Generated requests and actual tool availability govern inputs; examples do not authorize inventing fields or source handles.

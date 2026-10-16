@@ -3,8 +3,12 @@ from __future__ import annotations
 
 import unittest
 import json
+import sys
 from pathlib import Path
 from tempfile import TemporaryDirectory
+
+REPO = Path(__file__).resolve().parents[3]
+sys.path.insert(0, str(REPO / 'plugins/reqpilot/scripts'))
 
 from openpyxl import load_workbook
 
@@ -16,7 +20,6 @@ from portable_fixtures import item_decisions, make_fixture
 from task_service import TaskService
 
 
-REPO = Path(__file__).resolve().parents[3]
 ENTRY = REPO / "plugins/reqpilot/scripts/reqpilot.py"
 
 

@@ -339,6 +339,8 @@ def main() -> int:
     attach.set_defaults(func=artifact_operation)
     for name in ("compile-map", "audit-map", "compile-items", "compile-images", "compile-annotations", "image-packet", "register-evidence", "analysis-packet", "compile-assessments", "deliver", "schemas", "inspect-source", "capture-pdf-text", "capture-visual-source", "read-pdf-visual", "revise-visual-text", "reading-packet", "reading-workspace", "worked-example", "decomposition-packet", "compile-decomposition", "review-open", "review-feedback", "review-packet", "review-revise", "review-close", "review-verify", "manual-context", "import-manual-decisions"):
         operation = sub.add_parser(name)
+        if name == 'worked-example':
+            operation.add_argument('--example', choices=('front-matter', 'source-units'), default='front-matter')
         operation.add_argument("--input", type=Path)
         operation.add_argument("--source-ir", type=Path)
         operation.add_argument("--source", type=Path)
@@ -440,7 +442,10 @@ def artifact_operation(args: argparse.Namespace) -> dict:
     if args.command == "worked-example":
         if args.output_dir is None:
             raise ValueError('worked-example requires a new --output-dir')
-        from worked_example import generate
+        if getattr(args, 'example', 'front-matter') == 'source-units':
+            from worked_source_units import generate
+        else:
+            from worked_example import generate
         import contextlib
         with contextlib.redirect_stdout(sys.stderr):
             result = generate(args.project_root, args.output_dir.resolve(), args.source)

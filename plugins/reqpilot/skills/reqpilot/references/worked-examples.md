@@ -1,5 +1,7 @@
 # Complete runnable example
 
+For milestones, mixed text/BOM ownership, cross-page tests, explicit source context and a local correction/no-change branch, use [source-unit methods](source-unit-methods.md). The original front-matter example below remains the default.
+
 For normal cases and special conditions start with [the case index](reading-guide.md). This example is an invented worked answer, not a customer fixture or an automatic semantic extractor.
 
 In a native host run `reqpilot_run` with `operation="worked-example"` and `arguments:{"output_dir":"examples/front-matter"}`. The returned directory contains `map-decisions.json`, `item-decisions.json`, requests and actual outputs readable through `reqpilot_read`; no general shell or script-reading permission is needed. This is synthetic teaching material, never a customer stage result.
