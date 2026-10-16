@@ -1,5 +1,6 @@
 import { useEffect, useReducer, useRef, useState } from "react";
 import { api } from "../../shared/api/client";
+import { isSaasAccountMode } from "../../shared/api/saasSession";
 import { knowledgeGate } from "../../shared/runtime/processingCapabilities";
 import { EmptyState, InlineNotice } from "../../shared/ui/Feedback";
 import { Dialog } from "../../shared/ui/Dialog";
@@ -16,6 +17,7 @@ import {
 } from "../documents/uploadQueue";
 
 export function ProjectManagementPanel() {
+  const saasMode = isSaasAccountMode();
   const host = useWorkbenchHost();
   const nativeEvidence = host.nativeEvidence === true && !host.readOnly;
   const {
@@ -273,7 +275,7 @@ export function ProjectManagementPanel() {
             <Icon name="upload" />
             添加客户来源
           </button>
-          <button
+          {!saasMode && <button
             className="button secondary"
             type="button"
             disabled={!selectedProject}
@@ -293,7 +295,7 @@ export function ProjectManagementPanel() {
           >
             <Icon name="plus" />
             添加知识依据
-          </button>
+          </button>}
           <input
             ref={sorInput}
             hidden

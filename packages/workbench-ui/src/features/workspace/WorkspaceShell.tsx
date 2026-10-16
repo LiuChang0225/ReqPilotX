@@ -12,6 +12,7 @@ import {
   useState,
 } from "react";
 import { usePreferences } from "../../app/preferences";
+import { isSaasAccountMode } from "../../shared/api/saasSession";
 import { AppLink } from "../../shared/navigation";
 import { cx } from "../../shared/lib/format";
 import { knowledgeGate } from "../../shared/runtime/processingCapabilities";
@@ -301,7 +302,7 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
 
         <nav className="workspace-navigation" aria-label="工作台导航">
           <span className="nav-group-label">工作空间</span>
-          {primaryNavigation.map((item) => {
+          {primaryNavigation.filter(item => !isSaasAccountMode() || item.task !== "knowledge").map((item) => {
             const active = route.task === item.task;
             const count = counts[item.task];
             return (
@@ -381,7 +382,7 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
               />
               <span>{refreshing ? "同步中" : "同步"}</span>
             </button>
-            <button
+            {!isSaasAccountMode() && <button
               className="icon-button"
               type="button"
               aria-label="管理员设置"
@@ -389,7 +390,7 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
               onClick={() => setSettingsOpen(true)}
             >
               <Icon name="settings" />
-            </button>
+            </button>}
             <button
               className="icon-button"
               type="button"

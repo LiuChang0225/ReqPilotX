@@ -407,7 +407,7 @@ class SaaSAcceptanceTests(unittest.TestCase):
     def test_legacy_global_surfaces_runtime_mutations_and_plugin_writes_are_denied(self):
         for method, path in (("GET", "/api/exports/file.xlsx"), ("POST", "/api/exports/file.xlsx/reveal"),
             ("GET", "/api/evidences/evidence/context"), ("GET", "/api/evidences/evidence/file"),
-            ("GET", "/api/requirements/requirement/review-logs"), ("POST", "/api/runtime/ai-provider-setup"),
+            ("GET", "/api/requirements/requirement/review-logs"), ("GET", "/api/runtime/ai-provider-setup"), ("POST", "/api/runtime/ai-provider-setup"),
             ("POST", "/api/runtime/ai-provider-setup/aliyun-probe"), ("POST", "/api/artifact-smoke/shutdown"),
             ("POST", self.document_path() + "/agent-structure/delivery/plugin-workbench")):
             reply = self.a.request(method, path, headers=self.headers(), json={} if method == "POST" else None)

@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../shared/api/client";
+import { isSaasAccountMode } from "../../shared/api/saasSession";
 import type {
   AiProviderSetup,
   ExtractionStatus,
@@ -40,7 +41,16 @@ import { useWorkspaceRoute } from "./route";
 type WorkspaceActionScope = "project" | "document" | "requirementSet";
 const ReadingWorkspacePage = lazy(async () => ({ default: (await import("../reading/ReadingWorkspacePage")).ReadingWorkspacePage }));
 
+function loadProjectResources(projectId: string, saasMode: boolean) {
+  return Promise.all([
+    api.sorDocuments(projectId),
+    saasMode ? Promise.resolve<KnowledgeDocument[]>([]) : api.knowledgeDocuments(projectId),
+    api.projectProcessingProfile(projectId),
+  ]);
+}
+
 export function WorkspacePage() {
+  const saasMode = isSaasAccountMode();
   const { route, update } = useWorkspaceRoute();
   const [projects, setProjects] = useState<Project[]>([]);
   const [projectsLoaded, setProjectsLoaded] = useState(false);
@@ -345,7 +355,7 @@ export function WorkspacePage() {
 
   const refreshAi = useCallback(async () => {
     const generation = ++aiLoadGeneration.current;
-    if (!route.projectId || !route.documentId) {
+    if (saasMode || !route.projectId || !route.documentId) {
       aiStatusScopeRef.current = "";
       setAiStatus(null);
       return;
@@ -366,11 +376,11 @@ export function WorkspacePage() {
       }
       throw cause;
     }
-  }, [route.documentId, route.projectId]);
+  }, [route.documentId, route.projectId, saasMode]);
 
   const refreshExports = useCallback(async () => {
     const generation = ++exportsLoadGeneration.current;
-    if (!route.projectId) {
+    if (saasMode || !route.projectId) {
       exportsScopeRef.current = "";
       setExports([]);
       return;
@@ -380,7 +390,7 @@ export function WorkspacePage() {
     if (generation !== exportsLoadGeneration.current) return;
     exportsScopeRef.current = projectScope;
     setExports(next);
-  }, [route.projectId]);
+  }, [route.projectId, saasMode]);
 
   const refreshProject = useCallback(async () => {
     const generation = ++projectLoadGeneration.current;
@@ -395,11 +405,7 @@ export function WorkspacePage() {
     }
     const projectId = route.projectId;
     const projectScope = projectScopeKey(projectId);
-    const [nextDocuments, nextKnowledge, nextProfile] = await Promise.all([
-      api.sorDocuments(projectId),
-      api.knowledgeDocuments(projectId),
-      api.projectProcessingProfile(projectId),
-    ]);
+    const [nextDocuments, nextKnowledge, nextProfile] = await loadProjectResources(projectId, saasMode);
     if (generation !== projectLoadGeneration.current) return;
     documentsScopeRef.current = projectScope;
     knowledgeScopeRef.current = projectScope;
@@ -407,7 +413,7 @@ export function WorkspacePage() {
     setDocuments(nextDocuments);
     setKnowledge(nextKnowledge);
     setProcessingProfile(nextProfile.profile);
-  }, [route.projectId]);
+  }, [route.projectId, saasMode]);
 
   const refreshDocument = useCallback(async () => {
     const generation = ++documentLoadGeneration.current;
@@ -437,8 +443,8 @@ export function WorkspacePage() {
       requestedRequirementSetId,
     );
     const results = await Promise.allSettled([
-      api.workspace(projectId, documentId, true, requestedRequirementSetId),
-      api.requirementSets(projectId, documentId),
+      saasMode ? Promise.resolve(null) : api.workspace(projectId, documentId, true, requestedRequirementSetId),
+      saasMode ? Promise.resolve(null) : api.requirementSets(projectId, documentId),
       api.extractionStatus(projectId, documentId),
       api.structure(projectId, documentId),
       api.structureOptimizationStatus(projectId, documentId),
@@ -494,11 +500,11 @@ export function WorkspacePage() {
       );
     }
     if (generation === documentLoadGeneration.current) setRefreshing(false);
-  }, [route.documentId, route.projectId]);
+  }, [route.documentId, route.projectId, saasMode]);
 
   const refreshRequirementSetScope = useCallback(async () => {
     const generation = ++requirementSetScopeLoadGeneration.current;
-    if (!route.projectId || !route.documentId) return;
+    if (saasMode || !route.projectId || !route.documentId) return;
     const projectId = route.projectId;
     const documentId = route.documentId;
     const requirementSetId = route.requirementSetId;
@@ -539,7 +545,7 @@ export function WorkspacePage() {
           : new Error(String(unexpected.reason)),
       );
     }
-  }, [route.documentId, route.projectId, route.requirementSetId]);
+  }, [route.documentId, route.projectId, route.requirementSetId, saasMode]);
 
   const refreshAll = useCallback(async () => {
     const generation = ++loadGeneration.current;
@@ -550,7 +556,7 @@ export function WorkspacePage() {
         await Promise.all([
           api.projects(),
           api.readiness(),
-          api.aiSetup(),
+          saasMode ? Promise.resolve(null) : api.aiSetup(),
           api.runtimeCapabilities(),
         ]);
       if (generation !== loadGeneration.current) return;
@@ -567,7 +573,7 @@ export function WorkspacePage() {
     } finally {
       if (generation === loadGeneration.current) setLoading(false);
     }
-  }, [refreshDocument, refreshProject, route.documentId, route.projectId]);
+  }, [refreshDocument, refreshProject, route.documentId, route.projectId, saasMode]);
 
   useEffect(() => {
     void refreshAll();
@@ -608,11 +614,7 @@ export function WorkspacePage() {
     let active = true;
     void (async () => {
       try {
-        const [nextDocuments, nextKnowledge, nextProfile] = await Promise.all([
-          api.sorDocuments(projectId),
-          api.knowledgeDocuments(projectId),
-          api.projectProcessingProfile(projectId),
-        ]);
+        const [nextDocuments, nextKnowledge, nextProfile] = await loadProjectResources(projectId, saasMode);
         if (!active) return;
         documentsScopeRef.current = projectScope;
         knowledgeScopeRef.current = projectScope;
@@ -641,7 +643,7 @@ export function WorkspacePage() {
     return () => {
       active = false;
     };
-  }, [route.documentId, route.projectId, route.pluginSessionId, update]);
+  }, [route.documentId, route.projectId, route.pluginSessionId, update, saasMode]);
 
   useEffect(() => {
     const documentIdentity = documentScopeKey(

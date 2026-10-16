@@ -93,6 +93,12 @@ class JourneyHttp {
     }
     if (path === "/api/auth/logout") { this.account = null; return json(this.session()); }
     if (!this.account) return json({ detail: "session_expired" }, 401);
+    // Match the real private pilot surface: these legacy/admin reads are not
+    // employee capabilities. A fixture must not make login succeed by granting them.
+    if (path === '/api/runtime/ai-provider-setup' || path === '/api/runtime/worker-fleet'
+      || /\/(knowledge-documents|workspace|requirement-sets|exports)$/.test(path)) {
+      return json({ detail: 'saas_route_not_enabled' }, 403);
+    }
     if (path === "/api/projects") {
       if (method === "POST") {
         const project = { id: projectId, name: String(body.name), customer_name: String(body.customer_name), owner: this.account.id };
@@ -269,6 +275,8 @@ describe("SaaS account-to-delivery composed Web UI (HTTP fixtures, no extraction
     expect(http.mutations("/api/auth/login")).toHaveLength(1);
     await act(async () => http.loginReply.resolve());
     await createProject(); await upload(view); await openAgent();
+    expect(screen.queryByRole('button', {name:'管理员设置'})).not.toBeInTheDocument();
+    expect(screen.queryByRole('button', {name:'添加知识依据'})).not.toBeInTheDocument();
     await userEvent.dblClick(screen.getByRole("button", { name: "开始新任务" }));
     expect(http.mutations(extractionRoot)).toHaveLength(1);
     expect(http.mutations(extractionRoot)[0].body).toMatchObject({ expected_source_sha256: sourceSha,
@@ -276,6 +284,8 @@ describe("SaaS account-to-delivery composed Web UI (HTTP fixtures, no extraction
     expect(http.mutations(extractionRoot)[0].body).not.toHaveProperty("expected_baseline_sha256");
     await act(async () => http.startReply.resolve());
     await savedExport();
+    expect(http.calls.filter(call => call.path === '/api/runtime/ai-provider-setup'
+      || /\/(knowledge-documents|workspace|requirement-sets|exports)$/.test(call.path)).map(call => call.path)).toEqual([]);
     for (const call of http.calls.filter(call => call.method === "POST" && !call.path.startsWith("/api/auth/"))) {
       expect(call.headers.get("X-ReqPilot-CSRF")).toBe("csrf-account-a");
       expect(call.body.command_id).toEqual(expect.any(String));
