@@ -4,6 +4,8 @@ import json
 import hashlib
 from pathlib import Path
 import sys
+import subprocess
+import time
 from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import unittest
@@ -14,6 +16,9 @@ from private_web_trial import (
     provider_environment,
     verify_frontend,
     stop_owned_resources,
+    start_owned_process,
+    stop_owned_group,
+    group_running,
 )  # noqa: E402
 from check_trial_installation import verify_payload  # noqa: E402
 
@@ -126,8 +131,11 @@ class PrivateWebTrialProfileTests(unittest.TestCase):
         with (
             TemporaryDirectory() as temporary,
             patch(
-                "private_web_trial.shared.stop_server",
-                side_effect=[RuntimeError("forced"), None],
+                "private_web_trial.stop_owned_group",
+                side_effect=[
+                    {"stopped": True, "forced": True},
+                    {"stopped": True, "forced": False},
+                ],
             ) as stop,
             patch("private_web_trial.shared.stop_postgres") as postgres,
         ):
@@ -142,7 +150,7 @@ class PrivateWebTrialProfileTests(unittest.TestCase):
         with (
             TemporaryDirectory() as temporary,
             patch(
-                "private_web_trial.shared.stop_server",
+                "private_web_trial.stop_owned_group",
                 side_effect=RuntimeError("still alive"),
             ),
             patch("private_web_trial.shared.stop_postgres") as postgres,
@@ -158,6 +166,37 @@ class PrivateWebTrialProfileTests(unittest.TestCase):
                     for row in result["cleanup_errors"]
                 )
             )
+
+    @unittest.skipUnless(sys.platform != "win32", "POSIX trial runner")
+    def test_owned_group_stops_a_term_ignoring_portable_child_after_parent_exit(self):
+        with TemporaryDirectory() as temporary:
+            marker = Path(temporary) / "child-ready"
+            child_code = (
+                "import signal,time,sys;from pathlib import Path;"
+                'signal.signal(signal.SIGTERM,signal.SIG_IGN);Path(sys.argv[1]).write_text("READY");time.sleep(60)'
+            )
+            parent_code = (
+                "import subprocess,sys,time;"
+                'subprocess.Popen([sys.executable,"-c",sys.argv[1],sys.argv[2]]);time.sleep(60)'
+            )
+            process = start_owned_process(
+                [sys.executable, "-c", parent_code, child_code, str(marker)],
+                stdin=subprocess.DEVNULL,
+                stdout=subprocess.DEVNULL,
+                stderr=subprocess.DEVNULL,
+            )
+            try:
+                deadline = time.monotonic() + 3
+                while not marker.exists() and time.monotonic() < deadline:
+                    time.sleep(0.02)
+                self.assertTrue(marker.exists())
+                result = stop_owned_group(process, grace=0.1)
+                self.assertTrue(result["stopped"])
+                self.assertTrue(result["forced"])
+                self.assertFalse(group_running(process.pid))
+                self.assertIsNotNone(process.poll())
+            finally:
+                stop_owned_group(process, grace=0.1)
 
 
 if __name__ == "__main__":

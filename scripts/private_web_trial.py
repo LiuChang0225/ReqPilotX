@@ -119,19 +119,73 @@ def installed_identity(
     return proof
 
 
+def start_owned_process(*args, **kwargs):
+    if os.name != "posix":
+        raise ValueError("This private Web trial requires POSIX owned process groups")
+    process = subprocess.Popen(*args, start_new_session=True, **kwargs)
+    process._reqpilot_owned_group = process.pid
+    return process
+
+
+def group_running(group: int) -> bool:
+    observed = subprocess.run(
+        ["ps", "-axo", "pgid=,stat="], capture_output=True, text=True, check=True
+    )
+    return any(
+        int(parts[0]) == group and not parts[1].startswith("Z")
+        for line in observed.stdout.splitlines()
+        if len(parts := line.split()) == 2 and parts[0].isdigit()
+    )
+
+
+def stop_owned_group(process, grace=20.0) -> dict:
+    group = getattr(process, "_reqpilot_owned_group", None)
+    if (
+        group != process.pid
+        or not isinstance(group, int)
+        or group < 2
+        or group == os.getpgrp()
+    ):
+        raise ValueError("Refusing to signal an unowned process group")
+    if process.poll() is None and os.getpgid(process.pid) != group:
+        raise ValueError("Owned process group changed")
+    forced = False
+    for sig, timeout in ((signal.SIGTERM, grace), (signal.SIGKILL, 5.0)):
+        if not group_running(group):
+            break
+        if sig == signal.SIGKILL:
+            forced = True
+        try:
+            os.killpg(group, sig)
+        except ProcessLookupError:
+            pass
+        deadline = time.monotonic() + timeout
+        while time.monotonic() < deadline:
+            process.poll()
+            if not group_running(group):
+                break
+            time.sleep(0.05)
+    process.poll()
+    return {"stopped": not group_running(group), "forced": forced, "group": group}
+
+
 def stop_owned_resources(directory: Path, env: dict, worker, api) -> dict:
-    errors, forced = [], []
+    errors, forced, groups = [], [], []
     for name, process in (("worker", worker), ("api", api)):
         if process is not None:
             try:
-                shared.stop_server(process)
+                result = stop_owned_group(process)
+                groups.append(result["stopped"])
+                if result["forced"]:
+                    forced.append(name)
+                    errors.append({"resource": name, "error_type": "ForcedGroupStop"})
             except Exception as error:
+                groups.append(False)
                 errors.append({"resource": name, "error_type": type(error).__name__})
-            if process.poll() == -getattr(signal, "SIGKILL", 9):
-                forced.append(name)
     stopped = {
         "api_stopped": api is None or api.poll() is not None,
         "worker_stopped": worker is None or worker.poll() is not None,
+        "owned_groups_stopped": all(groups),
     }
     if all(stopped.values()):
         try:
@@ -333,7 +387,7 @@ def main() -> int:
             "Installed capability registration failed; no model was started",
         )
         with (directory / "api.log").open("ab") as log:
-            api = subprocess.Popen(
+            api = start_owned_process(
                 [
                     str(interpreter),
                     "-I",
@@ -383,7 +437,7 @@ def main() -> int:
             )
         if args.live_provider:
             with (directory / "worker.log").open("ab") as log:
-                worker = subprocess.Popen(
+                worker = start_owned_process(
                     [
                         str(interpreter),
                         "-I",
@@ -421,7 +475,12 @@ def main() -> int:
             lifecycle_status="STOPPED"
             if all(
                 cleanup[key]
-                for key in ("api_stopped", "worker_stopped", "postgres_stopped")
+                for key in (
+                    "api_stopped",
+                    "worker_stopped",
+                    "owned_groups_stopped",
+                    "postgres_stopped",
+                )
             )
             else "CLEANUP_INCOMPLETE",
             **cleanup,
