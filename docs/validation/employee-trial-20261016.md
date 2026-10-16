@@ -57,4 +57,18 @@ npm run typecheck
 
 通过官方已登录Chrome进入指定现有ECS Workbench，沿已启用的免密连接核对。实际`current`指向`reqpilotx-saas-812a4f18fb5e`，manifest源码`812a4f18fb5e057bf8727301893fd74665d4a046`，API/worker均active/running。既有`application.env`与私有`provider.env`存在；脱敏核对显示aliyun、`qwen3.8-max-0902`、官方北京端点、key已配置，但`REQPILOT_AGENT_RUNTIME=none`。没有输出/下载key，没有更改配置、服务、网络或当前发行。
 
-模型在线探针尚未执行。共享Chrome前台窗口同时变化，待执行脚本误贴至另一页面未发送输入框；已确认误贴内容清除，脚本无key值。已暂停原生浏览器输入，等待用户提供稳定的Workbench操作时段或自行执行脱敏探针；不能把连接成功、key存在或服务active记为模型在线成功。
+共享Chrome前台窗口同时变化时，待执行脚本曾误贴至另一页面未发送输入框；已确认误贴内容清除，脚本无key值。用户随后明确暂停操作Chrome，重新定位唯一Workbench标签并核对Shell后执行脱敏探针：官方北京端点实际返回HTTP400、`Arrearage`、无模型输出。没有更改服务运行时或当前发行。Python3.11.13/x86_64、可用磁盘约33.6GB，备份根有3个条目；条目存在不证明备份可恢复。
+
+用户已明确“先等待吧”。因此暂停真实模型与ECS推进，待用户恢复额度及明确接续后继续；不自动重试、充值、启用生产Agent或切换发行。私有`ecs-observation.json`记录脱敏现场，未保存凭据值。
+
+## 固定候选、安装及恢复结果
+
+运行候选为`b811e0fdf7bc4289ab9b6bb2159c503a6d455a6a`。正式engine、插件bundle及Web从该干净提交构建，安装身份核验通过576个server文件、完整engine闭包及11个Web文件。bundle为`2a8832377b8f91cc4376712206e980aee42dcea359d8f4e2890d87daff18db5c`；没有源码或editable应用回退。Mac Python3.13.2的隔离venv复用既有依赖路径，不代表全新机器或Linux安装。
+
+该候选23项真实PostgreSQL验收全部通过（19.265秒，无跳过），包含真正SDK/公开工具/worker编制修订交付、两账户授权、版本与实际Excel。模型网络使用`httpx.MockTransport`，不是本轮真实provider成功。
+
+已安装wheel的独立恢复测试也通过：真实PG导出并恢复到另一数据库，复制639个application文件并核hash，核验时原application目录移开；同账户会话、原件和冻结Excel字节一致，runtime jobs相同，另一账户导出被拒，恢复的注册bundle重新核验通过。首次适配验证脚本漏改一处旧能力包路径而报FileNotFoundError；修正脚本路径后以新输出目录复验，不修改产品或放宽断言。两次临时PG均已停止。
+
+Linux3.11/x86_64/glibc2.28离线发行包已完成：两个wheel、59个从既有已校验存档复用的依赖wheel、正式能力包、生产Web与运维文件，288个payload文件校验通过。未新增下载。归档`reqpilotx-private-web-b811e0f-linux-py311.tar.gz`为69,485,627字节，SHA256=`ef6521e25f77f85fdab999141d3237000cddd351f83c1c409bca453087b8167f`，保存在本轮私有runtime-data。没有上传/安装/切换到ECS，Linux目标运行和实际服务器恢复仍未验收。
+
+浏览器两次隔离环境的API、worker、所属进程组和PG均完整停止，cleanup_errors为空。原有两个工作目录的用户变更保留，远端未push。
