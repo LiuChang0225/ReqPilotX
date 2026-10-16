@@ -24,7 +24,7 @@ jobs:
           cache-dependency-path: package-lock.json
       - run: npm ci
       - run: npm run test
-      - run: node --test packages/workbench-ui/scripts/scope-panel-css.test.mjs
+      - run: node --test packages/workbench-ui/scripts/scope-panel-css.test.mjs scripts/web-build-identity.test.mjs
       - run: npm run build
       - run: npm run build:panel
       - run: node integrations/pair/scripts/build.mjs

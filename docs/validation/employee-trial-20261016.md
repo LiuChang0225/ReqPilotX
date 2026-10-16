@@ -20,6 +20,7 @@ Node 依赖最初直接链接旧 node_modules，导致 workspace 包解析至旧
 
 ```sh
 "$PYTHON" scripts/test_python.py plugin --pattern 'test_worked*.py'
+"$PYTHON" scripts/test_python.py backend --pattern test_private_web_trial.py
 "$PYTHON" -m unittest discover -s deploy/saas -p 'test_*.py' -v
 python3 agent-assets/scripts/asset_registry.py --repo . check
 npm test -- apps/web/src/auth/AccountToDeliveryAcceptance.test.tsx packages/workbench-ui/src/features/workspace/DeliveryVersions.test.tsx packages/workbench-ui/src/features/extraction/SourceItemAgentLoop.test.tsx
@@ -31,3 +32,5 @@ npm run typecheck
 当前实跑：新旧可执行示范2项、原生工具14项、Web旅程/版本/Agent控件24项、部署预检21项、profile读取/目的地保护2项通过；TypeScript、Web生产构建与资产清单检查通过。BOM原页已渲染检查，表头/行/引导正文可读。新示范最终16条来源、局部分类修订保留全部稳定身份，后续正确结果preserve不产生版本；此计数只属于该合成示范。Ruff最初发现新文件分号及动态import位置问题，修正后单独核验；不修改既有lint规则。
 
 聚焦运行既有 mixed 合同时发现其依赖先前测试的脚本路径注入；补独立 source-checkout bootstrap 后按同一隔离 runner 再验，不改变生产编制规则。
+
+独立审查另发现验收入口的两项P2：worker停止异常会跳过其余资源清理，以及只核bundle而没有核安装服务/Web身份。已改为独立清理和准确失败回执；启动前逐字节核已安装engine/server、拒绝editable/源码回退，校验Web构建的commit/tree/完整文件清单。Web构建新增身份元数据；脏源构建可用于开发，但不能进入本试用验收。新增旧版/篡改/额外代码、清理异常反例进入常规后端/前端CI。未修改原provider配额、工具协议或分类算法。

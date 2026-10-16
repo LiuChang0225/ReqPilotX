@@ -9,6 +9,8 @@ from __future__ import annotations
 
 import argparse
 from datetime import datetime, timezone
+import hashlib
+from io import BytesIO
 import json
 import os
 from pathlib import Path
@@ -16,6 +18,7 @@ import signal
 import subprocess
 import sys
 from threading import Event
+import tarfile
 import time
 from uuid import uuid4
 
@@ -24,6 +27,125 @@ import smoke_workbench as shared
 EMAIL = "trial-engineer@example.invalid"
 # Public, disposable-fixture login; never used for an existing service/account.
 PASSWORD = "Invented-Fixture-Only-20261016!"
+
+
+def verify_frontend(root: Path, commit: str, tree: str) -> dict:
+    if root.is_symlink() or not root.is_dir():
+        raise ValueError("Frontend must be a regular built directory")
+    path = root / "reqpilotx-build.json"
+    if path.is_symlink() or not path.is_file() or path.stat().st_size > 8_000_000:
+        raise ValueError("Matching Web build identity is missing")
+    identity = json.loads(path.read_text())
+    if (
+        identity.get("schema_version") != "reqpilotx-web-build/v1"
+        or identity.get("source_commit") != commit
+        or identity.get("source_tree") != tree
+        or identity.get("source_inputs_clean") is not True
+    ):
+        raise ValueError("Frontend was not built from this clean candidate")
+    actual = {}
+    for member in root.rglob("*"):
+        if member.is_symlink():
+            raise ValueError("Frontend cannot contain symlinks")
+        if member.is_file() and member != path:
+            actual[member.relative_to(root).as_posix()] = {
+                "sha256": hashlib.sha256(member.read_bytes()).hexdigest(),
+                "bytes": member.stat().st_size,
+            }
+    expected = {
+        row["path"]: {"sha256": row["sha256"], "bytes": row["bytes"]}
+        for row in identity["files"]
+    }
+    if (
+        len(expected) != len(identity["files"])
+        or "index.html" not in expected
+        or actual != expected
+    ):
+        raise ValueError("Frontend files differ from their build identity")
+    return {
+        "status": "VERIFIED",
+        "source_commit": commit,
+        "source_tree": tree,
+        "manifest_sha256": hashlib.sha256(path.read_bytes()).hexdigest(),
+        "file_count": len(actual),
+    }
+
+
+def installed_identity(
+    interpreter: Path, directory: Path, build: dict, commit: str, env: dict
+) -> dict:
+    prefix = "apps/server/src/reqpilotx_server/"
+    archive = subprocess.check_output(
+        ["git", "archive", commit, prefix], cwd=shared.ROOT
+    )
+    files = {}
+    with tarfile.open(fileobj=BytesIO(archive)) as source:
+        for member in source:
+            if member.isfile():
+                files[member.name.removeprefix(prefix)] = hashlib.sha256(
+                    source.extractfile(member).read()
+                ).hexdigest()
+            elif not member.isdir():
+                raise ValueError("Committed server source cannot contain links")
+    expected = {
+        "source_commit": commit,
+        "source_tree": subprocess.check_output(
+            ["git", "rev-parse", commit + "^{tree}"], cwd=shared.ROOT, text=True
+        ).strip(),
+        "server_files": files,
+        "engine_core_identity": build["engine_release"]["core_identity"],
+    }
+    descriptor = directory / "expected-installation.json"
+    shared.save(descriptor, expected)
+    checked = subprocess.run(
+        [
+            str(interpreter),
+            "-I",
+            str(shared.ROOT / "scripts/check_trial_installation.py"),
+            str(descriptor),
+        ],
+        env=env,
+        cwd=directory,
+        capture_output=True,
+        text=True,
+    )
+    shared.require(
+        checked.returncode == 0, "Installed engine/server do not match this candidate"
+    )
+    proof = json.loads(checked.stdout)
+    shared.require(
+        proof.get("status") == "VERIFIED", "Installation identity was not verified"
+    )
+    return proof
+
+
+def stop_owned_resources(directory: Path, env: dict, worker, api) -> dict:
+    errors, forced = [], []
+    for name, process in (("worker", worker), ("api", api)):
+        if process is not None:
+            try:
+                shared.stop_server(process)
+            except Exception as error:
+                errors.append({"resource": name, "error_type": type(error).__name__})
+            if process.poll() == -getattr(signal, "SIGKILL", 9):
+                forced.append(name)
+    stopped = {
+        "api_stopped": api is None or api.poll() is not None,
+        "worker_stopped": worker is None or worker.poll() is not None,
+    }
+    if all(stopped.values()):
+        try:
+            shared.stop_postgres(directory, env)
+        except Exception as error:
+            errors.append({"resource": "postgres", "error_type": type(error).__name__})
+    else:
+        errors.append({"resource": "postgres", "error_type": "OwnedWriterStillRunning"})
+    return {
+        **stopped,
+        "postgres_stopped": not (directory / "postgres-data/postmaster.pid").exists(),
+        "cleanup_errors": errors,
+        "forced_stop": forced,
+    }
 
 
 def provider_environment(path: Path, model: str) -> dict[str, str]:
@@ -120,6 +242,17 @@ def main() -> int:
     commit = subprocess.check_output(
         ["git", "rev-parse", "HEAD"], cwd=shared.ROOT, text=True
     ).strip()
+    tree = subprocess.check_output(
+        ["git", "rev-parse", "HEAD^{tree}"], cwd=shared.ROOT, text=True
+    ).strip()
+    shared.require(
+        not subprocess.check_output(
+            ["git", "status", "--porcelain=v1", "--untracked-files=all"],
+            cwd=shared.ROOT,
+            text=True,
+        ).strip(),
+        "Freeze a clean candidate before acceptance",
+    )
     shared.require(
         build.get("release_mode") == "ENGINE_WHEEL"
         and build["engine_release"]["source_commit"] == commit,
@@ -147,6 +280,8 @@ def main() -> int:
         ),
         REQPILOT_NATIVE_CAPABILITY_BUNDLE_SHA256=build["bundle_sha256"],
     )
+    frontend_proof = verify_frontend(args.frontend_root, commit, tree)
+    installation_proof = installed_identity(interpreter, directory, build, commit, env)
     if args.live_provider:
         env.update(provider_environment(args.profile_file, args.model))
     else:
@@ -156,6 +291,8 @@ def main() -> int:
         "schema_version": "reqpilotx-private-web-trial/v1",
         "status": "STARTING",
         "source_commit": commit,
+        "installation": installation_proof,
+        "frontend": frontend_proof,
         "bundle_sha256": build["bundle_sha256"],
         "base_url": origin,
         "fixture_only": True,
@@ -276,20 +413,22 @@ def main() -> int:
         report.update(status="FAILED", error_type=type(error).__name__)
         raise
     finally:
-        for process in (worker, api):
-            if process is not None:
-                shared.stop_server(process)
-        shared.stop_postgres(directory, env)
+        cleanup = stop_owned_resources(directory, env, worker, api)
         report.update(
-            status="FAILED" if report.get("error_type") else "STOPPED",
-            lifecycle_status="STOPPED",
-            api_stopped=api is None or api.poll() is not None,
-            worker_stopped=worker is None or worker.poll() is not None,
-            postgres_stopped=not (directory / "postgres-data/postmaster.pid").exists(),
+            status="FAILED"
+            if report.get("error_type") or cleanup["cleanup_errors"]
+            else "STOPPED",
+            lifecycle_status="STOPPED"
+            if all(
+                cleanup[key]
+                for key in ("api_stopped", "worker_stopped", "postgres_stopped")
+            )
+            else "CLEANUP_INCOMPLETE",
+            **cleanup,
             stopped_at=datetime.now(timezone.utc).isoformat(),
         )
         shared.save(directory / "trial.json", report)
-    return 0
+    return 0 if report["status"] != "FAILED" else 1
 
 
 if __name__ == "__main__":

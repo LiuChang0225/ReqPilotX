@@ -1,8 +1,11 @@
 import { defineConfig } from "vite";
 import react from "@vitejs/plugin-react";
+// @ts-expect-error Build helper is a Node ESM module, outside browser sources.
+import { stampWebBuild } from "../../scripts/web-build-identity.mjs";
 
 export default defineConfig({
-  plugins: [react()],
+  plugins: [react(), { name: "reqpilotx-build-identity", apply: "build", enforce: "post",
+    writeBundle(options) { stampWebBuild(options.dir || "dist"); } }],
   base: "/",
   build: {
     outDir: "dist",
