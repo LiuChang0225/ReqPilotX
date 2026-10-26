@@ -90,6 +90,64 @@ class RuntimePathIsolationTests(unittest.TestCase):
         self.assertEqual(missing, [], f"Tests missing runtime isolation: {missing}")
         self.assertEqual(late, [], f"Tests activate isolation after app imports: {late}")
 
+    def test_private_web_trial_import_isolates_package_and_discovery_entries(self) -> None:
+        repo_root = Path(__file__).resolve().parents[2]
+        script = """
+import importlib
+import os
+from pathlib import Path
+import sys
+
+sys.path.insert(0, sys.argv[2])
+importlib.import_module(sys.argv[1])
+from app.runtime_paths import resolve_storage_dir
+from app.infrastructure.runtime_settings import (
+    AgentRuntimeBackend, DeploymentMode, RuntimeSettings,
+)
+
+expected = Path(os.environ["REQPILOT_TEST_STORAGE_DIR"]).resolve()
+assert resolve_storage_dir(Path(sys.argv[3])) == expected
+settings = RuntimeSettings.from_environment()
+assert settings.deployment_mode == DeploymentMode.TEST
+assert settings.object_root == expected / "objects"
+assert settings.agent_runtime_backend == AgentRuntimeBackend.NONE
+"""
+        entries = (
+            ("prototype.tests.test_private_web_trial", repo_root),
+            ("test_private_web_trial", repo_root / "prototype/tests"),
+        )
+        with tempfile.TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            inherited = root / "inherited-runtime"
+            inherited.mkdir()
+            marker = inherited / "config.json"
+            original = b'{"canary":"must-remain-unchanged"}\n'
+            marker.write_bytes(original)
+            for index, (module, import_root) in enumerate(entries):
+                with self.subTest(module=module):
+                    isolated = root / f"isolated-{index}"
+                    environment = os.environ.copy()
+                    environment.update({
+                        "REQPILOT_TEST_STORAGE_DIR": str(isolated),
+                        STORAGE_ROOT_ENV_VAR: str(inherited),
+                        "REQPILOT_ENV": "local",
+                        "REQPILOT_OBJECT_STORE": "local",
+                        "REQPILOT_OBJECT_ROOT": str(inherited),
+                        "REQPILOT_AGENT_RUNTIME": "codex-app-server",
+                    })
+                    result = subprocess.run(
+                        [sys.executable, "-c", script, module, str(import_root),
+                         str(repo_root / "prototype")],
+                        cwd=repo_root,
+                        env=environment,
+                        capture_output=True,
+                        text=True,
+                        timeout=30,
+                        check=False,
+                    )
+                    self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+                    self.assertEqual(marker.read_bytes(), original)
+
     def test_package_and_raw_discovery_entries_preserve_real_config(self) -> None:
         repo_root = Path(__file__).resolve().parents[2]
         production_config = repo_root / "prototype" / "storage" / "config.json"
