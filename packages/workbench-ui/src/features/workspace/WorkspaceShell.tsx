@@ -13,7 +13,8 @@ import {
 } from "react";
 import { usePreferences } from "../../app/preferences";
 import { isSaasAccountMode } from "../../shared/api/saasSession";
-import { AppLink } from "../../shared/navigation";
+import { AppLink, useNavigate, useBrowserLocation } from "../../shared/navigation";
+import { HostAgentSettings, useApplicationHost, useApplicationWidth } from "../../host/ApplicationHost";
 import { cx } from "../../shared/lib/format";
 import { knowledgeGate } from "../../shared/runtime/processingCapabilities";
 import { Brand } from "../../shared/ui/Brand";
@@ -43,8 +44,8 @@ const primaryNavigation: Array<{
   },
   {
     task: "extraction",
-    label: "需求提取",
-    description: "结构整理与清单确认",
+    label: "需求整理",
+    description: "读取原文、核对结构与条目",
     icon: "tree",
   },
   {
@@ -70,7 +71,7 @@ const primaryNavigation: Array<{
 const taskTitles: Record<WorkspaceTask, string> = {
   projects: "项目管理",
   reading: "AI 辅助阅读",
-  extraction: "需求提取",
+  extraction: "需求整理",
   analysis: "需求分析",
   knowledge: "领域知识库",
   export: "矩阵导出",
@@ -90,6 +91,9 @@ function initialSidebarMode(): "expanded" | "compact" {
 }
 
 export function WorkspaceShell({ children }: PropsWithChildren) {
+  const applicationHost = useApplicationHost();
+  const applicationWidth = useApplicationWidth();
+  const navigate = useNavigate();
   const {
     route,
     updateRoute,
@@ -111,6 +115,18 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
   );
   const [sidebarOverlayOpen, setSidebarOverlayOpen] = useState(false);
   const [settingsOpen, setSettingsOpen] = useState(false);
+  const browserLocation = useBrowserLocation();
+  useEffect(() => {
+    if (new URLSearchParams(browserLocation.search).get("settings") === "agent") setSettingsOpen(true);
+  }, [browserLocation.search]);
+  const closeSettings = () => {
+    setSettingsOpen(false);
+    const params = new URLSearchParams(browserLocation.search);
+    if (params.has("settings")) {
+      params.delete("settings");
+      navigate(`${browserLocation.pathname}${params.size ? `?${params}` : ""}`, { replace: true });
+    }
+  };
   const sidebarRef = useRef<HTMLElement>(null);
   const sidebarToggleRef = useRef<HTMLButtonElement>(null);
   const requirementCount = workspace?.requirements?.length || 0;
@@ -148,6 +164,11 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
   }, [sidebarMode]);
 
   useEffect(() => {
+    if (applicationWidth !== undefined) {
+      setRailViewport(applicationWidth < SIDEBAR_RAIL_BREAKPOINT);
+      if (applicationWidth >= SIDEBAR_RAIL_BREAKPOINT) setSidebarOverlayOpen(false);
+      return;
+    }
     const listener = () => {
       const nextRailViewport = window.innerWidth < SIDEBAR_RAIL_BREAKPOINT;
       setRailViewport(nextRailViewport);
@@ -155,7 +176,7 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
     };
     window.addEventListener("resize", listener);
     return () => window.removeEventListener("resize", listener);
-  }, []);
+  }, [applicationWidth]);
 
   useEffect(() => {
     if (!sidebarOverlayOpen) return;
@@ -245,9 +266,12 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
     <div
       className={cx(
         "workspace-app",
+        applicationHost && "reqpilotx-panel-root is-hosted-application",
         `is-sidebar-${railViewport ? "compact" : sidebarMode}`,
         sidebarOverlayOpen && "is-sidebar-overlay-open",
       )}
+      data-theme={theme}
+      style={applicationHost ? { height: "100%", minHeight: 0 } : undefined}
     >
       <a className="skip-link" href="#workspace-content">
         跳到主工作区
@@ -342,6 +366,9 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
             </small>
           </div>
         </div>
+        {!isSaasAccountMode() && <button className="nav-item workspace-agent-settings" type="button" onClick={() => setSettingsOpen(true)} aria-label="Agent 设置">
+          <Icon name="settings" size={19} /><span><strong>Agent 设置</strong><small>连接与处理方式</small></span>
+        </button>}
       </aside>
 
       {sidebarOverlayOpen && (
@@ -383,13 +410,13 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
               <span>{refreshing ? "同步中" : "同步"}</span>
             </button>
             {!isSaasAccountMode() && <button
-              className="icon-button"
+              className="button secondary compact"
               type="button"
-              aria-label="管理员设置"
-              title="管理员设置"
+              aria-label="打开 Agent 设置"
+              title="Agent 设置"
               onClick={() => setSettingsOpen(true)}
             >
-              <Icon name="settings" />
+              <Icon name="settings" /><span>Agent 设置</span>
             </button>}
             <button
               className="icon-button"
@@ -402,9 +429,8 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
             <AppLink
               className="icon-button"
               to="/home"
-              target="_blank"
-              aria-label="打开产品说明"
-              title="产品说明"
+              aria-label="打开工作首页"
+              title="工作首页"
             >
               <Icon name="home" />
             </AppLink>
@@ -417,25 +443,25 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
 
       <Dialog
         open={settingsOpen}
-        title="管理员设置"
+        title="Agent 与处理设置"
         className="settings-dialog"
-        onClose={() => setSettingsOpen(false)}
+        onClose={closeSettings}
       >
         <header className="dialog-command-header">
           <div>
-            <p className="section-label">可选能力</p>
-            <h2>管理员设置</h2>
+            <p className="section-label">本地工作区</p>
+            <h2>Agent 与处理设置</h2>
           </div>
           <button
             className="icon-button"
             type="button"
             aria-label="关闭设置"
-            onClick={() => setSettingsOpen(false)}
+            onClick={closeSettings}
           >
             <Icon name="close" />
           </button>
         </header>
-        {route.reviewCase ? <p>当前入口用于核对已生成的原文候选；运行配置在常规项目入口管理。</p> : <SettingsPanel />}
+        {settingsOpen && (applicationHost ? <HostAgentSettings /> : route.reviewCase ? <p>当前入口用于核对已生成的原文候选；运行配置在常规项目入口管理。</p> : <SettingsPanel />)}
       </Dialog>
     </div>
   );

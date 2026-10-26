@@ -7,7 +7,17 @@ consume the generated `dist-panel` CJS/ES/CSS and `host-contract.json`.
 From the repository root: `npm ci`, `npm test`, `npm run typecheck`,
 `npm run build:panel`, `npm run test:css`. The root lock pins the same dependencies
 as the former frontend. React is external in Panel builds and supplied by the host.
-Contract `reqpilot-host-ui/v1` remains major 1 / minor 1.
+Contract `reqpilot-host-ui/v1` remains major 1 / minor 2.
+
+## Complete embedded application
+
+`ReqPilotXApplication` renders the same `HomePage` and `WorkspacePage` used by Web, including project/document navigation and the shared structure, source, response and delivery views. `ReqPilotXReadonlyPanel` remains available for explicit saved-work diagnostic consumers.
+
+The adapter installs `installApplicationTransport({ id, resourceUrl, fetch })` before rendering. One bundle generation owns one active application transport. Disposal aborts its requests and refuses fallback into the parent application's `/api`; it never replaces global `fetch`. The stable application ID namespaces pending entry commands. Standalone Web retains normal browser transport and navigation.
+
+Embedded navigation and preferences are scoped to the panel. The parent URL, document title and global theme/language remain with the host. The current shared business UI is Chinese; the embedding wrapper does not claim an English translation. A ResizeObserver supplies the available panel width to the incumbent responsive navigation. The full application keeps the WorkspaceShell grid; legacy saved-panel flex rules exclude its marker.
+
+The host supplies task start, exact-work restoration, control and Session opening through `WorkbenchApplicationHost`. `HostedAgentPanel` owns only these host controls. Business feedback, original-source linkage, human opinions, versions and exports continue through the existing workbench components and API. Host configuration is shown without a second model/provider editor. Unsupported source removal and knowledge import remain explicitly disabled; program capture requires a declared capability.
 
 ## Native Web original evidence
 

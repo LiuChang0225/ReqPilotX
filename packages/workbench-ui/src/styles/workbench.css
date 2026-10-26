@@ -577,7 +577,8 @@
 .ledger-excerpt-origin { display: block; margin-top: 3px; color: var(--muted); font-size: 10px; }
 
 /* Both host builds consume this same business stylesheet. */
-.reqpilotx-panel-root.workspace-app { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; min-width: 0; overflow: hidden; background: var(--paper); color: var(--ink); container-type: inline-size; }
+/* Full applications keep the WorkspaceShell grid; this layout belongs to the legacy saved-work panel. */
+.reqpilotx-panel-root.workspace-app:not(.is-hosted-application) { display: flex; flex-direction: column; width: 100%; height: 100%; min-height: 0; min-width: 0; overflow: hidden; background: var(--paper); color: var(--ink); container-type: inline-size; }
 .readonly-panel-header { display: flex; align-items: center; flex-wrap: wrap; gap: 8px 12px; padding: 9px 14px; border-bottom: 1px solid var(--line); flex-shrink: 0; }
 .readonly-panel-header > div { flex: 1; min-width: 130px; }
 .readonly-panel-header strong { display: block; max-width: 48ch; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; font-size: 13px; }

@@ -2,7 +2,7 @@
 export const hostUiContract = {
   schema: 'reqpilot-host-ui/v1',
   major: 1,
-  minor: 1,
-  exports: ['ReqPilotXReadonlyPanel', 'createReadonlyHttpClient', 'createProjectDocumentClient', 'projectDocumentPaths', 'requestWithTransport', 'validWorkSelection'],
-  surfaces: ['readonly-plugin-work', 'projects-read-create', 'documents-read-import'],
+  minor: 2,
+  exports: ['ReqPilotXReadonlyPanel', 'createReadonlyHttpClient', 'createProjectDocumentClient', 'projectDocumentPaths', 'requestWithTransport', 'validWorkSelection', 'ReqPilotXApplication', 'installApplicationTransport', 'createApplicationNavigation'],
+  surfaces: ['readonly-plugin-work', 'projects-read-create', 'documents-read-import', 'complete-workbench-application'],
 } as const;

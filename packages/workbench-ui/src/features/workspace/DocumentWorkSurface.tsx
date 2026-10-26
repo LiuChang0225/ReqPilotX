@@ -12,6 +12,8 @@ import { ExternalAgentPanel } from "./ExternalAgentPanel";
 import { consumeReadingHandoffIntent } from "./readingHandoff";
 import { DocumentWorkPicker } from "./DocumentWorkPicker";
 import { selectedPluginWork, type PluginWorkSummary } from "./documentWorkCatalog";
+import { useApplicationHost } from "../../host/ApplicationHost";
+import { HostedAgentPanel } from "../../host/HostedAgentPanel";
 
 /** One document task, shared by structure, source review, analysis and delivery. */
 export function DocumentWorkSurface({ children }: PropsWithChildren) {
@@ -21,6 +23,7 @@ export function DocumentWorkSurface({ children }: PropsWithChildren) {
   return <DocumentSurface key={`${route.projectId}:${route.documentId}:${selectedDocument!.source_sha256}`}>{children}</DocumentSurface>;
 }
 function DocumentSurface({ children }: PropsWithChildren) {
+  const applicationHost = useApplicationHost();
   const { route, updateRoute, selectedDocument, refreshDocument } = useWorkspace();
   const sourceSha256 = String(selectedDocument?.source_sha256 || "");
   const isExternal = Boolean(route.pluginSessionId);
@@ -35,14 +38,13 @@ function DocumentSurface({ children }: PropsWithChildren) {
   const [binding, setBinding] = useState<DocumentAgentBinding | null>(null);
   const [task, setTask] = useState<AgentLoopTask | null>(null);
   const [override, setOverride] = useState<AgentLoopTask | null>(null);
-  const [opened, setOpened] = useState(() => window.innerWidth >= 1500);
+  const [opened, setOpened] = useState(false);
   const [openRequest, setOpenRequest] = useState(0);
   const [requestedFeedbackScope, setRequestedFeedbackScope] = useState<{ id: number; scope: "selected" | "document" } | null>(null);
   const [initialGoal, setInitialGoal] = useState("");
   const [stage, setStage] = useState<(SourceStage & { taskId: string; sourceSha256: string }) | null>(null);
   const [historyHost, setHistoryHost] = useState<HTMLElement | null>(null);
   const autoStages = useRef(new Set<string>());
-  const briefOpened = useRef(false);
   const bindingOwner = useRef<symbol | null>(null);
   const bindingRef = useRef(binding); bindingRef.current = binding;
   const trigger = useRef<HTMLButtonElement>(null);
@@ -66,12 +68,6 @@ function DocumentSurface({ children }: PropsWithChildren) {
       sessionId: route.pluginSessionId, revisionId: plugin.pinned });
     if (intent) show("", "document");
   }, [isExternal, plugin.state?.session_id, plugin.reader?.revision_id, plugin.pinned, route.projectId, route.documentId, route.pluginSessionId, sourceSha256, show]);
-  useEffect(() => {
-    if (!isExternal && summary && !summary.pluginDraft && !summary.delivery && !summary.deliveryError && !summary.taskError && !currentTask?.task_id && !bindingRef.current?.baselineSha256 && !briefOpened.current) {
-      briefOpened.current = true;
-      show("完整阅读当前客户文档，先提供可核对的文档结构，再整理原文条目与分类；按已明确的粒度作必要拆分，基于实际内部依据分析，最后保存同一版本的 Matrix 草稿。");
-    }
-  }, [summary, currentTask?.task_id, show, isExternal]);
   const openStage = useCallback((value: SourceStage) => {
     if (!currentTask?.task_id || currentTask.source_sha256 && currentTask.source_sha256 !== sourceSha256) return;
     setStage({ ...value, taskId: currentTask.task_id, sourceSha256 });
@@ -153,10 +149,14 @@ function DocumentSurface({ children }: PropsWithChildren) {
           </section>}
         </div>
         <aside className="document-agent-pane" hidden={!opened} aria-label="Agent 任务工作区">
+          {applicationHost && <HostedAgentPanel projectId={route.projectId} documentId={route.documentId} sourceSha256={sourceSha256}
+            workRef={route.pluginSessionId} revisionId={plugin.pinned || undefined} binding={activeBinding} initialGoal={initialGoal} onAccepted={value => {
+              updateRoute({ pluginSessionId: value.workRef, resultRevision: undefined, task: "extraction", mode: "organize", checkpoint: "structure" }); updated();
+            }} onClose={() => { setOpened(false); trigger.current?.focus(); }} />}
           {isExternal ? <ExternalAgentPanel provider={plugin} projectId={route.projectId} documentId={route.documentId} documentName={selectedDocument!.file_name} binding={activeBinding} openRequest={openRequest}
             requestedScope={requestedFeedbackScope || undefined}
             onClose={() => { setOpened(false); trigger.current?.focus(); }} onViewStage={(value, resultRevision) => { updateRoute({ task:"extraction",mode:"organize",checkpoint:value.stage === "MAP" ? "structure" : "list", ...(resultRevision ? {resultRevision} : {}) }); if (window.innerWidth < 1300) setOpened(false); }}/>
-          : <SourceItemAgentLoop embedded projectId={route.projectId} documentId={route.documentId} sourceSha256={sourceSha256}
+          : !applicationHost && <SourceItemAgentLoop embedded projectId={route.projectId} documentId={route.documentId} sourceSha256={sourceSha256}
             baselineSha256={baseline} baselineRevision={baseline === summary?.delivery?.baseline_sha256 ? summary.delivery.baseline_revision : undefined} selectedSourceItemId={activeBinding?.selectedSourceItemId || ""}
             selectedLabel={activeBinding?.selectedLabel} documentName={selectedDocument?.file_name}
             mode={baseline ? "review" : "extract"} onUpdated={updated} onTaskChange={receiveTask}

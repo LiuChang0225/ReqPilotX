@@ -1,5 +1,6 @@
 import { lazy, Suspense, useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { api } from "../../shared/api/client";
+import { useApplicationHost } from "../../host/ApplicationHost";
 import { isSaasAccountMode } from "../../shared/api/saasSession";
 import type {
   AiProviderSetup,
@@ -50,6 +51,7 @@ function loadProjectResources(projectId: string, saasMode: boolean) {
 }
 
 export function WorkspacePage() {
+  const applicationHost = useApplicationHost();
   const saasMode = isSaasAccountMode();
   const { route, update } = useWorkspaceRoute();
   const [projects, setProjects] = useState<Project[]>([]);
@@ -159,8 +161,8 @@ export function WorkspacePage() {
   requirementSetIdRef.current = route.requirementSetId;
 
   useEffect(() => {
-    document.title = "ReqPilotX · 需求工作台";
-  }, []);
+    if (!applicationHost) document.title = "ReqPilotX · 需求工作台";
+  }, [applicationHost]);
 
   const currentProjectScope = projectScopeKey(route.projectId);
   const currentDocumentScope = documentScopeKey(

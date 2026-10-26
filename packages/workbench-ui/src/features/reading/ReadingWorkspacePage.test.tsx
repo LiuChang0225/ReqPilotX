@@ -2042,7 +2042,7 @@ describe("ReadingWorkspacePage conversation-first reader", () => {
     await user.type(composer, "请总结");
     await user.keyboard("{Enter}");
 
-    expect(await screen.findByText("Codex Agent 尚未就绪")).toBeInTheDocument();
+    expect(await screen.findByText("阅读 Agent 尚未就绪")).toBeInTheDocument();
     expect(screen.getByTitle("当前文档原文 · document-1.pdf")).toBeInTheDocument();
   });
 
@@ -2167,4 +2167,88 @@ it("opens conversation history as a modal and returns focus on Escape", async ()
   act(() => { dialog.dispatchEvent(new Event("cancel", { bubbles: false, cancelable: true })); });
   await waitFor(() => expect(screen.queryByRole("dialog", { name: "会话历史" })).not.toBeInTheDocument());
   expect(button).toHaveFocus();
+});
+
+
+it("gates sending and quick prompts while Agent readiness is still unknown, preserving typed questions", async () => {
+  configureDocuments([documentFixture("document-1", "a".repeat(64))]);
+  let resolveReadiness!: (value: { ready: boolean }) => void;
+  apiMocks.aiReadiness.mockReturnValueOnce(new Promise(resolve => { resolveReadiness = resolve; }));
+  const user = userEvent.setup();
+  render(<ReadingWorkspacePage />);
+  const composer = await enabledComposer();
+  await screen.findByText("正在检查 Agent 连接");
+  expect(screen.queryByText("可对话")).not.toBeInTheDocument();
+  await user.type(composer, "先保留这个问题");
+  expect(screen.getByRole("button", { name: "发送问题" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: /快速读懂/ })).toBeDisabled();
+  await user.keyboard("{Enter}");
+  expect(apiMocks.createConversation).not.toHaveBeenCalled();
+  expect(apiMocks.sendMessage).not.toHaveBeenCalled();
+  await act(async () => resolveReadiness({ ready: true }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "发送问题" })).toBeEnabled());
+  expect(composer).toHaveValue("先保留这个问题");
+  expect(screen.getByText("可对话")).toBeInTheDocument();
+  expect(apiMocks.sendMessage).not.toHaveBeenCalled();
+});
+
+it.each(["response", "error"])("shows one localized unavailable state for %s and keeps source browsing available", async failureMode => {
+  configureDocuments([documentFixture("document-1", "a".repeat(64))]);
+  if (failureMode === "response") {
+    apiMocks.aiReadiness.mockResolvedValue({ ready: false, reason_code: "reading_codex_unavailable" });
+  } else {
+    apiMocks.aiReadiness.mockRejectedValue(new ApiError("Codex Agent is temporarily unavailable for document reading.", 409, {
+      detail: { reason_code: "reading_codex_unavailable" },
+    }));
+  }
+  render(<ReadingWorkspacePage />);
+  await screen.findByText("阅读 Agent 尚未就绪");
+  expect(screen.queryByText("可对话")).not.toBeInTheDocument();
+  expect(screen.queryByText(/Codex Agent is temporarily/)).not.toBeInTheDocument();
+  expect(screen.getByText("无法连接 Codex Agent。服务恢复后可刷新连接，或前往 Agent 设置检查配置。")).toBeInTheDocument();
+  const settingsLink = screen.getByRole("link", { name: "配置 Agent" });
+  const settingsUrl = new URL(settingsLink.getAttribute("href")!, "http://localhost");
+  expect(settingsUrl.searchParams.get("task")).toBe("reading");
+  expect(settingsUrl.searchParams.get("documentId")).toBe("document-1");
+  expect(settingsUrl.searchParams.get("settings")).toBe("agent");
+  expect(screen.getByRole("button", { name: "发送问题" })).toBeDisabled();
+  expect(screen.getByRole("button", { name: /快速读懂/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: /关键技术条件/ })).toBeDisabled();
+  expect(screen.getByRole("button", { name: "会话历史" })).toBeEnabled();
+  expect(screen.getByTitle("当前文档原文 · document-1.pdf")).toBeInTheDocument();
+  expect(screen.getByRole("textbox", { name: "向当前文档提问" })).toBeEnabled();
+  expect(document.querySelectorAll(".reading-chat-failure")).toHaveLength(0);
+});
+
+it("refreshes a recovered Agent connection without resetting the current conversation, history or draft", async () => {
+  const document = documentFixture("document-1", "a".repeat(64));
+  const context = configureDocuments([document]).get(document.id)!;
+  const conversation = conversationFixture(context);
+  apiMocks.createConversation.mockResolvedValue(conversation);
+  apiMocks.sendMessage.mockResolvedValueOnce(turnFixture(conversation, "第一个问题", "之前保存的回答"))
+    .mockRejectedValueOnce(new ApiError("Codex Agent is temporarily unavailable for document reading.", 409, {
+      detail: { reason_code: "reading_codex_unavailable" },
+    }));
+  const user = userEvent.setup();
+  render(<ReadingWorkspacePage />);
+  const composer = await enabledComposer();
+  await user.type(composer, "第一个问题");
+  await user.keyboard("{Enter}");
+  await screen.findByText("之前保存的回答");
+  await user.type(composer, "服务中断时的问题");
+  await user.keyboard("{Enter}");
+  await screen.findByText("阅读 Agent 尚未就绪");
+  expect(composer).toHaveValue("服务中断时的问题");
+  expect(screen.getByRole("button", { name: "发送问题" })).toBeDisabled();
+  const contextCalls = apiMocks.context.mock.calls.length;
+  const conversationCalls = apiMocks.conversations.mock.calls.length;
+  await user.click(screen.getByRole("button", { name: "刷新连接" }));
+  await waitFor(() => expect(screen.getByRole("button", { name: "发送问题" })).toBeEnabled());
+  expect(screen.getByText("之前保存的回答")).toBeInTheDocument();
+  expect(composer).toHaveValue("服务中断时的问题");
+  expect(apiMocks.context).toHaveBeenCalledTimes(contextCalls);
+  expect(apiMocks.conversations).toHaveBeenCalledTimes(conversationCalls);
+  expect(apiMocks.createConversation).toHaveBeenCalledTimes(1);
+  expect(apiMocks.sendMessage).toHaveBeenCalledTimes(2);
+  expect(apiMocks.aiReadiness).toHaveBeenCalledTimes(2);
 });

@@ -8,7 +8,7 @@ export interface EntryIntent {
 }
 
 export interface EntryCommandOptions {
-  namespace?: string;
+  namespace?: string | (() => string | undefined);
   storage?: Pick<Storage, 'getItem' | 'setItem' | 'removeItem' | 'key' | 'length'>;
 }
 
@@ -16,7 +16,7 @@ export function entryCommandStore(options: EntryCommandOptions) {
   // Pair supplies its stable application ID, independent of service port.
   // The standalone single-owner service uses its browser origin.
   // Importing/initializing a read-only host must not require browser state.
-  const prefix = () => saasStorageKey('reqpilotx:entry:v1:' + (options.namespace ?? window.location.origin) + ':');
+  const prefix = () => saasStorageKey('reqpilotx:entry:v1:' + ((typeof options.namespace === 'function' ? options.namespace() : options.namespace) ?? window.location.origin) + ':');
   const retainedKeys = new WeakMap<EntryIntent, string>();
   const storage = () => options.storage ?? localStorage;
   const key = (kind: EntryIntent['kind'], scope: string, payload: EntryIntent['payload']) =>

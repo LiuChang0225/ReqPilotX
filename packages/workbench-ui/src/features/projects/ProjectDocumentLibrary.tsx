@@ -8,7 +8,7 @@ import { useWorkspace } from "../workspace/WorkspaceContext";
 import { agentTaskLabel, documentDeliveryLabel, documentWorkCheckpoint, isAgentTaskActive, readDocumentWorkSummary, type DocumentWorkSummary } from "../workspace/documentWorkSummary";
 import type { UploadKind } from "../documents/uploadQueue";
 
-export function ProjectDocumentLibrary({ onRemove, kind: controlledKind, onKindChange }: { kind?: UploadKind; onKindChange?: (kind: UploadKind) => void; onRemove: (kind: UploadKind, id: string, fileName: string) => void }) {
+export function ProjectDocumentLibrary({ onRemove, removeDisabledReason, kind: controlledKind, onKindChange }: { removeDisabledReason?: string; kind?: UploadKind; onKindChange?: (kind: UploadKind) => void; onRemove: (kind: UploadKind, id: string, fileName: string) => void }) {
   const { route, updateRoute, projects, documents, knowledge, selectedProject, loading, refreshing, refreshProject } = useWorkspace();
   const [internalKind, setInternalKind] = useState<UploadKind>("sor");
   const kind = controlledKind || internalKind;
@@ -107,7 +107,7 @@ export function ProjectDocumentLibrary({ onRemove, kind: controlledKind, onKindC
           <td><div className="document-row-actions">{kind === "sor" && <button type="button" className="button secondary compact" onClick={() => open(file.id)}>{ready ? "打开成果" : active ? "查看任务" : "打开工作台"}<Icon name="arrow" size={13} /></button>}
             {kind === "sor" && summary?.pluginDraft && <button type="button" className="button secondary compact" onClick={() => setChoosing(current => current === file.id ? "" : file.id)}>选择工作</button>}
             <button className="icon-button" type="button" aria-label={`预览 ${file.file_name}`} onClick={() => setPreview(current => current === file.id ? "" : file.id)}><Icon name="eye" size={15} /></button>
-            <button className="icon-button" type="button" aria-label={`移除 ${file.file_name}`} onClick={() => onRemove(kind, file.id, file.file_name)}><Icon name="trash" size={15} /></button></div></td>
+            <button className="icon-button" type="button" aria-label={`移除 ${file.file_name}`} disabled={Boolean(removeDisabledReason)} title={removeDisabledReason} onClick={() => onRemove(kind, file.id, file.file_name)}><Icon name="trash" size={15} /></button></div></td>
         </tr>;
       })}
     </tbody></table>{!visible.length && <div className="records-empty"><Icon name="document" size={24} /><h3>{files.length ? "没有匹配的文档" : loading || refreshing ? "正在读取项目文档" : kind === "sor" ? "添加第一份客户文档" : "还没有内部知识依据"}</h3><p>{files.length ? "调整搜索或状态筛选。" : loading || refreshing ? "读取完成后，文档会显示在这里。" : "在上方添加文件，保存后即可进入对应工作。"}</p></div>}</div>

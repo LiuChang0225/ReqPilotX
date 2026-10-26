@@ -21,6 +21,6 @@ export default defineConfig({
   build: {
     outDir: "dist-panel", emptyOutDir: true, cssCodeSplit: false,
     lib: { entry: "src/host/client.ts", formats: ["es", "cjs"], fileName: format => `reqpilotx-readonly.${format === "es" ? "js" : "cjs"}`, cssFileName: "reqpilotx-readonly" },
-    rolldownOptions: { external: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "react-dom/client"] },
+    rolldownOptions: { external: ["react", "react-dom", "react/jsx-runtime", "react/jsx-dev-runtime", "react-dom/client"], output: { codeSplitting: false } },
   },
 });

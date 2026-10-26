@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useMemo } from "react";
-import { navigate, useBrowserLocation } from "../../shared/navigation";
+import { useNavigate, useBrowserLocation } from "../../shared/navigation";
 
 export type WorkspaceTask =
   | "projects"
@@ -16,6 +16,7 @@ export type ExtractionCheckpoint =
   | "review";
 
 export interface WorkspaceRoute {
+  entry?: "quick" | "agent";
   task: WorkspaceTask;
   mode: ExtractionMode;
   checkpoint?: ExtractionCheckpoint;
@@ -99,6 +100,7 @@ export function parseWorkspaceRoute(search: string): WorkspaceRoute {
       : undefined;
 
   return {
+    ...(["quick", "agent"].includes(params.get("entry") || "") ? { entry: params.get("entry") as "quick" | "agent" } : {}),
     task,
     mode,
     ...(params.get("reviewCase") ? { reviewCase: params.get("reviewCase")! } : {}),
@@ -121,6 +123,7 @@ export function parseWorkspaceRoute(search: string): WorkspaceRoute {
 
 export function serializeWorkspaceRoute(route: WorkspaceRoute): string {
   const params = new URLSearchParams();
+  if (route.entry) params.set("entry", route.entry);
   params.set("task", route.task);
   if (route.reviewCase) params.set("reviewCase", route.reviewCase);
   if (route.pluginSessionId && ["extraction", "analysis", "export"].includes(route.task) && !route.reviewCase && !route.requirementSetId) params.set("pluginSessionId", route.pluginSessionId);
@@ -162,6 +165,7 @@ export function applyWorkspaceRoutePatch(route: WorkspaceRoute, patch: Partial<W
 }
 
 export function useWorkspaceRoute() {
+  const navigate = useNavigate();
   const location = useBrowserLocation();
   const route = useMemo(
     () => parseWorkspaceRoute(location.search),

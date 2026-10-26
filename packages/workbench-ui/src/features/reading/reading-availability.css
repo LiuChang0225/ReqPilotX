@@ -1,0 +1,31 @@
+.reading-page .reading-ai-availability {
+  display: flex;
+  flex-wrap: wrap;
+  align-items: center;
+  justify-content: space-between;
+  gap: 10px 16px;
+  margin: 8px 18px 16px;
+  padding: 12px 0;
+  border-bottom: 1px solid var(--line);
+  color: var(--ink);
+  font-size: 13px;
+  line-height: 1.6;
+}
+.reading-ai-availability strong { font-size: 13px; }
+.reading-ai-availability p { margin: 4px 0 0; max-width: 65ch; color: var(--ink-soft); }
+.reading-ai-availability-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 14px; }
+.reading-ai-availability-actions a { color: var(--brand-strong); text-underline-offset: 3px; }
+.reading-ai-availability-actions a:focus-visible { outline: 2px solid var(--brand); outline-offset: 3px; }
+.reading-page .reading-chat-welcome {
+  min-height: 0;
+  width: 100%;
+  align-content: start;
+  padding: 18px 24px 24px;
+}
+.reading-page .reading-chat-centered { min-height: 0; padding: 24px; }
+.reading-page .reading-welcome-orbit,
+.reading-page .reading-chat-welcome > .section-label { display: none; }
+.reading-page .reading-chat-welcome > h2 { font-size: 22px; line-height: 1.4; }
+.reading-page .reading-chat-welcome > p:not(.section-label) { margin: 10px 0 18px; font-size: 13px; line-height: 1.7; }
+.reading-page .reading-quick-prompts > button { min-height: 60px; padding: 10px 12px; }
+.reading-page .reading-welcome-facts { margin-top: 18px; }

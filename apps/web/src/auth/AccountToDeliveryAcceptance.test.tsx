@@ -224,6 +224,7 @@ async function login(view = render(<App />)) {
   return view;
 }
 async function createProject() {
+  await userEvent.click(await screen.findByRole("link", { name: "打开工作台" }));
   fireEvent.click(await screen.findByRole("button", { name: "创建项目" }));
   fireEvent.change(screen.getByRole("textbox", { name: "项目名称" }), { target: { value: "UI journey project" } });
   fireEvent.change(screen.getByRole("textbox", { name: "客户名称" }), { target: { value: "UI fixture owner" } });
@@ -243,6 +244,8 @@ async function openAgent() {
   fireEvent.click(complete);
   fireEvent.click(await screen.findByRole("button", { name: /^journey-ui-only\.pdf/ }));
   fireEvent.click(screen.getByRole("button", { name: "矩阵导出" }));
+  const collaboration = screen.queryByRole("button", { name: "Agent 协作" });
+  if (collaboration) fireEvent.click(collaboration);
   const composer = await screen.findByLabelText("任务或修改意见");
   fireEvent.change(composer, { target: { value: "UI request only; no extraction assertion" } });
   await waitFor(() => expect(screen.getByRole("button", { name: "开始新任务" })).toBeEnabled());

@@ -1,4 +1,5 @@
 import { createProjectDocumentClient } from './projectDocuments';
+import { applicationFetch, applicationNamespace } from '../../host/applicationTransport';
 import { saasCsrfFor, expireSaasSession } from './saasSession';
 import type {
   AiProviderSetup,
@@ -113,7 +114,7 @@ export async function request<T>(
   init: RequestInit = {},
   options: { preserveNumberSources?: boolean } = {},
 ): Promise<T> {
-  return requestWithTransport<T>((input, init) => fetch(input, init), path, init, options);
+  return requestWithTransport<T>(applicationFetch, path, init, options);
 }
 
 /** Keep response/error parsing shared while a host supplies authentication and routing. */
@@ -190,7 +191,7 @@ export const api = {
   runtimeCapabilities: () =>
     request<RuntimeCapabilityCatalog>("/api/runtime/capabilities"),
 
-  ...createProjectDocumentClient(request, uploadWithProgress),
+  ...createProjectDocumentClient(request, uploadWithProgress, { namespace: applicationNamespace }),
   projectProcessingProfile: (projectId: string) =>
     request<ProcessingProfilePayload>(
       `/api/projects/${encodeURIComponent(projectId)}/processing-profile`,

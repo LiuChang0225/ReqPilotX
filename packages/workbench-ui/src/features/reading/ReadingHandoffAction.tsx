@@ -1,8 +1,9 @@
 import { useState } from "react";
 import { storeReadingHandoffIntent, type ReadingFinding, type ReadingHandoff } from "../workspace/readingHandoff";
-import { navigate } from "../../shared/navigation";
+import { useNavigate } from "../../shared/navigation";
 
 export function ReadingHandoffAction({ finding, handoff }: { finding: ReadingFinding; handoff: ReadingHandoff }) {
+  const navigate = useNavigate();
   const [result, setResult] = useState(""), [error, setError] = useState("");
   const stale = finding.value.status !== "ACTIVE";
   return <div>

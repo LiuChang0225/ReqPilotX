@@ -33,7 +33,7 @@ export function App() {
   const workspaceRoute = parseWorkspaceRoute(location.search);
   const page = (() => {
     if (["/", "/workspace"].includes(location.pathname) && workspaceRoute.reviewCase) return <CandidateReviewWorkspace />;
-    if (location.pathname === "/") return <WorkspacePage />;
+    if (location.pathname === "/") return location.search ? <WorkspacePage /> : <HomePage />;
     if (location.pathname === "/home") return <HomePage />;
     if (location.pathname === "/workspace") return <WorkspacePage />;
     if (location.pathname === "/extraction-review") {

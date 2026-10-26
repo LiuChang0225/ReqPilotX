@@ -5,7 +5,7 @@ import { ReadingHandoffAction } from "./ReadingHandoffAction";
 import type { ReadingFinding, ReadingHandoff } from "../workspace/readingHandoff";
 const effects = vi.hoisted(() => ({ intent: vi.fn(), navigate: vi.fn() }));
 vi.mock("../workspace/readingHandoff", () => ({ storeReadingHandoffIntent: effects.intent }));
-vi.mock("../../shared/navigation", () => ({ navigate: effects.navigate }));
+vi.mock("../../shared/navigation", () => ({ useNavigate: () => effects.navigate }));
 afterEach(() => { cleanup(); vi.clearAllMocks(); });
 const finding = { kind: "message", value: { status: "ACTIVE" } } as ReadingFinding;
 const target = { url: "/workspace?resultRevision=v2" };

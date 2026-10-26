@@ -1,4 +1,5 @@
 import { saasCsrfFor, expireSaasSession } from './saasSession';
+import { applicationResourceUrl } from '../../host/applicationTransport';
 
 export interface UploadTransportOptions {
   signal?: AbortSignal;
@@ -14,7 +15,7 @@ export function uploadWithProgress<T>(
   return new Promise((resolve, reject) => {
     const xhr = new XMLHttpRequest();
     const abort = () => xhr.abort();
-    xhr.open("POST", path);
+    xhr.open("POST", applicationResourceUrl(path));
     xhr.responseType = "json";
     xhr.setRequestHeader("Accept", "application/json");
     const csrf = saasCsrfFor(path);

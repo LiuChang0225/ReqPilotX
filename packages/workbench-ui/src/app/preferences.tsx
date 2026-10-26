@@ -36,23 +36,25 @@ function initialTheme(): Theme {
   return localStorage.getItem("reqx-theme") === "dark" ? "dark" : "light";
 }
 
-export function PreferencesProvider({ children }: PropsWithChildren) {
-  const [theme, updateTheme] = useState<Theme>(initialTheme);
+export function PreferencesProvider({ children, embedded = false, initialHostTheme }: PropsWithChildren<{ embedded?: boolean; initialHostTheme?: Theme }>) {
+  const [theme, updateTheme] = useState<Theme>(() => initialHostTheme ?? initialTheme());
+  useEffect(() => { if (initialHostTheme) updateTheme(initialHostTheme); }, [initialHostTheme]);
 
   useEffect(() => {
+    if (embedded) return;
     document.documentElement.lang = "zh-CN";
     document.documentElement.dataset.theme = theme;
     localStorage.removeItem("reqx-language");
-  }, [theme]);
+  }, [theme, embedded]);
 
   const toggleTheme = useCallback(() => {
     updateTheme((current) => {
       const next = current === "light" ? "dark" : "light";
       localStorage.setItem("reqx-theme", next);
-      document.documentElement.dataset.theme = next;
+      if (!embedded) document.documentElement.dataset.theme = next;
       return next;
     });
-  }, []);
+  }, [embedded]);
 
   const value = useMemo<PreferencesContextValue>(
     () => ({
