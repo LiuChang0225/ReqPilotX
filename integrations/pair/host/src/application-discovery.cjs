@@ -10,6 +10,7 @@ function capabilities(state) {
     'projects.create': ready && state.mode === 'managed',
     'documents.read': ready,
     'documents.import': ready && state.mode === 'managed',
+    'documents.capture': ready && state.mode === 'managed' && state.workbenchCapture === true,
     'results.read': ready,
     'results.feedback': ready && state.mode === 'managed',
     'results.confirm_map': ready && state.mode === 'managed',
@@ -35,6 +36,7 @@ function allowsWrite(state, method, pathname) {
   const available = capabilities({ ...state, status: 'READY' });
   return (pathname === '/reqpilotx/service/api/projects' && available['projects.create'])
     || (/^\/reqpilotx\/service\/api\/projects\/[^/]+\/sor-documents$/.test(pathname) && available['documents.import'])
+    || (/^\/reqpilotx\/service\/api\/projects\/[^/]+\/sor-documents\/[^/]+\/source-capture\/fast$/.test(pathname) && available['documents.capture'])
     || (pathname.startsWith('/reqpilotx/service/') && available[resultWriteOperation(method, pathname.slice('/reqpilotx/service'.length))] === true);
 }
 /** Whitelist public fields; never serialize a process snapshot or an installed-package descriptor wholesale. */
@@ -48,8 +50,13 @@ function publicConfiguration(state) {
     stage: typeof state.stage === 'string' ? state.stage : null,
     message: state.status === 'ERROR' ? 'ReqPilotX 服务不可用，请检查宿主运行配置。' : String(state.message || ''),
     capabilities: capabilities(state),
+    workbench: { schema: 'reqpilot-workbench-host/v1', taskLookupAvailable: state.taskLookupAvailable === true },
   };
   if (state.status === 'READY') result.serviceOrigin = state.serviceOrigin;
+  if (typeof state.taskModel?.provider === 'string' && typeof state.taskModel.model === 'string') result.taskModel = {
+    provider: state.taskModel.provider, model: state.taskModel.model,
+    ...(typeof state.taskModel.reasoningEffort === 'string' ? { reasoningEffort: state.taskModel.reasoningEffort } : {}),
+  };
   return result;
 }
 /** Fail on protocol/capability incompatibility before presenting business controls. */

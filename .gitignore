@@ -152,3 +152,4 @@ prototype/bin/
 OEM spec comparison/
 plan/
 docs/superpowers/
+.playwright-mcp/

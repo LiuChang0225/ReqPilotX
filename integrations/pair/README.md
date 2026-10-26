@@ -2,7 +2,17 @@
 
 The bundle starts its owned ReqPilotX service using an explicitly configured,
 non-editable engine/server installation and an independent Web artifact. It
-exposes native projects/document import and saved results. Task preparation, persistent host binding and Session request submission are wired behind an explicitly configured frozen capability package. The first paid native-UI synthetic run has completed; efficiency, MCP-model acceptance and full product release remain pending.
+renders the shared complete workbench in managed mode. Task preparation, persistent host binding and Session request submission use an explicitly configured frozen capability package. UI fixture verification, real model execution, business-result acceptance and installer qualification are separate evidence.
+
+## Complete workbench composition
+
+Managed mode mounts `ReqPilotXApplication` from the selected shared UI build. Its HomePage, WorkspacePage, project/document table, document work picker, structure/source views, collaboration, human opinions and delivery views are the same components as Web. `catalog.cjs` handles service discovery, host theme and application binding; it does not maintain another business catalogue form. Explicit readonly-connect mode retains the diagnostic saved-work panel.
+
+The adapter consumes shared UI contract minor 2 and checks `reqpilot-workbench-host/v1` before rendering managed controls. Package Host, Client, shared UI and installed server/frontend artifacts together; an older Host is not treated as a working full application. `workbenchCapture: true` explicitly declares that the matching installed server supports `/source-capture/fast`; omission disables that action. The broker enforces this operation again. Native-model/backend settings remain with Pair, and `agentPreset: standard` plus the requested task model remain independent of the UI composition.
+
+`GET /reqpilotx/tasks?projectId=...&documentId=...&sourceSha256=...` optionally filters an exact `workRef` and recovers durable launch identities. It returns public bindings and original request metadata, never credentials. A fresh browser origin can locate an existing task before generating another command. Multiple matching tasks require work selection; mismatched local intentions refuse submission. Selection and unsent opinion drafts still use browser-origin storage; same-origin refresh recovery and cross-port Desktop storage need separate acceptance.
+
+Source removal, knowledge-file import and backend-native Agent execution are not silently enabled by mounting the complete UI. Missing host actions retain an unavailable state. Pair-owned Agent controls use the existing task API and open the exact acknowledged Session. See [workbench verification](../../docs/validation/pair-workbench-fidelity-20261027.md).
 
 ## Current capabilities
 

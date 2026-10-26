@@ -9,8 +9,19 @@ const sha = value => createHash('sha256').update(value).digest('hex');
 const ID = /^[a-zA-Z0-9_-]{1,100}$/;
 const COMMAND = /^[a-f0-9-]{36}$/;
 export class TaskLaunchError extends Error { constructor(code, status = 409) { super(code); this.status = status; } }
+const validModel = value => value !== null && typeof value === 'object' && !Array.isArray(value)
+  && Object.keys(value).every(key => ['provider', 'model', 'reasoningEffort'].includes(key))
+  && ['provider', 'model'].every(key => typeof value[key] === 'string' && value[key].trim())
+  && (value.reasoningEffort === undefined || (typeof value.reasoningEffort === 'string' && value.reasoningEffort.trim()));
+const sameModel = (a, b) => a?.provider === b?.provider && a?.model === b?.model && a?.reasoningEffort === b?.reasoningEffort;
+const supportedRecord = record => record?.schema === 'reqpilot-pair-launch-record/v1'
+  || (record?.schema === 'reqpilot-pair-launch-record/v2' && validModel(record.agentModel)
+    && (record.selectedAgentModel === undefined || (validModel(record.selectedAgentModel) && sameModel(record.agentModel, record.selectedAgentModel)))
+    && (!['START_REQUESTED', 'ACCEPTED'].includes(record.phase) || sameModel(record.agentModel, record.selectedAgentModel)));
 export class TaskLauncher {
   constructor(runtime, config, getServices, transport = fetch) {
+    if (config.agentModel !== undefined && !validModel(config.agentModel)) throw new TaskLaunchError('INVALID_AGENT_MODEL', 422);
+    this.agentModel = config.agentModel === undefined ? undefined : { ...config.agentModel };
     this.runtime = runtime; this.config = config; this.getServices = getServices; this.transport = transport;
     this.ready = false; this.closing = false; this.inflight = new Map(); this.controlInflight = new Map(); this.root = join(runtime.dataRoot, 'task-launches');
   }
@@ -53,6 +64,7 @@ export class TaskLauncher {
       taskId: record.prepared?.task_id, workRef: record.prepared?.work_ref,
       sessionId: record.sessionId, workspaceId: record.workspaceId,
       capabilityVersion: record.bundleSha, status: record.phase, semanticAcceptance: 'NOT_CLAIMED',
+      ...(record.schema === 'reqpilot-pair-launch-record/v2' ? { agentModel: record.agentModel, selectedAgentModel: record.selectedAgentModel } : {}),
       controlCapabilities: { reconnect: record.phase === 'ACCEPTED' && record.toolTransport === 'MCP'
           && !this.endpointCurrent(record) && this.canReconnect(), cancel: record.phase === 'ACCEPTED' && this.canCancel(),
         continue: record.phase === 'ACCEPTED' && record.toolTransport === 'MCP'
@@ -65,7 +77,7 @@ export class TaskLauncher {
   async inspect(commandId) {
     if (!COMMAND.test(commandId)) throw new TaskLaunchError('INVALID_COMMAND_ID', 422);
     const record = JSON.parse(await readFile(join(this.root, commandId + '.json'), 'utf8'));
-    if (record.schema !== 'reqpilot-pair-launch-record/v1') throw new TaskLaunchError('UNSUPPORTED_LAUNCH_RECORD');
+    if (!supportedRecord(record)) throw new TaskLaunchError('UNSUPPORTED_LAUNCH_RECORD');
     const result = this.public(record);
     const services = this.services();
     if (record.phase === 'ACCEPTED' && typeof services.sessions.inspect === 'function') {
@@ -75,6 +87,25 @@ export class TaskLauncher {
       } catch { result.execution = null; }
     }
     return result;
+  }
+  /** Recover exact document/work bindings independently of a browser origin's local storage. */
+  async list(input) {
+    if (!input || !ID.test(input.projectId || '') || !ID.test(input.documentId || '')
+      || !/^[a-f0-9]{64}$/.test(input.sourceSha256 || '')
+      || (input.workRef !== undefined && !/^plugin-[a-f0-9]{32}$/.test(input.workRef))) throw new TaskLaunchError('INVALID_TASK_LOOKUP', 422);
+    const files = await readdir(this.root).catch(error => { if (error.code === 'ENOENT') return []; throw error; });
+    const matches = [];
+    const applicationId = discovery.publicConfiguration({ ...this.runtime.snapshot, ownerId: this.runtime.ownerId }).applicationId;
+    for (const file of files) {
+      if (!file.endsWith('.json') || !COMMAND.test(file.slice(0, -5))) continue;
+      const record = JSON.parse(await readFile(join(this.root, file), 'utf8'));
+      if (record.projectId !== input.projectId || record.documentId !== input.documentId || record.sourceSha256 !== input.sourceSha256
+        || record.applicationId !== applicationId || (input.workRef && record.prepared?.work_ref !== input.workRef)) continue;
+      if (!supportedRecord(record)) throw new TaskLaunchError('UNSUPPORTED_LAUNCH_RECORD');
+      matches.push({ ...this.public(record), request: { commandId: record.commandId, projectId: record.projectId,
+        documentId: record.documentId, sourceSha256: record.sourceSha256, goal: record.goal, requireMapConfirmation: record.requireMapConfirmation || false } });
+    }
+    return { tasks: matches };
   }
   start(input) {
     const allowed = ['commandId', 'projectId', 'documentId', 'sourceSha256', 'goal', 'requireMapConfirmation'];
@@ -104,7 +135,7 @@ export class TaskLauncher {
     if (!this.available()) throw new TaskLaunchError('TASK_LAUNCH_NOT_READY', 503);
     if (this.inflight.has(input.commandId)) throw new TaskLaunchError('TASK_LAUNCH_IN_PROGRESS');
     const record = JSON.parse(await readFile(join(this.root, input.commandId + '.json'), 'utf8'));
-    if (record.schema !== 'reqpilot-pair-launch-record/v1' || record.commandId !== input.commandId || record.phase !== 'ACCEPTED'
+    if (!supportedRecord(record) || record.commandId !== input.commandId || record.phase !== 'ACCEPTED'
       || record.sessionId !== input.sessionId || record.prepared?.work_ref !== input.workRef
       || record.sourceSha256 !== input.sourceSha256) throw new TaskLaunchError('TASK_CONTROL_BINDING_MISMATCH');
     const applicationId = discovery.publicConfiguration({ ...this.runtime.snapshot, ownerId: this.runtime.ownerId }).applicationId;
@@ -239,7 +270,7 @@ export class TaskLauncher {
       if (!COMMAND.test(file.replace(/\.json$/, '')) || !file.endsWith('.json')) continue;
       const record = JSON.parse(await readFile(join(this.root, file), 'utf8'));
       if (record.sessionId !== sessionId || record.toolTransport !== 'MCP') continue;
-      if (record.schema !== 'reqpilot-pair-launch-record/v1' || !['START_REQUESTED', 'ACCEPTED'].includes(record.phase)) throw new TaskLaunchError('TASK_TOOL_BINDING_NOT_READY');
+      if (!supportedRecord(record) || !['START_REQUESTED', 'ACCEPTED'].includes(record.phase)) throw new TaskLaunchError('TASK_TOOL_BINDING_NOT_READY');
       if (!this.endpointCurrent(record)) throw new TaskLaunchError('TASK_ENDPOINT_RECONNECT_REQUIRED');
       const workspace = resolve(this.runtime.dataRoot, record.workspaceRelative), tools = record.prepared?.tools;
       const expected = [join(workspace, '.reqpilot/scripts/mcp_server.py'), '--working-root', workspace, '--source-root', workspace];
@@ -270,17 +301,21 @@ export class TaskLauncher {
     try { record = JSON.parse(await readFile(join(this.root, input.commandId + '.json'), 'utf8')); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
     if (record) {
-      if (record.schema !== 'reqpilot-pair-launch-record/v1') throw new TaskLaunchError('UNSUPPORTED_LAUNCH_RECORD');
+      if (!supportedRecord(record)) throw new TaskLaunchError('UNSUPPORTED_LAUNCH_RECORD');
       if (record.fingerprint !== fingerprint || record.applicationId !== applicationId) throw new TaskLaunchError('COMMAND_CONFLICT');
       if (record.phase === 'ACCEPTED' || await this.recoverAcceptance(record)) return this.public(record);
       if (!this.endpointCurrent(record)) throw new TaskLaunchError('TASK_ENDPOINT_RECONNECT_REQUIRED');
     } else {
-      record = { schema: 'reqpilot-pair-launch-record/v1', agentPreset: this.config.agentPreset || 'standard', toolTransport: this.config.taskMcp === true ? 'MCP' : 'CLI', ...input, fingerprint, applicationId, serviceOrigin: origin, serviceInstanceId: this.runtime.snapshot.instanceId || null, commandId: input.commandId,
+      record = { schema: this.agentModel === undefined ? 'reqpilot-pair-launch-record/v1' : 'reqpilot-pair-launch-record/v2',
+        ...(this.agentModel === undefined ? {} : { agentModel: { ...this.agentModel } }),
+        agentPreset: this.config.agentPreset || 'standard', toolTransport: this.config.taskMcp === true ? 'MCP' : 'CLI', ...input, fingerprint, applicationId, serviceOrigin: origin, serviceInstanceId: this.runtime.snapshot.instanceId || null, commandId: input.commandId,
         sessionId: 'session-' + randomUUID(), requestId: 'reqpilotx-' + input.commandId, phase: 'RECORDED',
         bundleSha: this.bundleSha, capabilityRoot: this.capabilityRoot, python: this.runtime.python,
         workspaceRelative: 'task-workspaces/' + input.commandId };
       await this.save(record);
     }
+    if (record.schema === 'reqpilot-pair-launch-record/v2' && !record.selectedAgentModel
+      && typeof this.services().sessions.selectSessionModel !== 'function') throw new TaskLaunchError('PAIR_SESSION_MODEL_SELECTION_UNSUPPORTED', 503);
     const workspace = resolve(this.runtime.dataRoot, record.workspaceRelative);
     if (!record.prepared) {
       const documents = await this.transport(origin + '/api/projects/' + input.projectId + '/sor-documents', { redirect: 'error' });
@@ -320,6 +355,12 @@ export class TaskLauncher {
     this.assertActive(record);
     const session = await services.sessions.create({ sessionId: record.sessionId, workspaceId: record.workspaceId, agentPreset: record.agentPreset });
     if (session.sessionId !== record.sessionId) throw new TaskLaunchError('PAIR_SESSION_IDENTITY_MISMATCH');
+    if (record.schema === 'reqpilot-pair-launch-record/v2' && !record.selectedAgentModel) {
+      this.assertActive(record);
+      const result = await services.sessions.selectSessionModel({ sessionId: record.sessionId, ...record.agentModel });
+      if (!validModel(result?.selected) || !sameModel(result.selected, record.agentModel)) throw new TaskLaunchError('PAIR_TASK_MODEL_NOT_CONFIRMED');
+      record.selectedAgentModel = { ...result.selected }; await this.save(record);
+    }
     record.phase = 'START_REQUESTED'; await this.save(record);
     this.assertActive(record);
     const accepted = await services.sessions.prompt({ sessionId: record.sessionId, requestId: record.requestId,

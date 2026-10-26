@@ -28,6 +28,11 @@ test('public config never includes runtime credentials, paths, package descripto
   assert.doesNotMatch(JSON.stringify(failed), /sentinel|19001/);
   assert.ok(Object.values(failed.capabilities).every(value => value === false));
 });
+test('task model metadata is explicit and excludes unrelated configuration fields', () => {
+  const value = discovery.publicConfiguration({ ...ready, taskModel: { provider: 'openai-codex', model: 'gpt-6.1-sol', reasoningEffort: 'xhigh', secret: 'not-public' } });
+  assert.deepEqual(value.taskModel, { provider: 'openai-codex', model: 'gpt-6.1-sol', reasoningEffort: 'xhigh' });
+  assert.ok(!JSON.stringify(value).includes('not-public'));
+});
 test('transport availability is not agent execution or semantic acceptance', () => {
   const available = discovery.capabilities(ready);
   assert.equal(available['projects.create'], true); assert.equal(available['documents.import'], true);

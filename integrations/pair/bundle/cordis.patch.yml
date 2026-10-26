@@ -11,5 +11,9 @@
         taskMcp: true
         capabilityRoot: !!js process.env.REQPILOT_PAIR_CAPABILITY_ROOT
         agentPreset: !!js process.env.REQPILOT_PAIR_AGENT_PRESET || 'standard'
+        agentModel:
+          provider: openai-codex
+          model: gpt-6.1-sol
+          reasoningEffort: xhigh
     - id: reqpilotx-client
       name: '@reqpilotx/dsh-pair-client'

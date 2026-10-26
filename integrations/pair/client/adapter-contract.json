@@ -2,5 +2,5 @@
   "schema": "reqpilot-pair-adapter/v1",
   "sharedUiSchema": "reqpilot-host-ui/v1",
   "sharedUiMajor": 1,
-  "requiredExports": ["ReqPilotXReadonlyPanel", "createReadonlyHttpClient", "createProjectDocumentClient", "projectDocumentPaths", "requestWithTransport", "validWorkSelection"]
+  "requiredExports": ["ReqPilotXReadonlyPanel", "createReadonlyHttpClient", "createProjectDocumentClient", "projectDocumentPaths", "requestWithTransport", "validWorkSelection", "ReqPilotXApplication", "installApplicationTransport"]
 }

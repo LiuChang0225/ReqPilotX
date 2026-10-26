@@ -1,4 +1,4 @@
-/** Loaded only by the isolated DSH smoke profile. Calls real Workspace/Session create; never calls Session.prompt. */
+/** Isolated profile probe for native binding and optional scripted Session admission. */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
 import { join } from 'node:path';
 import { pathToFileURL } from 'node:url';
@@ -32,8 +32,11 @@ async function run(ctx) {
   if (admission) {
     const { LlmAdapter } = await import(pathToFileURL(join(process.env.REQPILOT_PROBE_PAIR, 'packages/llm/llm/src/index.ts')).href);
     class ProbeAdapter extends LlmAdapter {
+      providerInfo(id) { return { id, name: 'ReqPilot scripted probe' }; }
+      async listModels() { return [{ provider: 'reqpilot-probe', id: 'noop', name: 'Noop' }]; }
+      async resolveModel(provider, id) { return { provider, id, name: 'Noop', reasoning: { efforts: [{ id: 'xhigh', name: 'XHigh' }], defaultEffort: 'xhigh' } }; }
       async *stream(options) {
-        if (options.provider !== 'reqpilot-probe' || options.model !== 'noop') throw Error('Unexpected scripted route');
+        if (options.provider !== 'reqpilot-probe' || options.model !== 'noop' || options.reasoningEffort !== 'xhigh') throw Error('Unexpected scripted route');
         scriptedCalls++;
         mcpTools = (options.tools || []).map(t => t.name).filter(n => n.startsWith('mcp__reqpilot__'));
         if (mcp && !mcpTools.includes('mcp__reqpilot__task_open')) throw Error('Task MCP tools missing before the first model request: ' + JSON.stringify(mcpTools));
@@ -59,7 +62,7 @@ async function run(ctx) {
         yield { type: 'finish', reason: { kind: 'stop' } };
       }
     }
-    ctx.llm.registerAdapter(['reqpilot-probe'], new ProbeAdapter());
+    ctx.effect(() => ctx.llm.registerAdapter(['reqpilot-probe'], new ProbeAdapter()));
   }
   const works = new Map();
   const server = createServer(async (req, res) => {
@@ -83,14 +86,16 @@ async function run(ctx) {
     return child.collected.stdout.readFrom(0).text;
   } };
   const sessions = ctx.get('sessionController'), workspaces = ctx.get('workspaceController');
+  const defaultBefore = ctx.get('agentDefaultModel').currentSelection();
   const createRequests = [], blockedPrompts = []; let realPromptCalls = 0;
-  const launcher = new TaskLauncher(runtime, { capabilityRoot, agentPreset: 'standard', taskMcp: mcp }, () => ({ workspaces, sessions: {
+  const launcher = new TaskLauncher(runtime, { capabilityRoot, agentPreset: 'standard', taskMcp: mcp,
+    ...(admission ? { agentModel: { provider: 'reqpilot-probe', model: 'noop', reasoningEffort: 'xhigh' } } : {}) }, () => ({ workspaces, sessions: {
     ...(recover ? { inspect: id => sessions.inspect(id) } : {}),
     ...(control ? { inspect: id => sessions.inspect(id) } : {}),
     ...(cancel ? { cancel: request => sessions.cancel(request) } : {}),
+    selectSessionModel: request => sessions.selectSessionModel(request),
     async create(request) {
       createRequests.push(request); const value = await sessions.create(request);
-      if (admission) await sessions.selectModel({ sessionId: value.sessionId, provider: 'reqpilot-probe', model: 'noop' });
       return value;
     },
     async prompt(request, signal) {
@@ -152,10 +157,29 @@ async function run(ctx) {
       || (!recover && !control && (blockedPrompts[0].sessionId !== blockedPrompts[1].sessionId || blockedPrompts[0].requestId !== blockedPrompts[1].requestId))) throw Error('Native binding identity did not survive replay');
     const userMessages = inspection?.events.filter(event => event.type === 'user/message' && event.data?.source?.rpcId === blockedPrompts[0]?.requestId).length || 0;
     if (admission && (scriptedCalls !== (mcp ? control ? 3 : 2 : 1) || userMessages !== 1)) throw Error('Real DSH admission replay created a duplicate user message or turn');
-    const mcpResults = inspection?.events.filter(e => e.type === 'tool/result').flatMap(e => e.data.message.content).filter(b => b.type === 'tool-result' && b.toolCallId === 'probe-task-open') || [];
+    const mcpResults = inspection?.events.filter(e => e.type === 'tool/result')
+      .map(e => e.data.message).filter(message => message.toolCallId === 'probe-task-open') || [];
+    if (mcp) {
+      await writeFile(join(output, 'mcp-results.json'), JSON.stringify(mcpResults, null, 2) + '\n');
+      await writeFile(join(output, 'session-events.json'), JSON.stringify(inspection.events, null, 2) + '\n');
+    }
     if (mcp && (mcpResults.length !== 1 || mcpResults[0].isError || !mcpResults[0].content.some(b => b.type === 'text' && b.text.includes('RESUMED')))) throw Error('MCP task_open did not actually resume its prepared task');
+    if (admission) {
+      const snapshot = {
+        selections: inspection.events.filter(event => event.type === 'model/selection').map(event => event.data),
+        requests: inspection.events.filter(event => event.type === 'request/header').map(event => ({
+          provider: event.data.header.config.provider, model: event.data.header.config.model, reasoningEffort: event.data.header.config.reasoningEffort,
+        })),
+        defaultUnchanged: JSON.stringify(defaultBefore) === JSON.stringify(ctx.get('agentDefaultModel').currentSelection()),
+      };
+      await writeFile(join(output, 'session-model.snapshot.json'), JSON.stringify(snapshot, null, 2) + '\n');
+      if (recover) {
+        const expected = JSON.parse(await readFile(new URL('../tests/fixtures/dsh-session-model.json', import.meta.url), 'utf8'));
+        if (JSON.stringify(snapshot) !== JSON.stringify(expected)) throw Error('Durable Session model snapshot differs from the reviewed fixture');
+      }
+    }
     await writeFile(join(output, 'receipt.json'), JSON.stringify({ status: 'PASS', source_sha256: sourceSha, result: receipt,
-      real_services: ['workspaceController.create', 'sessionController.create', 'subprocess', ...(admission ? ['sessionController.selectModel', 'sessionController.prompt', 'sessionController.inspect'] : [])],
+      real_services: ['workspaceController.create', 'sessionController.create', 'subprocess', ...(admission ? ['sessionController.selectSessionModel', 'sessionController.prompt', 'sessionController.inspect'] : [])],
       mcp_tools_before_first_request: mcpTools, mcp_task_open_resumed: mcpResults.length === 1, source_service: 'synthetic HTTP', acceptance_recovered_after_endpoint_change: recover, session_create_calls: createRequests.length, unique_sessions: new Set(createRequests.map(x => x.sessionId)).size,
       intercepted_or_forwarded_prompt_calls: blockedPrompts.length, real_prompt_calls: realPromptCalls, remote_model_calls: 0, scripted_adapter_calls: scriptedCalls, durable_user_messages: userMessages,
       continuation_accepted: continuation?.control.status === 'ACCEPTED', continuation_user_messages: continuedMessages,
