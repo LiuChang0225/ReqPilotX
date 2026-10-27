@@ -50,7 +50,7 @@ export function ReqPilotXApplication({ host, theme = "light" }: { host: Workbenc
     try { const stored = localStorage.getItem(key); if (stored && /^\/(?:home|workspace)?(?:\?|$)/.test(stored)) initial = stored; } catch { /* Persistence is optional. */ }
     return createApplicationNavigation(initial, path => { try { localStorage.setItem(key, path); } catch { /* The active route remains usable. */ } });
   });
-  const presentation = useMemo(() => ({ readOnly: false, nativeEvidence: false, resourceUrl: host.resourceUrl, pdfViewerUrl: host.pdfViewerUrl }), [host]);
+  const presentation = useMemo(() => ({ readOnly: false, nativeEvidence: false, resourceUrl: host.resourceUrl, pdfViewerUrl: host.pdfViewerUrl }), [host.resourceUrl, host.pdfViewerUrl]);
   return <div ref={root} className="reqpilotx-application" lang="zh-CN" style={{ flex: "1 1 auto", width: "100%", height: "100%", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
     <ErrorBoundary embedded><ApplicationHostContext.Provider value={host}><ApplicationWidthContext.Provider value={width}><ApplicationNavigationContext.Provider value={navigation}>
       <WorkbenchHostContext.Provider value={presentation}><PreferencesProvider embedded initialHostTheme={theme}>
