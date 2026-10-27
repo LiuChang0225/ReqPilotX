@@ -112,6 +112,16 @@ Unverified: abrupt-crash/orphan recovery, fresh-machine dependency installation,
 
 Host 0.1.1 requires `@deepseek-ai/dsh-mcp-client` exactly `0.2.1-alpha.2` as a peer, with the same version declared for development checks. The profile supplies the matching framework core through ordinary DSH resolution; the adapter does not install a private framework copy. Keep the profile's `autoInstallPeers: false`. After replacing an older Host, use the normal plugin/package-manager update to remove its obsolete `0.1.5-rc.2` dependency resolution. Verify the default import from the installed Host under the packaged DSH profile; a source-checkout import or manually selected core path does not establish that integration.
 
+On macOS, run the import check against an installed PAIR application and a new private output directory:
+
+```sh
+node integrations/pair/scripts/sealed-core-smoke.mjs \
+  /path/to/PAIR.app/Contents/Resources/runtime/cli/bin/dsh \
+  /new/private/peer-check
+```
+
+The check installs the Host through the packaged CLI into an isolated profile with fresh HOME/DSH_HOME and records `receipt.json`. A synthetic lifecycle trigger executes the installed Host's unchanged default bridge import, stopping before plugin registration. The resolver observer returns `nextResolve` results unchanged and checks that the loaded package belongs to the application with the exact required version. PASS covers this import and absence of a physical framework copy in the private profile; it does not establish MCP transport, tool registration, model execution, business acceptance or Windows compatibility. The user's active profile is not changed.
+
 Project/document requests now come from the same `createProjectDocumentClient` that the standalone app composes. The Pair catalog only supplies routing and transport. Shared UI is versioned by its generated `host-contract.json`; this adapter declares supported major/required exports in `client/adapter-contract.json`. Build rejects incompatible/missing capabilities before packaging and records `sharedArtifactIdentity`.
 
 A release pipeline can build the shared UI once and supply it independently of the checkout:
