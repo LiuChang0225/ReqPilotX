@@ -27,10 +27,12 @@ Object.assign(env, { HOME: osHome, DSH_HOME: home, DSH_AGENTS_HOME: join(output,
 async function command(args, log, timeoutMs = 120000) {
   const child = spawn(cli, args, { cwd: output, env, stdio: ['ignore', 'pipe', 'pipe'] });
   let text = ''; child.stdout.on('data', value => text += value); child.stderr.on('data', value => text += value);
-  let forced; const timer = setTimeout(() => { child.kill('SIGTERM'); forced = setTimeout(() => child.kill('SIGKILL'), 10000); }, timeoutMs);
+  let forced, timedOut = false;
+  const timer = setTimeout(() => { timedOut = true; child.kill('SIGTERM'); forced = setTimeout(() => child.kill('SIGKILL'), 10000); }, timeoutMs);
   try {
     const status = await new Promise((ok, fail) => { child.once('error', fail); child.once('close', ok); });
     await writeFile(join(output, log), text.replace(/token=[^\s]+/g, 'token=[redacted]'));
+    if (timedOut) throw Error('Sealed CLI timed out after ' + timeoutMs + ' ms; inspect ' + join(output, log));
     if (status !== 0) throw Error('Sealed CLI failed (' + status + '); inspect ' + join(output, log));
   } finally { clearTimeout(timer); clearTimeout(forced); }
 }
