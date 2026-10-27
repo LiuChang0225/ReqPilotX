@@ -110,6 +110,8 @@ Unverified: abrupt-crash/orphan recovery, fresh-machine dependency installation,
 
 ## Upgrade with shared artifacts
 
+Host 0.1.1 requires `@deepseek-ai/dsh-mcp-client` exactly `0.2.1-alpha.2` as a peer, with the same version declared for development checks. The profile supplies the matching framework core through ordinary DSH resolution; the adapter does not install a private framework copy. Keep the profile's `autoInstallPeers: false`. After replacing an older Host, use the normal plugin/package-manager update to remove its obsolete `0.1.5-rc.2` dependency resolution. Verify the default import from the installed Host under the packaged DSH profile; a source-checkout import or manually selected core path does not establish that integration.
+
 Project/document requests now come from the same `createProjectDocumentClient` that the standalone app composes. The Pair catalog only supplies routing and transport. Shared UI is versioned by its generated `host-contract.json`; this adapter declares supported major/required exports in `client/adapter-contract.json`. Build rejects incompatible/missing capabilities before packaging and records `sharedArtifactIdentity`.
 
 A release pipeline can build the shared UI once and supply it independently of the checkout:

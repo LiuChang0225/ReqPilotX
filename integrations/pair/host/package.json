@@ -1,5 +1,5 @@
 {
-  "version": "0.1.0",
+  "version": "0.1.1",
   "private": true,
   "type": "module",
   "license": "UNLICENSED",
@@ -9,14 +9,15 @@
     ".": "./src/index.js"
   },
   "peerDependencies": {
-    "@deepseek-ai/cordis": "*"
+    "@deepseek-ai/cordis": "*",
+    "@deepseek-ai/dsh-mcp-client": "0.2.1-alpha.2"
   },
   "peerDependenciesMeta": {
     "@deepseek-ai/cordis": {
       "optional": true
     }
   },
-  "dependencies": {
-    "@deepseek-ai/dsh-mcp-client": "0.1.5-rc.2"
+  "devDependencies": {
+    "@deepseek-ai/dsh-mcp-client": "0.2.1-alpha.2"
   }
 }
