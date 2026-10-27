@@ -79,14 +79,15 @@ beforeEach(() => {
 afterEach(() => { cleanup(); vi.restoreAllMocks(); vi.clearAllMocks(); setSaasAccountIdentity(undefined); localStorage.clear(); });
 
 describe("independent SaaS native document entry acceptance", () => {
-  it("opens the actual default DocumentWorkSurface composer and starts the audited extraction-loop", async () => {
+  it("opens the DocumentWorkSurface composer on an explicit collaboration request and starts the audited extraction-loop", async () => {
     render(surface());
+    fireEvent.click(await screen.findByRole("button", { name: "Agent 协作" }));
     const input = await screen.findByLabelText("任务或修改意见");
     await waitFor(() => expect(input).toBeVisible());
-    await waitFor(() => expect((input as HTMLTextAreaElement).value).toContain("完整阅读当前客户文档"));
+    expect(input).toHaveValue("");
     const start = screen.getByRole("button", { name: "开始新任务" });
-    await waitFor(() => expect(start).toBeEnabled());
     fireEvent.change(input, { target: { value: "读取完整文档并保存同版本成果" } });
+    await waitFor(() => expect(start).toBeEnabled());
     fireEvent.click(start);
     await waitFor(() => expect(posts()).toHaveLength(1));
     expect(posts()[0][0]).toBe(extractionRoot);
@@ -112,14 +113,16 @@ describe("independent SaaS native document entry acceptance", () => {
     let acceptOld: (value: unknown) => void = () => {};
     write = () => new Promise(resolve => { acceptOld = resolve; });
     const page = render(surface());
+    fireEvent.click(await screen.findByRole("button", { name: "Agent 协作" }));
     const oldInput = await screen.findByLabelText("任务或修改意见");
-    await waitFor(() => expect(screen.getByRole("button", { name: "开始新任务" })).toBeEnabled());
     fireEvent.change(oldInput, { target: { value: "旧来源任务" } });
+    await waitFor(() => expect(screen.getByRole("button", { name: "开始新任务" })).toBeEnabled());
     fireEvent.click(screen.getByRole("button", { name: "开始新任务" }));
     await waitFor(() => expect(posts()).toHaveLength(1));
     const oldSource = harness.source;
     harness.source = "d".repeat(64);
     page.rerender(surface());
+    fireEvent.click(await screen.findByRole("button", { name: "Agent 协作" }));
     const newInput = await screen.findByLabelText("任务或修改意见");
     fireEvent.change(newInput, { target: { value: "新来源未发送任务" } });
     await act(async () => acceptOld(task({ source_sha256: oldSource, goal: "旧来源任务", stages: [{ stage: "MAP", artifact_sha256: "c".repeat(64), count: 1 }] })));

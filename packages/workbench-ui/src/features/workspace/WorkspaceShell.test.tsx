@@ -1,7 +1,7 @@
 import userEvent from "@testing-library/user-event";
 import { readExtractionCheckpoint, readViewedWork, rememberExtractionCheckpoint, rememberViewedWork } from "./documentWorkSelection";
-import { cleanup, render, screen } from "@testing-library/react";
-import { afterEach, describe, expect, it, vi } from "vitest";
+import { cleanup, render, screen, waitFor } from "@testing-library/react";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 import type { ProjectProcessingProfile } from "../../shared/api/contracts";
 import {
   WorkspaceProvider,
@@ -16,6 +16,14 @@ vi.mock("../../app/preferences", () => ({
     t: (key: string) => key,
   }),
 }));
+
+vi.mock("../settings/SettingsPanel", () => ({ SettingsPanel: () => <div data-testid="settings-panel">连接设置内容</div> }));
+
+beforeEach(() => {
+  window.history.replaceState({}, "", "/workspace?task=projects");
+  HTMLDialogElement.prototype.showModal = function () { this.open = true; };
+  HTMLDialogElement.prototype.close = function () { this.open = false; };
+});
 
 afterEach(() => {
   cleanup();
@@ -105,6 +113,23 @@ function renderShell() {
 }
 
 describe("WorkspaceShell navigation and capability truth", () => {
+  it("mounts connection settings only while the dialog is open", async () => {
+    renderShell();
+    expect(screen.queryByTestId("settings-panel")).not.toBeInTheDocument();
+    await userEvent.click(screen.getByRole("button", { name: "打开 Agent 设置" }));
+    expect(await screen.findByTestId("settings-panel")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "关闭设置" }));
+    expect(screen.queryByTestId("settings-panel")).not.toBeInTheDocument();
+  });
+
+  it("opens settings from the home destination and removes the setting intent when closed", async () => {
+    window.history.replaceState({}, "", "/workspace?task=projects&settings=agent");
+    renderShell();
+    expect(await screen.findByTestId("settings-panel")).toBeVisible();
+    await userEvent.click(screen.getByRole("button", { name: "关闭设置" }));
+    await waitFor(() => expect(window.location.search).toBe("?task=projects"));
+    expect(screen.queryByTestId("settings-panel")).not.toBeInTheDocument();
+  });
   it("exposes the active primary destination to assistive technology", () => {
     renderShell();
 
@@ -113,7 +138,7 @@ describe("WorkspaceShell navigation and capability truth", () => {
       "page",
     );
     expect(
-      screen.getByRole("button", { name: "需求提取" }),
+      screen.getByRole("button", { name: "需求整理" }),
     ).not.toHaveAttribute("aria-current");
     expect(
       screen.getByRole("button", { name: "AI 辅助阅读" }),
@@ -142,7 +167,7 @@ describe("document task return navigation", () => {
     rememberExtractionCheckpoint("project-1", "document-1", source, plugin, "list");
     value.route = { ...value.route, task: "analysis", pluginSessionId: sessionId, resultRevision: revisionId };
     show(value);
-    await userEvent.click(screen.getByRole("button", { name: "需求提取" }));
+    await userEvent.click(screen.getByRole("button", { name: "需求整理" }));
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "extraction", mode: "organize", checkpoint: "list" });
   });
 
@@ -151,7 +176,7 @@ describe("document task return navigation", () => {
     rememberViewedWork("project-1", "document-1", source, plugin);
     rememberExtractionCheckpoint("project-1", "document-1", source, plugin, "list");
     show(value);
-    await userEvent.click(screen.getByRole("button", { name: "需求提取" }));
+    await userEvent.click(screen.getByRole("button", { name: "需求整理" }));
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "extraction", mode: "organize", checkpoint: "list", pluginSessionId: sessionId, resultRevision: revisionId });
   });
 
@@ -161,7 +186,7 @@ describe("document task return navigation", () => {
     rememberViewedWork("project-1", "document-1", source, plugin);
     rememberExtractionCheckpoint("project-1", "document-1", source, native, "list");
     show(value);
-    await userEvent.click(screen.getByRole("button", { name: "需求提取" }));
+    await userEvent.click(screen.getByRole("button", { name: "需求整理" }));
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "extraction", mode: "organize", checkpoint: "list" });
     expect(readViewedWork("project-1", "document-1", source)).toEqual(native);
   });
@@ -171,7 +196,7 @@ describe("document task return navigation", () => {
     value.route = { ...value.route, task: "export", pluginSessionId: sessionId, resultRevision: "d".repeat(64) };
     rememberExtractionCheckpoint("project-1", "document-1", source, plugin, "list");
     show(value);
-    await userEvent.click(screen.getByRole("button", { name: "需求提取" }));
+    await userEvent.click(screen.getByRole("button", { name: "需求整理" }));
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "extraction", mode: "organize" });
   });
 
@@ -180,7 +205,7 @@ describe("document task return navigation", () => {
     value.route = { ...value.route, task: "extraction", checkpoint: "list", pluginSessionId: sessionId, resultRevision: revisionId };
     show(value);
     expect(readExtractionCheckpoint("project-1", "document-1", source, plugin)).toBe("list");
-    await userEvent.click(screen.getByRole("button", { name: "需求提取" }));
+    await userEvent.click(screen.getByRole("button", { name: "需求整理" }));
     expect(value.updateRoute).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "AI 辅助阅读" }));
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "reading" });
@@ -191,7 +216,7 @@ describe("document task return navigation", () => {
     value.selectedDocument = { ...value.selectedDocument!, source_sha256: "d".repeat(64) };
     rememberViewedWork("project-1", "document-1", source, plugin);
     show(value);
-    await userEvent.click(screen.getByRole("button", { name: "需求提取" }));
+    await userEvent.click(screen.getByRole("button", { name: "需求整理" }));
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "extraction", mode: "organize" });
   });
 });

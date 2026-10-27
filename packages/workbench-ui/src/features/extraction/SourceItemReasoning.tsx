@@ -1,6 +1,7 @@
 import { useCallback, useEffect, useRef, useState } from "react";
 import type { SourceRequirementKindV1, SourceNumberFieldsV1 } from "../../shared/api/contracts";
 import { request } from "../../shared/api/client";
+import { applicationFetch } from "../../host/applicationTransport";
 import { isSaasAccountMode } from "../../shared/api/saasSession";
 import { SAAS_KIT_UNAVAILABLE_MESSAGE } from "./saasAgentAvailability";
 import { Icon } from "../../shared/ui/Icon";
@@ -156,7 +157,7 @@ export function useSourceItemReasoning(projectId: string, documentId: string, ba
     const startedKey = key;
     setPending("export"); setError("");
     try {
-      const response = await fetch(`${root}/delivery/export?expected_baseline_sha256=${encodeURIComponent(state.baseline_sha256)}&expected_response_revision=${state.engineer_responses?.response_revision || 0}${state.business_basis_sha256 ? `&expected_business_basis_sha256=${encodeURIComponent(state.business_basis_sha256)}` : ""}`);
+      const response = await applicationFetch(`${root}/delivery/export?expected_baseline_sha256=${encodeURIComponent(state.baseline_sha256)}&expected_response_revision=${state.engineer_responses?.response_revision || 0}${state.business_basis_sha256 ? `&expected_business_basis_sha256=${encodeURIComponent(state.business_basis_sha256)}` : ""}`);
       if (!response.ok) {
         const data = await response.json().catch(() => ({}));
         throw new Error(typeof data.detail === "string" ? data.detail : "导出未完成，请重试。");

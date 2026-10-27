@@ -9,6 +9,7 @@ import { Icon } from "../../shared/ui/Icon";
 import { ProjectDocumentLibrary } from "./ProjectDocumentLibrary";
 import { useWorkspace } from "../workspace/WorkspaceContext";
 import { useWorkbenchHost } from "../workspace/WorkbenchHostContext";
+import { useApplicationHost } from "../../host/ApplicationHost";
 import { UploadQueueDialog } from "../documents/UploadQueueDialog";
 import {
   createUploadItems,
@@ -17,6 +18,7 @@ import {
 } from "../documents/uploadQueue";
 
 export function ProjectManagementPanel() {
+  const applicationHost = useApplicationHost();
   const saasMode = isSaasAccountMode();
   const host = useWorkbenchHost();
   const nativeEvidence = host.nativeEvidence === true && !host.readOnly;
@@ -278,9 +280,9 @@ export function ProjectManagementPanel() {
           {!saasMode && <button
             className="button secondary"
             type="button"
-            disabled={!selectedProject}
+            disabled={!selectedProject || Boolean(applicationHost)}
             title={
-              nativeEvidence ? "登记证据原件，不运行索引或模型" : knowledgeReady
+              applicationHost ? "当前 PAIR 连接尚未提供知识文件导入；已有知识仍可查看" : nativeEvidence ? "登记证据原件，不运行索引或模型" : knowledgeReady
                 ? "添加知识依据"
                 : "文件会先安全保存；检索能力连接后再同步"
             }
@@ -347,7 +349,7 @@ export function ProjectManagementPanel() {
       {!selectedProject && <EmptyState icon="folder" title={projects.length ? "选择项目以查看文档" : "创建第一个项目"}
         description={projects.length ? "使用下方项目选择器继续已有工作，或新建项目。" : "先为客户文档建立项目，随后添加来源并设置 Agent 任务。"}
         action={<button type="button" className="button primary" onClick={() => setShowCreateProject(true)}>创建项目</button>} />}
-      {(selectedProject || projects.length > 0) && <ProjectDocumentLibrary kind={activeKind} onKindChange={setActiveKind} onRemove={(kind, id, fileName) => setRemovalTarget({ kind, projectId: route.projectId, id, fileName })} />}
+      {(selectedProject || projects.length > 0) && <ProjectDocumentLibrary kind={activeKind} onKindChange={setActiveKind} removeDisabledReason={applicationHost ? "当前 PAIR 连接未提供来源移除，已保存来源保留" : undefined} onRemove={(kind, id, fileName) => setRemovalTarget({ kind, projectId: route.projectId, id, fileName })} />}
 
       <UploadQueueDialog
         open={showUploadQueue}

@@ -72,7 +72,7 @@ describe("native evidence registration", () => {
     expect(screen.queryByRole("list", { name: "待登记证据文件" })).not.toBeInTheDocument();
     expect(screen.getByText(/登记成功不表示已证明符合性/)).toBeInTheDocument();
     expect(screen.getByText(/OpenKB 实时检索未运行.*检索运行环境不可用/)).toBeInTheDocument();
-    expect(vi.mocked(request).mock.calls.filter(([url]) => url.endsWith("/status"))).toHaveLength(2);
+    await waitFor(() => expect(vi.mocked(request).mock.calls.filter(([url]) => url.endsWith("/status"))).toHaveLength(2));
   });
 
   it("keeps folder-relative names as multipart labels and defaults unknown metadata", async () => {

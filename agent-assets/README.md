@@ -47,3 +47,12 @@ not delete files or stage them automatically.
 The compatibility Agent Kit remains at `agent-kit/` because it has live runtime
 and replay consumers. Its locked contents are not silently upgraded from the
 current skills.
+
+The release regression fixture at
+`prototype/tests/fixtures/agent-assets/approved-release.json` pins the exact
+member paths, SHA-256 hashes and lengths from its named reviewed source commit.
+Repository and frozen-bundle tests compare those members as well as verifying
+the catalog and projections. An intentional asset change updates the canonical
+source, catalog, projections and this reviewed fixture together; a passing build
+or a changed file count does not authorize a new member. Extra-file, tamper and
+symlink rejection still runs against both bundle verification consumers.

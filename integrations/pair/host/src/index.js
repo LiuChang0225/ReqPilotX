@@ -35,7 +35,7 @@ export function createHandler(origin, reject, transport = fetch, runtimeSnapshot
     if (denied !== undefined) { res.writeHead(denied); res.end(); return; }
     const url = new URL(req.url, 'http://pair.invalid');
     const state = runtimeSnapshot ? runtimeSnapshot() : { serviceOrigin: origin, mode: 'readonly-connect', status: 'READY' };
-    if (url.pathname === PREFIX + '/tasks/start' || url.pathname.startsWith(PREFIX + '/tasks/')) {
+    if (url.pathname === PREFIX + '/tasks' || url.pathname === PREFIX + '/tasks/start' || url.pathname.startsWith(PREFIX + '/tasks/')) {
       try {
         if (!taskLauncher) { res.writeHead(503); res.end(JSON.stringify({ error: 'TASK_LAUNCH_NOT_CONFIGURED' })); return; }
         let result;
@@ -48,6 +48,8 @@ export function createHandler(origin, reject, transport = fetch, runtimeSnapshot
             if (input.commandId !== control[1]) { res.writeHead(422); res.end(); return; }
             result = await taskLauncher.control(input);
           } else result = await taskLauncher.start(input);
+        } else if (req.method === 'GET' && url.pathname === PREFIX + '/tasks') {
+          result = await taskLauncher.list(Object.fromEntries(url.searchParams));
         } else if (req.method === 'GET' && url.pathname !== PREFIX + '/tasks/start' && !control) {
           result = await taskLauncher.inspect(url.pathname.slice((PREFIX + '/tasks/').length));
         } else { res.writeHead(405); res.end(); return; }
@@ -107,6 +109,9 @@ export function apply(ctx, config = {}) {
   if (taskLauncher) ctx.effect(() => () => taskLauncher.close(), 'reqpilotx: task launch lifetime');
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: PREFIX,
     handler: createHandler(origin, req => ctx.connection.requestRejection(req), fetch, runtime ? () => ({ ...runtime.snapshot, ownerId: runtime.ownerId,
+      workbenchCapture: config.workbenchCapture === true,
+      taskModel: config.agentModel,
+      taskLookupAvailable: Boolean(taskLauncher),
       taskLaunchReady: taskLauncher?.available() === true, taskCancelReady: taskLauncher?.canCancel() === true,
       taskContinueReady: taskLauncher?.canContinue() === true, taskReconnectReady: taskLauncher?.canReconnect() === true }) : undefined, taskLauncher),
   }), 'reqpilotx: application route');

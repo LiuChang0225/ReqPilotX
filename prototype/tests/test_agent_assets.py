@@ -44,6 +44,10 @@ def _load_registry():
 
 
 asset_registry = _load_registry()
+APPROVED_RELEASE_GROUPS = json.loads(
+    (ROOT / "prototype/tests/fixtures/agent-assets/approved-release.json").read_text(encoding="utf-8")
+)["groups"]
+APPROVED_ASSET_COUNT = sum(len(group["files"]) for group in APPROVED_RELEASE_GROUPS)
 
 
 class AgentAssetRegistryTests(unittest.TestCase):
@@ -51,8 +55,12 @@ class AgentAssetRegistryTests(unittest.TestCase):
         receipt = asset_registry.validate_repository_assets(ROOT)
         by_id = {group["id"]: group for group in receipt["groups"]}
 
-        self.assertEqual(by_id["current-portable-skills"]["file_count"], 36)
-        self.assertEqual(by_id["vendor-pdf-26-905-11957"]["file_count"], 6)
+        self.assertEqual(
+            asset_registry.release_asset_manifest(ROOT)["groups"],
+            APPROVED_RELEASE_GROUPS,
+        )
+        for group in APPROVED_RELEASE_GROUPS:
+            self.assertEqual(by_id[group["id"]]["file_count"], len(group["files"]))
         self.assertEqual(by_id["compatibility-runtime-skills"]["file_count"], 16)
         kit = load_portable_agent_kit(ROOT / "agent-kit")
         self.assertEqual(kit.lock.kit_version, "0.16.0")

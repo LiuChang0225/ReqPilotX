@@ -1,0 +1,9 @@
+{
+  "selections": [
+    { "provider": "reqpilot-probe", "model": "noop", "reasoningEffort": "xhigh" }
+  ],
+  "requests": [
+    { "provider": "reqpilot-probe", "model": "noop", "reasoningEffort": "xhigh" }
+  ],
+  "defaultUnchanged": true
+}

@@ -60,7 +60,7 @@ class WorkspaceManagementFrontendTests(unittest.TestCase):
         shell = (
             _SOURCE / "features" / "workspace" / "WorkspaceShell.tsx"
         ).read_text(encoding="utf-8")
-        for label in ("项目管理", "需求提取", "需求分析", "矩阵导出"):
+        for label in ("项目管理", "AI 辅助阅读", "需求整理", "需求分析", "矩阵导出"):
             self.assertIn(f'label: "{label}"', shell)
         self.assertNotIn("切换语言", shell)
 

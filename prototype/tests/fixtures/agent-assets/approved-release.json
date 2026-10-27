@@ -1,0 +1,232 @@
+{
+  "source_commit": "068c4d7fb3be294fbe12d74567ee2c0056cf16e3",
+  "groups": [
+    {
+      "id": "current-portable-skills",
+      "source_tree_sha256": "0af251ae9871ef2b8707239ad7ece061a99f4f8e89742637f21679cefa5c8cb9",
+      "files": [
+        {
+          "path": "skills/reqpilot/SKILL.md",
+          "sha256": "1dfd4353976861e07d18e0f7099721454f1912047d472a47e8c6e0502ea599f4",
+          "bytes": 7990
+        },
+        {
+          "path": "skills/reqpilot/agents/openai.yaml",
+          "sha256": "cb57416a32ee68797d3c040258f06316fd6068db2ea8495168716656a717aeee",
+          "bytes": 112
+        },
+        {
+          "path": "skills/reqpilot/references/business-contract.md",
+          "sha256": "8e4417a4dff82c3f81f94ddc79aa1f27b0a6816fb4095d5fbac9cc76de794acf",
+          "bytes": 4011
+        },
+        {
+          "path": "skills/reqpilot/references/compact-map.md",
+          "sha256": "3c103dfb7d4a4e578048cdfd9f2e5e14740fc6715854171b18a9de8a1f277b06",
+          "bytes": 2809
+        },
+        {
+          "path": "skills/reqpilot/references/context-relations.md",
+          "sha256": "c1f68690dd7245d4d6856292068ecf56fd16801204cbb3985c2464f24426cc25",
+          "bytes": 2052
+        },
+        {
+          "path": "skills/reqpilot/references/judgment-cases.md",
+          "sha256": "ce7c20ca9353916bc7411a892707bf8ccfa5116256d410a6663ac7af408aa0ba",
+          "bytes": 8707
+        },
+        {
+          "path": "skills/reqpilot/references/manual-decisions.md",
+          "sha256": "04b9b92c7f8f1e1b39076bdb17be646d50c51c7a0247e4f952000dcd96a77de0",
+          "bytes": 3147
+        },
+        {
+          "path": "skills/reqpilot/references/multi-agent.md",
+          "sha256": "23c332fb2e2fe16875f991abf7cbec189f732245c8f878f58660227016c9b4a4",
+          "bytes": 2538
+        },
+        {
+          "path": "skills/reqpilot/references/reading-guide.md",
+          "sha256": "681e9eb8424db756416b996ea2444d2c066c24b3ebe18d82f30435ff448671db",
+          "bytes": 7421
+        },
+        {
+          "path": "skills/reqpilot/references/revision-loop.md",
+          "sha256": "d03ff0be488fe7fba4da1065b6ed5c964f93f14ab836fbccde46485d0a6b4c9d",
+          "bytes": 18606
+        },
+        {
+          "path": "skills/reqpilot/references/semantic-self-check.md",
+          "sha256": "a77a1e6043994c35e3fb0da891f9e0bb585737b8352af8a0224220b7c3b0a72d",
+          "bytes": 2517
+        },
+        {
+          "path": "skills/reqpilot/references/source-reading.md",
+          "sha256": "a6826b56dcdae71df374a6a470f18b34a6249f930de6f9705fac7e9410b54db0",
+          "bytes": 9224
+        },
+        {
+          "path": "skills/reqpilot/references/source-unit-methods.md",
+          "sha256": "beeebc40baa15e1d519b9309f13e97355ef26b8c118dbe4c8b4199cf00ace01d",
+          "bytes": 4679
+        },
+        {
+          "path": "skills/reqpilot/references/tables-and-relations.md",
+          "sha256": "cfa680b6cd91fc61c348ff86f0b8c49f606ec0200b68455c918857ebe7892971",
+          "bytes": 7135
+        },
+        {
+          "path": "skills/reqpilot/references/task-api.md",
+          "sha256": "7af6dbadba0a51657a79adc08eb0e4ab1f436eb414e60850a2a93b6c6861f00b",
+          "bytes": 21511
+        },
+        {
+          "path": "skills/reqpilot/references/task-workspaces.md",
+          "sha256": "36ae69b9ffbabe65378704a70ae78fb1cea179323cae3812d0c9b215391dbc8c",
+          "bytes": 5760
+        },
+        {
+          "path": "skills/reqpilot/references/tools-analysis-delivery.md",
+          "sha256": "2f0d53c92f93a95fc44b284061e6f3f9d7a55883287eae092a77932c9d1f1a32",
+          "bytes": 9440
+        },
+        {
+          "path": "skills/reqpilot/references/tools-capture.md",
+          "sha256": "6543b7fb88199dca22dcbab9419f7018e25800dc41e0ca26239ed0513b7cf8eb",
+          "bytes": 4562
+        },
+        {
+          "path": "skills/reqpilot/references/tools-decomposition.md",
+          "sha256": "fe0ff66c2b8c0ece991136ec5a59088b69e204dbc6ca2f686cb467742c1eabae",
+          "bytes": 4447
+        },
+        {
+          "path": "skills/reqpilot/references/tools-front-matter.md",
+          "sha256": "901dc60dc82e9d1d743dea1afe2433a688d0effba56966271ae607021453761b",
+          "bytes": 1063
+        },
+        {
+          "path": "skills/reqpilot/references/tools-host.md",
+          "sha256": "71d25123911f6396d6f46b81ceb6dec3ea4350ac8ad5d4853fc3e3f4a755be33",
+          "bytes": 9710
+        },
+        {
+          "path": "skills/reqpilot/references/tools-images.md",
+          "sha256": "4204d1516239a0bed8b4a10e8abde9d05ae0286174d6511c23ae194188cfb7ea",
+          "bytes": 6708
+        },
+        {
+          "path": "skills/reqpilot/references/tools-items.md",
+          "sha256": "36728056c4a8f7be936ce4d37f5b05bc69843ab97bbd8707009aee7b698fcd48",
+          "bytes": 4561
+        },
+        {
+          "path": "skills/reqpilot/references/tools-map-audit.md",
+          "sha256": "622ab1c655c5d7f8d9e6438a628ad92eb7a4189001ea339c339527c8d5e17ecb",
+          "bytes": 4921
+        },
+        {
+          "path": "skills/reqpilot/references/tools-map-edit.md",
+          "sha256": "be49ba10e3463b683be46f9f7d85976ca020a33c18ffcf7d6873f7fb1da609b1",
+          "bytes": 13144
+        },
+        {
+          "path": "skills/reqpilot/references/tools-map.md",
+          "sha256": "ed381c2c423da87b65b97a8d9216a62905f58638dbe3ecbd60ba9ddf1faa5fc3",
+          "bytes": 5139
+        },
+        {
+          "path": "skills/reqpilot/references/tools-office.md",
+          "sha256": "c80f904a81b9547a60ef83f1e9f60460f09f6214937d0781be795eb25cbf7d2a",
+          "bytes": 1458
+        },
+        {
+          "path": "skills/reqpilot/references/tools.md",
+          "sha256": "00f10c85aa6919d7e702d1c0442baf5a1e335962d2fcc737f57524c5d3e8e99f",
+          "bytes": 2699
+        },
+        {
+          "path": "skills/reqpilot/references/worked-examples.md",
+          "sha256": "9284afa29201b1376b9075ad11628c8c3338f03906d7b25d089f87b8c779875b",
+          "bytes": 2452
+        },
+        {
+          "path": "skills/reqpilot-review/SKILL.md",
+          "sha256": "ecd75cd8db6a290235059022276f0dbcd7c86425cd10249d819fc7da9ee01ad3",
+          "bytes": 3798
+        },
+        {
+          "path": "skills/reqpilot-review/agents/openai.yaml",
+          "sha256": "21bac4919b0c5f2a4134386465fedc0740665ff53147c2a742df1161b9fe01b8",
+          "bytes": 122
+        },
+        {
+          "path": "skills/reqpilot-source-items/SKILL.md",
+          "sha256": "ba8fa88d3127be84fcab7369ae160ee8e6e6c44efef94b46bc6b109d0f4370ac",
+          "bytes": 5855
+        },
+        {
+          "path": "skills/reqpilot-source-items/agents/openai.yaml",
+          "sha256": "8735c7452a2d4a48b7a0072dae3fc9b3cc2601369dad489e97987c21b095be8c",
+          "bytes": 128
+        },
+        {
+          "path": "skills/reqpilot-source-map/SKILL.md",
+          "sha256": "7016dfce932efb70514f587ba4b72ed4a0fcf87588d12a29af5eceab6f981d12",
+          "bytes": 8000
+        },
+        {
+          "path": "skills/reqpilot-source-map/agents/openai.yaml",
+          "sha256": "a9d15ebe4f624ce99b7fd8bb48172aa14a0136a56f447e4629f46c53164664f6",
+          "bytes": 122
+        },
+        {
+          "path": "skills/reqpilot-verify/SKILL.md",
+          "sha256": "5273214c8245a7caf6694ce27498dc633f4dd31baca54dfd1e6b217c7bf9e700",
+          "bytes": 5144
+        },
+        {
+          "path": "skills/reqpilot-verify/agents/openai.yaml",
+          "sha256": "2dcef28c308dff08e626b1c2f4f6c6ab17c9e23aa2fd9297eeb531ccdf864905",
+          "bytes": 129
+        }
+      ]
+    },
+    {
+      "id": "vendor-pdf-26-905-11957",
+      "source_tree_sha256": "19d6a4826f229e7a24b3f5cbfd69914e4faf19b09258b4af91b11db34779786b",
+      "files": [
+        {
+          "path": "capabilities/pdf/.agents/skills/pdf/SKILL.md",
+          "sha256": "afc4472ec4d625f703e9f414fe6814ce3cfa0ec51c7a07887fe587264c8b561e",
+          "bytes": 7119
+        },
+        {
+          "path": "capabilities/pdf/.agents/skills/pdf/agents/openai.yaml",
+          "sha256": "74623eb0387951f4c6d0d02e6daf1c8a2dd449599c92a0edcafd12a2049c1a00",
+          "bytes": 295
+        },
+        {
+          "path": "capabilities/pdf/.agents/skills/pdf/container_tools/mark_artifact_operation_started.mjs",
+          "sha256": "e0578762dc2a8f44a26323062c8afcf6c72ef197649f349c8b40e9f2a03c8942",
+          "bytes": 713
+        },
+        {
+          "path": "capabilities/pdf/manifest.json",
+          "sha256": "5c99e7824d9b671c125a5435a9fdc52411588f71cdb7cfdcbb7addd3967b156d",
+          "bytes": 784
+        },
+        {
+          "path": "capabilities/pdf/provenance/openai-primary-runtime-pdf.plugin.json",
+          "sha256": "8cf6f5d8067c166fa4000e9b3a0ad3f600f453d7d2f8601ac48c8f6be7c4f97b",
+          "bytes": 1485
+        },
+        {
+          "path": "capabilities/pdf/provenance/openai-primary-runtime-pdf.v1.json",
+          "sha256": "bbd5a41671682156f64963ffcfb8f7e2b07d95398fdb967f1af467a473bbe549",
+          "bytes": 1118
+        }
+      ]
+    }
+  ]
+}

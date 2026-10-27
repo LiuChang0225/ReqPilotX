@@ -23,8 +23,19 @@ describe("native ledger workspace entry", () => {
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "extraction", mode: "organize", checkpoint: "list" });
   });
   it("shows current working version and counts at the export entry", async () => {
-    vi.spyOn(client, "request").mockResolvedValue(state);
+    vi.spyOn(client, "request").mockImplementation(async path => {
+      if (path.endsWith("/delivery/state")) return state;
+      if (path.endsWith("/delivery/versions/preview")) return {
+        source_sha256: state.source_sha256, baseline_revision: state.baseline_revision,
+        delivery_sha256: "delivery-27", business_basis_sha256: "basis-27", response_revision: 1,
+        readiness: { can_lock: false, blockers: [], analysis_target_count: state.analysis_unit_count,
+          effective_conclusion_count: 0, ai_default_count: 0, human_count: 0 },
+      };
+      if (path.endsWith("/delivery/versions")) return { versions: [] };
+      throw new Error(`Unexpected export request: ${path}`);
+    });
     render(<WorkspaceProvider value={context()}><SourceItemWorkspace task="export" fallback={<div>legacy empty</div>} /></WorkspaceProvider>);
+    expect(await screen.findByText("还没有保存的交付版本。保存草稿后，可随时下载同一份文件。")).toBeVisible();
     expect(await screen.findByRole("heading", { name: "导出当前工作版" })).toBeInTheDocument();
     expect(screen.getByText("v27")).toBeInTheDocument();
     expect(screen.getByText("449 项")).toBeInTheDocument();

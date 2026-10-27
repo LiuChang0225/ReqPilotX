@@ -76,7 +76,7 @@ class ContentPreparationFrontendTests(unittest.TestCase):
         self.assertIn("/extraction/structure/optimization", client)
         self.assertIn("/extraction/structure/optimization/status", client)
         self.assertIn("structureOptimizationPolling", workspace)
-        for label in ("项目管理", "需求提取", "需求分析", "矩阵导出"):
+        for label in ("项目管理", "AI 辅助阅读", "需求整理", "需求分析", "矩阵导出"):
             self.assertIn(f'label: "{label}"', shell)
         for legacy_label in ("原文", "条款", "结构问题", "条目审阅"):
             self.assertNotIn(f'label: "{legacy_label}"', shell)

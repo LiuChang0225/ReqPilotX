@@ -21,7 +21,8 @@ import {
 } from "lucide-react";
 import { ApiError, asRecord } from "../../shared/api/client";
 import { cx } from "../../shared/lib/format";
-import { navigate, useBrowserLocation } from "../../shared/navigation";
+import { AppLink, useNavigate, useBrowserLocation } from "../../shared/navigation";
+import { useApplicationHost } from "../../host/ApplicationHost";
 import { Brand } from "../../shared/ui/Brand";
 import {
   EmptyState,
@@ -61,6 +62,7 @@ import type {
 import { readingApi } from "./readingApi";
 import { useReadingHandoff, type ReadingHandoff } from "../workspace/readingHandoff";
 import { ReadingHandoffAction } from "./ReadingHandoffAction";
+import "./reading-availability.css";
 
 type AuxiliaryView = "overview" | "map" | "notes";
 type MobilePane = "source" | "chat";
@@ -155,7 +157,7 @@ function fileIsPdf(document: ReadingDocument | null): boolean {
 function statusTone(status: unknown) {
   const value = String(status || "").toUpperCase();
   if (value === "READY") return "success" as const;
-  if (["PARTIAL", "PENDING", "RUNNING", "NOT_READY"].includes(value)) {
+  if (["PARTIAL", "PENDING", "RUNNING", "NOT_READY", "AI_UNAVAILABLE"].includes(value)) {
     return "warning" as const;
   }
   if (["FAILED", "STALE"].includes(value)) return "danger" as const;
@@ -167,6 +169,8 @@ function statusLabel(status: unknown): string {
   return (
     {
       READY: "可对话",
+      CHECKING_AI: "正在检查连接",
+      AI_UNAVAILABLE: "Agent 未就绪",
       PARTIAL: "部分可读",
       PENDING: "准备中",
       RUNNING: "准备中",
@@ -301,6 +305,8 @@ function isProviderNotConfigured(cause: unknown): boolean {
     code.includes("reading_codex_auth_required") ||
     code.includes("reading_codex_not_configured") ||
     code.includes("reading_codex_model_unavailable") ||
+    code.includes("reading_codex_unavailable") ||
+    code.includes("reading_codex_usage_limited") ||
     code === "reading_provider_unavailable"
   );
 }
@@ -322,7 +328,18 @@ function visualCaptureFailureMessage(cause: unknown, pageNumber: number): string
     : `第 ${pageNumber} 页识别失败，可稍后重试。`;
 }
 
+function readingConnectionMessage(reasonCode?: string | null): string {
+  const code = String(reasonCode || "").toLowerCase();
+  if (code.includes("auth_required")) return "Codex 登录尚未完成或已过期，请在 Agent 设置中检查登录状态。";
+  if (code.includes("model_unavailable")) return "当前模型不可用，请在 Agent 设置中选择可用模型。";
+  if (code.includes("usage_limited")) return "Codex 当前用量受限，请稍后刷新连接。";
+  if (code.includes("not_configured")) return "阅读 Agent 尚未配置，请先完成 Agent 设置。";
+  if (code.includes("codex_unavailable")) return "无法连接 Codex Agent。服务恢复后可刷新连接，或前往 Agent 设置检查配置。";
+  return "暂时无法连接阅读 Agent。请刷新连接；若仍不可用，请检查 Agent 配置。";
+}
+
 function readingChatFailureMessage(cause: unknown): string {
+  if (cause instanceof ApiError && isProviderNotConfigured(cause)) return readingConnectionMessage(apiErrorReasonCode(cause));
   if (cause instanceof ApiError) {
     const reasonCode = apiErrorReasonCode(cause).toUpperCase();
     if (
@@ -683,6 +700,8 @@ function initialReaderTextSize(): ReaderTextSize {
 }
 
 export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean } = {}) {
+  const navigate = useNavigate();
+  const applicationHost = useApplicationHost();
   const location = useBrowserLocation();
   const route = useMemo(
     () => parseWorkspaceRoute(location.search),
@@ -692,6 +711,8 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
   const [documents, setDocuments] = useState<ReadingDocument[]>([]);
   const [context, setContext] = useState<ReadingContextV1 | null>(null);
   const [aiReady, setAiReady] = useState<boolean | null>(null);
+  const [aiConnectionMessage, setAiConnectionMessage] = useState("");
+  const [aiReadinessRetry, setAiReadinessRetry] = useState(0);
   const [notes, setNotes] = useState<ReadingNoteV1[]>([]);
   const [conversations, setConversations] = useState<
     ReadingConversationSummaryV1[]
@@ -814,8 +835,14 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
     String(activeConversation?.status || "").toUpperCase() === "STALE";
   const sourceMutationInProgress =
     captureSourceUpdating || captureBulkRunning || captureBusyPage !== null;
-  const readingChatIsWritable =
+  const readingInputIsWritable =
     readingIsWritable && !activeConversationIsStale && !sourceMutationInProgress;
+  const readingChatIsWritable = readingInputIsWritable && aiReady === true;
+  const chatStatus = !readingIsWritable ? context?.status
+    : aiReady === null ? "CHECKING_AI"
+    : !aiReady ? "AI_UNAVAILABLE"
+    : activeConversationIsStale ? "STALE"
+    : sourceMutationInProgress ? "PENDING" : context?.status;
   const latestSuggestions = useMemo(() => {
     for (let index = messages.length - 1; index >= 0; index -= 1) {
       const message = messages[index];
@@ -876,7 +903,7 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
   activeConversationRef.current = activeConversationId;
 
   useEffect(() => {
-    document.title = "ReqPilotX · AI 阅读";
+    if (!applicationHost) document.title = "ReqPilotX · AI 阅读";
     return () => {
       currentScopeRef.current = "unmounted";
       currentPageScopeRef.current = "unmounted";
@@ -1086,28 +1113,6 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
             "页面识别已更新当前阅读来源；旧捕获会话仅供参考，新问题将使用最新内容。",
           );
         }
-        void readingApi
-          .aiReadiness(projectId, document.id, controller.signal)
-          .then((readiness) => {
-            if (!controller.signal.aborted) setAiReady(readiness.ready);
-          })
-          .catch((cause) => {
-            if (!controller.signal.aborted) {
-              setAiReady(false);
-              if (!isProviderNotConfigured(cause)) {
-                setChatFailure({
-                  message:
-                    cause instanceof Error
-                      ? cause.message
-                      : "无法检查阅读模型状态。",
-                  question: "",
-                  sourceRefs: [],
-                  providerNotConfigured: false,
-                  taskType: "FREE_QUESTION",
-                });
-              }
-            }
-          });
       })
       .catch((cause) => {
         if (!controller.signal.aborted) {
@@ -1120,6 +1125,33 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
       });
     return () => controller.abort();
   }, [reloadGeneration, selectedDocument, selectedProject]);
+
+  // Refreshing the model connection must not re-prepare the document or discard
+  // the selected conversation, history, source selection or unsent question.
+  useEffect(() => {
+    setAiReady(null);
+    setAiConnectionMessage("");
+    if (!context) return;
+    const controller = new AbortController();
+    void readingApi.aiReadiness(context.project_id, context.sor_document_id, controller.signal)
+      .then(readiness => {
+        if (controller.signal.aborted) return;
+        const ready = readiness.ready === true;
+        setAiReady(ready);
+        setAiConnectionMessage(ready ? "" : readingConnectionMessage(readiness.reason_code));
+      })
+      .catch(cause => {
+        if (controller.signal.aborted) return;
+        setAiReady(false);
+        setAiConnectionMessage(readingConnectionMessage(cause instanceof ApiError ? apiErrorReasonCode(cause) : null));
+      });
+    return () => controller.abort();
+  }, [context, aiReadinessRetry]);
+
+  const refreshAiConnection = () => {
+    setAiReady(null);
+    setAiReadinessRetry(value => value + 1);
+  };
 
   const openConversation = useCallback(
     async (summary: ReadingConversationSummaryV1) => {
@@ -1824,13 +1856,19 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
         ) {
           setOptimisticQuestion(null);
           setDraft(question);
-          setChatFailure({
-            message: readingChatFailureMessage(cause),
-            question,
-            sourceRefs,
-            providerNotConfigured: isProviderNotConfigured(cause),
-            taskType,
-          });
+          if (isProviderNotConfigured(cause)) {
+            setAiReady(false);
+            setAiConnectionMessage(readingChatFailureMessage(cause));
+            setChatFailure(null);
+          } else {
+            setChatFailure({
+              message: readingChatFailureMessage(cause),
+              question,
+              sourceRefs,
+              providerNotConfigured: false,
+              taskType,
+            });
+          }
         }
       } finally {
         if (!controller.signal.aborted && currentScopeRef.current === scope) {
@@ -2493,8 +2531,8 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
         <div className="reading-header-actions">
           {readingHandoff.target && <button type="button" className="button secondary" onClick={() => navigate(readingHandoff.target!.url)}>返回当前工作</button>}
           {context ? (
-            <StatusBadge tone={statusTone(context.status)}>
-              {statusLabel(context.status)}
+            <StatusBadge tone={statusTone(chatStatus)}>
+              {statusLabel(chatStatus)}
             </StatusBadge>
           ) : null}
           <button
@@ -2747,17 +2785,16 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
                     </button>
                   </div>
                 ) : null}
-                {aiReady === false && context ? (
-                  <ChatFailureNotice
-                    failure={{
-                      message: "Codex Agent is not ready.",
-                      question: "",
-                      sourceRefs: [],
-                      providerNotConfigured: true,
-                      taskType: "FREE_QUESTION",
-                    }}
-                    onDismiss={() => setAiReady(null)}
-                  />
+                {aiReady !== true && context ? (
+                  <div className="reading-ai-availability" role="status">
+                    <div><strong>{aiReady === null ? "正在检查 Agent 连接" : "阅读 Agent 尚未就绪"}</strong>
+                      <p>{aiReady === null ? "原件和历史记录可继续查看，也可先写好问题。" : aiConnectionMessage}</p>
+                    </div>
+                    {aiReady === false && <div className="reading-ai-availability-actions">
+                      <button type="button" className="button secondary compact" disabled={sending} onClick={refreshAiConnection}>刷新连接</button>
+                      <AppLink to={`${serializeWorkspaceRoute({ ...route, task: "reading" })}&settings=agent`}>配置 Agent</AppLink>
+                    </div>}
+                  </div>
                 ) : null}
                 {loadingContext || loadingConversations || loadingConversation ? (
                   <div className="reading-chat-centered">
@@ -2800,12 +2837,12 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
                         onCitation={jumpToCitation}
                         onSuggested={(question) => void submitQuestion(question, [])}
                         disableSuggestions={
-                          !canAskFullDocument || activeConversationIsStale
+                          !readingChatIsWritable || !canAskFullDocument || sending
                         }
                         onRegenerate={
                           message.role === "ASSISTANT" &&
                           previousUserMessage &&
-                          !activeConversationIsStale &&
+                          readingChatIsWritable && !sending &&
                           (previousSourceRefs.length > 0 || canAskFullDocument)
                             ? () =>
                                 void submitQuestion(
@@ -2830,6 +2867,7 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
                     context={context}
                     disabled={!readingChatIsWritable || sending || !canAskFullDocument}
                     gateMessage={fullDocumentQuestionGate}
+                    agentReady={aiReady === true}
                     onPrompt={(prompt, taskType) =>
                       void submitQuestion(prompt, [], taskType)
                     }
@@ -2840,7 +2878,7 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
                   <ChatFailureNotice
                     failure={chatFailure}
                     onRetry={
-                      chatFailure.question
+                      chatFailure.question && readingChatIsWritable && !sending
                         ? () =>
                             void submitQuestion(
                               chatFailure.question,
@@ -2862,7 +2900,7 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
                         key={question}
                         type="button"
                         disabled={
-                          !canAskFullDocument || activeConversationIsStale
+                          !readingChatIsWritable || !canAskFullDocument || sending
                         }
                         onClick={() => void submitQuestion(question, [])}
                       >
@@ -2901,10 +2939,10 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
                     value={draft}
                     rows={1}
                     maxLength={MAX_QUESTION_LENGTH}
-                    disabled={!readingChatIsWritable}
+                    disabled={!readingInputIsWritable}
                     placeholder={
-                      readingChatIsWritable
-                        ? exactSelection
+                      readingInputIsWritable
+                        ? aiReady !== true ? "可先写下问题，连接就绪后再发送…" : exactSelection
                           ? "围绕选中的原文提问…"
                           : fullDocumentQuestionGate
                             ? "先补齐不可读页面，或选中已读内容提问…"
@@ -2939,7 +2977,7 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
                       "is-capture-gated",
                   )}
                 >
-                  {selectedSourceRefs.length
+                  {aiReady !== true ? "可先写下问题 · Agent 连接就绪后可发送" : selectedSourceRefs.length
                     ? "Enter 发送 · 仅围绕已选内容回答 · 请结合引用核对"
                     : fullDocumentQuestionGate ||
                       "Enter 发送 · 当前为全文可读文字回答模式，可停止等待 · 请结合引用核对"}
@@ -2974,7 +3012,7 @@ export function ReadingWorkspacePage({ embedded = false }: { embedded?: boolean 
                   editingNoteText={editingNoteText}
                   busyNote={busyNote}
                   canWrite={readingIsWritable && !sourceMutationInProgress}
-                  canAskFullDocument={canAskFullDocument}
+                  canAskFullDocument={canAskFullDocument && readingChatIsWritable && !sending}
                   onView={setAuxiliaryView}
                   onClose={() => setAuxiliaryView(null)}
                   onMapNode={(node) => {
@@ -3020,12 +3058,14 @@ function ChatWelcome({
   context,
   disabled,
   gateMessage,
+  agentReady,
   onPrompt,
 }: {
   documentName: string;
   context: ReadingContextV1;
   disabled: boolean;
   gateMessage: string;
+  agentReady: boolean;
   onPrompt: (prompt: string, taskType: ReadingTaskType) => void;
 }) {
   return (
@@ -3036,7 +3076,7 @@ function ChatWelcome({
       </div>
       <p className="section-label">ASK THE DOCUMENT</p>
       <h2>你想从这份文档了解什么？</h2>
-      {gateMessage ? (
+      {!agentReady ? <p>先浏览左侧原件，或在下方写下问题。Agent 连接就绪后即可提问。</p> : gateMessage ? (
         <p className="reading-welcome-gate" role="status">
           {gateMessage}。补齐后可使用整文导读；现在仍可在左侧选中已读文字提问。
         </p>
@@ -3638,14 +3678,14 @@ function ChatFailureNotice({
       <div>
         <strong>
           {failure.providerNotConfigured
-            ? "Codex Agent 尚未就绪"
+            ? "阅读 Agent 尚未就绪"
             : failure.stopped
               ? "已停止等待"
               : "这次没有回答成功"}
         </strong>
         <p>
           {failure.providerNotConfigured
-            ? "请先完成 Codex 登录并确认目标模型可用；原文浏览、结构地图和笔记不受影响。"
+            ? failure.message
             : failure.message}
         </p>
       </div>

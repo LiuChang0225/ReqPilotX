@@ -18,6 +18,7 @@ vi.mock("@reqpilotx/workbench-ui/web", async (importOriginal) => ({
     renderSpies.workspace();
     return <div>workspace-page</div>;
   },
+  HomePage: () => <div>work-home</div>,
   PreferencesProvider: ({ children }: { children: ReactNode }) => children,
 }));
 
@@ -28,6 +29,12 @@ afterEach(() => {
 });
 
 describe("App workspace routing", () => {
+  it("opens the work home for a fresh visit while preserving document deep links", async () => {
+    window.history.replaceState(null, "", "/");
+    render(<App />);
+    expect(await screen.findByText("work-home")).toBeInTheDocument();
+    expect(renderSpies.workspace).not.toHaveBeenCalled();
+  });
   it.each(["/", "/workspace"])(
     "keeps the reading task inside the unified workspace at %s",
     async (pathname) => {

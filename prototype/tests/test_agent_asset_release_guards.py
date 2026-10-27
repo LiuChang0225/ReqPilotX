@@ -12,7 +12,9 @@ import subprocess
 import tempfile
 import unittest
 
-from .test_agent_assets import ROOT, asset_registry, build_bundle
+from .test_agent_assets import (
+    APPROVED_ASSET_COUNT, APPROVED_RELEASE_GROUPS, ROOT, asset_registry, build_bundle,
+)
 from evals.agent_evals.contracts import bundle_integrity, digest
 from evals.agent_evals.host_install import install
 
@@ -31,12 +33,14 @@ class FrozenAssetBoundaryTests(unittest.TestCase):
                 with self.assertRaises(ValueError):
                     verify(self.bundle)
 
-    def test_normal_42_assets_and_host_install_markers_remain_valid(self):
+    def test_approved_assets_and_host_install_markers_remain_valid(self):
         receipt = asset_registry.verify_frozen_bundle(self.bundle)
-        self.assertEqual(receipt["file_count"], 42)
+        declared = json.loads((self.bundle / "build-receipt.json").read_text())["agent_assets"]["groups"]
+        self.assertEqual(declared, APPROVED_RELEASE_GROUPS)
+        self.assertEqual(receipt["file_count"], APPROVED_ASSET_COUNT)
         result = install(self.bundle, self.root / "installed", "antigravity", self.root / "receipts")
         self.assertEqual(bundle_integrity(self.root / "installed")["bundle_sha256"], result["bundle_sha256"])
-        self.assertEqual(asset_registry.verify_frozen_bundle(self.root / "installed")["file_count"], 42)
+        self.assertEqual(asset_registry.verify_frozen_bundle(self.root / "installed")["file_count"], APPROVED_ASSET_COUNT)
 
     def test_extra_skill_and_vendor_file_are_rejected_by_both_consumers(self):
         for relative in ("skills/review-extra/SKILL.md", "capabilities/pdf/review-extra.txt"):
@@ -46,7 +50,7 @@ class FrozenAssetBoundaryTests(unittest.TestCase):
                 path.write_text("inert synthetic marker\n", encoding="utf-8")
                 self.assert_both_reject()
                 path.unlink()
-        self.assertEqual(asset_registry.verify_frozen_bundle(self.bundle)["file_count"], 42)
+        self.assertEqual(asset_registry.verify_frozen_bundle(self.bundle)["file_count"], APPROVED_ASSET_COUNT)
 
     def test_host_install_rejects_extra_skill_before_creating_target(self):
         path = self.bundle / "skills/review-extra/SKILL.md"

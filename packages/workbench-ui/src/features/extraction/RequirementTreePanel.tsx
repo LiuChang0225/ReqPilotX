@@ -7280,7 +7280,8 @@ function RequirementTreeOrganizePanel() {
 
       <div className="requirement-tree-status-stack">
         {isSaasAccountMode() && (nativeStructureAdvancement.artifactId ? <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p> : agentAvailability.message && <p role="status">{agentAvailability.message} <button type="button" className="button ghost compact" onClick={agentAvailability.refresh}>刷新 Agent 配置</button></p>)}
-        {(activeCheckpoint === "structure" || !sourceRequirementReady) && <SourceDocumentActions
+        {(activeCheckpoint === "structure" || !sourceRequirementReady)
+          && !(documentAgent && nativeReferenceLookupReady && !nativeStructureReferenceAvailable && !showSourceEvidenceLens) && <SourceDocumentActions
           projectId={route.projectId} documentId={route.documentId}
           sourceSha256={String(selectedDocument.source_sha256 || sourcePages.source_sha256 || "")}
           mapArtifactId={nativeStructureAdvancement.artifactId || ""}

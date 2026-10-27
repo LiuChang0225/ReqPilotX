@@ -1,9 +1,27 @@
 import {
+  createContext,
+  useContext,
   useMemo,
   useSyncExternalStore,
   type AnchorHTMLAttributes,
   type MouseEvent,
 } from "react";
+
+/** Panel-local navigation keeps the parent application's URL and history intact. */
+export interface ApplicationNavigation {
+  subscribe(listener: () => void): () => void;
+  snapshot(): string;
+  navigate(to: string, options?: { replace?: boolean }): void;
+}
+export const ApplicationNavigationContext = createContext<ApplicationNavigation | null>(null);
+
+export function useNavigate() {
+  const host = useContext(ApplicationNavigationContext);
+  return host ? (to: string, options?: { replace?: boolean }) => {
+    if (navigationGuard && !navigationGuard()) return;
+    host.navigate(to, options);
+  } : navigate;
+}
 
 const navigationEvent = "reqpilotx:navigation";
 let navigationGuard: (() => boolean) | null = null;
@@ -29,7 +47,8 @@ function subscribe(listener: () => void): () => void {
 }
 
 export function useBrowserLocation(): URL {
-  const current = useSyncExternalStore(subscribe, snapshot, snapshot);
+  const host = useContext(ApplicationNavigationContext);
+  const current = useSyncExternalStore(host?.subscribe ?? subscribe, host?.snapshot ?? snapshot, host?.snapshot ?? snapshot);
   return useMemo(() => new URL(current, window.location.origin), [current]);
 }
 
@@ -58,6 +77,7 @@ export function AppLink({
   target,
   ...props
 }: AppLinkProps) {
+  const navigateTo = useNavigate();
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     onClick?.(event);
     if (
@@ -74,7 +94,7 @@ export function AppLink({
     const destination = new URL(to, window.location.origin);
     if (destination.origin !== window.location.origin) return;
     event.preventDefault();
-    navigate(to);
+    navigateTo(to);
   };
   return <a href={to} target={target} onClick={handleClick} {...props} />;
 }
