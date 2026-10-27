@@ -16,7 +16,8 @@ export interface WorkbenchApplicationHost extends Pick<WorkbenchPresentation, "r
   captureAvailable: boolean;
   taskStartAvailable: boolean;
   startTask(input: { projectId: string; documentId: string; sourceSha256: string; goal: string; requireMapConfirmation?: boolean }): Promise<ApplicationTaskReceipt>;
-  restoreTask(input: { projectId: string; documentId: string; sourceSha256: string; workRef?: string }): Promise<ApplicationTaskReceipt | null>;
+  /** Cancelling an observation discards its pending read without cancelling the durable task. */
+  restoreTask(input: { projectId: string; documentId: string; sourceSha256: string; workRef?: string }, options?: { signal?: AbortSignal }): Promise<ApplicationTaskReceipt | null>;
   taskDraft(input: { projectId: string; documentId: string; sourceSha256: string }): { goal: string; requireMapConfirmation: boolean } | undefined;
   controlTask(receipt: ApplicationTaskReceipt, action: "cancel" | "continue" | "reconnect"): Promise<ApplicationTaskReceipt>;
   openSession(sessionId: string, context?: { projectId: string; documentId: string; sourceSha256: string; workRef: string; revisionId?: string;

@@ -21,18 +21,20 @@ function createPairTaskController(config, openSession, transport = fetch) {
     }
     return prior;
   };
-  async function request(path, input) {
-    const response = await transport(taskPrefix + path, input ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) } : {});
+  async function request(path, input, signal) {
+    const response = await transport(taskPrefix + path, { ...(input ? { method: 'POST', headers: { 'content-type': 'application/json' }, body: JSON.stringify(input) } : {}), ...(signal ? { signal } : {}) });
     const value = await response.json();
     if (!response.ok) throw Error(value.error || '无法确认任务，请保留原请求并重试。');
     return value;
   }
-  async function restoreTask(input) {
+  async function restoreTask(input, { signal } = {}) {
+    signal?.throwIfAborted();
     if (config.workbench?.taskLookupAvailable !== true) return null;
     const prior = readIntent(input);
     if (!prior?.commandId || input.workRef) {
       const query = new URLSearchParams(Object.entries(input).filter(([, value]) => value !== undefined));
-      const listed = await request('/tasks?' + query.toString());
+      const listed = await request('/tasks?' + query.toString(), undefined, signal);
+      signal?.throwIfAborted();
       if (!Array.isArray(listed.tasks)) throw Error('当前插件未提供持久任务查找，请更新后恢复原任务。');
       if (listed.tasks.length > 1) throw Error('找到多个已保存任务，请先从工作选择器选择要继续的工作。');
       const value = listed.tasks[0];
@@ -41,11 +43,15 @@ function createPairTaskController(config, openSession, transport = fetch) {
       write(scopeKey(input), value.request);
       if (value.status === 'ACCEPTED' && !acceptedTaskReceipt(value, config.applicationId, value.request)) throw Error('已保存任务的绑定不一致，请核对原任务。');
       if (!acceptedTaskReceipt(value, config.applicationId, value.request)) return null;
-      return request('/tasks/' + value.commandId);
+      const latest = await request('/tasks/' + value.commandId, undefined, signal);
+      signal?.throwIfAborted();
+      return latest;
     }
-    const response = await transport(taskPrefix + '/tasks/' + prior.commandId);
+    const response = await transport(taskPrefix + '/tasks/' + prior.commandId, signal ? { signal } : undefined);
+    signal?.throwIfAborted();
     if (response.status === 404) return null;
     const value = await response.json();
+    signal?.throwIfAborted();
     if (!response.ok) throw Error('暂时无法恢复原任务，请重试读取。');
     if (value.status === 'ACCEPTED' && !acceptedTaskReceipt(value, config.applicationId, prior)) throw Error('已保存任务的绑定不一致，请核对原任务。');
     if (!acceptedTaskReceipt(value, config.applicationId, prior)) return null;

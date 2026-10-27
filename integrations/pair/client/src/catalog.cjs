@@ -62,16 +62,18 @@ function HostedApplication({ config, openSession }) {
     observer.observe(document.documentElement, { attributes: true });
     return () => observer.disconnect();
   }, []);
+  const resources = React.useMemo(() => makeReadonlyHost(config.serviceOrigin, undefined, config.applicationId), [config.applicationId, config.serviceOrigin]);
   const host = React.useMemo(() => ({
     ...makeReadonlyHost(config.serviceOrigin, undefined, config.applicationId, config.capabilities),
+    resourceUrl: resources.resourceUrl, pdfViewerUrl: resources.pdfViewerUrl,
     id: config.applicationId, label: 'PAIR', modelLabel: config.taskModel ? [config.taskModel.model, config.taskModel.reasoningEffort].filter(Boolean).join(' / ') : '由 PAIR 任务配置提供，首次发送前校验', captureAvailable: config.capabilities['documents.capture'] === true,
     taskStartAvailable: config.capabilities['agent.start'] === true,
     ...createPairTaskController(config, openSession),
-  }), [config.applicationId, config.serviceOrigin, openSession]);
+  }), [config, resources, openSession]);
   React.useLayoutEffect(() => {
-    const dispose = panelModule.exports.installApplicationTransport({ id: host.id, resourceUrl: host.resourceUrl,
-      fetch: (input, init) => fetch(host.resourceUrl(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url), init) });
+    const dispose = panelModule.exports.installApplicationTransport({ id: config.applicationId, resourceUrl: resources.resourceUrl,
+      fetch: (input, init) => fetch(resources.resourceUrl(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url), init) });
     setInstalled(true); return dispose;
-  }, [host.resourceUrl]);
+  }, [config.applicationId, resources]);
   return installed ? h(panelModule.exports.ReqPilotXApplication, { host, theme }) : h('p', { role: 'status' }, '正在打开 ReqPilotX 工作台…');
 }

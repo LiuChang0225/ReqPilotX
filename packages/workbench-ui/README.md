@@ -19,6 +19,8 @@ Embedded navigation and preferences are scoped to the panel. The parent URL, doc
 
 The host supplies task start, exact-work restoration, control and Session opening through `WorkbenchApplicationHost`. `HostedAgentPanel` owns only these host controls. Business feedback, original-source linkage, human opinions, versions and exports continue through the existing workbench components and API. Host configuration is shown without a second model/provider editor. Unsupported source removal and knowledge import remain explicitly disabled; program capture requires a declared capability.
 
+Pending observations and controls belong to one committed host/work/revision selection. The route's selected revision invalidates them before its reader has finished loading; returning to the same work does not reactivate an older observation. Restoration accepts an optional `AbortSignal`, which discards stale reads and prevents them from replacing newer durable intentions. This does not cancel an admitted task. Control acknowledgements update execution state while preserving the current work and inspected version; only explicit task start or return navigates to another work. An observation begun before a control cannot replace that control's newer receipt.
+
 ## Native Web original evidence
 
 The standalone `WorkbenchHostContext` enables `nativeEvidence: true`. This is an

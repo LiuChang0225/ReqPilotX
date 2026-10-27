@@ -150,7 +150,7 @@ function DocumentSurface({ children }: PropsWithChildren) {
         </div>
         <aside className="document-agent-pane" hidden={!opened} aria-label="Agent 任务工作区">
           {applicationHost && <HostedAgentPanel projectId={route.projectId} documentId={route.documentId} sourceSha256={sourceSha256}
-            workRef={route.pluginSessionId} revisionId={plugin.pinned || undefined} binding={activeBinding} initialGoal={initialGoal} onAccepted={value => {
+            workRef={route.pluginSessionId} revisionId={plugin.pinned || undefined} selectedRevisionId={route.resultRevision} binding={activeBinding} initialGoal={initialGoal} onAccepted={value => {
               updateRoute({ pluginSessionId: value.workRef, resultRevision: undefined, task: "extraction", mode: "organize", checkpoint: "structure" }); updated();
             }} onClose={() => { setOpened(false); trigger.current?.focus(); }} />}
           {isExternal ? <ExternalAgentPanel provider={plugin} projectId={route.projectId} documentId={route.documentId} documentName={selectedDocument!.file_name} binding={activeBinding} openRequest={openRequest}
