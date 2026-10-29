@@ -15,6 +15,7 @@ _ENTRY_ROUTES = (
     "/workspace",
     "/extraction-review",
     "/pdf-viewer",
+    "/parser-lab",
 )
 
 

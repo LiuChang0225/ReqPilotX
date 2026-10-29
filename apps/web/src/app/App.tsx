@@ -2,12 +2,13 @@ import { lazy, Suspense, useEffect } from "react";
 import { AccountGate } from "../auth/AccountGate";
 import {
   ErrorBoundary, PreferencesProvider, HomePage, WorkspacePage,
-  navigate, useBrowserLocation, LoadingBlock, loadCandidateReview, loadPdfViewer,
+  navigate, useBrowserLocation, LoadingBlock, loadCandidateReview, loadPdfViewer, loadParserLab,
   parseWorkspaceRoute,
   serializeWorkspaceRoute,
 } from "@reqpilotx/workbench-ui/web";
 
 const CandidateReviewWorkspace = lazy(async () => ({ default: (await loadCandidateReview()).CandidateReviewWorkspace }));
+const ParserLabPage = lazy(async () => ({ default: (await loadParserLab()).ParserLabPage }));
 
 const PdfViewerPage = lazy(async () => ({
   default: (await loadPdfViewer()).PdfViewerPage,
@@ -40,6 +41,7 @@ export function App() {
       return <LegacyWorkspaceRedirect search={location.search} />;
     }
     if (location.pathname === "/pdf-viewer") return <PdfViewerPage />;
+    if (location.pathname === "/parser-lab") return <ParserLabPage />;
     return <WorkspacePage />;
   })();
   return (

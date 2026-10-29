@@ -1,28 +1,16 @@
 from __future__ import annotations
 
 from fastapi import APIRouter
-from reqpilotx_server.saas.auth import build_auth_router
 
-from . import (
-    agent_workflow,
-    assessment,
-    export,
-    extraction,
-    ingestion,
-    knowledge,
-    openkb_evidence,
-    matrix,
-    projects,
-    reading,
-    review,
-    runtime,
-    source_capture,
-    source_item_delivery,
-    source_item_images,
-)
 
 
 def build_domain_routers() -> tuple[APIRouter, ...]:
+    from reqpilotx_server.saas.auth import build_auth_router
+    from . import (
+        agent_workflow, assessment, export, extraction, ingestion, knowledge,
+        openkb_evidence, matrix, projects, reading, review, runtime, source_capture,
+        source_item_delivery, source_item_images,
+    )
     return (
         runtime.build(),
         build_auth_router(),

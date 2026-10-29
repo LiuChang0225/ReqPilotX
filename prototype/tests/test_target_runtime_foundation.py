@@ -1423,6 +1423,21 @@ class PostgresCompatibilityTests(unittest.TestCase):
 
 
 class AppFactoryBoundaryTests(unittest.TestCase):
+    def test_parser_lab_is_not_exposed_in_cloud_mode(self) -> None:
+        from dataclasses import replace
+        settings = replace(application_runtime.RUNTIME_SETTINGS, deployment_mode=DeploymentMode.CLOUD)
+        app = create_app(settings=settings)
+        self.assertFalse(any(str(getattr(route, "path", "")).startswith("/api/parser-lab") for route in app.routes))
+
+    def test_parser_lab_is_not_exposed_when_saas_uses_local_deployment(self) -> None:
+        from dataclasses import replace
+        from reqpilotx_server.saas.config import SaaSSettings
+        settings = replace(application_runtime.RUNTIME_SETTINGS, deployment_mode=DeploymentMode.LOCAL)
+        with patch.object(SaaSSettings, "from_environment", return_value=SaaSSettings(
+                enabled=True, origin="http://127.0.0.1", invitation="test-invitation-placeholder-12345678")):
+            app = create_app(settings=settings)
+        self.assertFalse(any(str(getattr(route, "path", "")).startswith("/api/parser-lab") for route in app.routes))
+
     def test_cloud_host_and_origin_are_explicit(self) -> None:
         static_dir = Path(__file__).resolve().parents[2] / "apps/web/dist"
         settings = RuntimeSettings(
@@ -1474,6 +1489,7 @@ class AppFactoryBoundaryTests(unittest.TestCase):
                 "knowledge",
                 "openkb-evidence",
                 "export",
+                "parser-lab",
             ),
         )
         api_routes = [

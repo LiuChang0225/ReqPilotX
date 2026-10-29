@@ -9,3 +9,4 @@ export { setSaasCsrfToken, setSaasAccountIdentity } from "./shared/api/saasSessi
 export { parseWorkspaceRoute, serializeWorkspaceRoute } from "./features/workspace/route";
 export const loadCandidateReview = () => import("./features/extraction/CandidateReviewWorkspace");
 export const loadPdfViewer = () => import("./features/pdf/PdfViewerPage");
+export const loadParserLab = () => import("./features/parser-lab/ParserLabPage");
