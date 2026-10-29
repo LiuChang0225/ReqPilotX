@@ -9,6 +9,7 @@ never survives the current source page and does not change parser decisions.
 from __future__ import annotations
 
 from dataclasses import dataclass
+from collections.abc import Callable
 from typing import Any
 
 
@@ -84,16 +85,24 @@ class PdfPageEvidenceCache:
         *,
         max_table_candidates: int = 2_000,
         max_table_cell_slots: int = 500_000,
+        evidence_observer: Callable[[str, dict[str, Any], Any], None] | None = None,
     ) -> None:
         self._page = page
         self._max_table_candidates = max_table_candidates
         self._max_table_cell_slots = max_table_cell_slots
         self._cache: dict[tuple[str, str], Any] = {}
+        self._evidence_observer = evidence_observer
 
     def __getattr__(self, name: str) -> Any:
         # Unsupported methods stay unsupported; getattr(..., None) therefore
         # continues to drive the adapter's original missing-capability checks.
         method = getattr(self._page, name)
+        if name == "get_text" and callable(method) and self._evidence_observer:
+            def observed_text(*args: Any, **kwargs: Any) -> Any:
+                result = method(*args, **kwargs)
+                self._evidence_observer(name, {"args": args, **kwargs}, result)
+                return result
+            return observed_text
         if name not in {"find_tables", "get_drawings", "get_bboxlog"} or not callable(method):
             return method
 
@@ -108,6 +117,8 @@ class PdfPageEvidenceCache:
             key = (name, str(strategy) if name == "find_tables" else "default")
             if key not in self._cache:
                 result = method(*args, **kwargs)
+                if self._evidence_observer:
+                    self._evidence_observer(name, kwargs, result)
                 if name == "find_tables":
                     tables = getattr(result, "tables", None)
                     if isinstance(tables, (list, tuple)) and len(tables) <= self._max_table_candidates:

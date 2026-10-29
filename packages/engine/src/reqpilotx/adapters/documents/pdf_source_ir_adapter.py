@@ -795,6 +795,7 @@ class PdfSourceIRAdapter:
         source_asset_publisher: Callable[[SourceAssetRef, bytes], None] | None = None,
         page_progress_callback: Callable[[int, int, int], None] | None = None,
         page_staging_callback: Callable[[dict[str, Any]], None] | None = None,
+        native_evidence_observer: Callable[[int, str, dict[str, Any], Any], None] | None = None,
     ) -> None:
         # OCR is an explicit shadow capability.  The default native adapter
         # only records visual-risk diagnostics so a corpus run cannot acquire
@@ -819,6 +820,9 @@ class PdfSourceIRAdapter:
         if source_asset_publisher is not None and not callable(source_asset_publisher):
             raise TypeError("source_asset_publisher must be callable")
         self._source_asset_publisher = source_asset_publisher
+        if native_evidence_observer is not None and not callable(native_evidence_observer):
+            raise TypeError("native_evidence_observer must be callable")
+        self._native_evidence_observer = native_evidence_observer
         if page_progress_callback is not None and not callable(page_progress_callback):
             raise TypeError("page_progress_callback must be callable")
         self._page_progress_callback = page_progress_callback
@@ -1071,6 +1075,10 @@ class PdfSourceIRAdapter:
                     page,
                     max_table_candidates=_MAX_PDF_TABLE_CANDIDATES,
                     max_table_cell_slots=_MAX_PDF_TABLE_CELLS,
+                    evidence_observer=(
+                        lambda method, config, result, number=page_number:
+                        self._native_evidence_observer(number, method, config, result)
+                    ) if self._native_evidence_observer else None,
                 )
                 page_locator = _page_locator(page_number, page.rect)
                 page_rotation_matrix = getattr(page, "rotation_matrix", None)

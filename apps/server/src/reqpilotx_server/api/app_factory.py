@@ -91,6 +91,10 @@ def create_app(*, settings: RuntimeSettings | None = None) -> FastAPI:
         app.add_event_handler("startup", ensure_schema)
     app.add_event_handler("shutdown", runtime.shutdown)
     domain_routers = build_domain_routers()
+    if (not app.state.saas_settings.enabled
+            and runtime_settings.deployment_mode in {DeploymentMode.LOCAL, DeploymentMode.TEST}):
+        from reqpilotx_server.api.routers.parser_lab import build as build_parser_lab
+        domain_routers += (build_parser_lab(runtime_settings.scratch_root / "parser-lab"),)
     for router in domain_routers:
         app.include_router(router)
     app.state.domain_routers = tuple(
