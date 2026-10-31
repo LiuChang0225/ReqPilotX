@@ -20,6 +20,7 @@ import artifact_tools
 from app.application.agent_workflow import plugin_workbench as api
 from app.application.agent_workflow import fixed_workflow as workflow
 from app.application.errors import ApplicationError
+from task_service import TaskService
 
 class PluginWorkbenchTests(unittest.TestCase):
     def test_export_uses_registered_original_name_not_materialized_digest_filename(self):
@@ -190,6 +191,92 @@ class PluginWorkbenchTests(unittest.TestCase):
                 'ready_to_review': False, 'verification': 'SAVED_ARTIFACTS_ONLY',
                 'open_items': [], 'human_acceptance': 'NOT_CLAIMED'}
 
+    def real_task_workflow(self, partial=False):
+        task_root = self.root / ('task-full' if not partial else 'task-partial')
+        task_root.mkdir(parents=True, exist_ok=True)
+        service = TaskService(task_root, ROOT/'plugins/reqpilot/scripts/reqpilot.py', ROOT)
+        goal = 'Compile and deliver the synthetic source.'
+        spec = workflow.workflow_spec(brief_sha256=workflow.brief_sha256(goal), evidence_mode='NONE')
+        state = service.invoke('open', {'mode':'create','source':str(self.source),'goal':goal,
+            'creation_key':'cross-full' if not partial else 'cross-partial','workflow':spec})
+        task = state['task_id']; state = service.invoke('prepare', {'task_id':task,'expected_revision':state['revision']})
+        edit = json.loads((self.root/'map-input.json').read_text()); edit['schema_version']='reqpilot-map-edit/v1'; edit.pop('source_sha256',None)
+        mapped = service.invoke('map', {'task_id':task,'expected_revision':state['revision'],'decisions':edit})
+        choices = item_decisions(Path(mapped['selected']['MAP']['output_dir']))
+        for key in ('source_sha256','document_map_artifact_sha256'): choices.pop(key,None)
+        if partial:
+            body = [{k:v for k,v in scope.items() if k != 'structure_only_spans'}
+                    for scope in choices['text_decisions'] if scope['items']]
+            decisions = {'retain_map_structure':True,'text_decisions':body[:1]}
+        else:
+            decisions = choices
+        items = service.invoke('items', {'task_id':task,'expected_revision':mapped['revision'],'decisions':decisions})
+        review = service.invoke('review', {'task_id':task,'expected_revision':items['revision']})
+        deliver = service.invoke('deliver', {'task_id':task,'expected_revision':review['revision']})
+        check = service.invoke('check', {'task_id':task})
+        inspected = service.invoke('inspect', {'task_id':task}); selected = inspected['selected']
+        map_dir = Path(selected['MAP']['output_dir']); item_dir = Path(selected['ITEMS']['path']).parent
+        artifacts = {name:json.loads((map_dir/name).read_text()) for name in ('document-map.json','table-previews.json')}
+        for name in ('source-requirement-baseline.json','validation-receipt.json','item-compilation-receipt.json'):
+            if (item_dir/name).is_file(): artifacts[name]=json.loads((item_dir/name).read_text())
+        check_path = Path(inspected['task_root'])/'workflow-check.json'
+        artifacts['workflow-check.json'] = json.loads(check_path.read_text())
+        return check, artifacts
+
+    def workbench_roundtrip(self, session, artifacts, workflow_state, local_review_sha256):
+        state = api.sync_plugin_draft('p','d',api.PluginDraftUpload(session_id=session,
+            expected_source_sha256=self.sha, artifacts=artifacts, fixed_workflow=workflow_state,
+            local_review_sha256=local_review_sha256), self.sink())
+        from reqpilotx_server.application.agent_workflow import plugin_workbench_delivery as delivery
+        preview = delivery.preview_plugin_delivery_version('p','d',session,self.sink())
+        saved = delivery.save_plugin_delivery_version('p','d',session,delivery.PluginDeliveryVersion(
+            command_id='cross-delivery-'+session[-8:], expected_source_sha256=self.sha,
+            expected_revision_id=preview['revision_id'], expected_version=preview['version'],
+            expected_response_revision=preview['response_revision'],
+            expected_delivery_sha256=preview['delivery_sha256']), self.sink())
+        return state, saved
+
+    def test_public_cross_consumer_full_partial_check_and_delivery(self):
+        full_check, full_artifacts = self.real_task_workflow()
+        self.assertTrue(full_check['ready_to_review'], full_check)
+        self.assertIsNotNone(full_check['workflow_check']['delivery_snapshot_sha256'])
+        full_session='plugin-'+'c'*32
+        full_state, saved = self.workbench_roundtrip(full_session, full_artifacts, full_check['workflow'],
+            full_check['workflow_check']['basis']['review_sha256'])
+        self.assertEqual(saved['delivery_sha256'], full_check['workflow_check']['delivery_snapshot_sha256'])
+        public = api.get_plugin_workbench('p','d',full_session,self.sink())['fixed_workflow']
+        self.assertTrue(public['ready_to_review'], public)
+        self.assertEqual({s['id']:s for s in public['stages']}['SELF_CHECK']['status'], 'SAVED')
+        self.assertTrue(api.get_plugin_workbench('p','d',full_session,self.sink())['fixed_workflow']['ready_to_review'])
+
+        partial_check, partial_artifacts = self.real_task_workflow(partial=True)
+        self.assertFalse(partial_check['ready_to_review'], partial_check)
+        partial_session='plugin-'+'d'*32
+        self.workbench_roundtrip(partial_session, partial_artifacts, partial_check['workflow'],
+            partial_check['workflow_check']['basis']['review_sha256'])
+        partial_public = api.get_plugin_workbench('p','d',partial_session,self.sink())['fixed_workflow']
+        self.assertFalse(partial_public['ready_to_review'])
+        self.assertEqual({s['id']:s for s in partial_public['stages']}['ITEMS_CLASSIFICATION']['status'], 'IN_PROGRESS')
+
+        missing = dict(full_artifacts); missing.pop('workflow-check.json')
+        missing_session='plugin-'+'e'*32
+        self.workbench_roundtrip(missing_session, missing, full_check['workflow'],
+            full_check['workflow_check']['basis']['review_sha256'])
+        self.assertFalse(api.get_plugin_workbench('p','d',missing_session,self.sink())['fixed_workflow']['ready_to_review'])
+
+        failed = dict(full_artifacts); failed['workflow-check.json'] = {**full_artifacts['workflow-check.json'], 'status':'FAILED'}
+        failed_session='plugin-'+'f'*32
+        self.workbench_roundtrip(failed_session, failed, full_check['workflow'],
+            full_check['workflow_check']['basis']['review_sha256'])
+        self.assertFalse(api.get_plugin_workbench('p','d',failed_session,self.sink())['fixed_workflow']['ready_to_review'])
+
+        stale = dict(full_artifacts); stale['workflow-check.json'] = {**full_artifacts['workflow-check.json'],
+            'basis':{**full_artifacts['workflow-check.json']['basis'], 'items_sha256':'0'*64}}
+        stale_session='plugin-'+'1'*32
+        self.workbench_roundtrip(stale_session, stale, full_check['workflow'],
+            full_check['workflow_check']['basis']['review_sha256'])
+        self.assertFalse(api.get_plugin_workbench('p','d',stale_session,self.sink())['fixed_workflow']['ready_to_review'])
+
     def test_fixed_workflow_claims_are_derived_from_uploaded_artifacts(self):
         claim = self.workflow_state(self.artifacts)
         claim['ready_to_review'] = True
@@ -227,6 +314,19 @@ class PluginWorkbenchTests(unittest.TestCase):
         self.assertTrue(all(stage.get('evidence', []) != [] or stage['status'] != 'SAVED'
                             for stage in derived['stages']))
 
+    def test_fixed_workflow_partial_item_coverage_keeps_items_incomplete(self):
+        claim = self.workflow_state(self.artifacts)
+        artifacts = dict(self.artifacts)
+        artifacts['item-compilation-receipt.json'] = {'source_sha256': self.sha,
+            'baseline_artifact_sha256': artifacts['source-requirement-baseline.json']['artifact_sha256'],
+            'unprocessed_scope_ids': ['scope-unprocessed-a', 'scope-unprocessed-b']}
+        state = self.sync(artifacts, fixed_workflow=claim, require_map_confirmation=False)
+        by_id = {stage['id']: stage for stage in state['fixed_workflow']['stages']}
+        self.assertEqual(by_id['ITEMS_CLASSIFICATION']['status'], 'IN_PROGRESS')
+        self.assertEqual(by_id['ITEMS_CLASSIFICATION']['reason'], 'UNPROCESSED_SOURCE_SCOPE')
+        self.assertFalse(state['fixed_workflow']['ready_to_review'])
+        self.assertIn('UNPROCESSED_SOURCE_SCOPE', state['fixed_workflow']['open_items'])
+
     def test_fixed_workflow_rejects_wrong_source_or_unknown_definition(self):
         claim = self.workflow_state(self.mapping())
         with self.assertRaises(ApplicationError) as wrong_source:
@@ -238,7 +338,7 @@ class PluginWorkbenchTests(unittest.TestCase):
                       require_map_confirmation=False)
         self.assertEqual(incompatible.exception.status_code, 422)
 
-    def test_fixed_workflow_complete_delivery_receipt_allows_ready_and_then_goes_stale(self):
+    def test_fixed_workflow_delivery_without_check_is_not_ready_and_goes_stale(self):
         claim = self.workflow_state(self.artifacts)
         state = self.sync(self.artifacts, fixed_workflow=claim, require_map_confirmation=False)
         self.assertFalse(state['fixed_workflow']['ready_to_review'])
@@ -249,9 +349,9 @@ class PluginWorkbenchTests(unittest.TestCase):
             expected_response_revision=view['response_revision'], expected_delivery_sha256=view['delivery_sha256'])
         delivery.save_plugin_delivery_version('p','d',self.session,payload,self.sink())
         completed = self.api.get_plugin_workbench('p','d',self.session,self.sink())['fixed_workflow']
-        self.assertTrue(completed['ready_to_review'])
+        self.assertFalse(completed['ready_to_review'])
         by_id = {stage['id']: stage for stage in completed['stages']}
-        self.assertEqual(by_id['SELF_CHECK']['status'], 'SAVED')
+        self.assertNotEqual(by_id['SELF_CHECK']['status'], 'SAVED')
         self.assertEqual(by_id['DELIVERABLE']['status'], 'SAVED')
         self.assertEqual(by_id['DELIVERABLE']['evidence'][0]['kind'], 'DELIVERY_VERSION')
         changed = self.sync(self.changed_map('Changed basis'), state['revision_id'], fixed_workflow=claim,

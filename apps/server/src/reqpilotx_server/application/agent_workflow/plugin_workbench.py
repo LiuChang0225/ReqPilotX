@@ -30,8 +30,8 @@ SHA = r'^[0-9a-f]{64}$'
 SESSION = r'^plugin-[0-9a-f]{32}$'
 ARTIFACT_NAMES = {
     'document-map.json', 'source-requirement-baseline.json', 'validation-receipt.json',
-    'table-previews.json', 'image-annotations.json', 'source-item-decomposition.json',
-    'analysis-policy.json',
+    'table-previews.json', 'item-compilation-receipt.json', 'workflow-check.json',
+    'image-annotations.json', 'source-item-decomposition.json', 'analysis-policy.json',
 }
 
 
@@ -104,7 +104,7 @@ def _saved_delivery(root, head, baseline):
     return None
 
 
-def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root, head):
+def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root, head, local_review_sha256=None):
     """Derive stage status from validated uploads and retained delivery receipts.
 
     Sender-provided stage status and ready_to_review are deliberately ignored.
@@ -129,9 +129,20 @@ def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root
         raise ApplicationError(status_code=409, detail='固定工作流回执属于另一份原件。')
 
     delivery = _saved_delivery(root, head, baseline)
+    check = artifacts.get('workflow-check.json') or {}
+    check_basis = check.get('basis') or {}
+    check_current = bool(check and check_basis.get('source_sha256') == source_sha
+        and check_basis.get('map_sha256') == (mapping.artifact_sha256 if mapping else None)
+        and check_basis.get('items_sha256') == (baseline.artifact_sha256 if baseline else None)
+        and (not local_review_sha256 or check_basis.get('review_sha256') == local_review_sha256))
+    check_passed = bool(check_current and check.get('status') == 'PASSED'
+        and check.get('review_verified') is True and check.get('current_delivery_registered') is True
+        and delivery is not None and check.get('delivery_snapshot_sha256') == delivery.get('delivery_sha256'))
     confirmed = bool(mapping and head.get('confirmed_map_sha256') == mapping.artifact_sha256)
     confirmation_required = bool(mapping and head.get('require_map_confirmation') and not confirmed)
     decomposition = artifacts.get('source-item-decomposition.json') or {}
+    coverage = artifacts.get('item-compilation-receipt.json') or {}
+    unprocessed = coverage.get('unprocessed_scope_ids') if isinstance(coverage.get('unprocessed_scope_ids'), list) else []
     remaining = decomposition.get('review_scope', {}).get('remaining_source_item_ids', [])
     remaining = len(remaining) if isinstance(remaining, list) else 1
     policy = artifacts.get('analysis-policy.json') or {}
@@ -153,6 +164,8 @@ def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root
         item_status, item_reason = 'BLOCKED', 'SOURCE_MAP_REQUIRED'; blocking.append('SOURCE_MAP_REQUIRED')
     elif baseline is None:
         item_status, item_reason = 'PENDING', 'ITEMS_NOT_SAVED'
+    elif unprocessed:
+        item_status, item_reason = 'IN_PROGRESS', 'UNPROCESSED_SOURCE_SCOPE'; open_items.append('UNPROCESSED_SOURCE_SCOPE')
     elif remaining:
         item_status, item_reason = 'IN_PROGRESS', 'SCOPED_DERIVATION_REMAINING'; open_items.append('SCOPED_DERIVATION_REMAINING')
     elif confirmation_required:
@@ -161,7 +174,7 @@ def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root
         item_status, item_reason = 'SAVED', None
     item_evidence = ([{'kind': 'SOURCE_ITEMS', 'source_sha256': source_sha,
                        'artifact_sha256': baseline.artifact_sha256, 'count': len(baseline.records),
-                       'map_sha256': mapping.artifact_sha256}]
+                       'map_sha256': mapping.artifact_sha256, 'unprocessed_scope_ids': unprocessed}]
                      if mapping and baseline is not None else None)
     if decomposition:
         item_evidence = [*(item_evidence or []), {'kind': 'DECOMPOSITION', 'source_sha256': source_sha,
@@ -187,16 +200,20 @@ def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root
     if baseline is None:
         check_status, check_reason = 'BLOCKED', 'ITEMS_REQUIRED'
         delivery_status, delivery_reason = 'BLOCKED', 'ITEMS_REQUIRED'
-    elif delivery is not None:
+    elif check_passed:
         check_status, check_reason = 'SAVED', None
         delivery_status, delivery_reason = 'SAVED', None
+    elif check:
+        check_status, check_reason = 'BLOCKED', 'SELF_CHECK_FAILED'
+        delivery_status, delivery_reason = ('SAVED', None) if delivery is not None else ('PENDING', 'DELIVERABLE_NOT_SAVED')
     else:
-        check_status, check_reason = 'PENDING', 'SELF_CHECK_NOT_SAVED'
+        check_status, check_reason = 'PENDING', 'SELF_CHECK_NOT_RUN'
         delivery_status, delivery_reason = 'PENDING', 'DELIVERABLE_NOT_SAVED'
-    check_evidence = [{'kind': 'DELIVERY_VERSION', 'source_sha256': source_sha,
-                       'artifact_sha256': delivery.get('delivery_sha256')}] if delivery is not None else None
-    delivery_evidence = [{'kind': 'DELIVERY_VERSION', 'source_sha256': source_sha,
-                          'artifact_sha256': delivery.get('delivery_sha256')}] if delivery is not None else None
+    check_evidence = ([{'kind': 'WORKFLOW_CHECK' if check_passed else 'DELIVERY_VERSION', 'source_sha256': source_sha,
+                        'artifact_sha256': check.get('check_sha256') if check_passed else delivery.get('delivery_sha256')}]
+                      if check_status == 'SAVED' else None)
+    delivery_evidence = ([{'kind': 'DELIVERY_VERSION', 'source_sha256': source_sha,
+                          'artifact_sha256': delivery.get('delivery_sha256')}] if delivery is not None else None)
     stages.append({'id': 'SELF_CHECK', 'label': '自查与修正', 'status': check_status,
                    **({'evidence': check_evidence} if check_evidence else {}),
                    **({'reason': check_reason} if check_reason else {})})
@@ -204,7 +221,7 @@ def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root
                    **({'evidence': delivery_evidence} if delivery_evidence else {}),
                    **({'reason': delivery_reason} if delivery_reason else {})})
 
-    ready = delivery is not None and not blocking and all(
+    ready = delivery is not None and check_passed and not blocking and all(
         stage['status'] in {'SAVED', 'SKIPPED'} for stage in stages)
     next_stage = next((stage['id'] for stage in stages
                        if stage['status'] in {'PENDING', 'IN_PROGRESS', 'BLOCKED'}), None)
@@ -291,12 +308,14 @@ def _current_fixed_workflow(root, head):
                 if baseline.source_sha256 != head['source_sha256'] or baseline.document_map_artifact_sha256 != mapping.artifact_sha256:
                     raise ValueError('Source items differ from this Map/source')
             artifacts = {name: _artifact(directory, version, name) for name in
-                         ('source-item-decomposition.json', 'analysis-policy.json') if name in version['files']}
+                         ('source-item-decomposition.json', 'analysis-policy.json',
+                          'item-compilation-receipt.json', 'workflow-check.json') if name in version['files']}
         else:
             mapping = None; baseline = None; artifacts = {}
         payload = {'schema': workflow_contract.STATE_SCHEMA, 'source_sha256': head['source_sha256'],
                    'workflow': stored.get('workflow') or {}}
-        return _derive_fixed_workflow(payload, head['source_sha256'], mapping, baseline, artifacts, root, head)
+        return _derive_fixed_workflow(payload, head['source_sha256'], mapping, baseline, artifacts, root, head,
+                                      (version.get('local_review_sha256') if head.get('revision_id') else None))
     except (ApplicationError, ValueError, KeyError, TypeError, OSError) as exc:
         detail = exc.detail if isinstance(exc, ApplicationError) and isinstance(exc.detail, str) else str(exc)
         return {'schema': workflow_contract.STATE_SCHEMA,
@@ -368,6 +387,16 @@ def _compile_view(artifacts, source_sha):
         receipt=core.SourceRequirementBaselineValidationReceiptV1.model_validate(artifacts.get('validation-receipt.json'))
         if baseline.source_sha256!=source_sha or baseline.document_map_artifact_sha256!=mapping.artifact_sha256 or receipt.artifact_sha256!=baseline.artifact_sha256:
             raise ValueError('Map, source baseline and validation receipt differ')
+        coverage=artifacts.get('item-compilation-receipt.json')
+        if coverage is not None:
+            if (coverage.get('source_sha256')!=source_sha or coverage.get('baseline_artifact_sha256')!=baseline.artifact_sha256
+                    or not isinstance(coverage.get('unprocessed_scope_ids'), list)):
+                raise ValueError('Item coverage receipt differs from the source baseline')
+        check=artifacts.get('workflow-check.json')
+        if check is not None:
+            basis=check.get('basis') or {}
+            if check.get('schema')!='reqpilot-workflow-check/v1' or basis.get('source_sha256')!=source_sha:
+                raise ValueError('Workflow check receipt differs from the uploaded source')
     elif set(artifacts)-{'document-map.json','table-previews.json'}:
         raise ValueError('Annotations and review state require their actual source baseline')
     view_baseline=baseline or core.create_empty_source_requirement_baseline(mapping)[0]
@@ -416,7 +445,7 @@ def sync_plugin_draft(project_id: str,document_id: str,payload: PluginDraftUploa
         content_digest=core.canonical_json_sha256(identity)
         workflow_head = head if content_digest == head.get('content_digest') else {**head, 'revision_id': None}
         fixed_workflow = _derive_fixed_workflow(payload.fixed_workflow, payload.expected_source_sha256,
-            mapping, baseline, payload.artifacts, root, workflow_head)
+            mapping, baseline, payload.artifacts, root, workflow_head, payload.local_review_sha256)
         if fixed_workflow is not None:
             head['fixed_workflow']=fixed_workflow
         if not mapping:

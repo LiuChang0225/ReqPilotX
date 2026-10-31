@@ -663,9 +663,15 @@ class TaskService:
             try:
                 check = self.check(root, current)
             except Exception as exc:
+                self.record_workflow_check(root, current, {}, error=exc)
+                fresh = core.workspace_status(root, refresh=False)
                 check = {'status':'FAILED','message':str(exc), 'current_revision':current['revision'],
+                    'workflow':fresh.get('workflow'), 'ready_to_review':False,
                     'local_artifact_preserved':True}
             response['verification'] = check
+            fresh = core.workspace_status(root, refresh=False)
+            response['workflow'] = fresh.get('workflow')
+            response['ready_to_review'] = bool((fresh.get('workflow') or {}).get('ready_to_review'))
             response['local_delivery_ready'] = bool(check.get('review_verified') and check.get('current_delivery_registered'))
             response['handoff_ready'] = bool(response['local_delivery_ready'] and check.get('workbench_content_verified')
                 and check.get('workbench_is_current',True)
@@ -781,6 +787,49 @@ class TaskService:
             return {'tool':'source_read','request':projected}
         return {k:TaskService.read_links(v,task_id,capture_sha,map_sha,baseline_sha) for k,v in value.items()}
 
+    def record_workflow_check(self, root, state, result, error=None):
+        from reqpilotx.application.agent_workflow.task_workspace import _atomic_json
+        selected = state['selected']; review = state['current_working']
+        delivery = (result.get('review_check') or {}).get('delivery') or {}
+        status = 'PASSED' if (result.get('review_verified') is True
+            and result.get('current_delivery_registered') is True
+            and delivery.get('xlsx_sha256')) else 'FAILED' if error is not None or result.get('status') == 'REVISION_CHANGED_DURING_CHECK' else 'UNCONFIRMED'
+        snapshot_sha = None
+        delivery_path = delivery.get('path')
+        if delivery_path:
+            try:
+                review_root = Path(review.get('review_root') or '').resolve(strict=True)
+                candidate = Path(delivery_path)
+                candidate = (review_root / candidate).resolve(strict=True) if not candidate.is_absolute() else candidate.resolve(strict=True)
+                if not candidate.is_relative_to(review_root):
+                    raise ValueError('delivery path leaves its verified review root')
+                snapshot_sha = json.loads((candidate/'matrix-snapshot.json').read_text()).get('delivery_sha256')
+                delivery_path = str(candidate.relative_to(review_root))
+            except (OSError, ValueError, TypeError):
+                snapshot_sha = None
+        payload = {'schema':'reqpilot-workflow-check/v1', 'status':status,
+            'basis':{'source_sha256':state['context']['source']['sha256'],
+                'map_sha256':selected.get('MAP',{}).get('artifact_sha256'),
+                'items_sha256':selected.get('ITEMS',{}).get('artifact_sha256'),
+                'review_sha256':review.get('review_sha256') if review.get('owner') == 'portable_review' else None},
+            'review_verified':bool(result.get('review_verified')),
+            'current_delivery_registered':bool(result.get('current_delivery_registered')),
+            'delivery_path':delivery_path, 'delivery_xlsx_sha256':delivery.get('xlsx_sha256'),
+            'delivery_snapshot_sha256':snapshot_sha,
+            'checked_at':__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),
+            **({'error':str(error)} if error is not None else {}),
+            **({'delivery_status':result.get('delivery_status')} if result.get('delivery_status') else {})}
+        _atomic_json(root/'workflow-check.json', payload)
+        return payload
+
+    def _finish_check(self, root, state, result, error=None):
+        self.record_workflow_check(root, state, result, error=error)
+        refreshed = self.state(state['context']['work_id'])[1]
+        result['workflow'] = refreshed.get('workflow')
+        result['ready_to_review'] = bool((refreshed.get('workflow') or {}).get('ready_to_review'))
+        result['workflow_check'] = refreshed.get('workflow_check')
+        return result
+
     def check(self, root, state):
         result = {'status':'CHECKED', 'task_id':state['context']['work_id'], 'revision':state['revision'],
             'source_verification':state['source_verification'], 'semantic_review':'NOT_CLAIMED',
@@ -795,19 +844,23 @@ class TaskService:
             head = load_head(review_root)
             if not head.get('delivery'):
                 result['delivery_status'] = 'NOT_REGISTERED'
-                return result
-            check = verify_review(Namespace(review_dir=review_root))
+                return self._finish_check(root, state, result)
+            try:
+                check = verify_review(Namespace(review_dir=review_root))
+            except Exception as exc:
+                result.update(status='CHECK_FAILED', error=str(exc))
+                return self._finish_check(root, state, result, error=exc)
             result['review_check'] = check
             if check['review_sha256'] != state['current_working']['review_sha256']:
                 result.update(status='REVISION_CHANGED_DURING_CHECK', verified_review_sha256=check['review_sha256'])
-                return result
+                return self._finish_check(root, state, result)
             result['review_verified'] = check.get('status') == 'REVIEW_VERIFIED'
             result['current_delivery_registered'] = bool(check.get('delivery'))
             # Use the exact delivery returned by the verifier's locked read,
             # never the preliminary head used to detect an unregistered export.
             local = json.loads((review_root/check['delivery']['path']/'matrix-snapshot.json').read_text())
             result.update(self.workbench_check(state, local))
-        return result
+        return self._finish_check(root, state, result)
 
     def workbench_check(self, state, local_snapshot):
         from task_workbench import check_workbench

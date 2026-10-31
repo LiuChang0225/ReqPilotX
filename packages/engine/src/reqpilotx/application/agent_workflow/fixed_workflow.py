@@ -27,6 +27,14 @@ STAGE_LABELS = {stage: label for stage, label, _required in STAGE_ORDER}
 STAGE_IDS = tuple(stage for stage, _label, _required in STAGE_ORDER)
 
 
+def file_sha256(path) -> str:
+    digest = hashlib.sha256()
+    with Path(path).open('rb') as stream:
+        for block in iter(lambda: stream.read(1024 * 1024), b''):
+            digest.update(block)
+    return digest.hexdigest()
+
+
 def canonical_digest(value) -> str:
     return hashlib.sha256(
         json.dumps(value, sort_keys=True, ensure_ascii=False, separators=(',', ':')).encode('utf-8')
@@ -83,9 +91,9 @@ def public_descriptor() -> dict:
         ],
         'optional_inputs': [
             {'id': 'project_references', 'label': '项目参考资料', 'available': False,
-             'reason': '当前版本尚未接入项目参考资料（RX04）。'},
+             'reason': '当前版本尚未接入项目参考资料。'},
             {'id': 'team_knowledge', 'label': '团队知识库', 'available': False,
-             'reason': '当前版本尚未接入团队知识库（RX05）。'},
+             'reason': '当前版本尚未接入团队知识库。'},
         ],
         'expected_outputs': [
             '可回查原文与顺序的文档结构',
@@ -187,7 +195,8 @@ def _assessments_evidence(review: dict | None, source_sha256: str):
 
 
 def project_workflow(*, context: dict, selected: dict, brief: dict,
-                     review: dict | None = None, incomplete_operations=None) -> dict | None:
+                     review: dict | None = None, check: dict | None = None,
+                     incomplete_operations=None) -> dict | None:
     """Project only program-saved artifact identities into the fixed stage order."""
     spec = (context.get('request') or {}).get('workflow')
     if not spec:
@@ -220,6 +229,8 @@ def project_workflow(*, context: dict, selected: dict, brief: dict,
                          branch='STRUCTURE_CONFIRMATION' if confirmation in {
                              'REQUIRED_AFTER_MAP', 'REQUIRED_BEFORE_ITEMS'} else None))
 
+    unprocessed = items.get('unprocessed_scope_ids') if baseline_current else None
+    unprocessed = unprocessed if isinstance(unprocessed, list) else []
     derivation_remaining = _decomposition_remaining(selected)
     derivation = selected.get('DECOMPOSITION')
     if not mapping:
@@ -229,12 +240,16 @@ def project_workflow(*, context: dict, selected: dict, brief: dict,
     elif derivation_remaining:
         item_status, item_reason = 'IN_PROGRESS', 'SCOPED_DERIVATION_REMAINING'
         open_items.append('SCOPED_DERIVATION_REMAINING')
+    elif unprocessed:
+        item_status, item_reason = 'IN_PROGRESS', 'UNPROCESSED_SOURCE_SCOPE'
+        open_items.append('UNPROCESSED_SOURCE_SCOPE')
     else:
         item_status, item_reason = 'SAVED', None
     item_evidence = ([_evidence('SOURCE_ITEMS', source_sha256=source_sha256,
                                 artifact_sha256=items.get('artifact_sha256'),
                                 map_sha256=items.get('map_sha256'),
-                                count=items.get('count'))]
+                                count=items.get('count'),
+                                unprocessed_scope_ids=unprocessed)]
                      if baseline_current else None)
     if derivation:
         item_evidence = [*(item_evidence or []), _evidence(
@@ -279,34 +294,54 @@ def project_workflow(*, context: dict, selected: dict, brief: dict,
                          reason=evidence_reason,
                          branch='NO_INTERNAL_EVIDENCE' if mode == 'NONE' else 'INTERNAL_EVIDENCE'))
 
+    review_sha = review.get('review_sha256') if review else None
+    delivery = selected.get('DELIVERY')
+    delivery_current = bool(delivery and delivery.get('baseline_sha256') == items.get('artifact_sha256'))
+    check = check or {}
+    basis = check.get('basis') or {}
+    check_current = bool(check and basis.get('source_sha256') == source_sha256
+                         and basis.get('map_sha256') == mapping.get('artifact_sha256')
+                         and basis.get('items_sha256') == items.get('artifact_sha256')
+                         and basis.get('review_sha256') == review_sha)
+    check_delivery = False
+    if check_current and check.get('delivery_xlsx_sha256'):
+        try:
+            delivery_dir = Path(delivery['path']).parent
+            check_delivery = (file_sha256(delivery_dir / 'matrix.xlsx') == check.get('delivery_xlsx_sha256'))
+        except (OSError, KeyError, TypeError):
+            check_delivery = False
+    check_passed = bool(check_current and check.get('status') == 'PASSED'
+                        and check.get('review_verified') is True
+                        and check.get('current_delivery_registered') is True
+                        and delivery_current and check_delivery)
     if not baseline_current:
         check_status, check_reason = 'BLOCKED', 'ITEMS_REQUIRED'
-    elif review:
-        saved_stages = review.get('stages') or {}
-        current = bool(saved_stages.get('MAP', {}).get('artifact_sha256') == mapping.get('artifact_sha256')
-                       and saved_stages.get('ITEMS', {}).get('artifact_sha256') == items.get('artifact_sha256'))
-        if current:
-            check_status, check_reason = 'SAVED', None
-        else:
-            check_status, check_reason = 'IN_PROGRESS', 'SELF_CHECK_BASIS_CHANGED'
-            open_items.append('SELF_CHECK_BASIS_CHANGED')
+    elif unprocessed:
+        check_status, check_reason = 'BLOCKED', 'UNPROCESSED_SOURCE_SCOPE'
+    elif not review:
+        check_status, check_reason = 'PENDING', 'SELF_CHECK_NOT_RUN'
+    elif check_passed:
+        check_status, check_reason = 'SAVED', None
+    elif check and not check_current:
+        check_status, check_reason = 'BLOCKED', 'SELF_CHECK_BASIS_CHANGED'
+        open_items.append('SELF_CHECK_BASIS_CHANGED')
+    elif check:
+        check_status, check_reason = 'BLOCKED', 'SELF_CHECK_FAILED'
+        open_items.append('SELF_CHECK_FAILED')
     else:
-        check_status, check_reason = 'PENDING', 'SELF_CHECK_NOT_SAVED'
-    check_evidence = ([_evidence('REVIEW_HEAD', source_sha256=source_sha256,
-                                 artifact_sha256=review.get('review_sha256'))]
+        check_status, check_reason = 'PENDING', 'SELF_CHECK_NOT_RUN'
+    check_evidence = ([_evidence('WORKFLOW_CHECK', source_sha256=source_sha256,
+                                 artifact_sha256=check.get('check_sha256'))]
                       if check_status == 'SAVED' else None)
     stages.append(_stage('SELF_CHECK', check_status, evidence=check_evidence,
                          reason=check_reason))
 
-    delivery = selected.get('DELIVERY')
     if not baseline_current:
         delivery_status, delivery_reason = 'BLOCKED', 'ITEMS_REQUIRED'
-    elif delivery and delivery.get('baseline_sha256') == items.get('artifact_sha256'):
+    elif delivery_current:
         delivery_status, delivery_reason = 'SAVED', None
-    elif check_status == 'SAVED':
-        delivery_status, delivery_reason = 'PENDING', 'DELIVERABLE_NOT_SAVED'
     else:
-        delivery_status, delivery_reason = 'BLOCKED', 'SELF_CHECK_REQUIRED'
+        delivery_status, delivery_reason = 'PENDING', 'DELIVERABLE_NOT_SAVED'
     delivery_evidence = ([_evidence('DELIVERY', source_sha256=source_sha256,
                                     artifact_sha256=delivery.get('artifact_sha256'))]
                          if delivery_status == 'SAVED' else None)
@@ -323,7 +358,7 @@ def project_workflow(*, context: dict, selected: dict, brief: dict,
         'SELF_CHECK_REQUIRED', 'WORKFLOW_EVIDENCE_CONFLICT', 'INCOMPLETE_OPERATION'}]
     next_stage = next((stage['id'] for stage in stages
                        if stage['status'] in {'PENDING', 'IN_PROGRESS', 'WAITING', 'BLOCKED'}), None)
-    ready = (delivery_status == 'SAVED'
+    ready = (delivery_status == 'SAVED' and check_passed
              and all(stage['status'] in {'SAVED', 'SKIPPED'} for stage in stages)
              and not blocking)
     return {

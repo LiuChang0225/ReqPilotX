@@ -132,7 +132,7 @@ it("shows the fixed intake and starts it without an authored prompt", async () =
     workflow: { schema: "reqpilot-fixed-workflow/v1", id: "reqpilot-fixed-workflow", version: "1.0.0",
       stages: [{ id: "PREPARATION", order: 1, label: "资料准备", required: true }],
       required_inputs: [{ id: "customer_source", label: "客户需求文档", required: true }],
-      optional_inputs: [{ id: "project_references", label: "项目参考资料", available: false, reason: "当前版本尚未接入项目参考资料（RX04）。" }],
+      optional_inputs: [{ id: "project_references", label: "项目参考资料", available: false, reason: "当前版本尚未接入项目参考资料。" }],
       expected_outputs: ["可回查原文与顺序的文档结构"] },
     resourceUrl: (path: string) => path, pdfViewerUrl: (source: string) => source,
     startTask: vi.fn(), restoreTask: vi.fn(async () => null), taskDraft: () => undefined,

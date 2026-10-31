@@ -27,10 +27,11 @@ def pinned_file(root, name):
 
 
 def _reconnect(value):
-    required = {'workspace', 'task_id', 'task_root', 'source_sha256', 'bundle_sha256', 'application_id',
-                'command_id', 'goal', 'require_map_confirmation', 'project_id', 'document_id', 'work_ref',
-                'from_origin', 'to_origin', 'known_origins'}
-    if set(value) != required:
+    base_fields = {'workspace', 'task_id', 'task_root', 'source_sha256', 'bundle_sha256', 'application_id',
+                   'command_id', 'goal', 'require_map_confirmation', 'project_id', 'document_id', 'work_ref',
+                   'from_origin', 'to_origin', 'known_origins'}
+    optional_fields = {'workflow', 'preparation_identity', 'preparation_request'}
+    if not base_fields <= set(value) or set(value) - base_fields - optional_fields:
         raise ValueError('TASK_RECONNECT_INVALID_FIELDS')
     workspace = Path(value['workspace'])
     if workspace.is_symlink() or workspace.resolve(strict=True) != workspace:
@@ -83,14 +84,28 @@ def _reconnect(value):
         # Inherited proxy settings must never route an owned-loopback check elsewhere.
         with build_opener(ProxyHandler({}), NoRedirect()).open(Request(url), timeout=15) as response:
             return json.load(response)
-    original_request = OpenRequest.model_validate({'mode': 'create', 'creation_key': value['command_id'],
-        'project_key': 'project-' + value['project_id'], 'document_key': 'document-' + value['document_id'],
-        'goal': value['goal'], 'require_map_confirmation': value['require_map_confirmation']})
-    expected_preparation = digest({'request': original_request.model_dump(exclude={'source', 'workbench_url'}),
+    preparation = value.get('preparation_request')
+    if preparation is not None:
+        if value.get('workflow') is None:
+            raise ValueError('TASK_RECONNECT_INVALID_FIELDS')
+        original_request = OpenRequest.model_validate({**preparation, 'goal': value['goal']})
+        semantic = original_request.model_dump(exclude={'source', 'workbench_url'})
+        if semantic != preparation:
+            raise ValueError('TASK_RECONNECT_TASK_MISMATCH')
+    else:
+        if value.get('workflow') is not None or value.get('preparation_identity') is not None:
+            raise ValueError('TASK_RECONNECT_INVALID_FIELDS')
+        original_request = OpenRequest.model_validate({'mode': 'create', 'creation_key': value['command_id'],
+            'project_key': 'project-' + value['project_id'], 'document_key': 'document-' + value['document_id'],
+            'goal': value['goal'], 'require_map_confirmation': value['require_map_confirmation']})
+        semantic = original_request.model_dump(exclude={'source', 'workbench_url'})
+    expected_preparation = digest({'request': semantic,
         'application_id': value['application_id'], 'source_sha256': value['source_sha256'],
         'bundle_sha256': value['bundle_sha256'],
         'target': {'projectId': [value['project_id']], 'documentId': [value['document_id']]}})
-    if read(pinned_file(workspace, 'host-preparation.json')).get('identity') != expected_preparation:
+    marker_identity = read(pinned_file(workspace, 'host-preparation.json')).get('identity')
+    if marker_identity != expected_preparation or (value.get('preparation_identity') is not None
+            and value['preparation_identity'] != expected_preparation):
         raise ValueError('TASK_RECONNECT_OWNER_MISMATCH')
     inputs = read(pinned_file(workspace, 'runtime-data/input-manifest.json'))['inputs']
     if len(inputs) != 1 or inputs[0]['sha256'] != value['source_sha256'] or hashlib.sha256(pinned_file(workspace, inputs[0]['path']).read_bytes()).hexdigest() != value['source_sha256']:
@@ -118,6 +133,8 @@ def _reconnect(value):
             if context['work_id'] != value['task_id'] or context['source']['sha256'] != value['source_sha256'] or any(context.get(k) != value[k] for k in ('project_id', 'document_id')):
                 raise ValueError('TASK_RECONNECT_TASK_MISMATCH')
             if context['request']['goal'] != value['goal'] or context['request']['require_map_confirmation'] != value['require_map_confirmation']:
+                raise ValueError('TASK_RECONNECT_TASK_MISMATCH')
+            if value.get('workflow') is not None and context['request'].get('workflow') != value['workflow']:
                 raise ValueError('TASK_RECONNECT_TASK_MISMATCH')
             if initial_session_id((root, context), value['source_sha256'], value['project_id'], value['document_id']) != value['work_ref']:
                 raise ValueError('TASK_RECONNECT_BINDING_MISMATCH')

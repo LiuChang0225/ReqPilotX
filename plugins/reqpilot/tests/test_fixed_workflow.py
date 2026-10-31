@@ -69,22 +69,44 @@ class FixedWorkflowTests(unittest.TestCase):
         self.assertEqual(statuses['DELIVERABLE'], 'BLOCKED')
         self.assertFalse(state['ready_to_review'])
 
-    def test_no_evidence_branch_is_skipped_and_ready_requires_saved_delivery(self):
-        review = {'review_root': '/private/review', 'review_sha256': '1'*64,
-                  'stages': {'MAP': {'artifact_sha256': MAP}, 'ITEMS': {'artifact_sha256': ITEMS}}}
-        state = workflow.project_workflow(context=context(), selected=selected(delivery_sha=None),
-                                          brief=brief(), review=review)
+    def test_no_evidence_branch_and_check_receipt_control_ready(self):
+        with TemporaryDirectory() as temporary:
+            delivery = Path(temporary) / 'delivery'; delivery.mkdir()
+            (delivery / 'matrix-snapshot.json').write_text('{}')
+            (delivery / 'matrix.xlsx').write_bytes(b'synthetic workbook')
+            chosen = selected(); chosen['DELIVERY'] = {'path': str(delivery / 'matrix-snapshot.json'),
+                'artifact_sha256': DELIVERY, 'baseline_sha256': ITEMS}
+            review = {'review_root': str(Path(temporary) / 'review'), 'review_sha256': '1'*64,
+                      'stages': {'MAP': {'artifact_sha256': MAP}, 'ITEMS': {'artifact_sha256': ITEMS}}}
+            state = workflow.project_workflow(context=context(), selected={**chosen, 'DELIVERY': None},
+                                              brief=brief(), review=review)
+            by_id = {item['id']: item for item in state['stages']}
+            self.assertEqual(by_id['ITEMS_CLASSIFICATION']['status'], 'SAVED')
+            self.assertEqual(by_id['EVIDENCE_ANALYSIS']['status'], 'SKIPPED')
+            self.assertEqual(by_id['EVIDENCE_ANALYSIS']['branch'], 'NO_INTERNAL_EVIDENCE')
+            self.assertEqual(by_id['SELF_CHECK']['status'], 'PENDING')
+            self.assertEqual(by_id['DELIVERABLE']['status'], 'PENDING')
+            self.assertFalse(state['ready_to_review'])
+            failed = {'status': 'FAILED', 'review_verified': False, 'current_delivery_registered': True,
+                      'basis': {'source_sha256': SOURCE, 'map_sha256': MAP, 'items_sha256': ITEMS, 'review_sha256': '1'*64}}
+            rejected = workflow.project_workflow(context=context(), selected=chosen, brief=brief(), review=review, check=failed)
+            self.assertFalse(rejected['ready_to_review'])
+            self.assertEqual({item['id']: item for item in rejected['stages']}['SELF_CHECK']['status'], 'BLOCKED')
+            passed = {'status': 'PASSED', 'review_verified': True, 'current_delivery_registered': True,
+                      'delivery_xlsx_sha256': workflow.file_sha256(delivery / 'matrix.xlsx'),
+                      'basis': {'source_sha256': SOURCE, 'map_sha256': MAP, 'items_sha256': ITEMS, 'review_sha256': '1'*64}}
+            ready = workflow.project_workflow(context=context(), selected=chosen, brief=brief(), review=review, check=passed)
+            self.assertTrue(ready['ready_to_review'])
+            self.assertEqual(ready['stages'][-1]['status'], 'SAVED')
+            self.assertEqual(ready['human_acceptance'], 'NOT_CLAIMED')
+
+    def test_unprocessed_source_scope_keeps_full_items_incomplete(self):
+        chosen = selected(); chosen['ITEMS'] = {**chosen['ITEMS'], 'unprocessed_scope_ids': ['scope-2', 'scope-3']}
+        state = workflow.project_workflow(context=context(), selected=chosen, brief=brief())
         by_id = {item['id']: item for item in state['stages']}
-        self.assertEqual(by_id['ITEMS_CLASSIFICATION']['status'], 'SAVED')
-        self.assertEqual(by_id['EVIDENCE_ANALYSIS']['status'], 'SKIPPED')
-        self.assertEqual(by_id['EVIDENCE_ANALYSIS']['branch'], 'NO_INTERNAL_EVIDENCE')
-        self.assertEqual(by_id['SELF_CHECK']['status'], 'SAVED')
-        self.assertEqual(by_id['DELIVERABLE']['status'], 'PENDING')
+        self.assertEqual(by_id['ITEMS_CLASSIFICATION']['status'], 'IN_PROGRESS')
+        self.assertEqual(by_id['ITEMS_CLASSIFICATION']['reason'], 'UNPROCESSED_SOURCE_SCOPE')
         self.assertFalse(state['ready_to_review'])
-        ready = workflow.project_workflow(context=context(), selected=selected(), brief=brief(), review=review)
-        self.assertEqual(ready['stages'][-1]['status'], 'SAVED')
-        self.assertTrue(ready['ready_to_review'])
-        self.assertEqual(ready['human_acceptance'], 'NOT_CLAIMED')
 
     def test_structure_confirmation_and_wrong_item_map_block_items(self):
         waiting = workflow.project_workflow(context=context(), selected=selected(), brief=brief(confirmation='REQUIRED_BEFORE_ITEMS'))

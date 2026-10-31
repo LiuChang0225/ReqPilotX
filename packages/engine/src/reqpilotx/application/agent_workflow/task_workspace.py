@@ -900,14 +900,21 @@ def workspace_status(task_root, refresh=True):
         stages=selected, review=review, require_map_confirmation=context['request']['require_map_confirmation'], confirmed_map_sha256=confirmed,
         project_id=context.get('project_id'), document_id=context.get('document_id'), analysis_policy=analysis_policy)
     incomplete_operations = [read_json(p) for p in sorted((root / 'operations').glob('op-*.json')) if read_json(p).get('state') in {'STARTED', 'FAILED', 'BLOCKED', 'SAVED_PENDING_RECOVERY'}]
+    workflow_check = None
+    check_path = root / 'workflow-check.json'
+    if check_path.is_file():
+        workflow_check = read_json(check_path)
+        workflow_check['check_sha256'] = file_sha256(check_path)
+        workflow_check['_path'] = str(check_path)
     workflow = project_workflow(context=context, selected=selected, brief=brief, review=review,
-                                incomplete_operations=incomplete_operations)
+                                check=workflow_check, incomplete_operations=incomplete_operations)
     status = {'schema_version': 'reqpilot-workspace-status/v1', 'task_root': str(root), 'revision': _revision(context, index, review), 'context': context, 'index': index, 'selected': selected, 'brief': brief,
         'current_working': review or {'owner': 'task_workspace', 'generation': index['generation'], 'selected': selected},
         'binding_file': str(binding_path), 'workbench_url': binding.get('url') or binding.get('workbench_url') or (binding.get('base_url', '') + binding['workbench_path'] if binding.get('workbench_path') else None),
         'candidates': deepcopy(index['candidates']), 'committed_operations': deepcopy(index['committed']),
         'running_state': 'UNREPORTED', 'human_acceptance': 'NOT_CLAIMED', 'source_verification': 'BYTES_MATCH',
         **({'workflow': workflow} if workflow else {}),
+        **({'workflow_check': workflow_check} if workflow_check else {}),
         'incomplete_operations': incomplete_operations}
     if workflow:
         path = root / 'workflow-status.json'

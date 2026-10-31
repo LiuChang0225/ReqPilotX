@@ -167,9 +167,11 @@ export class TaskLauncher {
     try {
       await mkdir(this.root, { recursive: true, mode: 0o700 });
       const file = join(this.root, record.commandId + '-workflow-read.json');
-      await writeFile(file, JSON.stringify({ task_id: record.prepared.task_id }), { mode: 0o600 });
+      const cacheRoot = join(this.root, record.commandId + '-capability');
+      await writeFile(file, JSON.stringify({ task_id: record.prepared.task_id, bundle_sha256: record.bundleSha,
+        source_sha256: record.sourceSha256, workflow: record.workflow }), { mode: 0o600 });
       const stdout = await this.runtime.command([record.python, '-I', fileURLToPath(new URL('./task-workflow.py', import.meta.url)),
-        file, workspace],
+        file, workspace, cacheRoot],
         { PYTHONPATH: undefined, PYTHONHOME: undefined, REQPILOT_DEVELOPMENT_ROOT: undefined },
         { signal: AbortSignal.timeout(60000) });
       const value = JSON.parse(stdout);
@@ -292,8 +294,8 @@ export class TaskLauncher {
     if (!this.canReconnect() || record.toolTransport !== 'MCP') throw new TaskLaunchError('TASK_RECONNECT_UNAVAILABLE', 503);
     if (record.bundleSha !== this.bundleSha || record.python !== this.runtime.python)
       throw new TaskLaunchError('TASK_RECONNECT_PACKAGE_MISMATCH');
-    const workspace = resolve(this.runtime.dataRoot, 'task-workspaces', record.commandId);
-    if (record.workspaceRelative !== 'task-workspaces/' + record.commandId || record.prepared?.workspace !== workspace
+    const workspace = record.prepared?.workspace ? resolve(record.prepared.workspace) : resolve(this.runtime.dataRoot, 'task-workspaces', record.commandId);
+    if (record.workspaceRelative !== 'task-workspaces/' + record.commandId || resolve(record.prepared?.workspace || workspace) !== workspace
       || record.prepared?.bundle_sha256 !== record.bundleSha || record.prepared?.source_sha256 !== record.sourceSha256)
       throw new TaskLaunchError('TASK_RECONNECT_WORKSPACE_MISMATCH');
     const inspection = await this.services().sessions.inspect(record.sessionId);
@@ -336,9 +338,13 @@ export class TaskLauncher {
     const file = join(this.root, record.commandId + '-reconnect.json');
     const payload = { workspace, task_root: record.prepared.task_root, task_id: record.prepared.task_id,
       work_ref: record.prepared.work_ref, source_sha256: record.sourceSha256, bundle_sha256: record.bundleSha,
-      application_id: record.applicationId, command_id: record.commandId, goal: record.goal,
+      application_id: record.applicationId, command_id: record.commandId,
+      goal: record.prepared?.goal || record.goal,
       require_map_confirmation: record.requireMapConfirmation || false, project_id: record.projectId,
-      document_id: record.documentId, from_origin: record.serviceOrigin, to_origin: endpoint.serviceOrigin, known_origins: knownOrigins };
+      document_id: record.documentId, from_origin: record.serviceOrigin, to_origin: endpoint.serviceOrigin, known_origins: knownOrigins,
+      ...(record.schema === 'reqpilot-pair-launch-record/v3' ? { workflow: record.workflow,
+        preparation_identity: record.prepared?.preparation_identity,
+        preparation_request: record.prepared?.preparation_request } : {}) };
     await writeFile(file, JSON.stringify(payload), { mode: 0o600 });
     let receipt;
     try {
@@ -376,7 +382,7 @@ export class TaskLauncher {
       if (record.sessionId !== sessionId || record.toolTransport !== 'MCP') continue;
       if (!supportedRecord(record) || !['START_REQUESTED', 'ACCEPTED'].includes(record.phase)) throw new TaskLaunchError('TASK_TOOL_BINDING_NOT_READY');
       if (!this.endpointCurrent(record)) throw new TaskLaunchError('TASK_ENDPOINT_RECONNECT_REQUIRED');
-      const workspace = resolve(this.runtime.dataRoot, record.workspaceRelative), tools = record.prepared?.tools;
+      const workspace = record.prepared?.workspace ? resolve(record.prepared.workspace) : resolve(this.runtime.dataRoot, record.workspaceRelative), tools = record.prepared?.tools;
       const expected = [join(workspace, '.reqpilot/scripts/mcp_server.py'), '--working-root', workspace, '--source-root', workspace];
       if (tools?.schema !== 'reqpilot-host-tools/v1' || tools.mcp?.command !== record.python || tools.mcp?.cwd !== workspace
           || JSON.stringify(tools.mcp?.args) !== JSON.stringify(expected)) throw new TaskLaunchError('TASK_MCP_DESCRIPTOR_INVALID');
@@ -424,7 +430,7 @@ export class TaskLauncher {
     }
     if ((record.schema === 'reqpilot-pair-launch-record/v3' || record.schema === 'reqpilot-pair-launch-record/v2') && !record.selectedAgentModel
       && typeof this.services().sessions.selectSessionModel !== 'function') throw new TaskLaunchError('PAIR_SESSION_MODEL_SELECTION_UNSUPPORTED', 503);
-    const workspace = resolve(this.runtime.dataRoot, record.workspaceRelative);
+    let workspace = resolve(this.runtime.dataRoot, record.workspaceRelative);
     if (!record.prepared) {
       const documents = await this.transport(origin + '/api/projects/' + input.projectId + '/sor-documents', { redirect: 'error' });
       if (!documents.ok) throw new TaskLaunchError('DOCUMENT_LOOKUP_FAILED', 502);
@@ -444,12 +450,17 @@ export class TaskLauncher {
       const workbench = new URL('/workspace', origin); workbench.searchParams.set('projectId', input.projectId); workbench.searchParams.set('documentId', input.documentId);
       await writeFile(file, JSON.stringify({ workspace, expected_source_sha256: record.sourceSha256,
         bundle_sha256: record.bundleSha, application_id: applicationId,
-        request: { mode: 'create', source, supplementary_instructions: input.goal, creation_key: input.commandId,
+        request: { mode: 'create', source,
+          ...(record.schema === 'reqpilot-pair-launch-record/v3' ? { supplementary_instructions: input.goal } : { goal: input.goal }),
+          creation_key: input.commandId,
           project_key: 'project-' + input.projectId, document_key: 'document-' + input.documentId,
           workbench_url: workbench.href, require_map_confirmation: input.requireMapConfirmation || false } }), { mode: 0o600 });
       const result = JSON.parse(await this.runtime.command([record.python, helper, file], { PYTHONPATH: undefined, PYTHONHOME: undefined, REQPILOT_DEVELOPMENT_ROOT: undefined }));
+      const sameWorkspace = await realpath(workspace).then(value => value === resolve(result.workspace), () => false);
       if (result.schema !== 'reqpilot-host-launch/v1' || result.source_sha256 !== record.sourceSha256 || result.bundle_sha256 !== record.bundleSha
-        || typeof result.task_id !== 'string' || !result.task_id || typeof result.prompt !== 'string' || !result.prompt.trim() || resolve(result.workspace) !== workspace || !/^plugin-[a-f0-9]{32}$/.test(result.work_ref || '')) throw new TaskLaunchError('PREPARATION_NOT_CONFIRMED');
+        || typeof result.task_id !== 'string' || !result.task_id || typeof result.prompt !== 'string' || !result.prompt.trim()
+        || (!sameWorkspace && resolve(result.workspace) !== workspace) || !/^plugin-[a-f0-9]{32}$/.test(result.work_ref || '')) throw new TaskLaunchError('PREPARATION_NOT_CONFIRMED');
+      workspace = await realpath(workspace);
       if (record.schema === 'reqpilot-pair-launch-record/v3') {
         const workflowState = result.workflow;
         if (!validWorkflowState(workflowState) || workflowState.source_sha256 !== record.sourceSha256
@@ -457,8 +468,7 @@ export class TaskLauncher {
           || workflowState.workflow?.definition_sha256 !== record.workflow.definition_sha256
           || workflowState.human_acceptance !== 'NOT_CLAIMED')
           throw new TaskLaunchError('FIXED_WORKFLOW_NOT_CONFIRMED');
-        record.workflow = { ...record.workflow, brief_sha256: workflowState.workflow.brief_sha256,
-          evidence: { mode: workflowState.workflow.evidence_mode, reason: 'SERVER_OWNED_BRIEF' } };
+        record.workflow = { ...record.workflow, brief_sha256: workflowState.workflow.brief_sha256 };
       }
       record.prepared = result; record.phase = 'TASK_PREPARED'; await this.save(record);
     }

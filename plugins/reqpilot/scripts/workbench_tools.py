@@ -11,7 +11,8 @@ from urllib.parse import parse_qs, quote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 ARTIFACTS=('document-map.json','table-previews.json','source-requirement-baseline.json','validation-receipt.json',
-           'image-annotations.json','source-item-decomposition.json','analysis-policy.json')
+           'item-compilation-receipt.json','workflow-check.json','image-annotations.json',
+           'source-item-decomposition.json','analysis-policy.json')
 
 
 def read(path):return json.loads(Path(path).read_text(encoding='utf-8'))
@@ -274,7 +275,11 @@ def sync_workbench(args):
         fixed_workflow=None
         if task:
             from reqpilotx.application.agent_workflow.task_workspace import workspace_status
-            fixed_workflow=workspace_status(task[0],refresh=False).get('workflow')
+            local_state=workspace_status(task[0],refresh=False)
+            fixed_workflow=local_state.get('workflow')
+            check_path=Path(task[0])/'workflow-check.json'
+            if check_path.is_file() and 'workflow-check.json' not in artifacts:
+                artifacts['workflow-check.json']=read(check_path)
         if state is None:
             state=request(api,{'session_id':binding['session_id'],'expected_source_sha256':sha,
                 'require_map_confirmation':binding['require_map_confirmation'],'goal':getattr(args,'goal','') or '',
