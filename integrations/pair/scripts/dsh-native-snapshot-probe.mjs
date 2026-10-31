@@ -1,5 +1,6 @@
 /** Real DSH Session probe against a loopback OpenAI-compatible scripted endpoint. */
 import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { existsSync } from 'node:fs';
 import { join } from 'node:path';
 import { createHash, randomUUID } from 'node:crypto';
 import { createServer } from 'node:http';
@@ -87,6 +88,10 @@ async function run(ctx) {
     if (!inspection || !inspection.events.some(event => event.type === 'turn/end')) throw Error('Scripted DSH turn did not finish');
     const final = await launcher.inspect(commandId);
     const workflow = final.workflowState;
+    const record = JSON.parse(await readFile(join(dataRoot, 'task-launches', commandId + '.json'), 'utf8'));
+    const taskRoot = record.prepared?.task_root;
+    const checkReceipt = taskRoot ? join(taskRoot, 'workflow-check.json') : null;
+    const earlyCheck = checkReceipt && existsSync(checkReceipt) ? await readFile(checkReceipt) : null;
     const toolResults = inspection.events.filter(event => event.type === 'tool/result')
       .map(event => event.data?.message).filter(Boolean);
     const taskOpen = toolResults.find(message => JSON.stringify(message).includes('RESUMED'));
@@ -95,6 +100,12 @@ async function run(ctx) {
     if (!mcpTools.includes('mcp__reqpilot__task_open')) throw Error('task_open MCP tool was not visible before the first model request');
     const assistantText = inspection.events.filter(event => event.type === 'assistant/message')
       .map(event => JSON.stringify(event.data)).join('\n');
+    const checkResults = toolResults.filter(message => JSON.stringify(message).includes('CHECKED'));
+    if (!checkResults.length) throw Error('early task_check result missing');
+    if (!earlyCheck) throw Error('early task_check receipt was not retained');
+    const earlyCheckState = JSON.parse(earlyCheck);
+    if (earlyCheckState.status !== 'UNCONFIRMED' || earlyCheckState.ready_to_review === true)
+      throw Error('early task_check claimed a configured/completed state');
     const sourceModel = final.selectedAgentModel || final.modelSelection;
     if (sourceModel?.provider !== 'reqpilot-scripted' || sourceModel?.model !== 'noop' || sourceModel?.reasoningEffort !== 'max')
       throw Error('Default model route did not reach the Session: ' + JSON.stringify(sourceModel));
@@ -113,7 +124,9 @@ async function run(ctx) {
       scripted_turns: [
         { step: 1, assistant: { kind: 'tool-call', name: 'mcp__reqpilot__task_open',
           arguments: { mode: 'resume', task_id: final.taskId } }, tool_result_status: 'RESUMED' },
-        { step: 2, assistant: { kind: 'text', text: 'PROBE_ONLY: tool result received; no business artifacts were saved by this message.' } },
+        { step: 2, assistant: { kind: 'tool-call', name: 'mcp__reqpilot__task_check',
+          arguments: { task_id: final.taskId } }, tool_result_status: 'CHECKED', check_status: earlyCheckState.status },
+        { step: 3, assistant: { kind: 'text', text: 'PROBE_ONLY: early check retained; no business artifacts were saved by this message.' } },
       ],
       expected_workflow: { PREPARATION: 'SAVED', SOURCE_MAP: 'PENDING', ITEMS_CLASSIFICATION: 'BLOCKED',
         EVIDENCE_ANALYSIS: 'BLOCKED', SELF_CHECK: 'BLOCKED', DELIVERABLE: 'BLOCKED', ready_to_review: false },
@@ -125,7 +138,9 @@ async function run(ctx) {
       command_id: commandId, source_sha256: sourceSha, model_selection: final.modelSelection,
       selected_agent_model: final.selectedAgentModel, session_event_count: inspection.events.length,
       session_events_sha256: createHash('sha256').update(eventBody).digest('hex'),
-      mcp_task_open_resumed: true, mcp_tools_before_first_request: mcpTools,
+      mcp_task_open_resumed: true, early_check_retained: true,
+      early_check_receipt: checkReceipt, early_check_sha256: earlyCheck ? createHash('sha256').update(earlyCheck).digest('hex') : null,
+      mcp_tools_before_first_request: mcpTools,
       request_header_model: requestHeader?.config, workflow_before: workflow,
       prose_advanced_workflow: false, ready_to_review: false,
       scripted_model_adapter: false, mock_openai_http: true, real_model: false, remote_model_calls: 0,

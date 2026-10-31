@@ -469,4 +469,44 @@ class McpTaskAdapterTests(unittest.TestCase):
             asyncio.run(exercise())
 
 
+    def test_rx03_early_check_before_map_is_retained_and_next_legal_write_works(self):
+        from mcp import Client, StdioServerParameters
+        from portable_fixtures import make_fixture
+        from reqpilotx.application.agent_workflow import fixed_workflow as workflow
+        with TemporaryDirectory() as temporary:
+            root=Path(temporary);source,_,mapping=make_fixture(root/'fixture')
+            goal=workflow.compose_goal()
+            spec=workflow.workflow_spec(brief_sha256=workflow.brief_sha256(goal),evidence_mode='NONE')
+            params=StdioServerParameters(command=sys.executable,args=[str(SCRIPTS/'mcp_server.py'),
+                '--project-root',str(ROOT),'--working-root',str(root)])
+            async def exercise():
+                async with Client(params) as client:
+                    async def call(name,request):
+                        reply=await client.call_tool(name,request);self.assertFalse(reply.is_error,reply)
+                        return reply.structured_content
+                    state=await call('task_open',{'mode':'create','source':str(source),'goal':goal,
+                        'creation_key':'early-check-native','workflow':spec})
+                    task=state['task_id'];task_root=Path(state['task_root'])
+                    state=await call('source_prepare',{'task_id':task,'expected_revision':state['revision'],'mode':'capture'})
+                    current=await call('task_inspect',{'task_id':task})
+                    early=await call('task_check',{'task_id':task})
+                    self.assertEqual(early['status'],'CHECKED',early)
+                    self.assertFalse(early['ready_to_review'])
+                    self.assertEqual(early['workflow_check']['status'],'UNCONFIRMED')
+                    receipt=task_root/'workflow-check.json';before=receipt.read_bytes()
+                    self.assertTrue(before)
+                    inspected=await call('task_inspect',{'task_id':task})
+                    self.assertEqual(inspected['revision'],current['revision'])
+                    self.assertFalse(inspected['workflow']['ready_to_review'])
+                    edit={key:value for key,value in mapping.items() if key!='source_sha256'}
+                    edit['schema_version']='reqpilot-map-edit/v1'
+                    mapped=await call('map_apply',{'task_id':task,'expected_revision':inspected['revision'],'decisions':edit})
+                    self.assertEqual(mapped['operation_state'],'COMMITTED',mapped)
+                    self.assertEqual(receipt.read_bytes(),before)
+                    self.assertEqual(mapped['workflow']['stages'][1]['status'],'SAVED')
+                    self.assertFalse(mapped['workflow']['ready_to_review'])
+            asyncio.run(exercise())
+
+
+
 if __name__ == '__main__':unittest.main()

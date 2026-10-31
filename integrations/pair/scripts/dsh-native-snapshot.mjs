@@ -40,8 +40,14 @@ const mock = createServer(async (req, res) => {
       function: { name: 'mcp__reqpilot__task_open', arguments: JSON.stringify({ mode: 'resume', task_id: taskId }) } }] },
       finish_reason: null }] }));
     send(chunk({ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }));
+  } else if (attempt === 2) {
+    send(chunk({ choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{
+      index: 0, id: 'call_reqpilot_task_check', type: 'function',
+      function: { name: 'mcp__reqpilot__task_check', arguments: JSON.stringify({ task_id: taskId }) } }] },
+      finish_reason: null }] }));
+    send(chunk({ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }));
   } else {
-    send(chunk({ choices: [{ index: 0, delta: { role: 'assistant', content: 'PROBE_ONLY: tool result received; no business artifacts were saved by this message.' }, finish_reason: null }] }));
+    send(chunk({ choices: [{ index: 0, delta: { role: 'assistant', content: 'PROBE_ONLY: early check retained; no business artifacts were saved by this message.' }, finish_reason: null }] }));
     send(chunk({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }));
     send(chunk({ choices: [], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }));
   }

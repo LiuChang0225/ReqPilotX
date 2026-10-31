@@ -43,6 +43,7 @@ async function fixture(config = {}) {
         return { workspace: { workspaceId: request.workspaceId, title: request.title } };
       } },
     sessions: { async create(value) { calls.create.push(value); return { sessionId: value.sessionId }; },
+      async inspect() { const error = new Error('session not found'); error.code = 'session/not-found'; throw error; },
       async selectSessionModel(value) { calls.model.push(value); const { sessionId, ...selected } = value; return { selected }; },
       async prompt(value) { calls.prompt.push(value); return { accepted: true }; } } };
   const transport = async url => url.endsWith('/file') ? new Response(source) : new Response(JSON.stringify([{ id: 'd', file_name: 'source.pdf', source_sha256: hash }]));
@@ -391,5 +392,87 @@ test('legacy v1 receipts remain readable without a fixed workflow projection', a
     assert.equal(observed.schema, 'reqpilot-pair-launch/v1');
     assert.equal(observed.workflowState, undefined);
     assert.equal(observed.workflowUnconfirmed, undefined);
+  } finally { await f.close(); }
+});
+
+test('a started or completed existing Session is restored without minting another identity', async () => {
+  for (const state of ['started', 'completed']) {
+    const f = await fixture(); try {
+      const started = await f.launcher.start(f.input);
+      const file = join(f.root, 'task-launches', commandId + '.json');
+      const record = JSON.parse(await readFile(file, 'utf8'));
+      record.phase = 'TASK_PREPARED'; delete record.acceptanceEvidence;
+      await writeFile(file, JSON.stringify(record));
+      const events = [{ type: 'turn/start', seq: 1, data: { turn: 1 } },
+        { type: 'turn/end', seq: 2, data: { reason: { kind: state === 'started' ? 'interrupted' : 'completed' } } }];
+      f.services.sessions.inspect = async id => { assert.equal(id, started.sessionId);
+        return { meta: { id: started.sessionId, cwd: join(f.root, 'task-workspaces', commandId), workspaceId: 'workspace-one' }, events }; };
+      const receipt = await f.launcher.start(f.input);
+      assert.equal(receipt.status, 'ACCEPTED');
+      assert.equal(f.calls.create.length, 1, 'existing started Session must not call create again');
+      assert.equal(f.calls.prompt.length, 2);
+      assert.equal(f.calls.prompt[1].sessionId, started.sessionId);
+      assert.equal(f.calls.prompt[1].requestId, f.calls.prompt[0].requestId);
+    } finally { await f.close(); }
+  }
+});
+
+test('a busy or model-unconfirmed existing Session refuses recovery without create or prompt', async () => {
+  const busy = await fixture(); try {
+    const started = await busy.launcher.start(busy.input);
+    const file = join(busy.root, 'task-launches', commandId + '.json');
+    const record = JSON.parse(await readFile(file, 'utf8'));
+    record.phase = 'TASK_PREPARED'; delete record.acceptanceEvidence;
+    await writeFile(file, JSON.stringify(record));
+    busy.services.sessions.inspect = async () => ({ meta: { id: started.sessionId, cwd: join(busy.root, 'task-workspaces', commandId) },
+      events: [{ type: 'turn/start', seq: 1, data: {} }] });
+    await assert.rejects(busy.launcher.start(busy.input), /PAIR_SESSION_BUSY/);
+    assert.equal(busy.calls.create.length, 1); assert.equal(busy.calls.prompt.length, 1);
+  } finally { await busy.close(); }
+  const unconfirmed = await fixture(); try {
+    const started = await unconfirmed.launcher.start(unconfirmed.input);
+    const file = join(unconfirmed.root, 'task-launches', commandId + '.json');
+    const record = JSON.parse(await readFile(file, 'utf8'));
+    record.phase = 'TASK_PREPARED'; delete record.acceptanceEvidence; delete record.selectedAgentModel;
+    await writeFile(file, JSON.stringify(record));
+    unconfirmed.services.sessions.inspect = async () => ({ meta: { id: started.sessionId,
+      cwd: join(unconfirmed.root, 'task-workspaces', commandId) }, events: [{ type: 'turn/start', seq: 1, data: {} },
+        { type: 'turn/end', seq: 2, data: {} }] });
+    await assert.rejects(unconfirmed.launcher.start(unconfirmed.input), /PAIR_SESSION_EXISTING_MODEL_UNCONFIRMED/);
+    assert.equal(unconfirmed.calls.create.length, 1); assert.equal(unconfirmed.calls.prompt.length, 1);
+  } finally { await unconfirmed.close(); }
+});
+
+test('existing Session recovery refuses a different cwd, workspace or model', async () => {
+  for (const [label, meta, events, error] of [
+    ['cwd', { cwd: '/different', workspaceId: 'workspace-one' }, [], /TASK_SESSION_WORKSPACE_MISMATCH/],
+    ['workspace', { workspaceId: 'other-workspace' }, [], /TASK_SESSION_WORKSPACE_MISMATCH/],
+    ['model', { workspaceId: 'workspace-one' }, [{ type: 'request/header', data: { header: { config: {
+      provider: 'other-provider', model: 'other-model', reasoningEffort: 'max' } } } }], /PAIR_SESSION_MODEL_CONFLICT/],
+  ]) {
+    const f = await fixture(); try {
+      const started = await f.launcher.start(f.input);
+      const file = join(f.root, 'task-launches', commandId + '.json');
+      const record = JSON.parse(await readFile(file, 'utf8'));
+      record.phase = 'TASK_PREPARED'; delete record.acceptanceEvidence;
+      await writeFile(file, JSON.stringify(record));
+      f.services.sessions.inspect = async () => ({ meta: { id: started.sessionId,
+        cwd: join(f.root, 'task-workspaces', commandId), ...meta }, events });
+      await assert.rejects(f.launcher.start(f.input), error, label);
+      assert.equal(f.calls.create.length, 1); assert.equal(f.calls.prompt.length, 1);
+    } finally { await f.close(); }
+  }
+});
+
+test('a retried prepared record with another source/bundle is refused before Session or model work', async () => {
+  const f = await fixture(); try {
+    await f.launcher.start(f.input);
+    const file = join(f.root, 'task-launches', commandId + '.json');
+    const record = JSON.parse(await readFile(file, 'utf8'));
+    record.phase = 'TASK_PREPARED'; delete record.acceptanceEvidence;
+    record.prepared.source_sha256 = 'f'.repeat(64);
+    await writeFile(file, JSON.stringify(record));
+    await assert.rejects(f.launcher.start(f.input), /TASK_PREPARED_SOURCE_MISMATCH/);
+    assert.equal(f.calls.create.length, 1); assert.equal(f.calls.prompt.length, 1);
   } finally { await f.close(); }
 });

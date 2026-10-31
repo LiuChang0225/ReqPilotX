@@ -211,8 +211,10 @@ The first uses the real Cordis service/fiber from the PAIR source checkout for
 Host registration/disposal and runtime-status changes. The second boots the
 source-supported `pair` profile in an isolated `DSH_HOME`, approves only one
 loopback OpenAI-compatible route, and records a real Workspace/Session/MCP turn
-whose scripted `task_open` call ends without saving business artifacts. It is
-keyless/scripted, not a provider-model or business-acceptance run. The source
+whose scripted `task_open` and early `task_check` calls end without saving
+business artifacts. The early `UNCONFIRMED` check receipt is retained and the
+workflow stays non-ready. It is keyless/scripted, not a provider-model or
+business-acceptance run. The source
 checkout currently lacks its prebuilt native system addon, so the runner copies
 the matching installed prebuilt into the private output and records that exact
 dependency; production policy and profiles are untouched.
@@ -227,7 +229,9 @@ This fixture creates a synthetic source, prepares a real task/Map/Items/review
 through the frozen capability, then lets a scripted native turn call
 `task_open`, `review_apply` with `changes.map_revision.decisions`, and
 `task_deliver` through the actual MCP protocol. It records the public Session
-events, work/task/revision identity and final workflow state. The route is the
+events, work/task/revision identity and final workflow state. The RX02 native
+fixture is also extended with an early `task_check` before Map/Items; its
+`UNCONFIRMED` receipt remains in place and the later typed operation continues. The route is the
 same explicitly approved loopback OpenAI-compatible profile as RX02; it is not
 a provider-model, browser-rendering or human-acceptance proof.
 
@@ -249,7 +253,7 @@ Set `REQPILOT_PAIR_CAPABILITY_ROOT` to a built bundle containing `scripts/host_l
 
 The native document form supplies an exact user goal and optional Map-confirmation choice. Host source bytes are checked against the service identity, then the shared package prepares the task and brief. The Host registers the execution workspace, adopts a preassigned Session ID and submits a stable DSH requestId. No model is dispatched by merely opening the application or inspecting a receipt. `/reqpilotx/tasks/start` returns acceptance only; `/reqpilotx/tasks/{commandId}` is read-only.
 
-Host receipts pin the bundle SHA, interpreter location, preset, task/work, Session and request identity. Conflicting reuse is rejected; ambiguous acknowledgements retry the same identity. Same-task initial workbench synchronization now uses a deterministic session ID in the common portable transport. Existing bindings are preserved. A newly registered Workspace receives a readable registry title from the customer file name through the public `workspaces.rename` contract; its directory and identity do not change, and an existing UUID Workspace from a retry is never renamed. The rename call passes the actual `WorkspaceRenameRequest` object (`{workspaceId,title}`); a wrong call fails instead of being swallowed.
+Host receipts pin the bundle SHA, interpreter location, preset, task/work, Session and request identity. Conflicting reuse is rejected. Pair master's `session.create` now reuses only a named **blank** Session and may mint a new identity for a started Session, so a retried record is first reconciled through `sessions.inspect`: an absent Session may be created under the preassigned identity, while a started/busy/completed Session is never passed to `create` again. Started sessions resume through the supported prompt/model APIs; a busy Session without an exact recorded request, an unconfirmed model, or a different cwd/workspace fails closed instead of duplicating the work or switching context. Same-task initial workbench synchronization now uses a deterministic session ID in the common portable transport. Existing bindings are preserved. A newly registered Workspace receives a readable registry title from the customer file name through the public `workspaces.rename` contract; its directory and identity do not change, and an existing UUID Workspace from a retry is never renamed. The rename call passes the actual `WorkspaceRenameRequest` object (`{workspaceId,title}`); a wrong call fails instead of being swallowed.
 
 The actual PAIR startup prompt embeds the prepared `task_id` in the first `task_open` resume request; `request.md` remains available after that resume for optional user notes. New workflow/status/intake/control copy resolves through the native slot `t` binding, while standalone Web keeps its Chinese defaults. Source-heading composition preserves brackets, parentheses and meaningful punctuation such as `.NET`; only separators belonging to the number boundary are de-duplicated.
 
@@ -265,7 +269,7 @@ Full implementation and private proof references: `docs/需求提取/Pair任务�
 
 Observed: real admission retry leaves one user request and one scripted turn; journal-based acceptance recovery makes no second prompt. Remote inference calls are zero. The source HTTP service is synthetic, and these probes are not external Pair UI, PostgreSQL integration, extraction or semantic acceptance tests. See `docs/需求提取/Pair真实DSH绑定与接收验证20260922.md`.
 
-TaskLauncher now confirms an ambiguous START_REQUESTED record from an exact persisted user rpcId when possible, without sending another prompt or changing the task binding. Context-injection messages do not count. This is acknowledgement repair, not business-task resume; changed endpoints without such evidence still require explicit reconnection.
+TaskLauncher confirms an ambiguous START_REQUESTED record from an exact persisted user rpcId when possible, without sending another prompt or changing the task binding. Context-injection messages do not count. On a retry/restart it inspects the recorded Session before any create: absent sessions use the known identity; blank sessions may be reused; started/busy/completed sessions are restored without a second identity and with the frozen model/cwd/workspace checked. This is acknowledgement/session recovery, not business-task resume; changed endpoints without acceptance evidence still require explicit reconnection.
 
 
 ## Public execution observation
@@ -392,8 +396,10 @@ original bytes, task, deterministic work reference and service source/revision.
 Reads bypass proxies and cannot redirect. Cached bytecode cannot replace checked
 source; undeclared source, sourceless shadow packages and symlinks are rejected.
 
-The Pair `sessions.inspect` adapter must return explicit
-`session.sessionId`, `session.workspaceId` and durable `events`. Missing identity
+The Pair `sessions.inspect` adapter accepts the actual master `SessionInspection`
+shape (`meta` plus `events`) or the older `session` projection. The header must
+expose the exact Session id, cwd and, when present, workspace id; durable events
+drive acceptance and turn-state recovery. Missing or conflicting identity
 metadata fails closed. The exact original user RPC must be present, the latest
 turn must be closed, and the journal/live state must remain unchanged through
 reconnect. An accepted retry does not resubmit a lost-ack continuation. Unknown

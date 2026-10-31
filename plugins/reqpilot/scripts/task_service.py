@@ -353,7 +353,7 @@ def task_summary(state):
         'require_map_confirmation': context['request']['require_map_confirmation'],
         'runtime': context.get('runtime_ref'), 'current_owner': state['current_working']['owner'],
         'workbench_url': link['url'], 'workbench_link': link,
-        'workbench_entry': link.get('durable_entry'), 'brief': state['brief'],
+        'workbench_entry': link.get('workbench_entry'), 'chat_entry': link.get('chat_entry'), 'brief': state['brief'],
         'selected': state['selected'], 'human_acceptance': 'NOT_CLAIMED',
         **({'workflow': state['workflow']} if state.get('workflow') else {}),
         'pending_decomposition': decomposition_attention(state),
@@ -680,13 +680,25 @@ class TaskService:
             if fresh.get('workflow') and response['local_delivery_ready']:
                 from task_workbench import sync_current_review
                 try:
-                    response['workbench_delivery'] = sync_current_review(root, fresh['revision'])
+                    response['workbench_delivery'] = sync_current_review(root, fresh['revision'],
+                        materialize_authoritative=True)
                 except (ValueError, OSError, KeyError, TypeError, RuntimeError) as exc:
                     response['workbench_delivery'] = {'status':'UNAVAILABLE','local_artifact_preserved':True,
                         'error':str(exc),'next':'Keep the local delivery and retry publish_current_review for this exact revision.'}
             workbench = response.get('workbench_delivery') or {}
             draft = workbench.get('draft_delivery') or {}
             draft_delivery = draft.get('delivery') or {}
+            handoff = workbench.get('authoritative_draft')
+            if handoff:
+                local_matrix = Path(value.get('output_dir') or '') / 'matrix.xlsx'
+                local_sha = core.file_sha256(local_matrix) if local_matrix.is_file() else None
+                handoff = {**handoff, 'local_export_sha256': local_sha,
+                    'local_export_matches_authoritative': bool(local_sha and local_sha == handoff.get('export_sha256'))}
+            response['delivery_handoff'] = handoff or {'status': 'AUTHORITATIVE_DRAFT_UNAVAILABLE',
+                'reason': 'CURRENT_DRAFT_NOT_PUBLISHED', 'durable': False, 'exact_download': False}
+            response['exact_download_ready'] = bool(response['delivery_handoff'].get('status') == 'AUTHORITATIVE_DRAFT_READY'
+                and response['delivery_handoff'].get('durable') is True)
+            response['result']['delivery_handoff'] = response['delivery_handoff']
             published = bool(draft.get('status') in {'DRAFT_REGISTERED','DRAFT_REUSED'}
                 and draft.get('remote_current') is True and workbench.get('still_current') is True
                 and draft_delivery.get('acceptance') is None
@@ -695,7 +707,8 @@ class TaskService:
             if fresh.get('workflow'):
                 workflow_ready = bool(fresh['workflow'].get('ready_to_review'))
                 response['workbench_handoff'] = {'ready':published and workflow_ready,'draft_status':draft.get('status'),
-                    'still_current':workbench.get('still_current'),'remote_current':draft.get('remote_current')}
+                    'still_current':workbench.get('still_current'),'remote_current':draft.get('remote_current'),
+                    'exact_download_ready':response['exact_download_ready']}
                 response['handoff_ready'] = bool(published and workflow_ready and response['local_delivery_ready']
                     and not check.get('pending_decomposition',{}).get('remaining_count'))
             else:

@@ -51,6 +51,14 @@ const validWorkflowProjection = (value, record) => {
     || value.stages.some(stage => !['SAVED', 'SKIPPED'].includes(stage.status)))) return false;
   return true;
 };
+const sessionMeta = inspection => inspection?.meta ?? inspection?.session ?? null;
+const sessionEvents = inspection => Array.isArray(inspection?.events) ? inspection.events : [];
+const sessionNotFound = error => error?.code === 'session/not-found' || /not[- ]found/i.test(String(error?.message || ''));
+const sessionTurnState = events => {
+  const starts = events.map((event, index) => event?.type === 'turn/start' ? index : -1).filter(index => index >= 0);
+  const ends = events.map((event, index) => event?.type === 'turn/end' ? index : -1).filter(index => index >= 0);
+  return { started: starts.length > 0, busy: starts.length > 0 && (ends.length === 0 || starts.at(-1) > ends.at(-1)) };
+};
 const supportedRecord = record => record?.schema === 'reqpilot-pair-launch-record/v1'
   || (record?.schema === 'reqpilot-pair-launch-record/v2' && validModel(record.agentModel)
     && (record.selectedAgentModel === undefined || (validModel(record.selectedAgentModel) && sameModel(record.agentModel, record.selectedAgentModel)))
@@ -299,10 +307,15 @@ export class TaskLauncher {
       || record.prepared?.bundle_sha256 !== record.bundleSha || record.prepared?.source_sha256 !== record.sourceSha256)
       throw new TaskLaunchError('TASK_RECONNECT_WORKSPACE_MISMATCH');
     const inspection = await this.services().sessions.inspect(record.sessionId);
-    // This adapter contract requires an explicit Session/workspace identity. Missing metadata fails closed.
-    if (inspection?.session?.sessionId !== record.sessionId || inspection.session.workspaceId !== record.workspaceId)
+    // Accept the inspected header shape while requiring the exact Session,
+    // workspace path and recorded workspace identity. Missing metadata fails closed.
+    const meta = sessionMeta(inspection);
+    if (!meta || (meta.sessionId !== undefined && meta.sessionId !== record.sessionId)
+      || (meta.id !== undefined && meta.id !== record.sessionId)
+      || typeof meta.cwd !== 'string' || resolve(meta.cwd) !== workspace
+      || (record.workspaceId && meta.workspaceId !== undefined && meta.workspaceId !== record.workspaceId))
       throw new TaskLaunchError('TASK_RECONNECT_SESSION_MISMATCH');
-    const sessionFingerprint = sha(JSON.stringify([inspection.session, inspection.events]));
+    const sessionFingerprint = sha(JSON.stringify([meta, inspection.events]));
     const userEvent = requestId => inspection.events?.find(value => value.type === 'user/message'
       && value.data?.source?.kind === 'user' && value.data.source.rpcId === requestId);
     if (!userEvent(record.requestId)) throw new TaskLaunchError('TASK_MUTATION_OUTCOME_UNKNOWN');
@@ -397,6 +410,17 @@ export class TaskLauncher {
     if (record.phase !== 'START_REQUESTED' || typeof sessions.inspect !== 'function') return false;
     let inspection;
     try { inspection = await sessions.inspect(record.sessionId); } catch { return false; }
+    const meta = sessionMeta(inspection);
+    if (meta) {
+      const workspace = record.prepared?.workspace
+        ? resolve(record.prepared.workspace)
+        : resolve(this.runtime.dataRoot, record.workspaceRelative);
+      if ((meta.sessionId !== undefined && meta.sessionId !== record.sessionId)
+        || (meta.id !== undefined && meta.id !== record.sessionId)
+        || typeof meta.cwd !== 'string' || resolve(meta.cwd) !== workspace
+        || (record.workspaceId && meta.workspaceId !== undefined && meta.workspaceId !== record.workspaceId))
+        throw new TaskLaunchError('TASK_SESSION_WORKSPACE_MISMATCH');
+    }
     const event = Array.isArray(inspection?.events) ? inspection.events.find(value => value.type === 'user/message'
       && value.data?.source?.kind === 'user' && value.data.source.rpcId === record.requestId) : null;
     if (!event) return false;
@@ -410,10 +434,16 @@ export class TaskLauncher {
     let record;
     try { record = JSON.parse(await readFile(join(this.root, input.commandId + '.json'), 'utf8')); }
     catch (error) { if (error.code !== 'ENOENT') throw error; }
+    const replay = Boolean(record);
     if (record) {
       if (!supportedRecord(record)) throw new TaskLaunchError('UNSUPPORTED_LAUNCH_RECORD');
       if (record.fingerprint !== fingerprint || record.applicationId !== applicationId) throw new TaskLaunchError('COMMAND_CONFLICT');
-      if (record.phase === 'ACCEPTED' || await this.recoverAcceptance(record)) return this.public(record);
+      if (record.prepared && (record.prepared.source_sha256 !== record.sourceSha256
+        || record.prepared.bundle_sha256 !== record.bundleSha)) throw new TaskLaunchError('TASK_PREPARED_SOURCE_MISMATCH');
+      if (record.phase === 'ACCEPTED') return this.public(record);
+      // An exact durable user request closes an ambiguous prompt acknowledgement
+      // without another dispatch, even when the local service origin changed.
+      if (record.phase === 'START_REQUESTED' && await this.recoverAcceptance(record)) return this.public(record);
       if (!this.endpointCurrent(record)) throw new TaskLaunchError('TASK_ENDPOINT_RECONNECT_REQUIRED');
     } else {
       const issue = this.startIssue();
@@ -488,10 +518,54 @@ export class TaskLauncher {
       }
       await this.save(record);
     }
-    // Explicit identities let DSH adopt the same Session and deduplicate ambiguous prompt responses.
+    // Resolve a retried record against the real Session. The new Host create
+    // operation only reuses a named *blank* Session; calling it for a started
+    // Session would mint a different identity and duplicate the work.
     this.assertActive(record);
-    const session = await services.sessions.create({ sessionId: record.sessionId, workspaceId: record.workspaceId, agentPreset: record.agentPreset });
-    if (session.sessionId !== record.sessionId) throw new TaskLaunchError('PAIR_SESSION_IDENTITY_MISMATCH');
+    let restored = false;
+    if (replay) {
+      if (typeof services.sessions.inspect !== 'function') throw new TaskLaunchError('PAIR_SESSION_INSPECT_UNAVAILABLE', 503);
+      let inspection;
+      try { inspection = await services.sessions.inspect(record.sessionId); }
+      catch (error) {
+        if (!sessionNotFound(error)) throw new TaskLaunchError('PAIR_SESSION_INSPECT_FAILED', 503, error?.message);
+        inspection = null;
+      }
+      if (inspection) {
+        const meta = sessionMeta(inspection), events = sessionEvents(inspection);
+        if (!meta || (meta.sessionId !== undefined && meta.sessionId !== record.sessionId)
+          || (meta.id !== undefined && meta.id !== record.sessionId)) throw new TaskLaunchError('PAIR_SESSION_IDENTITY_MISMATCH');
+        if (typeof meta.cwd !== 'string' || resolve(meta.cwd) !== workspace) throw new TaskLaunchError('TASK_SESSION_WORKSPACE_MISMATCH');
+        if (record.workspaceId && meta.workspaceId !== undefined && meta.workspaceId !== record.workspaceId)
+          throw new TaskLaunchError('TASK_SESSION_WORKSPACE_MISMATCH');
+        const header = events.findLast(event => event?.type === 'request/header')?.data?.header?.config;
+        if (header && record.selectedAgentModel && (header.provider !== record.selectedAgentModel.provider
+          || header.model !== record.selectedAgentModel.model
+          || (header.reasoningEffort !== undefined && record.selectedAgentModel.reasoningEffort !== undefined
+            && header.reasoningEffort !== record.selectedAgentModel.reasoningEffort)))
+          throw new TaskLaunchError('PAIR_SESSION_MODEL_CONFLICT');
+        const requestEvent = events.find(event => event?.type === 'user/message'
+          && event.data?.source?.kind === 'user' && event.data.source.rpcId === record.requestId);
+        if (requestEvent) {
+          record.phase = 'ACCEPTED';
+          record.acceptanceEvidence = { kind: 'SESSION_LOG', seq: requestEvent.seq ?? null };
+          await this.save(record); return this.public(record);
+        }
+        const { started, busy } = sessionTurnState(events);
+        if (started) {
+          if (!record.prepared) throw new TaskLaunchError('PAIR_SESSION_EXISTING_UNBOUND');
+          if (busy) throw new TaskLaunchError('PAIR_SESSION_BUSY', 409);
+          if (!record.selectedAgentModel) throw new TaskLaunchError('PAIR_SESSION_EXISTING_MODEL_UNCONFIRMED', 409);
+          restored = true;
+        }
+      }
+    }
+    if (!restored) {
+      // Explicit identity is safe here: the name is absent, or it is a blank
+      // reusable Session that the Host returns under the same identity.
+      const session = await services.sessions.create({ sessionId: record.sessionId, workspaceId: record.workspaceId, agentPreset: record.agentPreset });
+      if (session.sessionId !== record.sessionId) throw new TaskLaunchError('PAIR_SESSION_IDENTITY_MISMATCH');
+    }
     if (record.schema === 'reqpilot-pair-launch-record/v2' && !record.selectedAgentModel) {
       this.assertActive(record);
       const result = await services.sessions.selectSessionModel({ sessionId: record.sessionId, ...record.agentModel });

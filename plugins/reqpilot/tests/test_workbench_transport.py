@@ -49,8 +49,16 @@ class WorkbenchTransportTests(unittest.TestCase):
         self.task_workbench_module=task_workbench_module
         self.request_patch=patch.object(transport,'request',side_effect=request);self.request_patch.start()
         self.task_workbench_patch=patch.object(task_workbench_module,'request',side_effect=request);self.task_workbench_patch.start()
+        def download(url):
+            path=urlsplit(url).path;parts=path.split('/')
+            project=unquote(parts[parts.index('projects')+1]);document=unquote(parts[parts.index('sor-documents')+1])
+            session=unquote(parts[parts.index('plugin-workbench')+1]);revision=int(parts[parts.index('versions')+1])
+            artifact=delivery_api.download_plugin_delivery_version(project,document,session,revision)
+            return artifact.content,{key.lower():value for key,value in artifact.headers.items()}
+        self.download_impl=download
+        self.download_patch=patch.object(task_workbench_module,'download',side_effect=download);self.download_patch.start()
     def tearDown(self):
-        self.request_patch.stop();self.task_workbench_patch.stop();os.chdir(self.cwd);self.backend.tearDown()
+        self.download_patch.stop();self.request_patch.stop();self.task_workbench_patch.stop();os.chdir(self.cwd);self.backend.tearDown()
     def args(self,**values):
         fields=dict(url='http://127.0.0.1:18080/workspace?projectId=p&documentId=d',source=None,review_dir=None,map_dir=None,baseline_dir=None,
             binding_file=None,workspace=None,require_map_confirmation=True,no_map_confirmation=None,open=False,goal='Synthetic client test')
@@ -552,6 +560,33 @@ class WorkbenchTransportTests(unittest.TestCase):
         self.assertEqual(synced['sync']['draft_delivery']['delivery']['delivery_sha256'],versions_before[0]['delivery_sha256'])
         self.assertEqual(api.get_plugin_workbench('p','d',session,self.backend.sink())['revision_id'], remote_before['revision_id'])
         self.assertEqual(len(delivery_api.list_plugin_delivery_versions('p','d',session,self.backend.sink())['versions']),1)
+
+    def test_deliver_handoff_materializes_exact_retained_draft_bytes_for_restart(self):
+        import hashlib
+        task, service, inspected, review = self.workflow_task(deliver=False)
+        bound = transport.sync_workbench(self.args(workspace=Path(inspected['task_root']), review_dir=review,
+            url='http://127.0.0.1:18080/workspace?projectId=p&documentId=d', no_map_confirmation=True))
+        revision = service.invoke('inspect', {'task_id':task})['revision']
+        result = service.invoke('deliver', {'task_id':task,'expected_revision':revision,'command_id':'authoritative-draft'})
+        handoff = result['delivery_handoff']
+        self.assertEqual(handoff['status'], 'AUTHORITATIVE_DRAFT_READY', result)
+        self.assertTrue(handoff['durable']); self.assertTrue(handoff['exact_download']); self.assertTrue(result['exact_download_ready'])
+        path = Path(handoff['path']); self.assertTrue(path.is_file())
+        versions = delivery_api.list_plugin_delivery_versions('p','d',bound['session_id'],self.backend.sink())['versions']
+        authoritative = delivery_api.download_plugin_delivery_version('p','d',bound['session_id'],versions[0]['revision'])
+        self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), versions[0]['export_sha256'])
+        self.assertEqual(path.read_bytes(), authoritative.content)
+        self.assertEqual(handoff['result_revision'], versions[0]['revision_id'])
+        self.assertEqual(handoff['delivery_sha256'], versions[0]['delivery_sha256'])
+        self.assertEqual(handoff['source_sha256'], self.backend.sha)
+        receipt = json.loads(Path(handoff['receipt_path']).read_text())
+        self.assertEqual(receipt['origin'], 'RETAINED_DRAFT_DOWNLOAD')
+        self.assertEqual(receipt['human_acceptance'], 'NOT_CLAIMED')
+        # The local export is the program's own workbook; it is not silently labelled as the remote retained bytes.
+        self.assertEqual(handoff['local_export_matches_authoritative'], hashlib.sha256((Path(result['result']['output_dir'])/'matrix.xlsx').read_bytes()).hexdigest() == versions[0]['export_sha256'])
+        with patch.object(self.task_workbench_module,'download',side_effect=OSError('managed backend restarted')):
+            self.assertTrue(path.is_file())
+            self.assertEqual(path.read_bytes(), authoritative.content)
 
     def test_manual_change_after_draft_commit_preserves_history_without_current_handoff(self):
         task, service, inspected, review = self.workflow_task(deliver=False)

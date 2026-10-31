@@ -142,3 +142,12 @@ formal acceptance or local opinion import occurs. The fixed runtime capability
 catalog rejects this action for older task packages rather than upgrading them.
 Human writes and saved delivery publication use the application's session-bound
 API; raw assessment/manual artifact uploads remain unsupported.
+
+When `task_deliver` registers or reuses a bound DRAFT, `delivery_handoff`
+downloads that exact retained export into `authoritative-deliveries/` and
+verifies the source, result revision, delivery snapshot and export SHA. Use its
+`path` when claiming an exact matching download; the local program `matrix.xlsx`
+can differ from the server DRAFT in filename prefix, delivery metadata and
+timestamp. The materialized copy stays readable after the managed backend
+restarts. If the download cannot be verified, the response reports
+`AUTHORITATIVE_DRAFT_UNAVAILABLE` instead of claiming byte identity.

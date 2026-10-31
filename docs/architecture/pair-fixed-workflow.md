@@ -95,9 +95,21 @@ Map 确认、无内部依据和显式派生是声明的分支；Map/items/delive
 关闭一个新版本；不另起 Map 或 review 流水线。来源身份、未受影响条目、评估和
 正式人工意见由现有 carry／rebind 逻辑保留。任务 revision、review head 或来源
 不一致时拒绝覆盖并返回重新读取当前任务的恢复动作，不自动改绑最新版本。
-会话中的文字和模型建议仍不构成正式人工接受。结果入口优先返回稳定
-`task_id`／`work_ref`／`result_revision`／`session_id` 和宿主打开会话动作；
+会话中的文字和模型建议仍不构成正式人工接受。`workbench_entry` 返回稳定
+`task_id`／`work_ref`／`result_revision`／`session_id` 和“选择原工作台”动作，
+不把 Session 聊天入口冒充工作台；`chat_entry` 单独表示打开同一 PAIR 会话。
 `workbench_url` 只是托管服务传输地址，服务重启后可能失效，不作为长期入口。
+绑定任务登记或复用 DRAFT 时，`task_deliver.delivery_handoff` 把该保留版本的
+精确导出下载到任务自有目录并核对来源、版本、snapshot 与 export SHA；该副本
+在托管后端重启后仍可交付。程序本地 `matrix.xlsx` 与服务器保留 DRAFT 可能在
+文件名、交付身份或时间戳上不同，未取得精确副本时不得声称字节一致。
+
+PAIR master 的 `session.create` 只复用指定且空白的 Session，对已开始的 Session
+可能新建身份。Host 在重试/重启时先用 `sessions.inspect` 核对已有 Session：
+不存在才按已知身份创建；空白可复用；已开始、忙碌或已完成则不再调用 create，
+而是核对 cwd／workspace／冻结模型后通过原 Session 续作。忙碌且没有精确请求
+记录、模型未确认或工作区不符时拒绝，不重复建 Session，也不静默切换模型或
+工作区。
 
 ## 模型、请求与恢复
 

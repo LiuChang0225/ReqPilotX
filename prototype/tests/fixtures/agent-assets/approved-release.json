@@ -3,12 +3,12 @@
   "groups": [
     {
       "id": "current-portable-skills",
-      "source_tree_sha256": "4f1f2d4a9e042d053f75ef5393b1451c6887e554ccfab85fad7ee14994358632",
+      "source_tree_sha256": "6050c3422c88cbeb6ee39f8d371269365f3a56a217a9d4ea6713f0fd29e2fa99",
       "files": [
         {
           "path": "skills/reqpilot/SKILL.md",
-          "sha256": "1dfd4353976861e07d18e0f7099721454f1912047d472a47e8c6e0502ea599f4",
-          "bytes": 7990
+          "sha256": "43cfd88e468855b6f50d68bb944cca632f778a6c2cc3e5473a91c1a6b6e2b74d",
+          "bytes": 8236
         },
         {
           "path": "skills/reqpilot/agents/openai.yaml",
@@ -77,8 +77,8 @@
         },
         {
           "path": "skills/reqpilot/references/task-api.md",
-          "sha256": "95a752a8f2910b7f367d93f67e08401334f6dbddb30f3e68287ced7a188f9093",
-          "bytes": 21807
+          "sha256": "a4b665aaa2a3141c25fbcdc8fe35a44fa98031a54fb2376cf2c023e95032ac98",
+          "bytes": 23506
         },
         {
           "path": "skills/reqpilot/references/task-workspaces.md",
@@ -87,8 +87,8 @@
         },
         {
           "path": "skills/reqpilot/references/tools-analysis-delivery.md",
-          "sha256": "2f0d53c92f93a95fc44b284061e6f3f9d7a55883287eae092a77932c9d1f1a32",
-          "bytes": 9440
+          "sha256": "8130367d9f651e56e257960b4ae4d9c8a282c97674a7cbdcc9eee28fadcb636e",
+          "bytes": 10048
         },
         {
           "path": "skills/reqpilot/references/tools-capture.md",

@@ -37,7 +37,8 @@ async function fixture(populated = false) {
   const works = new Map(), events = [], calls = { prompt: [], create: 0, workspace: 0, resume: [], writes: 0, model: [] };
   let server, binding, changedSource = false, foreignProof = false, foreignWork = false, lostAck = false;
   const sessions = {
-    async create(input) { calls.create++; binding = { sessionId: input.sessionId, workspaceId: input.workspaceId }; return { sessionId: input.sessionId }; },
+    async create(input) { calls.create++; binding = { sessionId: input.sessionId, workspaceId: input.workspaceId,
+      cwd: join(root, 'task-workspaces', commandId) }; return { sessionId: input.sessionId }; },
     async inspect(id) { assert.equal(id, binding.sessionId); return { session: binding, events }; },
     async prompt(input) {
       calls.prompt.push(input);

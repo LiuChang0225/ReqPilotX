@@ -99,7 +99,8 @@ def prepare(payload):
                    + '本任务已挂载 ReqPilotX typed MCP 工具。先调用 `task_open`（`mode=resume`，`task_id=' + task_id + '`），'
                    + '再按返回的 revision、selected、next_action 及 scope_read/source_items_read 句柄继续；沿用已有任务，不另建任务。\n'
                    + '不要先运行 CLI --help、检查运行时实现、编辑任务回执或目录。CLI 入口 `' + cli + '` 仅是同类契约的后备传输。\n'
-                   + '业务规则、角色技能和阶段事实以该固定能力包及 TASK.md 为准。公开操作无法恢复时，保留工件并报告确切限制。\n')
+                   + '业务规则、角色技能和阶段事实以该固定能力包及 TASK.md 为准。公开操作无法恢复时，保留工件并报告确切限制。\n'
+                   + '交付时如返回 delivery_handoff，优先使用其中已核对的权威保留 DRAFT 文件路径；除非明确字节匹配，不要把程序本地 matrix.xlsx 说成同一保留下载。\n')
     (workspace / 'request.md').write_text(instruction, encoding='utf-8')
     return {'schema': 'reqpilot-host-launch/v1', 'workspace': str(workspace), 'task_id': task_id,
             'task_root': str(task_root), 'source_sha256': sha, 'bundle_sha256': payload['bundle_sha256'],
@@ -110,7 +111,7 @@ def prepare(payload):
             'preparation_identity': identity,
             'preparation_request': semantic,
             'supplementary_instructions_included': bool(str(notes).strip()),
-            'prompt': '先调用已挂载的 task_open（mode=resume，task_id=' + task_id + '），再按返回句柄执行固定工作流。首次恢复后可按需读取 request.md 中的用户补充说明；不要先查看 CLI 帮助、运行时实现或编辑回执；阶段完成只以已保存工件和程序检查为准。',
+            'prompt': '先调用已挂载的 task_open（mode=resume，task_id=' + task_id + '），再按返回句柄执行固定工作流。首次恢复后可按需读取 request.md 中的用户补充说明；不要先查看 CLI 帮助、运行时实现或编辑回执；阶段完成只以已保存工件和程序检查为准。交付时如返回 delivery_handoff，优先使用其中已核对的权威保留 DRAFT 文件路径，不要把程序本地 matrix.xlsx 说成同一保留下载。',
             'execution': 'NOT_STARTED', 'semantic_acceptance': 'NOT_CLAIMED',
             'tools': {'schema': 'reqpilot-host-tools/v1', 'mcp': {
                 'command': sys.executable,

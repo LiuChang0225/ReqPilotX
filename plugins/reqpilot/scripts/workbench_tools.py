@@ -46,6 +46,23 @@ def request(url,payload=None):
         raise ValueError(f'Workbench HTTP {exc.code}: {body}') from exc
 
 
+def download(url):
+    """Read one immutable binary export from the configured local application."""
+    parsed=urlsplit(url)
+    if parsed.scheme not in {'http','https'} or parsed.hostname not in {'127.0.0.1','localhost','::1'} or parsed.username or parsed.password:
+        raise ValueError('Workbench export requires the configured local application URL')
+    try:
+        with build_opener(NoRedirect()).open(Request(url,headers={'Accept':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),timeout=15) as response:
+            data=response.read()
+            headers={key.lower():value for key,value in response.headers.items()}
+            return data,headers
+    except HTTPError as exc:
+        body=exc.read(8000).decode('utf-8',errors='replace')
+        try:body=json.loads(body).get('detail',body)
+        except ValueError:pass
+        raise ValueError(f'Workbench export HTTP {exc.code}: {body}') from exc
+
+
 def binding_path(sha):return Path.cwd()/'runtime-data/workbench-bindings'/f'{sha}.json'
 
 
