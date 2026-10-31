@@ -1,0 +1,279 @@
+"""RX01 lightweight SQLite local mode: durable public entry paths without test mode."""
+
+from __future__ import annotations
+
+if __package__:
+    from .runtime_isolation import activate_test_runtime
+else:
+    from runtime_isolation import activate_test_runtime
+
+activate_test_runtime()
+
+import hashlib
+import os
+import sqlite3
+from contextlib import ExitStack
+from pathlib import Path
+import tempfile
+from types import SimpleNamespace
+import unittest
+from unittest.mock import patch
+
+from fastapi import FastAPI
+from fastapi.responses import JSONResponse
+from fastapi.testclient import TestClient
+
+from app import db
+from app.api.routers import ingestion as ingestion_router
+from app.api.routers import projects as projects_router
+from app.application import runtime
+from app.application.errors import ApplicationError
+from reqpilotx_server.infrastructure.runtime_settings import (
+    DatabaseBackend,
+    DeploymentMode,
+    RuntimeConfigurationError,
+    RuntimeSettings,
+)
+
+
+def _local_settings(root: Path) -> RuntimeSettings:
+    return RuntimeSettings.from_environment(
+        environment={
+            "REQPILOT_ENV": "local",
+            "REQPILOT_DATABASE_BACKEND": "sqlite-local",
+            "REQPILOT_STORAGE_DIR": str(root / "storage"),
+            "REQPILOT_OBJECT_ROOT": str(root / "storage"),
+            "REQPILOT_SCRATCH_ROOT": str(root / "scratch"),
+            "REQPILOT_ALLOWED_HOSTS": "127.0.0.1,localhost",
+        },
+        prototype_dir=root,
+    )
+
+
+def _synthetic_pdf(path: Path) -> bytes:
+    import fitz
+
+    document = fitz.open()
+    try:
+        page = document.new_page(width=595, height=842)
+        page.insert_text(
+            (72, 72),
+            "1 System scope\nThe controller shall keep the synthetic latch closed.",
+        )
+        document.save(path, garbage=4, deflate=True, no_new_id=True)
+    finally:
+        document.close()
+    return path.read_bytes()
+
+
+class LightweightSqliteSettingsTests(unittest.TestCase):
+    def test_local_defaults_to_sqlite_and_never_becomes_test_mode(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rx01-settings-") as temporary:
+            root = Path(temporary)
+            settings = RuntimeSettings.from_environment(
+                environment={"REQPILOT_STORAGE_DIR": str(root / "storage")},
+                prototype_dir=root,
+            )
+            self.assertEqual(settings.deployment_mode, DeploymentMode.LOCAL)
+            self.assertEqual(settings.database_backend, DatabaseBackend.SQLITE_LOCAL)
+            self.assertTrue(settings.is_sqlite)
+            self.assertTrue(settings.is_local_sqlite)
+            self.assertFalse(settings.is_test)
+            self.assertEqual(settings.database_url, "")
+            self.assertNotIn("testserver", settings.allowed_hosts)
+            self.assertIn("127.0.0.1", settings.allowed_hosts)
+
+    def test_explicit_postgres_route_and_cloud_validation_remain_available(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rx01-settings-") as temporary:
+            root = Path(temporary)
+            explicit = RuntimeSettings.from_environment(
+                environment={
+                    "REQPILOT_ENV": "local",
+                    "REQPILOT_DATABASE_URL": "postgresql://db.example/reqpilotx",
+                    "REQPILOT_STORAGE_DIR": str(root / "storage"),
+                },
+                prototype_dir=root,
+            )
+            self.assertEqual(explicit.database_backend, DatabaseBackend.POSTGRESQL)
+            cloud = RuntimeSettings.from_environment(
+                environment={
+                    "REQPILOT_ENV": "cloud",
+                    "REQPILOT_DATABASE_URL": "postgresql://db.example/reqpilotx",
+                    "REQPILOT_OBJECT_STORE": "oss",
+                    "REQPILOT_OSS_REGION": "synthetic-region",
+                    "REQPILOT_OSS_BUCKET": "synthetic-bucket",
+                    "REQPILOT_ALLOWED_HOSTS": "reqpilotx.example",
+                },
+                prototype_dir=root,
+            )
+            self.assertEqual(cloud.database_backend, DatabaseBackend.POSTGRESQL)
+            with self.assertRaises(RuntimeConfigurationError):
+                RuntimeSettings.from_environment(
+                    environment={
+                        "REQPILOT_ENV": "local",
+                        "REQPILOT_DATABASE_BACKEND": "sqlite-local",
+                        "REQPILOT_STORAGE_DIR": str(root / "storage"),
+                        "REQPILOT_DATABASE_URL": "postgresql://db.example/reqpilotx",
+                    },
+                    prototype_dir=root,
+                )
+
+    def test_test_mode_is_a_distinct_backend(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rx01-settings-") as temporary:
+            settings = RuntimeSettings.from_environment(
+                environment={
+                    "REQPILOT_TEST_MODE": "1",
+                    "REQPILOT_STORAGE_DIR": str(Path(temporary) / "storage"),
+                },
+                prototype_dir=Path(temporary),
+            )
+            self.assertEqual(settings.database_backend, DatabaseBackend.SQLITE_TEST)
+            self.assertTrue(settings.is_sqlite)
+            self.assertFalse(settings.is_local_sqlite)
+            self.assertTrue(settings.is_test)
+
+
+class LightweightSqlitePublicApiTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.stack = ExitStack()
+        self.addCleanup(self.stack.close)
+        self.root = Path(
+            self.stack.enter_context(tempfile.TemporaryDirectory(prefix="rx01-local-"))
+        )
+        self.settings = _local_settings(self.root)
+        self.stack.enter_context(patch.object(db, "STORAGE_DIR", self.root / "storage"))
+        self.stack.enter_context(patch.object(db, "DB_PATH", self.root / "storage" / "app.db"))
+        self.stack.enter_context(patch.object(runtime, "RUNTIME_SETTINGS", self.settings))
+        self.stack.enter_context(patch.object(runtime, "STORAGE_DIR", self.root / "storage"))
+        self.stack.enter_context(patch.object(runtime, "UPLOADS_DIR", self.root / "storage" / "uploads"))
+        self.stack.enter_context(
+            patch.object(runtime, "KNOWLEDGE_DIR", self.root / "storage" / "knowledge")
+        )
+        self.stack.enter_context(patch.object(runtime.RUNTIME_STATE, "files", None))
+        db.configure_runtime(self.settings)
+        db.init_db()
+        self.client = self._client()
+
+    def tearDown(self) -> None:
+        db.close_runtime_database()
+
+    def _client(self) -> TestClient:
+        app = FastAPI()
+
+        @app.exception_handler(ApplicationError)
+        async def application_error(_, exc):
+            return JSONResponse({"detail": exc.detail}, status_code=exc.status_code)
+
+        app.include_router(projects_router.build())
+        app.include_router(ingestion_router.build())
+        return TestClient(app)
+
+    def test_project_import_read_and_restart_preserve_original_bytes_and_commands(self) -> None:
+        source = _synthetic_pdf(self.root / "source.pdf")
+        digest = hashlib.sha256(source).hexdigest()
+        created = self.client.post(
+            "/api/projects",
+            json={"name": "Local project", "customer_name": "Synthetic", "command_id": "p-one"},
+        )
+        self.assertEqual(created.status_code, 200, created.text)
+        project = created.json()
+        self.assertEqual(
+            self.client.post(
+                "/api/projects",
+                json={"name": "Local project", "customer_name": "Synthetic", "command_id": "p-one"},
+            ).json(),
+            project,
+        )
+        path = f"/api/projects/{project['id']}/sor-documents"
+        uploaded = self.client.post(
+            path,
+            data={"command_id": "d-one"},
+            files={"file": ("source.pdf", source, "application/pdf")},
+        )
+        self.assertEqual(uploaded.status_code, 200, uploaded.text)
+        document = uploaded.json()
+        self.assertEqual(document["source_sha256"], digest)
+        self.assertEqual(document["source_size"], len(source))
+        self.assertNotIn("file_path", document)
+        stored_path = db.get_sor_document(document["id"])["file_path"]
+        self.assertTrue(Path(stored_path).resolve().is_relative_to((self.root / "storage").resolve()))
+        self.assertEqual(Path(stored_path).read_bytes(), source)
+        replay = self.client.post(
+            path,
+            data={"command_id": "d-one"},
+            files={"file": ("source.pdf", source, "application/pdf")},
+        )
+        self.assertEqual(replay.status_code, 200, replay.text)
+        self.assertEqual(replay.json(), document)
+        conflict = self.client.post(
+            path,
+            data={"command_id": "d-one"},
+            files={"file": ("changed.pdf", source + b"\n% changed", "application/pdf")},
+        )
+        self.assertEqual(conflict.status_code, 409)
+        downloaded = self.client.get(path + f"/{document['id']}/file")
+        self.assertEqual(downloaded.status_code, 200)
+        self.assertEqual(hashlib.sha256(downloaded.content).hexdigest(), digest)
+
+        self.client.close()
+        db.close_runtime_database()
+        db.configure_runtime(self.settings)
+        db.init_db()
+        self.client = self._client()
+        restarted = self.client.get("/api/projects")
+        self.assertEqual(restarted.status_code, 200)
+        self.assertEqual([item["id"] for item in restarted.json()], [project["id"]])
+        listed = self.client.get(path)
+        self.assertEqual([item["id"] for item in listed.json()], [document["id"]])
+        self.assertEqual(
+            hashlib.sha256(
+                self.client.get(path + f"/{document['id']}/file").content
+            ).hexdigest(),
+            digest,
+        )
+
+    def test_local_source_path_outside_owned_storage_is_rejected(self) -> None:
+        project = db.create_project("Path guard", "Synthetic")
+        document = db.add_sor_document(
+            project_id=project["id"],
+            file_name="outside.pdf",
+            file_type="pdf",
+            file_path=str(self.root / "outside.pdf"),
+            extracted_text="",
+            source_sha256="a" * 64,
+            source_size=1,
+        )
+        (self.root / "outside.pdf").write_bytes(b"outside")
+        with self.assertRaises(RuntimeError):
+            runtime._runtime_record_path(document)
+
+    def test_local_database_enforces_foreign_keys_and_migration_identity(self) -> None:
+        with db.get_conn() as conn:
+            self.assertEqual(int(conn.execute("PRAGMA foreign_keys").fetchone()[0]), 1)
+            self.assertEqual(
+                conn.execute(
+                    "SELECT version FROM reqpilotx_local_schema_migrations"
+                ).fetchone()["version"],
+                "0001_lightweight_local_schema",
+            )
+            with self.assertRaises(sqlite3.IntegrityError):
+                conn.execute(
+                    """
+                    INSERT INTO sor_documents
+                    (id, project_id, file_name, file_type, file_path, extracted_text, created_at)
+                    VALUES ('orphan', 'missing-project', 'x.pdf', 'pdf', '/tmp/x.pdf', '', 'now')
+                    """
+                )
+
+    def test_applied_sqlite_migration_checksum_change_is_rejected(self) -> None:
+        with db.get_conn() as conn:
+            conn.execute(
+                "UPDATE reqpilotx_local_schema_migrations SET sha256 = ? WHERE version = ?",
+                ("a" * 64, "0001_lightweight_local_schema"),
+            )
+        with self.assertRaises(db.SQLiteMigrationDriftError):
+            db.init_db()
+
+
+if __name__ == "__main__":
+    unittest.main()

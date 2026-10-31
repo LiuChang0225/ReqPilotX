@@ -62,6 +62,9 @@ def build_readiness_report(
     startup_initialized: bool,
     startup_error: str,
     startup_checked_at: str,
+    deployment_mode: str = "test",
+    database_backend: str = "sqlite-test",
+    object_store_backend: str = "local",
 ) -> dict[str, Any]:
     checks = {
         "startup": _build_startup_check(
@@ -96,6 +99,9 @@ def build_readiness_report(
         "ready": ready,
         "runtime_ready": core_ready,
         "checked_at": datetime.now(timezone.utc).isoformat(),
+        "deployment_mode": deployment_mode,
+        "database_backend": database_backend,
+        "object_store_backend": object_store_backend,
         "storage_root": "redacted",
         "db_path": "redacted",
         "ai": {

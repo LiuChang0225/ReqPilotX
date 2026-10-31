@@ -17,21 +17,21 @@ Source removal, knowledge-file import and backend-native Agent execution are not
 ## Current capabilities
 
 - Installable Cordis bundle with separate Host and Client leaves. The R4 adapter is independently tested; no external Pair profile is modified by its verification.
-- On activation, the Host checks existing Python/PostgreSQL dependencies, acquires its own data-directory lease, initializes a private password-protected PostgreSQL cluster when needed, applies the shared migrations and starts the shared Python API on an OS-assigned loopback port. No worker or model process is launched.
+- On activation, the Host checks the non-editable Python installation, acquires its own data-directory lease, applies the application-owned SQLite migrations and starts the shared Python API on an OS-assigned loopback port. It does not probe or start PostgreSQL and needs no PostgreSQL binary or driver. No worker or model process is launched.
 - Native Pair project creation, project selection, PDF upload and original-page viewing. Reads/creates use the existing ReqPilotX API and storage; no second project/document ledger.
 - Existing saved works are listed under the selected document and open the same shared workbench. Managed Pair enables source-bound feedback, Map confirmation, engineer opinions and immutable delivery saves through the application's persisted plugin-workbench API; connect mode remains readonly. Pair automatically provides internal addresses and scope. A bound task may stop its live Pair turn or submit an explicit continuation to the same Session. Business completion, endpoint reconnection and push Agent events remain pending.
-- Disable/stop terminates only owned DSH subprocess handles; the API closes before the database. Data remains. Restart reuses the same cluster and project/document identities. Unknown nonempty directories and competing live owners are rejected, not adopted.
+- Disable/stop terminates only owned DSH subprocess handles. Data remains. Restart reuses the same SQLite data root and project/document identities. Unknown nonempty directories, competing live owners and historical PostgreSQL data roots are rejected, not adopted.
 
 ## Code and ownership
 
-- `host/src/managed-runtime.js`: runtime identity, private data lease, dependency checks, cluster/API preparation, readiness and teardown.
+- `host/src/managed-runtime.js`: runtime identity, private data lease, installed-package checks, SQLite/API preparation, readiness and teardown.
 - `host/src/managed_api.py`: checks installed distribution origins and rejects editable/legacy `app` imports; invokes installed migration capabilities and serves `reqpilotx_server.main` on a child-allocated loopback socket, with no worker.
 - `host/src/index.js`: authenticated Pair route, runtime status and fixed-target transport. Managed mode allows project creation, document import, and feedback/Map-confirmation, engineer-response and immutable delivery-save POSTs only for a concrete plugin work ID. Other writes remain unavailable. Pair cookies/auth are not forwarded to the backend; redirects are rejected. Range and revision headers are preserved.
 - `client/src/catalog.cjs`: native projects/documents entry and service readiness, consuming shared APIs. Its exact-path write policy is embedded from Host discovery and grants each result operation separately; a feedback grant cannot authorize human opinions or delivery saves.
 - `client/src/client.cjs`: shared-panel host adaptation and the explicit connect-mode development probe.
 - `scripts/build.mjs`: packages the existing shared UI CJS/CSS into DSH lazy-CJS; React, JSX and ReactDOM use the Host instance.
 
-Default data is under `~/.local/share/reqpilotx/pair`. Runtime credentials stay there with private permissions and are absent from public configuration responses/receipts. Ports are dynamic. Changing dataRoot selects a different owned application store; it does not import other stores automatically.
+Default data is under `~/.local/share/reqpilotx/pair`. The ownership marker, local SQLite database, source/object files and runtime receipts stay there with private permissions and are absent from public configuration responses. Ports are dynamic. Changing dataRoot selects a different owned application store; it does not import other stores automatically.
 
 The existing PDF viewer is embedded with the correct `pdf` and `parentOrigin` parameters. It currently uses the owned API's loopback origin directly. A fully authenticated remote viewer/worker proxy is not yet supported.
 
@@ -67,7 +67,6 @@ uv venv /absolute/private/reqpilotx-venv
 uv pip install --python /absolute/private/reqpilotx-venv/bin/python /release/reqpilotx_engine-VERSION-py3-none-any.whl /release/reqpilotx_server-0.1.0-py3-none-any.whl
 export REQPILOT_PAIR_PYTHON=/absolute/private/reqpilotx-venv/bin/python
 export REQPILOT_PAIR_FRONTEND_ROOT=/release/web/dist
-export REQPILOT_PAIR_POSTGRES_BIN=/absolute/postgresql/bin
 export REQPILOT_PAIR_DATA_ROOT=/absolute/private/reqpilotx-pair-data
 ```
 
@@ -76,10 +75,11 @@ Its child explicitly receives storage, object, scratch and frontend paths. Runti
 Python uses `-I`; editable packages and visible legacy `app` are rejected. The
 three local Cordis packages are not a registry release or fresh-machine installer.
 
-Config accepts `python`, `frontendRoot`, `postgresBinDir` and `dataRoot` (absolute
-paths). Former `appRoot` checkout configuration is explicitly rejected. For a
-development server use explicit readonly `mode: connect` with `serviceOrigin`;
-failed installed setup never selects connect mode automatically.
+Config accepts `python`, `frontendRoot` and `dataRoot` (absolute paths). Former
+`appRoot` checkout configuration and the retired `postgresBinDir` dependency are
+explicitly rejected. For a development server use explicit readonly `mode:
+connect` with `serviceOrigin`; failed installed setup never selects connect mode
+automatically.
 
 Only the legacy transport probe uses `REQPILOT_SERVICE_ORIGIN`; setting it selects readonly connect mode with the development link form. It is not the normal application flow.
 
@@ -90,23 +90,25 @@ authentication/Range/revision/credential isolation, write allowlist, exclusive
 ownership, invalid roots and dependencies, teardown and retained ownership on failure.
 The React 18 test fixture is a module host, not the external Pair UI.
 
-R4's `scripts/installed-smoke.mjs` uses real OS children implementing the subprocess
-handle interface, relocated host files, non-editable wheels and private PostgreSQL.
-It verifies project/import, source bytes, saved version snapshot/export, frontend,
-readiness, competing owner rejection and restart identity. It also exercises the
-actual managed response/delivery POST allowlist: source-bound human opinions,
-exact command replay, stale-write rejection, explicit formal acceptance and
-unchanged frozen snapshot/Excel bytes after restart. An optional sixth argument
-selects a new retained smoke-output directory; owned processes stop but synthetic
-data remains for inspection. The 2026-10-01 cloud Linux service receipt passed
-with PostgreSQL 17.11 and non-editable transitional wheels, reusing already
-tested dependencies; this is not a fresh-machine installer or published release.
-See [cloud service acceptance](../../docs/development/cloud-service-acceptance-20261001.md)
-and the R4 architecture
-record for exact commands and evidence. Historical DSH/UI checks on the previous
-checkout-based adapter are not acceptance of the current external Pair UI.
+`scripts/installed-smoke.mjs` uses real OS children implementing the subprocess
+handle interface, relocated host files, non-editable wheels, the matching built
+Web/shared-panel artifacts and an application-owned SQLite data root with no
+PostgreSQL executable on `PATH`. It verifies project/import command replay,
+source bytes, saved version snapshot/export, frontend, readiness, competing
+owner rejection and restart identity. It also exercises the actual managed
+response/delivery POST allowlist: source-bound human opinions, exact command
+replay, stale-write rejection, explicit formal acceptance and unchanged frozen
+snapshot/Excel bytes after restart. An optional fifth argument selects a new
+retained smoke-output directory; owned processes stop but synthetic data remains
+for inspection. The 2026-10-01 cloud Linux PostgreSQL receipt remains historical
+evidence for the separate cloud route. The local smoke is not a fresh-machine
+installer or published release. See
+[Pair lightweight SQLite](../../docs/architecture/pair-lightweight-sqlite.md)
+and the R4 architecture record for exact commands and evidence. Historical
+DSH/UI checks on the previous checkout-based adapter are not acceptance of the
+current external Pair UI.
 
-Unverified: abrupt-crash/orphan recovery, fresh-machine dependency installation, release distribution, existing-data import, full business writes, push runtime events, Office/Windows/Desktop. An unexplained live database process is refused even under the owned directory; it is not silently adopted or killed. The current source candidate adds persistent project/import command IDs, same-command replay and read-only commit recovery; JSON/multipart carry the ID through the existing proxy. Pending intentions survive reload and service-port changes under the same application ID. This requires the matching server/migration and has not been released or verified in the real employee host. See the [entry command contract and focused evidence](../../docs/architecture/project-source-entry-commands.md).
+Unverified: abrupt-crash/orphan recovery, fresh-machine dependency installation, release distribution, existing-data import, full business writes, push runtime events, Office/Windows/Desktop. Historical PostgreSQL data roots are refused untouched pending the explicit migration slice. The current source candidate adds persistent project/import command IDs, same-command replay and read-only commit recovery; JSON/multipart carry the ID through the existing proxy. Pending intentions survive reload and service-port changes under the same application ID. This requires the matching server/migration and has not been released or verified in the real employee host. See the [entry command contract and focused evidence](../../docs/architecture/project-source-entry-commands.md).
 
 ## Upgrade with shared artifacts
 

@@ -30,6 +30,7 @@ class ProcessRole(StrEnum):
 
 class DatabaseBackend(StrEnum):
     POSTGRESQL = "postgresql"
+    SQLITE_LOCAL = "sqlite-local"
     SQLITE_TEST = "sqlite-test"
 
 
@@ -129,13 +130,39 @@ class RuntimeSettings:
         if deployment_mode is DeploymentMode.TEST:
             database_backend = DatabaseBackend.SQLITE_TEST
             database_url = ""
-        else:
+        elif deployment_mode is DeploymentMode.CLOUD:
             database_backend = DatabaseBackend.POSTGRESQL
             database_url = str(
                 source.get("REQPILOT_DATABASE_URL")
                 or "postgresql://localhost/reqpilotx"
             ).strip()
             _validate_postgresql_url(database_url)
+        else:
+            requested_backend = str(
+                source.get("REQPILOT_DATABASE_BACKEND")
+                or (
+                    DatabaseBackend.POSTGRESQL.value
+                    if str(source.get("REQPILOT_DATABASE_URL") or "").strip()
+                    else DatabaseBackend.SQLITE_LOCAL.value
+                )
+            ).strip().lower()
+            if requested_backend == DatabaseBackend.POSTGRESQL.value:
+                database_backend = DatabaseBackend.POSTGRESQL
+                database_url = str(source.get("REQPILOT_DATABASE_URL") or "").strip()
+                _validate_postgresql_url(database_url)
+            elif requested_backend == DatabaseBackend.SQLITE_LOCAL.value:
+                if str(source.get("REQPILOT_DATABASE_URL") or "").strip():
+                    raise RuntimeConfigurationError(
+                        "REQPILOT_DATABASE_URL conflicts with "
+                        "REQPILOT_DATABASE_BACKEND=sqlite-local."
+                    )
+                database_backend = DatabaseBackend.SQLITE_LOCAL
+                database_url = ""
+            else:
+                raise RuntimeConfigurationError(
+                    "REQPILOT_DATABASE_BACKEND must be postgresql or sqlite-local "
+                    "outside cloud/test deployments."
+                )
 
         default_store = (
             ObjectStoreBackend.OSS.value
@@ -352,6 +379,17 @@ class RuntimeSettings:
     @property
     def is_test(self) -> bool:
         return self.deployment_mode is DeploymentMode.TEST
+
+    @property
+    def is_sqlite(self) -> bool:
+        return self.database_backend in {
+            DatabaseBackend.SQLITE_LOCAL,
+            DatabaseBackend.SQLITE_TEST,
+        }
+
+    @property
+    def is_local_sqlite(self) -> bool:
+        return self.database_backend is DatabaseBackend.SQLITE_LOCAL
 
 
 def _enum_value(enum_type, value: object, field_name: str):

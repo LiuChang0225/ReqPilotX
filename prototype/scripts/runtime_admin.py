@@ -24,7 +24,7 @@ def build_parser() -> argparse.ArgumentParser:
     )
     subcommands = parser.add_subparsers(dest="command", required=True)
     subcommands.add_parser("doctor", help="Check local/cloud configuration without writing.")
-    subcommands.add_parser("migrate", help="Apply versioned PostgreSQL migrations.")
+    subcommands.add_parser("migrate", help="Apply versioned SQLite or PostgreSQL migrations.")
     recover = subcommands.add_parser(
         "recover-historical-publication",
         help=(
@@ -131,23 +131,33 @@ def main() -> int:
             if container is not None:
                 container.close()
 
+    if settings.is_sqlite:
+        from app import db
+
+        try:
+            db.init_db()
+        except Exception as exc:
+            print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
+            return 3
+        print(
+            json.dumps(
+                {
+                    "ok": True,
+                    "database_backend": settings.database_backend.value,
+                    "migrations": "applied",
+                },
+                ensure_ascii=False,
+                sort_keys=True,
+            )
+        )
+        return 0
+
     try:
         container = build_runtime_container(settings, apply_migrations=True)
     except PostgresUnavailableError as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         return 3
     try:
-        if container.database is None:
-            print(
-                json.dumps(
-                    {
-                        "ok": False,
-                        "error": "PostgreSQL migrations are disabled in test mode.",
-                    },
-                    ensure_ascii=False,
-                )
-            )
-            return 2
         container.database.healthcheck()
         print(
             json.dumps(

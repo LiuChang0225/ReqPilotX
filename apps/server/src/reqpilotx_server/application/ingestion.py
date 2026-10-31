@@ -302,7 +302,7 @@ def _safe_upload_storage_name(file_name: str) -> str:
 def _upload_staging_dir(kind: str) -> Path:
     from reqpilotx_server.application.runtime import KNOWLEDGE_DIR, RUNTIME_SETTINGS, UPLOADS_DIR
 
-    if RUNTIME_SETTINGS.database_backend is DatabaseBackend.SQLITE_TEST:
+    if RUNTIME_SETTINGS.is_sqlite:
         return UPLOADS_DIR if kind == "sor" else KNOWLEDGE_DIR
     return RUNTIME_SETTINGS.scratch_root / "ingest" / kind
 

@@ -7,7 +7,6 @@
         dataRoot: !!js process.env.REQPILOT_PAIR_DATA_ROOT
         python: !!js process.env.REQPILOT_PAIR_PYTHON
         frontendRoot: !!js process.env.REQPILOT_PAIR_FRONTEND_ROOT
-        postgresBinDir: !!js process.env.REQPILOT_PAIR_POSTGRES_BIN
         taskMcp: true
         capabilityRoot: !!js process.env.REQPILOT_PAIR_CAPABILITY_ROOT
         agentPreset: !!js process.env.REQPILOT_PAIR_AGENT_PRESET || 'standard'

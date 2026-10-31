@@ -59,7 +59,7 @@ jobs:
           prototype/.venv/bin/python plugins/reqpilot/scripts/reqpilot.py --project-root . worked-example --output-dir output/r4-synthetic
           cp -R integrations/pair "$RUNNER_TEMP/r4-pair"
           cp -R apps/web/dist "$RUNNER_TEMP/r4-web"
-          node "$RUNNER_TEMP/r4-pair/scripts/installed-smoke.mjs" "$RUNNER_TEMP/r4-installed/bin/python" "$RUNNER_TEMP/r4-web" "$(pg_config --bindir)" "$PWD/output/r4-synthetic" "$PWD/output/r4-installed-receipt.json"
+          node "$RUNNER_TEMP/r4-pair/scripts/installed-smoke.mjs" "$RUNNER_TEMP/r4-installed/bin/python" "$RUNNER_TEMP/r4-web" "$PWD/output/r4-synthetic" "$PWD/output/r4-installed-receipt.json"
       - name: SaaS PostgreSQL HTTP worker and simulated SDK review export
         run: |
           prototype/.venv/bin/python plugins/reqpilot/scripts/build_bundle.py --repo . --output output/saas-plugin --engine-wheel "$(find output/r4-engine -maxdepth 1 -name '*.whl' -print -quit)"
