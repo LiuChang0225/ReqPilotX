@@ -1,6 +1,7 @@
 import type { PropsWithChildren, ReactNode } from "react";
 import { Icon } from "./Icon";
 import { cx } from "../lib/format";
+import { useUiCopy } from "../../host/HostLocaleContext";
 
 export function StatusBadge({
   tone = "neutral",
@@ -11,11 +12,12 @@ export function StatusBadge({
   return <span className={cx("status-badge", `is-${tone}`)}>{children}</span>;
 }
 
-export function LoadingBlock({ label = "正在加载数据" }: { label?: string }) {
+export function LoadingBlock({ label }: { label?: string }) {
+  const l = useUiCopy();
   return (
     <div className="loading-block" role="status" aria-live="polite">
       <span className="loading-mark" aria-hidden="true" />
-      <span>{label}</span>
+      <span>{label ?? l("common.loading", "正在加载数据")}</span>
     </div>
   );
 }
@@ -50,16 +52,17 @@ export function ErrorBlock({
   error: Error;
   onRetry?: () => void;
 }) {
+  const l = useUiCopy();
   return (
     <div className="error-block" role="alert">
       <div>
-        <strong>暂时无法完成请求</strong>
+        <strong>{l("common.requestFailed", "暂时无法完成请求")}</strong>
         <p>{error.message}</p>
       </div>
       {onRetry && (
         <button className="button secondary" type="button" onClick={onRetry}>
           <Icon name="refresh" />
-          重试
+          {l("common.retry", "重试")}
         </button>
       )}
     </div>

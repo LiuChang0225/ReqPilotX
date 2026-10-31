@@ -1,4 +1,4 @@
-import { cleanup, render, screen, within } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, within } from "@testing-library/react";
 import { afterEach, beforeEach, expect, it } from "vitest";
 import { FixedWorkflowStatus, FixedWorkflowSummary } from "./FixedWorkflowStatus";
 import { HostLocaleProvider } from "./HostLocaleContext";
@@ -109,4 +109,67 @@ it("translates fixed-workflow optional inputs and expected outputs without touch
   expect(scope.getByText(/客户原文自定义依据：客户提供的原文原因/)).toBeVisible();
   expect(scope.queryByText(/项目参考资料/)).not.toBeInTheDocument();
   expect(scope.queryByText(/可回查原文与顺序/)).not.toBeInTheDocument();
+});
+
+it("keeps the workflow as one compact status row with real blocker facts and expandable details", () => {
+  const state: ApplicationWorkflowState = {
+    schema: "reqpilot-fixed-workflow-state/v1",
+    workflow: { id: "reqpilot-fixed-workflow", version: "1.0.0" },
+    source_sha256: "a".repeat(64),
+    stages: [
+      { id: "PREPARATION", label: "Preparation", status: "SAVED" },
+      { id: "SOURCE_MAP", label: "Source and structure", status: "SAVED" },
+      { id: "ITEMS_CLASSIFICATION", label: "Items and classification", status: "BLOCKED", reason: "ITEMS_REQUIRED" },
+      { id: "EVIDENCE_ANALYSIS", label: "Evidence analysis", status: "PENDING" },
+      { id: "SELF_CHECK", label: "Self-check", status: "PENDING" },
+      { id: "DELIVERABLE", label: "Reviewable result", status: "PENDING" },
+    ],
+    next_stage: "ITEMS_CLASSIFICATION", ready_to_review: false, verification: "SAVED_ARTIFACTS_ONLY",
+    open_items: ["ITEMS_REQUIRED"], human_acceptance: "NOT_CLAIMED",
+  };
+  const english: Record<string, string> = {
+    "workflow.statusHeading": "Business result stages", "workflow.currentStage": "Current: {stage}",
+    "workflow.stageLabel.ITEMS_CLASSIFICATION": "Items and classification", "workflow.stage.BLOCKED": "Waiting for an earlier stage",
+    "workflow.reason.ITEMS_REQUIRED": "Save source items first", "workflow.viewDetails": "View details",
+    "workflow.hideDetails": "Hide details", "workflow.next": "Next: ", "workflow.openItems": "Open items: ",
+    "workflow.stageLabel.SOURCE_MAP": "Source and structure", "workflow.stage.SAVED": "Saved",
+    "workflow.stageLabel.PREPARATION": "Preparation", "workflow.stageLabel.EVIDENCE_ANALYSIS": "Evidence analysis",
+    "workflow.stageLabel.SELF_CHECK": "Self-check", "workflow.stageLabel.DELIVERABLE": "Reviewable result",
+    "workflow.stage.PENDING": "Not saved",
+  };
+  render(<HostLocaleProvider t={key => english[key] ?? key}><FixedWorkflowStatus state={state} compact /></HostLocaleProvider>);
+  expect(screen.getByText("Current: Items and classification")).toBeVisible();
+  expect(screen.getAllByText("Waiting for an earlier stage").length).toBeGreaterThan(0);
+  expect(screen.getAllByText("Save source items first").length).toBeGreaterThan(0);
+  const toggle = screen.getByRole("button", { name: "View details" });
+  toggle.focus();
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(document.querySelector(".fixed-workflow-compact-details")).toHaveAttribute("hidden");
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "true");
+  expect(screen.getByRole("button", { name: "Hide details" })).toHaveFocus();
+  expect(document.querySelector(".fixed-workflow-compact-details")).not.toHaveAttribute("hidden");
+  fireEvent.click(toggle);
+  expect(toggle).toHaveAttribute("aria-expanded", "false");
+  expect(toggle).toHaveFocus();
+});
+
+it("shows the next actionable stage and keeps unresolved operations visible when details are closed", () => {
+  const state: ApplicationWorkflowState = {
+    schema: "reqpilot-fixed-workflow-state/v1", workflow: { id: "reqpilot-fixed-workflow", version: "1.0.0" },
+    source_sha256: "a".repeat(64), stages: [
+      { id: "PREPARATION", label: "Preparation", status: "SAVED" },
+      { id: "SOURCE_MAP", label: "Source and structure", status: "PENDING" },
+      { id: "ITEMS_CLASSIFICATION", label: "Items", status: "BLOCKED", reason: "SOURCE_MAP_REQUIRED" },
+    ], next_stage: "SOURCE_MAP", ready_to_review: false, verification: "SAVED_ARTIFACTS_ONLY",
+    open_items: [], human_acceptance: "NOT_CLAIMED",
+  };
+  const { rerender } = render(<FixedWorkflowStatus state={state} compact />);
+  expect(screen.getByText("当前：Source and structure")).toBeVisible();
+  rerender(<FixedWorkflowStatus state={{ ...state, next_stage: null,
+    stages: state.stages.map(stage => ({ ...stage, status: "SAVED", reason: undefined })),
+    open_items: ["INCOMPLETE_OPERATION"],
+  }} compact />);
+  expect(screen.getAllByText("存在结果未知或待恢复的程序操作").some(node => !node.closest("[hidden]"))).toBe(true);
+  expect(screen.getByRole("button", { name: "查看详情" })).toHaveAttribute("aria-expanded", "false");
 });

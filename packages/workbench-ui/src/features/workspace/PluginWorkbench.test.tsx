@@ -8,6 +8,7 @@ import type { SourceWorkbenchReader } from "../extraction/SourceWorkbenchReader"
 import type { WorkspaceRoute } from "./route";
 import { sourceFeedbackDraftKey } from "../extraction/sourceItemDrafts";
 import { storeReadingHandoffIntent } from "./readingHandoff";
+import { HostLocaleProvider } from "../../host/HostLocaleContext";
 let current: PluginState;
 let route: WorkspaceRoute;
 let calls: { url: string; body: Record<string, unknown> }[];
@@ -103,4 +104,13 @@ it("a scoped feedback shortcut selects the current item even after the composer 
   fireEvent.click(screen.getByRole("button", { name: "提出范围修改" }));
   expect(screen.getByLabelText("修改范围")).toHaveValue("selected");
   expect(calls).toHaveLength(0);
+});
+
+it("renders the external same-version delivery view in English while keeping the source filename", async () => {
+  route = { ...route, task: "export" };
+  const view = render(<HostLocaleProvider t={key => key === "workbench.locale" ? "en" : key}><DocumentWorkSurface><div>native-content</div></DocumentWorkSurface></HostLocaleProvider>);
+  expect(await screen.findByRole("heading", { name: "Deliver the current review version" })).toBeVisible();
+  expect(await screen.findByRole("link", { name: "Export current review version Excel" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Back to source review" })).toBeVisible();
+  expect((view.container.textContent || "").replaceAll("合成.pdf", "")).not.toMatch(/[\u4e00-\u9fff]/);
 });

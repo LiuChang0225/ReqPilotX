@@ -49,6 +49,7 @@ import {
   canonicalJsonSha256,
   withoutCanonicalField,
 } from "./canonicalJsonSha256";
+import { HostLocaleProvider } from "../../host/HostLocaleContext";
 
 const captureApiMocks = vi.hoisted(() => ({
   quality: vi.fn(),
@@ -9012,4 +9013,21 @@ describe("RequirementTreePanel explicit atomization scope", () => {
       ).not.toBeInTheDocument();
     },
   );
+});
+
+describe("RequirementTreePanel English host locale", () => {
+  it("renders the not-started extraction landing and stage rail in English without Chinese controls", async () => {
+    const tree = navigationTree(); tree.state = "NOT_STARTED"; tree.nodes = []; tree.root_node_ids = [];
+    const workspace = navigationWorkspaceValue(tree);
+    const view = render(<HostLocaleProvider t={key => key === "workbench.locale" ? "en" : key}>
+      <WorkspaceProvider value={workspace}><RequirementTreePanel /></WorkspaceProvider>
+    </HostLocaleProvider>);
+    expect(await screen.findByRole("tab", { name: /Step 1: Source structure/ })).toBeVisible();
+    expect(screen.getByRole("tab", { name: /Step 2: Source requirement list/ })).toBeVisible();
+    expect(screen.queryByRole("tab", { name: /第 1 步/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Re-parse full document…" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "重新解析全文…" })).not.toBeInTheDocument();
+    expect(screen.queryByText("结构尚未生成")).not.toBeInTheDocument();
+    expect(view.container.textContent || "").not.toMatch(/[\u4e00-\u9fff]/);
+  });
 });

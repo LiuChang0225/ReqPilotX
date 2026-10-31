@@ -13,6 +13,8 @@ import { asArray, asRecord } from "../../shared/api/client";
 import type { JsonRecord } from "../../shared/api/contracts";
 import { cx } from "../../shared/lib/format";
 import { Brand } from "../../shared/ui/Brand";
+import { supportedUiLocales, type UiLocale } from "../../shared/i18n/messages";
+import { translateUi } from "../../host/HostLocaleContext";
 import { ErrorBlock, LoadingBlock } from "../../shared/ui/Feedback";
 import { Icon } from "../../shared/ui/Icon";
 import {
@@ -471,6 +473,8 @@ export function PdfViewerPage() {
     () => new URLSearchParams(window.location.search),
     [],
   );
+  const locale = (supportedUiLocales.includes(params.get("locale") as UiLocale) ? params.get("locale") : "zh") as UiLocale;
+  const l = (key: string, fallback: string, values?: Record<string, string | number>) => translateUi(locale, key, fallback, values);
   const sourceUrl = params.get("pdf") || "";
   const embedded = params.get("embedded") === "1";
   const parentOrigin = pdfParentOrigin(params, window.location.origin);
@@ -541,7 +545,7 @@ export function PdfViewerPage() {
   useEffect(() => {
     document.title = "ReqPilotX · PDF";
     if (!sourceUrl) {
-      setError(new Error("缺少 PDF 来源地址。"));
+      setError(new Error(l("pdf.missingSource", "缺少 PDF 来源地址。")));
       setLoading(false);
       return;
     }
@@ -606,7 +610,7 @@ export function PdfViewerPage() {
     });
     const canvas = canvasRef.current;
     const context = canvas.getContext("2d", { alpha: false });
-    if (!context) throw new Error("浏览器无法创建 PDF 画布。");
+    if (!context) throw new Error(l("pdf.canvasUnavailable", "浏览器无法创建 PDF 画布。"));
     const output = pdfCanvasOutput(
       viewport.width,
       viewport.height,
@@ -947,28 +951,28 @@ export function PdfViewerPage() {
   }, [textSelection]);
 
   return (
-    <div className={cx("pdf-viewer-page", embedded && "is-embedded")}>
+    <div lang={locale === "en" ? "en" : "zh-CN"} className={cx("pdf-viewer-page", embedded && "is-embedded")}>
       {!embedded && (
         <header className="pdf-viewer-header">
           <Brand compact />
           <div>
-            <p className="section-label">可信来源</p>
-            <strong>PDF 查看器</strong>
+            <p className="section-label">{l("pdf.trustedSource", "可信来源")}</p>
+            <strong>{l("pdf.viewer", "PDF 查看器")}</strong>
           </div>
         </header>
       )}
-      <nav className="pdf-toolbar" aria-label="PDF 控制">
+      <nav className="pdf-toolbar" aria-label={l("pdf.controls", "PDF 控制")}>
         <button
           className="icon-button"
           type="button"
-          aria-label="上一页"
+          aria-label={l("pdf.previousPage", "上一页")}
           disabled={page <= 1}
           onClick={() => navigateFromViewer(page - 1)}
         >
           <Icon name="chevron" className="is-reversed" />
         </button>
         <label>
-          <span className="sr-only">页码</span>
+          <span className="sr-only">{l("pdf.pageNumber", "页码")}</span>
           <input
             type="number"
             min={1}
@@ -983,7 +987,7 @@ export function PdfViewerPage() {
         <button
           className="icon-button"
           type="button"
-          aria-label="下一页"
+          aria-label={l("pdf.nextPage", "下一页")}
           disabled={Boolean(pdf && page >= pdf.numPages)}
           onClick={() => navigateFromViewer(page + 1)}
         >
@@ -993,7 +997,7 @@ export function PdfViewerPage() {
         <button
           className="icon-button text-button"
           type="button"
-          aria-label="缩小"
+          aria-label={l("pdf.zoomOut", "缩小")}
           onClick={() => zoom(-0.15)}
         >
           −
@@ -1001,35 +1005,33 @@ export function PdfViewerPage() {
         <button
           className="pdf-fit-button"
           type="button"
-          title={fitMode === "page" ? "按宽度放大，便于阅读文字" : "显示完整页面，查看上下文"}
+          title={fitMode === "page" ? l("pdf.fitWidthTitle", "按宽度放大，便于阅读文字") : l("pdf.fullPageTitle", "显示完整页面，查看上下文")}
           onClick={() =>
             setFitMode((value) => (value === "page" ? "width" : "page"))
           }
         >
           {fitMode === "page"
-            ? "按宽度放大"
-            : fitMode === "width"
-              ? "显示整页"
-              : "显示整页"}
+            ? l("pdf.fitWidth", "按宽度放大")
+            : l("pdf.fullPage", "显示整页")}
         </button>
         <button
           className="icon-button text-button"
           type="button"
-          aria-label="放大"
+          aria-label={l("pdf.zoomIn", "放大")}
           onClick={() => zoom(0.15)}
         >
           +
         </button>
-        {overlays.length ? <button type="button" className="pdf-fit-button" aria-label="聚焦原文框标" title="放大框标；再次点击切换下一框"
-          onClick={() => void focusOverlay()}>{focusedOverlayIndex < 0 ? "聚焦框标" : `框 ${focusedOverlayIndex + 1}/${overlays.length} · 切换`}</button>
-          : <span className="pdf-overlay-count">原文</span>}
+        {overlays.length ? <button type="button" className="pdf-fit-button" aria-label={l("pdf.focusOverlay", "聚焦原文框标")} title={l("pdf.focusOverlayTitle", "放大框标；再次点击切换下一框")}
+          onClick={() => void focusOverlay()}>{focusedOverlayIndex < 0 ? l("pdf.focusOverlay", "聚焦框标") : l("pdf.overlayFocus", "框 {index}/{count} · 切换", { index: focusedOverlayIndex + 1, count: overlays.length })}</button>
+          : <span className="pdf-overlay-count">{l("pdf.source", "原文")}</span>}
       </nav>
-      {loading && <LoadingBlock label="正在载入 PDF" />}
+      {loading && <LoadingBlock label={l("pdf.loading", "正在载入 PDF")} />}
       {error && <ErrorBlock error={error} onRetry={() => void renderPage()} />}
       <main
         ref={stageRef}
         className="pdf-stage"
-        aria-label="PDF 页面；适合页面时可使用鼠标滚轮翻页"
+        aria-label={l("pdf.stageAria", "PDF 页面；适合页面时可使用鼠标滚轮翻页")}
         onWheel={handleWheelNavigation}
       >
         <div
@@ -1044,7 +1046,7 @@ export function PdfViewerPage() {
               "is-native",
               !showNativeText && "is-suppressed",
             )}
-            aria-label={`第 ${page} 页可选择文字`}
+            aria-label={l("pdf.pageSelectable", "第 {page} 页可选择文字", { page })}
             onPointerUp={captureTextSelection}
             onKeyUp={captureTextSelection}
           />
@@ -1055,7 +1057,7 @@ export function PdfViewerPage() {
               "is-visual",
               !showVisualText && "is-suppressed",
             )}
-            aria-label={`第 ${page} 页视觉识别文字`}
+            aria-label={l("pdf.pageVisual", "第 {page} 页视觉识别文字", { page })}
             onPointerUp={captureTextSelection}
             onKeyUp={captureTextSelection}
           >
@@ -1108,38 +1110,38 @@ export function PdfViewerPage() {
                 textSelection.below && "is-below",
               )}
               role="toolbar"
-              aria-label="选中文字操作"
+              aria-label={l("pdf.selectionAria", "选中文字操作")}
               style={{ left: textSelection.left, top: textSelection.top }}
               onPointerDown={(event) => event.preventDefault()}
             >
               <button type="button" onClick={() => postSelectionAction("ASK")}>
-                问 AI
+                {l("pdf.askAi", "问 AI")}
               </button>
               <button type="button" onClick={() => void copySelection()}>
-                {selectionCopyState === "COPIED" ? "已复制" : "复制"}
+                {selectionCopyState === "COPIED" ? l("pdf.copied", "已复制") : l("pdf.copy", "复制")}
               </button>
               <button
                 type="button"
                 onClick={() => postSelectionAction("EXPLAIN")}
               >
-                解释
+                {l("pdf.explain", "解释")}
               </button>
               <button
                 type="button"
                 onClick={() => postSelectionAction("TRANSLATE")}
               >
-                翻译
+                {l("pdf.translate", "翻译")}
               </button>
               <button
                 type="button"
                 onClick={() => postSelectionAction("SUMMARIZE")}
               >
-                总结
+                {l("pdf.summarize", "总结")}
               </button>
               <button
                 className="pdf-selection-menu-close"
                 type="button"
-                aria-label="关闭选中文字操作"
+                aria-label={l("pdf.closeSelection", "关闭选中文字操作")}
                 onClick={() => {
                   window.getSelection()?.removeAllRanges();
                   setTextSelection(null);
@@ -1149,7 +1151,7 @@ export function PdfViewerPage() {
               </button>
               {selectionCopyState === "FAILED" ? (
                 <span className="pdf-selection-copy-error" role="status">
-                  复制失败，请使用 ⌘C / Ctrl+C
+                  {l("pdf.copyFailed", "复制失败，请使用 ⌘C / Ctrl+C")}
                 </span>
               ) : null}
             </div>

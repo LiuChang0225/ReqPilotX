@@ -19,10 +19,14 @@ const noSubscription = () => () => {};
 
 /** Embedded shared panel; managed hosts may enable only the declared, exact-work business writes. */
 export function ReqPilotXReadonlyPanel(props: ReqPilotXReadonlyPanelProps) {
+  const copy = (key: string, fallback: string) => {
+    const value = props.t?.(key);
+    return value && value !== key ? value : fallback;
+  };
   if (!validWorkSelection(props.selection)) return <section className="reqpilotx-panel-root workspace-app" data-theme={props.theme || "light"}>
-    <p role="alert">工作链接不完整，请提供准确的来源、工作及成果版本。</p>
+    <p role="alert">{copy("panel.invalidSelection", "工作链接不完整，请提供准确的来源、工作及成果版本。")}</p>
   </section>;
-  return <HostLocaleProvider t={props.t}><section className="reqpilotx-panel-root workspace-app" data-theme={props.theme || "light"} aria-label={props.host.feedbackWrites ? "ReqPilotX 核对与反馈" : "ReqPilotX 只读工作面板"}>
+  return <HostLocaleProvider t={props.t}><section className="reqpilotx-panel-root workspace-app" data-theme={props.theme || "light"} aria-label={props.host.feedbackWrites ? copy("panel.reviewAria", "ReqPilotX 核对与反馈") : copy("panel.readonlyAria", "ReqPilotX 只读工作面板")}>
     <ErrorBoundary embedded key={`${props.host.id}:${props.host.client.id}:${props.selection.projectId}:${props.selection.documentId}:${props.selection.sourceSha256}:${props.selection.workRef}`}><ReadonlyPanel {...props} /></ErrorBoundary>
   </section></HostLocaleProvider>;
 }

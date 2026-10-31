@@ -153,7 +153,7 @@ it("routes hosted PDF preview through the application resource and PDF viewer co
   const source = "https://pair.test/reqpilotx/service/api/projects/p/sor-documents/a/file";
   expect(resourceUrl).toHaveBeenCalledWith("/api/projects/p/sor-documents/a/file");
   expect(pdfViewerUrl).toHaveBeenCalledWith(source, 1, true);
-  expect(screen.getByTitle("客户文档预览")).toHaveAttribute("src", `https://service.test/pdf-viewer?pdf=${encodeURIComponent(source)}&page=1&embedded=1`);
+  expect(screen.getByTitle("客户文档预览")).toHaveAttribute("src", `https://service.test/pdf-viewer?pdf=${encodeURIComponent(source)}&page=1&embedded=1&locale=zh`);
 });
 
 it("routes hosted non-PDF download to the mapped authorized resource path", () => {
@@ -173,7 +173,7 @@ it("retains standalone PDF viewer and raw API download behavior", () => {
   value.documents = [{ ...value.documents[0], file_name: "standalone.pdf" }];
   const view = mount(value);
   fireEvent.click(screen.getByRole("button", { name: "预览 standalone.pdf" }));
-  expect(screen.getByTitle("客户文档预览")).toHaveAttribute("src", `/pdf-viewer?embedded=1&fit=page&pdf=${encodeURIComponent("/api/projects/p/sor-documents/a/file")}&page=1`);
+  expect(screen.getByTitle("客户文档预览")).toHaveAttribute("src", `/pdf-viewer?embedded=1&fit=page&pdf=${encodeURIComponent("/api/projects/p/sor-documents/a/file")}&page=1&locale=zh`);
   view.rerender(<WorkspaceProvider value={{ ...value, documents: [{ ...value.documents[0], id: "doc-3", file_name: "standalone.docx" }] }}><ProjectDocumentLibrary onRemove={vi.fn()} /></WorkspaceProvider>);
   fireEvent.click(screen.getByRole("button", { name: "预览 standalone.docx" }));
   expect(screen.getByRole("link", { name: "打开原文件" })).toHaveAttribute("href", "/api/projects/p/sor-documents/doc-3/file");

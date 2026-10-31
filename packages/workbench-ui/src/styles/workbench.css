@@ -185,7 +185,10 @@
 .document-task-label { padding-left: 14px; border-left: 1px solid var(--line-strong); }
 .document-work-layout { display: grid; flex: 1; min-width: 0; min-height: 0; grid-template-columns: minmax(0, 1fr); overflow: hidden; }
 .document-work-surface.is-agent-open .document-work-layout { grid-template-columns: minmax(0, 1fr) 350px; }
-.document-work-main, .document-existing-surface { height: 100%; min-width: 0; min-height: 0; overflow: hidden; }
+.document-work-main { display: flex; height: 100%; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; }
+.document-work-main > .document-existing-surface { display: flex; flex: 1 1 auto; height: auto; min-width: 0; min-height: 0; flex-direction: column; overflow: hidden; }
+.document-work-main > .document-existing-surface > * { flex: 1 1 auto; min-height: 0; }
+.document-existing-surface { min-width: 0; min-height: 0; }
 .document-existing-surface[hidden] { display: none; }
 .document-agent-pane { min-width: 0; min-height: 0; border-left: 1px solid var(--line); background: var(--paper); overflow: hidden; }
 .document-agent-pane[hidden] { display: none; }

@@ -6,8 +6,8 @@ const PREFIX = '/reqpilotx';
 const STORAGE = 'reqpilotx:readonly-selection:v1:';
 const NS = 'reqpilotx-panel';
 const copy = {
-  zh: { title: 'ReqPilotX', intro: '打开已保存的需求成果', hint: '粘贴包含具体工作与版本的 ReqPilotX 工作台链接。', link: '工作台链接', open: '打开成果', change: '切换工作', loading: '正在连接 ReqPilotX…', invalid: '请提供当前服务中包含项目、文档和具体工作的工作台链接。', unavailable: '无法读取该工作，请检查链接和服务连接。' },
-  en: { title: 'ReqPilotX', intro: 'Open saved requirement work', hint: 'Paste a ReqPilotX workbench link with its work and revision.', link: 'Workbench link', open: 'Open work', change: 'Change work', loading: 'Connecting to ReqPilotX…', invalid: 'Use a workbench link for this service with a project, document and explicit work.', unavailable: 'Could not read this work. Check the link and service connection.' },
+  zh: { 'workbench.locale': 'zh', 'panel.invalidSelection': '工作链接不完整，请提供准确的来源、工作及成果版本。', 'panel.reviewAria': 'ReqPilotX 核对与反馈', 'panel.readonlyAria': 'ReqPilotX 只读工作面板', title: 'ReqPilotX', intro: '打开已保存的需求成果', hint: '粘贴包含具体工作与版本的 ReqPilotX 工作台链接。', link: '工作台链接', open: '打开成果', change: '切换工作', loading: '正在连接 ReqPilotX…', invalid: '请提供当前服务中包含项目、文档和具体工作的工作台链接。', unavailable: '无法读取该工作，请检查链接和服务连接。' },
+  en: { 'workbench.locale': 'en', 'panel.invalidSelection': 'The work link is incomplete. Provide the exact source, work and result version.', 'panel.reviewAria': 'ReqPilotX review and feedback', 'panel.readonlyAria': 'ReqPilotX read-only work panel', title: 'ReqPilotX', intro: 'Open saved requirement work', hint: 'Paste a ReqPilotX workbench link with its work and revision.', link: 'Workbench link', open: 'Open work', change: 'Change work', loading: 'Connecting to ReqPilotX…', invalid: 'Use a workbench link for this service with a project, document and explicit work.', unavailable: 'Could not read this work. Check the link and service connection.' },
 };
 Object.assign(copy.zh, {
   'workflow.noDescriptor': '当前宿主尚未提供固定流程描述；不会用聊天目标替代阶段检查。',
@@ -20,7 +20,7 @@ Object.assign(copy.zh, {
   'workflow.unconfirmed': '固定流程状态未确认：{reason}。已保存成果仍保留，请重新读取任务后再核对。',
   'workflow.noState': '固定流程状态尚未保存；任务尚未开始或成果尚未同步。',
   'workflow.unconfirmedReason': '派生状态与保存工件不一致', 'workflow.workflowVersion': '流程 v{version}',
-  'workflow.ready': '已保存成果满足当前可核对条件；人工接受仍未声称。', 'workflow.next': '下一步：',
+  'workflow.ready': '已保存成果满足当前可核对条件；人工接受仍未声称。', 'workflow.next': '下一步：', 'workflow.currentStage': '当前：{stage}', 'workflow.viewDetails': '查看详情', 'workflow.hideDetails': '收起详情',
   'workflow.continueRemaining': '继续处理未决项', 'workflow.openItems': '未决项：',
   'workflow.stage.PENDING': '尚未保存', 'workflow.stage.IN_PROGRESS': '处理中', 'workflow.stage.SAVED': '已保存',
   'workflow.stage.SKIPPED': '按规则跳过', 'workflow.stage.WAITING': '等待输入', 'workflow.stage.BLOCKED': '等待前置阶段',
@@ -94,7 +94,7 @@ Object.assign(copy.en, {
   'workflow.unconfirmed': 'Fixed-workflow status is unconfirmed: {reason}. Saved results remain; re-read the task before reviewing them.',
   'workflow.noState': 'No fixed-workflow status is saved yet; the task has not started or results are not synchronized.',
   'workflow.unconfirmedReason': 'derived state does not match saved artifacts', 'workflow.workflowVersion': 'Workflow v{version}',
-  'workflow.ready': 'Saved results meet the current review checks; human acceptance is still not claimed.',
+  'workflow.ready': 'Saved results meet the current review checks; human acceptance is still not claimed.', 'workflow.currentStage': 'Current: {stage}', 'workflow.viewDetails': 'View details', 'workflow.hideDetails': 'Hide details',
   'workflow.next': 'Next: ', 'workflow.continueRemaining': 'continue the remaining open items', 'workflow.openItems': 'Open items: ',
   'workflow.stage.PENDING': 'Not saved', 'workflow.stage.IN_PROGRESS': 'In progress', 'workflow.stage.SAVED': 'Saved',
   'workflow.stage.SKIPPED': 'Skipped by rule', 'workflow.stage.WAITING': 'Waiting for input',

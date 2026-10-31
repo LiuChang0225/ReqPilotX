@@ -30,15 +30,17 @@ export function workbenchCapability(state: PluginState | null, action: WorkActio
     && hostCapabilities && hostCapabilities[action] !== true) return { supported: false, enabled: false, reason: "当前宿主未开放此操作；已保存成果仍可核对和下载。" };
   return pluginCapability(state, action, current);
 }
-export function externalExecutionLabel(state: PluginState | null) {
+type Copy = (key: string, fallback?: string) => string;
+export function externalExecutionLabel(state: PluginState | null, l?: Copy) {
   const value = state?.execution?.state || state?.execution?.status || state?.execution_state;
-  return ({ RUNNING: "外部任务报告处理中", COMPLETED: "外部任务报告本轮结束", SUCCEEDED: "外部任务报告本轮结束", FAILED: "外部任务报告未完成", INTERRUPTED: "外部任务报告已暂停", CANCELLED: "外部任务报告已暂停" } as Record<string,string>)[value || ""] || "外部运行状态未报告";
+  const text = ({ RUNNING: "外部任务报告处理中", COMPLETED: "外部任务报告本轮结束", SUCCEEDED: "外部任务报告本轮结束", FAILED: "外部任务报告未完成", INTERRUPTED: "外部任务报告已暂停", CANCELLED: "外部任务报告已暂停" } as Record<string,string>)[value || ""] || "外部运行状态未报告";
+  return l ? l(text) : text;
 }
-export function pluginFeedbackLabel(state: PluginState, feedback: PluginFeedback, viewedRevision: string | null) {
+export function pluginFeedbackLabel(state: PluginState, feedback: PluginFeedback, viewedRevision: string | null, l?: Copy) {
   const number = state.versions.find(v => v.revision_id === viewedRevision)?.number || 0;
   const change = state.feedback_resolutions?.[feedback.feedback_id];
-  if (change && (state.versions.find(v => v.revision_id === change.revision_id)?.number || Infinity) <= number) return "插件已提交修订 · 待核对";
+  if (change && (state.versions.find(v => v.revision_id === change.revision_id)?.number || Infinity) <= number) return l ? l("插件已提交修订 · 待核对") : "插件已提交修订 · 待核对";
   const receipt = state.feedback_receipts?.find(value => value.feedback_id === feedback.feedback_id);
-  if (receipt?.retrieved_at && ["TAKEN", "RECEIVED", "FETCHED", "RETRIEVED"].includes(receipt.retrieval_state || "")) return "外部任务已报告取回";
-  return "意见已保存 · 待外部任务取回";
+  if (receipt?.retrieved_at && ["TAKEN", "RECEIVED", "FETCHED", "RETRIEVED"].includes(receipt.retrieval_state || "")) return l ? l("外部任务已报告取回") : "外部任务已报告取回";
+  return l ? l("意见已保存 · 待外部任务取回") : "意见已保存 · 待外部任务取回";
 }

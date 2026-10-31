@@ -4,12 +4,12 @@ import { isSaasAccountMode } from "../../shared/api/saasSession";
 import { knowledgeGate } from "../../shared/runtime/processingCapabilities";
 import { EmptyState, InlineNotice } from "../../shared/ui/Feedback";
 import { Dialog } from "../../shared/ui/Dialog";
-import { FileName } from "../../shared/ui/FileName";
 import { Icon } from "../../shared/ui/Icon";
 import { ProjectDocumentLibrary } from "./ProjectDocumentLibrary";
 import { useWorkspace } from "../workspace/WorkspaceContext";
 import { useWorkbenchHost } from "../workspace/WorkbenchHostContext";
 import { useApplicationHost } from "../../host/ApplicationHost";
+import { useUiCopy } from "../../host/HostLocaleContext";
 import { UploadQueueDialog } from "../documents/UploadQueueDialog";
 import {
   createUploadItems,
@@ -18,6 +18,7 @@ import {
 } from "../documents/uploadQueue";
 
 export function ProjectManagementPanel() {
+  const l = useUiCopy();
   const applicationHost = useApplicationHost();
   const saasMode = isSaasAccountMode();
   const host = useWorkbenchHost();
@@ -71,7 +72,7 @@ export function ProjectManagementPanel() {
       setShowUploadQueue(true);
     }
     if (result.rejected.length) {
-      setNotice(result.rejected.slice(0, 2).join("；"));
+      setNotice(result.rejected.slice(0, 2).join(l("common.listSeparator", "；")));
     }
   };
 
@@ -97,7 +98,7 @@ export function ProjectManagementPanel() {
       { replace: true },
     );
     try { await refreshAll(); }
-    catch { setNotice("项目已保存，项目列表暂未更新。请同步项目后查看。"); }
+    catch { setNotice(l("projects.projectSavedStale", "项目已保存，项目列表暂未更新。请同步项目后查看。")); }
   };
 
   useEffect(() => {
@@ -145,7 +146,7 @@ export function ProjectManagementPanel() {
         dispatchUpload({ type: "succeed", id: next.id });
         if (next.projectId === currentScope.current.projectId) {
           try { await refreshProject(); }
-          catch { setNotice(`${next.file.name} 已保存，文档列表暂未更新。请同步项目后查看。`); }
+          catch { setNotice(l("projects.documentSavedStale", "{name} 已保存，文档列表暂未更新。请同步项目后查看。", { name: next.file.name })); }
         }
       })
       .catch((cause) => {
@@ -233,10 +234,10 @@ export function ProjectManagementPanel() {
     <section className="management-page project-management-page">
       <header className="page-command-header">
         <div>
-          <p className="section-label">项目、来源与知识依据</p>
-          <h1>项目管理</h1>
+          <p className="section-label">{l("projects.sectionLabel", "项目、来源与知识依据")}</p>
+          <h1>{l("projects.title", "项目管理")}</h1>
           <p>
-            {selectedProject ? `当前项目：${selectedProject.name} · ${selectedProject.customer_name}` : "创建项目，或选择已有项目继续工作。"}
+            {selectedProject ? l("projects.currentProject", "当前项目：{name} · {customer}", { name: selectedProject.name, customer: selectedProject.customer_name }) : l("projects.createOrSelect", "创建项目，或选择已有项目继续工作。")}
           </p>
         </div>
         <div className="command-actions">
@@ -247,7 +248,7 @@ export function ProjectManagementPanel() {
               onClick={() => setShowUploadQueue(true)}
             >
               <Icon name="upload" />
-              上传队列
+              {l("projects.uploadQueue", "上传队列")}
               <span>
                 {
                   uploadQueue.filter((item) =>
@@ -263,7 +264,7 @@ export function ProjectManagementPanel() {
             onClick={() => setShowCreateProject(true)}
           >
             <Icon name="plus" />
-            新建项目
+            {l("projects.newProject", "新建项目")}
           </button>
           <button
             className="button primary"
@@ -275,16 +276,16 @@ export function ProjectManagementPanel() {
             }}
           >
             <Icon name="upload" />
-            添加客户来源
+            {l("projects.addSource", "添加客户来源")}
           </button>
           {!saasMode && <button
             className="button secondary"
             type="button"
             disabled={!selectedProject || Boolean(applicationHost)}
             title={
-              applicationHost ? "当前 PAIR 连接尚未提供知识文件导入；已有知识仍可查看" : nativeEvidence ? "登记证据原件，不运行索引或模型" : knowledgeReady
-                ? "添加知识依据"
-                : "文件会先安全保存；检索能力连接后再同步"
+              applicationHost ? l("projects.knowledgeHostTitle", "当前 PAIR 连接尚未提供知识文件导入；已有知识仍可查看") : nativeEvidence ? l("projects.knowledgeEvidenceTitle", "登记证据原件，不运行索引或模型") : knowledgeReady
+                ? l("projects.addKnowledgeTitle", "添加知识依据")
+                : l("projects.knowledgePendingTitle", "文件会先安全保存；检索能力连接后再同步")
             }
             onClick={() => {
               if (nativeEvidence) {
@@ -296,7 +297,7 @@ export function ProjectManagementPanel() {
             }}
           >
             <Icon name="plus" />
-            添加知识依据
+            {l("projects.addKnowledge", "添加知识依据")}
           </button>}
           <input
             ref={sorInput}
@@ -323,33 +324,33 @@ export function ProjectManagementPanel() {
         </div>
       </header>
 
-      <details className="source-guidance-disclosure"><summary>来源与处理说明</summary><div className="source-guidance">
+      <details className="source-guidance-disclosure"><summary>{l("projects.sourceGuidance", "来源与处理说明")}</summary><div className="source-guidance">
         {processingProfile && !knowledgeReady && (
           <InlineNotice
             title={
               processingProfile.knowledge_backend === "none"
-                ? "知识文件可先保存，检索按需启用"
-                : "知识文件可先保存，检索待连接"
+                ? l("projects.knowledgeNoticeDisabledTitle", "知识文件可先保存，检索按需启用")
+                : l("projects.knowledgeNoticePendingTitle", "知识文件可先保存，检索待连接")
             }
             tone="info"
           >
             {processingProfile.knowledge_backend === "none"
-              ? "当前项目未启用知识检索；这不会阻断项目、来源或需求工作流。需要检索时再由管理员启用。"
-              : "当前项目选择的知识检索后端尚未就绪；文件会先保存，连接完成后再同步。"}
+              ? l("projects.knowledgeNoticeDisabled", "当前项目未启用知识检索；这不会阻断项目、来源或需求工作流。需要检索时再由管理员启用。")
+              : l("projects.knowledgeNoticePending", "当前项目选择的知识检索后端尚未就绪；文件会先保存，连接完成后再同步。")}
           </InlineNotice>
         )}
 
         <p className="source-format-note">
-          PDF 可逐页核对；DOCX、XLSX 与 TXT 可导入、提取内容并打开原文件。
+          {l("projects.sourceFormatNote", "PDF 可逐页核对；DOCX、XLSX 与 TXT 可导入、提取内容并打开原文件。")}
         </p>
       </div>
 
       </details>
 
-      {!selectedProject && <EmptyState icon="folder" title={projects.length ? "选择项目以查看文档" : "创建第一个项目"}
-        description={projects.length ? "使用下方项目选择器继续已有工作，或新建项目。" : "先为客户文档建立项目，随后添加来源并设置 Agent 任务。"}
-        action={<button type="button" className="button primary" onClick={() => setShowCreateProject(true)}>创建项目</button>} />}
-      {(selectedProject || projects.length > 0) && <ProjectDocumentLibrary kind={activeKind} onKindChange={setActiveKind} removeDisabledReason={applicationHost ? "当前 PAIR 连接未提供来源移除，已保存来源保留" : undefined} onRemove={(kind, id, fileName) => setRemovalTarget({ kind, projectId: route.projectId, id, fileName })} />}
+      {!selectedProject && <EmptyState icon="folder" title={projects.length ? l("projects.chooseProjectTitle", "选择项目以查看文档") : l("projects.createFirstTitle", "创建第一个项目")}
+        description={projects.length ? l("projects.chooseProjectDescription", "使用下方项目选择器继续已有工作，或新建项目。") : l("projects.createFirstDescription", "先为客户文档建立项目，随后添加来源并设置 Agent 任务。")}
+        action={<button type="button" className="button primary" onClick={() => setShowCreateProject(true)}>{l("projects.createProject", "创建项目")}</button>} />}
+      {(selectedProject || projects.length > 0) && <ProjectDocumentLibrary kind={activeKind} onKindChange={setActiveKind} removeDisabledReason={applicationHost ? l("projects.removeDisabled", "当前 PAIR 连接未提供来源移除，已保存来源保留") : undefined} onRemove={(kind, id, fileName) => setRemovalTarget({ kind, projectId: route.projectId, id, fileName })} />}
 
       <UploadQueueDialog
         open={showUploadQueue}
@@ -359,7 +360,7 @@ export function ProjectManagementPanel() {
         onCancel={cancelUpload}
         onRetry={(id) => {
           const item = uploadQueue.find(value => value.id === id);
-          if (item?.projectId !== route.projectId) { setNotice("请先切回该文件所属项目，再重试上传。"); return; }
+          if (item?.projectId !== route.projectId) { setNotice(l("projects.retryOtherProject", "请先切回该文件所属项目，再重试上传。")); return; }
           dispatchUpload({ type: "retry", id });
         }}
         onRemove={(id) => dispatchUpload({ type: "remove", id })}
@@ -367,18 +368,18 @@ export function ProjectManagementPanel() {
       />
       <Dialog
         open={showCreateProject}
-        title="创建项目"
+        title={l("projects.createProject", "创建项目")}
         onClose={() => setShowCreateProject(false)}
       >
         <header>
           <div>
-            <p className="section-label">新建项目</p>
-            <h2>创建项目</h2>
+            <p className="section-label">{l("projects.createDialogLabel", "新建项目")}</p>
+            <h2>{l("projects.createProject", "创建项目")}</h2>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭"
+            aria-label={l("common.close", "关闭")}
             onClick={() => setShowCreateProject(false)}
           >
             <Icon name="close" />
@@ -389,22 +390,22 @@ export function ProjectManagementPanel() {
           onSubmit={(event) => void createProject(event)}
         >
           <label>
-            <span>项目名称</span>
+            <span>{l("projects.projectName", "项目名称")}</span>
             <input
               autoFocus
               required
               value={projectName}
               onChange={(event) => setProjectName(event.target.value)}
-              placeholder="例如：BMS Platform Gen3"
+              placeholder={l("projects.projectNamePlaceholder", "例如：BMS Platform Gen3")}
             />
           </label>
           <label>
-            <span>客户名称</span>
+            <span>{l("projects.customerName", "客户名称")}</span>
             <input
               required
               value={customerName}
               onChange={(event) => setCustomerName(event.target.value)}
-              placeholder="例如：OEM A"
+              placeholder={l("projects.customerNamePlaceholder", "例如：OEM A")}
             />
           </label>
           <footer>
@@ -413,41 +414,38 @@ export function ProjectManagementPanel() {
               type="button"
               onClick={() => setShowCreateProject(false)}
             >
-              取消
+              {l("common.cancel", "取消")}
             </button>
             <button className="button primary" type="submit" disabled={Boolean(busyAction) || !projectName.trim() || !customerName.trim()}>
-              {busyAction === "创建项目" ? "正在创建…" : "创建并进入"}
+              {busyAction === "创建项目" ? l("projects.creating", "正在创建…") : l("projects.createAndEnter", "创建并进入")}
             </button>
           </footer>
         </form>
       </Dialog>
       <Dialog
         open={Boolean(removalTarget)}
-        title="移除来源"
+        title={l("projects.removeDialogTitle", "移除来源")}
         className="confirm-action-dialog"
         onClose={() => setRemovalTarget(null)}
       >
         <header>
           <div>
-            <p className="section-label">不可撤销操作</p>
+            <p className="section-label">{l("projects.irreversible", "不可撤销操作")}</p>
             <h2>
-              移除
-              {removalTarget?.kind === "sor" ? "客户来源" : "知识依据"}
+              {removalTarget?.kind === "sor" ? l("projects.removeSource", "移除客户来源") : l("projects.removeKnowledge", "移除知识依据")}
             </h2>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭"
+            aria-label={l("common.close", "关闭")}
             onClick={() => setRemovalTarget(null)}
           >
             <Icon name="close" />
           </button>
         </header>
         <p className="confirm-action-copy">
-          将从当前项目移除
-          {removalTarget && <FileName value={removalTarget.fileName} />}。
-          已关联的处理结果将不能继续从界面访问。
+          {l("projects.removeCopy", "将从当前项目移除 {name}。已关联的处理结果将不能继续从界面访问。", { name: removalTarget?.fileName || "" })}
         </p>
         <footer className="confirm-action-footer">
           <button
@@ -455,7 +453,7 @@ export function ProjectManagementPanel() {
             type="button"
             onClick={() => setRemovalTarget(null)}
           >
-            取消
+            {l("common.cancel", "取消")}
           </button>
           <button
             className="button danger"
@@ -463,7 +461,7 @@ export function ProjectManagementPanel() {
             disabled={Boolean(busyAction)}
             onClick={() => void confirmRemoval()}
           >
-            {busyAction === "移除客户来源" || busyAction === "移除知识依据" ? "正在移除…" : "确认移除"}
+            {busyAction === "移除客户来源" || busyAction === "移除知识依据" ? l("projects.removing", "正在移除…") : l("projects.confirmRemove", "确认移除")}
           </button>
         </footer>
       </Dialog>

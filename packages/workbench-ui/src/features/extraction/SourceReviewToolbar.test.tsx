@@ -1,6 +1,7 @@
 import { cleanup, render, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SourceReviewToolbar } from "./SourceReviewToolbar";
+import { HostLocaleProvider } from "../../host/HostLocaleContext";
 
 afterEach(cleanup);
 const props = {
@@ -23,4 +24,16 @@ describe("review focus coverage", () => {
     expect(screen.getByRole("button", { name: "重点 3" })).toBeEnabled();
     expect(screen.getByText("重点提示仅覆盖部分原文；未标记内容仍需审阅。")).toBeVisible();
   });
+});
+
+it("localizes source review search, scope, category and topic controls", () => {
+  render(<HostLocaleProvider t={key => key === "workbench.locale" ? "en" : key}><SourceReviewToolbar {...props} focusStatus="UNAVAILABLE" /></HostLocaleProvider>);
+  expect(screen.getByRole("searchbox", { name: "Search source items" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "All 10" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Filters" })).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "Filter review status" })).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "Filter requirement category" })).toBeVisible();
+  expect(screen.getByRole("combobox", { name: "Filter requirement topic" })).toBeVisible();
+  expect(screen.getByRole("option", { name: "Technical parameters" })).toBeDisabled();
+  expect(screen.queryByText("条目搜索与筛选")).not.toBeInTheDocument();
 });

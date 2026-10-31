@@ -6,7 +6,7 @@ import { WorkspacePage } from "../features/workspace/WorkspacePage";
 import { WorkbenchHostContext } from "../features/workspace/WorkbenchHostContext";
 import { ApplicationNavigationContext, type ApplicationNavigation } from "../shared/navigation";
 import { ApplicationHostContext, ApplicationWidthContext, type WorkbenchApplicationHost } from "./ApplicationHost";
-import { HostLocaleProvider, type HostTranslate } from "./HostLocaleContext";
+import { HostLocaleProvider, resolveUiLocale, type HostTranslate } from "./HostLocaleContext";
 
 /** One panel-local route store; it never writes the parent window's URL. */
 export function createApplicationNavigation(initial = "/", changed?: (path: string) => void): ApplicationNavigation {
@@ -52,7 +52,8 @@ export function ReqPilotXApplication({ host, theme = "light", t }: { host: Workb
     return createApplicationNavigation(initial, path => { try { localStorage.setItem(key, path); } catch { /* The active route remains usable. */ } });
   });
   const presentation = useMemo(() => ({ readOnly: false, nativeEvidence: false, resourceUrl: host.resourceUrl, pdfViewerUrl: host.pdfViewerUrl }), [host.resourceUrl, host.pdfViewerUrl]);
-  return <div ref={root} className="reqpilotx-application" style={{ flex: "1 1 auto", width: "100%", height: "100%", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
+  const locale = resolveUiLocale(t);
+  return <div ref={root} lang={locale === "en" ? "en" : "zh-CN"} className="reqpilotx-application" style={{ flex: "1 1 auto", width: "100%", height: "100%", minWidth: 0, minHeight: 0, overflow: "hidden" }}>
     <ErrorBoundary embedded><HostLocaleProvider t={t}><ApplicationHostContext.Provider value={host}><ApplicationWidthContext.Provider value={width}><ApplicationNavigationContext.Provider value={navigation}>
       <WorkbenchHostContext.Provider value={presentation}><PreferencesProvider embedded initialHostTheme={theme}>
         <ApplicationSurface navigation={navigation} />
