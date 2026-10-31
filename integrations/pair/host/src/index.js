@@ -9,7 +9,7 @@ import { pipeline } from 'node:stream/promises';
 export const name = 'reqpilotx-readonly-host';
 export const inject = ['webServer', 'connection', 'subprocess'];
 export const PREFIX = '/reqpilotx';
-export const APPLICATION_VERSION = '0.1.0';
+export const APPLICATION_VERSION = '0.2.0';
 export const applicationMetadata = Object.freeze({
   id: 'reqpilotx',
   name: { en: 'ReqPilotX', zh: 'ReqPilotX' },
@@ -61,6 +61,9 @@ async function handleKnowledge(knowledge, url, req, res) {
     if (!projectId) throw new KnowledgeError('INVALID_PROJECT', 422);
     send(200, await knowledge.inventory(projectId)); return true;
   }
+  if (req.method === 'GET' && url.pathname === PREFIX + '/knowledge/adopted') {
+    send(200, await knowledge.adoptedInventory()); return true;
+  }
   const upload = /^\/reqpilotx\/knowledge\/projects\/([^/]+)\/references$/.exec(url.pathname);
   if (upload && req.method === 'POST') {
     const projectId = decodeURIComponent(upload[1]);
@@ -88,6 +91,31 @@ async function handleKnowledge(knowledge, url, req, res) {
     send(200, { bindingSha256: binding.binding_sha256, mode: binding.mode,
       status: await knowledge.checkBinding(commandId) }); return true;
   }
+  const adoptedSource = /^\/reqpilotx\/knowledge\/tasks\/([^/]+)\/adopted\/source\/([^/]+)$/.exec(url.pathname);
+  if (adoptedSource && req.method === 'GET') {
+    const value = await knowledge.adoptedSource(decodeURIComponent(adoptedSource[1]), decodeURIComponent(adoptedSource[2]));
+    res.writeHead(200, { 'content-type': value.mime || 'application/octet-stream',
+      'content-disposition': 'inline; filename="' + encodeURIComponent(value.filename || adoptedSource[2]) + '"',
+      'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
+      'x-reqpilot-adopted-content-revision': value.contentRevision || '',
+      ...(value.sourceVersion ? { 'x-reqpilot-adopted-source-version': value.sourceVersion } : {}) });
+    res.end(value.bytes); return true;
+  }
+  const adoptedImage = /^\/reqpilotx\/knowledge\/tasks\/([^/]+)\/adopted\/image\/([^/]+)$/.exec(url.pathname);
+  if (adoptedImage && req.method === 'GET') {
+    const value = await knowledge.adoptedImage(decodeURIComponent(adoptedImage[1]), decodeURIComponent(adoptedImage[2]));
+    res.writeHead(200, { 'content-type': value.mime || 'application/octet-stream', 'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff' });
+    res.end(value.bytes); return true;
+  }
+  const adoptedRecord = /^\/reqpilotx\/knowledge\/tasks\/([^/]+)\/adopted\/records$/.exec(url.pathname);
+  if (adoptedRecord && req.method === 'GET') {
+    const kind = String(url.searchParams.get('kind') || '');
+    const id = String(url.searchParams.get('id') || '');
+    const path = String(url.searchParams.get('path') || '');
+    const request = kind === 'wiki' ? { kind, path } : kind === 'source' ? { kind, sourceId: id } : { kind, id };
+    send(200, (await knowledge.adoptedRecord(decodeURIComponent(adoptedRecord[1]), request)).result); return true;
+  }
   const original = /^\/reqpilotx\/knowledge\/tasks\/([^/]+)\/documents\/([^/]+)$/.exec(url.pathname);
   if (original && req.method === 'GET') {
     const commandId = decodeURIComponent(original[1]);
@@ -104,14 +132,17 @@ async function handleKnowledge(knowledge, url, req, res) {
 
 /** Authenticated resource broker with an explicit write policy; no Pair credentials go upstream. */
 export function createHandler(origin, reject, transport = fetch, runtimeSnapshot, taskLauncher, knowledge = null) {
+  const resolve = value => typeof value === 'function' ? value() : value;
   return async (req, res) => {
     const denied = reject(req);
     if (denied !== undefined) { res.writeHead(denied); res.end(); return; }
     const url = new URL(req.url, 'http://pair.invalid');
     const state = runtimeSnapshot ? runtimeSnapshot() : { serviceOrigin: origin, mode: 'readonly-connect', status: 'READY' };
-    if (knowledge && url.pathname.startsWith(PREFIX + '/knowledge/')) {
+    const currentKnowledge = resolve(knowledge);
+    const currentLauncher = resolve(taskLauncher);
+    if (currentKnowledge && url.pathname.startsWith(PREFIX + '/knowledge/')) {
       try {
-        const result = await handleKnowledge(knowledge, url, req, res);
+        const result = await handleKnowledge(currentKnowledge, url, req, res);
         if (result !== false) return;
       } catch (error) {
         const status = error instanceof KnowledgeError ? error.status : (error.status || 502);
@@ -122,7 +153,7 @@ export function createHandler(origin, reject, transport = fetch, runtimeSnapshot
     }
     if (url.pathname === PREFIX + '/tasks' || url.pathname === PREFIX + '/tasks/start' || url.pathname.startsWith(PREFIX + '/tasks/')) {
       try {
-        if (!taskLauncher) { res.writeHead(503); res.end(JSON.stringify({ error: 'TASK_LAUNCH_NOT_CONFIGURED' })); return; }
+        if (!currentLauncher) { res.writeHead(503); res.end(JSON.stringify({ error: 'TASK_LAUNCH_NOT_CONFIGURED' })); return; }
         let result;
         const control = /^\/reqpilotx\/tasks\/([^/]+)\/control$/.exec(url.pathname);
         if ((url.pathname === PREFIX + '/tasks/start' || control) && req.method === 'POST') {
@@ -131,12 +162,12 @@ export function createHandler(origin, reject, transport = fetch, runtimeSnapshot
           const input = JSON.parse(text);
           if (control) {
             if (input.commandId !== control[1]) { res.writeHead(422); res.end(); return; }
-            result = await taskLauncher.control(input);
-          } else result = await taskLauncher.start(input);
+            result = await currentLauncher.control(input);
+          } else result = await currentLauncher.start(input);
         } else if (req.method === 'GET' && url.pathname === PREFIX + '/tasks') {
-          result = await taskLauncher.list(Object.fromEntries(url.searchParams));
+          result = await currentLauncher.list(Object.fromEntries(url.searchParams));
         } else if (req.method === 'GET' && url.pathname !== PREFIX + '/tasks/start' && !control) {
-          result = await taskLauncher.inspect(url.pathname.slice((PREFIX + '/tasks/').length));
+          result = await currentLauncher.inspect(url.pathname.slice((PREFIX + '/tasks/').length));
         } else { res.writeHead(405); res.end(); return; }
         res.writeHead(req.method === 'POST' ? 202 : 200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(result));
       } catch (error) {
@@ -187,24 +218,48 @@ export function createHandler(origin, reject, transport = fetch, runtimeSnapshot
 export function apply(ctx, config = {}, makeRuntime = (scope, settings) => new ManagedRuntime(scope.subprocess, settings)) {
   const connect = config.mode === 'connect' || (!config.mode && config.serviceOrigin);
   const runtime = connect ? null : makeRuntime(ctx, config);
-  const knowledgeService = !connect && typeof ctx.get === 'function' ? ctx.get('knowledge') : undefined;
   const applicationId = () => {
     if (!runtime || !runtime.ownerId) return null;
     try { return discovery.publicConfiguration({ ...runtime.snapshot, ownerId: runtime.ownerId }).applicationId; }
     catch { return null; }
   };
-  const knowledge = knowledgeService && runtime
-    ? new KnowledgeBridge({ service: knowledgeService, runtime, dataRoot: runtime.dataRoot, applicationId }) : null;
-  const taskLauncher = runtime && config.capabilityRoot ? new TaskLauncher(runtime, config, () => ({ sessions: ctx.get('sessionController'), workspaces: ctx.get('workspaceController'), defaultModel: ctx.get('agentDefaultModel'), liveStatus: id => ctx.get('agents')?.get(id)?.status }), fetch, knowledge) : null;
-  if (taskLauncher && config.taskMcp === true) installTaskMcp(ctx, taskLauncher);
-  if (knowledge) ctx.effect(() => () => knowledge.close(), 'reqpilotx: knowledge evidence lifetime');
+  let knowledge = null;
+  let taskLauncher = null;
+  const ensureLauncher = () => {
+    if (!runtime || taskLauncher || !config.capabilityRoot) return taskLauncher;
+    taskLauncher = new TaskLauncher(runtime, config, () => ({ sessions: ctx.get('sessionController'), workspaces: ctx.get('workspaceController'), defaultModel: ctx.get('agentDefaultModel'), liveStatus: id => ctx.get('agents')?.get(id)?.status }), fetch, knowledge);
+    if (config.taskMcp === true) installTaskMcp(ctx, taskLauncher);
+    ctx.effect(() => () => taskLauncher.close(), 'reqpilotx: task launch lifetime');
+    if (runtime.snapshot.status === 'READY') void taskLauncher.initialize().catch(() => { taskLauncher.ready = false; });
+    return taskLauncher;
+  };
+  const mountKnowledge = (scope, service) => {
+    if (!service || !runtime || knowledge) return knowledge;
+    const bridge = new KnowledgeBridge({ service, runtime, dataRoot: runtime.dataRoot, applicationId });
+    knowledge = bridge;
+    scope.effect(() => async () => {
+      if (knowledge === bridge) {
+        knowledge = null;
+        taskLauncher?.attachKnowledge(null);
+      }
+      await bridge.close();
+    }, 'reqpilotx: knowledge evidence lifetime');
+    if (taskLauncher) taskLauncher.attachKnowledge(knowledge);
+    else ensureLauncher();
+    return knowledge;
+  };
   const origin = connect ? serviceOrigin(config.serviceOrigin) : null;
   if (runtime) {
-    if (typeof ctx.inject === 'function') ctx.inject(['pairSkillCenter'], scope => { registerPairApplication(scope, runtime); });
-    else registerPairApplication(ctx, runtime);
+    ensureLauncher();
+    if (typeof ctx.inject === 'function') {
+      ctx.inject(['knowledge'], scope => { mountKnowledge(scope, typeof scope.get === 'function' ? scope.get('knowledge') : scope.knowledge); });
+      ctx.inject(['pairSkillCenter'], scope => { registerPairApplication(scope, runtime); });
+    } else {
+      if (typeof ctx.get === 'function') mountKnowledge(ctx, ctx.get('knowledge'));
+      registerPairApplication(ctx, runtime);
+    }
     ctx.effect(() => () => runtime.stop(), 'reqpilotx: managed runtime');
   }
-  if (taskLauncher) ctx.effect(() => () => taskLauncher.close(), 'reqpilotx: task launch lifetime');
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: PREFIX,
     handler: createHandler(origin, req => ctx.connection.requestRejection(req), fetch, runtime ? () => ({ ...runtime.snapshot, ownerId: runtime.ownerId,
       workbenchCapture: config.workbenchCapture === true,
@@ -214,7 +269,8 @@ export function apply(ctx, config = {}, makeRuntime = (scope, settings) => new M
       taskLookupAvailable: Boolean(taskLauncher),
       taskLaunchReady: taskLauncher?.startAvailable() === true, taskCancelReady: taskLauncher?.canCancel() === true,
       taskContinueReady: taskLauncher?.canContinue() === true, taskReconnectReady: taskLauncher?.canReconnect() === true,
-      knowledgeAvailable: knowledge?.available() === true }) : undefined, taskLauncher, knowledge),
+      knowledgeAvailable: knowledge?.available() === true,
+      knowledgeAdoptionAvailable: knowledge?.adoptionAvailable() === true }) : undefined, () => taskLauncher, () => knowledge),
   }), 'reqpilotx: application route');
   if (runtime) void runtime.start().then(async () => { if (runtime.snapshot.status === 'READY') await taskLauncher?.initialize(); }).catch(() => { if (taskLauncher) taskLauncher.ready = false; });
 }

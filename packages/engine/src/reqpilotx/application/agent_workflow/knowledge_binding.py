@@ -13,7 +13,7 @@ from copy import deepcopy
 
 SCHEMA = 'reqpilot-task-evidence/v1'
 STATUS_SCHEMA = 'reqpilot-task-evidence-status/v1'
-MODES = {'NONE', 'PROJECT_REFERENCES', 'TEAM_KNOWLEDGE', 'COMBINED'}
+MODES = {'NONE', 'PROJECT_REFERENCES', 'TEAM_KNOWLEDGE', 'COMBINED', 'ADOPTED_KNOWLEDGE'}
 TEAM_KINDS = {'LIVE', 'TOPIC'}
 COVERAGE = {'complete', 'partial', 'unknown'}
 LOCATIONS = {'physical-page', 'logical-section'}
@@ -139,8 +139,8 @@ def validate_binding(value) -> dict:
     if not isinstance(value, dict):
         raise ValueError('EVIDENCE_BINDING_INVALID: object')
     allowed = {'schema_version', 'mode', 'application_id', 'project_id',
-               'created_at', 'project', 'team', 'binding_sha256'}
-    if set(value) != allowed:
+               'created_at', 'project', 'team', 'adopted', 'binding_sha256'}
+    if set(value) - allowed or (allowed - {'adopted'}) - set(value):
         raise ValueError('EVIDENCE_BINDING_INVALID: fields')
     if value.get('schema_version') != SCHEMA:
         raise ValueError('EVIDENCE_BINDING_INVALID: schema')
@@ -249,13 +249,30 @@ def validate_binding(value) -> dict:
                 'sources_digest': _sha(topic.get('sources_digest'), 'team.topic.sources_digest'),
                 'sources': _topic_sources(topic.get('sources')),
             }
+    adopted = value.get('adopted')
+    if adopted is not None:
+        if (not isinstance(adopted, dict)
+                or set(adopted) != {'library_id', 'version_id', 'caller', 'name', 'package_version'}):
+            raise ValueError('EVIDENCE_BINDING_INVALID: adopted')
+        package_version = adopted.get('package_version')
+        if package_version is not None and (not isinstance(package_version, str) or not package_version.strip()):
+            raise ValueError('EVIDENCE_BINDING_INVALID: adopted.package_version')
+        result['adopted'] = {
+            'library_id': _text(adopted.get('library_id'), 'adopted.library_id'),
+            'version_id': _sha(adopted.get('version_id'), 'adopted.version_id'),
+            'caller': _text(adopted.get('caller'), 'adopted.caller'),
+            'name': _text(adopted.get('name'), 'adopted.name'),
+            'package_version': package_version,
+        }
     has_project = bool(result.get('project') and result['project']['documents'])
     has_team = bool(result.get('team') and (
         result['team'].get('documents') if result['team']['kind'] == 'LIVE'
         else result['team'].get('topic')))
-    expected = {'NONE': (False, False), 'PROJECT_REFERENCES': (True, False),
-                'TEAM_KNOWLEDGE': (False, True), 'COMBINED': (True, True)}[mode]
-    if (has_project, has_team) != expected:
+    has_adopted = 'adopted' in result
+    expected = {'NONE': (False, False, False), 'PROJECT_REFERENCES': (True, False, False),
+                'TEAM_KNOWLEDGE': (False, True, False), 'COMBINED': (True, True, False),
+                'ADOPTED_KNOWLEDGE': (False, False, True)}[mode]
+    if (has_project, has_team, has_adopted) != expected:
         raise ValueError('EVIDENCE_BINDING_INVALID: mode does not match selected evidence')
     body = deepcopy(result)
     expected_sha = canonical_digest(body)

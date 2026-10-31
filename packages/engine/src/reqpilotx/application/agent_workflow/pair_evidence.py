@@ -10,7 +10,7 @@ from reqpilotx.application.agent_workflow.source_item_analysis import ROLES, val
 
 PAIR_EVIDENCE_SCHEMA = 'reqpilot-pair-evidence-registration/v1'
 PAIR_ATTESTATION_SCHEMA = 'reqpilot-pair-analysis-attestation/v1'
-PAIR_FACT_ORIGINS = {'PAIR_SELECTED_SOURCE', 'PAIR_RETAINED_TOPIC'}
+PAIR_FACT_ORIGINS = {'PAIR_SELECTED_SOURCE', 'PAIR_RETAINED_TOPIC', 'PAIR_ADOPTED_KNOWLEDGE'}
 
 
 def _sha(value):
@@ -48,7 +48,7 @@ def verify_pair_attestation(value, key, *, expected=None, catalog=None, decision
             raise ValueError('HOST_ATTESTATION_INVALID: ' + field)
     if not isinstance(value.get('workbench_ref'), str):
         raise ValueError('HOST_ATTESTATION_INVALID: workbench_ref')
-    if value.get('mode') not in {'NONE', 'PROJECT_REFERENCES', 'TEAM_KNOWLEDGE', 'COMBINED'}:
+    if value.get('mode') not in {'NONE', 'PROJECT_REFERENCES', 'TEAM_KNOWLEDGE', 'COMBINED', 'ADOPTED_KNOWLEDGE'}:
         raise ValueError('HOST_ATTESTATION_INVALID: mode')
     if value.get('unit_ids') is not None and (
             not isinstance(value['unit_ids'], list)
@@ -121,6 +121,18 @@ def validate_pair_registration(registration, catalog):
                 or not fact.get('source_ref')
                 or not str(fact.get('url') or '').startswith('/reqpilotx/knowledge/')):
             raise ValueError('A PAIR evidence fact failed source/citation integrity validation')
+        if fact.get('origin') == 'PAIR_ADOPTED_KNOWLEDGE':
+            adopted = fact.get('adopted')
+            if (not isinstance(adopted, dict)
+                    or re.fullmatch(r'[0-9a-f]{64}', str(adopted.get('version_id') or '')) is None
+                    or re.fullmatch(r'[0-9a-f]{64}', str(fact.get('content_revision') or '')) is None
+                    or not str(adopted.get('library_id') or '').strip()
+                    or fact.get('evidence_origin') not in {'original', 'derived', 'experience', 'conflict', 'gap'}):
+                raise ValueError('An adopted knowledge fact failed version/content integrity validation')
+            if fact.get('availability') not in {'original', 'derived', 'metadata-only', 'missing', 'not-applicable'}:
+                raise ValueError('An adopted knowledge fact has an invalid source availability')
+            if fact.get('authority_verified') is not False:
+                raise ValueError('Adopted records cannot claim authority from file access or byte integrity')
     receipts = registration.get('receipts')
     if not isinstance(receipts, list) or not receipts:
         raise ValueError('PAIR evidence registration has no consumed tool receipts')
@@ -128,7 +140,8 @@ def validate_pair_registration(registration, catalog):
     for receipt in receipts:
         if (not isinstance(receipt, dict)
                 or set(receipt) != {'tool', 'request_sha256', 'returned_at', 'fact_ids'}
-                or receipt.get('tool') not in {'search', 'read', 'topic_read'}
+                or receipt.get('tool') not in {'search', 'read', 'topic_read',
+                    'adopted_browse', 'adopted_read', 'adopted_evidence'}
                 or re.fullmatch(r'[0-9a-f]{64}', str(receipt.get('request_sha256') or '')) is None
                 or not str(receipt.get('returned_at') or '').strip()
                 or not isinstance(receipt.get('fact_ids'), list)

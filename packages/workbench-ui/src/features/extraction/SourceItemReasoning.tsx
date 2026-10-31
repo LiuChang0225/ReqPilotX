@@ -19,7 +19,13 @@ type CarryNote = { text: string; origin?: string };
 type Citation = { fact_id: string; quote: string };
 type EvidenceFact = { document_name?: string; document_id: string; source_sha256: string; url?: string; kb_id?: string;
   original_revision?: string; extraction_revision?: string; coverage?: string; location?: string;
-  applicability?: string; source_ref?: { location?: { page_number?: number | null; section?: number | string | null; number?: number } } };
+  applicability?: string; source_ref?: { location?: { page_number?: number | null; section?: number | string | null; number?: number } };
+  evidence_origin?: "original" | "derived" | "experience" | "conflict" | "gap"; availability?: string;
+  content_revision?: string; source_version?: string; original_source_version?: string;
+  original_read_proof?: string; scope?: string; conditions?: string;
+  review?: { reviewStatus?: string; expertApproved?: boolean | string };
+  returned_content_sha256?: string; linked_source_url?: string; linked_source_availability?: string;
+  adopted?: { library_id: string; version_id: string; package_version?: string | null } };
 type Decision = { decision: string; reason: string; clarification_question: string; evidence: Citation[] };
 type Child = SourceNumberFieldsV1 & { node_id?: string; singular_requirement_id?: string; requirement_display_id: string; text: string;
   source_excerpts?: { text: string; page?: number }[]; requirement_kinds?: SourceRequirementKindV1[] };
@@ -333,8 +339,19 @@ export function SourceItemReasoningDetail({ workflow, sourceItemId, requirementI
             const page = fact?.source_ref?.location?.page_number;
             const section = fact?.source_ref?.location?.section;
             const locator = page ? ` · P${page}` : section !== undefined && section !== null && section !== "" ? l("reasoning.logicalSection", " · 逻辑段 {section}", { section: String(section) }) : "";
+            const citationOrigin = fact?.adopted ? fact.evidence_origin === "original"
+              ? l("reasoning.citationOriginal", " · 已核对原件")
+              : fact.evidence_origin === "experience" ? l("reasoning.citationExperience", " · 经验记录")
+                : fact.evidence_origin === "conflict" ? l("reasoning.citationConflict", " · 冲突记录")
+                  : fact.evidence_origin === "gap" ? l("reasoning.citationGap", " · 缺口记录")
+                    : l("reasoning.citationDerived", " · 派生记录") : "";
+            const citationAvailability = fact?.availability === "metadata-only" ? l("reasoning.citationMetadataOnly", " · 仅元数据")
+              : ["missing", "not-applicable"].includes(fact?.availability || "") ? l("reasoning.citationSourceUnavailable", " · 无可用原件") : "";
             return <blockquote key={`${citation.fact_id}:${index}`}><p>{citation.quote}</p><cite>
-              {sourceUrl ? <a href={`${sourceUrl}${page ? `#page=${page}` : ""}`} target="_blank" rel="noreferrer">{fact?.document_name || l("reasoning.openCitation", "打开引用原件")}{locator}</a> : <>{fact?.document_name || fact?.document_id || l("reasoning.internalMaterial", "内部资料")}{locator}</>}
+              {sourceUrl ? <a href={`${sourceUrl}${page ? `#page=${page}` : ""}`} target="_blank" rel="noreferrer">{fact?.document_name || l("reasoning.openCitation", "打开引用记录")}{locator}</a> : <>{fact?.document_name || fact?.document_id || l("reasoning.internalMaterial", "内部资料")}{locator}</>}
+              {fact?.linked_source_url && !["metadata-only", "missing"].includes(fact.linked_source_availability || "")
+                ? <a href={fact.linked_source_url} target="_blank" rel="noreferrer">{l("reasoning.openLinkedSource", " · 关联原文件")}</a> : null}
+              {citationOrigin}{citationAvailability}
             </cite></blockquote>;
           })}</div>}
       </article>;

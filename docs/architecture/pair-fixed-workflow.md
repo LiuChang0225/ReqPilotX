@@ -58,6 +58,30 @@ Map、条目、review、程序检查和交付仍成立时，这些历史失败�
 任务证据 MCP 工具（`reqpilot_knowledge`）只解析冻结绑定：
 `knowledge_evidence_search`、`knowledge_evidence_read`、`knowledge_topic_read` 返回带
 `fact_id`、原文引用、页码／逻辑段、覆盖和版本的摘录；每次调用由 Host 记录消费回执。
+
+用户在项目/任务 intake 选择已由 Host 注册的 adopted knowledge library 时，Host 在
+准备任务前冻结精确 `libraryId`／`versionId`，并只通过
+`adoptedLibraries`／`bindAdoptedSession`／`adoptedBinding` 为该任务建立独立 caller
+（`reqpilotx-task:<app>:<command>:adopted`）；不复用原生 Session，也不覆盖项目、团队
+或保留主题 caller。Host 通过可选 `knowledge` 服务注入消费桥；迟到注入会挂载同一桥并更新可选输入
+可用性，不会把缺失服务伪造成可用。任务证据 MCP 另提供
+`knowledge_adopted_status`、`knowledge_adopted_browse`、`knowledge_adopted_read`、
+`knowledge_adopted_evidence`，所有读取前后都核对冻结绑定和当前注册版本；版本变化
+返回明确 `version-changed`，不回退 latest，也不读取包路径或 `dataDir`。
+
+adopted 证据中的 claim、Wiki 和来源索引摘录是**派生记录**，不证明关联原件已被读取；
+experience、conflict、gap 保持各自语义，原始可用性独立于提取和 review。实际读取
+source 时 Host 校验实际 bytes 与返回的 `contentRevision`；metadata-only、missing 或
+不可用原件明确失败，不伪造文本或页码。`sourceVersion` 保留被接纳文件哈希，
+`originalSourceVersion` 只是原始声明，不是读取证明；逻辑段仍为 logical-section。
+`review.expertApproved` 原样保留（boolean|string），只有布尔 `true` 是声明，不自动
+成为项目适用性、符合性或工程批准。文件可读或 bytes 与 `contentRevision`/来源文件哈希
+一致只证明读取完整性，不证明文档受控、项目适用性或工程批准；adopted 事实默认
+`UNKNOWN`／`REFERENCE_CONTEXT`，不会因为读取了原件而升级权威。派生记录仍进入
+引用、矩阵与 Excel 的独立“知识记录引用”投影；旧的“内部原件引用”只保留既有
+原件类事实，不把记录表/派生文件哈希写成原件 SHA。消费事实进入同一 Host 消费账本和累计
+attestation，模型不能伪造或隐藏旧决定；完整分析范围仍不能因批次缩小。当前切片
+adopted 选择与旧项目/团队选择互斥；旧来源和保留主题路径继续工作。
 `knowledge_analysis_save` 必须携带模型观察到的精确任务 revision 和稳定 command_id；
 Host 从自有消费账本生成目录并签发绑定应用／项目／文档／任务／工作台／版本／决策的
 attestation。没有消费事实、引用未被工具返回、旧 revision 或缺少 Host 签名的请求拒绝。
@@ -183,3 +207,6 @@ SessionController/Workspace/MCP 完成 `task_open`、`review_apply` 的有界 Ma
   Session 证明只覆盖 keyless 脚本路由。证据消费／版本变化的 keyless 原生 Session
   场景见 `integrations/pair/scripts/dsh-knowledge-native-snapshot-probe.mjs`，仍待父任务在本机 PAIR
   源码与真实构建上执行。
+- adopted consumer 目前由合成 knowledge 服务、合成版本身份和聚焦 Python 合同测试
+  验证；未运行真实 IRPS 包、真实模型或真实浏览器选择/引用点击验收。注册仍由父任务
+  的可信 Host 操作完成。

@@ -2,7 +2,9 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { readFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, writeFile, readFile, rm } from 'node:fs/promises';
+import { tmpdir } from 'node:os';
+import { join } from 'node:path';
 import { createHandler, serviceOrigin, proxyTarget, apply, applicationMetadata, applicationReadStatus, registerPairApplication } from '../host/src/index.js';
 
 async function serve(handler) {
@@ -176,5 +178,98 @@ test('actual apply composition mounts the owned knowledge service on the Host ro
   } finally {
     await proxy.close();
     for (const dispose of disposers.reverse()) if (typeof dispose === 'function') await dispose();
+  }
+});
+
+
+test('managed composition receives a late knowledge service and publishes the real picker capability', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-late-knowledge-'));
+  const capabilityRoot = join(root, 'capability');
+  await mkdir(join(capabilityRoot, 'scripts'), { recursive: true });
+  await writeFile(join(capabilityRoot, 'scripts/host_launch.py'), '');
+  await writeFile(join(capabilityRoot, 'build-receipt.json'), JSON.stringify({ bundle_sha256: 'b'.repeat(64) }));
+  const ownerId = '12345678-1234-4234-8234-123456789abc';
+  const versionId = 'b'.repeat(64);
+  const knowledge = {
+    getProjectReferenceLibrary: () => undefined, ensureProjectReferenceLibrary: async () => null,
+    snapshot: () => ({ bases: [], documents: [], jobs: [] }),
+    adoptedLibraries: () => [{ id: '11111111-1111-4111-8111-111111111111', name: 'Synthetic adopted',
+      versionId, state: 'ready', recommendation: 'direct-use', packageVersion: '1.0.0',
+      counts: { sources: 1, claims: 1, entities: 0, relations: 0, images: 0, experiences: 0, conflicts: 0, gaps: 0, wikiPages: 0, files: 1 },
+      checks: [] }],
+    bindAdoptedSession: async () => { throw Error('not used'); },
+    adoptedBinding: () => undefined, browseAdopted: async () => { throw Error('not used'); },
+    readAdopted: async () => { throw Error('not used'); }, adoptedEvidence: async () => { throw Error('not used'); },
+    adoptedSource: async () => { throw Error('not used'); }, adoptedImage: async () => { throw Error('not used'); },
+  };
+  const runtime = { ownerId, dataRoot: join(root, 'data'), python: '/installed/python',
+    snapshot: { mode: 'managed', status: 'READY', serviceOrigin: 'http://127.0.0.1:1234', instanceId: 'instance' },
+    async start() {}, async stop() {},
+    async command(args) {
+      if (args.some(value => String(value).endsWith('host_launch.py')) || args.some(value => String(value).endsWith('reqpilot.py'))) {
+        if (args.includes('--describe')) return JSON.stringify({ tools_schema: 'reqpilot-host-tools/v1',
+          workflow: { schema: 'reqpilot-fixed-workflow/v1', id: 'reqpilot-fixed-workflow', version: '1.0.0',
+            definition_sha256: 'd'.repeat(64), label: 'Synthetic workflow', stages: [],
+            optional_inputs: [
+              { id: 'project_references', label: 'Project references', available: false },
+              { id: 'team_knowledge', label: 'Team knowledge', available: false },
+              { id: 'adopted_knowledge', label: 'Registered knowledge version', available: false },
+            ] } });
+        return JSON.stringify({ status: 'READY' });
+      }
+      return JSON.stringify({ status: 'READY' });
+    } };
+  let handler; const disposers = []; const injects = new Map();
+  const scope = { subprocess: {}, connection: { requestRejection: () => undefined },
+    get() { return undefined; },
+    inject(names, callback) { injects.set(names.join(','), callback); return () => {}; },
+    effect(run) { const dispose = run(); disposers.push(dispose); return dispose; },
+    webServer: { register(route) { handler = route.handler; return () => { handler = null; }; } } };
+  apply(scope, { capabilityRoot, taskMcp: false }, () => runtime);
+  const proxy = await serve(handler);
+  const children = [];
+  const activateKnowledge = service => {
+    const effects = [];
+    injects.get('knowledge')({
+      get: name => name === 'knowledge' ? service : undefined,
+      effect(run) { const dispose = run(); effects.push(dispose); return dispose; },
+    });
+    const stop = async () => { for (const dispose of effects.splice(0).reverse()) await dispose(); };
+    children.push(stop);
+    return stop;
+  };
+  try {
+    const before = await (await fetch(proxy.url + '/reqpilotx/config')).json();
+    assert.equal(before.knowledge, undefined);
+    assert.equal(injects.has('knowledge'), true);
+    const stopFirst = activateKnowledge(knowledge);
+    let config;
+    for (let index = 0; index < 40; index += 1) {
+      config = await (await fetch(proxy.url + '/reqpilotx/config')).json();
+      if (config.knowledge?.adoption === true && config.workflow?.optional_inputs?.some(item => item.id === 'adopted_knowledge' && item.available === true)) break;
+      await new Promise(resolve => setTimeout(resolve, 5));
+    }
+    assert.equal(config.knowledge.schema, 'reqpilot-knowledge-host/v1');
+    assert.equal(config.knowledge.available, true);
+    assert.equal(config.knowledge.adoption, true);
+    assert.equal(config.workflow.optional_inputs.find(item => item.id === 'adopted_knowledge').available, true);
+    const adopted = await (await fetch(proxy.url + '/reqpilotx/knowledge/adopted')).json();
+    assert.equal(adopted.available, true);
+    assert.equal(adopted.libraries[0].versionId, versionId);
+    await stopFirst();
+    const removed = await (await fetch(proxy.url + '/reqpilotx/config')).json();
+    assert.equal(removed.knowledge, undefined);
+    assert.equal(removed.workflow.optional_inputs.find(item => item.id === 'adopted_knowledge').available, false);
+    assert.equal(removed.workbench.taskLookupAvailable, true);
+    const replacementVersion = 'c'.repeat(64);
+    activateKnowledge({ ...knowledge, adoptedLibraries: () => knowledge.adoptedLibraries()
+      .map(item => ({ ...item, versionId: replacementVersion })) });
+    const replaced = await (await fetch(proxy.url + '/reqpilotx/knowledge/adopted')).json();
+    assert.equal(replaced.libraries[0].versionId, replacementVersion);
+  } finally {
+    await proxy.close();
+    for (const stop of children.reverse()) await stop();
+    for (const dispose of disposers.reverse()) if (typeof dispose === 'function') await dispose();
+    await rm(root, { recursive: true, force: true });
   }
 });

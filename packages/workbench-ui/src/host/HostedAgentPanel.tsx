@@ -83,7 +83,10 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
     if (observation.current?.selection === selection) observation.current.controller.abort();
     setBusySelection(selection); setFailure(null);
     try {
-      const next = action && bound ? await host.controlTask(bound, action) : await host.startTask({ ...scope, goal: goal.trim(), requireMapConfirmation, knowledge });
+      const adoptedKnowledge = knowledge?.adopted || null;
+      const legacyKnowledge = adoptedKnowledge ? null : knowledge;
+      const next = action && bound ? await host.controlTask(bound, action) : await host.startTask({ ...scope, goal: goal.trim(), requireMapConfirmation,
+        knowledge: legacyKnowledge, ...(adoptedKnowledge ? { adoptedKnowledge } : {}) });
       if (activeSelection.current === selection && pendingAction.current === operation) {
         setResult({ selection, receipt: next });
         if (!action) onAccepted(next);
@@ -104,11 +107,13 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
     TASK_START_NOT_CONFIGURED: "PAIR 任务启动尚未配置：请确认能力包已安装并已选择默认模型。",
   };
   const setupMessage = host.taskSetup ? l(`hosted.setup.${host.taskSetup}`, setupFallbacks[host.taskSetup] || host.taskSetup) : "";
+  const evidenceModeLabel = (mode: string) => mode === "ADOPTED_KNOWLEDGE"
+    ? l("knowledge.modeAdopted", "已注册知识库版本") : mode;
   const knowledgeEvidenceText = (value: NonNullable<ApplicationTaskReceipt["knowledgeEvidence"]>, saved = false) => l(
     saved ? "knowledge.evidenceSaved" : "knowledge.evidence",
     saved ? "内部依据：{mode} · {status}；已保存分析建议按原引用保留。" : "内部依据：{mode} · {status}",
-    { mode: value.mode, status: value.status === "CURRENT"
-      ? l("knowledge.current", "冻结版本可读取")
+    { mode: evidenceModeLabel(value.mode), status: value.status === "CURRENT"
+      ? `${l("knowledge.current", "冻结版本可读取")}${value.adopted ? ` · ${value.adopted.versionId.slice(0, 12)}` : ""}`
       : value.message || l("knowledge.unconfirmed", "冻结版本未确认") });
   const discuss = () => {
     if (!bound) return;

@@ -64,7 +64,8 @@ function publicConfiguration(state) {
     required_inputs: state.taskWorkflow.required_inputs || [], optional_inputs: state.taskWorkflow.optional_inputs || [],
     expected_outputs: state.taskWorkflow.expected_outputs || [], branches: state.taskWorkflow.branches || {},
   };
-  if (state.knowledgeAvailable === true) result.knowledge = { schema: 'reqpilot-knowledge-host/v1', available: true };
+  if (state.knowledgeAvailable === true) result.knowledge = { schema: 'reqpilot-knowledge-host/v1', available: true,
+    ...(state.knowledgeAdoptionAvailable === true ? { adoption: true } : {}) };
   if (typeof state.taskStartIssue === 'string' && state.taskStartIssue) result.taskStart = { ready: false, reason: state.taskStartIssue };
   else if (state.status === 'READY') result.taskStart = { ready: state.taskLaunchReady === true, reason: state.taskLaunchReady === true ? null : 'TASK_START_NOT_CONFIGURED' };
   return result;

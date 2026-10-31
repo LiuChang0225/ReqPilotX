@@ -69,9 +69,11 @@ function createPairTaskController(config, openSession, transport = fetch) {
   }
   return {
     restoreTask,
-    taskDraft: input => { const prior = readIntent(input); return prior ? { goal: prior.goal,
-      requireMapConfirmation: prior.requireMapConfirmation === true,
-      ...(prior.knowledge ? { knowledge: prior.knowledge } : {}) } : undefined; },
+    taskDraft: input => { const prior = readIntent(input); if (!prior) return undefined;
+      const knowledge = prior.knowledge || (prior.adoptedKnowledge
+        ? { mode: 'NONE', adopted: { ...prior.adoptedKnowledge } } : null);
+      return { goal: prior.goal, requireMapConfirmation: prior.requireMapConfirmation === true,
+        ...(knowledge ? { knowledge } : {}) }; },
     openSession,
     async startTask(input) {
       if (!config.capabilities['agent.start']) throw Error('当前连接未提供 PAIR 任务启动能力。');
@@ -79,10 +81,12 @@ function createPairTaskController(config, openSession, transport = fetch) {
       const existing = await restoreTask(input);
       const prior = readIntent(input);
       const sameRequest = prior && prior.goal === input.goal && (prior.requireMapConfirmation === true) === (input.requireMapConfirmation === true)
-      && JSON.stringify(prior.knowledge || null) === JSON.stringify(input.knowledge || null);
+      && JSON.stringify(prior.knowledge || null) === JSON.stringify(input.knowledge || null)
+      && JSON.stringify(prior.adoptedKnowledge || null) === JSON.stringify(input.adoptedKnowledge || null);
       if (existing && sameRequest) return existing;
       if (prior && !existing && !sameRequest) throw Error('已有尚未确认的原任务，请先用原目标和确认策略恢复，再创建新任务。');
       const intent = prior && !existing ? prior : { ...input, knowledge: input.knowledge || null,
+        adoptedKnowledge: input.adoptedKnowledge || null,
         commandId: crypto.randomUUID(), requireMapConfirmation: input.requireMapConfirmation === true };
       // Match the Host's request limits before retaining a command that cannot be sent.
       if (intent.goal.length > 12000 || new TextEncoder().encode(JSON.stringify(intent)).byteLength > 32768) throw Error('任务目标过长，请精简目标，资料通过文件导入后重试。');

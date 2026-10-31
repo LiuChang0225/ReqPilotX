@@ -52,6 +52,44 @@ describe("KnowledgeEvidencePicker", () => {
     await waitFor(() => expect(value.knowledge?.uploadReference).toHaveBeenCalledWith("p", file, "REFERENCE"));
   });
 
+  it("selects an exact registered adopted version and refuses a blocked library", async () => {
+    const value = host(); const onChange = vi.fn();
+    value.knowledge = { ...value.knowledge!, adoptionAvailable: true,
+      adoptedLibraries: vi.fn(async () => [
+        { id: "adopted-ready", name: "Synthetic adopted", versionId: "a".repeat(64),
+          state: "ready" as const, recommendation: "direct-use", packageVersion: "1.0.0" },
+        { id: "adopted-blocked", name: "Blocked adopted", versionId: "b".repeat(64),
+          state: "blocked" as const, recommendation: "rebuild", packageVersion: null },
+      ]) };
+    const { unmount } = render(<ApplicationHostContext.Provider value={value}><KnowledgeEvidencePicker projectId="p" onChange={onChange} /></ApplicationHostContext.Provider>);
+    await screen.findByText("internal.txt");
+    const blocked = await screen.findByRole("option", { name: /Blocked adopted/ });
+    expect(blocked).toBeDisabled();
+    await userEvent.selectOptions(screen.getByLabelText("选择已注册知识库"), "adopted-ready");
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({ mode: "NONE",
+      adopted: { libraryId: "adopted-ready", versionId: "a".repeat(64) } }));
+    expect(screen.getByText(/冻结版本：aaaaaaaaaaaa/)).toBeVisible();
+    expect(screen.getByText(/不自动切换到新版本/)).toBeVisible();
+    unmount();
+  });
+
+  it("keeps a restored v1 adopted choice stale instead of silently selecting current v2", async () => {
+    const value = host(); const onChange = vi.fn();
+    value.knowledge = { ...value.knowledge!, adoptionAvailable: true,
+      adoptedLibraries: vi.fn(async () => [{ id: "adopted-v2", name: "Synthetic adopted",
+        versionId: "b".repeat(64), state: "ready" as const, recommendation: "direct-use", packageVersion: "2.0.0" }]) };
+    const initial = { mode: "NONE" as const, adopted: { libraryId: "adopted-v2", versionId: "a".repeat(64) } };
+    const { unmount } = render(<ApplicationHostContext.Provider value={value}><KnowledgeEvidencePicker projectId="p" initial={initial} onChange={onChange} /></ApplicationHostContext.Provider>);
+    await screen.findByText(/当前注册版本已变为 bbbbbbbbbbbb/);
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({ mode: "NONE",
+      adopted: { libraryId: "adopted-v2", versionId: "a".repeat(64) } }));
+    await userEvent.selectOptions(screen.getByLabelText("选择已注册知识库"), "adopted-v2");
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({ mode: "NONE",
+      adopted: { libraryId: "adopted-v2", versionId: "b".repeat(64) } }));
+    expect(screen.getByText(/冻结版本：bbbbbbbbbbbb/)).toBeVisible();
+    unmount();
+  });
+
   it("localizes the evidence preparation controls while preserving names and IDs", async () => {
     const value = host();
     render(<HostLocaleProvider locale="en"><ApplicationHostContext.Provider value={value}><KnowledgeEvidencePicker projectId="p" onChange={vi.fn()} /></ApplicationHostContext.Provider></HostLocaleProvider>);

@@ -33,10 +33,22 @@ export interface ApplicationKnowledgeDocument {
   role?: { authority?: string; claimRole?: string; applicability?: string; label?: string };
   sourceReady?: boolean; job?: { state?: string; message?: string };
 }
+export interface ApplicationAdoptedKnowledgeSelection {
+  libraryId: string; versionId: string;
+}
+export interface ApplicationAdoptedLibrary {
+  id: string; name: string; versionId: string;
+  state: "ready" | "needs-update" | "blocked"; recommendation: string;
+  packageVersion: string | null; purpose?: string;
+  counts?: { sources?: number; claims?: number; wikiPages?: number };
+  checks?: { id: string; state: "ok" | "warning" | "problem" | "unknown"; summary: string }[];
+}
 export interface ApplicationKnowledgeSelection {
   mode: "NONE" | "PROJECT_REFERENCES" | "TEAM_KNOWLEDGE" | "COMBINED";
   projectDocumentIds?: string[];
   team?: { kbId: string; documents?: string[]; topicVersionId?: string | null; authoritative?: boolean } | null;
+  /** A registered adopted library is exclusive with the old project/team selection in this slice. */
+  adopted?: ApplicationAdoptedKnowledgeSelection | null;
 }
 export interface ApplicationKnowledgeInventory {
   available: boolean; reason?: string; applicationId?: string;
@@ -54,6 +66,8 @@ export interface ApplicationKnowledgeTopic {
 }
 export interface ApplicationKnowledgeHost {
   available: boolean;
+  adoptionAvailable?: boolean;
+  adoptedLibraries?(): Promise<ApplicationAdoptedLibrary[]>;
   inventory(projectId: string): Promise<ApplicationKnowledgeInventory>;
   uploadReference(projectId: string, file: File, kind: "REFERENCE" | "PROJECT_EVIDENCE"): Promise<unknown>;
   retryReference(projectId: string, documentId: string): Promise<unknown>;
@@ -69,7 +83,8 @@ export interface ApplicationTaskReceipt {
   workflowState?: ApplicationWorkflowState | null;
   workflowUnconfirmed?: { reason: string; message?: string } | null;
   controlCapabilities?: { cancel?: boolean; continue?: boolean; reconnect?: boolean };
-  knowledgeEvidence?: { mode: string; bindingSha256: string; status: string; message?: string } | null;
+  knowledgeEvidence?: { mode: string; bindingSha256: string; status: string; message?: string;
+    adopted?: { libraryId: string; versionId: string } } | null;
   knowledgeStatus?: { state: string; message?: string } | null;
   execution?: { status: string; activity?: string };
 }
@@ -84,7 +99,8 @@ export interface WorkbenchApplicationHost extends Pick<WorkbenchPresentation, "r
   workflow?: ApplicationWorkflowDescriptor | null;
   taskSetup?: string | null;
   knowledge?: ApplicationKnowledgeHost | null;
-  startTask(input: { projectId: string; documentId: string; sourceSha256: string; goal: string; requireMapConfirmation?: boolean; knowledge?: ApplicationKnowledgeSelection | null }): Promise<ApplicationTaskReceipt>;
+  startTask(input: { projectId: string; documentId: string; sourceSha256: string; goal: string; requireMapConfirmation?: boolean; knowledge?: ApplicationKnowledgeSelection | null;
+    adoptedKnowledge?: ApplicationAdoptedKnowledgeSelection | null }): Promise<ApplicationTaskReceipt>;
   /** Cancelling an observation discards its pending read without cancelling the durable task. */
   restoreTask(input: { projectId: string; documentId: string; sourceSha256: string; workRef?: string }, options?: { signal?: AbortSignal }): Promise<ApplicationTaskReceipt | null>;
   taskDraft(input: { projectId: string; documentId: string; sourceSha256: string }): { goal: string; requireMapConfirmation: boolean; knowledge?: ApplicationKnowledgeSelection | null } | undefined;

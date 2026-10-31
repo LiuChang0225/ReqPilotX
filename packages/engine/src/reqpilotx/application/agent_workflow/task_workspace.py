@@ -989,6 +989,11 @@ def workspace_status(task_root, refresh=True):
         if bound_evidence:
             lines += ['## 内部依据', '', '模式：`' + bound_evidence['mode'] + '`；绑定：`' + bound_evidence['binding_sha256'] + '`',
                       '证据工具只能读取该任务冻结的所选文档或保留主题版本；不可用时不得形成新的符合性结论。', '']
+            if bound_evidence['mode'] == 'ADOPTED_KNOWLEDGE':
+                adopted = bound_evidence['adopted']
+                lines += ['已注册知识库：`' + adopted['name'] + '`；库：`' + adopted['library_id']
+                          + '`；冻结版本：`' + adopted['version_id'] + '`。',
+                          'Claims、Wiki 与来源索引摘录是派生内容；只有实际读取并核对 contentRevision 的原件可作原始依据，未读取原件时保留明确不足。', '']
         if workflow:
             lines += ['## 固定工作流', '', '版本：`' + workflow['workflow']['version'] + '`；来源：`' + workflow['source_sha256'] + '`',
                       '阶段推进只认已保存工件；Agent 文字、会话空闲或完成声明不推进阶段。',

@@ -18,6 +18,8 @@ function makeKnowledgeHost(config) {
   if (config?.knowledge?.schema !== 'reqpilot-knowledge-host/v1' || config.knowledge.available !== true) return null;
   return {
     available: true,
+    adoptionAvailable: config.knowledge.adoption === true,
+    ...(config.knowledge.adoption === true ? { adoptedLibraries: async () => (await knowledgeRequest('/adopted')).libraries || [] } : {}),
     inventory: projectId => knowledgeRequest('/inventory?' + new URLSearchParams({ projectId }).toString()),
     uploadReference: async (projectId, file, kind) => {
       const query = new URLSearchParams({ name: file.name, kind });

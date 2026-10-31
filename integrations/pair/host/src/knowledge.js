@@ -9,7 +9,11 @@ import { once } from 'node:events';
 const BINDING_SCHEMA = 'reqpilot-task-evidence/v1';
 const CONSUMPTION_SCHEMA = 'reqpilot-pair-evidence-consumption/v1';
 const REGISTRATION_SCHEMA = 'reqpilot-pair-evidence-registration/v1';
-const MODES = ['NONE', 'PROJECT_REFERENCES', 'TEAM_KNOWLEDGE', 'COMBINED'];
+const MODES = ['NONE', 'PROJECT_REFERENCES', 'TEAM_KNOWLEDGE', 'COMBINED', 'ADOPTED_KNOWLEDGE'];
+const ADOPTED_SECTIONS = ['wiki', 'claims', 'entities', 'relations', 'images', 'experiences', 'conflicts', 'gaps', 'sources'];
+const ADOPTED_KINDS = ['wiki', 'source', 'claim', 'entity', 'relation', 'image', 'experience', 'conflict', 'gap'];
+const ADOPTED_VERSION = /^[a-f0-9]{64}$/;
+const ADOPTED_ID = /^[^\u0000-\u001f\\]{1,300}$/;
 const PROJECT_KINDS = new Set(['REFERENCE', 'PROJECT_EVIDENCE']);
 const SAFE = /^[a-zA-Z0-9_.:-]{1,200}$/;
 const sha = value => createHash('sha256').update(value).digest('hex');
@@ -66,6 +70,78 @@ function documentSummary(document, job = null) {
   };
 }
 
+function adoptedSummary(value) {
+  if (!value || typeof value !== 'object' || typeof value.id !== 'string') return null;
+  const state = ['ready', 'needs-update', 'blocked'].includes(value.state) ? value.state : 'blocked';
+  const versionId = typeof value.versionId === 'string' ? value.versionId : '';
+  if (state !== 'blocked' && !ADOPTED_VERSION.test(versionId)) return null;
+  if (state === 'blocked' && versionId && !ADOPTED_VERSION.test(versionId)) return null;
+  const counts = value.counts && typeof value.counts === 'object' ? value.counts : {};
+  return { id: value.id, name: String(value.name || ''), ...(typeof value.purpose === 'string' ? { purpose: value.purpose } : {}),
+    operation: String(value.operation || 'connect-existing'), packageVersion: value.packageVersion ?? null,
+    okfVersion: value.okfVersion ?? null, versionId, state,
+    recommendation: String(value.recommendation || 'rebuild'), addedAt: String(value.addedAt || ''),
+    lastCheckedAt: String(value.lastCheckedAt || ''),
+    counts: Object.fromEntries(['sources', 'claims', 'entities', 'relations', 'images', 'experiences', 'conflicts', 'gaps', 'wikiPages', 'files']
+      .map(key => [key, Number.isSafeInteger(counts[key]) && counts[key] >= 0 ? counts[key] : 0])),
+    checks: (Array.isArray(value.checks) ? value.checks : []).slice(0, 32).map(check => ({
+      id: String(check?.id || ''), state: ['ok', 'warning', 'problem', 'unknown'].includes(check?.state) ? check.state : 'unknown',
+      summary: bounded(check?.summary, 2000), ...(Number.isSafeInteger(check?.count) ? { count: check.count } : {}) })) };
+}
+function adoptionFailure(error) {
+  if (error instanceof KnowledgeError) return error;
+  const source = String(error?.code || 'request-failed').replace(/-/g, '_').toUpperCase();
+  const status = ['NOT_FOUND', 'SOURCE_UNAVAILABLE'].includes(source) ? 404
+    : source === 'PERMISSION_DENIED' ? 403
+      : ['LIBRARY_BLOCKED', 'LIBRARY_UNSELECTED', 'VERSION_CHANGED', 'METADATA_ONLY'].includes(source) ? 409
+        : ['RESULT_TOO_LARGE'].includes(source) ? 413 : source === 'TIMEOUT' ? 504 : 502;
+  return new KnowledgeError('ADOPTED_' + source, status, String(error?.message || error));
+}
+function adoptedLocator(locator) {
+  if (!locator || typeof locator !== 'object') return { kind: 'document', location: { page_number: null, section: null, number: null } };
+  const page = locator.kind === 'physical-page' && Number.isSafeInteger(locator.page) && locator.page > 0 ? locator.page : null;
+  const section = locator.kind === 'logical-section'
+    ? (typeof locator.section === 'string' && locator.section ? locator.section
+      : typeof locator.text === 'string' && locator.text ? locator.text : null) : null;
+  return { kind: ['physical-page', 'logical-section', 'document', 'image-region'].includes(locator.kind) ? locator.kind : 'document',
+    location: { page_number: page, section, number: page } };
+}
+function adoptedRequest(value) {
+  if (!value || typeof value !== 'object' || !ADOPTED_KINDS.includes(value.kind))
+    throw new KnowledgeError('INVALID_ADOPTED_READ', 422);
+  const safeId = item => typeof item === 'string' && ADOPTED_ID.test(item) && !item.split('/').includes('..');
+  if (value.kind === 'wiki') {
+    if (!safeId(value.path) || !value.path.endsWith('.md') || value.path.startsWith('/'))
+      throw new KnowledgeError('INVALID_ADOPTED_READ', 422);
+    return { kind: 'wiki', path: value.path };
+  }
+  if (value.kind === 'source') {
+    if (!safeId(value.sourceId)) throw new KnowledgeError('INVALID_ADOPTED_READ', 422);
+    return { kind: 'source', sourceId: value.sourceId };
+  }
+  if (!safeId(value.id)) throw new KnowledgeError('INVALID_ADOPTED_READ', 422);
+  return { kind: value.kind, id: value.id };
+}
+function adoptedIdentity(item, result) {
+  if (result) {
+    if (result.kind === 'wiki') return { kind: 'wiki', id: result.path || result.id };
+    if (result.kind === 'source') return { kind: 'source', id: result.sourceId || result.id };
+    if (ADOPTED_KINDS.includes(result.kind)) return { kind: result.kind, id: result.id };
+  }
+  const raw = String(item?.evidenceId || '');
+  const separator = raw.indexOf(':');
+  if (separator < 1) return null;
+  const prefix = raw.slice(0, separator), id = raw.slice(separator + 1);
+  const kind = prefix === 'conflicts' ? 'conflict' : prefix === 'gaps' ? 'gap' : prefix;
+  return ADOPTED_KINDS.includes(kind) && item.kind === kind && id ? { kind: item.kind, id } : null;
+}
+function adoptedRecordUrl(commandId, kind, id) {
+  const query = kind === 'wiki' ? new URLSearchParams({ kind, path: id }) : new URLSearchParams({ kind, id });
+  return '/reqpilotx/knowledge/tasks/' + encodeURIComponent(commandId) + '/adopted/records?' + query.toString();
+}
+function adoptedSourceUrl(commandId, sourceId) {
+  return '/reqpilotx/knowledge/tasks/' + encodeURIComponent(commandId) + '/adopted/source/' + encodeURIComponent(sourceId);
+}
 function topicMetadata(topic) {
   const availability = topic?.availability;
   const verification = topic?.verification;
@@ -118,6 +194,31 @@ export class KnowledgeBridge {
   api() {
     if (!this.available()) throw new KnowledgeError('KNOWLEDGE_SERVICE_UNAVAILABLE', 503);
     return this.service;
+  }
+  adoptionAvailable() {
+    return this.available() && typeof this.service.adoptedLibraries === 'function'
+      && typeof this.service.bindAdoptedSession === 'function'
+      && typeof this.service.adoptedBinding === 'function'
+      && typeof this.service.browseAdopted === 'function'
+      && typeof this.service.readAdopted === 'function'
+      && typeof this.service.adoptedEvidence === 'function'
+      && typeof this.service.adoptedSource === 'function'
+      && typeof this.service.adoptedImage === 'function';
+  }
+  adoptedInventory() {
+    if (!this.adoptionAvailable()) return { available: false, reason: 'ADOPTION_NOT_SUPPORTED', libraries: [] };
+    try {
+      const libraries = this.service.adoptedLibraries().map(adoptedSummary).filter(Boolean)
+        .sort((left, right) => left.name.localeCompare(right.name));
+      return { available: true, libraries };
+    } catch (error) { throw adoptionFailure(error); }
+  }
+  async inspectAdoptedLibrary(libraryId) {
+    if (!this.adoptionAvailable() || typeof this.service.inspectAdoptedLibrary !== 'function')
+      throw new KnowledgeError('ADOPTION_NOT_SUPPORTED', 503);
+    if (!SAFE.test(libraryId || '')) throw new KnowledgeError('INVALID_ADOPTED_LIBRARY', 422);
+    try { return adoptedSummary(await this.service.inspectAdoptedLibrary(libraryId)); }
+    catch (error) { throw adoptionFailure(error); }
   }
   getRecord(commandId) { return this.records.get(commandId) || null; }
   registerRecord(record) { if (record?.commandId) this.records.set(record.commandId, record); }
@@ -307,6 +408,47 @@ export class KnowledgeBridge {
     await this.writeJson(this.bindingPath(commandId), { schema: 'reqpilot-pair-knowledge-binding-record/v1', selection, binding });
     return binding;
   }
+  async prepareAdoptedBinding({ commandId, libraryId, versionId, projectId }) {
+    if (!SAFE.test(commandId || '') || !SAFE.test(libraryId || '') || !ADOPTED_VERSION.test(versionId || '') || !SAFE.test(projectId || ''))
+      throw new KnowledgeError('INVALID_ADOPTED_SELECTION', 422);
+    if (!this.adoptionAvailable()) throw new KnowledgeError('ADOPTION_NOT_SUPPORTED', 503);
+    const selection = { adopted: { libraryId, versionId } };
+    let existing = null;
+    try { existing = await this.readJson(this.bindingPath(commandId)); }
+    catch (error) { if (error.code !== 'ENOENT') throw error; }
+    if (existing) {
+      if (digest(existing.selection) !== digest(selection)) throw new KnowledgeError('KNOWLEDGE_BINDING_CONFLICT');
+      return existing.binding;
+    }
+    let summary;
+    try {
+      summary = this.service.adoptedLibraries().map(adoptedSummary).filter(Boolean)
+        .find(item => item.id === libraryId);
+    } catch (error) { throw adoptionFailure(error); }
+    if (!summary) throw new KnowledgeError('ADOPTED_LIBRARY_NOT_FOUND', 404);
+    if (summary.state === 'blocked') throw new KnowledgeError('ADOPTED_LIBRARY_BLOCKED', 409,
+      'The registered knowledge library has blocking inspection problems.');
+    if (summary.versionId !== versionId) throw new KnowledgeError('ADOPTED_VERSION_CHANGED', 409,
+      'The selected library version changed; select the exact current version again.');
+    const caller = 'reqpilotx-task:' + this.appId() + ':' + commandId + ':adopted';
+    let bound, readBack;
+    try {
+      bound = await this.service.bindAdoptedSession(caller, libraryId, 'connect-existing');
+      readBack = this.service.adoptedBinding(caller);
+    } catch (error) { throw adoptionFailure(error); }
+    if (!readBack || readBack.sessionId !== caller || readBack.libraryId !== libraryId
+      || readBack.versionId !== versionId || bound?.versionId !== versionId || bound?.libraryId !== libraryId)
+      throw new KnowledgeError('ADOPTED_BINDING_UNCONFIRMED', 409,
+        'The Host did not confirm the exact frozen adopted knowledge version.');
+    const binding = { schema_version: BINDING_SCHEMA, mode: 'ADOPTED_KNOWLEDGE',
+      application_id: this.appId(), project_id: projectId, created_at: new Date().toISOString(),
+      project: null, team: null,
+      adopted: { library_id: libraryId, version_id: versionId, caller,
+        name: summary.name.slice(0, 200), package_version: summary.packageVersion ?? null } };
+    binding.binding_sha256 = digest(binding);
+    await this.writeJson(this.bindingPath(commandId), { schema: 'reqpilot-pair-knowledge-binding-record/v1', selection, binding });
+    return binding;
+  }
   async loadBinding(commandId) {
     try { return (await this.readJson(this.bindingPath(commandId))).binding; }
     catch (error) { if (error.code === 'ENOENT') throw new KnowledgeError('KNOWLEDGE_BINDING_MISSING', 409); throw error; }
@@ -317,6 +459,22 @@ export class KnowledgeBridge {
     let api;
     try {
       api = this.api();
+      if (binding.mode === 'ADOPTED_KNOWLEDGE') {
+        const frozen = binding.adopted;
+        if (!frozen || typeof frozen.caller !== 'string' || typeof frozen.library_id !== 'string'
+          || typeof frozen.version_id !== 'string') return { state: 'INVALID', message: '冻结的已注册知识库绑定无效' };
+        const current = api.adoptedBinding?.(frozen.caller);
+        if (!current || current.libraryId !== frozen.library_id || current.versionId !== frozen.version_id
+          || current.sessionId !== frozen.caller)
+          return { state: 'CHANGED', message: '已注册知识库的任务调用身份或冻结版本已变化' };
+        const summary = (api.adoptedLibraries?.() || []).map(adoptedSummary).filter(Boolean)
+          .find(item => item.id === frozen.library_id);
+        if (!summary) return { state: 'UNAVAILABLE', message: '已注册知识库当前不可读取' };
+        if (summary.versionId !== frozen.version_id)
+          return { state: 'CHANGED', message: '已注册知识库已有新版本；本任务仍冻结原版本，不自动切换' };
+        if (summary.state === 'blocked') return { state: 'UNAVAILABLE', message: '已注册知识库当前检查未通过' };
+        return { state: 'CURRENT', message: '' };
+      }
       if (binding.project) {
         const captured = await api.captureSelectedSources(binding.project.caller,
           binding.project.documents.map(item => ({ kbId: item.kbId, documentId: item.documentId })));
@@ -396,7 +554,24 @@ export class KnowledgeBridge {
     this.pending.set(commandId, run.catch(() => {}));
     return run;
   }
-  catalogDocuments(binding) {
+  catalogDocuments(binding, consumedFacts = {}) {
+    if (binding.mode === 'ADOPTED_KNOWLEDGE') {
+      const seen = new Set();
+      return Object.values(consumedFacts).filter(fact => fact?.adopted?.library_id === binding.adopted?.library_id)
+        .map(fact => {
+          if (seen.has(fact.document_id)) return null;
+          seen.add(fact.document_id);
+          return { id: fact.document_id, kb_id: fact.kb_id, project_id: fact.project_id,
+            file_name: fact.document_name || fact.document_id, source_sha256: fact.source_sha256,
+            source_sha256_basis: 'CONTENT_REVISION', doc_version: fact.document_version || '',
+            status: 'ACTIVE', authority: fact.authority, claim_role: fact.claim_role,
+            applicability: fact.applicability, eligible: true,
+            adopted_library_id: fact.adopted.library_id, adopted_library_version_id: fact.adopted.version_id,
+            content_revision: fact.content_revision, availability: fact.availability,
+            ...(fact.source_version ? { source_version: fact.source_version } : {}),
+            ...(fact.original_source_version ? { original_source_version: fact.original_source_version } : {}) };
+        }).filter(Boolean).sort((left, right) => left.id.localeCompare(right.id));
+    }
     const liveDocument = (document, kbId, role) => ({
       id: document.documentId, kb_id: kbId, project_id: binding.project_id,
       file_name: document.name, source_sha256: document.originalRevision,
@@ -490,6 +665,8 @@ export class KnowledgeBridge {
       throw new KnowledgeError('INVALID_EVIDENCE_QUERY', 422);
     await this.requireCurrent(commandId, 'search');
     const binding = await this.loadBinding(commandId);
+    if (binding.mode === 'ADOPTED_KNOWLEDGE') throw new KnowledgeError('ADOPTED_TOOLS_REQUIRED', 409,
+      'Use the adopted knowledge evidence tools for this frozen library version.');
     const api = this.api();
     const documents = this.catalogDocuments(binding);
     const byId = new Map(documents.map(item => [item.id, item]));
@@ -525,6 +702,8 @@ export class KnowledgeBridge {
       || !Number.isInteger(count) || count < 1 || count > 20) throw new KnowledgeError('INVALID_EVIDENCE_READ', 422);
     await this.requireCurrent(commandId, 'read');
     const binding = await this.loadBinding(commandId);
+    if (binding.mode === 'ADOPTED_KNOWLEDGE') throw new KnowledgeError('ADOPTED_TOOLS_REQUIRED', 409,
+      'Use the adopted knowledge read tool for this frozen library version.');
     const api = this.api();
     const documents = this.catalogDocuments(binding);
     let document = null, caller = null;
@@ -573,6 +752,8 @@ export class KnowledgeBridge {
   async topicRead(commandId) {
     await this.requireCurrent(commandId, 'topic_read');
     const binding = await this.loadBinding(commandId);
+    if (binding.mode === 'ADOPTED_KNOWLEDGE') throw new KnowledgeError('ADOPTED_TOOLS_REQUIRED', 409,
+      'This task uses an adopted knowledge version, not a retained topic.');
     if (binding.team?.kind !== 'TOPIC') throw new KnowledgeError('RETAINED_TOPIC_NOT_SELECTED', 409);
     const read = await this.api().readTopicVersion(binding.team.caller, binding.team.library_id, binding.team.topic.version_id);
     const facts = read.sources.map(source => this.topicFact(commandId, binding, source));
@@ -586,7 +767,7 @@ export class KnowledgeBridge {
   async catalog(commandId) {
     const binding = await this.loadBinding(commandId);
     const consumed = await this.loadConsumption(commandId);
-    const documents = this.catalogDocuments(binding);
+    const documents = this.catalogDocuments(binding, consumed.facts);
     const catalog = { schema_version: 'project-knowledge-facts/v1', project_id: binding.project_id,
       knowledge_base_version: 1, evidence_catalog: consumed.facts,
       documents, gaps: [], selection: 'EXPLICIT_TASK_EVIDENCE' };
@@ -707,6 +888,223 @@ export class KnowledgeBridge {
     await this.saveAnalysisHistory(commandId, history);
     return result;
   }
+  adoptedBindingFor(binding) {
+    if (binding?.mode !== 'ADOPTED_KNOWLEDGE' || !binding.adopted
+      || typeof binding.adopted.library_id !== 'string' || typeof binding.adopted.version_id !== 'string'
+      || typeof binding.adopted.caller !== 'string')
+      throw new KnowledgeError('ADOPTED_NOT_SELECTED', 409, 'This task has no frozen adopted knowledge library.');
+    return binding.adopted;
+  }
+  async requireAdoptedCurrent(commandId) {
+    const binding = await this.loadBinding(commandId);
+    const frozen = this.adoptedBindingFor(binding);
+    let api;
+    try { api = this.api(); }
+    catch (error) { throw adoptionFailure(error); }
+    let current;
+    try { current = api.adoptedBinding(frozen.caller); }
+    catch (error) { throw adoptionFailure(error); }
+    if (!current || current.sessionId !== frozen.caller || current.libraryId !== frozen.library_id
+      || current.versionId !== frozen.version_id)
+      throw new KnowledgeError('ADOPTED_BINDING_CHANGED', 409,
+        'The task caller is no longer bound to the exact frozen adopted knowledge version.');
+    let summary;
+    try { summary = (api.adoptedLibraries?.() || []).map(adoptedSummary).filter(Boolean).find(item => item.id === frozen.library_id); }
+    catch (error) { throw adoptionFailure(error); }
+    if (!summary) throw new KnowledgeError('ADOPTED_LIBRARY_UNAVAILABLE', 409,
+      'The frozen adopted knowledge library is not registered on this Host.');
+    if (summary.versionId !== frozen.version_id) throw new KnowledgeError('ADOPTED_VERSION_CHANGED', 409,
+      'The adopted knowledge library changed; the frozen version was not replaced with a newer one.');
+    if (summary.state === 'blocked') throw new KnowledgeError('ADOPTED_LIBRARY_BLOCKED', 409,
+      'The adopted knowledge library has blocking inspection problems.');
+    return binding;
+  }
+  assertAdoptedResult(binding, result) {
+    const frozen = this.adoptedBindingFor(binding);
+    if (String(result?.libraryId || '') !== frozen.library_id || String(result?.versionId || '') !== frozen.version_id)
+      throw new KnowledgeError('ADOPTED_VERSION_CHANGED', 409,
+        'The adopted knowledge read returned a different library or version; the result was discarded.');
+  }
+  adoptedFact(commandId, binding, { item = null, result = null, text = '' }) {
+    const frozen = this.adoptedBindingFor(binding);
+    const identity = adoptedIdentity(item, result);
+    if (!identity) return null;
+    const kind = identity.kind, recordId = identity.id;
+    const contentRevision = result?.contentRevision || item?.contentRevision;
+    if (!contentRevision) return null;
+    const sourceId = result?.sourceId || item?.sourceId;
+    const sourceVersion = result?.sourceVersion || item?.sourceVersion;
+    const originalSourceVersion = result?.originalSourceVersion || item?.originalSourceVersion;
+    const availability = result?.availability || item?.availability || 'not-applicable';
+    const admission = result?.admission || item?.admission;
+    const locator = result?.locator || item?.locator;
+    const review = result?.review || item?.review;
+    const scope = result?.scope ?? item?.scope;
+    const conditions = result?.conditions ?? item?.conditions;
+    const guardrail = item?.guardrail;
+    const origin = item?.origin === 'experience' || item?.origin === 'conflict' || item?.origin === 'gap'
+      ? item.origin : kind === 'experience' || kind === 'conflict' || kind === 'gap'
+        ? kind : 'derived';
+    const body = String(text || '').slice(0, 100000);
+    if (!body.trim()) return null;
+    const page = locator?.kind === 'physical-page' && Number.isSafeInteger(locator.page) && locator.page > 0 ? locator.page : null;
+    const section = locator?.kind === 'logical-section'
+      ? (typeof locator.section === 'string' && locator.section ? locator.section
+        : typeof locator.text === 'string' && locator.text ? locator.text : null) : null;
+    const primaryId = kind + ':' + recordId;
+    const linkedSource = Boolean(sourceId) && !['metadata-only', 'missing'].includes(availability);
+    return {
+      fact_id: 'pair-adopted-fact-' + digest({ binding: binding.binding_sha256, primaryId,
+        contentRevision, text: body }).slice(0, 32),
+      document_id: primaryId, kb_id: frozen.library_id, project_id: binding.project_id,
+      source_sha256: contentRevision, source_sha256_basis: 'CONTENT_REVISION',
+      role: 'INTERNAL_KNOWLEDGE', text: body, text_sha256: sha(body),
+      returned_content_sha256: sha(body),
+      source_ref: { ...adoptedLocator(locator), document_id: primaryId, coverage: 'unknown' },
+      document_name: result?.title || item?.title || primaryId,
+      document_version: String(contentRevision).slice(0, 12),
+      authority: 'UNKNOWN', claim_role: 'REFERENCE_CONTEXT', applicability: 'UNKNOWN',
+      eligible: true, authority_verified: false,
+      capture_mode: 'PAIR_ADOPTED_LIBRARY', origin: 'PAIR_ADOPTED_KNOWLEDGE',
+      evidence_origin: origin, content_revision: contentRevision,
+      original_read_proof: 'NOT_READ',
+      ...(sourceVersion ? { source_version: sourceVersion } : {}),
+      ...(originalSourceVersion ? { original_source_version: originalSourceVersion } : {}),
+      ...(availability ? { availability } : {}),
+      ...(admission ? { admission } : {}),
+      ...(locator ? { locator } : {}),
+      ...(review ? { review, expert_approved_declared: review.expertApproved === true,
+        expert_approved_type: typeof review.expertApproved } : {}),
+      ...(scope === undefined ? {} : { scope }),
+      ...(conditions === undefined ? {} : { conditions }),
+      ...(guardrail === undefined ? {} : { guardrail }),
+      url: adoptedRecordUrl(commandId, kind, recordId),
+      ...(linkedSource ? { linked_source_id: sourceId, linked_source_url: adoptedSourceUrl(commandId, sourceId),
+        linked_source_availability: availability } : {}),
+      adopted: { library_id: frozen.library_id, version_id: frozen.version_id,
+        package_version: frozen.package_version ?? null, evidence_id: item?.evidenceId || primaryId,
+        kind, record_id: recordId, evidence_origin: origin, content_revision: contentRevision,
+        ...(sourceId ? { linked_source_id: sourceId } : {}),
+        ...(sourceVersion ? { source_version: sourceVersion } : {}),
+        ...(originalSourceVersion ? { original_source_version: originalSourceVersion } : {}),
+        ...(availability ? { availability } : {}),
+        ...(admission ? { admission } : {}) },
+    };
+  }
+  async adoptedStatus(commandId) {
+    const binding = await this.requireAdoptedCurrent(commandId);
+    const frozen = binding.adopted;
+    const summary = (this.service.adoptedLibraries?.() || []).map(adoptedSummary).filter(Boolean)
+      .find(item => item.id === frozen.library_id);
+    return { bindingSha256: binding.binding_sha256, libraryId: frozen.library_id, versionId: frozen.version_id,
+      caller: frozen.caller, name: frozen.name, packageVersion: frozen.package_version ?? null,
+      state: summary?.state || 'unavailable', recommendation: summary?.recommendation || null,
+      counts: summary?.counts || null, checks: summary?.checks || [] };
+  }
+  async adoptedBrowse(commandId, section, options = {}) {
+    if (!ADOPTED_SECTIONS.includes(section)) throw new KnowledgeError('INVALID_ADOPTED_SECTION', 422);
+    const query = options?.query;
+    const limit = options?.limit;
+    if (query !== undefined && typeof query !== 'string') throw new KnowledgeError('INVALID_ADOPTED_QUERY', 422);
+    if (limit !== undefined && (!Number.isInteger(limit) || limit < 1 || limit > 100))
+      throw new KnowledgeError('INVALID_ADOPTED_QUERY', 422);
+    const binding = await this.requireAdoptedCurrent(commandId);
+    const frozen = binding.adopted;
+    let result;
+    try {
+      result = await this.service.browseAdopted(frozen.caller, section,
+        { ...(query === undefined ? {} : { query }), ...(limit === undefined ? {} : { limit }) });
+    } catch (error) { throw adoptionFailure(error); }
+    this.assertAdoptedResult(binding, result);
+    await this.requireAdoptedCurrent(commandId);
+    await this.recordConsumption(commandId, 'adopted_browse', { section, query: query ?? '', limit: limit ?? null }, []);
+    return { bindingSha256: binding.binding_sha256, libraryId: result.libraryId, versionId: result.versionId,
+      section: result.section, items: result.items, total: result.total, truncated: result.truncated };
+  }
+  async adoptedEvidence(commandId, query, limit = 8) {
+    if (typeof query !== 'string' || !query.trim() || !Number.isInteger(limit) || limit < 1 || limit > 20)
+      throw new KnowledgeError('INVALID_EVIDENCE_QUERY', 422);
+    const binding = await this.requireAdoptedCurrent(commandId);
+    const frozen = binding.adopted;
+    let result;
+    try { result = await this.service.adoptedEvidence(frozen.caller, query, limit); }
+    catch (error) { throw adoptionFailure(error); }
+    this.assertAdoptedResult(binding, result);
+    await this.requireAdoptedCurrent(commandId);
+    const facts = [];
+    const warnings = [...(Array.isArray(result.warnings) ? result.warnings : [])];
+    for (const item of result.items || []) {
+      const fact = this.adoptedFact(commandId, binding, { item, text: item.excerpt });
+      if (fact) facts.push(fact);
+      else warnings.push('content-revision-unavailable:' + String(item.evidenceId || 'unknown'));
+    }
+    const insufficiencies = [...(Array.isArray(result.insufficiencies) ? result.insufficiencies : [])];
+    if (!facts.length && !insufficiencies.includes('no-matching-evidence')) insufficiencies.push('no-matching-evidence');
+    await this.recordConsumption(commandId, 'adopted_evidence', { query, limit }, facts);
+    return { bindingSha256: binding.binding_sha256, libraryId: result.libraryId, versionId: result.versionId,
+      packageVersion: result.packageVersion ?? null, query: result.query, facts,
+      coverage: result.coverage, warnings, insufficiencies };
+  }
+  async adoptedReadRun(commandId, value, consume) {
+    const request = adoptedRequest(value);
+    const binding = await this.requireAdoptedCurrent(commandId);
+    const frozen = binding.adopted;
+    let result;
+    try { result = await this.service.readAdopted(frozen.caller, request); }
+    catch (error) { throw adoptionFailure(error); }
+    this.assertAdoptedResult(binding, result);
+    let raw = typeof result.content === 'string' ? result.content : '';
+    if (request.kind === 'source' && !raw.trim()) {
+      if (result.availability === 'metadata-only') throw new KnowledgeError('ADOPTED_METADATA_ONLY', 409,
+        'Only metadata was admitted for this source; no normalized or original body was consumed.');
+      throw new KnowledgeError('ADOPTED_SOURCE_CONTENT_UNAVAILABLE', 409,
+        'The selected source has no readable normalized content; request its bytes through the separate source route.');
+    }
+    if (!raw && result.record !== undefined) raw = JSON.stringify(result.record, null, 2);
+    if (!raw.trim()) throw new KnowledgeError('ADOPTED_CONTENT_UNAVAILABLE', 409,
+      'The selected record returned no readable content.');
+    if (!result.contentRevision) throw new KnowledgeError('ADOPTED_CONTENT_UNVERIFIED', 409,
+      'The selected version did not assert a contentRevision for the consumed record.');
+    const truncated = raw.length > 100000;
+    const text = truncated ? raw.slice(0, 100000) : raw;
+    const fact = this.adoptedFact(commandId, binding, { result, text });
+    if (!fact) throw new KnowledgeError('ADOPTED_CONTENT_UNVERIFIED', 409,
+      'No verified text content is available for this selected record.');
+    await this.requireAdoptedCurrent(commandId);
+    if (consume) await this.recordConsumption(commandId, 'adopted_read', { request }, [fact]);
+    return { bindingSha256: binding.binding_sha256, result: { ...result, content: text },
+      fact, returnedContentSha256: sha(Buffer.from(text)), contentTruncated: truncated };
+  }
+  async adoptedRead(commandId, request) { return this.adoptedReadRun(commandId, request, true); }
+  async adoptedRecord(commandId, request) { return this.adoptedReadRun(commandId, request, false); }
+  async adoptedSource(commandId, sourceId) {
+    if (!ADOPTED_ID.test(sourceId || '') || sourceId.split('/').includes('..'))
+      throw new KnowledgeError('INVALID_ADOPTED_SOURCE', 422);
+    const binding = await this.requireAdoptedCurrent(commandId);
+    const frozen = binding.adopted;
+    let value;
+    try { value = await this.service.adoptedSource(frozen.library_id, frozen.version_id, sourceId, frozen.caller); }
+    catch (error) { throw adoptionFailure(error); }
+    if (!value || !Buffer.isBuffer(value.bytes)) throw new KnowledgeError('ADOPTED_SOURCE_UNAVAILABLE', 409);
+    const actual = sha(value.bytes);
+    if (!value.contentRevision || actual !== value.contentRevision)
+      throw new KnowledgeError('ADOPTED_CONTENT_REVISION_MISMATCH', 409,
+        'The source bytes do not match the selected version contentRevision.');
+    await this.requireAdoptedCurrent(commandId);
+    return { ...value, sha256: actual };
+  }
+  async adoptedImage(commandId, imageId) {
+    if (!ADOPTED_ID.test(imageId || '') || imageId.split('/').includes('..'))
+      throw new KnowledgeError('INVALID_ADOPTED_IMAGE', 422);
+    const binding = await this.requireAdoptedCurrent(commandId);
+    const frozen = binding.adopted;
+    let value;
+    try { value = await this.service.adoptedImage(frozen.library_id, frozen.version_id, imageId, frozen.caller); }
+    catch (error) { throw adoptionFailure(error); }
+    if (!value || !Buffer.isBuffer(value.bytes)) throw new KnowledgeError('ADOPTED_SOURCE_UNAVAILABLE', 409);
+    await this.requireAdoptedCurrent(commandId);
+    return value;
+  }
   async original(commandId, documentId, versionId = null) {
     const binding = await this.loadBinding(commandId);
     const project = binding.project?.documents?.find(item => item.documentId === documentId);
@@ -823,6 +1221,11 @@ export class KnowledgeBridge {
       if (req.url === '/evidence/search') result = await this.search(commandId, body.query, body.limit ?? 8);
       else if (req.url === '/evidence/read') result = await this.read(commandId, body.documentId, body.firstPage ?? 1, body.count ?? 4);
       else if (req.url === '/evidence/topic') result = await this.topicRead(commandId);
+      else if (req.url === '/evidence/adopted/status') result = await this.adoptedStatus(commandId);
+      else if (req.url === '/evidence/adopted/browse') result = await this.adoptedBrowse(commandId, body.section,
+        { ...(body.query === undefined ? {} : { query: body.query }), ...(body.limit === undefined ? {} : { limit: body.limit }) });
+      else if (req.url === '/evidence/adopted/read') result = await this.adoptedRead(commandId, body);
+      else if (req.url === '/evidence/adopted/evidence') result = await this.adoptedEvidence(commandId, body.query, body.limit ?? 8);
       else if (req.url === '/evidence/analysis') result = await this.analysis(commandId, body.decisions,
         body.unitIds, body.expectedRevision, body.commandId);
       else { res.writeHead(404); res.end(); return; }

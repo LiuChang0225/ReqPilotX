@@ -1,5 +1,5 @@
 import { useEffect, useMemo, useState } from "react";
-import { useApplicationHost, type ApplicationKnowledgeInventory, type ApplicationKnowledgeSelection, type ApplicationKnowledgeTopic } from "./ApplicationHost";
+import { useApplicationHost, type ApplicationAdoptedLibrary, type ApplicationKnowledgeInventory, type ApplicationKnowledgeSelection, type ApplicationKnowledgeTopic } from "./ApplicationHost";
 import { useUiCopy, type UiTranslate } from "./HostLocaleContext";
 import "./knowledge-evidence-picker.css";
 
@@ -16,6 +16,10 @@ export function KnowledgeEvidencePicker({ projectId, initial, onChange, disabled
   const host = useApplicationHost();
   const knowledge = host?.knowledge;
   const [inventory, setInventory] = useState<ApplicationKnowledgeInventory | null>(null);
+  const [adoptedLibraries, setAdoptedLibraries] = useState<ApplicationAdoptedLibrary[]>([]);
+  const [adoptedChoice, setAdoptedChoice] = useState<{ libraryId: string; versionId: string } | null>(() =>
+    initial?.adopted ? { ...initial.adopted } : null);
+  const [adoptedLoaded, setAdoptedLoaded] = useState(false);
   const [error, setError] = useState("");
   const [loading, setLoading] = useState(false);
   const [projectIds, setProjectIds] = useState<string[]>(() => initial?.projectDocumentIds || []);
@@ -31,9 +35,13 @@ export function KnowledgeEvidencePicker({ projectId, initial, onChange, disabled
   const refresh = async () => {
     if (!knowledge?.available || !projectId) return;
     setLoading(true); setError("");
-    try { setInventory(await knowledge.inventory(projectId)); }
-    catch (cause) { setError(cause instanceof Error ? cause.message : l("knowledge.readFailed", "项目依据暂不可读取。")); }
-    finally { setLoading(false); }
+    const adoption = Boolean(knowledge.adoptionAvailable && knowledge.adoptedLibraries);
+    if (adoption) setAdoptedLoaded(false);
+    try {
+      setInventory(await knowledge.inventory(projectId));
+      if (adoption && knowledge.adoptedLibraries) setAdoptedLibraries(await knowledge.adoptedLibraries());
+    } catch (cause) { setError(cause instanceof Error ? cause.message : l("knowledge.readFailed", "项目依据暂不可读取。")); }
+    finally { if (adoption) setAdoptedLoaded(true); setLoading(false); }
   };
   useEffect(() => { void refresh(); }, [knowledge, projectId]);
   const initialKey = JSON.stringify(initial || null);
@@ -41,6 +49,7 @@ export function KnowledgeEvidencePicker({ projectId, initial, onChange, disabled
     setProjectIds(initial?.projectDocumentIds || []); setTeamId(initial?.team?.kbId || "");
     setTeamMode(initial?.team?.topicVersionId ? "TOPIC" : "LIVE"); setTeamIds(initial?.team?.documents || []);
     setTopicId(initial?.team?.topicVersionId || ""); setAuthoritative(initial?.team?.authoritative === true);
+    setAdoptedChoice(initial?.adopted ? { ...initial.adopted } : null);
   }, [projectId, initialKey]);
   useEffect(() => {
     if (!knowledge?.available || !teamId) { setTopics([]); return; }
@@ -49,8 +58,12 @@ export function KnowledgeEvidencePicker({ projectId, initial, onChange, disabled
       .catch(cause => { if (!controller.signal.aborted) setError(cause instanceof Error ? cause.message : l("knowledge.topicReadFailed", "保留主题暂不可读取。")); });
     return () => controller.abort();
   }, [knowledge, teamId]);
+  const adoptedLibrary = adoptedChoice ? adoptedLibraries.find(item => item.id === adoptedChoice.libraryId) : undefined;
+  const adoptedStale = Boolean(adoptedChoice && adoptedLibrary && adoptedLibrary.versionId !== adoptedChoice.versionId);
+  const adoptedUnavailable = Boolean(adoptedChoice && (!adoptedLibrary || adoptedLibrary.state === "blocked"));
   const selection = useMemo<ApplicationKnowledgeSelection | null>(() => {
     if (!selectionMode) return null;
+    if (adoptedChoice) return { mode: "NONE", adopted: { ...adoptedChoice } };
     const project = projectIds.filter(id => inventory?.projectDocuments.some(item => item.id === id));
     const team = teamId && (teamMode === "LIVE" ? teamIds.length > 0 : Boolean(topicId))
       ? { kbId: teamId, ...(teamMode === "LIVE" ? { documents: teamIds } : { topicVersionId: topicId }), authoritative }
@@ -58,8 +71,13 @@ export function KnowledgeEvidencePicker({ projectId, initial, onChange, disabled
     if (!project.length && !team) return null;
     return { mode: project.length && team ? "COMBINED" : project.length ? "PROJECT_REFERENCES" : "TEAM_KNOWLEDGE",
       projectDocumentIds: project, team };
-  }, [selectionMode, projectIds, teamId, teamMode, teamIds, topicId, authoritative, inventory]);
-  useEffect(() => { if (inventory) onChange?.(selection); }, [selection, onChange, inventory]);
+  }, [selectionMode, adoptedChoice, projectIds, teamId, teamMode, teamIds, topicId, authoritative, inventory]);
+  useEffect(() => {
+    if (adoptedChoice) { onChange?.(selection); return; }
+    if (!inventory) return;
+    if (knowledge?.adoptionAvailable && !adoptedLoaded) return;
+    onChange?.(selection);
+  }, [selection, onChange, inventory, adoptedChoice, adoptedLoaded, knowledge?.adoptionAvailable]);
   if (!knowledge?.available) return <p className="knowledge-evidence-unavailable">{l("knowledge.unavailable", "当前宿主未提供 PAIR 知识服务，不能在本次任务中选择内部依据。")}</p>;
   const library = inventory?.teamLibraries.find(item => item.id === teamId);
   const upload = async (files: File[]) => {
@@ -80,6 +98,32 @@ export function KnowledgeEvidencePicker({ projectId, initial, onChange, disabled
   return <section className="knowledge-evidence-picker" aria-label={l("knowledge.pickerAria", "内部依据")}>
     <header><div><strong>{selectionMode ? l("knowledge.pickerTitle", "内部依据（可选）") : l("knowledge.pickerTitleBrowse", "项目与团队依据")}</strong><p>{l("knowledge.pickerNote", "原件、解析与检索由 PAIR 保存；本次选择会冻结到任务版本。")}</p></div><button type="button" className="button ghost compact" disabled={loading || Boolean(busy)} onClick={() => void refresh()}>{loading ? l("knowledge.syncing", "正在同步…") : l("knowledge.syncDirectory", "同步目录")}</button></header>
     {error && <p role="alert" className="knowledge-evidence-error">{error}</p>}
+    {knowledge.adoptionAvailable && <section className="knowledge-evidence-adopted">
+      <h4>{l("knowledge.adoptedLibraries", "已注册知识库")}</h4>
+      <label>{l("knowledge.adoptedSelect", "选择库版本")}<select aria-label={l("knowledge.adoptedSelectAria", "选择已注册知识库")}
+        value={adoptedChoice && !adoptedStale && !adoptedUnavailable ? adoptedChoice.libraryId : ""} disabled={disabled}
+        onChange={event => {
+          const id = event.target.value;
+          if (!id) { setAdoptedChoice(null); return; }
+          const selected = adoptedLibraries.find(item => item.id === id);
+          if (selected && selected.state !== "blocked") setAdoptedChoice({ libraryId: id, versionId: selected.versionId });
+        }}>
+        <option value="">{adoptedStale ? l("knowledge.adoptedReselect", "请重新选择版本文档") : l("knowledge.adoptedNone", "本次不使用已注册知识库")}</option>
+        {adoptedLibraries.map(item => <option key={item.id} value={item.id} disabled={item.state === "blocked"}>
+          {item.name} · {l("knowledge.adoptedVersion", "版本 {version}", { version: item.versionId.slice(0, 12) })} · {l(`knowledge.adoptedState.${item.state}`, item.state)}
+        </option>)}
+      </select></label>
+      {!adoptedLibraries.length && <p className="knowledge-evidence-note">{l("knowledge.adoptedEmpty", "当前没有已注册的可选知识库；注册由 PAIR Host 的可信操作完成。")}</p>}
+      {adoptedChoice && adoptedStale && <p role="status" className="knowledge-evidence-note">{l("knowledge.adoptedStale", "已恢复冻结版本 {frozen}，当前注册版本已变为 {current}；请重新选择，不会自动切换。", {
+        frozen: adoptedChoice.versionId.slice(0, 12), current: adoptedLibrary?.versionId.slice(0, 12) || "—" })}</p>}
+      {adoptedChoice && adoptedUnavailable && !adoptedStale && <p role="status" className="knowledge-evidence-note">{l("knowledge.adoptedBlocked", "所选知识库检查未通过或当前不可用，不能用于本次任务。")}</p>}
+      {adoptedChoice && !adoptedStale && !adoptedUnavailable && adoptedLibrary && <p className="knowledge-evidence-note">{l("knowledge.adoptedSelected", "冻结版本：{version}{packageVersion}", {
+        version: adoptedChoice.versionId.slice(0, 12),
+        packageVersion: adoptedLibrary.packageVersion ? ` · ${l("knowledge.adoptedPackage", "包 {version}", { version: adoptedLibrary.packageVersion })}` : "",
+      })}{adoptedLibrary.state === "needs-update" ? ` · ${l("knowledge.adoptedNeedsUpdate", "检查建议最小更新；读取仍使用这个冻结版本。")}` : ""}</p>}
+      {adoptedChoice && (projectIds.length || teamId) && <p className="knowledge-evidence-note">{l("knowledge.adoptedExclusive", "已注册知识库与项目/团队依据在本次任务中互斥；当前仅使用已注册知识库。")}</p>}
+      <p className="knowledge-evidence-note">{l("knowledge.adoptedNote", "只列出 Host 已注册的库；任务会冻结当前版本，不自动切换到新版本。")}</p>
+    </section>}
     <section className="knowledge-evidence-project">
       <h4>{l("knowledge.projectReferences", "项目参考资料")} {inventory?.projectLibrary ? <small>· {inventory.projectLibrary.name}</small> : null}</h4>
       {!inventory?.projectDocuments.length && <p className="knowledge-evidence-note">{l("knowledge.noProjectReferences", "当前项目还没有参考资料。上传后仅用于本项目，不自动发布为团队知识。")}</p>}
@@ -130,7 +174,7 @@ export function KnowledgeEvidencePicker({ projectId, initial, onChange, disabled
         </>}
       </>}
     </section>
-    {selectionMode && <p className="knowledge-evidence-summary" role="status">{l("knowledge.summary", "本次任务依据：{scope}。未选择时不检索全部库。", { scope: selection?.mode === "PROJECT_REFERENCES" ? l("knowledge.summaryProject", "仅项目参考") : selection?.mode === "TEAM_KNOWLEDGE" ? l("knowledge.summaryTeam", "仅团队知识") : selection?.mode === "COMBINED" ? l("knowledge.summaryCombined", "项目参考 + 团队知识") : l("knowledge.summaryNone", "未选择内部依据；符合性分析将明确跳过") })}</p>}
+    {selectionMode && <p className="knowledge-evidence-summary" role="status">{l("knowledge.summary", "本次任务依据：{scope}。未选择时不检索全部库。", { scope: selection?.adopted ? l("knowledge.summaryAdopted", "已注册知识库冻结版本") : selection?.mode === "PROJECT_REFERENCES" ? l("knowledge.summaryProject", "仅项目参考") : selection?.mode === "TEAM_KNOWLEDGE" ? l("knowledge.summaryTeam", "仅团队知识") : selection?.mode === "COMBINED" ? l("knowledge.summaryCombined", "项目参考 + 团队知识") : l("knowledge.summaryNone", "未选择内部依据；符合性分析将明确跳过") })}</p>}
   </section>;
 }
 

@@ -28,7 +28,17 @@ Source removal, knowledge-file import and backend-native Agent execution are not
 
 The Requirement workbench now explains the required customer source, unavailable
 project-reference/team-knowledge inputs, expected outputs and the fixed stage
-order before the user starts. The user clicks Start once; no authored goal is
+order before the user starts. It can also list libraries already registered with
+the PAIR knowledge Host and freeze one exact library/version on a task-owned
+caller. The selection shows blocked or needs-update inspection state instead of
+claiming availability; a changed version is an explicit refusal, not a latest
+fallback. This bounded slice keeps the registered-library choice exclusive with
+the older project/team evidence choice. Claims, Wiki pages and source-index
+excerpts are derived records; only a source read whose actual bytes match the
+returned `contentRevision` is treated as a derived/source-record citation, never as
+project authority merely because bytes were readable. Experience,
+conflict and gap items retain their distinct meanings, and data without evidence
+remains an explicit insufficiency. The user clicks Start once; no authored goal is
 required. Optional supplementary instructions are retained as notes but cannot
 remove the Map, items, self-check or delivery prerequisites. The existing
 "check structure before items" option remains the declared confirmation branch.

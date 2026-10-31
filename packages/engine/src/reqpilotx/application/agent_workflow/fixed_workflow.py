@@ -18,7 +18,7 @@ WORKFLOW_SCHEMA = 'reqpilot-fixed-workflow/v1'
 STATE_SCHEMA = 'reqpilot-fixed-workflow-state/v1'
 WORKFLOW_ID = 'reqpilot-fixed-workflow'
 WORKFLOW_VERSION = '1.0.0'
-EVIDENCE_MODES = {'NONE', 'PROJECT_REFERENCES', 'TEAM_KNOWLEDGE', 'COMBINED'}
+EVIDENCE_MODES = {'NONE', 'PROJECT_REFERENCES', 'TEAM_KNOWLEDGE', 'COMBINED', 'ADOPTED_KNOWLEDGE'}
 STAGE_ORDER = (
     ('PREPARATION', '资料准备', True),
     ('SOURCE_MAP', '来源与结构', True),
@@ -98,6 +98,8 @@ def public_descriptor() -> dict:
              'reason': '宿主未提供 PAIR 知识服务。'},
             {'id': 'team_knowledge', 'label': '团队知识库', 'available': False,
              'reason': '宿主未提供 PAIR 知识服务。'},
+            {'id': 'adopted_knowledge', 'label': '已注册知识库版本', 'available': False,
+             'reason': '宿主未提供已注册知识库读取能力。'},
         ],
         'expected_outputs': [
             '可回查原文与顺序的文档结构',

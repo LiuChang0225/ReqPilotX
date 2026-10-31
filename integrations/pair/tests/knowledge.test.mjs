@@ -2,10 +2,13 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
 import { createHash } from 'node:crypto';
+import { createServer } from 'node:http';
+import { once } from 'node:events';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
 import { KnowledgeBridge } from '../host/src/knowledge.js';
 import { TaskLauncher } from '../host/src/task-launch.js';
+import { createHandler } from '../host/src/index.js';
 
 const digest = value => createHash('sha256').update(Buffer.isBuffer(value) ? value : typeof value === 'string' ? value : JSON.stringify(value)).digest('hex');
 const revision = text => digest(text);
@@ -254,6 +257,161 @@ test('TaskLauncher freezes the Host binding before preparation and exposes both 
   } finally { await launcher.close(); await rm(root, { recursive: true, force: true }); }
 });
 
+test('TaskLauncher freezes an adopted library version and exposes the adopted evidence MCP', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-launch-'));
+  const source = Buffer.from('customer source'); const sha = digest(source);
+  const commandId = '22345678-1234-4234-8234-123456789abc';
+  const libraryId = '11111111-1111-4111-8111-111111111111';
+  const versionId = 'b'.repeat(64);
+  const prepared = []; const adoptedCalls = [];
+  const runtime = { dataRoot: root, python: '/installed/python', ownerId: commandId,
+    snapshot: { status: 'READY', mode: 'managed', serviceOrigin: 'http://127.0.0.1:1234' },
+    async command(args, env, options) {
+      if (args.some(value => String(value).endsWith('task-workflow.py'))) return JSON.stringify({ status: 'READY', task_id: 'task-adopted',
+        workflow: { schema: 'reqpilot-fixed-workflow-state/v1', source_sha256: sha,
+          workflow: { id: 'reqpilot-fixed-workflow', version: '1.0.0', definition_sha256: 'd'.repeat(64),
+            brief_sha256: 'f'.repeat(64), evidence_mode: 'ADOPTED_KNOWLEDGE' },
+          stages: [{ id: 'PREPARATION', label: '资料准备', status: 'SAVED', evidence: [{ kind: 'TASK_CONTEXT', source_sha256: sha }] }],
+          next_stage: 'SOURCE_MAP', ready_to_review: false, verification: 'SAVED_ARTIFACTS_ONLY', open_items: [], human_acceptance: 'NOT_CLAIMED' } });
+      const input = JSON.parse(await readFile(args[2], 'utf8')); prepared.push(input);
+      await mkdir(input.workspace, { recursive: true });
+      const workspace = input.workspace;
+      return JSON.stringify({ schema: 'reqpilot-host-launch/v1', workspace, task_id: 'task-adopted', task_root: workspace,
+        work_ref: 'plugin-' + 'a'.repeat(32), source_sha256: sha, bundle_sha256: 'b'.repeat(64), prompt: 'Read request.md',
+        workflow: { schema: 'reqpilot-fixed-workflow-state/v1', source_sha256: sha,
+          workflow: { id: 'reqpilot-fixed-workflow', version: '1.0.0', definition_sha256: 'd'.repeat(64),
+            brief_sha256: 'f'.repeat(64), evidence_mode: 'ADOPTED_KNOWLEDGE' }, stages: [], ready_to_review: false,
+          verification: 'SAVED_ARTIFACTS_ONLY', open_items: [], human_acceptance: 'NOT_CLAIMED' },
+        tools: { schema: 'reqpilot-host-tools/v1', mcp: { command: '/installed/python',
+          args: [join(workspace, '.reqpilot/scripts/mcp_server.py'), '--working-root', workspace, '--source-root', workspace], cwd: workspace } } });
+    } };
+  const knowledge = {
+    available: () => true, adoptionAvailable: () => true,
+    prepareAdoptedBinding: async input => {
+      adoptedCalls.push(input);
+      return { schema_version: 'reqpilot-task-evidence/v1', mode: 'ADOPTED_KNOWLEDGE',
+        application_id: 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc', project_id: input.projectId,
+        created_at: '2026-10-31T00:00:00Z', project: null, team: null,
+        adopted: { library_id: input.libraryId, version_id: input.versionId,
+          caller: 'reqpilotx-task:reqpilotx-pair:12345678-1234-4234-8234-123456789abc:' + input.commandId + ':adopted',
+          name: 'Synthetic adopted library', package_version: '1.0.0' }, binding_sha256: 'c'.repeat(64) };
+    },
+    bindingPath: id => join(root, 'knowledge-bindings', id + '.binding.json'),
+    registerRecord() {}, checkBinding: async () => ({ state: 'CURRENT', message: '' }),
+    markStatus: async () => true,
+    mcpBinding: async (id, record) => ({ command: record.python, args: ['/knowledge-mcp.py', '/runtime.json'], cwd: record.prepared.workspace, serverName: 'reqpilot_knowledge' }),
+  };
+  const services = { defaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
+    workspaces: { async create() { return { workspace: { workspaceId: 'workspace-adopted' } }; } },
+    sessions: { async create(value) { return { sessionId: value.sessionId }; },
+      async selectSessionModel({ sessionId, ...selected }) { return { selected }; },
+      async prompt() { return { accepted: true }; } } };
+  const transport = async url => url.endsWith('/file') ? new Response(source)
+    : new Response(JSON.stringify([{ id: 'd', file_name: 'source.pdf', source_sha256: sha }]));
+  const launcher = new TaskLauncher(runtime, { taskMcp: true }, () => services, transport, knowledge);
+  launcher.ready = true; launcher.capabilityRoot = root; launcher.bundleSha = 'b'.repeat(64);
+  launcher.workflow = { schema: 'reqpilot-fixed-workflow/v1', id: 'reqpilot-fixed-workflow', version: '1.0.0',
+    definition_sha256: 'd'.repeat(64), evidence: { mode: 'NONE', reason: 'INTERNAL_EVIDENCE_NOT_WIRED' } };
+  try {
+    const receipt = await launcher.start({ commandId, projectId: 'p', documentId: 'd', sourceSha256: sha,
+      goal: 'Use the frozen adopted version.', adoptedKnowledge: { libraryId, versionId } });
+    assert.equal(receipt.status, 'ACCEPTED');
+    assert.equal(receipt.knowledgeEvidence.mode, 'ADOPTED_KNOWLEDGE');
+    assert.equal(adoptedCalls.length, 1);
+    assert.deepEqual(adoptedCalls[0], { commandId, projectId: 'p', libraryId, versionId });
+    assert.equal(prepared[0].evidence_mode, 'ADOPTED_KNOWLEDGE');
+    assert.equal(prepared[0].knowledge_evidence.adopted.version_id, versionId);
+    const saved = JSON.parse(await readFile(join(root, 'task-launches', commandId + '.json'), 'utf8'));
+    assert.equal(saved.workflow.evidence.mode, 'ADOPTED_KNOWLEDGE');
+    assert.deepEqual(saved.knowledgeSelection, { adoptedKnowledge: { libraryId, versionId } });
+    const bindings = await launcher.toolBindings(receipt.sessionId);
+    assert.equal(bindings.length, 2);
+    assert.equal(bindings[1].serverName, 'reqpilot_knowledge');
+    const listed = await launcher.list({ projectId: 'p', documentId: 'd', sourceSha256: sha });
+    assert.deepEqual(listed.tasks[0].request.adoptedKnowledge, { libraryId, versionId });
+    await assert.rejects(launcher.start({ commandId, projectId: 'p', documentId: 'd', sourceSha256: sha,
+      goal: 'Use the frozen adopted version.', adoptedKnowledge: { libraryId, versionId: 'c'.repeat(64) } }), /COMMAND_CONFLICT/);
+  } finally { await launcher.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('a restarted launcher restores the same adopted choice and retries the same frozen command', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-restart-'));
+  const source = Buffer.from('customer source'); const sha = digest(source);
+  const commandId = '32345678-1234-4234-8234-123456789abc';
+  const libraryId = '11111111-1111-4111-8111-111111111111';
+  const versionId = 'b'.repeat(64);
+  const created = []; const prompts = []; let failPrompt = true;
+  const runtime = { dataRoot: root, python: '/installed/python', ownerId: commandId,
+    snapshot: { status: 'READY', mode: 'managed', serviceOrigin: 'http://127.0.0.1:1234' },
+    async command(args) {
+      if (args.some(value => String(value).endsWith('task-workflow.py'))) return JSON.stringify({ status: 'READY', task_id: 'task-restart',
+        workflow: { schema: 'reqpilot-fixed-workflow-state/v1', source_sha256: sha,
+          workflow: { id: 'reqpilot-fixed-workflow', version: '1.0.0', definition_sha256: 'd'.repeat(64),
+            brief_sha256: 'f'.repeat(64), evidence_mode: 'ADOPTED_KNOWLEDGE' },
+          stages: [], next_stage: 'SOURCE_MAP', ready_to_review: false, verification: 'SAVED_ARTIFACTS_ONLY',
+          open_items: [], human_acceptance: 'NOT_CLAIMED' } });
+      const input = JSON.parse(await readFile(args[2], 'utf8'));
+      await mkdir(input.workspace, { recursive: true });
+      return JSON.stringify({ schema: 'reqpilot-host-launch/v1', workspace: input.workspace, task_id: 'task-restart',
+        task_root: input.workspace, work_ref: 'plugin-' + 'a'.repeat(32), source_sha256: sha, bundle_sha256: 'b'.repeat(64),
+        prompt: 'Read request.md', workflow: { schema: 'reqpilot-fixed-workflow-state/v1', source_sha256: sha,
+          workflow: { id: 'reqpilot-fixed-workflow', version: '1.0.0', definition_sha256: 'd'.repeat(64),
+            brief_sha256: 'f'.repeat(64), evidence_mode: 'ADOPTED_KNOWLEDGE' }, stages: [], ready_to_review: false,
+          verification: 'SAVED_ARTIFACTS_ONLY', open_items: [], human_acceptance: 'NOT_CLAIMED' },
+        tools: { schema: 'reqpilot-host-tools/v1', mcp: { command: '/installed/python',
+          args: [join(input.workspace, '.reqpilot/scripts/mcp_server.py'), '--working-root', input.workspace, '--source-root', input.workspace], cwd: input.workspace } } });
+    } };
+  const knowledge = {
+    available: () => true, adoptionAvailable: () => true,
+    prepareAdoptedBinding: async input => ({ schema_version: 'reqpilot-task-evidence/v1', mode: 'ADOPTED_KNOWLEDGE',
+      application_id: 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc', project_id: input.projectId,
+      created_at: '2026-10-31T00:00:00Z', project: null, team: null,
+      adopted: { library_id: input.libraryId, version_id: input.versionId,
+        caller: 'reqpilotx-task:reqpilotx-pair:12345678-1234-4234-8234-123456789abc:' + input.commandId + ':adopted',
+        name: 'Synthetic adopted library', package_version: '1.0.0' }, binding_sha256: 'c'.repeat(64) }),
+    bindingPath: id => join(root, 'knowledge-bindings', id + '.binding.json'),
+    registerRecord() {}, checkBinding: async () => ({ state: 'CURRENT', message: '' }), markStatus: async () => true,
+    mcpBinding: async (id, record) => ({ command: record.python, args: ['/knowledge-mcp.py', '/runtime.json'],
+      cwd: record.prepared.workspace, serverName: 'reqpilot_knowledge' }),
+  };
+  const services = { defaultModel: { currentSelection: () => ({ provider: 'p', model: 'm' }) },
+    workspaces: { async create() { return { workspace: { workspaceId: 'workspace-restart' } }; } },
+    sessions: {
+      async create(value) { created.push(value.sessionId); return { sessionId: value.sessionId }; },
+      async inspect() { throw Object.assign(Error('session/not-found'), { code: 'session/not-found' }); },
+      async selectSessionModel({ sessionId, ...selected }) { return { selected }; },
+      async prompt(input) { prompts.push(input); if (failPrompt) { failPrompt = false; throw Error('acknowledgement lost'); } return { accepted: true }; },
+    } };
+  const transport = async url => url.endsWith('/file') ? new Response(source)
+    : new Response(JSON.stringify([{ id: 'd', file_name: 'source.pdf', source_sha256: sha }]));
+  const configure = launcher => { launcher.ready = true; launcher.capabilityRoot = root; launcher.bundleSha = 'b'.repeat(64);
+    launcher.workflow = { schema: 'reqpilot-fixed-workflow/v1', id: 'reqpilot-fixed-workflow', version: '1.0.0',
+      definition_sha256: 'd'.repeat(64), evidence: { mode: 'NONE', reason: 'INTERNAL_EVIDENCE_NOT_WIRED' } }; return launcher; };
+  const first = configure(new TaskLauncher(runtime, { taskMcp: true }, () => services, transport, knowledge));
+  const request = { commandId, projectId: 'p', documentId: 'd', sourceSha256: sha,
+    goal: 'Use the frozen adopted version.', adoptedKnowledge: { libraryId, versionId } };
+  try {
+    await assert.rejects(first.start(request), /acknowledgement lost/);
+    const saved = JSON.parse(await readFile(join(root, 'task-launches', commandId + '.json'), 'utf8'));
+    assert.equal(saved.phase, 'START_REQUESTED');
+    assert.deepEqual(saved.knowledgeSelection, { adoptedKnowledge: { libraryId, versionId } });
+    const second = configure(new TaskLauncher(runtime, { taskMcp: true }, () => services, transport, knowledge));
+    const listed = await second.list({ projectId: 'p', documentId: 'd', sourceSha256: sha });
+    assert.deepEqual(listed.tasks[0].request.adoptedKnowledge, { libraryId, versionId });
+    assert.equal(listed.tasks[0].request.knowledge, undefined);
+    const receipt = await second.start(listed.tasks[0].request);
+    assert.equal(receipt.status, 'ACCEPTED');
+    assert.ok(created.every(id => id === saved.sessionId));
+    assert.ok(prompts.every(item => item.requestId === saved.requestId));
+    assert.equal(prompts.length, 2);
+    assert.equal(prompts[0].sessionId, prompts[1].sessionId);
+    const final = JSON.parse(await readFile(join(root, 'task-launches', commandId + '.json'), 'utf8'));
+    assert.equal(final.phase, 'ACCEPTED');
+    assert.deepEqual(final.knowledgeBinding.adopted.version_id, versionId);
+    assert.equal(final.selectedAgentModel.model, 'm');
+  } finally { await first.close(); await first.close(); await rm(root, { recursive: true, force: true }); }
+});
+
 test('analysis transport writes the consumed catalog and invokes the typed task owner without a second model', async () => {
   const root = await mkdtemp(join(tmpdir(), 'reqpilot-knowledge-analysis-'));
   const service = fakeKnowledge();
@@ -327,6 +485,76 @@ function fakeServer({ fail = false, delay = 0 } = {}) {
     return server;
   };
 }
+
+test('adopted evidence routes are task-caller scoped and return versioned facts', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-http-'));
+  const service = fakeAdopted();
+  const bridge = new KnowledgeBridge({ service, dataRoot: root, applicationId: 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc' });
+  try {
+    await bridge.prepareAdoptedBinding({ commandId: 'adopted-http', projectId: 'p',
+      libraryId: service.adoptedLibraries()[0].id, versionId: 'b'.repeat(64) });
+    bridge.registerRecord({ commandId: 'adopted-http', prepared: { workspace: root, task_root: root, task_id: 'task-adopted' } });
+    const runtime = JSON.parse(await readFile(await bridge.runtimeFile('adopted-http'), 'utf8'));
+    const post = (route, body) => fetch(runtime.endpoint + route, { method: 'POST',
+      headers: { 'content-type': 'application/json', authorization: 'Bearer ' + runtime.token },
+      body: JSON.stringify(body) }).then(response => response.json());
+    const status = await post('/evidence/adopted/status', {});
+    assert.equal(status.ok, true);
+    assert.equal(status.result.versionId, 'b'.repeat(64));
+    const browse = await post('/evidence/adopted/browse', { section: 'claims', limit: 5 });
+    assert.equal(browse.result.items[0].id, 'claim-1');
+    const evidence = await post('/evidence/adopted/evidence', { query: 'allowable', limit: 2 });
+    assert.equal(evidence.result.facts.length, 2);
+    assert.ok(evidence.result.facts.every(fact => fact.adopted.version_id === 'b'.repeat(64)));
+    const source = await post('/evidence/adopted/read', { kind: 'source', sourceId: 'source-1' });
+    assert.equal(source.result.fact.evidence_origin, 'derived');
+    assert.equal(source.result.fact.authority_verified, false);
+    assert.equal(source.result.fact.content_revision, service.normalizedRevision);
+    assert.equal(source.result.fact.source_version, service.originalRevision);
+    const legacy = await post('/evidence/search', { query: 'allowable' });
+    assert.equal(legacy.error.code, 'ADOPTED_TOOLS_REQUIRED');
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('every adopted fact kind resolves through its exact versioned record route', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-records-'));
+  const service = fakeAdopted();
+  const bridge = new KnowledgeBridge({ service, dataRoot: root, applicationId: 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc' });
+  const server = createServer(createHandler(null, () => undefined, fetch, () => ({ mode: 'managed', status: 'READY' }), null, bridge));
+  server.listen(0, '127.0.0.1'); await once(server, 'listening');
+  const origin = 'http://127.0.0.1:' + server.address().port;
+  try {
+    await bridge.prepareAdoptedBinding({ commandId: 'adopted-records', projectId: 'p',
+      libraryId: service.adoptedLibraries()[0].id, versionId: 'b'.repeat(64) });
+    const evidence = await bridge.adoptedEvidence('adopted-records', 'allowable load', 8);
+    const sourceRead = await bridge.adoptedRead('adopted-records', { kind: 'source', sourceId: 'source-1' });
+    const facts = [...evidence.facts, sourceRead.fact];
+    const expected = { claim: 'claim-1', experience: 'exp-1', conflict: 'conflict-1', gap: 'gap-1', wiki: 'guide.md', source: 'source-1' };
+    for (const fact of facts) {
+      const kind = fact.adopted.kind;
+      assert.match(fact.url, /\/adopted\/records\?/);
+      const response = await fetch(origin + fact.url);
+      assert.equal(response.status, 200, kind + ': ' + fact.url);
+      const body = await response.json();
+      assert.equal(body.kind, kind);
+      assert.equal(body.id, expected[kind]);
+    }
+    const claim = facts.find(fact => fact.adopted.kind === 'claim');
+    const linked = await fetch(origin + claim.linked_source_url);
+    assert.equal(linked.status, 200);
+    assert.equal(linked.headers.get('content-type'), 'application/pdf');
+    assert.equal(linked.headers.get('x-reqpilot-adopted-content-revision'), service.originalRevision);
+    assert.equal(digest(Buffer.from(await linked.arrayBuffer())), service.originalRevision);
+    const primary = await fetch(origin + claim.url);
+    const primaryBody = await primary.json();
+    assert.equal(primaryBody.kind, 'claim');
+    assert.equal(primaryBody.sourceId, 'source-1');
+    assert.notEqual(digest(Buffer.from(JSON.stringify(primaryBody))), service.originalRevision);
+  } finally {
+    await new Promise(resolve => server.close(resolve));
+    await bridge.close(); await rm(root, { recursive: true, force: true });
+  }
+});
 
 test('concurrent evidence server start shares one listener and retries after failure', async () => {
   const root = await mkdtemp(join(tmpdir(), 'reqpilot-knowledge-lifecycle-'));
@@ -432,5 +660,263 @@ test('analysis accepts unit subsets in caller order and normalizes the submitted
     assert.deepEqual(submitted.unit_ids, ['u1', 'u2']);
     assert.deepEqual(submitted.knowledge_attestation.unit_ids, ['u1', 'u2']);
     assert.deepEqual(ids, ['u2', 'u1']);
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+
+function fakeAdopted() {
+  const library = { id: '11111111-1111-4111-8111-111111111111', name: 'Synthetic adopted library',
+    purpose: 'Synthetic consumer fixture', operation: 'connect-existing', packageVersion: '1.0.0',
+    okfVersion: '1.0', versionId: 'b'.repeat(64), state: 'ready', recommendation: 'direct-use',
+    addedAt: '2026-10-31T00:00:00.000Z', lastCheckedAt: '2026-10-31T00:00:00.000Z',
+    counts: { sources: 1, claims: 1, entities: 0, relations: 0, images: 0, experiences: 1, conflicts: 1, gaps: 1, wikiPages: 1, files: 4 },
+    checks: [{ id: 'manifest', state: 'ok', summary: 'Synthetic manifest is complete.' }] };
+  const normalizedText = 'SYNTHETIC ADOPTED NORMALIZED CONTENT: the allowable load is 10 kN at the declared condition.';
+  const normalizedRevision = digest(normalizedText);
+  const originalBytes = Buffer.from([0x25, 0x50, 0x44, 0x46, 0x2d, 0x31, 0x2e, 0x37, 0x00, 0x01, 0x02, 0x03]);
+  const originalRevision = digest(originalBytes);
+  const declaredOriginalRevision = 'd'.repeat(64);
+  const claimsRevision = digest('synthetic claims table');
+  const experiencesRevision = digest('synthetic experiences table');
+  const conflictsRevision = digest('synthetic conflicts table');
+  const gapsRevision = digest('synthetic gaps table');
+  const wikiRevision = digest('synthetic wiki page');
+  const claim = { id: 'claim-1', subject: 'bearing', predicate: 'allowable_load', value: '10 kN',
+    source_id: 'source-1', scope: 'Synthetic scope', conditions: 'Synthetic condition',
+    review: { method: 'manual', reviewStatus: 'pending', expertApproved: 'false' } };
+  const records = {
+    claim: { kind: 'claim', id: 'claim-1', title: 'bearing', record: claim, revision: claimsRevision },
+    experience: { kind: 'experience', id: 'exp-1', title: 'Synthetic experience',
+      record: { id: 'exp-1', summary: 'Attributed experience, not proof.' }, revision: experiencesRevision },
+    conflict: { kind: 'conflict', id: 'conflict-1', title: 'Synthetic conflict',
+      record: { id: 'conflict-1', status: 'open' }, revision: conflictsRevision },
+    gap: { kind: 'gap', id: 'gap-1', title: 'Synthetic gap',
+      record: { id: 'gap-1', severity: 'medium' }, revision: gapsRevision },
+    wiki: { kind: 'wiki', id: 'guide.md', path: 'guide.md', title: 'Synthetic guide',
+      content: '# Synthetic guide\n\nDerived wiki content.', revision: wikiRevision },
+  };
+  const bindings = new Map(); const calls = []; const control = { metadataOnly: false };
+  return {
+    calls, control, normalizedText, normalizedRevision, originalBytes, originalRevision, declaredOriginalRevision,
+    claimsRevision, experiencesRevision, conflictsRevision, gapsRevision, wikiRevision, sourceText: normalizedText,
+    adoptedLibraries: () => [{ ...library }],
+    bindAdoptedSession: async (caller, libraryId) => {
+      if (libraryId !== library.id) throw Object.assign(Error('not-found'), { code: 'not-found' });
+      const value = { sessionId: caller, libraryId, versionId: library.versionId,
+        operation: 'connect-existing', boundAt: '2026-10-31T00:00:00.000Z' };
+      bindings.set(caller, value); calls.push({ op: 'bind', caller, libraryId });
+      return value;
+    },
+    adoptedBinding: caller => bindings.get(caller),
+    browseAdopted: async (caller, section) => {
+      if (!bindings.has(caller)) throw Object.assign(Error('library-unselected'), { code: 'library-unselected' });
+      return { libraryId: library.id, versionId: library.versionId, section, total: 1, truncated: false,
+        items: [{ id: section === 'wiki' ? 'guide.md' : 'claim-1', title: section === 'wiki' ? 'guide' : 'bearing' }] };
+    },
+    readAdopted: async (caller, request) => {
+      const binding = bindings.get(caller);
+      if (!binding) throw Object.assign(Error('library-unselected'), { code: 'library-unselected' });
+      if (request.kind === 'source') return { libraryId: library.id, versionId: library.versionId,
+        packageVersion: '1.0.0', kind: 'source', id: request.sourceId, sourceId: request.sourceId,
+        title: 'Original note', content: control.metadataOnly ? '' : normalizedText,
+        locator: { kind: 'logical-section', section: '2.1' },
+        availability: control.metadataOnly ? 'metadata-only' : 'original', admission: 'full_original',
+        sourceVersion: originalRevision, originalSourceVersion: declaredOriginalRevision,
+        contentRevision: normalizedRevision };
+      if (request.kind === 'wiki') return { libraryId: library.id, versionId: library.versionId,
+        packageVersion: '1.0.0', kind: 'wiki', id: request.path, path: request.path, title: 'Synthetic guide',
+        content: records.wiki.content, contentRevision: wikiRevision,
+        locator: { kind: 'logical-section', section: request.path }, availability: 'derived' };
+      const record = records[request.kind];
+      if (!record) throw Object.assign(Error('source-unavailable'), { code: 'source-unavailable' });
+      return { libraryId: library.id, versionId: library.versionId, packageVersion: '1.0.0',
+        kind: record.kind, id: record.id, title: record.title, record: record.record,
+        ...(record.kind === 'claim' ? { sourceId: 'source-1', sourceVersion: originalRevision,
+          originalSourceVersion: declaredOriginalRevision, admission: 'full_original',
+          review: claim.review, scope: claim.scope, conditions: claim.conditions,
+          availability: control.metadataOnly ? 'metadata-only' : 'original' } : {}),
+        locator: { kind: 'logical-section', section: '2.1' },
+        contentRevision: record.kind === 'claim' && control.metadataOnly ? claimsRevision : record.revision };
+    },
+    adoptedEvidence: async (caller, query, limit) => {
+      if (!bindings.has(caller)) throw Object.assign(Error('library-unselected'), { code: 'library-unselected' });
+      return { version: 1, libraryId: library.id, versionId: library.versionId, packageVersion: '1.0.0',
+        query, coverage: { scanned: 5, truncated: false }, warnings: [], insufficiencies: [],
+        items: [
+          { evidenceId: 'claim:claim-1', kind: 'claim', title: 'bearing',
+            excerpt: 'bearing allowable_load 10 kN at Synthetic condition', sourceId: 'source-1',
+            sourceVersion: originalRevision, packageVersion: '1.0.0',
+            locator: { kind: 'logical-section', section: '2.1' }, review: claim.review,
+            origin: 'derived', scope: claim.scope, conditions: claim.conditions,
+            availability: 'original', admission: 'full_original', originalSourceVersion: declaredOriginalRevision,
+            contentRevision: claimsRevision },
+          { evidenceId: 'experience:exp-1', kind: 'experience', title: 'Synthetic experience',
+            excerpt: 'Field experience is attributed and is not proof of an original.',
+            packageVersion: '1.0.0', origin: 'experience', contentRevision: experiencesRevision },
+          { evidenceId: 'wiki:guide.md', kind: 'wiki', title: 'Synthetic guide',
+            excerpt: 'Derived wiki guidance.', packageVersion: '1.0.0', origin: 'derived', contentRevision: wikiRevision },
+          { evidenceId: 'conflicts:conflict-1', kind: 'conflict', title: 'Synthetic conflict',
+            excerpt: 'Unresolved conflict stays visible.', packageVersion: '1.0.0', origin: 'conflict', contentRevision: conflictsRevision },
+          { evidenceId: 'gaps:gap-1', kind: 'gap', title: 'Synthetic gap',
+            excerpt: 'Open evidence gap stays explicit.', packageVersion: '1.0.0', origin: 'gap', contentRevision: gapsRevision },
+        ].slice(0, limit) };
+    },
+    adoptedSource: async (libraryId, versionId, sourceId, caller) => {
+      const binding = bindings.get(caller);
+      if (libraryId !== library.id || versionId !== library.versionId || binding?.versionId !== versionId)
+        throw Object.assign(Error('version-changed'), { code: 'version-changed' });
+      if (control.metadataOnly) throw Object.assign(Error('metadata-only'), { code: 'metadata-only' });
+      if (sourceId !== 'source-1') throw Object.assign(Error('source-unavailable'), { code: 'source-unavailable' });
+      return { bytes: originalBytes, mime: 'application/pdf', filename: 'note.pdf', availability: 'original',
+        contentRevision: originalRevision };
+    },
+    adoptedImage: async () => ({ bytes: Buffer.from([1]), mime: 'image/png' }),
+    setVersion: versionId => { library.versionId = versionId; },
+  };
+}
+
+test('adopted selection freezes the exact library version on a task-owned caller', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-binding-'));
+  const service = fakeAdopted();
+  const bridge = new KnowledgeBridge({ service, dataRoot: root, applicationId: 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc' });
+  try {
+    const binding = await bridge.prepareAdoptedBinding({ commandId: 'adopted-command', projectId: 'p',
+      libraryId: service.adoptedLibraries()[0].id, versionId: 'b'.repeat(64) });
+    assert.equal(binding.mode, 'ADOPTED_KNOWLEDGE');
+    assert.equal(binding.adopted.version_id, 'b'.repeat(64));
+    assert.equal(binding.adopted.caller, 'reqpilotx-task:reqpilotx-pair:12345678-1234-4234-8234-123456789abc:adopted-command:adopted');
+    assert.notEqual(binding.adopted.caller, 'session-native');
+    assert.deepEqual(service.calls.filter(value => value.op === 'bind').map(value => value.caller), [binding.adopted.caller]);
+    assert.equal((await bridge.checkBinding('adopted-command')).state, 'CURRENT');
+    await assert.rejects(bridge.prepareAdoptedBinding({ commandId: 'adopted-command', projectId: 'p',
+      libraryId: service.adoptedLibraries()[0].id, versionId: 'c'.repeat(64) }), /KNOWLEDGE_BINDING_CONFLICT/);
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('adopted evidence preserves derived origin, versions, review and honest insufficiency', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-evidence-'));
+  const service = fakeAdopted();
+  const bridge = new KnowledgeBridge({ service, dataRoot: root, applicationId: 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc' });
+  try {
+    await bridge.prepareAdoptedBinding({ commandId: 'adopted-evidence', projectId: 'p',
+      libraryId: service.adoptedLibraries()[0].id, versionId: 'b'.repeat(64) });
+    const result = await bridge.adoptedEvidence('adopted-evidence', 'allowable load', 8);
+    assert.equal(result.facts.length, 5);
+    const claim = result.facts.find(fact => fact.adopted.kind === 'claim');
+    const experience = result.facts.find(fact => fact.adopted.kind === 'experience');
+    const wiki = result.facts.find(fact => fact.adopted.kind === 'wiki');
+    const conflict = result.facts.find(fact => fact.adopted.kind === 'conflict');
+    const gap = result.facts.find(fact => fact.adopted.kind === 'gap');
+    assert.equal(claim.evidence_origin, 'derived');
+    assert.equal(claim.authority_verified, false);
+    assert.equal(claim.authority, 'UNKNOWN');
+    assert.equal(claim.source_sha256, service.claimsRevision);
+    assert.equal(claim.content_revision, service.claimsRevision);
+    assert.equal(claim.source_version, service.originalRevision);
+    assert.equal(claim.original_source_version, service.declaredOriginalRevision);
+    assert.equal(claim.original_revision, undefined);
+    assert.equal(claim.review.expertApproved, 'false');
+    assert.equal(claim.expert_approved_declared, false);
+    assert.equal(claim.source_ref.location.page_number, null);
+    assert.equal(claim.source_ref.location.section, '2.1');
+    assert.equal(claim.document_id, 'claim:claim-1');
+    assert.match(claim.url, /\/adopted\/records\?kind=claim&id=claim-1$/);
+    assert.match(claim.linked_source_url, /\/adopted\/source\/source-1$/);
+    assert.equal(experience.evidence_origin, 'experience');
+    assert.equal(experience.availability, 'not-applicable');
+    assert.equal(wiki.evidence_origin, 'derived');
+    assert.equal(conflict.evidence_origin, 'conflict');
+    assert.equal(gap.evidence_origin, 'gap');
+    for (const fact of [experience, wiki, conflict, gap]) {
+      assert.match(fact.url, /\/adopted\/records\?/);
+      assert.equal(fact.linked_source_url, undefined);
+    }
+    const catalog = await bridge.catalog('adopted-evidence');
+    assert.equal(catalog.registration.mode, 'ADOPTED_KNOWLEDGE');
+    assert.equal(catalog.catalog.documents[0].adopted_library_version_id, 'b'.repeat(64));
+    assert.equal(Object.keys(catalog.catalog.evidence_catalog).length, 5);
+
+    service.control.metadataOnly = true;
+    const metadata = await bridge.adoptedEvidence('adopted-evidence', 'allowable load', 8);
+    assert.equal(metadata.facts.length, 5);
+    const source = await bridge.adoptedRead('adopted-evidence', { kind: 'source', sourceId: 'source-1' }).catch(error => error);
+    assert.match(String(source.message), /ADOPTED_METADATA_ONLY/);
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('normalized adopted content and original bytes keep independent revisions and no authority promotion', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-read-'));
+  const service = fakeAdopted();
+  const bridge = new KnowledgeBridge({ service, dataRoot: root, applicationId: 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc' });
+  try {
+    await bridge.prepareAdoptedBinding({ commandId: 'adopted-read', projectId: 'p',
+      libraryId: service.adoptedLibraries()[0].id, versionId: 'b'.repeat(64) });
+    const read = await bridge.adoptedRead('adopted-read', { kind: 'source', sourceId: 'source-1' });
+    assert.equal(read.result.content, service.normalizedText);
+    assert.equal(read.fact.authority_verified, false);
+    assert.equal(read.fact.authority, 'UNKNOWN');
+    assert.equal(read.fact.evidence_origin, 'derived');
+    assert.equal(read.fact.original_read_proof, 'NOT_READ');
+    assert.equal(read.fact.original_revision, undefined);
+    assert.equal(read.fact.content_revision, service.normalizedRevision);
+    assert.equal(read.fact.source_version, service.originalRevision);
+    assert.equal(read.fact.original_source_version, service.declaredOriginalRevision);
+    assert.equal(read.fact.returned_content_sha256, digest(service.normalizedText));
+    assert.match(read.fact.url, /\/adopted\/records\?kind=source&id=source-1$/);
+    assert.match(read.fact.linked_source_url, /\/adopted\/source\/source-1$/);
+    assert.equal(read.returnedContentSha256, digest(service.normalizedText));
+    assert.notEqual(service.normalizedRevision, service.originalRevision);
+    const wiki = await bridge.adoptedRead('adopted-read', { kind: 'wiki', path: 'guide.md' });
+    assert.equal(wiki.fact.evidence_origin, 'derived');
+    assert.equal(wiki.fact.authority_verified, false);
+    assert.equal(wiki.fact.content_revision, service.wikiRevision);
+    const source = await bridge.adoptedSource('adopted-read', 'source-1');
+    assert.equal(digest(source.bytes), service.originalRevision);
+    assert.equal(source.contentRevision, service.originalRevision);
+    assert.equal(source.mime, 'application/pdf');
+    assert.notEqual(source.contentRevision, read.fact.content_revision);
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('adopted version changes and cumulative attestation cannot silently retarget', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-version-'));
+  const service = fakeAdopted();
+  const bridge = new KnowledgeBridge({ service, dataRoot: root, applicationId: 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc' });
+  try {
+    await bridge.prepareAdoptedBinding({ commandId: 'adopted-version', projectId: 'p',
+      libraryId: service.adoptedLibraries()[0].id, versionId: 'b'.repeat(64) });
+    const taskRoot = join(root, 'task'); await mkdir(taskRoot, { recursive: true });
+    const requests = [];
+    bridge.registerRecord({ commandId: 'adopted-version', documentId: 'doc', prepared: { task_root: taskRoot,
+      workspace: taskRoot, task_id: 'task-adopted', work_ref: 'plugin-' + 'a'.repeat(32) },
+    workspace: taskRoot, capabilityRoot: join(root, 'bundle'), python: '/installed/python' });
+    bridge.runtime = { dataRoot: root, attestationKey: 'a'.repeat(64),
+      command: async (argv, env, options) => {
+        const input = JSON.parse(await readFile(argv.at(-1), 'utf8')); requests.push(input);
+        return JSON.stringify({ status: 'SAVED', analysis: { assessed_unit_count: 2 } });
+      } };
+    const first = await bridge.adoptedEvidence('adopted-version', 'allowable load', 8);
+    const source = await bridge.adoptedRead('adopted-version', { kind: 'source', sourceId: 'source-1' });
+    const claim = first.facts.find(fact => fact.adopted.kind === 'claim');
+    assert.ok(claim && source.fact);
+    const decisions = [
+      { unit_id: 'u1', decision: 'PENDING_EVIDENCE', reason: 'The derived claim is cited but does not prove the linked original.',
+        evidence: [{ fact_id: claim.fact_id, quote: claim.text }], clarification_question: 'Provide the applicable controlled source.' },
+      { unit_id: 'u2', decision: 'NEEDS_CLARIFICATION', reason: 'The normalized content is a derived record, not project authority.',
+        evidence: [{ fact_id: source.fact.fact_id, quote: source.fact.text }], clarification_question: 'Confirm the applicable controlled source.' },
+    ];
+    const saved = await bridge.analysis('adopted-version', decisions, ['u1', 'u2'], 'workspace-revision-one', 'analysis-one');
+    assert.equal(saved.status, 'SAVED');
+    const attestation = requests[0].knowledge_attestation;
+    assert.equal(attestation.mode, 'ADOPTED_KNOWLEDGE');
+    assert.deepEqual([...attestation.consumed_fact_ids].sort(), [...first.facts.map(fact => fact.fact_id),
+      source.fact.fact_id].sort());
+    assert.equal(attestation.decisions.length, 2);
+    service.setVersion('c'.repeat(64));
+    assert.equal((await bridge.checkBinding('adopted-version')).state, 'CHANGED');
+    const stale = await bridge.adoptedEvidence('adopted-version', 'allowable load', 8).catch(error => error);
+    assert.match(String(stale.message), /ADOPTED_VERSION_CHANGED/);
+    const history = JSON.parse(await readFile(join(root, 'knowledge-analysis', 'adopted-version.history.json'), 'utf8'));
+    assert.equal(history.entries.length, 1);
   } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
 });

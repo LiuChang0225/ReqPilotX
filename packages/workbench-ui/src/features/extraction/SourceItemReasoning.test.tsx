@@ -109,6 +109,36 @@ it("keeps a single-item analysis scoped to the parent when its decomposition lis
   expect(JSON.parse(String(vi.mocked(request).mock.calls[0][1]?.body)).selected_unit_ids).toEqual([sid]);
 });
 
+it("labels adopted derived citations without fabricating a page or an original hash", () => {
+  const value = state();
+  value.assessments!.records[sid] = { decision: "PENDING_EVIDENCE", reason: "保留证据状态", clarification_question: "",
+    evidence: [{ fact_id: "claim", quote: "派生摘录" }, { fact_id: "source", quote: "已读取原件摘录" }] };
+  value.assessments!.evidence_catalog.claim = { document_id: "claim:1", document_name: "claim record",
+    source_sha256: "a".repeat(64), evidence_origin: "derived", availability: "original",
+    source_ref: { location: { page_number: null, section: "2.1" } },
+    adopted: { library_id: "lib", version_id: "b".repeat(64) },
+    url: "/reqpilotx/knowledge/tasks/command/adopted/records?kind=claim&id=claim-1",
+    linked_source_url: "/reqpilotx/knowledge/tasks/command/adopted/source/source-1",
+    linked_source_availability: "original" };
+  value.assessments!.evidence_catalog.source = { document_id: "source-1", document_name: "original note",
+    source_sha256: "c".repeat(64), evidence_origin: "derived", availability: "original",
+    original_read_proof: "NOT_READ", content_revision: "c".repeat(64),
+    source_ref: { location: { page_number: null, section: "2.1" } },
+    adopted: { library_id: "lib", version_id: "b".repeat(64) },
+    url: "/reqpilotx/knowledge/tasks/command/adopted/records?kind=source&id=source-1",
+    linked_source_url: "/reqpilotx/knowledge/tasks/command/adopted/source/source-1",
+    linked_source_availability: "original" };
+  const workflow = { state: value, busy: false, run: vi.fn(), citationUrl: (fact: { url?: string }) => fact.url } as unknown as Parameters<typeof SourceItemReasoningDetail>[0]["workflow"];
+  render(<SourceItemReasoningDetail workflow={workflow} sourceItemId={sid} requirementId="REQ-0001" onPageChange={vi.fn()} reviewMode />);
+  expect(screen.getAllByText(/派生记录/).length).toBeGreaterThanOrEqual(1);
+  expect(screen.queryByText(/已核对原件/)).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /claim record/ })).toHaveAttribute("href",
+    "/reqpilotx/knowledge/tasks/command/adopted/records?kind=claim&id=claim-1");
+  expect(screen.getAllByRole("link", { name: /关联原文件/ })[0]).toHaveAttribute("href",
+    "/reqpilotx/knowledge/tasks/command/adopted/source/source-1");
+  expect(screen.queryByRole("link", { name: /#page=/ })).not.toBeInTheDocument();
+});
+
 it("links a cited fact to the exact registered original and page", () => {
   const value = state();
   value.assessments!.records[sid] = { decision: "PENDING_EVIDENCE", reason: "引用不代表符合", clarification_question: "", evidence: [{ fact_id: "f", quote: "来源摘录" }] };

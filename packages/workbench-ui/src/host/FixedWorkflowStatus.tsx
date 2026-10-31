@@ -28,6 +28,7 @@ const evidenceLabels: Record<string, string> = {
 const optionalInputKeys: Record<string, { label: string; reason: string }> = {
   project_references: { label: "workflow.optional.project_references.label", reason: "workflow.optional.project_references.reason" },
   team_knowledge: { label: "workflow.optional.team_knowledge.label", reason: "workflow.optional.team_knowledge.reason" },
+  adopted_knowledge: { label: "workflow.optional.adopted_knowledge.label", reason: "workflow.optional.adopted_knowledge.reason" },
 };
 const expectedOutputKeys: Record<string, string> = {
   "可回查原文与顺序的文档结构": "workflow.expected.structure",
@@ -94,7 +95,8 @@ export function FixedWorkflowStatus({ state, unconfirmed, compact = false }: { s
     </li>)}</ol>
     {state.knowledge_evidence && <p className={state.knowledge_evidence.status === "CURRENT" ? "" : "agent-inline-notice"} role="status">
       {l("workflow.knowledgeEvidence", "内部依据：{mode} · {status}。已保存分析建议仍按当时引用保留。", {
-        mode: state.knowledge_evidence.mode || "NONE",
+        mode: state.knowledge_evidence.mode === "ADOPTED_KNOWLEDGE"
+          ? l("knowledge.modeAdopted", "已注册知识库版本") : state.knowledge_evidence.mode || "NONE",
         status: state.knowledge_evidence.status === "CURRENT"
           ? l("workflow.knowledgeCurrent", "任务冻结版本可读取")
           : state.knowledge_evidence.message || l("workflow.knowledgeUnconfirmed", "任务冻结版本未确认"),
