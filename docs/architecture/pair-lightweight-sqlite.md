@@ -23,7 +23,7 @@ bytes remain owned by the existing ReqPilotX code paths.
 | Deployment | Configuration | Storage |
 |---|---|---|
 | local | default, or `REQPILOT_DATABASE_BACKEND=sqlite-local` | `sqlite-local` |
-| local | `REQPILOT_DATABASE_URL` set, or `REQPILOT_DATABASE_BACKEND=postgresql` | `postgresql` |
+| local | `REQPILOT_DATABASE_URL` set, or `REQPILOT_DATABASE_BACKEND=postgresql` | `postgresql`; omitted URL keeps `postgresql://localhost/reqpilotx` |
 | test | `REQPILOT_TEST_MODE=1` | `sqlite-test` (unchanged) |
 | cloud | `REQPILOT_ENV=cloud` plus `REQPILOT_DATABASE_URL` | `postgresql` |
 
@@ -39,10 +39,25 @@ The local database is `<REQPILOT_STORAGE_DIR>/app.db`, owned by the ReqPilotX
 server. Pair does not put business tables in DSH or Session SQLite.
 
 Package resource `reqpilotx_server/resources/migrations/sqlite/` is the
-lightweight schema source. Startup records applied files in
-`reqpilotx_local_schema_migrations`, rejects a changed checksum for an applied
-migration, and runs additive DDL only for unapplied versions. PostgreSQL keeps
-its separate `resources/migrations/postgresql/` path and ledger.
+lightweight schema source. Startup first validates the complete packaged file
+set against `reqpilotx_local_schema_migrations`: unknown applied versions (for
+example a newer build), missing/renamed applied files, checksum changes and
+out-of-order pending versions are rejected before any schema or business write.
+A new SQLite store beside a historical PostgreSQL cluster/password marker is
+also refused instead of being created silently. Any existing SQLite file is
+preflighted read-only (including committed WAL content) before writable PRAGMAs:
+unversioned/unknown tables, empty-history stores with other tables, and unknown
+future history are refused unchanged; a genuinely empty destination initializes
+normally. Test-only legacy fixture preparation is explicit and unavailable in
+production; importing an older unversioned SQLite store remains the explicit
+RX06 migration path, not ordinary startup.
+
+Each pending migration runs with SQLite's own `BEGIN IMMEDIATE`/`COMMIT`
+semantics together with its ledger row, so a failing upgrade rolls back the
+schema and data changes and does not record the migration. Migration files are
+application-owned schema/data scripts and must not issue their own transaction
+control or non-transactional statements. PostgreSQL keeps its separate
+`resources/migrations/postgresql/` path and ledger.
 
 Each connection enables foreign keys, WAL, a 30-second busy timeout and
 `BEGIN IMMEDIATE` for multi-writer business sections. Commits remain short;

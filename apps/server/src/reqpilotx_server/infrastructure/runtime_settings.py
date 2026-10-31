@@ -148,7 +148,10 @@ class RuntimeSettings:
             ).strip().lower()
             if requested_backend == DatabaseBackend.POSTGRESQL.value:
                 database_backend = DatabaseBackend.POSTGRESQL
-                database_url = str(source.get("REQPILOT_DATABASE_URL") or "").strip()
+                database_url = str(
+                    source.get("REQPILOT_DATABASE_URL")
+                    or "postgresql://localhost/reqpilotx"
+                ).strip()
                 _validate_postgresql_url(database_url)
             elif requested_backend == DatabaseBackend.SQLITE_LOCAL.value:
                 if str(source.get("REQPILOT_DATABASE_URL") or "").strip():

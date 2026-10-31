@@ -11,6 +11,7 @@ activate_test_runtime()
 
 import hashlib
 import os
+import shutil
 import sqlite3
 from contextlib import ExitStack
 from pathlib import Path
@@ -95,6 +96,22 @@ class LightweightSqliteSettingsTests(unittest.TestCase):
                 prototype_dir=root,
             )
             self.assertEqual(explicit.database_backend, DatabaseBackend.POSTGRESQL)
+            explicit_without_url = RuntimeSettings.from_environment(
+                environment={
+                    "REQPILOT_ENV": "local",
+                    "REQPILOT_DATABASE_BACKEND": "postgresql",
+                    "REQPILOT_STORAGE_DIR": str(root / "storage"),
+                },
+                prototype_dir=root,
+            )
+            self.assertEqual(
+                explicit_without_url.database_backend,
+                DatabaseBackend.POSTGRESQL,
+            )
+            self.assertEqual(
+                explicit_without_url.database_url,
+                "postgresql://localhost/reqpilotx",
+            )
             cloud = RuntimeSettings.from_environment(
                 environment={
                     "REQPILOT_ENV": "cloud",
@@ -117,6 +134,39 @@ class LightweightSqliteSettingsTests(unittest.TestCase):
                     },
                     prototype_dir=root,
                 )
+
+    def test_legacy_fixture_preparation_is_test_only(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rx01-test-only-") as temporary:
+            root = Path(temporary)
+            db.configure_runtime(_local_settings(root))
+            with self.assertRaises(RuntimeError):
+                db.prepare_test_legacy_sqlite_fixture(root / "legacy.db")
+            self.assertFalse((root / "legacy.db").exists())
+
+    def test_init_db_refuses_to_create_beside_a_historical_postgres_root(self) -> None:
+        with tempfile.TemporaryDirectory(prefix="rx01-legacy-root-") as temporary:
+            root = Path(temporary)
+            storage = root / "storage"
+            settings = _local_settings(root)
+            with ExitStack() as stack:
+                stack.enter_context(patch.object(db, "STORAGE_DIR", storage))
+                stack.enter_context(patch.object(db, "DB_PATH", storage / "app.db"))
+                db.configure_runtime(settings)
+                (root / "postgres").mkdir()
+                (root / "postgres" / "PG_VERSION").write_text("17\n", encoding="utf-8")
+                (root / "customer-data").write_text("keep", encoding="utf-8")
+                with self.assertRaises(db.LegacyPostgresDataRootError):
+                    db.init_db()
+                self.assertFalse((storage / "app.db").exists())
+                self.assertEqual(
+                    (root / "postgres" / "PG_VERSION").read_text(encoding="utf-8"),
+                    "17\n",
+                )
+                self.assertEqual(
+                    (root / "customer-data").read_text(encoding="utf-8"),
+                    "keep",
+                )
+            db.close_runtime_database()
 
     def test_test_mode_is_a_distinct_backend(self) -> None:
         with tempfile.TemporaryDirectory(prefix="rx01-settings-") as temporary:
@@ -247,6 +297,77 @@ class LightweightSqlitePublicApiTests(unittest.TestCase):
         with self.assertRaises(RuntimeError):
             runtime._runtime_record_path(document)
 
+    def _init_against_path(self, database_path: Path) -> None:
+        with patch.object(db, "DB_PATH", database_path):
+            db.init_db()
+
+    def test_existing_unversioned_sqlite_is_rejected_without_mutation(self) -> None:
+        database = self.root / "unknown.db"
+        conn = sqlite3.connect(database)
+        try:
+            conn.execute("CREATE TABLE unrelated (id TEXT PRIMARY KEY, value TEXT)")
+            conn.execute("INSERT INTO unrelated VALUES ('one', 'keep')")
+            conn.commit()
+        finally:
+            conn.close()
+        before = database.read_bytes()
+        with self.assertRaises(db.SQLiteStoreAdoptionError):
+            self._init_against_path(database)
+        self.assertEqual(database.read_bytes(), before)
+        conn = sqlite3.connect(database)
+        try:
+            self.assertEqual(
+                conn.execute("SELECT id, value FROM unrelated").fetchall(),
+                [("one", "keep")],
+            )
+            self.assertIsNone(
+                conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name='reqpilotx_local_schema_migrations'"
+                ).fetchone()
+            )
+            self.assertEqual(
+                str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower(),
+                "delete",
+            )
+        finally:
+            conn.close()
+
+    def test_empty_preexisting_destination_initializes(self) -> None:
+        database = self.root / "empty.db"
+        database.touch()
+        self._init_against_path(database)
+        conn = sqlite3.connect(database)
+        try:
+            self.assertEqual(
+                conn.execute(
+                    "SELECT version FROM reqpilotx_local_schema_migrations"
+                ).fetchall(),
+                [("0001_lightweight_local_schema",)],
+            )
+        finally:
+            conn.close()
+
+    def test_future_history_in_live_wal_is_rejected_read_only(self) -> None:
+        database = self.root / "wal-future.db"
+        self._init_against_path(database)
+        writer = sqlite3.connect(database, timeout=5.0)
+        try:
+            writer.execute("PRAGMA wal_autocheckpoint = 0")
+            writer.execute(
+                "INSERT INTO reqpilotx_local_schema_migrations "
+                "(version, name, sha256, applied_at) VALUES (?, ?, ?, ?)",
+                ("9999_future_schema", "9999_future_schema.sql", "f" * 64, "future"),
+            )
+            writer.commit()
+            wal = database.with_name(database.name + "-wal")
+            self.assertGreater(wal.stat().st_size, 0)
+            with self.assertRaises(db.SQLiteUnknownAppliedMigrationError):
+                self._init_against_path(database)
+            self.assertGreater(wal.stat().st_size, 0)
+        finally:
+            writer.close()
+
     def test_local_database_enforces_foreign_keys_and_migration_identity(self) -> None:
         with db.get_conn() as conn:
             self.assertEqual(int(conn.execute("PRAGMA foreign_keys").fetchone()[0]), 1)
@@ -265,6 +386,35 @@ class LightweightSqlitePublicApiTests(unittest.TestCase):
                     """
                 )
 
+    def test_unknown_future_schema_is_rejected_before_changes(self) -> None:
+        project = db.create_project("Future guard", "Synthetic")
+        with db.get_conn() as conn:
+            tables_before = {
+                row["name"]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            conn.execute(
+                """
+                INSERT INTO reqpilotx_local_schema_migrations
+                (version, name, sha256, applied_at)
+                VALUES ('9999_future_schema', '9999_future_schema.sql', ?, 'future')
+                """,
+                ("f" * 64,),
+            )
+        with self.assertRaises(db.SQLiteUnknownAppliedMigrationError):
+            db.init_db()
+        with db.get_conn() as conn:
+            tables_after = {
+                row["name"]
+                for row in conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type = 'table'"
+                )
+            }
+            self.assertEqual(tables_after, tables_before)
+        self.assertEqual(db.get_project(project["id"])["name"], "Future guard")
+
     def test_applied_sqlite_migration_checksum_change_is_rejected(self) -> None:
         with db.get_conn() as conn:
             conn.execute(
@@ -273,6 +423,69 @@ class LightweightSqlitePublicApiTests(unittest.TestCase):
             )
         with self.assertRaises(db.SQLiteMigrationDriftError):
             db.init_db()
+
+    def test_failed_migration_rolls_back_schema_and_preserves_business_data(self) -> None:
+        project = db.create_project("Rollback guard", "Synthetic")
+        migrations = self.root / "failing-migrations"
+        migrations.mkdir()
+        shutil.copy(
+            db.sqlite_migration_dir() / "0001_lightweight_local_schema.sql",
+            migrations / "0001_lightweight_local_schema.sql",
+        )
+        (migrations / "0002_failing_probe.sql").write_text(
+            """
+            CREATE TABLE rx01_failed_probe (id TEXT PRIMARY KEY);
+            INSERT INTO rx01_failed_probe (id) VALUES ('partial');
+            INSERT INTO rx01_missing_table (id) VALUES ('boom');
+            """,
+            encoding="utf-8",
+        )
+        with patch.object(db, "sqlite_migration_dir", return_value=migrations):
+            with self.assertRaises(sqlite3.OperationalError):
+                db.init_db()
+        with db.get_conn() as conn:
+            versions = [
+                row["version"]
+                for row in conn.execute(
+                    "SELECT version FROM reqpilotx_local_schema_migrations ORDER BY version"
+                )
+            ]
+            failed_table = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'rx01_failed_probe'"
+            ).fetchone()
+        self.assertEqual(versions, ["0001_lightweight_local_schema"])
+        self.assertIsNone(failed_table)
+        self.assertEqual(db.get_project(project["id"])["name"], "Rollback guard")
+
+    def test_successful_new_migration_commits_once_and_reopens(self) -> None:
+        migrations = self.root / "successful-migrations"
+        migrations.mkdir()
+        shutil.copy(
+            db.sqlite_migration_dir() / "0001_lightweight_local_schema.sql",
+            migrations / "0001_lightweight_local_schema.sql",
+        )
+        (migrations / "0002_successful_probe.sql").write_text(
+            "CREATE TABLE rx01_successful_probe (id TEXT PRIMARY KEY);",
+            encoding="utf-8",
+        )
+        with patch.object(db, "sqlite_migration_dir", return_value=migrations):
+            db.init_db()
+            db.init_db()
+        with db.get_conn() as conn:
+            versions = [
+                row["version"]
+                for row in conn.execute(
+                    "SELECT version FROM reqpilotx_local_schema_migrations ORDER BY version"
+                )
+            ]
+            probe = conn.execute(
+                "SELECT name FROM sqlite_master WHERE type = 'table' AND name = 'rx01_successful_probe'"
+            ).fetchone()
+        self.assertEqual(
+            versions,
+            ["0001_lightweight_local_schema", "0002_successful_probe"],
+        )
+        self.assertIsNotNone(probe)
 
 
 if __name__ == "__main__":

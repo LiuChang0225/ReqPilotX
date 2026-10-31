@@ -20,7 +20,7 @@ Source removal, knowledge-file import and backend-native Agent execution are not
 - On activation, the Host checks the non-editable Python installation, acquires its own data-directory lease, applies the application-owned SQLite migrations and starts the shared Python API on an OS-assigned loopback port. It does not probe or start PostgreSQL and needs no PostgreSQL binary or driver. No worker or model process is launched.
 - Native Pair project creation, project selection, PDF upload and original-page viewing. Reads/creates use the existing ReqPilotX API and storage; no second project/document ledger.
 - Existing saved works are listed under the selected document and open the same shared workbench. Managed Pair enables source-bound feedback, Map confirmation, engineer opinions and immutable delivery saves through the application's persisted plugin-workbench API; connect mode remains readonly. Pair automatically provides internal addresses and scope. A bound task may stop its live Pair turn or submit an explicit continuation to the same Session. Business completion, endpoint reconnection and push Agent events remain pending.
-- Disable/stop terminates only owned DSH subprocess handles. Data remains. Restart reuses the same SQLite data root and project/document identities. Unknown nonempty directories, competing live owners and historical PostgreSQL data roots are rejected, not adopted.
+- Disable/stop terminates only owned DSH subprocess handles. Data remains. Restart reuses the same SQLite data root and project/document identities. Unknown nonempty directories, competing live owners, unversioned/unknown SQLite files and historical PostgreSQL data roots are rejected, not adopted.
 
 ## Code and ownership
 

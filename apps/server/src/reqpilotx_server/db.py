@@ -44,8 +44,28 @@ class RequirementSetMutationBlocked(PermissionError):
     """Raised when a serialized Requirement Set mutation is not permitted."""
 
 
-class SQLiteMigrationDriftError(RuntimeError):
+class SQLiteMigrationStateError(RuntimeError):
+    """Raised when applied or packaged SQLite migration identities disagree."""
+
+
+class SQLiteMigrationDriftError(SQLiteMigrationStateError):
     """Raised when an applied lightweight SQLite migration changed."""
+
+
+class SQLiteUnknownAppliedMigrationError(SQLiteMigrationStateError):
+    """Raised when the database records a migration this build does not own."""
+
+
+class SQLiteMigrationOrderError(SQLiteMigrationStateError):
+    """Raised when a pending migration is older than an applied migration."""
+
+
+class LegacyPostgresDataRootError(RuntimeError):
+    """Raised instead of creating a new SQLite store beside old PostgreSQL data."""
+
+
+class SQLiteStoreAdoptionError(RuntimeError):
+    """Raised when an existing SQLite file has no verifiable ReqPilotX history."""
 
 
 class RequirementSetPublicationConflict(RuntimeError):
@@ -379,11 +399,130 @@ def _postgres_database() -> PostgresDatabase:
 
 
 _SQLITE_MIGRATION_TABLE = "reqpilotx_local_schema_migrations"
+_SQLITE_MIGRATION_FILE_RE = re.compile(r"^(?P<version>[0-9]{4}_[a-z0-9_]+)\.sql$")
+
+
+def _sqlite_migration_state(conn: sqlite3.Connection) -> tuple[
+    tuple[tuple[str, str, str, str], ...],
+    dict[str, tuple[str, str]],
+]:
+    """Validate packaged and applied migration identities before any DDL."""
+
+    migrations: list[tuple[str, str, str, str]] = []
+    seen: set[str] = set()
+    for path in sorted(sqlite_migration_dir().glob("*.sql")):
+        match = _SQLITE_MIGRATION_FILE_RE.fullmatch(path.name)
+        if match is None:
+            raise SQLiteMigrationStateError(
+                f"SQLite migration filename is not recognized: {path.name}"
+            )
+        version = match.group("version")
+        if version in seen:
+            raise SQLiteMigrationStateError(
+                f"SQLite migration version is duplicated: {version}"
+            )
+        seen.add(version)
+        sql = path.read_text(encoding="utf-8")
+        sha256 = hashlib.sha256(sql.encode("utf-8")).hexdigest()
+        migrations.append((version, path.name, sha256, sql))
+    if not migrations:
+        raise SQLiteMigrationStateError("No SQLite migrations are installed.")
+
+    applied: dict[str, tuple[str, str]] = {}
+    has_ledger = conn.execute(
+        "SELECT 1 FROM sqlite_master WHERE type = 'table' AND name = ?",
+        (_SQLITE_MIGRATION_TABLE,),
+    ).fetchone()
+    if has_ledger is not None:
+        try:
+            rows = conn.execute(
+                f"SELECT version, name, sha256 FROM {_SQLITE_MIGRATION_TABLE}"
+            ).fetchall()
+        except sqlite3.DatabaseError as exc:
+            raise SQLiteMigrationStateError(
+                "The SQLite migration ledger is unreadable."
+            ) from exc
+        for row in rows:
+            version = str(row["version"])
+            if not re.fullmatch(r"[0-9]{4}_[a-z0-9_]+", version):
+                raise SQLiteMigrationStateError(
+                    f"Applied SQLite migration version is invalid: {version}"
+                )
+            applied[version] = (
+                str(row["name"]),
+                str(row["sha256"]),
+            )
+
+    known = {version for version, *_ in migrations}
+    unknown = sorted(set(applied) - known)
+    if unknown:
+        raise SQLiteUnknownAppliedMigrationError(
+            "Database contains SQLite migrations unknown to this build: "
+            + ", ".join(unknown)
+        )
+    by_version = {
+        version: (name, sha256, sql)
+        for version, name, sha256, sql in migrations
+    }
+    for version, (name, sha256) in applied.items():
+        expected_name, expected_sha256, _sql = by_version[version]
+        if name != expected_name or sha256 != expected_sha256:
+            raise SQLiteMigrationDriftError(
+                f"SQLite migration {version} changed after application."
+            )
+    latest_applied = max(applied) if applied else ""
+    for version, _name, _sha256, _sql in migrations:
+        if version not in applied and latest_applied and version <= latest_applied:
+            raise SQLiteMigrationOrderError(
+                "A packaged SQLite migration is older than applied history: "
+                f"{version}"
+            )
+    return tuple(migrations), applied
+
+
+def _sqlite_literal(conn: sqlite3.Connection, value: str) -> str:
+    row = conn.execute("SELECT quote(?)", (value,)).fetchone()
+    if row is None:
+        raise RuntimeError("SQLite literal quoting failed.")
+    return str(row[0])
+
+
+def _apply_sqlite_migration(
+    conn: sqlite3.Connection,
+    *,
+    version: str,
+    name: str,
+    sha256: str,
+    sql: str,
+) -> None:
+    """Apply one migration and its ledger row in one SQLite transaction."""
+
+    script = (
+        "BEGIN IMMEDIATE;\n"
+        + sql.rstrip()
+        + "\n;\n"
+        + f"INSERT INTO {_SQLITE_MIGRATION_TABLE} "
+        + "(version, name, sha256, applied_at) VALUES ("
+        + _sqlite_literal(conn, version)
+        + ", "
+        + _sqlite_literal(conn, name)
+        + ", "
+        + _sqlite_literal(conn, sha256)
+        + ", "
+        + _sqlite_literal(conn, datetime.now(timezone.utc).isoformat())
+        + ");\nCOMMIT;\n"
+    )
+    try:
+        conn.executescript(script)
+    except BaseException:
+        conn.rollback()
+        raise
 
 
 def _apply_sqlite_migrations(conn: sqlite3.Connection) -> None:
-    """Apply application-owned SQLite schema migrations exactly once."""
+    """Validate and apply application-owned SQLite migrations exactly once."""
 
+    migrations, applied = _sqlite_migration_state(conn)
     conn.execute(
         f"""
         CREATE TABLE IF NOT EXISTS {_SQLITE_MIGRATION_TABLE} (
@@ -394,45 +533,166 @@ def _apply_sqlite_migrations(conn: sqlite3.Connection) -> None:
         )
         """
     )
-    applied = {
-        str(row["version"]): str(row["sha256"])
-        for row in conn.execute(
-            f"SELECT version, sha256 FROM {_SQLITE_MIGRATION_TABLE}"
-        ).fetchall()
-    }
-    for path in sorted(sqlite_migration_dir().glob("*.sql")):
-        version = path.stem
-        sql = path.read_text(encoding="utf-8")
-        sha256 = hashlib.sha256(sql.encode("utf-8")).hexdigest()
-        existing_sha256 = applied.get(version)
-        if existing_sha256 is not None:
-            if existing_sha256 != sha256:
-                raise SQLiteMigrationDriftError(
-                    f"SQLite migration {version} checksum changed after application."
-                )
+    for version, name, sha256, sql in migrations:
+        if version in applied:
             continue
-        # The baseline script is additive (CREATE ... IF NOT EXISTS), so a
-        # crashed first initialization is safely repaired by the next startup.
+        _apply_sqlite_migration(
+            conn,
+            version=version,
+            name=name,
+            sha256=sha256,
+            sql=sql,
+        )
+
+
+def prepare_test_legacy_sqlite_fixture(database_path: str | Path) -> None:
+    """Explicitly prepare an unversioned fixture for test-only upgrades.
+
+    Production local startup never calls this. Ordinary unversioned stores are
+    rejected and older-format migration belongs to RX06.
+    """
+
+    if not _RUNTIME_SETTINGS.is_test:
+        raise RuntimeError("Legacy SQLite fixture preparation is test-only.")
+    path = Path(database_path)
+    inspector = _readonly_sqlite_connection(path)
+    try:
+        migrations, _applied = _sqlite_migration_state(inspector)
+    finally:
+        inspector.close()
+    version, name, sha256, sql = migrations[0]
+    conn = sqlite3.connect(path)
+    try:
+        conn.execute(
+            f"""
+            CREATE TABLE IF NOT EXISTS {_SQLITE_MIGRATION_TABLE} (
+                version TEXT PRIMARY KEY,
+                name TEXT NOT NULL,
+                sha256 TEXT NOT NULL CHECK(length(sha256) = 64),
+                applied_at TEXT NOT NULL
+            )
+            """
+        )
         conn.executescript(sql)
         conn.execute(
             f"""
-            INSERT INTO {_SQLITE_MIGRATION_TABLE}
+            INSERT OR IGNORE INTO {_SQLITE_MIGRATION_TABLE}
             (version, name, sha256, applied_at)
             VALUES (?, ?, ?, ?)
             """,
-            (
-                version,
-                path.name,
-                sha256,
-                datetime.now(timezone.utc).isoformat(),
-            ),
+            (version, name, sha256, datetime.now(timezone.utc).isoformat()),
         )
+        conn.commit()
+    finally:
+        conn.close()
+
+
+def _readonly_sqlite_connection(path: Path) -> sqlite3.Connection:
+    conn = sqlite3.connect(path.resolve().as_uri() + "?mode=ro", uri=True, timeout=5.0)
+    conn.row_factory = sqlite3.Row
+    return conn
+
+
+def _sqlite_user_tables(conn: sqlite3.Connection) -> set[str]:
+    return {
+        str(row["name"])
+        for row in conn.execute(
+            "SELECT name FROM sqlite_master "
+            "WHERE type = 'table' AND name NOT LIKE 'sqlite_%'"
+        ).fetchall()
+    }
+
+
+def _preflight_existing_sqlite_store() -> None:
+    """Validate an existing store read-only, including committed WAL contents."""
+
+    if not DB_PATH.exists():
+        return
+    try:
+        size = DB_PATH.stat().st_size
+    except OSError as exc:
+        raise SQLiteStoreAdoptionError(
+            "The existing SQLite database cannot be inspected."
+        ) from exc
+    if size == 0:
+        for suffix in ("-wal", "-shm"):
+            sidecar = DB_PATH.with_name(DB_PATH.name + suffix)
+            try:
+                if sidecar.stat().st_size > 0:
+                    break
+            except FileNotFoundError:
+                continue
+            except OSError as exc:
+                raise SQLiteStoreAdoptionError(
+                    "The existing SQLite database cannot be inspected."
+                ) from exc
+        else:
+            return
+    try:
+        # mode=ro reads the live WAL chain; immutable=1 would ignore it and is
+        # therefore never used for an existing store.
+        conn = sqlite3.connect(
+            DB_PATH.resolve().as_uri() + "?mode=ro",
+            uri=True,
+            timeout=5.0,
+        )
+    except sqlite3.Error as exc:
+        raise SQLiteStoreAdoptionError(
+            "The existing SQLite database cannot be opened read-only."
+        ) from exc
+    try:
+        conn.row_factory = sqlite3.Row
+        tables = _sqlite_user_tables(conn)
+        has_ledger = _SQLITE_MIGRATION_TABLE in tables
+        if not has_ledger:
+            if tables:
+                raise SQLiteStoreAdoptionError(
+                    "The existing SQLite database has no ReqPilotX migration "
+                    "history and was left unchanged. Import it explicitly."
+                )
+            return
+        _migrations, applied = _sqlite_migration_state(conn)
+        if not applied and tables - {_SQLITE_MIGRATION_TABLE}:
+            raise SQLiteStoreAdoptionError(
+                "The existing SQLite database has an empty ReqPilotX migration "
+                "history but contains other tables; it was left unchanged."
+            )
+    except SQLiteMigrationStateError:
+        raise
+    except (sqlite3.Error, OSError) as exc:
+        raise SQLiteStoreAdoptionError(
+            "The existing SQLite database cannot be verified read-only."
+        ) from exc
+    finally:
+        conn.close()
+
+
+def _reject_legacy_postgres_data_root() -> None:
+    """Never create a new SQLite business store beside an old PostgreSQL root."""
+
+    if is_postgresql_runtime() or DB_PATH.exists():
+        return
+    candidates = (
+        STORAGE_DIR / "postgres" / "PG_VERSION",
+        STORAGE_DIR / "database-password",
+        STORAGE_DIR.parent / "postgres" / "PG_VERSION",
+        STORAGE_DIR.parent / "database-password",
+    )
+    for candidate in candidates:
+        if candidate.exists():
+            raise LegacyPostgresDataRootError(
+                "The selected storage root belongs to the historical PostgreSQL "
+                "runtime, or is beside its clusters/credentials. It was left "
+                "unchanged; use the explicit RX06 migration path."
+            )
 
 
 def init_db() -> None:
     if is_postgresql_runtime():
         _postgres_database().apply_migrations(postgres_migration_dir())
         return
+    _reject_legacy_postgres_data_root()
+    _preflight_existing_sqlite_store()
     with get_conn() as conn:
         _apply_sqlite_migrations(conn)
         ai_job_columns_before_migration = {
