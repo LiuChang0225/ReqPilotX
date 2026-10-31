@@ -38,6 +38,8 @@ import { WorkspaceShell } from "./WorkspaceShell";
 import { DocumentWorkSurface } from "./DocumentWorkSurface";
 import { SourceItemWorkspace } from "./SourceItemWorkspace";
 import { useWorkspaceRoute } from "./route";
+import { hostedCoreRoute } from "./hostedCoreRoute";
+import { useUiCopy } from "../../host/HostLocaleContext";
 
 type WorkspaceActionScope = "project" | "document" | "requirementSet";
 const ReadingWorkspacePage = lazy(async () => ({ default: (await import("../reading/ReadingWorkspacePage")).ReadingWorkspacePage }));
@@ -51,6 +53,7 @@ function loadProjectResources(projectId: string, saasMode: boolean) {
 }
 
 export function WorkspacePage() {
+  const l = useUiCopy();
   const applicationHost = useApplicationHost();
   const saasMode = isSaasAccountMode();
   const { route, update } = useWorkspaceRoute();
@@ -163,6 +166,12 @@ export function WorkspacePage() {
   useEffect(() => {
     if (!applicationHost) document.title = "ReqPilotX · 需求工作台";
   }, [applicationHost]);
+
+  const hostedLegacyTarget = applicationHost ? hostedCoreRoute(route) : null;
+  useEffect(() => {
+    if (!hostedLegacyTarget) return;
+    update(hostedLegacyTarget, { replace: true });
+  }, [hostedLegacyTarget, update]);
 
   const currentProjectScope = projectScopeKey(route.projectId);
   const currentDocumentScope = documentScopeKey(
@@ -407,7 +416,7 @@ export function WorkspacePage() {
     }
     const projectId = route.projectId;
     const projectScope = projectScopeKey(projectId);
-    const [nextDocuments, nextKnowledge, nextProfile] = await loadProjectResources(projectId, saasMode);
+    const [nextDocuments, nextKnowledge, nextProfile] = await loadProjectResources(projectId, saasMode || Boolean(applicationHost));
     if (generation !== projectLoadGeneration.current) return;
     documentsScopeRef.current = projectScope;
     knowledgeScopeRef.current = projectScope;
@@ -616,7 +625,7 @@ export function WorkspacePage() {
     let active = true;
     void (async () => {
       try {
-        const [nextDocuments, nextKnowledge, nextProfile] = await loadProjectResources(projectId, saasMode);
+        const [nextDocuments, nextKnowledge, nextProfile] = await loadProjectResources(projectId, saasMode || Boolean(applicationHost));
         if (!active) return;
         documentsScopeRef.current = projectScope;
         knowledgeScopeRef.current = projectScope;
@@ -986,12 +995,12 @@ export function WorkspacePage() {
               />
             )}
             {route.task === "projects" && <ProjectManagementPanel />}
-            {route.task === "reading" && <Suspense fallback={<LoadingBlock label="正在打开原文阅读" />}><ReadingWorkspacePage embedded /></Suspense>}
-            {route.task === "extraction" && <RequirementTreePanel />}
+            {!applicationHost && route.task === "reading" && <Suspense fallback={<LoadingBlock label="正在打开原文阅读" />}><ReadingWorkspacePage embedded /></Suspense>}
+            {route.task === "extraction" && (hostedLegacyTarget ? <LoadingBlock label={l("extraction.redirecting", "正在打开当前需求提取工作…")} /> : <RequirementTreePanel />)}
             {route.task === "analysis" && (
               <SourceItemWorkspace task="analysis" fallback={<RequirementMatrixWorkbench lens="analysis" />} />
             )}
-            {route.task === "knowledge" && <KnowledgeWorkspace />}
+            {!applicationHost && route.task === "knowledge" && <KnowledgeWorkspace />}
             {route.task === "export" && <SourceItemWorkspace task="export" fallback={<ExportsPanel />} />}
           </>
         )}

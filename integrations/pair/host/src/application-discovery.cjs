@@ -57,6 +57,17 @@ function publicConfiguration(state) {
     provider: state.taskModel.provider, model: state.taskModel.model,
     ...(typeof state.taskModel.reasoningEffort === 'string' ? { reasoningEffort: state.taskModel.reasoningEffort } : {}),
   };
+  if (state.taskWorkflow?.schema === 'reqpilot-fixed-workflow/v1') result.workflow = {
+    schema: state.taskWorkflow.schema, id: state.taskWorkflow.id, version: state.taskWorkflow.version,
+    definition_sha256: state.taskWorkflow.definition_sha256, label: state.taskWorkflow.label,
+    stages: (state.taskWorkflow.stages || []).map(stage => ({ id: stage.id, order: stage.order, label: stage.label, required: stage.required === true })),
+    required_inputs: state.taskWorkflow.required_inputs || [], optional_inputs: state.taskWorkflow.optional_inputs || [],
+    expected_outputs: state.taskWorkflow.expected_outputs || [], branches: state.taskWorkflow.branches || {},
+  };
+  if (state.knowledgeAvailable === true) result.knowledge = { schema: 'reqpilot-knowledge-host/v1', available: true,
+    ...(state.knowledgeAdoptionAvailable === true ? { adoption: true } : {}) };
+  if (typeof state.taskStartIssue === 'string' && state.taskStartIssue) result.taskStart = { ready: false, reason: state.taskStartIssue };
+  else if (state.status === 'READY') result.taskStart = { ready: state.taskLaunchReady === true, reason: state.taskLaunchReady === true ? null : 'TASK_START_NOT_CONFIGURED' };
   return result;
 }
 /** Fail on protocol/capability incompatibility before presenting business controls. */
@@ -69,6 +80,10 @@ function assertCompatibleConfiguration(value) {
     if (!['http:', 'https:'].includes(url.protocol) || url.username || url.password || url.origin !== value.serviceOrigin) throw Error('HOST_ENDPOINT_INVALID');
     if (value.mode === 'managed' && (typeof value.applicationId !== 'string'
       || !value.applicationId.startsWith('reqpilotx-pair:') || !UUID.test(value.applicationId.slice('reqpilotx-pair:'.length)))) throw Error('HOST_IDENTITY_MISSING');
+    if (value.workflow && (value.workflow.schema !== 'reqpilot-fixed-workflow/v1' || value.workflow.id !== 'reqpilot-fixed-workflow'
+      || typeof value.workflow.version !== 'string' || !Array.isArray(value.workflow.stages)
+      || !value.workflow.stages.every(stage => typeof stage.id === 'string' && typeof stage.label === 'string'))) throw Error('HOST_WORKFLOW_INCOMPATIBLE');
+    if (value.taskStart && typeof value.taskStart.ready !== 'boolean') throw Error('HOST_TASK_START_INVALID');
   }
   return value;
 }

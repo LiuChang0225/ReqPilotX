@@ -120,6 +120,22 @@ def _record_projection(record, segments):
             'figure_refs': []}
 
 
+def _analysis_basis_line(fact, quote, fact_id):
+    name = fact.get('document_name') or fact.get('document_id') or fact_id
+    if isinstance(fact.get('adopted'), dict):
+        adopted = fact['adopted']
+        return (f"{name}: {quote}\n"
+                f"[知识记录 ID={fact.get('document_id', '')}; kind={adopted.get('kind') or fact.get('evidence_origin', '')}; "
+                f"contentRevision={fact.get('content_revision', '')}; sourceVersion={fact.get('source_version', '')}; "
+                f"originalSourceVersion(declared)={fact.get('original_source_version', '')}; "
+                f"availability={fact.get('availability', '')}; fact={fact_id}; "
+                f"原生定位={json.dumps(fact.get('source_ref', {}), ensure_ascii=False, sort_keys=True)}; "
+                f"记录路由={fact.get('url', '')}; 关联原文件路由={fact.get('linked_source_url', '')}]")
+    return (f"{name}: {quote}\n"
+            f"[登记原件 ID={fact.get('document_id', '')}; SHA256={fact.get('source_sha256', '')}; "
+            f"fact={fact_id}; 原生定位={json.dumps(fact.get('source_ref', {}), ensure_ascii=False, sort_keys=True)}]")
+
+
 def _apply_assessment(fields, decision, evidence_catalog, *, input_receipt=None):
     evidence = decision.get('evidence', [])
     roles = set()
@@ -135,10 +151,7 @@ def _apply_assessment(fields, decision, evidence_catalog, *, input_receipt=None)
     fields.update(analysis_status='NOT_STARTED' if prepared else 'ASSESSED', analysis_result_state='CURRENT',
         ai_assessment={'decision': decision['decision'], 'reason': decision.get('reason', ''),
                        'analysis_basis': '\n'.join(
-                           f"{evidence_catalog[c['fact_id']].get('document_name') or evidence_catalog[c['fact_id']].get('document_id') or c['fact_id']}: {c['quote']}\n"
-                           f"[登记原件 ID={evidence_catalog[c['fact_id']].get('document_id', '')}; "
-                           f"SHA256={evidence_catalog[c['fact_id']].get('source_sha256', '')}; fact={c['fact_id']}; "
-                           f"原生定位={json.dumps(evidence_catalog[c['fact_id']].get('source_ref', {}), ensure_ascii=False, sort_keys=True)}]"
+                           _analysis_basis_line(evidence_catalog[c['fact_id']], c['quote'], c['fact_id'])
                            for c in evidence),
                        'clarification_question': decision.get('clarification_question', ''),
                        'assessment_mode': 'host-evidence-preparation' if prepared else 'agent-evidence-bound'})
@@ -608,18 +621,43 @@ def build_delivery_snapshot(document_map, baseline, table_previews, *, annotatio
         'non_requirement_count': sum(r.requirementness is Requirementness.NON_REQUIREMENT for r in records.values())}
     if assessments is not None and all(key in assessments for key in ('artifact_sha256', 'knowledge_base_version', 'catalog_sha256')):
         original_refs = []
+        adopted_refs = []
         for unit_id, decision in assessments.get('records', {}).items():
             for citation in decision.get('evidence', []):
                 fact = evidence_catalog[citation['fact_id']]
-                original_refs.append({'unit_id': unit_id, 'decision': decision['decision'],
-                    'fact_id': citation['fact_id'], 'document_id': fact['document_id'],
-                    'document_name': fact.get('document_name', ''), 'source_sha256': fact['source_sha256'],
-                    'source_ref': deepcopy(fact['source_ref']), 'quote': citation['quote'],
-                    'authority': fact.get('authority', 'UNKNOWN'), 'claim_role': fact.get('claim_role', 'UNKNOWN'),
-                    'applicability': fact.get('applicability', 'UNKNOWN'), 'semantic_coverage': 'NOT_INDEPENDENTLY_VERIFIED'})
+                adopted = fact.get('adopted') if isinstance(fact.get('adopted'), dict) else None
+                if adopted:
+                    adopted_refs.append({'unit_id': unit_id, 'decision': decision['decision'],
+                        'fact_id': citation['fact_id'], 'record_id': fact['document_id'],
+                        'record_name': fact.get('document_name', ''), 'record_kind': adopted.get('kind'),
+                        'evidence_origin': fact.get('evidence_origin'),
+                        'content_revision': fact.get('content_revision'),
+                        'source_version': fact.get('source_version'),
+                        'original_source_version': fact.get('original_source_version'),
+                        'availability': fact.get('availability'), 'admission': fact.get('admission'),
+                        'source_ref': deepcopy(fact['source_ref']), 'quote': citation['quote'],
+                        'scope': fact.get('scope'), 'conditions': fact.get('conditions'),
+                        'review': deepcopy(fact.get('review')),
+                        'expert_approved_declared': fact.get('expert_approved_declared') is True,
+                        'record_route': fact.get('url', ''),
+                        'linked_source_route': fact.get('linked_source_url', ''),
+                        'adopted_library_id': adopted.get('library_id'),
+                        'adopted_version_id': adopted.get('version_id'),
+                        'package_version': adopted.get('package_version'),
+                        'returned_content_sha256': fact.get('returned_content_sha256'),
+                        'semantic_coverage': 'NOT_INDEPENDENTLY_VERIFIED'})
+                else:
+                    original_refs.append({'unit_id': unit_id, 'decision': decision['decision'],
+                        'fact_id': citation['fact_id'], 'document_id': fact['document_id'],
+                        'document_name': fact.get('document_name', ''), 'source_sha256': fact['source_sha256'],
+                        'source_ref': deepcopy(fact['source_ref']), 'quote': citation['quote'],
+                        'authority': fact.get('authority', 'UNKNOWN'), 'claim_role': fact.get('claim_role', 'UNKNOWN'),
+                        'applicability': fact.get('applicability', 'UNKNOWN'), 'semantic_coverage': 'NOT_INDEPENDENTLY_VERIFIED',
+                        'source_route': fact.get('url', '')})
         snapshot['source_item_baseline'].update(analysis_artifact_sha256=assessments['artifact_sha256'],
             knowledge_base_version=assessments['knowledge_base_version'], catalog_sha256=assessments['catalog_sha256'],
-            analysis_original_evidence=original_refs)
+            analysis_original_evidence=original_refs,
+            **({'analysis_adopted_evidence': adopted_refs} if adopted_refs else {}))
     if manual_decisions is not None:
         snapshot['source_item_baseline'].update(manual_decisions_sha256=manual_decisions['artifact_sha256'],
             manual_decisions_revision=manual_decisions['revision'], human_acceptance='NOT_CLAIMED')

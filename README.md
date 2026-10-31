@@ -2,7 +2,7 @@
 
 ReqPilotX 是面向汽车 SOR 的需求工程工作台，把复杂文档转成可核对的原文条目、需求分类和显式派生要求，连接内部证据、工程师意见与同版本 Compliance Matrix / Excel。
 
-目标承载平台为 Pair：ReqPilotX 提供业务服务、工作台、工具/技能和版本化成果，Pair 提供 Agent 会话与执行能力。原生应用与便携插件共用业务核心。当前已具备阶段成果与程序链路，完整产品尚未全部验收。
+目标承载平台为 Pair：ReqPilotX 提供业务服务、工作台、工具/技能和版本化成果，Pair 提供 Agent 会话与执行能力。原生应用与便携插件共用业务核心。PAIR 版本只保留项目管理、需求提取、需求分析、矩阵导出四个核心视图；PAIR 管理知识，不挂载独立 AI 阅读或领域知识库页面，原文检查保留在提取与分析中。界面跟随宿主语言，支持简体中文与英文；独立 Web 以简体中文为稳定默认。当前已具备阶段成果与程序链路，完整产品尚未全部验收。
 
 ## 从这里开始
 
@@ -17,15 +17,9 @@ ReqPilotX 是面向汽车 SOR 的需求工程工作台，把复杂文档转成�
 
 ## 本地运行
 
-应用使用 React/Vite/TypeScript、FastAPI、worker、PostgreSQL 与本地对象存储。按照[运行说明](prototype/README.md)准备依赖和数据库后：
+应用使用 React/Vite/TypeScript、FastAPI 与本地对象存储。Pair 轻量本地入口和普通本地 API 默认使用应用自有 SQLite，不需要 PostgreSQL 服务或驱动；显式设置 `REQPILOT_DATABASE_URL` 或 `REQPILOT_DATABASE_BACKEND=postgresql` 可保留 PostgreSQL/云端路线。仓库现有 `prototype/start.sh` 的完整开发 worker 池仍显式使用 PostgreSQL，不能代表 Pair 本地运行路径。
 
-```bash
-cd prototype
-./start.sh
-./status.sh
-```
-
-本地核心不依赖 Docker，也不默认连接云端。Agent 模型运行需要单独配置相应宿主、身份与能力；基础程序检查通过不代表模型语义或所有文档类型通过。
+按照[运行说明](prototype/README.md)准备依赖；Pair 轻量本地存储的边界、迁移和验证见[Pair lightweight SQLite](docs/architecture/pair-lightweight-sqlite.md)。本地核心不依赖 Docker，也不默认连接云端。Agent 模型运行需要单独配置相应宿主、身份与能力；基础程序检查通过不代表模型语义或所有文档类型通过。
 
 ## 源码与资料
 

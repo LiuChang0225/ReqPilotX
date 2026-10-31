@@ -3,7 +3,7 @@
 本目录保留开发启动脚本和旧 Python import/前端命令兼容入口。
 React/Vite Web 外壳位于 `apps/web`，共享业务 UI 位于 `packages/workbench-ui`，
 桌面启动与打包位于 `apps/desktop`。
-共享业务源码位于 `packages/engine/src/reqpilotx`，FastAPI、独立 worker、PostgreSQL、
+共享业务源码位于 `packages/engine/src/reqpilotx`，FastAPI、可选 worker、SQLite/PostgreSQL、
 对象存储和 Agent 宿主位于 `apps/server/src/reqpilotx_server`。
 它是目标态探索可复用的工程资产，不意味着新 Agent 的全文条目/分类/拆分已完整验收。
 当前开发顺序见[开发计划](../docs/需求提取/开发计划.md)。
@@ -17,10 +17,12 @@ PyInstaller 显式收集引擎动态兼容转发所需的 `reqpilotx` 子模块�
 
 ## 本地启动
 
-需要 Node.js >=22.12、Python 虚拟环境与本机 PostgreSQL。首次准备：
+需要 Node.js >=22.12 与 Python 虚拟环境。Pair/普通本地 API 轻量模式默认使用应用自有
+SQLite，不需要 PostgreSQL 服务、驱动或可执行文件；本目录 `start.sh` 仍启动 PostgreSQL
+durable worker 池，完整开发启动需要本机 PostgreSQL。首次准备：
 
 ```bash
-createdb reqpilotx
+createdb reqpilotx   # 仅 start.sh 的 PostgreSQL worker 池需要
 cd prototype
 python3 -m venv .venv
 .venv/bin/pip install -r requirements.txt
@@ -30,12 +32,14 @@ cd prototype
 ./start.sh
 ```
 
-已有数据库不要重复创建或迁移。当前开发机已完成 SQLite → PostgreSQL/LocalObjectStore 切换，
-禁止用旧 SQLite 覆盖当前数据；SQLite 只供隔离测试和历史迁移工具。
+Pair 轻量本地数据库位于 `REQPILOT_STORAGE_DIR`（缺省为本目录 `storage/app.db`）。
+显式设置 `REQPILOT_DATABASE_URL` 或 `REQPILOT_DATABASE_BACKEND=postgresql` 并使用
+`reqpilotx-server[postgres]` 可保留 PostgreSQL 路线。旧 PostgreSQL 数据根不会被 SQLite
+模式自动收养，迁移边界见 [Pair lightweight SQLite](../docs/architecture/pair-lightweight-sqlite.md)。
 
-默认本地服务是 [工作台](http://127.0.0.1:8000/workspace)，数据库为本机 reqpilotx，
-不默认连接 RDS/OSS。真实配置通过 shell 或密钥管理工具注入；[.env.example](.env.example)
-只是模板，不自动加载，也不包含真实凭据。
+默认本地服务是 [工作台](http://127.0.0.1:8000/workspace)，不默认连接 RDS/OSS。
+真实配置通过 shell 或密钥管理工具注入；[.env.example](.env.example) 只是模板，
+不自动加载，也不包含真实凭据。
 
 ```bash
 ./status.sh
@@ -47,7 +51,7 @@ cd prototype
 
 现有运行身份不一致时，启动器会拒绝新前端/旧 worker 混跑；排空让在手任务完成后退出。
 开发模式提供 Vite 5173 与 API 8010。常规启动复用/生成 apps/web/dist，不提交构建产物。
-具体 worker、Qdrant、备份与恢复边界见[本地部署](../docs/deployment/local-native-postgresql.md)。
+具体 worker、Qdrant、备份与恢复边界见[本地部署](../docs/deployment/local-native-postgresql.md)；本地 SQLite 契约见 [Pair lightweight SQLite](../docs/architecture/pair-lightweight-sqlite.md)。
 
 ## Codex 运行配置
 

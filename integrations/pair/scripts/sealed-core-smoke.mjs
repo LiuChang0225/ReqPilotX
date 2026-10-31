@@ -15,7 +15,7 @@ await cp(fileURLToPath(new URL('../host', import.meta.url)), host, { recursive: 
 await mkdir(probe);
 const manifest = JSON.parse(await readFile(join(host, 'package.json'), 'utf8'));
 const version = manifest.peerDependencies?.['@deepseek-ai/dsh-mcp-client'];
-if (manifest.dependencies?.['@deepseek-ai/dsh-mcp-client'] || version !== '0.2.1-alpha.2') throw Error('Host must declare the verified MCP core as an exact peer');
+if (manifest.dependencies?.['@deepseek-ai/dsh-mcp-client'] || version !== '0.2.1-rc.2') throw Error('Host must declare the verified MCP core as an exact peer');
 await cp(new URL('./sealed-core-probe.mjs', import.meta.url), join(probe, 'probe.mjs'));
 await writeFile(join(probe, 'package.json'), JSON.stringify({ name: '@reqpilotx/sealed-core-probe', version: '0.0.0', private: true, type: 'module', main: './probe.mjs',
   peerDependencies: { '@reqpilotx/dsh-pair-host': manifest.version } }, null, 2));

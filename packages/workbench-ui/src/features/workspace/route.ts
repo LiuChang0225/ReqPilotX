@@ -13,6 +13,7 @@ export type ExtractionCheckpoint =
   | "diagnose"
   | "structure"
   | "list"
+  | "requirements"
   | "review";
 
 export interface WorkspaceRoute {
@@ -44,6 +45,7 @@ const extractionCheckpoints = new Set<ExtractionCheckpoint>([
   "diagnose",
   "structure",
   "list",
+  "requirements",
   "review",
 ]);
 

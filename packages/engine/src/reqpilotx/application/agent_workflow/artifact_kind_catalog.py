@@ -22,6 +22,7 @@ ARTIFACT_KINDS = {
     'SOURCE_FINDINGS': {'filename': 'source-findings.json', 'dependencies': ['document-map.json'], 'validator': 'source-findings/v1 lineage', 'display_role': 'source_review_notices'},
     'ANNOTATIONS': {'filename': 'image-annotations.json', 'dependencies': ['source-requirement-baseline.json'], 'validator': 'build_delivery_snapshot', 'display_role': 'original_number_topics_and_visual_reading'},
     'DECOMPOSITION': {'filename': 'source-item-decomposition.json', 'dependencies': ['source-requirement-baseline.json'], 'validator': 'build_delivery_snapshot', 'display_role': 'derived_requirements'},
+    'ASSESSMENTS': {'filename': 'source-item-assessments.json', 'dependencies': ['source-requirement-baseline.json', 'analysis-packet.json', 'knowledge-catalog.json'], 'validator': 'source-item assessment packet/catalog lineage', 'display_role': 'evidence_grounded_analysis'},
     'DELIVERY': {'filename': 'matrix-snapshot.json', 'dependencies': ['matrix.xlsx'], 'validator': 'snapshot + workbook metadata', 'display_role': 'same_version_delivery'},
 }
 OPERATION_KINDS = {
@@ -157,8 +158,14 @@ def validate_bundle(directory, source_sha256, *, operation, artifact_kinds=None,
         compilation = directory / 'item-compilation-receipt.json'
         if compilation.is_file():
             value = read_json(compilation)
-            if value.get('baseline_artifact_sha256') == baseline.artifact_sha256:
-                stages['ITEMS']['unprocessed_scope_ids'] = value.get('unprocessed_scope_ids')
+            if (value.get('schema_version') != 'reqpilot-item-compilation/v1'
+                    or value.get('source_sha256') != source_sha256
+                    or value.get('baseline_artifact_id') != baseline.artifact_id
+                    or value.get('baseline_artifact_sha256') != baseline.artifact_sha256
+                    or not isinstance(value.get('unprocessed_scope_ids'), list)
+                    or not all(isinstance(item, str) and item for item in value.get('unprocessed_scope_ids', []))):
+                raise ValueError('Item coverage receipt differs from the source baseline')
+            stages['ITEMS']['unprocessed_scope_ids'] = value.get('unprocessed_scope_ids')
     if 'DOCUMENT_MAP' in kinds:
         receipt = read_json(locate('map-compilation-receipt.json', own=True))
         if receipt.get('source_sha256') != source_sha256 or receipt.get('document_map_artifact_sha256') != mapping.artifact_sha256:

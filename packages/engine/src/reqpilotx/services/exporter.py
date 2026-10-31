@@ -891,13 +891,8 @@ def _matrix_node_is_heading(node: dict[str, Any]) -> bool:
 
 
 def _matrix_heading_path_label(node: dict[str, Any]) -> str:
-    number = _matrix_node_number(node)
-    title = _matrix_node_label(node)
-    normalized_title = re.sub(r"\s+", "", title)
-    normalized_number = re.sub(r"\s+", "", number)
-    if number and normalized_title.startswith(normalized_number):
-        return title
-    return " ".join(value for value in (number, title) if value)
+    from reqpilotx.application.agent_workflow.source_path_labels import compose_source_path_segment
+    return compose_source_path_segment(_matrix_node_number(node), _matrix_node_label(node))
 
 
 def _matrix_parent_is_transparent_heading(
@@ -3191,7 +3186,7 @@ def _matrix_node_display_title(
         and title not in generic_table_titles
         and not _matrix_title_matches_owned_body(node, title)
     ):
-        return _matrix_title_without_direct_number(node, title)
+        return _matrix_title_without_direct_number(node, title) or "未提供标题"
     label = str(node.get("label") or "").strip()
     body_candidates = {
         str(node.get("display_text") or "").strip(),
@@ -3203,7 +3198,7 @@ def _matrix_node_display_title(
         and label not in generic_table_titles
         and not _matrix_title_matches_owned_body(node, label)
     ):
-        return _matrix_title_without_direct_number(node, label)
+        return _matrix_title_without_direct_number(node, label) or "未提供标题"
     if (
         str(node.get("requirement_id") or "").strip()
         and str(node.get("display_role") or "").strip().upper() != "TABLE"
@@ -3230,19 +3225,41 @@ def _matrix_title_without_direct_number(node: dict[str, Any], title: str) -> str
     number = _matrix_node_number(node)
     if not text or not number:
         return text
-    if number[-1:] in {"、", ".", ")", "）", ":", "：", "-", "—"} and text.startswith(
-        number
-    ):
-        remainder = text[len(number) :].lstrip(" 	-—:：、.)）")
-        return remainder or text
-    match = re.match(
-        rf"^\s*{re.escape(number)}(?=\s|[-—:：、.)）。])\s*[-—:：、.)）。]?\s*(.+)$",
-        text,
-        flags=re.DOTALL,
-    )
-    remainder = str(match.group(1) if match else "").strip()
-    return remainder or text
-
+    if text.startswith(number):
+        remainder = text[len(number) :]
+        # A longer number is a different source identity, not this prefix.
+        if remainder[:1].isdigit():
+            remainder = None
+        elif remainder[:1] in {".", "．"} and len(remainder) > 1 and remainder[1].isdigit():
+            remainder = None
+        if remainder is not None:
+            if not remainder:
+                return ""
+            if number[-1:] in {"、", ".", "。", ")", "）", ":", "：", "-", "—"}:
+                # The number already owns its boundary separator.
+                return remainder.lstrip()
+            if remainder[0].isspace():
+                return remainder.lstrip()
+            if remainder[0] in {"、", "。", ",", "，", ";", "；", ":", "：", ")", "）"}:
+                return remainder[1:].lstrip()
+            if remainder[0] in {".", "．"} and len(remainder) > 1 and remainder[1].isspace():
+                return remainder[1:].lstrip()
+            if remainder[0] in {"-", "—", "–"} and len(remainder) > 1 and remainder[1].isspace():
+                return remainder[1:].lstrip()
+            # Preserve meaningful title punctuation such as ".NET", "(Scope)",
+            # "[Customer requirements]" or a negative value after the boundary.
+            return remainder.lstrip()
+    # A title cell must not repeat the dedicated source-number column when the
+    # source supplies only an identifier. Non-number titles keep their bytes.
+    if re.sub(r"\s+", "", text) == re.sub(r"\s+", "", number):
+        return ""
+    if text[:1] in {"、", ".", "．", "。", ",", "，", ";", "；", ":", "：", ")", "）"} and text[1:2].isspace():
+        # A source number owns its separator; a title cell starting with an
+        # orphan separator is not a second identifier.
+        cleaned = text[1:].lstrip()
+        if cleaned:
+            return cleaned
+    return text
 
 def _matrix_title_matches_owned_body(node: dict[str, Any], title: str) -> bool:
     """Reject a body copy masquerading as a title without inventing a new one."""

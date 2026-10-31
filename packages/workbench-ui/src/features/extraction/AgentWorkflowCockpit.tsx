@@ -1,6 +1,7 @@
 import { useId, useState } from "react";
 import { cx } from "../../shared/lib/format";
 import { Icon } from "../../shared/ui/Icon";
+import { useUiCopy } from "../../host/HostLocaleContext";
 
 export type AgentWorkflowStepState =
   | "complete"
@@ -51,13 +52,14 @@ export function AgentWorkflowCockpit({
   controls,
   defaultExpanded = true,
 }: AgentWorkflowCockpitProps) {
+  const l = useUiCopy();
   const [expanded, setExpanded] = useState(defaultExpanded);
   const detailsId = useId();
 
   return (
     <section
       className={cx("agent-workflow-cockpit", `is-${statusTone}`)}
-      aria-label="Agent 工作流驾驶舱"
+      aria-label={l("Agent 工作流驾驶舱")}
       aria-live="polite"
     >
       <header className="agent-workflow-cockpit-summary">
@@ -66,7 +68,7 @@ export function AgentWorkflowCockpit({
         </span>
         <div className="agent-workflow-summary-copy">
           <div>
-            <strong>Agent 工作流</strong>
+            <strong>{l("Agent 工作流")}</strong>
             <span>{statusLabel}</span>
           </div>
           <p title={currentAction}>{currentAction}</p>
@@ -78,25 +80,11 @@ export function AgentWorkflowCockpit({
           aria-controls={detailsId}
           onClick={() => setExpanded((value) => !value)}
         >
-          {expanded ? "收起" : "展开"}
+          {expanded ? l("收起") : l("展开")}
           <Icon name={expanded ? "chevron-down" : "chevron"} size={15} />
         </button>
       </header>
 
-      <ol className="agent-workflow-compact-plan" aria-label="Agent 执行阶段">
-        {steps.map((step) => (
-          <li key={step.id} className={`is-${step.state}`}>
-            <span aria-hidden="true">
-              {step.state === "complete"
-                ? "✓"
-                : step.state === "blocked"
-                  ? "!"
-                  : ""}
-            </span>
-            <strong>{step.label}</strong>
-          </li>
-        ))}
-      </ol>
 
       <div
         id={detailsId}
@@ -104,12 +92,12 @@ export function AgentWorkflowCockpit({
         hidden={!expanded}
       >
         <section className="agent-workflow-goal">
-          <h3>目标</h3>
+          <h3>{l("目标")}</h3>
           <p>{goal}</p>
         </section>
 
         <section className="agent-workflow-plan">
-          <h3>计划</h3>
+          <h3>{l("计划")}</h3>
           <ol>
             {steps.map((step) => (
               <li key={step.id} className={`is-${step.state}`}>
@@ -123,19 +111,19 @@ export function AgentWorkflowCockpit({
                         : "○"}
                 </span>
                 <span>{step.label}</span>
-                <small>{STEP_STATE_LABELS[step.state]}</small>
+                <small>{l(STEP_STATE_LABELS[step.state])}</small>
               </li>
             ))}
           </ol>
         </section>
 
         <section className="agent-workflow-current-action">
-          <h3>当前行动</h3>
+          <h3>{l("当前行动")}</h3>
           <p>{currentAction}</p>
         </section>
 
         <section className="agent-workflow-findings">
-          <h3>发现</h3>
+          <h3>{l("发现")}</h3>
           <ul>
             {findings.map((finding) => (
               <li key={finding}>{finding}</li>
@@ -145,8 +133,8 @@ export function AgentWorkflowCockpit({
 
         <footer className="agent-workflow-controls">
           <div>
-            <h3>控制</h3>
-            <small>只显示当前真正可执行的操作</small>
+            <h3>{l("控制")}</h3>
+            <small>{l("只显示当前真正可执行的操作")}</small>
           </div>
           {controls.length > 0 ? (
             <div className="agent-workflow-control-actions">
@@ -171,11 +159,11 @@ export function AgentWorkflowCockpit({
               ))}
             </div>
           ) : (
-            <span>当前没有可安全执行的集中控制。</span>
+            <span>{l("当前没有可安全执行的集中控制。")}</span>
           )}
         </footer>
         <p className="agent-workflow-disclosure">
-          此处展示可审核状态、行动与证据发现，不展示模型内部推理过程。
+          {l("此处展示可审核状态、行动与证据发现，不展示模型内部推理过程。")}
         </p>
       </div>
     </section>

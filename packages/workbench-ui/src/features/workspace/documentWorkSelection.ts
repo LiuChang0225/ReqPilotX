@@ -26,7 +26,7 @@ export function readRememberedWorkRevision(project: string, document: string, so
 }
 
 
-export type OrganizeCheckpoint = "diagnose" | "structure" | "list";
+export type OrganizeCheckpoint = "diagnose" | "structure" | "list" | "requirements";
 const checkpointKey = (project: string, document: string, source: string, work: ViewedWork) =>
   saasStorageKey(`reqpilotx:extraction-checkpoint:v1:${project}:${document}:${source}:${work.producer}:${work.sessionId || ""}:${work.revisionId || ""}`);
 
@@ -40,7 +40,7 @@ export function readExtractionCheckpoint(project: string, document: string, sour
   if (!project || !document || !source) return undefined;
   try {
     const value = localStorage.getItem(checkpointKey(project, document, source, work));
-    if (value === "diagnose" || value === "structure" || value === "list") return value;
+    if (value === "diagnose" || value === "structure" || value === "list" || value === "requirements") return value;
   } catch { /* A missing preference must not select a different source. */ }
   return undefined;
 }

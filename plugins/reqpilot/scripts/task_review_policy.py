@@ -68,6 +68,17 @@ def guard_write_command(root, state, action, request):
             del active[key]
 
 
+def _require_reviewable_items(state):
+    reference = state['selected'].get('ITEMS')
+    if not reference or not reference.get('path'):
+        return
+    from revision_tools import bundle, require_complete_items_for_review
+
+    path = Path(reference['path'])
+    document_map, baseline, _, tables = bundle(path.parent)
+    require_complete_items_for_review(path.parent, baseline, document_map, tables)
+
+
 def prepare_review(service, root, state, request):
     explicit, command, identifier = _command_identity(state, 'review', request)
     with guard_write_command(root, state, 'review', request):
@@ -94,6 +105,8 @@ def _prepare_review(service, root, state, request, explicit, command, identifier
     # A committed initial request always replays its initial route, even after
     # later review/policy versions. Never rebind a retry to the current head.
     if operation == 'review-open' or operation is None and not reviewed:
+        if operation is None:
+            _require_reviewable_items(state)
         return service.write(root, state, 'review', request)
     if not reviewed:
         raise ValueError('CURRENT_REVIEW_REQUIRED: resume the original working review')

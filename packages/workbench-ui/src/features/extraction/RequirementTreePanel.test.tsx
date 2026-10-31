@@ -49,6 +49,7 @@ import {
   canonicalJsonSha256,
   withoutCanonicalField,
 } from "./canonicalJsonSha256";
+import { HostLocaleProvider } from "../../host/HostLocaleContext";
 
 const captureApiMocks = vi.hoisted(() => ({
   quality: vi.fn(),
@@ -3105,7 +3106,7 @@ describe("RequirementTreePanel parsing diagnosis", () => {
     expect(
       await screen.findByLabelText("Agent 原文结构草案"),
     ).toBeVisible();
-    expect(screen.getByRole("tab", { name: checkpoint === "structure" ? /原文结构/ : /原文需求清单/ })).toHaveAttribute(
+    expect(screen.getByRole("tab", { name: checkpoint === "structure" ? /原文结构/ : /原文条目/ })).toHaveAttribute(
       "aria-selected",
       "true",
     );
@@ -3608,8 +3609,8 @@ describe("RequirementTreePanel parsing diagnosis", () => {
         screen.getByRole("tab", {
           name:
             checkpoint === "structure"
-              ? "第 1 步：原文结构"
-              : "第 2 步：原文需求清单",
+              ? "原文结构"
+              : "原文条目",
         }),
       ).toHaveAttribute("aria-selected", "true");
       if (checkpoint === "list") {
@@ -3638,7 +3639,7 @@ describe("RequirementTreePanel parsing diagnosis", () => {
 
     expect(screen.queryByLabelText("解析核对")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("tab", { name: "第 2 步：原文需求清单" }),
+      screen.getByRole("tab", { name: "原文条目" }),
     ).toHaveAttribute("aria-selected", "true");
     await screen.findByRole("region", { name: "清单分类统计" });
     expect(api.entryClassifications).toHaveBeenCalledOnce();
@@ -3660,7 +3661,7 @@ describe("RequirementTreePanel parsing diagnosis", () => {
 
     expect(screen.queryByLabelText("解析核对")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("tab", { name: "第 1 步：原文结构" }),
+      screen.getByRole("tab", { name: "原文结构" }),
     ).toHaveAttribute("aria-selected", "true");
     expect(screen.getByRole("button", { name: "来源证据" })).toBeEnabled();
   });
@@ -3984,7 +3985,7 @@ describe("RequirementTreePanel parsing diagnosis", () => {
       await screen.findByRole("button", { name: "进入原文需求清单" }),
     ).toBeEnabled();
     expect(
-      screen.getByRole("tab", { name: "第 1 步：原文结构" }),
+      screen.getByRole("tab", { name: "原文结构" }),
     ).toHaveAttribute("aria-selected", "true");
     expect(screen.queryByText("最近一次解析失败")).not.toBeInTheDocument();
   });
@@ -4939,7 +4940,7 @@ describe("RequirementTreePanel parsing diagnosis", () => {
     expect(screen.getByRole("button", { name: "返回结构" })).toBeEnabled();
     await user.click(screen.getByRole("button", { name: "返回结构" }));
     expect(
-      screen.getByRole("tab", { name: "第 1 步：原文结构" }),
+      screen.getByRole("tab", { name: "原文结构" }),
     ).toHaveAttribute("aria-selected", "true");
     expect(workspace.updateRoute).toHaveBeenCalledWith(
       expect.objectContaining({ checkpoint: "structure" }),
@@ -5681,7 +5682,7 @@ describe("RequirementTreePanel navigation continuity", () => {
 
     expect(screen.queryByLabelText("解析核对")).not.toBeInTheDocument();
     expect(
-      screen.getByRole("tab", { name: "第 2 步：原文需求清单" }),
+      screen.getByRole("tab", { name: "原文条目" }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
       screen.getByText(/当前解析结果与运行版本或结果合同不兼容/),
@@ -9012,4 +9013,21 @@ describe("RequirementTreePanel explicit atomization scope", () => {
       ).not.toBeInTheDocument();
     },
   );
+});
+
+describe("RequirementTreePanel English host locale", () => {
+  it("renders the not-started extraction landing and stage rail in English without Chinese controls", async () => {
+    const tree = navigationTree(); tree.state = "NOT_STARTED"; tree.nodes = []; tree.root_node_ids = [];
+    const workspace = navigationWorkspaceValue(tree);
+    const view = render(<HostLocaleProvider t={key => key === "workbench.locale" ? "en" : key}>
+      <WorkspaceProvider value={workspace}><RequirementTreePanel /></WorkspaceProvider>
+    </HostLocaleProvider>);
+    expect(await screen.findByRole("tab", { name: /Source structure/ })).toBeVisible();
+    expect(screen.getByRole("tab", { name: /Source items/ })).toBeVisible();
+    expect(screen.queryByRole("tab", { name: /原文结构/ })).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Re-parse full document…" })).toBeVisible();
+    expect(screen.queryByRole("button", { name: "重新解析全文…" })).not.toBeInTheDocument();
+    expect(screen.queryByText("结构尚未生成")).not.toBeInTheDocument();
+    expect(view.container.textContent || "").not.toMatch(/[\u4e00-\u9fff]/);
+  });
 });

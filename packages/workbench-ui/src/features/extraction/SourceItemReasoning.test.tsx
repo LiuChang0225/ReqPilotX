@@ -109,6 +109,36 @@ it("keeps a single-item analysis scoped to the parent when its decomposition lis
   expect(JSON.parse(String(vi.mocked(request).mock.calls[0][1]?.body)).selected_unit_ids).toEqual([sid]);
 });
 
+it("labels adopted derived citations without fabricating a page or an original hash", () => {
+  const value = state();
+  value.assessments!.records[sid] = { decision: "PENDING_EVIDENCE", reason: "保留证据状态", clarification_question: "",
+    evidence: [{ fact_id: "claim", quote: "派生摘录" }, { fact_id: "source", quote: "已读取原件摘录" }] };
+  value.assessments!.evidence_catalog.claim = { document_id: "claim:1", document_name: "claim record",
+    source_sha256: "a".repeat(64), evidence_origin: "derived", availability: "original",
+    source_ref: { location: { page_number: null, section: "2.1" } },
+    adopted: { library_id: "lib", version_id: "b".repeat(64) },
+    url: "/reqpilotx/knowledge/tasks/command/adopted/records?kind=claim&id=claim-1",
+    linked_source_url: "/reqpilotx/knowledge/tasks/command/adopted/source/source-1",
+    linked_source_availability: "original" };
+  value.assessments!.evidence_catalog.source = { document_id: "source-1", document_name: "original note",
+    source_sha256: "c".repeat(64), evidence_origin: "derived", availability: "original",
+    original_read_proof: "NOT_READ", content_revision: "c".repeat(64),
+    source_ref: { location: { page_number: null, section: "2.1" } },
+    adopted: { library_id: "lib", version_id: "b".repeat(64) },
+    url: "/reqpilotx/knowledge/tasks/command/adopted/records?kind=source&id=source-1",
+    linked_source_url: "/reqpilotx/knowledge/tasks/command/adopted/source/source-1",
+    linked_source_availability: "original" };
+  const workflow = { state: value, busy: false, run: vi.fn(), citationUrl: (fact: { url?: string }) => fact.url } as unknown as Parameters<typeof SourceItemReasoningDetail>[0]["workflow"];
+  render(<SourceItemReasoningDetail workflow={workflow} sourceItemId={sid} requirementId="REQ-0001" onPageChange={vi.fn()} reviewMode />);
+  expect(screen.getAllByText(/派生记录/).length).toBeGreaterThanOrEqual(1);
+  expect(screen.queryByText(/已核对原件/)).not.toBeInTheDocument();
+  expect(screen.getByRole("link", { name: /claim record/ })).toHaveAttribute("href",
+    "/reqpilotx/knowledge/tasks/command/adopted/records?kind=claim&id=claim-1");
+  expect(screen.getAllByRole("link", { name: /关联原文件/ })[0]).toHaveAttribute("href",
+    "/reqpilotx/knowledge/tasks/command/adopted/source/source-1");
+  expect(screen.queryByRole("link", { name: /#page=/ })).not.toBeInTheDocument();
+});
+
 it("links a cited fact to the exact registered original and page", () => {
   const value = state();
   value.assessments!.records[sid] = { decision: "PENDING_EVIDENCE", reason: "引用不代表符合", clarification_question: "", evidence: [{ fact_id: "f", quote: "来源摘录" }] };
@@ -146,4 +176,13 @@ it("preserves no-model and no-human-acceptance facts after canonical draft refre
   const workflow = { state: value } as unknown as Parameters<typeof SourceItemReasoningStatus>[0]["workflow"];
   render(<SourceItemReasoningStatus workflow={workflow} />);
   expect(screen.getByRole("status")).toHaveTextContent("语义比较未执行（NOT_PERFORMED） · 实时检索未运行（NOT_RUN） · 人工接受未声明（NOT_CLAIMED）");
+});
+
+it("keeps logical-section citation locators when the source has no physical page", () => {
+  const value = state();
+  value.assessments!.records[sid] = { decision: "PENDING_EVIDENCE", reason: "引用不代表符合", clarification_question: "", evidence: [{ fact_id: "f", quote: "来源摘录" }] };
+  value.assessments!.evidence_catalog.f = { document_id: "k", document_name: "记录.pdf", source_sha256: "a".repeat(64), source_ref: { location: { page_number: null, section: 4 } } };
+  function Detail() { const workflow = useSourceItemReasoning("p", "d", value.baseline_sha256, value); return <SourceItemReasoningDetail workflow={workflow} sourceItemId={sid} requirementId="REQ-0001" onPageChange={vi.fn()} reviewMode />; }
+  render(<Detail />);
+  expect(screen.getByRole("link", { name: "记录.pdf · 逻辑段 4" }).getAttribute("href")).not.toContain("#page=");
 });

@@ -2,12 +2,14 @@
 from __future__ import annotations
 
 from argparse import Namespace
+import hashlib
+import os
 from pathlib import Path
 from urllib.parse import parse_qs, quote, urlsplit
 
 from reqpilotx.application.agent_workflow import task_workspace as core
 from reqpilotx.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
-from workbench_tools import read, request, resolve_binding, sync_workbench, workbench_result_url, _validate_binding, _validate_state
+from workbench_tools import download, read, request, resolve_binding, sync_workbench, workbench_result_url, _validate_binding, _validate_state
 from workspace_tools import _publication_lock
 
 
@@ -16,6 +18,14 @@ def _same_local_revision(root, revision):
     if current['revision']!=revision:
         raise ValueError('REVISION_CONFLICT: local task changed during workbench verification')
     return current
+
+
+def _remote_current(binding, expected_revision, source_sha256):
+    """Read the bound remote head and apply the existing exact revision/source rule."""
+    current=request(_api(binding))
+    _validate_state(current,binding)
+    return current, (current.get('revision_id')==expected_revision
+        and current.get('source_sha256')==source_sha256)
 
 
 def _bound_scope(state):
@@ -62,7 +72,8 @@ def workbench_link(state: dict) -> dict:
     This is deliberately separate from verifying current server content. A
     successful old synchronization remains linkable when local work advances.
     """
-    unavailable={'url':None,'local_content_match':None,'remote_current_verified':False}
+    unavailable={'url':None,'url_role':'NOT_AVAILABLE','workbench_entry':None,'chat_entry':None,
+        'local_content_match':None,'remote_current_verified':False}
     try:
         context=state['context'];root=Path(state['task_root']).resolve(strict=True)
         path=Path(state['binding_file']).resolve()
@@ -84,7 +95,21 @@ def workbench_link(state: dict) -> dict:
                 elif (current_review and binding.get('synchronized_local_review_sha256')==current_review
                         and binding.get('synchronized_result_revision')==revision):
                     match=True
-        return {'url':url,'session_id':binding['session_id'],'result_revision':revision,
+        coordinates={'task_id':context['work_id'],'work_ref':binding.get('session_id'),
+            'result_revision':revision,
+            'project_id':binding.get('project_id'),'document_id':binding.get('document_id'),
+            'source_sha256':binding.get('source_sha256'),
+            'selection':{'projectId':binding.get('project_id'),'documentId':binding.get('document_id'),
+                'pluginSessionId':binding.get('session_id'),
+                **({'resultRevision':revision} if revision else {})}}
+        return {'url':url,'url_role':'MANAGED_SERVICE_TRANSPORT_EPHEMERAL',
+            'workbench_entry':{'kind':'PAIR_REQPILOTX_WORKBENCH','action':'OPEN_ORIGINAL_WORKBENCH',
+                'user_action':'Open ReqPilotX in PAIR and select this saved work.',
+                'url':None,'coordinates':coordinates},
+            # This binding proves the ReqPilotX work/session identity, not a
+            # Host-owned PAIR Session UUID. Standalone cannot invent chat identity.
+            'chat_entry':None,
+            'session_id':binding['session_id'],'result_revision':revision,
             'link_target':'SAVED_REMOTE_RESULT' if revision else 'SOURCE_WORK',
             'local_content_match':match,'local_revision':state['revision'],
             'observation':'SAVED_BINDING','remote_current_verified':False}
@@ -133,7 +158,65 @@ def check_workbench(state: dict, local_snapshot: dict) -> dict:
         return {**unavailable,'workbench_status':'UNAVAILABLE','workbench_error':str(exc)}
 
 
-def sync_current_review(root: Path, expected_revision: str) -> dict:
+def materialize_authoritative_draft(root: Path, state: dict, binding: dict, draft: dict) -> dict:
+    """Download the exact retained DRAFT export into a task-owned durable copy."""
+    delivery = draft.get('delivery') or {}
+    identity = {'result_revision': delivery.get('revision_id'),
+        'delivery_revision': delivery.get('revision'),
+        'delivery_sha256': delivery.get('delivery_sha256'),
+        'export_sha256': delivery.get('export_sha256'),
+        'filename': delivery.get('filename'),
+        'work_id': state['context']['work_id'],
+        'work_ref': binding.get('session_id'),
+        'project_id': binding.get('project_id'),
+        'document_id': binding.get('document_id'),
+        'source_sha256': binding.get('source_sha256')}
+    if (draft.get('status') not in {'DRAFT_REGISTERED', 'DRAFT_REUSED'}
+            or not draft.get('download') or not isinstance(identity['export_sha256'], str)
+            or not isinstance(identity['delivery_sha256'], str)):
+        return {'status': 'AUTHORITATIVE_DRAFT_UNAVAILABLE', 'reason': 'CURRENT_DRAFT_EXPORT_NOT_REGISTERED',
+            'durable': False, 'exact_download': False, **identity}
+    try:
+        data, headers = download(draft['download'])
+        actual_export = hashlib.sha256(data).hexdigest()
+        if actual_export != identity['export_sha256']:
+            raise ValueError('Downloaded DRAFT bytes differ from the registered export SHA')
+        expected_headers = {'x-reqpilot-revision': identity['result_revision'],
+            'x-reqpilotx-delivery-sha256': identity['delivery_sha256'],
+            'x-reqpilotx-export-sha256': identity['export_sha256']}
+        for name, expected in expected_headers.items():
+            if headers.get(name) not in (None, expected):
+                raise ValueError('Downloaded DRAFT response belongs to another revision/source')
+        if delivery.get('source_sha256') not in (None, identity['source_sha256']):
+            raise ValueError('Downloaded DRAFT belongs to another source')
+        directory = root / 'authoritative-deliveries'
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        target = directory / (actual_export + '.xlsx')
+        if target.is_file():
+            if core.file_sha256(target) != actual_export:
+                raise ValueError('Saved authoritative DRAFT copy changed')
+        else:
+            temporary = target.with_name('.' + target.name + '.tmp')
+            try:
+                temporary.write_bytes(data); temporary.chmod(0o600)
+                os.replace(temporary, target)
+            finally:
+                temporary.unlink(missing_ok=True)
+        receipt = {**identity, 'schema_version': 'reqpilot-authoritative-draft-copy/v1',
+            'origin': 'RETAINED_DRAFT_DOWNLOAD', 'human_acceptance': 'NOT_CLAIMED',
+            'local_path': str(target.relative_to(root))}
+        receipt['receipt_sha256'] = canonical_json_sha256(receipt)
+        core._atomic_json(directory / (actual_export + '.json'), receipt)
+        return {'status': 'AUTHORITATIVE_DRAFT_READY', 'reason': None,
+            'path': str(target), 'receipt_path': str(directory / (actual_export + '.json')),
+            'durable': True, 'exact_download': True, 'url_role': 'LOCAL_MATERIALIZED_COPY',
+            **identity}
+    except (ValueError, OSError, KeyError, TypeError, RuntimeError) as exc:
+        return {'status': 'AUTHORITATIVE_DRAFT_UNAVAILABLE', 'reason': str(exc),
+            'durable': False, 'exact_download': False, **identity}
+
+
+def sync_current_review(root: Path, expected_revision: str, *, materialize_authoritative: bool = False) -> dict:
     """Explicitly publish the current review, without impersonating its old op."""
     found=core.find_task_workspace(explicit=Path(root))
     if found is None:raise ValueError('INVALID_TASK: no persistent task context for current-review synchronization')
@@ -162,9 +245,115 @@ def sync_current_review(root: Path, expected_revision: str) -> dict:
                 'source_and_model_not_recompiled':True,'local_artifact_preserved':True}
         current=core.workspace_status(root,refresh=False)
         unchanged=current['revision']==state['revision']
-        return {'status':('CURRENT_REVIEW_SYNCHRONIZED' if result['status']=='WORKBENCH_SYNCHRONIZED' else result['status']) if unchanged else 'SYNCHRONIZED_LOCAL_ADVANCED',
-            'workbench_sync':result,'synchronized_basis':basis,'current_revision':current['revision'],
+        draft=None; authoritative=None
+        if unchanged and current.get('workflow') and (current.get('workflow_check') or {}).get('status')=='PASSED':
+            draft=_ensure_current_draft(current,binding,result.get('revision_id'))
+            if draft and draft.get('status') in {'DRAFT_REGISTERED','DRAFT_REUSED'}:
+                final=core.workspace_status(root,refresh=False)
+                current=final
+                if final['revision']!=state['revision']:
+                    draft={'status':'CONFLICT','reason':'LOCAL_REVISION_CHANGED','local_artifact_preserved':True,
+                           'committed_delivery':draft.get('delivery')}
+                    unchanged=False
+                elif materialize_authoritative:
+                    authoritative=materialize_authoritative_draft(root,current,binding,draft)
+                    if authoritative.get('status')=='AUTHORITATIVE_DRAFT_READY':
+                        # The download is frozen to this exact revision/hash, but
+                        # the handoff may only claim currentness after rechecking
+                        # both owners because a public manual response can land
+                        # while the export is in flight.
+                        final_local=core.workspace_status(root,refresh=False)
+                        local_ok=(final_local['revision']==state['revision']
+                            and final_local['current_working'].get('review_sha256')==owner['review_sha256'])
+                        try:
+                            _, remote_ok=_remote_current(binding,result.get('revision_id'),
+                                state['context']['source']['sha256'])
+                            remote_error=None
+                        except (ValueError,OSError,KeyError,TypeError,RuntimeError) as exc:
+                            remote_ok=False; remote_error=str(exc)
+                        if not local_ok or not remote_ok:
+                            authoritative={**authoritative,'status':'AUTHORITATIVE_DRAFT_STALE',
+                                'currentness':'STALE','stale':True,'refresh_required':True,
+                                'reason':'LOCAL_OR_REMOTE_HEAD_CHANGED_DURING_DOWNLOAD',
+                                **({'remote_error':remote_error} if remote_error else {})}
+                            draft={**draft,'status':'CONFLICT','reason':'CURRENTNESS_CHANGED_DURING_DOWNLOAD',
+                                'remote_current':False,'local_artifact_preserved':True}
+                            unchanged=False
+                        else:
+                            authoritative={**authoritative,'currentness':'CURRENT','stale':False,'refresh_required':False}
+        status=('CURRENT_REVIEW_SYNCHRONIZED' if result['status']=='WORKBENCH_SYNCHRONIZED' else result['status']) if unchanged else (
+            'CURRENTNESS_CHANGED' if authoritative and authoritative.get('status')=='AUTHORITATIVE_DRAFT_STALE'
+            else 'SYNCHRONIZED_LOCAL_ADVANCED')
+        return {'status':status,'workbench_sync':result,'draft_delivery':draft,'authoritative_draft':authoritative,
+            'synchronized_basis':basis,'current_revision':current['revision'],
             'still_current':unchanged,'source_and_model_not_recompiled':True,'local_artifact_preserved':True}
+
+
+
+def _ensure_current_draft(state, binding, expected_revision):
+    """Register or reuse the exact current DRAFT; never formal or latest-fallback."""
+    check=state.get('workflow_check') or {}
+    selected=state.get('selected') or {}; review=state.get('current_working') or {}
+    basis=check.get('basis') or {}
+    if (not state.get('workflow') or check.get('status')!='PASSED'
+            or basis.get('source_sha256')!=state['context']['source']['sha256']
+            or basis.get('map_sha256')!=selected.get('MAP',{}).get('artifact_sha256')
+            or basis.get('items_sha256')!=selected.get('ITEMS',{}).get('artifact_sha256')
+            or basis.get('review_sha256')!=review.get('review_sha256')):
+        return {'status':'NOT_PUBLISHED','reason':'CURRENT_PASSED_CHECK_REQUIRED','local_artifact_preserved':True}
+    def remote_current():
+        return _remote_current(binding, expected_revision, state['context']['source']['sha256'])
+    api=_api(binding)
+    try:
+        preview=request(api+'/versions/preview')
+        _validate_state(preview,binding)
+        if preview.get('revision_id')!=expected_revision:
+            return {'status':'CONFLICT','reason':'WORKBENCH_REVISION_CHANGED','local_artifact_preserved':True}
+        if check.get('delivery_snapshot_sha256')!=preview.get('delivery_sha256') or preview.get('source_sha256')!=state['context']['source']['sha256']:
+            return {'status':'CONFLICT','reason':'DELIVERY_SNAPSHOT_MISMATCH','local_artifact_preserved':True}
+        versions=request(api+'/versions')
+        _validate_state(versions,binding)
+        for item in versions.get('versions',[]):
+            if (item.get('source_sha256')==state['context']['source']['sha256']
+                    and item.get('revision_id')==expected_revision
+                    and item.get('delivery_sha256')==check['delivery_snapshot_sha256']
+                    and item.get('mode')=='DRAFT' and item.get('acceptance') is None):
+                current, is_current = remote_current()
+                if not is_current:
+                    return {'status':'CONFLICT','reason':'WORKBENCH_REVISION_CHANGED',
+                        'remote_revision':current.get('revision_id'),'local_artifact_preserved':True}
+                return {'status':'DRAFT_REUSED','delivery':item,'remote_current':True,
+                    'download':api+'/versions/'+str(item['revision'])+'/export','local_artifact_preserved':True}
+        current, is_current = remote_current()
+        if not is_current:
+            return {'status':'CONFLICT','reason':'WORKBENCH_REVISION_CHANGED',
+                'remote_revision':current.get('revision_id'),'local_artifact_preserved':True}
+        command='fixed-workflow-draft-'+canonical_json_sha256([state['context']['work_id'],
+            state['context']['source']['sha256'], expected_revision, preview.get('response_revision',0),
+            check['delivery_snapshot_sha256']])[:32]
+        saved=request(api+'/versions',{'command_id':command,
+            'expected_source_sha256':state['context']['source']['sha256'],
+            'expected_revision_id':expected_revision,'expected_version':preview['version'],
+            'expected_response_revision':preview.get('response_revision',0),
+            'expected_delivery_sha256':preview['delivery_sha256'],'mode':'DRAFT','accept_snapshot':False})
+        _validate_state(saved,binding)
+        if (saved.get('mode')!='DRAFT' or saved.get('acceptance') is not None
+                or saved.get('delivery_sha256')!=check['delivery_snapshot_sha256']):
+            return {'status':'CONFLICT','reason':'DRAFT_DELIVERY_NOT_CONFIRMED','local_artifact_preserved':True}
+        current_versions=request(api+'/versions'); _validate_state(current_versions,binding)
+        if not any(item.get('revision')==saved.get('revision') and item.get('delivery_sha256')==check['delivery_snapshot_sha256']
+                   and item.get('acceptance') is None for item in current_versions.get('versions',[])):
+            return {'status':'CONFLICT','reason':'DRAFT_DELIVERY_NOT_READABLE','local_artifact_preserved':True}
+        current, is_current = remote_current()
+        if not is_current:
+            return {'status':'CONFLICT','reason':'WORKBENCH_REVISION_CHANGED',
+                'remote_revision':current.get('revision_id'),'committed_delivery':saved,
+                'local_artifact_preserved':True}
+        return {'status':'DRAFT_REGISTERED','delivery':saved,'remote_current':True,
+            'download':api+'/versions/'+str(saved['revision'])+'/export','local_artifact_preserved':True}
+    except (ValueError,OSError,KeyError,TypeError,RuntimeError) as exc:
+        return {'status':'UNAVAILABLE','reason':'WORKBENCH_DRAFT_NOT_PUBLISHED','error':str(exc),
+            'local_artifact_preserved':True,'next':'Keep the local delivery and retry publish_current_review for this exact revision.'}
 
 
 def read_workbench_delivery(state, selection):

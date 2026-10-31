@@ -186,6 +186,7 @@ import {
   requirementSemanticPublicationAtomizationBinding,
   type RequirementSemanticPublicationAtomizationBinding,
 } from "./semanticPublicationV2Model";
+import { useUiCopy } from "../../host/HostLocaleContext";
 
 const TREE_ROW_HEIGHT = 48;
 const TREE_OVERSCAN = 8;
@@ -573,21 +574,22 @@ function validatedAtomizationScopeState(
 function atomizationMutationMessage(
   cause: unknown,
   operation: "APPLY" | "UNDO",
+  l?: (key: string, fallback?: string, params?: Record<string, string | number>) => string,
 ): string {
-  const action = operation === "APPLY" ? "原子化" : "撤销原子化";
+  const action = operation === "APPLY" ? (l ? l("原子化") : "原子化") : (l ? l("撤销原子化") : "撤销原子化");
   const detail = cause instanceof Error ? cause.message.trim() : "";
   if (cause instanceof ApiError) {
     if (cause.status === 409) {
-      return `${detail || "范围版本已变化"}。所选项已保留；范围成功重读后请核对并重试。`;
+      return l ? l("{detail}。所选项已保留；范围成功重读后请核对并重试。", undefined, { detail: detail || l("范围版本已变化") }) : `${detail || "范围版本已变化"}。所选项已保留；范围成功重读后请核对并重试。`;
     }
     if (cause.status === 422) {
-      return `${detail || "当前范围不再可执行"}。所选项已保留；请调整范围后重试。`;
+      return l ? l("{detail}。所选项已保留；请调整范围后重试。", undefined, { detail: detail || l("当前范围不再可执行") }) : `${detail || "当前范围不再可执行"}。所选项已保留；请调整范围后重试。`;
     }
     if (cause.status === 503) {
-      return `${detail || "原子化服务暂不可用"}。所选项已保留；请稍后重试。`;
+      return l ? l("{detail}。所选项已保留；请稍后重试。", undefined, { detail: detail || l("原子化服务暂不可用") }) : `${detail || "原子化服务暂不可用"}。所选项已保留；请稍后重试。`;
     }
   }
-  return `${detail || `${action}未完成`}。所选项已保留，请重新读取范围后重试。`;
+  return l ? l("{detail}。所选项已保留，请重新读取范围后重试。", undefined, { detail: detail || l("{action}未完成", undefined, { action }) }) : `${detail || `${action}未完成`}。所选项已保留，请重新读取范围后重试。`;
 }
 
 export function parsingDiagnosisOverlays({
@@ -656,7 +658,7 @@ function setId(set: RequirementSet): string {
   return String(set.id || set.requirement_set_id || "");
 }
 
-function extractionStageLabel(stage: string): string {
+function extractionStageLabel(stage: string, l?: (key: string, fallback?: string) => string): string {
   const labels: Record<string, string> = {
     queued: "等待后台任务",
     preflight: "校验文件与配置",
@@ -674,7 +676,8 @@ function extractionStageLabel(stage: string): string {
     running: "分析文档条款",
     finalizing: "发布新的解析结果",
   };
-  return labels[stage.toLowerCase()] || "处理当前文档";
+  const value = labels[stage.toLowerCase()] || "处理当前文档";
+  return l ? l(value) : value;
 }
 
 export function extractionDecompositionSummary(value: unknown): {
@@ -705,7 +708,7 @@ function visualProviderLatencyLabel(value: unknown): string {
   return `${Number((latencyMs / 1000).toFixed(1))} 秒`;
 }
 
-function kindLabel(kind: string): string {
+function kindLabel(kind: string, l?: (key: string, fallback?: string) => string): string {
   const labels: Record<string, string> = {
     DOCUMENT: "文档",
     SECTION: "章节",
@@ -716,29 +719,30 @@ function kindLabel(kind: string): string {
     TABLE_RECORD: "表格条目",
     REQUIREMENT: "需求",
   };
-  return labels[kind] || "内容";
+  const value = labels[kind] || "内容";
+  return l ? l(value) : value;
 }
 
-function nodeKindLabel(node: RequirementTreeNode): string {
-  if (isPublishedRequirementNode(node)) return "需求";
-  if (isRequirementTreeTocNode(node)) return "目录";
-  if (isWholeTableReviewNode(node)) return "完整表格";
+function nodeKindLabel(node: RequirementTreeNode, l?: (key: string, fallback?: string) => string): string {
+  if (isPublishedRequirementNode(node)) return l ? l("需求") : "需求";
+  if (isRequirementTreeTocNode(node)) return l ? l("目录") : "目录";
+  if (isWholeTableReviewNode(node)) return l ? l("完整表格") : "完整表格";
   if (
     node.kind === "TABLE_RECORD" ||
     node.projection_role === "TABLE_RECORD"
   ) {
-    return "表格条目";
+    return l ? l("表格条目") : "表格条目";
   }
-  if (node.kind === "TABLE") return "完整表格";
+  if (node.kind === "TABLE") return l ? l("完整表格") : "完整表格";
   if (
     isDirectContentReviewNode(node) ||
     node.projection_role === "STRUCTURE_PROXY" ||
     node.kind === "DIRECT_CONTENT" ||
     (node.kind === "REQUIREMENT" && !isPublishedRequirementNode(node))
   ) {
-    return "条款内容";
+    return l ? l("条款内容") : "条款内容";
   }
-  return kindLabel(node.kind);
+  return kindLabel(node.kind, l);
 }
 
 function nodeIconName(
@@ -802,7 +806,7 @@ function tableProjectionForNode(
   );
 }
 
-function tableProjectionExplanation(projection: JsonRecord): string {
+function tableProjectionExplanation(projection: JsonRecord, l?: (key: string, fallback?: string, params?: Record<string, string | number>) => string): string {
   const decision = asRecord(projection.decision);
   const explicit = String(
     decision.message ||
@@ -837,10 +841,10 @@ function tableProjectionExplanation(projection: JsonRecord): string {
       (record) => asArray<JsonRecord>(record.header_bindings).length > 0,
     );
     return hasHeaders
-      ? `检测到稳定表头与 ${records.length} 个可验证行边界，当前按行形成表格条目；每条仍保留原表头。`
-      : `检测到 ${records.length} 个明确编号或稳定行边界，当前按行形成表格条目。`;
+      ? (l ? l("检测到稳定表头与 {count} 个可验证行边界，当前按行形成表格条目；每条仍保留原表头。", undefined, { count: records.length }) : `检测到稳定表头与 ${records.length} 个可验证行边界，当前按行形成表格条目；每条仍保留原表头。`)
+      : (l ? l("检测到 {count} 个明确编号或稳定行边界，当前按行形成表格条目。", undefined, { count: records.length }) : `检测到 ${records.length} 个明确编号或稳定行边界，当前按行形成表格条目。`);
   }
-  return "没有找到足以证明业务行边界的稳定表头、编号或键列，因此保留完整原表，避免误拆。";
+  return l ? l("没有找到足以证明业务行边界的稳定表头、编号或键列，因此保留完整原表，避免误拆。") : "没有找到足以证明业务行边界的稳定表头、编号或键列，因此保留完整原表，避免误拆。";
 }
 
 function rawTableRows(table: JsonRecord): Array<Array<{
@@ -890,12 +894,13 @@ function rawTableRows(table: JsonRecord): Array<Array<{
 }
 
 function ContentTable({ table }: { table: JsonRecord }) {
+  const l = useUiCopy();
   const rows = rawTableRows(table);
   if (!rows.length) {
     return (
       <div className="tree-table-empty">
         <Icon name="matrix" />
-        <span>已发现表格，但当前结果没有可验证的单元格网格。</span>
+        <span>{l("已发现表格，但当前结果没有可验证的单元格网格。")}</span>
       </div>
     );
   }
@@ -1018,13 +1023,16 @@ function isStructuralReadingNode(node: RequirementTreeNode): boolean {
 function childScopeLabel(
   node: RequirementTreeNode,
   index: ReadonlyMap<string, RequirementTreeNode>,
+  l?: (key: string, fallback?: string, params?: Record<string, string | number>) => string,
 ): string {
   const children = node.child_ids
     .map((childId) => index.get(childId))
     .filter((child): child is RequirementTreeNode => Boolean(child));
-  if (!children.length) return "仅标题";
+  if (!children.length) return l ? l("仅标题") : "仅标题";
   const allStructural = children.every(isStructuralReadingNode);
-  return `仅标题 · ${children.length} 个${allStructural ? "子条款" : "下级"}`;
+  return l
+    ? l("仅标题 · {count} 个{kind}", undefined, { count: children.length, kind: allStructural ? l("子条款") : l("下级") })
+    : `仅标题 · ${children.length} 个${allStructural ? "子条款" : "下级"}`;
 }
 
 function finiteJsonNumber(value: unknown): number | null {
@@ -1228,6 +1236,7 @@ export function CompleteContent({
   onStructureNodeChange?: (structureNodeId: string) => void;
   recordFocus: ReturnType<typeof tableRecordFocus>;
 }) {
+  const l = useUiCopy();
   const articleRef = useRef<HTMLElement>(null);
 
   useEffect(() => {
@@ -1246,8 +1255,8 @@ export function CompleteContent({
     return (
       <EmptyState
         icon="tree"
-        title="选择章节、条款、表格或条目"
-        description="选择结构节点查看完整上下文；选择候选后保留父条款，并原位标出可证明的来源边界。"
+        title={l("选择章节、条款、表格或条目")}
+        description={l("选择结构节点查看完整上下文；选择候选后保留父条款，并原位标出可证明的来源边界。")}
       />
     );
   }
@@ -1259,20 +1268,20 @@ export function CompleteContent({
             ? `–${node.page_end}`
             : ""
         } 页`
-      : "原文范围待确认";
+      : l("原文范围待确认");
     return (
       <article ref={articleRef} className="tree-content-document tree-toc-document">
         <header>
-          <span>目录</span>
+          <span>{l("目录")}</span>
           <h2>{requirementTreeNodeDisplayLabel(node)}</h2>
           <p>{pageRange}</p>
         </header>
         {tocEntries.length > 0 ? (
-          <nav className="tree-toc-navigation" aria-label="目录条目">
+          <nav className="tree-toc-navigation" aria-label={l("目录条目")}>
             <div className="tree-toc-header" aria-hidden="true">
-              <span>编号</span>
-              <span>章节</span>
-              <span>页码</span>
+              <span>{l("编号")}</span>
+              <span>{l("章节")}</span>
+              <span>{l("页码")}</span>
             </div>
             <ol className="tree-toc-list">
               {tocEntries.map((entry) => (
@@ -1286,11 +1295,11 @@ export function CompleteContent({
                         onStructureNodeChange(entry.targetStructureNodeId)
                       }
                     >
-                      {entry.title || "未命名章节"}
+                      {entry.title || l("未命名章节")}
                     </button>
                   ) : (
                     <span className="tree-toc-title">
-                      {entry.title || "未命名章节"}
+                      {entry.title || l("未命名章节")}
                     </span>
                   )}
                   {entry.targetPage > 0 ? (
@@ -1299,13 +1308,13 @@ export function CompleteContent({
                       className="tree-toc-page"
                       aria-label={
                         entry.printedPageLabel
-                          ? `目录印刷页 ${entry.printedPageLabel}；打开 PDF 第 ${entry.targetPage} 页`
-                          : `打开 PDF 第 ${entry.targetPage} 页`
+                          ? l("目录印刷页 {printed}；打开 PDF 第 {page} 页", undefined, { printed: entry.printedPageLabel, page: entry.targetPage })
+                          : l("打开 PDF 第 {page} 页", undefined, { page: entry.targetPage })
                       }
                       title={
                         entry.printedPageLabel &&
                         entry.printedPageLabel !== String(entry.targetPage)
-                          ? `对应 PDF 第 ${entry.targetPage} 页`
+                          ? l("对应 PDF 第 {page} 页", undefined, { page: entry.targetPage })
                           : undefined
                       }
                       onClick={() => onPageChange(entry.targetPage)}
@@ -1318,7 +1327,7 @@ export function CompleteContent({
                       className="tree-toc-page is-missing"
                       title={
                         entry.printedPageLabel
-                          ? "印刷页码尚未解析到物理 PDF 页"
+                          ? l("印刷页码尚未解析到物理 PDF 页")
                           : undefined
                       }
                     >
@@ -1330,8 +1339,8 @@ export function CompleteContent({
             </ol>
           </nav>
         ) : (
-          <InlineNotice title="目录索引尚未生成" tone="info">
-            当前目录仍可在右侧原 PDF 中核对；重新提取后会在这里显示编号、标题与可跳转页码。
+          <InlineNotice title={l("目录索引尚未生成")} tone="info">
+            {l("当前目录仍可在右侧原 PDF 中核对；重新提取后会在这里显示编号、标题与可跳转页码。")}
           </InlineNotice>
         )}
       </article>
@@ -1348,33 +1357,33 @@ export function CompleteContent({
             ? `–${node.page_end}`
             : ""
         } 页`
-      : "范围待确认";
+      : l("范围待确认");
     return (
       <article ref={articleRef} className="tree-content-document">
         <header>
-          <span>{nodeKindLabel(node)}</span>
+          <span>{nodeKindLabel(node, l)}</span>
           <h2>{requirementTreeNodeDisplayLabel(node)}</h2>
           <p>{pageRange}</p>
         </header>
-        <section className="tree-root-overview" aria-label="文档结构概览">
+        <section className="tree-root-overview" aria-label={l("文档结构概览")}>
           <Icon name="tree" size={22} />
           <div className="tree-root-overview-copy">
-            <strong>请选择具体章节或条款</strong>
+            <strong>{l("请选择具体章节或条款")}</strong>
             <p>
-              文档根目录只显示结构概览，避免一次加载整份原文；进入下级后仍会完整显示所选章节或条款内容。
+              {l("文档根目录只显示结构概览，避免一次加载整份原文；进入下级后仍会完整显示所选章节或条款内容。")}
             </p>
           </div>
           <dl>
             <div>
-              <dt>顶层结构</dt>
-              <dd>{node.child_ids.length} 项</dd>
+              <dt>{l("顶层结构")}</dt>
+              <dd>{l("{count} 项", undefined, { count: node.child_ids.length })}</dd>
             </div>
             <div>
-              <dt>待审阅候选</dt>
-              <dd>{reviewItemCount(node)} 项</dd>
+              <dt>{l("待审阅候选")}</dt>
+              <dd>{l("{count} 项", undefined, { count: reviewItemCount(node) })}</dd>
             </div>
             <div>
-              <dt>原文范围</dt>
+              <dt>{l("原文范围")}</dt>
               <dd>{pageRange}</dd>
             </div>
           </dl>
@@ -1809,7 +1818,7 @@ export function CompleteContent({
           )}
           data-review-focus={focused ? "true" : undefined}
           aria-current={focused ? "true" : undefined}
-          aria-label={crossPage ? "跨页表格完整内容" : undefined}
+          aria-label={crossPage ? l("跨页表格完整内容") : undefined}
           key={String(
             block.table_id || block.id || block.source_id || `table-${index}`,
           )}
@@ -1820,8 +1829,8 @@ export function CompleteContent({
               <Icon name="matrix" size={15} />
               <span>
                 {tableContextPreview
-                  ? "跨页表格已连续还原；章节中显示有界预览，使用“展开表格”查看完整内容。"
-                  : "跨页内容已连续还原；可在表格内横向滚动、向下查看续表，或使用“展开表格”查看完整内容。"}
+                  ? l("跨页表格已连续还原；章节中显示有界预览，使用“展开表格”查看完整内容。")
+                  : l("跨页内容已连续还原；可在表格内横向滚动、向下查看续表，或使用“展开表格”查看完整内容。")}
               </span>
             </div>
           )}
@@ -1886,7 +1895,7 @@ export function CompleteContent({
         >
           <img
             src={src}
-            alt={String(block.alt || "条款中的来源图片")}
+            alt={String(block.alt || l("条款中的来源图片"))}
             aria-describedby={captionDescriptionId}
             loading="lazy"
             decoding="async"
@@ -1924,7 +1933,7 @@ export function CompleteContent({
           key={String(block.source_id || block.id || `figure-${index}`)}
         >
           <Icon name="eye" />
-          <span>图片位置已保留，可在右侧原 PDF 中核对。</span>
+          <span>{l("图片位置已保留，可在右侧原 PDF 中核对。")}</span>
         </div>
       );
     }
@@ -1943,7 +1952,7 @@ export function CompleteContent({
   return (
     <article ref={articleRef} className="tree-content-document">
       <header>
-        <span>{nodeKindLabel(node)}</span>
+        <span>{nodeKindLabel(node, l)}</span>
         <h2
           className={cx(focusNode.id === node.id && "tree-content-focus-title")}
         >
@@ -1951,26 +1960,25 @@ export function CompleteContent({
         </h2>
         {node.page_start && (
           <p>
-            原文第 {node.page_start}
-            {node.page_end && node.page_end !== node.page_start
-              ? `–${node.page_end}`
-              : ""}{" "}
-            页
+            {l("原文第 {start}{range} 页", undefined, {
+              start: node.page_start,
+              range: node.page_end && node.page_end !== node.page_start ? `–${node.page_end}` : "",
+            })}
           </p>
         )}
         {showingPageFallback && (
-          <p>当前结构尚未覆盖全部内容，以下直接显示当前页解析事实。</p>
+          <p>{l("当前结构尚未覆盖全部内容，以下直接显示当前页解析事实。")}</p>
         )}
         {rootIsPureContainer && (
           <div className="tree-content-container-state">
-            {childScopeLabel(node, contextNodeIndex)}
+            {childScopeLabel(node, contextNodeIndex, l)}
           </div>
         )}
         {selectedItem && selectedItem.id !== node.id && (
           <div className="tree-review-focus-strip">
-            <span>当前聚焦</span>
-            <strong>{nodeKindLabel(selectedItem)}</strong>
-            <em>{statusLabel(selectedItem)}</em>
+            <span>{l("当前聚焦")}</span>
+            <strong>{nodeKindLabel(selectedItem, l)}</strong>
+            <em>{statusLabel(selectedItem, l)}</em>
           </div>
         )}
       </header>
@@ -1998,10 +2006,10 @@ export function CompleteContent({
                     )}
                     data-review-focus={focusedHeading ? "true" : undefined}
                   >
-                    <span>{nodeKindLabel(event.node)}</span>
+                    <span>{nodeKindLabel(event.node, l)}</span>
                     <h3>{label}</h3>
                     {nodeIsPureStructureContainer(event.node) && (
-                      <em>{childScopeLabel(event.node, contextNodeIndex)}</em>
+                      <em>{childScopeLabel(event.node, contextNodeIndex, l)}</em>
                     )}
                   </header>
                 </div>
@@ -2044,7 +2052,7 @@ export function CompleteContent({
               <Icon name="eye" />
               <span>
                 本页另有 {hiddenFallbackFigureCount} 个图形框标，右侧原 PDF
-                保留全部定位；选择相应结构节点时再展开。
+                {l("保留全部定位；选择相应结构节点时再展开。")}
               </span>
             </div>
           )}
@@ -2052,9 +2060,9 @@ export function CompleteContent({
       ) : (
         <p className="tree-content-summary">
           {wholeTableReview
-            ? "整表结构暂不可用，请在右侧原 PDF 中核对。"
+            ? l("整表结构暂不可用，请在右侧原 PDF 中核对。")
             : node.summary ||
-              "该节点保留结构身份；条款内容与 PDF 原文可在详情区核对。"}
+              l("该节点保留结构身份；条款内容与 PDF 原文可在详情区核对。")}
         </p>
       )}
       {selectedItem &&
@@ -2063,12 +2071,12 @@ export function CompleteContent({
           <section
             className="tree-review-focus-fallback"
             data-review-focus="true"
-            aria-label="当前候选来源内容降级显示"
+            aria-label={l("当前候选来源内容降级显示")}
           >
-            <span>来源内容暂未原位匹配 · 降级显示</span>
+            <span>{l("来源内容暂未原位匹配 · 降级显示")}</span>
             <p>
               {selectedItem.summary ||
-                "当前候选已绑定原文范围；父条款未返回可内嵌的独立内容块，请在右侧 PDF 精确框选中核对。"}
+                l("当前候选已绑定原文范围；父条款未返回可内嵌的独立内容块，请在右侧 PDF 精确框选中核对。")}
             </p>
           </section>
         )}
@@ -2077,6 +2085,7 @@ export function CompleteContent({
 }
 
 function RequirementTreeOrganizePanel() {
+  const l = useUiCopy();
   const agentAvailability = useSaasNativeAgentAvailability();
   const documentAgent = useDocumentAgent();
   const {
@@ -2135,15 +2144,15 @@ function RequirementTreeOrganizePanel() {
   );
   const visualRestorationMethodLabel = visualRestorationOverride?.document
     ?.enhancement_chain.includes("bailian_ocr")
-    ? "Qwen OCR 结构恢复"
+    ? l("Qwen OCR 结构恢复")
     : visualRestorationOverride?.document?.enhancement_chain.includes(
           "bailian_layout",
         )
-      ? "页面布局识别"
+      ? l("页面布局识别")
       : visualRestorationOverride?.document?.primary_parser ===
           "azure_document_intelligence"
-        ? "Azure 文档解析"
-        : "视觉恢复";
+        ? l("Azure 文档解析")
+        : l("视觉恢复");
   const workingTree =
     (workbench.requirement_tree as RequirementTreeSnapshot | undefined) || null;
   const sets = requirementSets?.requirement_sets || [];
@@ -2160,7 +2169,7 @@ function RequirementTreeOrganizePanel() {
   const selectedSetVersion = Math.max(0, Number(selectedSet?.version || 0));
   const selectedSetVersionLabel =
     String(selectedSet?.version_label || "").trim() ||
-    (selectedSetVersion > 0 ? `v${selectedSetVersion}` : "当前版本");
+    (selectedSetVersion > 0 ? `v${selectedSetVersion}` : l("当前版本"));
   const selectedSetRequirementCount = Math.max(
     0,
     Number(selectedSet?.requirement_count || 0),
@@ -2177,6 +2186,7 @@ function RequirementTreeOrganizePanel() {
     "diagnose",
     "structure",
     "list",
+    "requirements",
     "review",
   ].includes(String(route.checkpoint || ""))
     ? (route.checkpoint as ExtractionCheckpoint)
@@ -2273,9 +2283,9 @@ function RequirementTreeOrganizePanel() {
   );
   const extractionQueueWaitLabel =
     extractionQueueWaitSeconds >= 60
-      ? `${Math.max(1, Math.floor(extractionQueueWaitSeconds / 60))} 分钟`
+      ? l("{minutes} 分钟", undefined, { minutes: Math.max(1, Math.floor(extractionQueueWaitSeconds / 60)) })
       : extractionQueueWaitSeconds > 0
-        ? `${Math.floor(extractionQueueWaitSeconds)} 秒`
+        ? l("{seconds} 秒", undefined, { seconds: Math.floor(extractionQueueWaitSeconds) })
         : "";
   const extractionProgress = asRecord(extractionJob.progress);
   const extractionProcessingPlan = asRecord(extractionJob.processing_plan);
@@ -2319,7 +2329,7 @@ function RequirementTreeOrganizePanel() {
   );
   const extractionPlanLlmSummary =
     extractionPlanLlmProvider === "none"
-      ? "LLM 未启用"
+      ? l("LLM 未启用")
       : extractionPlanLlmProvider
         ? [
             extractionPlanLlmProvider === "aliyun"
@@ -2328,10 +2338,10 @@ function RequirementTreeOrganizePanel() {
                 ? "Azure OpenAI"
                 : extractionPlanLlmProvider,
             extractionPlanSemanticDeployment
-              ? `语义模型 ${extractionPlanSemanticDeployment}`
+              ? l("语义模型 {deployment}", undefined, { deployment: extractionPlanSemanticDeployment })
               : "",
             extractionPlanStructureDeployments.length > 0
-              ? `结构模型 ${extractionPlanStructureDeployments.join("/")}`
+              ? l("结构模型 {deployments}", undefined, { deployments: extractionPlanStructureDeployments.join("/") })
               : "",
           ]
             .filter(Boolean)
@@ -2340,32 +2350,32 @@ function RequirementTreeOrganizePanel() {
   const frozenExtractionPlanSummary = extractionPlanPrimaryParser
     ? [
         extractionPlanPrimaryParser === "pymupdf"
-          ? "本地 PyMuPDF"
+          ? l("本地 PyMuPDF")
           : extractionPlanPrimaryParser === "azure_document_intelligence"
             ? "Azure Document Intelligence"
             : extractionPlanPrimaryParser,
         extractionPlanEnhancementChain.length === 0 &&
         !extractionPlanComplexVision &&
         extractionPlanForcedVisualPages === 0
-          ? "无视觉增强"
+          ? l("无视觉增强")
           : [
               ...extractionPlanEnhancementChain.map((item) =>
                 item === "bailian_layout"
-                  ? "百炼版面增强"
+                  ? l("百炼版面增强")
                   : item === "bailian_ocr"
-                    ? "Qwen OCR 结构恢复"
+                    ? l("Qwen OCR 结构恢复")
                   : item === "azure_document_intelligence"
-                    ? "Azure 文档增强"
+                    ? l("Azure 文档增强")
                     : item,
               ),
-              ...(extractionPlanComplexVision ? ["复杂页面视觉"] : []),
+              ...(extractionPlanComplexVision ? [l("复杂页面视觉")] : []),
               ...(extractionPlanForcedVisualPages > 0
-                ? [`强制视觉 ${extractionPlanForcedVisualPages} 页`]
+                ? [l("强制视觉 {count} 页", undefined, { count: extractionPlanForcedVisualPages })]
                 : []),
             ].join("、"),
         extractionPlanLlmSummary,
-        `项目方案修订 ${extractionPlanProfileRevision}`,
-        `连接修订 ${extractionPlanConnectionRevision}`,
+        l("项目方案修订 {revision}", undefined, { revision: extractionPlanProfileRevision }),
+        l("连接修订 {revision}", undefined, { revision: extractionPlanConnectionRevision }),
       ]
         .filter(Boolean)
         .join(" · ")
@@ -2402,10 +2412,10 @@ function RequirementTreeOrganizePanel() {
   );
   const latestVisualPageTitle =
     latestVisualPageOutcome === "CACHE_HIT"
-      ? "最近视觉页命中缓存"
+      ? l("最近视觉页命中缓存")
       : latestVisualPageOutcome === "FAILED"
-        ? "最近视觉页失败"
-        : "最近视觉页成功";
+        ? l("最近视觉页失败")
+        : l("最近视觉页成功");
   const latestExtractionQueued = ["PENDING", "QUEUED", "STARTING"].includes(
     extractionJobStatus,
   );
@@ -2475,17 +2485,17 @@ function RequirementTreeOrganizePanel() {
     extractionHeartbeatAgeSeconds !== null
       ? extractionHeartbeatAgeSeconds <= 45
         ? [
-            "后台心跳正常",
+            l("后台心跳正常"),
             extractionCurrentPage > 0 && extractionPageElapsedSeconds !== null
-              ? `当前第 ${extractionCurrentPage} 页处理阶段已持续 ${extractionPageElapsedSeconds} 秒`
+              ? l("当前第 {page} 页处理阶段已持续 {seconds} 秒", undefined, { page: extractionCurrentPage, seconds: extractionPageElapsedSeconds })
               : "",
-            "仅表示运行时长，不是完成度估算",
+            l("仅表示运行时长，不是完成度估算"),
           ]
             .filter(Boolean)
             .join(" · ")
-        : `最近一次后台心跳在 ${extractionHeartbeatAgeSeconds} 秒前，正在继续确认任务状态。`
+        : l("最近一次后台心跳在 {seconds} 秒前，正在继续确认任务状态。", undefined, { seconds: extractionHeartbeatAgeSeconds })
       : extractionCurrentPage > 0 && extractionPageElapsedSeconds !== null
-        ? `当前第 ${extractionCurrentPage} 页处理阶段已持续 ${extractionPageElapsedSeconds} 秒 · 仅表示运行时长，不是完成度估算`
+        ? l("当前第 {page} 页处理阶段已持续 {seconds} 秒 · 仅表示运行时长，不是完成度估算", undefined, { page: extractionCurrentPage, seconds: extractionPageElapsedSeconds })
         : "";
 
   useEffect(() => {
@@ -2709,11 +2719,11 @@ function RequirementTreeOrganizePanel() {
   const sourceDocumentTask = currentSourceActivity?.jobs.find(job => job.kind === "agent.source-item.extract-loop");
   const showSourceDocumentTask = !nativeStructureReferenceAvailable && !!currentSourceActivity
     && (currentSourceActivity.checking || currentSourceActivity.statusUnavailable || currentSourceActivity.submitting || !!sourceDocumentTask);
-  const sourceDocumentTaskTitle = currentSourceActivity?.checking ? "正在同步当前任务"
-    : currentSourceActivity?.statusUnavailable ? "当前任务状态待同步"
-    : currentSourceActivity?.submitting ? "正在提交原文任务"
-    : ({ PENDING: "原文任务已排队", RUNNING: "Agent 正在处理原文", CANCEL_REQUESTED: "正在暂停当前任务",
-        CANCELLED: "当前任务已暂停", FAILED: "本轮任务未完成", SUCCEEDED: "本轮任务已结束" } as Record<string, string>)[sourceDocumentTask?.status || ""] || "当前原文任务";
+  const sourceDocumentTaskTitle = currentSourceActivity?.checking ? l("正在同步当前任务")
+    : currentSourceActivity?.statusUnavailable ? l("当前任务状态待同步")
+    : currentSourceActivity?.submitting ? l("正在提交原文任务")
+    : ({ PENDING: l("原文任务已排队"), RUNNING: l("Agent 正在处理原文"), CANCEL_REQUESTED: l("正在暂停当前任务"),
+        CANCELLED: l("当前任务已暂停"), FAILED: l("本轮任务未完成"), SUCCEEDED: l("本轮任务已结束") } as Record<string, string>)[sourceDocumentTask?.status || ""] || l("当前原文任务");
   const [sourceGraphRefresh, setSourceGraphRefresh] = useState(0);
   useEffect(() => { setNativeReferenceLookupReady(false); setSourceGraphJobs([]); }, [route.projectId, route.documentId]);
   const [nativeStructureReferencePageCount, setNativeStructureReferencePageCount] =
@@ -2963,7 +2973,7 @@ function RequirementTreeOrganizePanel() {
         setNativeAdvanceError(
           caught instanceof ApiError
             ? caught.message
-            : "Agent 基线状态暂时无法同步。",
+            : l("Agent 基线状态暂时无法同步。"),
         );
         timer = window.setTimeout(poll, 3000);
       }
@@ -3157,7 +3167,7 @@ function RequirementTreeOrganizePanel() {
       semanticPublicationAtomizationError =
         cause instanceof Error
           ? cause.message
-          : "当前原子化范围无法安全发布，请重新读取后再生成。";
+          : l("当前原子化范围无法安全发布，请重新读取后再生成。");
     }
   }
   const semanticPublicationContextKey = JSON.stringify([
@@ -3408,7 +3418,7 @@ function RequirementTreeOrganizePanel() {
             error:
               cause instanceof Error
                 ? cause.message
-                : "逐页解析事实暂时无法建立。",
+                : l("逐页解析事实暂时无法建立。"),
           });
         }
       });
@@ -3440,7 +3450,7 @@ function RequirementTreeOrganizePanel() {
           normalized.activeParseArtifactId !== sourcePageSnapshotId ||
           normalized.sourceSha256 !== sourcePageSourceSha256
         ) {
-          throw new Error("解析风险与当前解析结果不一致，请同步后重试");
+          throw new Error(l("解析风险与当前解析结果不一致，请同步后重试"));
         }
         setParsingDiagnosticsState({
           requestKey,
@@ -3456,7 +3466,7 @@ function RequirementTreeOrganizePanel() {
           status: "ERROR",
           payload: null,
           error:
-            cause instanceof Error ? cause.message : "解析风险摘要读取失败。",
+            cause instanceof Error ? cause.message : l("解析风险摘要读取失败。"),
         });
       });
     return () => {
@@ -3513,7 +3523,7 @@ function RequirementTreeOrganizePanel() {
           error:
             cause instanceof Error
               ? cause.message
-              : "当前清单分类读取失败。",
+              : l("当前清单分类读取失败。"),
         });
       });
     return () => {
@@ -3683,8 +3693,8 @@ function RequirementTreeOrganizePanel() {
           payload: current?.requestKey === requestKey ? current.payload : null,
           error:
             cause instanceof Error
-              ? `原子化范围读取失败：${cause.message}`
-              : "原子化范围读取失败，请重试。",
+              ? l("原子化范围读取失败：{message}", undefined, { message: cause.message })
+              : l("原子化范围读取失败，请重试。"),
         }));
       });
     return () => controller.abort();
@@ -3733,7 +3743,7 @@ function RequirementTreeOrganizePanel() {
               error:
                 cause instanceof Error
                   ? cause.message
-                  : "逐页解析进度读取失败。",
+                  : l("逐页解析进度读取失败。"),
             }));
           }
         });
@@ -3809,13 +3819,13 @@ function RequirementTreeOrganizePanel() {
             ),
           );
           if (responseJobId && responseJobId !== stagedJobId) {
-            throw new Error("本轮暂存页与当前解析任务不一致，已拒绝显示。");
+            throw new Error(l("本轮暂存页与当前解析任务不一致，已拒绝显示。"));
           }
           if (
             responseGeneration > 0 &&
             responseGeneration !== stagedAttemptGeneration
           ) {
-            throw new Error("本轮暂存页与当前解析代际不一致，已拒绝显示。");
+            throw new Error(l("本轮暂存页与当前解析代际不一致，已拒绝显示。"));
           }
         }
         pagePayloadCacheRef.current.set(cacheKey, payload);
@@ -3838,7 +3848,7 @@ function RequirementTreeOrganizePanel() {
             status: "ERROR",
             payload: null,
             error:
-              cause instanceof Error ? cause.message : "本页解析事实载入失败。",
+              cause instanceof Error ? cause.message : l("本页解析事实载入失败。"),
           });
         }
       });
@@ -4095,7 +4105,7 @@ function RequirementTreeOrganizePanel() {
         error:
           cause instanceof Error
             ? cause.message
-            : "当前原子化范围无法验证。",
+            : l("当前原子化范围无法验证。"),
       };
     }
   }, [
@@ -4120,8 +4130,8 @@ function RequirementTreeOrganizePanel() {
       atomizationScopeState.capability.scopes.includes("SELECTED"),
   );
   const atomizationUnavailableReason = !requirementEnrichmentReady
-    ? "范围状态必须成功重读后才能执行，当前原条目保持不变"
-    : "当前服务未开放这个原子化范围，原条目保持不变";
+    ? l("范围状态必须成功重读后才能执行，当前原条目保持不变")
+    : l("当前服务未开放这个原子化范围，原条目保持不变");
   const baseAtomizationViewModel = atomizationPlanResult.plan
     ? atomizationScopeViewModel(atomizationPlanResult.plan)
     : null;
@@ -4139,7 +4149,7 @@ function RequirementTreeOrganizePanel() {
           atomizationApplyAvailable &&
           !atomizationAttemptGate?.applyBlocked,
         actionLabel: atomizationAttemptGate?.retryingApply
-          ? `重试原子化 ${baseAtomizationViewModel.targetCount} 项技术需求`
+          ? l("重试原子化 {count} 项技术需求", undefined, { count: baseAtomizationViewModel.targetCount })
           : baseAtomizationViewModel.actionLabel,
         emptyReason: atomizationApplyAvailable
           ? baseAtomizationViewModel.emptyReason
@@ -4173,23 +4183,23 @@ function RequirementTreeOrganizePanel() {
     0;
   const atomizationServerStateLabel = atomizationAttemptGate?.serverRunning
     ? atomizationScopeState?.last_attempt?.operation === "UNDO"
-      ? "正在撤销原子化 · 每 2.5 秒自动更新"
-      : "正在执行原子化 · 每 2.5 秒自动更新"
+      ? l("正在撤销原子化 · 每 2.5 秒自动更新")
+      : l("正在执行原子化 · 每 2.5 秒自动更新")
     : atomizationAttemptGate?.retryingApply
-      ? "上次执行中断 · 可重试当前范围"
+      ? l("上次执行中断 · 可重试当前范围")
       : atomizationAttemptGate?.applyBlocked
-        ? "上次执行不可重试 · 请调整范围"
+        ? l("上次执行不可重试 · 请调整范围")
         : atomizationAttemptGate?.undoBlocked
-          ? "最近一次撤销不可重试"
+          ? l("最近一次撤销不可重试")
           : atomizationScopeState?.last_attempt?.status === "INTERRUPTED"
-            ? "上次操作中断 · 当前范围已调整"
+            ? l("上次操作中断 · 当前范围已调整")
             : atomizationScopeState?.can_undo
-              ? `已应用 ${activeAtomizationTargetCount} 项 · 可撤销最近一次操作`
+              ? l("已应用 {count} 项 · 可撤销最近一次操作", undefined, { count: activeAtomizationTargetCount })
               : atomizationScopeState
-                ? "尚未执行 · 当前保留原条目"
+                ? l("尚未执行 · 当前保留原条目")
                 : requirementEnrichmentLoading
-                  ? "正在读取可执行范围"
-                  : "范围状态不可用";
+                  ? l("正在读取可执行范围")
+                  : l("范围状态不可用");
   const classificationBatchWorkflowIds = useMemo(
     () =>
       tree && entryClassification
@@ -4298,7 +4308,7 @@ function RequirementTreeOrganizePanel() {
         requestKey: geometryFocusRequestKey,
         status: "ERROR",
         payload: { node_id: selectedNode.id, regions: [] },
-        error: "当前需求树没有记录分页几何身份，请重新提取后再使用精确框选。",
+        error: l("当前需求树没有记录分页几何身份，请重新提取后再使用精确框选。"),
       });
       return;
     }
@@ -4328,7 +4338,7 @@ function RequirementTreeOrganizePanel() {
             geometryIndexSha256: treeGeometryIndexSha256,
           }) === null
         ) {
-          throw new Error("来源定位结果与当前所选节点不一致，请重试。");
+          throw new Error(l("来源定位结果与当前所选节点不一致，请重试。"));
         }
         setGeometryFocusState({
           requestKey,
@@ -4357,7 +4367,7 @@ function RequirementTreeOrganizePanel() {
           error:
             cause instanceof Error
               ? cause.message
-              : "当前节点的精确来源范围无法验证。",
+              : l("当前节点的精确来源范围无法验证。"),
         });
       });
     return () => {
@@ -4447,7 +4457,7 @@ function RequirementTreeOrganizePanel() {
       setBoundaryCalibrationLoading(false);
       if (organizeView === "calibration" && !geometryIndexReady) {
         setBoundaryCalibrationError(
-          "当前提取没有可验证的 PDF 行几何，版面校准保持只读。",
+          l("当前提取没有可验证的 PDF 行几何，版面校准保持只读。"),
         );
       } else {
         setBoundaryCalibrationError("");
@@ -4482,7 +4492,7 @@ function RequirementTreeOrganizePanel() {
         setBoundaryCalibrationError(
           cause instanceof Error
             ? cause.message
-            : "当前页边界校准计划载入失败。",
+            : l("当前页边界校准计划载入失败。"),
         );
       })
       .finally(() => {
@@ -4538,7 +4548,7 @@ function RequirementTreeOrganizePanel() {
         setBoundaryCalibrationError(
           cause instanceof Error
             ? cause.message
-            : "所选条目的边界校准计划载入失败。",
+            : l("所选条目的边界校准计划载入失败。"),
         );
       } finally {
         if (boundaryCalibrationRequestRef.current === requestId) {
@@ -4614,7 +4624,7 @@ function RequirementTreeOrganizePanel() {
       if (cached) return cached;
       const node = structureNodeById.get(nodeId);
       if (!node) return "";
-      const label = String(node.label || "未命名节点");
+      const label = String(node.label || l("未命名节点"));
       if (resolving.has(nodeId)) return label;
       resolving.add(nodeId);
       const parentId = String(node.parent_id || "");
@@ -4708,24 +4718,24 @@ function RequirementTreeOrganizePanel() {
     Number.isInteger(boundaryEnd) &&
     boundaryEnd - boundaryStart >= 2;
   const reparentDisabledReason = (() => {
-    if (busyAction) return "正在处理上一项操作。";
+    if (busyAction) return l("正在处理上一项操作。");
     if (workbenchCapabilities.can_edit_structure !== true) {
-      return "当前结构版本不可编辑。";
+      return l("当前结构版本不可编辑。");
     }
     if (!selectedStructureIds.length) {
-      return "当前展示节点缺少可编辑结构绑定，请重新提取后再调整。";
+      return l("当前展示节点缺少可编辑结构绑定，请重新提取后再调整。");
     }
     if (selectedStructureNodes.length !== selectedStructureIds.length) {
-      return "当前结构版本已变化，请刷新后重试。";
+      return l("当前结构版本已变化，请刷新后重试。");
     }
-    if (!structureTargetId) return "请选择新的父级。";
+    if (!structureTargetId) return l("请选择新的父级。");
     if (
       selectedStructureNodes.every(
         (structureNode) =>
           String(structureNode.parent_id || "") === structureTargetId,
       )
     ) {
-      return "所选内容已经属于这个父级。";
+      return l("所选内容已经属于这个父级。");
     }
     return "";
   })();
@@ -5027,7 +5037,7 @@ function RequirementTreeOrganizePanel() {
               ? "BOUNDARY"
               : "BOUNDARY-LOCKED",
           label: draft
-            ? `${draft.label} · 草稿`
+            ? l("{label} · 草稿", undefined, { label: draft.label })
             : "",
           bbox,
           sourceBounds: [0, 0, width, height],
@@ -5120,12 +5130,12 @@ function RequirementTreeOrganizePanel() {
   const startExtraction = async () => {
     if (sourceGraphBusy || !agentAvailability.ready || isSaasAccountMode() && nativeStructureAdvancement.artifactId) return;
     const result = await runAction(
-      "Agent 提取原文",
+      l("Agent 提取原文"),
       () => startSourceDocumentGraph(route.projectId, route.documentId,
         String(selectedDocument?.source_sha256 || ""), nativeStructureAdvancement.artifactId || ""),
       {
         refresh: "document",
-        successNotice: "需求提取已提交，正在生成",
+        successNotice: l("需求提取已提交，正在生成"),
       },
     );
     if (result) setSourceGraphJobs(result.jobs || [result]);
@@ -5133,7 +5143,7 @@ function RequirementTreeOrganizePanel() {
 
   const regenerateWithLocalRules = async () => {
     const started = await runAction(
-      "本地规则重新生成",
+      l("本地规则重新生成"),
       () =>
         api.startExtraction(
           route.projectId,
@@ -5142,7 +5152,7 @@ function RequirementTreeOrganizePanel() {
         ),
       {
         refresh: "document",
-        successNotice: "本地规则重新生成已提交，正在生成",
+        successNotice: l("本地规则重新生成已提交，正在生成"),
       },
     );
     if (started) setReorganizeDialogOpen(false);
@@ -5151,11 +5161,11 @@ function RequirementTreeOrganizePanel() {
   const rerunParsingWithCodexAgent = async () => {
     if (isSaasAccountMode()) return;
     const started = await runAction(
-      "Codex Agent 原文基线重新生成",
+      l("Codex Agent 原文基线重新生成"),
       () => api.startExtraction(route.projectId, route.documentId),
       {
         refresh: "document",
-        successNotice: "Codex Agent 原文基线任务已提交，正在生成",
+        successNotice: l("Codex Agent 原文基线任务已提交，正在生成"),
       },
     );
     if (started) setParsingRerunDialogOpen(false);
@@ -5164,7 +5174,7 @@ function RequirementTreeOrganizePanel() {
   const restoreSourceAndExtract = async () => {
     if (!visualRestorationOverride) return;
     const started = await runAction(
-      `${visualRestorationMethodLabel}并重新提取`,
+      l("{method}并重新提取", undefined, { method: visualRestorationMethodLabel }),
       () =>
         api.startExtraction(
           route.projectId,
@@ -5173,7 +5183,7 @@ function RequirementTreeOrganizePanel() {
         ),
       {
         refresh: "document",
-        successNotice: `${visualRestorationMethodLabel}任务已提交，正在生成全文结果`,
+        successNotice: l("{method}任务已提交，正在生成全文结果", undefined, { method: visualRestorationMethodLabel }),
       },
     );
     if (started) setParsingRerunDialogOpen(false);
@@ -5183,7 +5193,7 @@ function RequirementTreeOrganizePanel() {
     if (!visualRepairAvailable) return;
     const failedPageCount = visualRepairFailedPages.length;
     await runAction(
-      `只重试降级的 ${failedPageCount} 页`,
+      l("只重试降级的 {count} 页", undefined, { count: failedPageCount }),
       () =>
         api.repairExtractionVisualPages(route.projectId, route.documentId, {
           schema_version: "document-extraction-visual-repair-request/v1",
@@ -5204,12 +5214,12 @@ function RequirementTreeOrganizePanel() {
     const jobId = String(extractionJob.job_id || "");
     if (!jobId || !extractionCanCancel) return;
     await runAction(
-      "取消本次解析",
+      l("取消本次解析"),
       () => api.cancelExtraction(route.projectId, route.documentId, jobId),
       {
         refresh: "document",
-        successNotice: "已提交取消请求；已发布结果和原文件不会删除",
-        failureNotice: "取消请求未完成，请刷新任务状态后重试",
+        successNotice: l("已提交取消请求；已发布结果和原文件不会删除"),
+        failureNotice: l("取消请求未完成，请刷新任务状态后重试"),
       },
     );
   };
@@ -5236,11 +5246,7 @@ function RequirementTreeOrganizePanel() {
         className="button ghost compact"
         onClick={() => navigateToCheckpoint("review")}
       >
-        查看当前确认清单（{selectedSetVersionLabel}
-        {selectedSetRequirementCount > 0
-          ? `，${selectedSetRequirementCount} 条`
-          : ""}
-        ）
+        {l("查看当前确认清单（{version}{count}）", undefined, { version: selectedSetVersionLabel, count: selectedSetRequirementCount > 0 ? l("，{count} 条", undefined, { count: selectedSetRequirementCount }) : "" })}
       </button>
     ) : null;
   const previousStructureButton = previousStructureBrowseAllowed ? (
@@ -5249,7 +5255,7 @@ function RequirementTreeOrganizePanel() {
       className="button ghost compact"
       onClick={() => navigateToCheckpoint("structure")}
     >
-      查看上一版结构（只读）
+      {l("查看上一版结构（只读）")}
     </button>
   ) : null;
   const activeExtractionActionRow =
@@ -5262,7 +5268,7 @@ function RequirementTreeOrganizePanel() {
             disabled={Boolean(busyAction)}
             onClick={() => void cancelCurrentExtraction()}
           >
-            取消本次解析
+            {l("取消本次解析")}
           </button>
         )}
         {previousStructureButton}
@@ -5281,7 +5287,7 @@ function RequirementTreeOrganizePanel() {
     const expectedDiagnostics = parsingDiagnostics;
     const expectedRequestKey = parsingDiagnosticsRequestKey;
     const acknowledged = await runAction(
-      `知晓 ${expectedDiagnostics.severeWarningCount} 项解析风险`,
+      l("知晓 {count} 项解析风险", undefined, { count: expectedDiagnostics.severeWarningCount }),
       () =>
         api.acknowledgeParsingRisks(route.projectId, route.documentId, {
           expected_source_sha256: expectedDiagnostics.sourceSha256,
@@ -5303,7 +5309,7 @@ function RequirementTreeOrganizePanel() {
       normalized.parseIdentitySha256 !==
         expectedDiagnostics.parseIdentitySha256
     ) {
-      setNotice("风险知晓回执未绑定当前解析结果，请刷新后重试。");
+      setNotice(l("风险知晓回执未绑定当前解析结果，请刷新后重试。"));
       return;
     }
     setParsingDiagnosticsState({
@@ -5316,7 +5322,11 @@ function RequirementTreeOrganizePanel() {
     navigateToCheckpoint("structure");
   };
 
-  const requestCheckpoint = (checkpoint: ExtractionCheckpoint) => {
+  const requestCheckpoint = (checkpoint: ExtractionCheckpoint | "analysis") => {
+    if (checkpoint === "analysis") {
+      updateRoute({ task: "analysis", mode: "organize", checkpoint: sourceRequirementReady ? "list" : "structure" });
+      return;
+    }
     if (checkpoint === "diagnose") {
       setSourceEvidenceOpen(true);
       return;
@@ -5345,7 +5355,7 @@ function RequirementTreeOrganizePanel() {
     },
   ) => {
     if (!review || structureArtifactReadOnly) return;
-    setReviewSaveState("保存中");
+    setReviewSaveState(l("保存中"));
     const knownIds = new Set(nodes.map((node) => node.review_node_id));
     const response = await runAction(
       label,
@@ -5367,18 +5377,18 @@ function RequirementTreeOrganizePanel() {
       { refresh: "none" },
     );
     if (!response) {
-      setReviewSaveState("保存失败");
+      setReviewSaveState(l("保存失败"));
       return;
     }
     const next = reviewSessionView(response);
     if (!next) {
-      setReviewSaveState("保存失败");
+      setReviewSaveState(l("保存失败"));
       return;
     }
     setReview(next);
     setReviewUndo(prior || null);
     setPendingWorkflowFocusId(focusId);
-    setReviewSaveState("已保存");
+    setReviewSaveState(l("已保存"));
     await refreshStructure();
   };
 
@@ -5394,14 +5404,14 @@ function RequirementTreeOrganizePanel() {
         review.revision,
       );
       await saveReviewNodes(
-        "拆分需求",
+        l("拆分需求"),
         result.nodes,
         result.focusId,
         {
           nodes: review.nodes,
           confirmedIds: review.confirmedIds,
           revision: review.revision,
-          label: "拆分需求",
+          label: l("拆分需求"),
       });
     } catch (cause) {
       setReviewSaveState(
@@ -5418,14 +5428,14 @@ function RequirementTreeOrganizePanel() {
         selectedReviewNode.review_node_id,
       );
       await saveReviewNodes(
-        "合并相邻需求",
+        l("合并相邻需求"),
         nodes,
         selectedReviewNode.review_node_id,
         {
           nodes: review.nodes,
           confirmedIds: review.confirmedIds,
           revision: review.revision,
-          label: "合并相邻需求",
+          label: l("合并相邻需求"),
         },
       );
     } catch (cause) {
@@ -5445,14 +5455,14 @@ function RequirementTreeOrganizePanel() {
       const nextFocus =
         nodes.find((node) => node.include_in_view)?.review_node_id || "";
       await saveReviewNodes(
-        "移出需求",
+        l("移出需求"),
         nodes,
         nextFocus,
         {
           nodes: review.nodes,
           confirmedIds: review.confirmedIds,
           revision: review.revision,
-          label: "移出需求",
+          label: l("移出需求"),
       });
     } catch (cause) {
       setReviewSaveState(
@@ -5467,11 +5477,11 @@ function RequirementTreeOrganizePanel() {
       !reviewUndo ||
       reviewUndo.revision + 1 !== review.revision
     ) {
-      setReviewSaveState("只能撤销刚刚保存的一次修正");
+      setReviewSaveState(l("只能撤销刚刚保存的一次修正"));
       return;
     }
     await saveReviewNodes(
-      `撤销${reviewUndo.label}`,
+      l("撤销{action}", undefined, { action: reviewUndo.label }),
       reviewUndo.nodes,
       reviewUndo.nodes[0]?.review_node_id || "",
     );
@@ -5533,7 +5543,7 @@ function RequirementTreeOrganizePanel() {
   const storeClassificationResponse = (
     payload: EntryClassificationResponse,
   ) => {
-    if (!tree) throw new Error("当前需求树不可用");
+    if (!tree) throw new Error(l("当前需求树不可用"));
     const verified = assertEntryClassificationMatchesTree(payload, tree);
     setEntryClassificationState({
       requestKey: classificationRequestKey,
@@ -5608,7 +5618,7 @@ function RequirementTreeOrganizePanel() {
     } catch (cause) {
       if (!classificationMutationRequestIsCurrent(mutationRequest)) return null;
       setClassificationMutationError(
-        cause instanceof Error ? cause.message : "清单分类保存失败。",
+        cause instanceof Error ? cause.message : l("清单分类保存失败。"),
       );
       return null;
     } finally {
@@ -5641,7 +5651,7 @@ function RequirementTreeOrganizePanel() {
       return entryClassification;
     }
     if (!entryClassification.can_accept) {
-      setClassificationMutationError("仍有未分类条目，不能接受当前清单。");
+      setClassificationMutationError(l("仍有未分类条目，不能接受当前清单。"));
       return null;
     }
     const commandKey = JSON.stringify([
@@ -5670,7 +5680,7 @@ function RequirementTreeOrganizePanel() {
       }
       const verified = storeClassificationResponse(response);
       if (!verified.can_publish || verified.snapshot.status !== "ACCEPTED") {
-        throw new Error("接受后的分类结果不完整，请重新载入当前清单。");
+        throw new Error(l("接受后的分类结果不完整，请重新载入当前清单。"));
       }
       if (
         publicationRequest &&
@@ -5687,7 +5697,7 @@ function RequirementTreeOrganizePanel() {
           !(cause instanceof DOMException && cause.name === "AbortError"))
       ) {
         setClassificationMutationError(
-          cause instanceof Error ? cause.message : "清单分类接受失败。",
+          cause instanceof Error ? cause.message : l("清单分类接受失败。"),
         );
       }
       return null;
@@ -5818,12 +5828,12 @@ function RequirementTreeOrganizePanel() {
       pendingAtomizationCommandRef.current = null;
       setAtomizationDialogOpen(false);
       setNotice(
-        `已应用原子化范围：${plan.targets.length} 项技术需求；未选项继续保留原条目。`,
+        l("已应用原子化范围：{count} 项技术需求；未选项继续保留原条目。", undefined, { count: plan.targets.length }),
       );
       reloadRequirementEnrichment();
     } catch (cause) {
       if (!atomizationMutationRequestIsCurrent(mutationRequest)) return;
-      setAtomizationMutationError(atomizationMutationMessage(cause, "APPLY"));
+      setAtomizationMutationError(atomizationMutationMessage(cause, "APPLY", l));
       reloadRequirementEnrichment(false);
     } finally {
       if (
@@ -5893,11 +5903,11 @@ function RequirementTreeOrganizePanel() {
       );
       if (!atomizationMutationRequestIsCurrent(mutationRequest)) return;
       pendingAtomizationCommandRef.current = null;
-      setNotice("已撤销最近一次原子化；原条目和历史操作记录均已保留。");
+      setNotice(l("已撤销最近一次原子化；原条目和历史操作记录均已保留。"));
       reloadRequirementEnrichment();
     } catch (cause) {
       if (!atomizationMutationRequestIsCurrent(mutationRequest)) return;
-      setAtomizationMutationError(atomizationMutationMessage(cause, "UNDO"));
+      setAtomizationMutationError(atomizationMutationMessage(cause, "UNDO", l));
       reloadRequirementEnrichment(false);
     } finally {
       if (
@@ -5918,20 +5928,20 @@ function RequirementTreeOrganizePanel() {
     const workingTree = tree;
     if (!workingTree) {
       setClassificationMutationError(
-        "当前需求树不可用，系统不会生成无法验证的版本。",
+        l("当前需求树不可用，系统不会生成无法验证的版本。"),
       );
       return false;
     }
     setClassificationMutationError("");
     try {
       const result = await runAction(
-        "生成确认清单",
+        l("生成确认清单"),
         async () => {
           try {
             const assertCurrentRequest = () => {
               if (!semanticPublicationRequestIsCurrent(publicationRequest)) {
                 throw new DOMException(
-                  "当前文档或分类身份已变化",
+                  l("当前文档或分类身份已变化"),
                   "AbortError",
                 );
               }
@@ -5955,7 +5965,7 @@ function RequirementTreeOrganizePanel() {
                 enrichment.semantic_publication_capability,
               )
             ) {
-              throw new Error("当前项目暂不能安全生成确认清单，请刷新后重试。");
+              throw new Error(l("当前项目暂不能安全生成确认清单，请刷新后重试。"));
             }
             const previewRequest =
               buildRequirementSemanticPublicationPreviewRequestV2({
@@ -6049,7 +6059,7 @@ function RequirementTreeOrganizePanel() {
               setClassificationMutationError(
                 cause instanceof Error
                   ? cause.message
-                  : "确认清单发布状态无法验证，系统尚未激活该版本。",
+                  : l("确认清单发布状态无法验证，系统尚未激活该版本。"),
               );
             }
             throw cause;
@@ -6066,7 +6076,7 @@ function RequirementTreeOrganizePanel() {
       ) {
         return false;
       }
-      setNotice("确认清单已按当前分类与原子化结果生成，并设为当前版本。");
+      setNotice(l("确认清单已按当前分类与原子化结果生成，并设为当前版本。"));
       updateRoute({
         task: "extraction",
         mode: "review",
@@ -6082,7 +6092,7 @@ function RequirementTreeOrganizePanel() {
         setClassificationMutationError(
           cause instanceof Error
             ? cause.message
-            : "确认清单发布状态无法验证，系统尚未激活该版本。",
+            : l("确认清单发布状态无法验证，系统尚未激活该版本。"),
         );
       }
       return false;
@@ -6096,7 +6106,7 @@ function RequirementTreeOrganizePanel() {
     if (structureArtifactReadOnly) return false;
     if (semanticPublicationUnbound) {
       setClassificationMutationError(
-        "已接受的分类结果尚未同步完成，请重新读取后再生成确认清单。",
+        l("已接受的分类结果尚未同步完成，请重新读取后再生成确认清单。"),
       );
       return false;
     }
@@ -6121,7 +6131,7 @@ function RequirementTreeOrganizePanel() {
     }
     setClassificationMutationError("");
     const result = await runAction(
-      pendingActivation ? "设为当前版本" : "生成确认清单",
+      pendingActivation ? l("设为当前版本") : l("生成确认清单"),
       async () => {
         try {
           const published =
@@ -6163,7 +6173,7 @@ function RequirementTreeOrganizePanel() {
           const message =
             cause instanceof Error
               ? cause.message
-              : "确认清单发布状态无法验证，系统尚未激活该版本";
+              : l("确认清单发布状态无法验证，系统尚未激活该版本");
           setClassificationMutationError(message);
           throw cause;
         }
@@ -6174,7 +6184,7 @@ function RequirementTreeOrganizePanel() {
     if (!requirementSetId) return false;
     setNotice(
       `${requirementPublicationNotice(result)}${
-        draftRequirementPublicationSetId(result) ? "；已设为当前版本" : ""
+        draftRequirementPublicationSetId(result) ? l("；已设为当前版本") : ""
       }`,
     );
     updateRoute({
@@ -6238,11 +6248,11 @@ function RequirementTreeOrganizePanel() {
     if (!projectionId) return;
     const recordId = String(selectedTableContextNode?.table_record_id || "");
     const labels = {
-      SPLIT_ROWS: "按行拆分表格",
-      MERGE_PREVIOUS: "与上一条合并",
-      MERGE_NEXT: "与下一条合并",
-      KEEP_WHOLE: "恢复为完整原表",
-      RESTORE_AUTO: "恢复自动判断",
+      SPLIT_ROWS: l("按行拆分表格"),
+      MERGE_PREVIOUS: l("与上一条合并"),
+      MERGE_NEXT: l("与下一条合并"),
+      KEEP_WHOLE: l("恢复为完整原表"),
+      RESTORE_AUTO: l("恢复自动判断"),
     } as const;
     const result = await runAction(
       labels[action],
@@ -6321,7 +6331,7 @@ function RequirementTreeOrganizePanel() {
       setTableRowGroupError(
         error instanceof Error
           ? error.message
-          : "读取行分组失败，请稍后重试。",
+          : l("读取行分组失败，请稍后重试。"),
       );
     } finally {
       if (tableRowGroupRequestRef.current === controller) {
@@ -6387,13 +6397,13 @@ function RequirementTreeOrganizePanel() {
     } catch (error) {
       if (error instanceof ApiError && error.status === 409) {
         setTableRowGroupError(
-          "表格或结构状态已变化。请关闭后重新打开行分组，读取最新版本。",
+          l("表格或结构状态已变化。请关闭后重新打开行分组，读取最新版本。"),
         );
       } else {
         setTableRowGroupError(
           error instanceof Error
             ? error.message
-            : "保存行分组失败，请稍后重试。",
+            : l("保存行分组失败，请稍后重试。"),
         );
       }
     } finally {
@@ -6453,7 +6463,7 @@ function RequirementTreeOrganizePanel() {
     selection: BoundaryCalibrationSelection,
   ) => {
     if (structureArtifactReadOnly) {
-      throw new Error("当前展示的是只读结果，不能预览新的边界修订。");
+      throw new Error(l("当前展示的是只读结果，不能预览新的边界修订。"));
     }
     const structureIdentity = asRecord(workbench.structure);
     const planBinding = asRecord(boundaryCalibrationPlan?.binding);
@@ -6467,7 +6477,7 @@ function RequirementTreeOrganizePanel() {
       String(planBinding.effective_snapshot_id || "") !==
         selection.binding.effective_snapshot_id
     ) {
-      throw new Error("结构或 PDF 几何已更新，请重新载入当前页后再预览。");
+      throw new Error(l("结构或 PDF 几何已更新，请重新载入当前页后再预览。"));
     }
     const result = await api.previewBoundaryCalibration(
       route.projectId,
@@ -6475,7 +6485,7 @@ function RequirementTreeOrganizePanel() {
       boundaryCalibrationPreviewPayload(operation),
     );
     if (result.accepted !== true || result.persisted !== false) {
-      throw new Error("没有生成可安全提交的边界预览，请重新预览后再试。");
+      throw new Error(l("没有生成可安全提交的边界预览，请重新预览后再试。"));
     }
     setBoundaryCalibrationPreview(result);
     return result;
@@ -6486,7 +6496,7 @@ function RequirementTreeOrganizePanel() {
     selection: BoundaryCalibrationSelection,
   ) => {
     if (structureArtifactReadOnly) {
-      throw new Error("当前展示的是只读结果，不能提交边界修订。");
+      throw new Error(l("当前展示的是只读结果，不能提交边界修订。"));
     }
     const previewOperation = asArray<JsonRecord>(
       boundaryCalibrationPreview?.operations,
@@ -6497,10 +6507,10 @@ function RequirementTreeOrganizePanel() {
         String(asRecord(workbench.structure).effective_snapshot_id || "") ||
       JSON.stringify(previewOperation) !== JSON.stringify(operation)
     ) {
-      throw new Error("预览已过期，请重新预览这一边界。");
+      throw new Error(l("预览已过期，请重新预览这一边界。"));
     }
     const result = await runAction(
-      "应用版面边界修订",
+      l("应用版面边界修订"),
       () =>
         api.patchStructure(
           route.projectId,
@@ -6510,7 +6520,7 @@ function RequirementTreeOrganizePanel() {
       { refresh: "document" },
     );
     if (!result) {
-      throw new Error("边界修订未提交，当前结构版本保持不变。");
+      throw new Error(l("边界修订未提交，当前结构版本保持不变。"));
     }
     setBoundaryCalibrationPreview(null);
     setBoundaryCalibrationDraft(null);
@@ -6551,7 +6561,7 @@ function RequirementTreeOrganizePanel() {
     });
     if (!operations.length) return;
     await applyManualStructurePatch(
-      operations.length > 1 ? `重挂 ${operations.length} 个结构节点` : "重挂结构节点",
+      operations.length > 1 ? l("重挂 {count} 个结构节点", undefined, { count: operations.length }) : l("重挂结构节点"),
       operations,
     );
   };
@@ -6567,7 +6577,7 @@ function RequirementTreeOrganizePanel() {
       orderedChildIds[targetIndex],
       orderedChildIds[currentIndex],
     ];
-    await applyManualStructurePatch("调整同级顺序", [
+    await applyManualStructurePatch(l("调整同级顺序"), [
       {
         operation: "logical_reorder",
         parent_structure_node_id: currentParentId,
@@ -6578,7 +6588,7 @@ function RequirementTreeOrganizePanel() {
 
   const mergeSelectedStructure = async () => {
     if (!mergeTargetId) return;
-    await applyManualStructurePatch("合并续接内容", [
+    await applyManualStructurePatch(l("合并续接内容"), [
       {
         operation: "continuation_merge",
         primary_structure_node_id: selectedStructureId,
@@ -6602,7 +6612,7 @@ function RequirementTreeOrganizePanel() {
       kind: String(sourceRef.kind || ""),
       source_id: String(sourceRef.source_id || ""),
     };
-    await applyManualStructurePatch("拆分结构边界", [
+    await applyManualStructurePatch(l("拆分结构边界"), [
       {
         operation: "boundary_split",
         structure_node_id: selectedStructureId,
@@ -6640,12 +6650,12 @@ function RequirementTreeOrganizePanel() {
     (status) => ["PENDING", "RUNNING", "CANCEL_REQUESTED"].includes(status),
   );
   const nativeAdvanceLabel = sourceRequirementReady
-    ? "进入原文需求清单"
+    ? l("进入原文需求清单")
     : nativeParentJobStatus === "RUNNING"
-      ? "旧诊断运行中 · 不作为新基线"
+      ? l("旧诊断运行中 · 不作为新基线")
       : nativeBaselineJobStatus === "RUNNING"
-        ? "正在验证原文基线"
-        : "原文需求清单切片尚未发布";
+        ? l("正在验证原文基线")
+        : l("原文需求清单切片尚未发布");
   const nativeParentProgress = asRecord(nativeParentStatus?.job?.progress);
   const nativeBaselineProgress = asRecord(nativeBaselineStatus?.job?.progress);
   const nativeActiveProgress = Object.keys(nativeParentProgress).length
@@ -6712,7 +6722,7 @@ function RequirementTreeOrganizePanel() {
   const optimizeStructure = async () => {
     if (structureArtifactReadOnly) return;
     const started = await runAction(
-      "优化文档结构",
+      l("优化文档结构"),
       () => api.startStructureOptimization(route.projectId, route.documentId),
       { refresh: "none" },
     );
@@ -6737,15 +6747,15 @@ function RequirementTreeOrganizePanel() {
     return (
       <EmptyState
         icon="document"
-        title="先在项目管理中选择客户文件"
-        description="需求提取严格绑定项目、文件和来源身份。"
+        title={l("先在项目管理中选择客户文件")}
+        description={l("需求提取严格绑定项目、文件和来源身份。")}
         action={
           <button
             className="button primary"
             type="button"
             onClick={() => updateRoute({ task: "projects" })}
           >
-            打开项目管理
+            {l("打开项目管理")}
           </button>
         }
       />
@@ -6773,9 +6783,9 @@ function RequirementTreeOrganizePanel() {
     ),
   );
   const extractionFailureDetails = [
-    extractionFailureStage ? `阶段 ${extractionFailureStage}` : "",
+    extractionFailureStage ? l("阶段 {stage}", undefined, { stage: extractionFailureStage }) : "",
     ...extractionFailureCodes.map((code, index) =>
-      index === 0 ? `错误码 ${code}` : `原因码 ${code}`,
+      index === 0 ? l("错误码 {code}", undefined, { code }) : l("原因码 {code}", undefined, { code }),
     ),
   ];
   const currentParseArtifactAvailable = Boolean(
@@ -6788,46 +6798,45 @@ function RequirementTreeOrganizePanel() {
   );
   const parsingWorkflowBlockerMessage = latestExtractionQueued
     ? extractionQueueWaitingForWorkerSync
-      ? "任务已保留，但后台解析服务正在同步当前连接配置；同步完成前不会领取任务。"
+      ? l("任务已保留，但后台解析服务正在同步当前连接配置；同步完成前不会领取任务。")
       : extractionQueueBlockedNoLiveWorker
-        ? "任务已保留，但当前没有在线后台解析服务；服务恢复前不会开始逐页解析。"
+        ? l("任务已保留，但当前没有在线后台解析服务；服务恢复前不会开始逐页解析。")
     : extractionQueueStalled
-      ? "解析任务仍未被后台服务领取；当前没有在生成新结果。可以安全取消本次任务，确认服务恢复后再重试。"
-      : "解析任务已进入后台队列，尚未开始生成新结果；上一版事实按一致性合同保留或标记为历史版本。"
+      ? l("解析任务仍未被后台服务领取；当前没有在生成新结果。可以安全取消本次任务，确认服务恢复后再重试。")
+      : l("解析任务已进入后台队列，尚未开始生成新结果；上一版事实按一致性合同保留或标记为历史版本。")
     : latestExtractionExecuting
-      ? "新的解析结果正在生成；完成前保留通过一致性校验的旧事实只读浏览。"
+      ? l("新的解析结果正在生成；完成前保留通过一致性校验的旧事实只读浏览。")
       : latestExtractionCancelling
-        ? "正在安全停止本次解析；已发布结果和原文件保持不变。"
+        ? l("正在安全停止本次解析；已发布结果和原文件保持不变。")
     : connectionRevisionMismatch
       ? connectionMismatchFleetReady
-        ? "后台解析服务已同步当前连接配置；失败任务不会原地复用，请按当前方案重新提交全文解析。"
+        ? l("后台解析服务已同步当前连接配置；失败任务不会原地复用，请按当前方案重新提交全文解析。")
         : extractionExecutionReadinessState === "BLOCKED_NO_LIVE_WORKER"
-          ? "当前没有在线后台解析服务，任务尚未开始逐页解析。请等待服务自动恢复后再重新提交。"
-          : "后台解析服务尚未同步当前连接配置，任务尚未开始逐页解析。系统正在自动同步；完成前不要重复提交。"
+          ? l("当前没有在线后台解析服务，任务尚未开始逐页解析。请等待服务自动恢复后再重新提交。")
+          : l("后台解析服务尚未同步当前连接配置，任务尚未开始逐页解析。系统正在自动同步；完成前不要重复提交。")
     : latestExtractionUnsuccessful && !currentParseArtifactAvailable
-      ? `最近一次解析${latestExtractionInterrupted ? "中断" : "失败"}${
-          extractionFailureDetails.length
-            ? `（${extractionFailureDetails.join(" · ")}）`
-            : ""
-        }。原文件和已有可用结果保持不变，请重新解析后再进入下一步。`
+      ? l("最近一次解析{outcome}{details}。原文件和已有可用结果保持不变，请重新解析后再进入下一步。", undefined, {
+          outcome: latestExtractionInterrupted ? l("中断") : l("失败"),
+          details: extractionFailureDetails.length ? l("（{details}）", undefined, { details: extractionFailureDetails.join(" · ") }) : "",
+        })
       : latestExtractionCancelled && !currentParseArtifactAvailable
-        ? "最近一次解析已取消，未生成可进入下一步的新结果。原文件和已有业务数据保持不变，请重新解析后再继续。"
+        ? l("最近一次解析已取消，未生成可进入下一步的新结果。原文件和已有业务数据保持不变，请重新解析后再继续。")
     : treeState === "REQUIRES_REEXTRACTION"
       ? sourceCaptureRecovery
         ? visualRepairAvailable
-          ? `本次 Qwen OCR 结构恢复有 ${visualRepairFailedPages.length} 页降级；只需重试这些降级页，已就绪页将原样复用。`
-          : `当前正文事实不足以生成结构，需要使用已授权的${visualRestorationMethodLabel}重新解析整个文档。`
-        : "当前解析结果与运行版本或结果合同不兼容，需要使用当前配置重新生成。"
+          ? l("本次 Qwen OCR 结构恢复有 {count} 页降级；只需重试这些降级页，已就绪页将原样复用。", undefined, { count: visualRepairFailedPages.length })
+          : l("当前正文事实不足以生成结构，需要使用已授权的{method}重新解析整个文档。", undefined, { method: visualRestorationMethodLabel })
+        : l("当前解析结果与运行版本或结果合同不兼容，需要使用当前配置重新生成。")
       : treeState === "FAILED"
-        ? "最近一次提取没有形成可进入下一步的结构结果，请显式重新解析。"
+        ? l("最近一次提取没有形成可进入下一步的结构结果，请显式重新解析。")
         : treeState === "NOT_STARTED"
               ? sourcePagesReady
-                ? "逐页解析事实已可核对，但尚未形成可进入结构整理的当前结构结果；请重新解析全文生成完整结果。"
+                ? l("逐页解析事实已可核对，但尚未形成可进入结构整理的当前结构结果；请重新解析全文生成完整结果。")
                 : legacyPageReady
-                  ? "已有旧版逐页预览和解析事实可供核对，但尚未生成当前结构整理所需的正式解析工件；请使用当前配置重新解析。"
-                  : "当前文件尚未形成解析与结构结果，请先显式开始解析。"
+                  ? l("已有旧版逐页预览和解析事实可供核对，但尚未生成当前结构整理所需的正式解析工件；请使用当前配置重新解析。")
+                  : l("当前文件尚未形成解析与结构结果，请先显式开始解析。")
           : treeState === "RUNNING_PARTIAL"
-            ? "解析与结构结果尚未完成；当前只读事实可先浏览，完成后再进入结构整理。"
+            ? l("解析与结构结果尚未完成；当前只读事实可先浏览，完成后再进入结构整理。")
             : "";
   const sourceFileUrl =
     `/api/projects/${encodeURIComponent(route.projectId)}` +
@@ -6873,34 +6882,34 @@ function RequirementTreeOrganizePanel() {
       pendingLocalDraftActivation.classificationSnapshotSha256 ===
         entryClassification?.snapshot.payload_sha256,
   );
-  let listPrimaryLabel = "生成确认清单";
+  let listPrimaryLabel = l("生成确认清单");
   if (structureArtifactReadOnly) {
-    listPrimaryLabel = "当前结果只读";
+    listPrimaryLabel = l("当前结果只读");
   } else if (sessionId && requirementEnrichmentLoading) {
-    listPrimaryLabel = "正在核对发布范围";
+    listPrimaryLabel = l("正在核对发布范围");
   } else if (semanticPublicationUnbound) {
-    listPrimaryLabel = "正在同步已接受的分类结果";
+    listPrimaryLabel = l("正在同步已接受的分类结果");
   } else if (semanticPublicationMutation) {
-    listPrimaryLabel = "正在生成确认清单";
+    listPrimaryLabel = l("正在生成确认清单");
   } else if (entryClassificationLoading) {
-    listPrimaryLabel = "正在读取分类";
+    listPrimaryLabel = l("正在读取分类");
   } else if (entryClassificationError) {
-    listPrimaryLabel = "分类不可用";
+    listPrimaryLabel = l("分类不可用");
   } else if (classificationUnclassifiedCount > 0) {
-    listPrimaryLabel = `还有 ${classificationUnclassifiedCount} 条未分类`;
+    listPrimaryLabel = l("还有 {count} 条未分类", undefined, { count: classificationUnclassifiedCount });
   }
   const semanticPublicationScopeTitle = semanticPublicationAtomizationError
-    ? "当前原子化范围不能发布"
+    ? l("当前原子化范围不能发布")
     : !semanticPublicationReady
-      ? "正在核对发布范围"
+      ? l("正在核对发布范围")
       : semanticPublicationAtomizationBinding?.atomizationState === "APPLIED"
-        ? "采用已应用的原子化范围"
-        : "保留当前原条目";
+        ? l("采用已应用的原子化范围")
+        : l("保留当前原条目");
   const semanticPublicationScopeDescription =
     semanticPublicationAtomizationError ||
     (!semanticPublicationReady
-      ? "正在重新读取刚接受的分类与原子化范围，请稍候。"
-      : `当前 ${entryClassification?.counts.total || 0} 条内容将先接受分类，再生成并校验待确认版本；本动作不调用原子化，也不会启动需求分析。`);
+      ? l("正在重新读取刚接受的分类与原子化范围，请稍候。")
+      : l("当前 {count} 条内容将先接受分类，再生成并校验待确认版本；本动作不调用原子化，也不会启动需求分析。", undefined, { count: entryClassification?.counts.total || 0 }));
   const focusFirstUnclassifiedEntry = () => {
     if (!tree || !entryClassification) return;
     const entry = entryClassification.snapshot.entries.find(
@@ -6933,7 +6942,7 @@ function RequirementTreeOrganizePanel() {
   const workflowSteps: AgentWorkflowStep[] = [
     {
       id: "source-evidence",
-      label: "准备文件与页面证据",
+      label: l("准备文件与页面证据"),
       state:
         sourcePagesReady && !sourceEvidenceHardBlocked
           ? "complete"
@@ -6943,7 +6952,7 @@ function RequirementTreeOrganizePanel() {
     },
     {
       id: "document-orientation",
-      label: "理解全文并识别主要文档范围",
+      label: l("理解全文并识别主要文档范围"),
       state:
         nativeStructureReferenceAvailable || treeState === "READY"
           ? "complete"
@@ -6953,7 +6962,7 @@ function RequirementTreeOrganizePanel() {
     },
     {
       id: "structure-growth",
-      label: "逐层还原标题、正文、表格与图片归属",
+      label: l("逐层还原标题、正文、表格与图片归属"),
       state:
         activeCheckpoint === "list" ||
         nativeStructureAdvancement.advancementAllowed
@@ -6964,7 +6973,7 @@ function RequirementTreeOrganizePanel() {
     },
     {
       id: "structure-verification",
-      label: "复验跨页关系与来源覆盖",
+      label: l("复验跨页关系与来源覆盖"),
       state:
         activeCheckpoint === "list" || sourceRequirementReady
           ? "complete"
@@ -6983,68 +6992,69 @@ function RequirementTreeOrganizePanel() {
         ? "attention"
         : "ready";
   const workflowStatusLabel = latestExtractionRunning
-    ? "Agent 正在理解并恢复原文结构"
+    ? l("Agent 正在理解并恢复原文结构")
     : parsingWorkflowBlockerMessage
       ? sourcePagesReady
-        ? "来源证据需要局部恢复"
-        : "正在准备来源证据"
+        ? l("来源证据需要局部恢复")
+        : l("正在准备来源证据")
       : showSourceEvidenceLens
-        ? "来源证据可按需核对"
+        ? l("来源证据可按需核对")
         : activeCheckpoint === "structure"
           ? nativeStructureReferenceAvailable
-            ? "原文结构正在生长或等待反馈"
-            : "正在建立原文结构"
+            ? l("原文结构正在生长或等待反馈")
+            : l("正在建立原文结构")
           : classificationUnclassifiedCount > 0
-            ? "需求基线待判断"
-            : "需求基线可确认";
+            ? l("需求基线待判断")
+            : l("需求基线可确认");
   const workflowCurrentAction = latestExtractionRunning
-    ? `正在${extractionStageLabel(String(extractionJob.stage || ""))}${
-        extractionTotalPages > 0
-          ? `，页面证据已覆盖 ${extractionCompletedPages}/${extractionTotalPages} 页`
-          : ""
-      }。`
+    ? l("正在{stage}{coverage}。", undefined, {
+        stage: extractionStageLabel(String(extractionJob.stage || ""), l),
+        coverage: extractionTotalPages > 0
+          ? l("，页面证据已覆盖 {completed}/{total} 页", undefined, { completed: extractionCompletedPages, total: extractionTotalPages })
+          : "",
+      })
     : parsingWorkflowBlockerMessage
       ? sourcePagesReady
-        ? "正在定位受影响的页面或对象；已验证结构仍可浏览，恢复只影响新的相关范围。"
-        : "正在建立可供结构恢复使用的页面证据；请查看下方具体原因和可执行动作。"
+        ? l("正在定位受影响的页面或对象；已验证结构仍可浏览，恢复只影响新的相关范围。")
+        : l("正在建立可供结构恢复使用的页面证据；请查看下方具体原因和可执行动作。")
       : showSourceEvidenceLens
-        ? "正在显示原文结构使用的页面证据；返回结构不会重新运行任务。"
+        ? l("正在显示原文结构使用的页面证据；返回结构不会重新运行任务。")
         : activeCheckpoint === "structure"
           ? selectedNode
-            ? `正在核对「${truncate(requirementTreeNodeDisplayLabel(selectedNode), 80)}」的层级与父条目边界。`
-            : "Agent 正在从全文概览向标题、编号、跨页内容和表格边界逐层深入。"
+            ? l("正在核对「{label}」的层级与父条目边界。", undefined, { label: truncate(requirementTreeNodeDisplayLabel(selectedNode), 80) })
+            : l("Agent 正在从全文概览向标题、编号、跨页内容和表格边界逐层深入。")
           : entryClassificationLoading
-            ? "正在读取原文条目的专业判断结果。"
+            ? l("正在读取原文条目的专业判断结果。")
             : classificationUnclassifiedCount > 0
-              ? `正在逐条判断 ${entryClassification?.counts.total || 0} 条原文内容，尚有 ${classificationUnclassifiedCount} 条待判断。`
-              : "原文条目判断已完成，正在等待生成可逐条对照的基线确认清单。";
+              ? l("正在逐条判断 {total} 条原文内容，尚有 {pending} 条待判断。", undefined, { total: entryClassification?.counts.total || 0, pending: classificationUnclassifiedCount })
+              : l("原文条目判断已完成，正在等待生成可逐条对照的基线确认清单。");
   const workflowFindings = [
     parsingWorkflowBlockerMessage
-      ? `来源状态：${parsingWorkflowBlockerMessage}`
+      ? l("来源状态：{status}", undefined, { status: parsingWorkflowBlockerMessage })
       : "",
     parsingDiagnostics.hardBlockerCount > 0
-      ? `发现 ${parsingDiagnostics.hardBlockerCount} 项真实来源证据阻断；只限制受影响的新结构发布。`
+      ? l("发现 {count} 项真实来源证据阻断；只限制受影响的新结构发布。", undefined, { count: parsingDiagnostics.hardBlockerCount })
       : "",
     parsingDiagnostics.severeWarningCount > 0
-      ? `发现 ${parsingDiagnostics.severeWarningCount} 项非阻断来源风险；默认继续结构工作，可在来源证据中定位。`
+      ? l("发现 {count} 项非阻断来源风险；默认继续结构工作，可在来源证据中定位。", undefined, { count: parsingDiagnostics.severeWarningCount })
       : "",
     requirementDecomposition.length > 0
-      ? `检测到旧结果携带 ${decomposedObligationCount} 条自动原子化候选；它们不作为当前原文基线，也不会自动进入需求分析。`
+      ? l("检测到旧结果携带 {count} 条自动原子化候选；它们不作为当前原文基线，也不会自动进入需求分析。", undefined, { count: decomposedObligationCount })
       : "",
     activeCheckpoint === "list" && classificationUnclassifiedCount > 0
-      ? `当前仍有 ${classificationUnclassifiedCount} 条原文内容待判断是否纳入需求基线。`
+      ? l("当前仍有 {count} 条原文内容待判断是否纳入需求基线。", undefined, { count: classificationUnclassifiedCount })
       : "",
   ].filter(Boolean);
   if (workflowFindings.length === 0) {
     workflowFindings.push(
-      "当前未发现需要单独提示的异常；仍需通过原文与页面证据逐条确认准确性。",
+      l("当前未发现需要单独提示的异常；仍需通过原文与页面证据逐条确认准确性。"),
     );
   }
   const workflowControls: AgentWorkflowControl[] = [];
   if (extractionCanCancel) {
     workflowControls.push({
       id: "terminate-extraction",
-      label: "终止本次解析",
+      label: l("终止本次解析"),
       tone: "danger",
       disabled: Boolean(busyAction),
       onClick: () => void cancelCurrentExtraction(),
@@ -7057,19 +7067,19 @@ function RequirementTreeOrganizePanel() {
   ) {
     workflowControls.push({
       id: "rerun-extraction",
-      label: "查看重新解析方案",
+      label: l("查看重新解析方案"),
       tone: "primary",
       disabled: Boolean(busyAction) || connectionMismatchRetryBlocked,
       title: connectionMismatchRetryBlocked
-        ? "后台解析服务正在同步当前连接配置"
-        : "打开解析方案确认，不会直接提交任务",
+        ? l("后台解析服务正在同步当前连接配置")
+        : l("打开解析方案确认，不会直接提交任务"),
       onClick: () => setParsingRerunDialogOpen(true),
     });
   }
   if (showSourceEvidenceLens && nativeStructureReferenceAvailable) {
     workflowControls.push({
       id: "return-to-source-structure",
-      label: "返回原文结构",
+      label: l("返回原文结构"),
       tone: "primary",
       disabled: Boolean(busyAction),
       onClick: closeSourceEvidenceLens,
@@ -7080,7 +7090,7 @@ function RequirementTreeOrganizePanel() {
   ) {
     workflowControls.push({
       id: "focus-unclassified",
-      label: "定位首条待判断",
+      label: l("定位首条待判断"),
       tone: "primary",
       disabled: Boolean(busyAction) || entryClassificationLoading,
       onClick: focusFirstUnclassifiedEntry,
@@ -7088,7 +7098,7 @@ function RequirementTreeOrganizePanel() {
   } else if (activeCheckpoint === "list" && entryClassification) {
     workflowControls.push({
       id: "prepare-baseline-confirmation",
-      label: "生成基线确认清单",
+      label: l("生成基线确认清单"),
       tone: "primary",
       disabled:
         Boolean(busyAction) ||
@@ -7111,7 +7121,7 @@ function RequirementTreeOrganizePanel() {
     <section className="requirement-tree-page">
       <header className="requirement-tree-commandbar">
         <div className="requirement-tree-title">
-          <span>需求提取</span>
+          <span>{l("需求提取")}</span>
           <strong title={selectedDocument.file_name}>
             {selectedDocument.file_name}
           </strong>
@@ -7120,23 +7130,24 @@ function RequirementTreeOrganizePanel() {
           value={activeCheckpoint}
           reviewAvailable={!reviewStageUnavailable}
           workingLedger={Boolean(documentAgent) || sourceRequirementReady && requestedCheckpoint !== "review"}
+          itemsAvailable={sourceRequirementReady}
           onChange={requestCheckpoint}
         />
         {treeState === "READY" && activeCheckpoint === "structure" && (
           <Tabs
             className="boundary-view-switch"
-            label="结构整理查看方式"
+            label={l("结构整理查看方式")}
             value={organizeView}
             onChange={setOrganizeView}
             items={[
-              { value: "tree", label: "树形整理" },
+              { value: "tree", label: l("树形整理") },
               {
                 value: "calibration",
-                label: "版面校准",
+                label: l("版面校准"),
                 disabled: !canCalibrateStructureBoundaries,
                 title: canCalibrateStructureBoundaries
                   ? undefined
-                  : "当前结构结果只读，不能校准版面边界",
+                  : l("当前结构结果只读，不能校准版面边界"),
               },
             ]}
           />
@@ -7150,7 +7161,7 @@ function RequirementTreeOrganizePanel() {
               )}
               type="button"
               aria-pressed={showSourceEvidenceLens}
-              title="查看原文结构使用的页面事实、恢复状态与技术详情"
+              title={l("查看原文结构使用的页面事实、恢复状态与技术详情")}
               onClick={() => {
                 if (showSourceEvidenceLens) {
                   closeSourceEvidenceLens();
@@ -7160,7 +7171,7 @@ function RequirementTreeOrganizePanel() {
               }}
             >
               <Icon name={showSourceEvidenceLens ? "tree" : "evidence"} />
-              {showSourceEvidenceLens ? "返回结构" : "来源证据"}
+              {showSourceEvidenceLens ? l("返回结构") : l("来源证据")}
             </button>
           )}
           {(showSourceEvidenceLens ||
@@ -7177,13 +7188,13 @@ function RequirementTreeOrganizePanel() {
               }
               title={
                 connectionMismatchRetryBlocked
-                  ? "后台解析服务正在同步当前连接配置；恢复前不能重复提交"
-                  : "查看本次全文来源恢复方案；不会直接提交任务"
+                  ? l("后台解析服务正在同步当前连接配置；恢复前不能重复提交")
+                  : l("查看本次全文来源恢复方案；不会直接提交任务")
               }
               onClick={() => setParsingRerunDialogOpen(true)}
             >
               <Icon name="refresh" />
-              重新解析全文…
+              {l("重新解析全文…")}
             </button>
           )}
           {treeState === "READY" &&
@@ -7197,7 +7208,7 @@ function RequirementTreeOrganizePanel() {
               onClick={() => setReorganizeDialogOpen(true)}
             >
               <Icon name="refresh" />
-              重新整理…
+              {l("重新整理…")}
             </button>
           )}
           {activeCheckpoint === "structure" && !showSourceEvidenceLens && (
@@ -7221,14 +7232,14 @@ function RequirementTreeOrganizePanel() {
               title={
                 nativeStructureReferenceAvailable
                   ? sourceRequirementReady
-                    ? "进入基于同一 Document Map 的原文需求清单"
-                    : "当前仅有旧515条诊断结果；等待Agent-owned Source Requirement Record切片"
+                    ? l("进入基于同一 Document Map 的原文需求清单")
+                    : l("当前仅有旧515条诊断结果；等待Agent-owned Source Requirement Record切片")
                   : undefined
               }
             >
               {nativeStructureReferenceAvailable
                 ? nativeAdvanceLabel
-                : "进入原文需求清单"}
+                : l("进入原文需求清单")}
               <Icon name="arrow" />
             </button>
           )}
@@ -7261,14 +7272,14 @@ function RequirementTreeOrganizePanel() {
               }}
               title={
                 structureArtifactReadOnly
-                  ? "当前展示的是上一次可用结果；新解析成功前只能浏览"
+                  ? l("当前展示的是上一次可用结果；新解析成功前只能浏览")
                   : requirementEnrichmentLoading
-                  ? "正在核对当前分类与原子化结果"
+                  ? l("正在核对当前分类与原子化结果")
                   : semanticPublicationUnbound
-                    ? "正在同步已接受的分类结果，请稍候再生成"
+                    ? l("正在同步已接受的分类结果，请稍候再生成")
                     : classificationUnclassifiedCount > 0
-                      ? "定位第一条未分类内容"
-                      : "接受当前三类分类并冻结为确认清单；不会启动需求分析"
+                      ? l("定位第一条未分类内容")
+                      : l("接受当前三类分类并冻结为确认清单；不会启动需求分析")
               }
             >
               {listPrimaryLabel}
@@ -7279,7 +7290,7 @@ function RequirementTreeOrganizePanel() {
       </header>
 
       <div className="requirement-tree-status-stack">
-        {isSaasAccountMode() && (nativeStructureAdvancement.artifactId ? <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p> : agentAvailability.message && <p role="status">{agentAvailability.message} <button type="button" className="button ghost compact" onClick={agentAvailability.refresh}>刷新 Agent 配置</button></p>)}
+        {isSaasAccountMode() && (nativeStructureAdvancement.artifactId ? <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p> : agentAvailability.message && <p role="status">{agentAvailability.message} <button type="button" className="button ghost compact" onClick={agentAvailability.refresh}>{l("刷新 Agent 配置")}</button></p>)}
         {(activeCheckpoint === "structure" || !sourceRequirementReady)
           && !(documentAgent && nativeReferenceLookupReady && !nativeStructureReferenceAvailable && !showSourceEvidenceLens) && <SourceDocumentActions
           projectId={route.projectId} documentId={route.documentId}
@@ -7299,8 +7310,8 @@ function RequirementTreeOrganizePanel() {
           <AgentWorkflowCockpit
             goal={
               activeCheckpoint === "structure"
-                ? "将授权原文逐层还原为可定位、可修订的文档结构"
-                : "在已接受的原文结构下生长可逐条对照的原文需求清单"
+                ? l("将授权原文逐层还原为可定位、可修订的文档结构")
+                : l("在已接受的原文结构下生长可逐条对照的原文需求清单")
             }
             statusLabel={workflowStatusLabel}
             statusTone={workflowStatusTone}
@@ -7313,7 +7324,8 @@ function RequirementTreeOrganizePanel() {
         ) : null}
         {!showSourceEvidenceLens &&
         (requestedCheckpoint === "structure" ||
-          requestedCheckpoint === "list") ? (
+          requestedCheckpoint === "list" ||
+          requestedCheckpoint === "requirements") ? (
           <NativeStructureReferenceDock
             projectId={route.projectId}
             onChangePurpose={() => updateRoute({ task: "analysis" })}
@@ -7340,16 +7352,17 @@ function RequirementTreeOrganizePanel() {
             pageCount={nativeStructurePageLimit}
             showSourcePreview
             mode={
-              requestedCheckpoint === "list" && sourceRequirementReady
+              (requestedCheckpoint === "list" || requestedCheckpoint === "requirements") && sourceRequirementReady
                 ? "SOURCE_REQUIREMENTS"
                 : "STRUCTURE"
             }
+            requirementsOnly={requestedCheckpoint === "requirements" && sourceRequirementReady}
           />
         ) : null}
         {!showSourceEvidenceLens && activeCheckpoint === "list" &&
         nativeStructureReferenceAvailable && !sourceRequirementReady ? (
-          <InlineNotice title="原文条目尚未生成">
-            当前先展示同一份已恢复的原文结构、正文与表格。可以继续核对或返回原文结构；切换步骤不会重新解析文档。
+          <InlineNotice title={l("原文条目尚未生成")}>
+            {l("当前先展示同一份已恢复的原文结构、正文与表格。可以继续核对或返回原文结构；切换步骤不会重新解析文档。")}
           </InlineNotice>
         ) : null}
         {!showSourceEvidenceLens &&
@@ -7359,10 +7372,10 @@ function RequirementTreeOrganizePanel() {
           <InlineNotice
             title={
               sourceRequirementReady
-                ? "原文需求清单代表性切片已就绪"
+                ? l("原文需求清单代表性切片已就绪")
                 : nativeAdvanceError
-                  ? "Agent 基线状态同步异常"
-                  : "旧父条款诊断仍在运行"
+                  ? l("Agent 基线状态同步异常")
+                  : l("旧父条款诊断仍在运行")
             }
             tone={sourceRequirementReady ? "success" : nativeAdvanceError ? "warning" : "info"}
           >
@@ -7370,32 +7383,32 @@ function RequirementTreeOrganizePanel() {
               {sourceRequirementReady
                 ? sourceRequirementStatus?.message
                 : nativeAdvanceError ||
-                  "旧515条结果只保留为诊断，不会进入原子化、分析或正式导出。"}
+                  l("旧515条结果只保留为诊断，不会进入原子化、分析或正式导出。")}
             </span>
             {!sourceRequirementReady &&
             nativeCurrentWindow > 0 &&
             nativeRemainingWindowTotal > 0 ? (
               <span>
-                {nativeReconciliationActive ? "跨对象协调" : "待补来源窗口"}{" "}
+                {nativeReconciliationActive ? l("跨对象协调") : l("待补来源窗口")}{" "}
                 {nativeCurrentWindow}/{nativeRemainingWindowTotal}
                 {nativeActiveTargetCount > 0
-                  ? ` · 当前 ${nativeActiveTargetCount} 个对象`
+                  ? l(" · 当前 {count} 个对象", undefined, { count: nativeActiveTargetCount })
                   : ""}
                 {nativeValidatedBatchCount > 0 && nativeTotalModelBatchCount > 0
-                  ? ` · 已验证对象 ${nativeValidatedBatchCount}/${nativeTotalModelBatchCount}`
+                  ? l(" · 已验证对象 {validated}/{total}", undefined, { validated: nativeValidatedBatchCount, total: nativeTotalModelBatchCount })
                   : ""}
                 {nativeCheckpointCount > 0
-                  ? ` · 对象检查点 ${nativeCheckpointCount}`
+                  ? l(" · 对象检查点 {count}", undefined, { count: nativeCheckpointCount })
                   : ""}
                 {nativeReconciliationCheckpointCount > 0
-                  ? ` · 协调检查点 ${nativeReconciliationCheckpointCount}`
+                  ? l(" · 协调检查点 {count}", undefined, { count: nativeReconciliationCheckpointCount })
                   : ""}
-                {nativeAttempt > 1 ? ` · 第 ${nativeAttempt} 次尝试` : ""}
+                {nativeAttempt > 1 ? l(" · 第 {attempt} 次尝试", undefined, { attempt: nativeAttempt }) : ""}
                 {nativeAgentCallCount > 0
-                  ? ` · 本轮 Agent 调用 ${nativeAgentCallCount} 次`
+                  ? l(" · 本轮 Agent 调用 {count} 次", undefined, { count: nativeAgentCallCount })
                   : ""}
                 {nativeWindowElapsedSeconds > 0
-                  ? ` · 本次 ${Math.round(nativeWindowElapsedSeconds)} 秒`
+                  ? l(" · 本次 {seconds} 秒", undefined, { seconds: Math.round(nativeWindowElapsedSeconds) })
                   : ""}
               </span>
             ) : null}
@@ -7403,7 +7416,7 @@ function RequirementTreeOrganizePanel() {
               <span>
                 当前覆盖 {sourceRequirementStatus?.covered_scope_ids?.length || 0} 个范围、
                 {sourceRequirementStatus?.record_count || 0} 条Source Requirement Records；
-                结果基于同一Document Map，可反馈、可撤销且不阻断其他范围。
+                {l("结果基于同一Document Map，可反馈、可撤销且不阻断其他范围。")}
               </span>
             ) : null}
           </InlineNotice>
@@ -7437,40 +7450,40 @@ function RequirementTreeOrganizePanel() {
           !showSourceEvidenceLens &&
           !nativeStructureReferenceAvailable && (
           <InlineNotice
-            title="当前展示上一次可用结果（只读）"
+            title={l("当前展示上一次可用结果（只读）")}
             tone="warning"
           >
             <span>
               {structureArtifactReadOnlyReasonCode ===
               "structure_derivation_rerun_not_complete"
-                ? "最新一次重新解析未形成可替换的新结果，系统继续提供上一次成功结果供核对。"
+                ? l("最新一次重新解析未形成可替换的新结果，系统继续提供上一次成功结果供核对。")
                 : structureArtifactReadOnlyReasonCode ===
                     "structure_derivation_rerun_in_progress"
-                  ? "新的解析任务仍在排队或运行；系统继续提供上一次成功结构供只读核对。"
-                : "服务端已将当前结构结果标记为只读，系统继续保留内容供核对。"}
+                  ? l("新的解析任务仍在排队或运行；系统继续提供上一次成功结构供只读核对。")
+                : l("服务端已将当前结构结果标记为只读，系统继续保留内容供核对。")}
             </span>
             <span>
-              结构修正、分类、原子化和生成确认清单均已停用；筛选、原文和解析事实仍可浏览。
+              {l("结构修正、分类、原子化和生成确认清单均已停用；筛选、原文和解析事实仍可浏览。")}
             </span>
             <button
               type="button"
               className="text-button"
               onClick={() => navigateToCheckpoint("diagnose")}
             >
-              查看来源证据
+              {l("查看来源证据")}
             </button>
           </InlineNotice>
         )}
         {requirementDecomposition.length > 0 && (
           <InlineNotice
-            title={`检测到历史原子化候选：${requirementDecomposition.length} 个父条目、${decomposedObligationCount} 个派生条目`}
+            title={l("检测到历史原子化候选：{parents} 个父条目、{derived} 个派生条目", undefined, { parents: requirementDecomposition.length, derived: decomposedObligationCount })}
             tone="warning"
           >
             <span>
-              这些派生内容不会应用到当前来源忠实基线，也不会自动进入需求分析。完整父条目仍是当前可核对对象；如需采用，必须在需求基线形成后由用户显式发起原子化并复核拆分结果。
+              {l("这些派生内容不会应用到当前来源忠实基线，也不会自动进入需求分析。完整父条目仍是当前可核对对象；如需采用，必须在需求基线形成后由用户显式发起原子化并复核拆分结果。")}
             </span>
             <details className="extraction-technical-details">
-              <summary>仅查看历史候选</summary>
+              <summary>{l("仅查看历史候选")}</summary>
               {requirementDecomposition.map((parent, parentIndex) => (
                 <section
                   key={
@@ -7491,7 +7504,7 @@ function RequirementTreeOrganizePanel() {
                             String(
                                 obligation.text ||
                                 obligation.atomic_statement ||
-                                "原子化候选",
+                                l("原子化候选"),
                             ),
                             260,
                           )}
@@ -7510,21 +7523,21 @@ function RequirementTreeOrganizePanel() {
               title={
                 connectionRevisionMismatch
                   ? connectionMismatchFleetReady
-                    ? "后台已恢复，可按当前方案重新提交"
+                    ? l("后台已恢复，可按当前方案重新提交")
                     : extractionExecutionReadinessState ===
                         "CONFIGURATION_SUPERSEDED"
-                      ? "AI 连接配置已更新"
-                      : "后台解析服务未同步当前配置"
+                      ? l("AI 连接配置已更新")
+                      : l("后台解析服务未同步当前配置")
                 : latestExtractionCancelled
                   ? currentParseArtifactAvailable
-                    ? "最新重新解析已取消"
-                    : "最近一次解析已取消"
+                    ? l("最新重新解析已取消")
+                    : l("最近一次解析已取消")
                   : currentParseArtifactAvailable
                     ? `最新重新解析${
-                        latestExtractionInterrupted ? "中断" : "失败"
+                        latestExtractionInterrupted ? l("中断") : l("失败")
                       }`
                     : `最近一次解析${
-                        latestExtractionInterrupted ? "中断" : "失败"
+                        latestExtractionInterrupted ? l("中断") : l("失败")
                       }`
               }
               tone={
@@ -7543,8 +7556,8 @@ function RequirementTreeOrganizePanel() {
                 <>
                   <span>
                     {mismatchPagesStarted === 0
-                      ? "本次任务在开始逐页解析前已停止，没有发布任何新解析结果。"
-                      : `本次任务在配置不一致时已开始 ${mismatchPagesStarted} 页；这些临时结果没有发布。`}
+                      ? l("本次任务在开始逐页解析前已停止，没有发布任何新解析结果。")
+                      : l("本次任务在配置不一致时已开始 {count} 页；这些临时结果没有发布。", undefined, { count: mismatchPagesStarted })}
                   </span>
                   {(submittedConnectionRevision !== null ||
                     apiConnectionRevision !== null ||
@@ -7552,14 +7565,14 @@ function RequirementTreeOrganizePanel() {
                     <span className="extraction-revision-summary">
                       {[
                         submittedConnectionRevision !== null
-                          ? `任务方案 revision ${submittedConnectionRevision}`
+                          ? l("任务方案 revision {revision}", undefined, { revision: submittedConnectionRevision })
                           : "",
                         apiConnectionRevision !== null
-                          ? `当前 API revision ${apiConnectionRevision}`
+                          ? l("当前 API revision {revision}", undefined, { revision: apiConnectionRevision })
                           : "",
                         workerConnectionRevisions.length > 0
-                          ? `后台执行器 revision ${workerConnectionRevisions.join("/")}`
-                          : "后台执行器 revision 待确认",
+                          ? l("后台执行器 revision {revision}", undefined, { revision: workerConnectionRevisions.join("/") })
+                          : l("后台执行器 revision 待确认"),
                       ]
                         .filter(Boolean)
                         .join(" · ")}
@@ -7567,39 +7580,39 @@ function RequirementTreeOrganizePanel() {
                   )}
                   <span>
                     {connectionMismatchFleetReady
-                      ? "后台已加载当前连接配置。失败任务不会原地复用，现在可以按当前项目方案重新提交全文解析。"
+                      ? l("后台已加载当前连接配置。失败任务不会原地复用，现在可以按当前项目方案重新提交全文解析。")
                       : extractionExecutionReadinessState ===
                           "BLOCKED_NO_LIVE_WORKER"
-                        ? "当前没有在线后台解析服务。请等待服务自动启动并显示就绪，恢复前不要重复提交。"
-                        : "后台正在自动同步当前连接配置。同步完成前普通重跑已停用，避免再次提交必然失败的任务。"}
+                        ? l("当前没有在线后台解析服务。请等待服务自动启动并显示就绪，恢复前不要重复提交。")
+                        : l("后台正在自动同步当前连接配置。同步完成前普通重跑已停用，避免再次提交必然失败的任务。")}
                   </span>
                   <span>
                     {previousArtifactAvailable
                       ? previousExtractionArtifact.can_browse_structure === true
-                        ? "上一成功结构仍可只读浏览；结构修正、分类和发布保持停用。"
-                        : "上一成功结果已保留为历史版本，但与当前运行合同不兼容，不能作为当前结构继续。"
-                      : "原 PDF、历史确认清单和已有业务数据保持不变。"}
+                        ? l("上一成功结构仍可只读浏览；结构修正、分类和发布保持停用。")
+                        : l("上一成功结果已保留为历史版本，但与当前运行合同不兼容，不能作为当前结构继续。")
+                      : l("原 PDF、历史确认清单和已有业务数据保持不变。")}
                   </span>
                   {extractionFailureDetails.length > 0 && (
                     <details className="extraction-technical-details">
-                      <summary>技术详情</summary>
+                      <summary>{l("技术详情")}</summary>
                       <span>{extractionFailureDetails.join(" · ")}</span>
                     </details>
                   )}
                   {activeExtractionActionRow}
                 </>
               ) : latestExtractionCancelled ? (
-                <span>任务已按请求结束，没有发布新结果。</span>
+                <span>{l("任务已按请求结束，没有发布新结果。")}</span>
               ) : extractionFailureDetails.length > 0 ? (
                 <span>{extractionFailureDetails.join(" · ")}</span>
               ) : (
-                <span>任务没有返回可公开的稳定错误码。</span>
+                <span>{l("任务没有返回可公开的稳定错误码。")}</span>
               )}
               {!connectionRevisionMismatch && (
                 <span>
                   {currentParseArtifactAvailable
-                    ? "旧结果未被替换，当前解析事实、结构和风险回执仍保持有效；可以继续核对，也可以重试生成新结果。"
-                    : "原文件和已有业务数据保持不变；请使用“重新解析全文”生成可进入下一步的当前结果。"}
+                    ? l("旧结果未被替换，当前解析事实、结构和风险回执仍保持有效；可以继续核对，也可以重试生成新结果。")
+                    : l("原文件和已有业务数据保持不变；请使用“重新解析全文”生成可进入下一步的当前结果。")}
                 </span>
               )}
             </InlineNotice>
@@ -7610,59 +7623,55 @@ function RequirementTreeOrganizePanel() {
             <InlineNotice
               title={
                 sourceCaptureRecovery
-                  ? "正文需要视觉恢复"
-                  : "当前解析结果需要重新生成"
+                  ? l("正文需要视觉恢复")
+                  : l("当前解析结果需要重新生成")
               }
               tone="warning"
             >
               {sourceCaptureRecovery
                 ? visualRepairAvailable
-                  ? `原 PDF 保持不变；本次只需重试 Qwen OCR 结构恢复降级的 ${visualRepairFailedPages.length} 页，其余已就绪页不会重复调用远程服务。`
-                  : `原 PDF 保持不变；请使用已授权的${visualRestorationMethodLabel}生成当前逐页事实。`
-                : "原 PDF 和历史确认清单保持不变；请按当前配置重新生成解析结果。"}
+                  ? l("原 PDF 保持不变；本次只需重试 Qwen OCR 结构恢复降级的 {count} 页，其余已就绪页不会重复调用远程服务。", undefined, { count: visualRepairFailedPages.length })
+                  : l("原 PDF 保持不变；请使用已授权的{method}生成当前逐页事实。", undefined, { method: visualRestorationMethodLabel })
+                : l("原 PDF 和历史确认清单保持不变；请按当前配置重新生成解析结果。")}
             </InlineNotice>
           )}
         {latestExtractionQueued && (
           <InlineNotice
             title={
               visualRepairState === "ACTIVE"
-                ? "Qwen OCR 结构恢复降级页重试正在排队"
+                ? l("Qwen OCR 结构恢复降级页重试正在排队")
                 : extractionQueueWaitingForWorkerSync
-                  ? "等待后台配置同步"
+                  ? l("等待后台配置同步")
                   : extractionQueueBlockedNoLiveWorker
-                    ? "等待后台解析服务启动"
+                    ? l("等待后台解析服务启动")
                 : extractionQueueStalled
-                ? "解析排队异常"
+                ? l("解析排队异常")
                 : extractionRetryScheduled
-                  ? "解析将在稍后自动重试"
-                  : "重新解析正在排队"
+                  ? l("解析将在稍后自动重试")
+                  : l("重新解析正在排队")
             }
             tone={extractionQueueStalled ? "warning" : "info"}
           >
             <span>
               {extractionRetryScheduled
-                ? "上一次后台尝试未完成；到达重试时间前不会有页面正在解析。"
+                ? l("上一次后台尝试未完成；到达重试时间前不会有页面正在解析。")
                 : extractionQueueWaitingForWorkerSync
-                  ? "任务已保留，但兼容槽位正在加载当前连接配置；同步完成前不会开始解析。"
+                  ? l("任务已保留，但兼容槽位正在加载当前连接配置；同步完成前不会开始解析。")
                   : extractionQueueBlockedNoLiveWorker
-                    ? "当前没有在线兼容槽位；服务恢复前任务不会开始逐页解析。"
+                    ? l("当前没有在线兼容槽位；服务恢复前任务不会开始逐页解析。")
                 : extractionQueueStalled
-                ? "任务已提交，但后台服务尚未领取；此时并没有页面正在解析。"
+                ? l("任务已提交，但后台服务尚未领取；此时并没有页面正在解析。")
                 : Number(extractionQueue.ahead_count || 0) > 0
-                  ? `按当前可见队列估计，前方约有 ${Number(extractionQueue.ahead_count)} 个任务；可用解析槽位释放后会自动开始逐页解析。`
+                  ? l("按当前可见队列估计，前方约有 {count} 个任务；可用解析槽位释放后会自动开始逐页解析。", undefined, { count: Number(extractionQueue.ahead_count) })
                   : Number(extractionQueue.running_count || 0) > 0
-                    ? "当前解析槽位均在工作；任一兼容槽位释放后会自动开始当前文档。"
-                    : "任务已提交，正在等待后台服务领取。"}
+                    ? l("当前解析槽位均在工作；任一兼容槽位释放后会自动开始当前文档。")
+                    : l("任务已提交，正在等待后台服务领取。")}
             </span>
             {extractionRetryScheduled && extractionRetryAvailableAt && (
               <span>
-                计划重试时间：
                 <time dateTime={extractionRetryAvailableAt}>
-                  {new Date(extractionRetryAvailableAt).toLocaleString("zh-CN", {
-                    hour12: false,
-                  })}
+                  {l("计划重试时间：{time}。", undefined, { time: new Date(extractionRetryAvailableAt).toLocaleString("zh-CN", { hour12: false }) })}
                 </time>
-                。
               </span>
             )}
             {extractionQueueWaitLabel && (
@@ -7679,8 +7688,8 @@ function RequirementTreeOrganizePanel() {
             {previousArtifactAvailable && (
               <span>
                 {previousArtifactRuntimeCompatible
-                  ? "上一次成功解析仍可只读浏览；新结果成功后才会替换它。"
-                  : "上一版成功结果仍保留，但当前运行版本已变化，不能冒充当前可编辑结构；已发布确认清单和原文件不受影响。"}
+                  ? l("上一次成功解析仍可只读浏览；新结果成功后才会替换它。")
+                  : l("上一版成功结果仍保留，但当前运行版本已变化，不能冒充当前可编辑结构；已发布确认清单和原文件不受影响。")}
               </span>
             )}
             {activeExtractionActionRow}
@@ -7692,27 +7701,27 @@ function RequirementTreeOrganizePanel() {
               "extraction-progress-drawer",
               latestVisualPageOutcome === "FAILED" && "has-visual-failure",
             )}
-            aria-label="全文解析运行进度"
+            aria-label={l("全文解析运行进度")}
           >
             <div className="extraction-progress-drawer-summary">
               <span className="notice-pip" aria-hidden="true" />
               <div className="extraction-progress-drawer-heading">
                 <strong>
                   {visualRepairState === "ACTIVE"
-                    ? "正在重试 Qwen OCR 结构恢复降级页"
-                    : `正在${extractionStageLabel(String(extractionJob.stage || ""))}`}
+                    ? l("正在重试 Qwen OCR 结构恢复降级页")
+                    : l("正在{stage}", undefined, { stage: extractionStageLabel(String(extractionJob.stage || ""), l) })}
                 </strong>
                 {extractionTotalPages > 0 ? (
                   <span className="extraction-progress-drawer-count">
                     {extractionCompletedPages}/{extractionTotalPages} 页
                     {extractionCurrentPage > 0
-                      ? ` · 当前 P${extractionCurrentPage}`
+                      ? l(" · 当前 P{page}", undefined, { page: extractionCurrentPage })
                       : ""}
                   </span>
                 ) : (
                   <span>
                     {String(extractionJob.last_progress || "") ||
-                      "后台已领取任务，正在准备第一项可验证进度。"}
+                      l("后台已领取任务，正在准备第一项可验证进度。")}
                   </span>
                 )}
               </div>
@@ -7740,8 +7749,8 @@ function RequirementTreeOrganizePanel() {
                 aria-expanded={extractionProgressDetailsExpanded}
                 aria-label={
                   extractionProgressDetailsExpanded
-                    ? "收起解析运行详情"
-                    : "展开解析运行详情"
+                    ? l("收起解析运行详情")
+                    : l("展开解析运行详情")
                 }
                 onClick={() =>
                   setExtractionProgressDetailState((current) => ({
@@ -7753,7 +7762,7 @@ function RequirementTreeOrganizePanel() {
                   }))
                 }
               >
-                <span>{extractionProgressDetailsExpanded ? "收起" : "详情"}</span>
+                <span>{extractionProgressDetailsExpanded ? l("收起") : l("详情")}</span>
                 <Icon
                   name={
                     extractionProgressDetailsExpanded
@@ -7771,15 +7780,15 @@ function RequirementTreeOrganizePanel() {
               aria-atomic="true"
             >
               {extractionTotalPages > 0
-                ? `全文解析进度：已处理 ${extractionCompletedPages} 页，共 ${extractionTotalPages} 页${extractionCurrentPage > 0 ? `，当前第 ${extractionCurrentPage} 页` : ""}`
-                : String(extractionJob.last_progress || "后台已领取解析任务")}
+                ? l("全文解析进度：已处理 {completed} 页，共 {total} 页{current}", undefined, { completed: extractionCompletedPages, total: extractionTotalPages, current: extractionCurrentPage > 0 ? l("，当前第 {page} 页", undefined, { page: extractionCurrentPage }) : "" })
+                : String(extractionJob.last_progress || l("后台已领取解析任务"))}
               {latestVisualPageAvailable &&
               latestVisualPageOutcome === "FAILED"
-                ? `；第 ${latestVisualPageNumber} 页视觉处理失败`
+                ? l("；第 {page} 页视觉处理失败", undefined, { page: latestVisualPageNumber })
                 : ""}
               {extractionHeartbeatAgeSeconds !== null &&
               extractionHeartbeatAgeSeconds > 45
-                ? "；后台响应延迟"
+                ? l("；后台响应延迟")
                 : ""}
             </span>
             {extractionTotalPages > 0 && (
@@ -7787,7 +7796,7 @@ function RequirementTreeOrganizePanel() {
                 <progress
                   max={Math.max(extractionTotalPages, 1)}
                   value={Math.min(extractionCompletedPages, extractionTotalPages)}
-                  aria-label={`全文解析页进度：已处理 ${extractionCompletedPages} 页，共 ${extractionTotalPages} 页`}
+                  aria-label={l("全文解析页进度：已处理 {completed} 页，共 {total} 页", undefined, { completed: extractionCompletedPages, total: extractionTotalPages })}
                 />
               </div>
             )}
@@ -7795,7 +7804,7 @@ function RequirementTreeOrganizePanel() {
               id="extraction-progress-running-details"
               className="extraction-progress-drawer-details"
               role="region"
-              aria-label="解析运行详情"
+              aria-label={l("解析运行详情")}
               hidden={!extractionProgressDetailsExpanded}
             >
               {stagedPageFactsActive && (
@@ -7816,7 +7825,7 @@ function RequirementTreeOrganizePanel() {
                     latestVisualPageOutcome === "FAILED" && "is-failed",
                     latestVisualPageOutcome === "CACHE_HIT" && "is-cache-hit",
                   )}
-                  aria-label="最近视觉页状态"
+                  aria-label={l("最近视觉页状态")}
                 >
                   <div>
                     <strong>{latestVisualPageTitle}</strong>
@@ -7826,7 +7835,7 @@ function RequirementTreeOrganizePanel() {
                       )} · {latestVisualPageRequestCount} 次请求
                     </span>
                   </div>
-                  <small>“已处理”只表示流程已推进，不等于视觉识别成功。</small>
+                  <small>{l("“已处理”只表示流程已推进，不等于视觉识别成功。")}</small>
                 </section>
               )}
               {extractionHeartbeatLabel && <span>{extractionHeartbeatLabel}</span>}
@@ -7839,8 +7848,8 @@ function RequirementTreeOrganizePanel() {
               {previousArtifactAvailable && (
                 <span>
                   {previousArtifactRuntimeCompatible
-                    ? "上一次成功解析仍可只读浏览；本次完成前不会替换。"
-                    : "上一版成功结果仍作为历史记录保留，但不满足当前运行版本的一致性合同。"}
+                    ? l("上一次成功解析仍可只读浏览；本次完成前不会替换。")
+                    : l("上一版成功结果仍作为历史记录保留，但不满足当前运行版本的一致性合同。")}
                 </span>
               )}
               {activeExtractionActionRow}
@@ -7848,9 +7857,9 @@ function RequirementTreeOrganizePanel() {
           </section>
         )}
         {latestExtractionCancelling && (
-          <InlineNotice title="正在安全停止解析" tone="warning">
+          <InlineNotice title={l("正在安全停止解析")} tone="warning">
             <span>
-              当前任务不会再发布新结果；已发布确认清单、历史结果和原文件保持不变。
+              {l("当前任务不会再发布新结果；已发布确认清单、历史结果和原文件保持不变。")}
             </span>
             {(previousStructureButton || currentChecklistButton) && (
               <span className="extraction-run-actions">
@@ -7866,77 +7875,77 @@ function RequirementTreeOrganizePanel() {
           <InlineNotice
             title={
               completedWithoutReviewItems
-                ? "原文已还原，结构条目待完善"
-                : "正在生成需求结构树"
+                ? l("原文已还原，结构条目待完善")
+                : l("正在生成需求结构树")
             }
             tone={completedWithoutReviewItems ? "warning" : "info"}
           >
             {completedWithoutReviewItems
-              ? "页面文字、框标和表格仍可逐页核对；当前结构尚未形成可审阅条目，本地规则只保留为后续语义判断的参考。"
-              : "已完成的章节可浏览；最终结果就绪前保持只读，不会发布不完整版本。"}
+              ? l("页面文字、框标和表格仍可逐页核对；当前结构尚未形成可审阅条目，本地规则只保留为后续语义判断的参考。")
+              : l("已完成的章节可浏览；最终结果就绪前保持只读，不会发布不完整版本。")}
           </InlineNotice>
         )}
         {pageEvidenceError && !showSourceEvidenceLens && (
-          <InlineNotice title="逐页解析事实暂不可用" tone="warning">
-            {pageEvidenceError} 原 PDF 不受影响，可继续查看。
+          <InlineNotice title={l("逐页解析事实暂不可用")} tone="warning">
+            {l("{error} 原 PDF 不受影响，可继续查看。", undefined, { error: pageEvidenceError })}
           </InlineNotice>
         )}
         {geometryFocusError && activeCheckpoint === "structure" && (
-          <InlineNotice title="精确框选无法验证" tone="warning">
+          <InlineNotice title={l("精确框选无法验证")} tone="warning">
             {geometryFocusError} 系统不会退回全文搜索或整页框选。
           </InlineNotice>
         )}
         {activeCheckpoint === "list" &&
           !sourceRequirementReady &&
           entryClassificationLoading && (
-          <InlineNotice title="正在读取清单分类" tone="info">
-            结构、内容和原 PDF 仍可浏览；分类身份验证完成后才可操作。
+          <InlineNotice title={l("正在读取清单分类")} tone="info">
+            {l("结构、内容和原 PDF 仍可浏览；分类身份验证完成后才可操作。")}
           </InlineNotice>
         )}
         {activeCheckpoint === "list" &&
           !sourceRequirementReady &&
           entryClassificationError && (
-          <InlineNotice title="清单分类暂不可用" tone="warning">
+          <InlineNotice title={l("清单分类暂不可用")} tone="warning">
             {entryClassificationError}
             <button
               type="button"
               className="text-button"
               onClick={reloadEntryClassifications}
             >
-              重新读取
+              {l("重新读取")}
             </button>
           </InlineNotice>
         )}
         {activeCheckpoint === "list" &&
           !sourceRequirementReady &&
           classificationMutationError && (
-          <InlineNotice title="分类操作未完成" tone="warning">
+          <InlineNotice title={l("分类操作未完成")} tone="warning">
             {classificationMutationError}{" "}
-            当前已读取结果仍保留；发生并发冲突时请重新读取。
+            {l("当前已读取结果仍保留；发生并发冲突时请重新读取。")}
             <button
               type="button"
               className="text-button"
               onClick={reloadEntryClassifications}
             >
-              重新读取分类
+              {l("重新读取分类")}
             </button>
           </InlineNotice>
         )}
         {activeCheckpoint === "list" &&
           !sourceRequirementReady &&
           requirementEnrichmentLoading && (
-          <InlineNotice title="正在核对发布范围" tone="info">
-            系统正在读取当前分类、原子化结果和安全生成条件；完成前可以继续浏览清单。
+          <InlineNotice title={l("正在核对发布范围")} tone="info">
+            {l("系统正在读取当前分类、原子化结果和安全生成条件；完成前可以继续浏览清单。")}
           </InlineNotice>
         )}
         {activeCheckpoint === "list" &&
           !sourceRequirementReady &&
           semanticPublicationUnbound &&
           !requirementEnrichmentLoading && (
-            <InlineNotice title="确认清单生成暂不可用" tone="warning">
+            <InlineNotice title={l("确认清单生成暂不可用")} tone="warning">
               {requirementEnrichmentError ||
-                "已接受的分类结果尚未同步完成。"}
-              为避免切换到无法追溯的版本，本轮只能继续浏览和整理分类，不能生成确认清单。
+                l("已接受的分类结果尚未同步完成。")}
+              {l("为避免切换到无法追溯的版本，本轮只能继续浏览和整理分类，不能生成确认清单。")}
             </InlineNotice>
           )}
         {activeCheckpoint === "list" &&
@@ -7944,7 +7953,7 @@ function RequirementTreeOrganizePanel() {
           entryClassification && (
           <section
             className="entry-classification-summary"
-            aria-label="清单分类统计"
+            aria-label={l("清单分类统计")}
           >
             <div>
               <strong>{entryClassification.counts.total} 条待整理内容</strong>
@@ -7967,15 +7976,15 @@ function RequirementTreeOrganizePanel() {
                 }
               >
                 {entryClassification.snapshot.status === "ACCEPTED"
-                  ? "已接受"
+                  ? l("已接受")
                   : classificationUnclassifiedCount
-                    ? "整理中"
-                    : "可接受"}
+                    ? l("整理中")
+                    : l("可接受")}
               </StatusBadge>
               <button
                 className="button secondary"
                 type="button"
-                aria-label="批量分类"
+                aria-label={l("批量分类")}
                 disabled={
                   structureArtifactReadOnly ||
                   Boolean(classificationMutation) ||
@@ -7988,7 +7997,7 @@ function RequirementTreeOrganizePanel() {
                   setClassificationBatchOpen(true);
                 }}
               >
-                批量分类…
+                {l("批量分类…")}
               </button>
             </div>
           </section>
@@ -8001,12 +8010,12 @@ function RequirementTreeOrganizePanel() {
         <EmptyState
           icon="spark"
           title={sourceDocumentTaskTitle}
-          description={currentSourceActivity?.checking ? "正在读取后台已有任务，请稍候。"
-            : currentSourceActivity?.statusUnavailable ? "暂时无法确认后台状态，请在上方重新同步任务。"
+          description={currentSourceActivity?.checking ? l("正在读取后台已有任务，请稍候。")
+            : currentSourceActivity?.statusUnavailable ? l("暂时无法确认后台状态，请在上方重新同步任务。")
             : sourceDocumentTask && sourceGraphJobActive(sourceDocumentTask) || currentSourceActivity?.submitting
-              ? "当前任务会继续处理这份原文件，工作版将在校验后显示。可查看实际处理动作，或补充本轮意见。"
-              : "在 Agent 协作中查看本轮结果、未决项，或接续当前任务。"}
-          action={<button type="button" className="button primary" onClick={() => setSourceCollaborationRequest(value => value + 1)}>查看 Agent 协作</button>}
+              ? l("当前任务会继续处理这份原文件，工作版将在校验后显示。可查看实际处理动作，或补充本轮意见。")
+              : l("在 Agent 协作中查看本轮结果、未决项，或接续当前任务。")}
+          action={<button type="button" className="button primary" onClick={() => setSourceCollaborationRequest(value => value + 1)}>{l("查看 Agent 协作")}</button>}
         />
       ) : showSourceEvidenceLens ? (
         <ParseDiagnosisLens
@@ -8079,15 +8088,15 @@ function RequirementTreeOrganizePanel() {
       : activeCheckpoint === "list" &&
           nativeStructureReferenceAvailable ? null
       : structureLoading ? (
-        <LoadingBlock label="正在载入需求结构树" />
+        <LoadingBlock label={l("正在载入需求结构树")} />
       ) : workingTreeTemporarilyUnavailable ? (
         <EmptyState
           icon="tree"
-          title={reviewAvailable ? "当前整理结果暂不可用" : "最近一次提取未完成"}
+          title={reviewAvailable ? l("当前整理结果暂不可用") : l("最近一次提取未完成")}
           description={
             reviewAvailable
-              ? "已冻结的确认清单仍完整保留。可以继续确认或分析；重新提取只会生成新的工作结果。"
-              : "最近一次尝试没有生成可用结构，不代表此前业务数据被删除。可以安全重试。"
+              ? l("已冻结的确认清单仍完整保留。可以继续确认或分析；重新提取只会生成新的工作结果。")
+              : l("最近一次尝试没有生成可用结构，不代表此前业务数据被删除。可以安全重试。")
           }
           action={
             <div className="empty-state-actions">
@@ -8104,7 +8113,7 @@ function RequirementTreeOrganizePanel() {
                     })
                   }
                 >
-                  查看最近确认清单
+                  {l("查看最近确认清单")}
                 </button>
               )}
               <button
@@ -8113,7 +8122,7 @@ function RequirementTreeOrganizePanel() {
                 disabled={Boolean(busyAction) || connectionMismatchRetryBlocked || sourceGraphBusy || !agentAvailability.ready || Boolean(isSaasAccountMode() && nativeStructureAdvancement.artifactId)}
                 onClick={() => void startExtraction()}
               >
-                重新提取
+                {l("重新提取")}
               </button>
             </div>
           }
@@ -8121,8 +8130,8 @@ function RequirementTreeOrganizePanel() {
       ) : treeState === "NOT_STARTED" ? (
         <EmptyState
           icon="tree"
-          title="结构尚未生成"
-          description="从当前客户文件生成章节、条款、表格和可审阅结构条目。无需先进入技术工作台。"
+          title={l("结构尚未生成")}
+          description={l("从当前客户文件生成章节、条款、表格和可审阅结构条目。无需先进入技术工作台。")}
           action={
             <button
               className="button primary"
@@ -8131,15 +8140,15 @@ function RequirementTreeOrganizePanel() {
               onClick={() => void startExtraction()}
             >
               <Icon name="play" />
-              开始需求提取
+              {l("开始需求提取")}
             </button>
           }
         />
       ) : treeState === "FAILED" ? (
         <EmptyState
           icon="tree"
-          title="需求结构树生成失败"
-          description="既有来源没有被修改。修复处理配置后可安全重试。"
+          title={l("需求结构树生成失败")}
+          description={l("既有来源没有被修改。修复处理配置后可安全重试。")}
           action={
             <button
               className="button primary"
@@ -8147,7 +8156,7 @@ function RequirementTreeOrganizePanel() {
               disabled={Boolean(busyAction) || connectionMismatchRetryBlocked || sourceGraphBusy || !agentAvailability.ready || Boolean(isSaasAccountMode() && nativeStructureAdvancement.artifactId)}
               onClick={() => void startExtraction()}
             >
-              重新提取
+              {l("重新提取")}
             </button>
           }
         />
@@ -8157,24 +8166,24 @@ function RequirementTreeOrganizePanel() {
           title={
             connectionRevisionMismatch
               ? connectionMismatchFleetReady
-                ? "后台已恢复，可以重新提交"
-                : "等待后台解析服务同步"
+                ? l("后台已恢复，可以重新提交")
+                : l("等待后台解析服务同步")
             : sourceCaptureRecovery
-              ? "正文需要视觉恢复"
-              : "当前解析结果需要重新生成"
+              ? l("正文需要视觉恢复")
+              : l("当前解析结果需要重新生成")
           }
           description={
             connectionRevisionMismatch
               ? connectionMismatchFleetReady
-                ? "失败任务不会原地复用；请按当前项目方案创建一项新的全文解析任务。"
-                : "当前连接配置尚未被兼容槽位确认。系统正在自动同步，完成前不会让旧配置继续接单。"
+                ? l("失败任务不会原地复用；请按当前项目方案创建一项新的全文解析任务。")
+                : l("当前连接配置尚未被兼容槽位确认。系统正在自动同步，完成前不会让旧配置继续接单。")
             : sourceCaptureRecovery
               ? visualRepairAvailable || visualRestorationOverride
                 ? visualRepairAvailable
-                  ? `Qwen OCR 结构恢复已有 ${visualReceiptSummary?.readyPageCount || 0} 页就绪，另有 ${visualRepairFailedPages.length} 页降级；重试时只请求降级页，本地重建完整结果。`
-                  : `原生 PDF 没有提供可靠正文。将只启用${visualRestorationMethodLabel}；本地规则只提供结构与分类参考，不启用语义 LLM。`
-                : "原生 PDF 没有提供可靠正文，且当前没有可用的页面视觉恢复能力。请先在设置中完成连接检查。"
-              : "原文文件仍然可用，但当前结构结果与运行版本不兼容或结果合同不完整。请使用当前处理配置重新生成解析结果。"
+                  ? l("Qwen OCR 结构恢复已有 {ready} 页就绪，另有 {failed} 页降级；重试时只请求降级页，本地重建完整结果。", undefined, { ready: visualReceiptSummary?.readyPageCount || 0, failed: visualRepairFailedPages.length })
+                  : l("原生 PDF 没有提供可靠正文。将只启用{method}；本地规则只提供结构与分类参考，不启用语义 LLM。", undefined, { method: visualRestorationMethodLabel })
+                : l("原生 PDF 没有提供可靠正文，且当前没有可用的页面视觉恢复能力。请先在设置中完成连接检查。")
+              : l("原文文件仍然可用，但当前结构结果与运行版本不兼容或结果合同不完整。请使用当前处理配置重新生成解析结果。")
           }
           action={
             <div className="empty-state-actions">
@@ -8185,7 +8194,7 @@ function RequirementTreeOrganizePanel() {
                 rel="noreferrer"
               >
                 <Icon name="external" />
-                打开原 PDF
+                {l("打开原 PDF")}
               </a>
               <button
                 className="button primary"
@@ -8210,11 +8219,11 @@ function RequirementTreeOrganizePanel() {
                 <Icon name="refresh" />
                 {sourceCaptureRecovery
                   ? visualRepairAvailable
-                    ? `只重试降级的 ${visualRepairFailedPages.length} 页`
-                    : `${visualRestorationMethodLabel}并重新提取`
+                    ? l("只重试降级的 {count} 页", undefined, { count: visualRepairFailedPages.length })
+                    : l("{method}并重新提取", undefined, { method: visualRestorationMethodLabel })
                   : connectionRevisionMismatch && connectionMismatchFleetReady
-                    ? "按当前方案重新提交"
-                  : "重新生成解析结果"}
+                    ? l("按当前方案重新提交")
+                  : l("重新生成解析结果")}
               </button>
             </div>
           }
@@ -8236,24 +8245,24 @@ function RequirementTreeOrganizePanel() {
                     type="search"
                     aria-label={
                       activeCheckpoint === "list"
-                        ? "搜索清单内容"
-                        : "搜索结构内容"
+                        ? l("搜索清单内容")
+                        : l("搜索结构内容")
                     }
                     value={query}
                     onChange={(event) => setQuery(event.target.value)}
-                    placeholder="搜索章节、条款、表格或候选"
+                    placeholder={l("搜索章节、条款、表格或候选")}
                   />
                 </label>
                 <div className="tree-tool-row">
                     <div className="tree-filter-chips">
                     {activeCheckpoint === "list"
                       ? ([
-                          ["ALL", "全部", "全部分类筛选"],
-                          ["UNCLASSIFIED", "未分类", "未分类筛选"],
-                          ["TECHNICAL", "技术", "技术需求筛选"],
-                          ["NON_TECHNICAL", "非技术", "非技术需求筛选"],
-                          ["INFORMATION", "信息参考", "信息参考筛选"],
-                          ["HUMAN_OVERRIDE", "人工修改", "人工修改筛选"],
+                          ["ALL", l("全部"), l("全部分类筛选")],
+                          ["UNCLASSIFIED", l("未分类"), l("未分类筛选")],
+                          ["TECHNICAL", l("技术"), l("技术需求筛选")],
+                          ["NON_TECHNICAL", l("非技术"), l("非技术需求筛选")],
+                          ["INFORMATION", l("信息参考"), l("信息参考筛选")],
+                          ["HUMAN_OVERRIDE", l("人工修改"), l("人工修改筛选")],
                         ] as const).map(([value, label, ariaLabel]) => (
                           <button
                             key={value}
@@ -8269,9 +8278,9 @@ function RequirementTreeOrganizePanel() {
                           </button>
                         ))
                       : ([
-                          ["all", "全部"],
-                          ["attention", "需关注"],
-                          ["items", "候选"],
+                          ["all", l("全部")],
+                          ["attention", l("需关注")],
+                          ["items", l("候选")],
                         ] as const).map(([value, label]) => (
                           <button
                             key={value}
@@ -8289,22 +8298,22 @@ function RequirementTreeOrganizePanel() {
                       ref={treeExpandMenuRef}
                       className="tree-expand-menu"
                     >
-                      <summary title="选择结构树展开范围">
-                        展开
+                      <summary title={l("选择结构树展开范围")}>
+                        {l("展开")}
                         <Icon name="chevron-down" size={14} />
                       </summary>
                       <div className="tree-expand-menu-popover">
                         <button type="button" onClick={expandCurrentBranch}>
-                          展开当前分支
+                          {l("展开当前分支")}
                         </button>
                         <button type="button" onClick={expandToClauses}>
-                          展开到条款
+                          {l("展开到条款")}
                         </button>
                         <button type="button" onClick={expandAll}>
-                          {filterActive ? "展开全部筛选结果" : "全部展开"}
+                          {filterActive ? l("展开全部筛选结果") : l("全部展开")}
                         </button>
                         <button type="button" onClick={collapseToCurrentPath}>
-                          只保留当前路径
+                          {l("只保留当前路径")}
                         </button>
                       </div>
                     </details>
@@ -8312,39 +8321,39 @@ function RequirementTreeOrganizePanel() {
                       type="button"
                       className="tree-view-action"
                       onClick={collapseAll}
-                      title="将结构树收起到根节点"
+                      title={l("将结构树收起到根节点")}
                     >
-                      全部收起
+                      {l("全部收起")}
                     </button>
                     <button
                       type="button"
                       className="tree-view-action is-locate"
                       onClick={revealCurrentNode}
                       disabled={!selectedId}
-                      title="重新展开并定位当前内容"
+                      title={l("重新展开并定位当前内容")}
                     >
-                      定位当前
+                      {l("定位当前")}
                     </button>
                     </div>
                   </div>
               </div>
               <div className="tree-keyboard-hint">
-                <span>{navigationRows.length} 项</span>
-                <span>↑↓ 选择 · ←→ 层级 · ⇧←→ 分支</span>
+                <span>{l("{count} 项", undefined, { count: navigationRows.length })}</span>
+                <span>{l("↑↓ 选择 · ←→ 层级 · ⇧←→ 分支")}</span>
               </div>
               <div
                 ref={treeViewportRef}
                 className="requirement-tree-viewport"
                 role={navigationRows.length ? "tree" : "region"}
-                aria-label="需求结构树"
+                aria-label={l("需求结构树")}
                 onScroll={(event) => handleTreeScroll(event.currentTarget)}
                 onKeyDown={handleTreeKeyDown}
               >
                 {navigationRows.length === 0 ? (
                   <div className="tree-filter-empty" role="status">
                     <Icon name="search" size={20} />
-                    <strong>当前筛选没有匹配内容</strong>
-                    <span>原清单没有改变，只是当前视图没有命中项。</span>
+                    <strong>{l("当前筛选没有匹配内容")}</strong>
+                    <span>{l("原清单没有改变，只是当前视图没有命中项。")}</span>
                     <button
                       type="button"
                       className="text-button"
@@ -8354,7 +8363,7 @@ function RequirementTreeOrganizePanel() {
                         setClassificationFilter("ALL");
                       }}
                     >
-                      清除筛选
+                      {l("清除筛选")}
                     </button>
                   </div>
                 ) : (
@@ -8379,9 +8388,10 @@ function RequirementTreeOrganizePanel() {
                               effectiveEntryClassificationType(
                                 classificationEntry,
                               ),
+                              l,
                             )}${
                               classificationEntry.human_override
-                                ? " · 人工"
+                                ? l(" · 人工")
                                 : ""
                             }`
                           : "";
@@ -8448,9 +8458,9 @@ function RequirementTreeOrganizePanel() {
                                 64,
                               )}
                             </strong>
-                            {requirementTreeRowSecondaryLabel(node) ? (
+                            {requirementTreeRowSecondaryLabel(node, l) ? (
                               <small>
-                                {requirementTreeRowSecondaryLabel(node)}
+                                {requirementTreeRowSecondaryLabel(node, l)}
                               </small>
                             ) : null}
                           </span>
@@ -8459,20 +8469,20 @@ function RequirementTreeOrganizePanel() {
                               !isRequirementTreeReviewItem(node) && (
                                 <span
                                   className="tree-node-count is-requirement-count"
-                                  aria-label={`此节点及下级共 ${reviewItemCount(node)} 个候选`}
-                                  title={`此节点及下级共 ${reviewItemCount(node)} 个候选`}
+                                  aria-label={l("此节点及下级共 {count} 个候选", undefined, { count: reviewItemCount(node) })}
+                                  title={l("此节点及下级共 {count} 个候选", undefined, { count: reviewItemCount(node) })}
                                 >
-                                  <span>候选</span>
+                                  <span>{l("候选")}</span>
                                   <strong>{reviewItemCount(node)}</strong>
                                 </span>
                               )}
                             {node.attention_count > 0 && (
                               <span
                                 className="tree-node-count is-attention-count"
-                                aria-label={`此节点及下级共 ${node.attention_count} 项需关注`}
-                                title={`此节点及下级共 ${node.attention_count} 项需关注`}
+                                aria-label={l("此节点及下级共 {count} 项需关注", undefined, { count: node.attention_count })}
+                                title={l("此节点及下级共 {count} 项需关注", undefined, { count: node.attention_count })}
                               >
-                                <span>关注</span>
+                                <span>{l("关注")}</span>
                                 <strong>{node.attention_count}</strong>
                               </span>
                             )}
@@ -8496,10 +8506,10 @@ function RequirementTreeOrganizePanel() {
             </aside>
 
             <div className="tree-compact-detail-bar">
-              <span>查看当前节点</span>
+              <span>{l("查看当前节点")}</span>
               <Tabs
                 className="tree-compact-detail-switch"
-                label="当前节点查看方式"
+                label={l("当前节点查看方式")}
                 value={compactDetail}
                 onChange={setCompactDetail}
                 items={[
@@ -8507,10 +8517,10 @@ function RequirementTreeOrganizePanel() {
                     value: "content",
                     label:
                       activeCheckpoint === "list"
-                        ? "内容与分类"
-                        : "条款内容",
+                        ? l("内容与分类")
+                        : l("条款内容"),
                   },
-                  { value: "source", label: "PDF 原文" },
+                  { value: "source", label: l("PDF 原文") },
                 ]}
               />
             </div>
@@ -8521,11 +8531,11 @@ function RequirementTreeOrganizePanel() {
                   <div>
                     <span>
                       {selectedNode
-                        ? nodeKindLabel(selectedNode)
-                        : "条款内容"}
+                        ? nodeKindLabel(selectedNode, l)
+                        : l("条款内容")}
                     </span>
                     <strong>
-                      {selectedNode ? statusLabel(selectedNode) : "选择树节点"}
+                      {selectedNode ? statusLabel(selectedNode, l) : l("选择树节点")}
                     </strong>
                   </div>
                   {canEditStructure ? (
@@ -8535,7 +8545,7 @@ function RequirementTreeOrganizePanel() {
                       onClick={() => setStructureDrawerOpen(true)}
                     >
                       <Icon name="wrench" />
-                      调整结构
+                      {l("调整结构")}
                     </button>
                   ) : null}
                 </div>
@@ -8544,21 +8554,21 @@ function RequirementTreeOrganizePanel() {
               {!boundaryCalibrationActive &&
                 selectedNode?.bilingual_context?.mismatch_review_required ===
                   true && (
-                  <InlineNotice title="双语内容存在不一致" tone="warning">
-                    系统已保留两种语言的精确原文，且未自动选择或改写其中一侧；请对照原文复核后再确认该条款。
+                  <InlineNotice title={l("双语内容存在不一致")} tone="warning">
+                    {l("系统已保留两种语言的精确原文，且未自动选择或改写其中一侧；请对照原文复核后再确认该条款。")}
                   </InlineNotice>
                 )}
 
               {boundaryCalibrationActive ? (
                 boundaryCalibrationLoading && !boundaryCalibrationPlan ? (
-                  <LoadingBlock label="正在建立当前页的来源边界校准计划" />
+                  <LoadingBlock label={l("正在建立当前页的来源边界校准计划")} />
                 ) : boundaryCalibrationError ? (
                   <div className="boundary-calibration-unavailable">
-                    <InlineNotice title="当前页暂不能校准" tone="warning">
+                    <InlineNotice title={l("当前页暂不能校准")} tone="warning">
                       {boundaryCalibrationError}
                     </InlineNotice>
                     <p>
-                      原 PDF 和现有结构均保持不变；系统不会退回到自由像素拖动。
+                      {l("原 PDF 和现有结构均保持不变；系统不会退回到自由像素拖动。")}
                     </p>
                   </div>
                 ) : (
@@ -8636,7 +8646,7 @@ function RequirementTreeOrganizePanel() {
                     <label className="atomization-selection-control">
                       <input
                         type="checkbox"
-                        aria-label="加入“所选项”原子化范围"
+                        aria-label={l("加入“所选项”原子化范围")}
                         checked={atomizationSelection.workflowIds.includes(
                           selectedClassificationEntry.workflow_node_id,
                         )}
@@ -8653,11 +8663,11 @@ function RequirementTreeOrganizePanel() {
                         }
                       />
                       <span>
-                        <strong>加入“所选项”原子化范围</strong>
-                        <small>独立于当前高亮与筛选；勾选不会启动任务</small>
+                        <strong>{l("加入“所选项”原子化范围")}</strong>
+                        <small>{l("独立于当前高亮与筛选；勾选不会启动任务")}</small>
                       </span>
                       <strong>
-                        已选 {atomizationSelection.workflowIds.length} 项
+                        {l("已选 {count} 项", undefined, { count: atomizationSelection.workflowIds.length })}
                       </strong>
                     </label>
                   ) : null}
@@ -8707,18 +8717,18 @@ function RequirementTreeOrganizePanel() {
                   ) : sessionId ? (
                     <section
                       className="atomization-scope-inline-state"
-                      aria-label="原子化范围状态"
+                      aria-label={l("原子化范围状态")}
                       aria-live="polite"
                     >
                       <strong>
                         {requirementEnrichmentLoading
-                          ? "正在读取可执行范围"
-                          : "原子化范围暂不可用"}
+                          ? l("正在读取可执行范围")
+                          : l("原子化范围暂不可用")}
                       </strong>
                       <span>
                         {requirementEnrichmentError ||
                           atomizationPlanResult.error ||
-                          "当前内容仍可浏览，读取完成前不会启动任何任务。"}
+                          l("当前内容仍可浏览，读取完成前不会启动任何任务。")}
                       </span>
                       {!requirementEnrichmentLoading ? (
                         <button
@@ -8726,7 +8736,7 @@ function RequirementTreeOrganizePanel() {
                           type="button"
                           onClick={() => reloadRequirementEnrichment()}
                         >
-                          重新读取范围
+                          {l("重新读取范围")}
                         </button>
                       ) : null}
                     </section>
@@ -8740,11 +8750,11 @@ function RequirementTreeOrganizePanel() {
                   <section className="table-projection-controls">
                     <header>
                       <div>
-                        <span>表格拆解</span>
+                        <span>{l("表格拆解")}</span>
                         <strong>
                           {selectedTableProjectionMode === "RECORDS"
-                            ? `已拆为 ${selectedTableProjectionRecords.length} 个行条目`
-                            : "当前保留完整原表"}
+                            ? l("已拆为 {count} 个行条目", undefined, { count: selectedTableProjectionRecords.length })
+                            : l("当前保留完整原表")}
                         </strong>
                       </div>
                       <StatusBadge
@@ -8755,12 +8765,12 @@ function RequirementTreeOrganizePanel() {
                         }
                       >
                         {selectedTableProjectionMode === "RECORDS"
-                          ? "按行"
-                          : "整表"}
+                          ? l("按行")
+                          : l("整表")}
                       </StatusBadge>
                     </header>
                     <p>
-                      {tableProjectionExplanation(selectedTableProjection)}
+                      {tableProjectionExplanation(selectedTableProjection, l)}
                     </p>
                     <div className="table-projection-actions">
                       <button
@@ -8771,8 +8781,8 @@ function RequirementTreeOrganizePanel() {
                       >
                         <Icon name="split" />
                         {structureArtifactReadOnly
-                          ? "查看行组（只读）"
-                          : "人工调整行组"}
+                          ? l("查看行组（只读）")
+                          : l("人工调整行组")}
                       </button>
                       {selectedTableProjectionMode === "RECORDS" ? (
                         <>
@@ -8792,7 +8802,7 @@ function RequirementTreeOrganizePanel() {
                                   )
                                 }
                               >
-                                与上一条合并
+                                {l("与上一条合并")}
                               </button>
                               <button
                                 className="button secondary"
@@ -8808,7 +8818,7 @@ function RequirementTreeOrganizePanel() {
                                 void reviseSelectedTableProjection("MERGE_NEXT")
                                 }
                               >
-                                与下一条合并
+                                {l("与下一条合并")}
                               </button>
                             </>
                           )}
@@ -8822,7 +8832,7 @@ function RequirementTreeOrganizePanel() {
                               void reviseSelectedTableProjection("KEEP_WHOLE")
                             }
                           >
-                            保留完整原表
+                            {l("保留完整原表")}
                           </button>
                         </>
                       ) : null}
@@ -8837,7 +8847,7 @@ function RequirementTreeOrganizePanel() {
                         }
                       >
                         <Icon name="undo" />
-                        恢复自动判断
+                        {l("恢复自动判断")}
                       </button>
                     </div>
                   </section>
@@ -8851,18 +8861,18 @@ function RequirementTreeOrganizePanel() {
                   <section className="requirement-correction-tray">
                     <header>
                       <div>
-                        <span>需求边界修正</span>
-                        <strong>只影响当前选中的需求</strong>
+                        <span>{l("需求边界修正")}</span>
+                        <strong>{l("只影响当前选中的需求")}</strong>
                       </div>
                       <span role="status" aria-live="polite">
-                        {reviewSaveState || "已保存"}
+                        {reviewSaveState || l("已保存")}
                       </span>
                     </header>
                     <textarea
                       ref={correctionTextRef}
                       value={selectedReviewText}
                       readOnly
-                      aria-label="选择需要拆分的来源文字"
+                      aria-label={l("选择需要拆分的来源文字")}
                     />
                     <div>
                       <button
@@ -8873,7 +8883,7 @@ function RequirementTreeOrganizePanel() {
                       }
                         onClick={() => void splitSelected()}
                       >
-                        拆分所选文字
+                        {l("拆分所选文字")}
                       </button>
                       <button
                         className="button ghost"
@@ -8883,7 +8893,7 @@ function RequirementTreeOrganizePanel() {
                       }
                         onClick={() => void mergeSelected()}
                       >
-                        与下一项合并
+                        {l("与下一项合并")}
                       </button>
                       <button
                         className="button ghost"
@@ -8893,7 +8903,7 @@ function RequirementTreeOrganizePanel() {
                       }
                         onClick={() => void excludeSelected()}
                       >
-                        移出需求
+                        {l("移出需求")}
                       </button>
                       <button
                         className="button ghost"
@@ -8906,7 +8916,7 @@ function RequirementTreeOrganizePanel() {
                         onClick={() => void undoReview()}
                       >
                         <Icon name="undo" />
-                        撤销
+                        {l("撤销")}
                       </button>
                     </div>
                   </section>
@@ -8918,41 +8928,41 @@ function RequirementTreeOrganizePanel() {
                 <div>
                   <span>
                     {boundaryCalibrationActive
-                      ? "PDF 原文 · 同步边界"
-                      : "原 PDF"}
+                      ? l("PDF 原文 · 同步边界")
+                      : l("原 PDF")}
                   </span>
                   <strong>第 {pdfPage} 页</strong>
                   <small>
                     {boundaryCalibrationActive
                       ? boundaryCalibrationLoading
-                        ? "正在同步来源边界"
-                        : `${selectedOverlays.length} 条已验证边界`
+                        ? l("正在同步来源边界")
+                        : l("{count} 条已验证边界", undefined, { count: selectedOverlays.length })
                       : geometryFocusLoading
-                      ? "正在定位当前条款"
+                      ? l("正在定位当前条款")
                       : geometryFocusRegions !== null
-                        ? `${selectedOverlays.length} 个已验证来源范围`
-                        : "兼容定位"}
+                        ? l("{count} 个已验证来源范围", undefined, { count: selectedOverlays.length })
+                        : l("兼容定位")}
                   </small>
                 </div>
                 <div className="requirement-pdf-header-actions">
                   {selectedOverlays.length > 0 && (
                     <div
                       className="source-precision-legend"
-                      aria-label="来源范围精度图例"
+                      aria-label={l("来源范围精度图例")}
                     >
                       <span>
                         <span
                           className="source-precision-swatch is-exact"
                           aria-hidden="true"
                         />
-                        精确
+                        {l("精确")}
                       </span>
                       <span>
                         <span
                           className="source-precision-swatch is-approximate"
                           aria-hidden="true"
                         />
-                        近似
+                        {l("近似")}
                       </span>
                     </div>
                   )}
@@ -8962,7 +8972,7 @@ function RequirementTreeOrganizePanel() {
                     target="_blank"
                     rel="noreferrer"
                   >
-                    新窗口
+                    {l("新窗口")}
                     <Icon name="external" />
                   </a>
                 </div>
@@ -8970,7 +8980,7 @@ function RequirementTreeOrganizePanel() {
               <iframe
                 ref={pdfFrameRef}
                 className="requirement-pdf-frame"
-                title={`原 PDF · 第 ${pdfPage} 页`}
+                title={l("原 PDF · 第 {page} 页", undefined, { page: pdfPage })}
                 src={pdfUrl}
                 loading="eager"
               />
@@ -8980,23 +8990,23 @@ function RequirementTreeOrganizePanel() {
 
       <Dialog
         open={tableRowGroupDialogOpen}
-        title="人工调整表格行组"
+        title={l("人工调整表格行组")}
         onClose={closeTableRowGroupEditor}
         busy={tableRowGroupSaving}
         className="table-row-group-dialog"
       >
         <header className="modal-header">
           <div>
-            <p className="section-label">表格拆解</p>
-            <h2>人工调整行组</h2>
+            <p className="section-label">{l("表格拆解")}</p>
+            <h2>{l("人工调整行组")}</h2>
             <p>
-              每个行组生成一个表格条目。点击两行之间的边界可拆分或合并；表头、表注和完整原表不会被改写。
+              {l("每个行组生成一个表格条目。点击两行之间的边界可拆分或合并；表头、表注和完整原表不会被改写。")}
             </p>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭人工行分组"
+            aria-label={l("关闭人工行分组")}
             disabled={tableRowGroupSaving}
             onClick={closeTableRowGroupEditor}
           >
@@ -9005,26 +9015,26 @@ function RequirementTreeOrganizePanel() {
         </header>
 
         {tableRowGroupLoading ? (
-          <LoadingBlock label="正在读取当前行分组…" />
+          <LoadingBlock label={l("正在读取当前行分组…")} />
         ) : null}
         {structureArtifactReadOnly ? (
-          <InlineNotice title="当前结果只读" tone="warning">
-            行分组仍可查看，但不能保存。请回到最新可编辑结果后重新打开。
+          <InlineNotice title={l("当前结果只读")} tone="warning">
+            {l("行分组仍可查看，但不能保存。请回到最新可编辑结果后重新打开。")}
           </InlineNotice>
         ) : null}
         {tableRowGroupSelectionChanged ? (
-          <InlineNotice title="已切换到另一张表" tone="warning">
-            当前草稿仍绑定打开时的表格。请关闭后在目标表格重新打开，避免误改。
+          <InlineNotice title={l("已切换到另一张表")} tone="warning">
+            {l("当前草稿仍绑定打开时的表格。请关闭后在目标表格重新打开，避免误改。")}
           </InlineNotice>
         ) : null}
         {tableRowGroupReview && !tableRowGroupReview.editable ? (
-          <InlineNotice title="当前表格不能按行调整" tone="warning">
+          <InlineNotice title={l("当前表格不能按行调整")} tone="warning">
             {tableRowGroupReview.read_only_reason ||
-              "没有形成可安全调整的业务行。"}
+              l("没有形成可安全调整的业务行。")}
           </InlineNotice>
         ) : null}
         {tableRowGroupError ? (
-          <InlineNotice title="行分组未完成" tone="warning">
+          <InlineNotice title={l("行分组未完成")} tone="warning">
             {tableRowGroupError}
           </InlineNotice>
         ) : null}
@@ -9055,12 +9065,12 @@ function RequirementTreeOrganizePanel() {
                           <div>
                             <span>
                               {descriptor?.page_number
-                                ? `第 ${descriptor.page_number} 页 · `
+                                ? l("第 {page} 页 · ", undefined, { page: descriptor.page_number })
                                 : ""}
                               原表第 {row.row_index + 1} 行
                             </span>
                             <p>
-                              {descriptor?.display_text || "[图片或图形事实行]"}
+                              {descriptor?.display_text || l("[图片或图形事实行]")}
                             </p>
                           </div>
                           {!isGroupEnd || hasFollowingGroup ? (
@@ -9074,8 +9084,8 @@ function RequirementTreeOrganizePanel() {
                               }
                               aria-label={
                                 isGroupEnd
-                                  ? `合并行组 ${groupIndex + 1} 和 ${groupIndex + 2}`
-                                  : `在原表第 ${row.row_index + 1} 行后拆分`
+                                  ? l("合并行组 {first} 和 {second}", undefined, { first: groupIndex + 1, second: groupIndex + 2 })
+                                  : l("在原表第 {row} 行后拆分", undefined, { row: row.row_index + 1 })
                               }
                               onClick={() =>
                                 toggleTableRowGroupBoundary(
@@ -9084,7 +9094,7 @@ function RequirementTreeOrganizePanel() {
                                 )
                               }
                             >
-                              {isGroupEnd ? "取消此分组边界" : "在此拆分"}
+                              {isGroupEnd ? l("取消此分组边界") : l("在此拆分")}
                             </button>
                           ) : null}
                         </li>
@@ -9104,7 +9114,7 @@ function RequirementTreeOrganizePanel() {
             disabled={tableRowGroupSaving}
             onClick={closeTableRowGroupEditor}
           >
-            取消
+            {l("取消")}
           </button>
           <button
             className="button primary"
@@ -9120,27 +9130,27 @@ function RequirementTreeOrganizePanel() {
             onClick={() => void saveTableRowGroups()}
           >
             {tableRowGroupSaving
-              ? "正在保存…"
-              : `保存 ${tableRowGroupDraft.length || 0} 个行组`}
+              ? l("正在保存…")
+              : l("保存 {count} 个行组", undefined, { count: tableRowGroupDraft.length || 0 })}
           </button>
         </footer>
       </Dialog>
 
       <Dialog
         open={parsingRiskDialogOpen}
-        title="知晓解析风险并继续"
+        title={l("知晓解析风险并继续")}
         onClose={() => setParsingRiskDialogOpen(false)}
         className="confirm-action-dialog parsing-risk-dialog"
       >
         <header>
           <div>
-            <p className="section-label">解析诊断</p>
-            <h2>带已知风险进入结构整理</h2>
+            <p className="section-label">{l("解析诊断")}</p>
+            <h2>{l("带已知风险进入结构整理")}</h2>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭风险知晓确认"
+            aria-label={l("关闭风险知晓确认")}
             onClick={() => setParsingRiskDialogOpen(false)}
           >
             <Icon name="close" />
@@ -9148,26 +9158,22 @@ function RequirementTreeOrganizePanel() {
         </header>
         <div className="parsing-risk-dialog-copy">
           <p>
-            当前解析结果标记了
-            <strong>
-              {" "}
-              {parsingDiagnostics.severeWarningCount} 项非阻断严重风险
-            </strong>
-            ，涉及
-            <strong> {parsingDiagnostics.riskPages.length} 页</strong>
-            {parsingDiagnostics.unassignedRiskCount > 0
-              ? `，另有 ${parsingDiagnostics.unassignedRiskCount} 项没有可靠页码`
-              : ""}
-            。你可以带风险继续，并在后续发现问题时回到这里定位解析层。
+            {l("当前解析结果标记了 {severe} 项非阻断严重风险，涉及 {pages} 页{unassigned}。你可以带风险继续，并在后续发现问题时回到这里定位解析层。", undefined, {
+              severe: parsingDiagnostics.severeWarningCount,
+              pages: parsingDiagnostics.riskPages.length,
+              unassigned: parsingDiagnostics.unassignedRiskCount > 0
+                ? l("，另有 {count} 项没有可靠页码", undefined, { count: parsingDiagnostics.unassignedRiskCount })
+                : "",
+            })}
           </p>
           <dl>
             <div>
-              <dt>影响</dt>
-              <dd>只记录你已知晓风险，不修改原文、解析内容或结构规则。</dd>
+              <dt>{l("影响")}</dt>
+              <dd>{l("只记录你已知晓风险，不修改原文、解析内容或结构规则。")}</dd>
             </div>
             <div>
-              <dt>有效范围</dt>
-              <dd>本次确认只适用于当前文件和解析结果；重新解析后需要再次确认。</dd>
+              <dt>{l("有效范围")}</dt>
+              <dd>{l("本次确认只适用于当前文件和解析结果；重新解析后需要再次确认。")}</dd>
             </div>
           </dl>
         </div>
@@ -9177,7 +9183,7 @@ function RequirementTreeOrganizePanel() {
             type="button"
             onClick={() => setParsingRiskDialogOpen(false)}
           >
-            返回核对
+            {l("返回核对")}
           </button>
           <button
             className="button primary"
@@ -9185,39 +9191,39 @@ function RequirementTreeOrganizePanel() {
             disabled={Boolean(busyAction)}
             onClick={() => void acknowledgeParsingRisksAndContinue()}
           >
-            已知晓 {parsingDiagnostics.severeWarningCount} 项风险，继续
+            {l("已知晓 {count} 项风险，继续", undefined, { count: parsingDiagnostics.severeWarningCount })}
           </button>
         </footer>
       </Dialog>
 
       <Dialog
         open={parsingRerunDialogOpen}
-        title="重新解析整个文档"
+        title={l("重新解析整个文档")}
         onClose={() => setParsingRerunDialogOpen(false)}
         className="reorganize-tree-dialog parsing-rerun-dialog"
       >
         <header className="modal-header">
           <div>
-            <p className="section-label">解析诊断</p>
-            <h2>生成新的全文解析结果</h2>
+            <p className="section-label">{l("解析诊断")}</p>
+            <h2>{l("生成新的全文解析结果")}</h2>
             <p>
               {visualRepairAvailable
-                ? `服务端已从正式回执确定 ${visualRepairFailedPages.length} 个失败页；重试只为这些页面发起文字 OCR 请求，并复用其余成功页重建整份结果。table_parsing 仍单独受每页 8 次、整文 64 次上限。历史确认清单和导出仍会保留。`
-                : "系统目前只支持整份文档重新解析，不能安全替换单页。新结果完成后会替换当前解析结果；历史确认清单和导出仍会保留。"}
+                ? l("服务端已从正式回执确定 {count} 个失败页；重试只为这些页面发起文字 OCR 请求，并复用其余成功页重建整份结果。table_parsing 仍单独受每页 8 次、整文 64 次上限。历史确认清单和导出仍会保留。", undefined, { count: visualRepairFailedPages.length })
+                : l("系统目前只支持整份文档重新解析，不能安全替换单页。新结果完成后会替换当前解析结果；历史确认清单和导出仍会保留。")}
             </p>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭重新解析"
+            aria-label={l("关闭重新解析")}
             onClick={() => setParsingRerunDialogOpen(false)}
           >
             <Icon name="close" />
           </button>
         </header>
         {connectionMismatchRetryBlocked && (
-          <InlineNotice title="后台执行器正在同步" tone="warning">
-            当前连接配置尚未被兼容解析槽位确认。系统会自动同步；状态恢复前不能重复提交全文解析。
+          <InlineNotice title={l("后台执行器正在同步")} tone="warning">
+            {l("当前连接配置尚未被兼容解析槽位确认。系统会自动同步；状态恢复前不能重复提交全文解析。")}
           </InlineNotice>
         )}
         <div className="reorganize-tree-options">
@@ -9225,9 +9231,9 @@ function RequirementTreeOrganizePanel() {
             <div className="reorganize-tree-option-copy">
               <Icon name="refresh" />
               <div>
-                <h3>Codex Agent 原文基线</h3>
+                <h3>{l("Codex Agent 原文基线")}</h3>
                 <p>
-                  重新读取当前文件，建立原文结构、完整条目边界与需求属性判断；默认不执行原子化。Parser/Resolver 只提供来源事实和建议。
+                  {l("重新读取当前文件，建立原文结构、完整条目边界与需求属性判断；默认不执行原子化。Parser/Resolver 只提供来源事实和建议。")}
                 </p>
               </div>
             </div>
@@ -9241,10 +9247,10 @@ function RequirementTreeOrganizePanel() {
               }
               onClick={() => void rerunParsingWithCodexAgent()}
             >
-              启动 Agent 原文基线
+              {l("启动 Agent 原文基线")}
             </button>
             {!codexBaselineReady && (
-              <small>{isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : "当前 Codex Agent 或本地来源读取能力尚未就绪。"}</small>
+              <small>{isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : l("当前 Codex Agent 或本地来源读取能力尚未就绪。")}</small>
             )}
           </section>
           <section>
@@ -9253,13 +9259,13 @@ function RequirementTreeOrganizePanel() {
               <div>
                 <h3>
                   {visualRepairAvailable
-                    ? `只重试 Qwen OCR 结构恢复降级的 ${visualRepairFailedPages.length} 页`
-                    : `使用${visualRestorationMethodLabel}`}
+                    ? l("只重试 Qwen OCR 结构恢复降级的 {count} 页", undefined, { count: visualRepairFailedPages.length })
+                    : l("使用{method}", undefined, { method: visualRestorationMethodLabel })}
                 </h3>
                 <p>
                   {visualRepairAvailable
-                    ? `已就绪的 ${visualReceiptSummary?.readyPageCount || 0} 页从精确缓存复用；客户端不提交页码，降级范围由服务端正式回执决定。`
-                    : `仅使用项目已授权、与当前来源精确绑定的${visualRestorationMethodLabel}；不会伪装成局部页替换。`}
+                    ? l("已就绪的 {count} 页从精确缓存复用；客户端不提交页码，降级范围由服务端正式回执决定。", undefined, { count: visualReceiptSummary?.readyPageCount || 0 })
+                    : l("仅使用项目已授权、与当前来源精确绑定的{method}；不会伪装成局部页替换。", undefined, { method: visualRestorationMethodLabel })}
                 </p>
               </div>
             </div>
@@ -9280,11 +9286,11 @@ function RequirementTreeOrganizePanel() {
               }
             >
               {visualRepairAvailable
-                ? `只重试降级的 ${visualRepairFailedPages.length} 页`
-                : `使用${visualRestorationMethodLabel}解析整个文档`}
+                ? l("只重试降级的 {count} 页", undefined, { count: visualRepairFailedPages.length })
+                : l("使用{method}解析整个文档", undefined, { method: visualRestorationMethodLabel })}
             </button>
             {!visualRepairAvailable && !visualRestorationOverride && (
-              <small>当前来源没有可用且已授权的更高视觉能力。</small>
+              <small>{l("当前来源没有可用且已授权的更高视觉能力。")}</small>
             )}
           </section>
         </div>
@@ -9294,27 +9300,27 @@ function RequirementTreeOrganizePanel() {
             type="button"
             onClick={() => setParsingRerunDialogOpen(false)}
           >
-            取消
+            {l("取消")}
           </button>
         </footer>
       </Dialog>
 
       <Dialog
         open={classificationBatchOpen && !structureArtifactReadOnly}
-        title="批量分类"
+        title={l("批量分类")}
         onClose={() => setClassificationBatchOpen(false)}
         className="confirm-action-dialog entry-classification-batch-dialog"
       >
         <header>
           <div>
-            <p className="section-label">清单整理</p>
-            <h2>批量分类</h2>
-            <p>只修改所选清单内容；标题仅用于显示，不会被分类。</p>
+            <p className="section-label">{l("清单整理")}</p>
+            <h2>{l("批量分类")}</h2>
+            <p>{l("只修改所选清单内容；标题仅用于显示，不会被分类。")}</p>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭批量分类"
+            aria-label={l("关闭批量分类")}
             onClick={() => setClassificationBatchOpen(false)}
           >
             <Icon name="close" />
@@ -9327,26 +9333,26 @@ function RequirementTreeOrganizePanel() {
             role="alert"
             tabIndex={-1}
           >
-            <InlineNotice title="批量分类未完成" tone="warning">
+            <InlineNotice title={l("批量分类未完成")} tone="warning">
               {classificationMutationError}
               <button
                 type="button"
                 className="text-button"
                 onClick={reloadEntryClassifications}
               >
-                重新读取分类
+                {l("重新读取分类")}
               </button>
             </InlineNotice>
           </div>
         )}
         <div className="entry-classification-batch-body">
           <fieldset>
-            <legend>应用范围</legend>
+            <legend>{l("应用范围")}</legend>
             {(
               [
-                ["BRANCH", "当前分支"],
-                ["FILTERED", "当前筛选"],
-                ["ALL", "全部条目"],
+                ["BRANCH", l("当前分支")],
+                ["FILTERED", l("当前筛选")],
+                ["ALL", l("全部条目")],
               ] as const
             ).map(([scope, label]) => (
               <label key={scope}>
@@ -9358,7 +9364,7 @@ function RequirementTreeOrganizePanel() {
                   onChange={() => setClassificationBatchScope(scope)}
                 />
                 <span>{label}</span>
-                <strong>{classificationBatchScopeCounts[scope]} 项</strong>
+                <strong>{l("{count} 项", undefined, { count: classificationBatchScopeCounts[scope] })}</strong>
               </label>
             ))}
           </fieldset>
@@ -9367,13 +9373,13 @@ function RequirementTreeOrganizePanel() {
               <button
                 key={option.value}
                 type="button"
-                aria-label={`批量设为${option.label}`}
+                aria-label={l("批量设为{label}", undefined, { label: option.label })}
                 aria-pressed={classificationBatchType === option.value}
                 disabled={structureArtifactReadOnly}
                 onClick={() => setClassificationBatchType(option.value)}
               >
-                <strong>{option.label}</strong>
-                <small>{option.description}</small>
+                <strong>{l(option.label)}</strong>
+                <small>{l(option.description)}</small>
               </button>
             ))}
           </div>
@@ -9384,7 +9390,7 @@ function RequirementTreeOrganizePanel() {
             type="button"
             onClick={() => setClassificationBatchOpen(false)}
           >
-            取消
+            {l("取消")}
           </button>
           <button
             className="button primary"
@@ -9397,14 +9403,14 @@ function RequirementTreeOrganizePanel() {
             }
             onClick={() => void applyClassificationBatch()}
           >
-            应用到 {classificationBatchWorkflowIds.length} 项
+            {l("应用到 {count} 项", undefined, { count: classificationBatchWorkflowIds.length })}
           </button>
         </footer>
       </Dialog>
 
       <Dialog
         open={publicationDialogOpen && !structureArtifactReadOnly}
-        title="生成确认清单"
+        title={l("生成确认清单")}
         onClose={() => {
           if (!semanticPublicationMutation) {
             setPublicationDialogOpen(false);
@@ -9414,13 +9420,13 @@ function RequirementTreeOrganizePanel() {
       >
         <header>
           <div>
-            <p className="section-label">清单整理</p>
-            <h2>接受分类并生成确认清单</h2>
+            <p className="section-label">{l("清单整理")}</p>
+            <h2>{l("接受分类并生成确认清单")}</h2>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭生成确认清单"
+            aria-label={l("关闭生成确认清单")}
             disabled={semanticPublicationMutation}
             onClick={() => setPublicationDialogOpen(false)}
           >
@@ -9437,23 +9443,23 @@ function RequirementTreeOrganizePanel() {
             <InlineNotice
               title={
                 sessionId || acceptedNonSemanticPublicationRetry
-                  ? "生成确认清单未完成"
-                  : "接受分类未完成"
+                  ? l("生成确认清单未完成")
+                  : l("接受分类未完成")
               }
               tone="warning"
             >
               {localDraftActivationRetry
-                ? "确认清单已生成，但尚未设为当前版本。"
+                ? l("确认清单已生成，但尚未设为当前版本。")
                 : acceptedNonSemanticPublicationRetry
-                  ? "确认清单尚未生成；当前分类结果仍保持已接受。"
+                  ? l("确认清单尚未生成；当前分类结果仍保持已接受。")
                 : classificationMutationError}
               {localDraftActivationRetry ? (
                 <p>
-                  当前分类结果和已生成的确认清单均已保留。重试只会再次设为当前版本，不会重复生成确认清单。
+                  {l("当前分类结果和已生成的确认清单均已保留。重试只会再次设为当前版本，不会重复生成确认清单。")}
                 </p>
               ) : acceptedNonSemanticPublicationRetry ? (
                 <p>
-                  当前分类结果已接受，可直接重试生成确认清单，无需重新分类。
+                  {l("当前分类结果已接受，可直接重试生成确认清单，无需重新分类。")}
                 </p>
               ) : null}
               <button
@@ -9461,7 +9467,7 @@ function RequirementTreeOrganizePanel() {
                 className="text-button"
                 onClick={reloadEntryClassifications}
               >
-                重新读取分类
+                {l("重新读取分类")}
               </button>
             </InlineNotice>
           </div>
@@ -9478,20 +9484,17 @@ function RequirementTreeOrganizePanel() {
                 {semanticPublicationScopeDescription}
               </InlineNotice>
               <p>
-                技术需求默认进入分析；非技术内容默认保留；信息参考作为参考保留。
-                原标题和全部正文仍完整保留。
+                {l("技术需求默认进入分析；非技术内容默认保留；信息参考作为参考保留。")}
+                {l("原标题和全部正文仍完整保留。")}
               </p>
             </>
           ) : (
             <>
-              <InlineNotice tone="info" title="本次只冻结当前已整理结果">
-                当前 {entryClassification?.counts.total || 0}{" "}
-                条内容已经完成三类整理。
-                接受后才会生成待确认版本；本动作不调用原子化模型，也不会启动需求分析。
+              <InlineNotice tone="info" title={l("本次只冻结当前已整理结果")}>
+                {l("当前 {count} 条内容已经完成三类整理。接受后才会生成待确认版本；本动作不调用原子化模型，也不会启动需求分析。", undefined, { count: entryClassification?.counts.total || 0 })}
               </InlineNotice>
               <p>
-                原标题和全部正文仍完整保留。本次只随版本保存三类结果，不改变当前分析资格；
-                后续阶段再据此决定哪些内容需要分析。
+                {l("原标题和全部正文仍完整保留。本次只随版本保存三类结果，不改变当前分析资格；后续阶段再据此决定哪些内容需要分析。")}
               </p>
             </>
           )}
@@ -9503,7 +9506,7 @@ function RequirementTreeOrganizePanel() {
             disabled={semanticPublicationMutation}
             onClick={() => setPublicationDialogOpen(false)}
           >
-            返回检查
+            {l("返回检查")}
           </button>
           <button
             className="button primary"
@@ -9521,31 +9524,31 @@ function RequirementTreeOrganizePanel() {
           >
             {entryClassification?.snapshot.status === "ACCEPTED"
               ? localDraftActivationRetry
-                ? "重试设为当前版本"
+                ? l("重试设为当前版本")
                 : acceptedNonSemanticPublicationRetry
-                ? "按已接受结果重试生成"
-                : "继续生成确认清单"
-              : "接受分类并生成清单"}
+                ? l("按已接受结果重试生成")
+                : l("继续生成确认清单")
+              : l("接受分类并生成清单")}
           </button>
         </footer>
       </Dialog>
 
       <Dialog
         open={reorganizeDialogOpen}
-        title="重新整理结构"
+        title={l("重新整理结构")}
         onClose={() => setReorganizeDialogOpen(false)}
         className="reorganize-tree-dialog"
       >
         <header className="modal-header">
           <div>
-            <p className="section-label">整理结构</p>
-            <h2>重新整理结构</h2>
-            <p>刷新显示、本地重新生成和结构修正是三种不同操作。</p>
+            <p className="section-label">{l("整理结构")}</p>
+            <h2>{l("重新整理结构")}</h2>
+            <p>{l("刷新显示、本地重新生成和结构修正是三种不同操作。")}</p>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭重新整理"
+            aria-label={l("关闭重新整理")}
             onClick={() => setReorganizeDialogOpen(false)}
           >
             <Icon name="close" />
@@ -9557,10 +9560,9 @@ function RequirementTreeOrganizePanel() {
             <div className="reorganize-tree-option-copy">
               <Icon name="refresh" />
               <div>
-                <h3>本地规则重新生成</h3>
+                <h3>{l("本地规则重新生成")}</h3>
                 <p>
-                  重新读取当前文件并生成原文事实、结构和本地规则参考，不调用语义
-                  LLM；既有需求版本和导出不会删除。
+                  {l("重新读取当前文件并生成原文事实、结构和本地规则参考，不调用语义 LLM；既有需求版本和导出不会删除。")}
                 </p>
               </div>
             </div>
@@ -9571,10 +9573,10 @@ function RequirementTreeOrganizePanel() {
               onClick={() => void regenerateWithLocalRules()}
             >
               <Icon name="play" />
-              开始重新生成
+              {l("开始重新生成")}
             </button>
             {!localRulesReady && (
-              <small>本地 PDF 解析能力尚未就绪，暂不能启动。</small>
+              <small>{l("本地 PDF 解析能力尚未就绪，暂不能启动。")}</small>
             )}
           </section>
 
@@ -9582,9 +9584,9 @@ function RequirementTreeOrganizePanel() {
             <div className="reorganize-tree-option-copy">
               <Icon name="wrench" />
               <div>
-                <h3>手动调整当前结构</h3>
+                <h3>{l("手动调整当前结构")}</h3>
                 <p>
-                  对当前节点执行重挂、排序、续接合并或边界拆分；每次修改都会形成可撤销的新版本。
+                  {l("对当前节点执行重挂、排序、续接合并或边界拆分；每次修改都会形成可撤销的新版本。")}
                 </p>
               </div>
             </div>
@@ -9597,10 +9599,10 @@ function RequirementTreeOrganizePanel() {
                 setStructureDrawerOpen(true);
               }}
             >
-              调整当前节点
+              {l("调整当前节点")}
             </button>
             {!selectedStructureNode && (
-              <small>先在左侧选择一个结构节点。</small>
+              <small>{l("先在左侧选择一个结构节点。")}</small>
             )}
           </section>
 
@@ -9608,9 +9610,9 @@ function RequirementTreeOrganizePanel() {
             <div className="reorganize-tree-option-copy">
               <Icon name="spark" />
               <div>
-                <h3>AI 优化当前结构</h3>
+                <h3>{l("AI 优化当前结构")}</h3>
                 <p>
-                  可选能力。仅在项目已选择并连接可用模型时运行，不影响本地整理和人工修正。
+                  {l("可选能力。仅在项目已选择并连接可用模型时运行，不影响本地整理和人工修正。")}
                 </p>
               </div>
             </div>
@@ -9620,10 +9622,10 @@ function RequirementTreeOrganizePanel() {
               disabled={!canOptimizeStructure || Boolean(busyAction)}
               onClick={() => void optimizeStructure()}
             >
-              启动 AI 优化
+              {l("启动 AI 优化")}
             </button>
             {!structureAiReady && (
-              <small>当前项目未启用可用的结构优化模型。</small>
+              <small>{l("当前项目未启用可用的结构优化模型。")}</small>
             )}
           </section>
         </div>
@@ -9634,7 +9636,7 @@ function RequirementTreeOrganizePanel() {
             type="button"
             onClick={() => setReorganizeDialogOpen(false)}
           >
-            取消
+            {l("取消")}
           </button>
         </footer>
       </Dialog>
@@ -9646,46 +9648,46 @@ function RequirementTreeOrganizePanel() {
           <button
             className="structure-drawer-backdrop"
             type="button"
-            aria-label="关闭结构修正"
+            aria-label={l("关闭结构修正")}
             onClick={() => setStructureDrawerOpen(false)}
           />
           <aside
             className="structure-correction-drawer"
             role="dialog"
             aria-modal="true"
-            aria-label="结构修正"
+            aria-label={l("结构修正")}
           >
             <header>
               <div>
-                <span>高级操作</span>
-                <h2>修正结构</h2>
+                <span>{l("高级操作")}</span>
+                <h2>{l("修正结构")}</h2>
               </div>
               <button
                 className="icon-button"
                 type="button"
-                aria-label="关闭"
+                aria-label={l("关闭")}
                 onClick={() => setStructureDrawerOpen(false)}
               >
                 <Icon name="close" />
               </button>
             </header>
             <p>
-              所有结构修正只创建新的结构版本，不修改原文事实。
-              系统会先核对修改对象，避免把调整应用到过期内容。
+              {l("所有结构修正只创建新的结构版本，不修改原文事实。")}
+              {l("系统会先核对修改对象，避免把调整应用到过期内容。")}
             </p>
             <dl>
               <div>
-                <dt>当前节点</dt>
-                <dd>{selectedNode?.label || "未选择"}</dd>
+                <dt>{l("当前节点")}</dt>
+                <dd>{selectedNode?.label || l("未选择")}</dd>
               </div>
               {selectedStructureIds.length > 1 && (
                 <div>
-                  <dt>结构范围</dt>
+                  <dt>{l("结构范围")}</dt>
                   <dd>{selectedStructureIds.length} 个连续内容节点</dd>
                 </div>
               )}
               <div>
-                <dt>影响范围</dt>
+                <dt>{l("影响范围")}</dt>
                 <dd>
                   {selectedNode ? reviewItemCount(selectedNode) : 0} 个候选
                 </dd>
@@ -9717,7 +9719,7 @@ function RequirementTreeOrganizePanel() {
               }
               onClick={() =>
                 void runAction(
-                  "撤销结构修正",
+                  l("撤销结构修正"),
                   () =>
                     api.undoStructure(
                       route.projectId,
@@ -9729,26 +9731,26 @@ function RequirementTreeOrganizePanel() {
               }
             >
               <Icon name="undo" />
-              撤销最新修正
+              {l("撤销最新修正")}
             </button>
             <section className="manual-structure-tools">
               <header>
                 <div>
-                  <span>人工精确修正</span>
-                  <strong>一次只执行一种结构变更</strong>
+                  <span>{l("人工精确修正")}</span>
+                  <strong>{l("一次只执行一种结构变更")}</strong>
                 </div>
-                <small>提交前会校验来源与当前版本</small>
+                <small>{l("提交前会校验来源与当前版本")}</small>
               </header>
               <div
                 className="structure-action-tabs"
                 role="tablist"
-                aria-label="结构修正类型"
+                aria-label={l("结构修正类型")}
               >
                 {[
-                  ["reparent", "重挂"],
-                  ["reorder", "排序"],
-                  ["merge", "续接合并"],
-                  ["split", "边界拆分"],
+                  ["reparent", l("重挂")],
+                  ["reorder", l("排序")],
+                  ["merge", l("续接合并")],
+                  ["split", l("边界拆分")],
                 ].map(([value, label]) => (
                   <button
                     key={value}
@@ -9759,7 +9761,7 @@ function RequirementTreeOrganizePanel() {
                     }
                     title={
                       selectedStructureIds.length > 1 && value !== "reparent"
-                        ? "连续内容节点只能整体重挂；其他修正需先选择单一结构节点。"
+                        ? l("连续内容节点只能整体重挂；其他修正需先选择单一结构节点。")
                         : undefined
                     }
                     aria-selected={structureAction === value}
@@ -9778,12 +9780,12 @@ function RequirementTreeOrganizePanel() {
               {structureAction === "reparent" && (
                 <div className="structure-action-form" role="tabpanel">
                   <label htmlFor="structure-parent-search">
-                    <span>新的父级</span>
+                    <span>{l("新的父级")}</span>
                     <input
                       id="structure-parent-search"
                       type="search"
                       role="combobox"
-                      aria-label="搜索新的父级"
+                      aria-label={l("搜索新的父级")}
                       aria-autocomplete="list"
                       aria-expanded={structureParentPickerOpen}
                       aria-controls="structure-parent-search-results"
@@ -9800,7 +9802,7 @@ function RequirementTreeOrganizePanel() {
                           : undefined
                       }
                       value={structureParentQuery}
-                      placeholder="搜索章节、条款或完整路径"
+                      placeholder={l("搜索章节、条款或完整路径")}
                       autoComplete="off"
                       onFocus={() => setStructureParentPickerOpen(true)}
                       onChange={(event) => {
@@ -9817,14 +9819,14 @@ function RequirementTreeOrganizePanel() {
                       id="structure-parent-search-results"
                       className="project-rail-list"
                       role="listbox"
-                      aria-label="可选父级"
+                      aria-label={l("可选父级")}
                     >
                       {structureParentSearchResult.visible.map(
                         (node, index) => {
                           const nodeId = String(node.id || "");
                           const path =
                             structureParentPathById.get(nodeId) ||
-                            String(node.label || "未命名节点");
+                            String(node.label || l("未命名节点"));
                           return (
                             <button
                               id={`structure-parent-option-${nodeId}`}
@@ -9864,21 +9866,20 @@ function RequirementTreeOrganizePanel() {
                       )}
                       {structureParentSearchResult.visible.length < 1 && (
                         <small role="status">
-                          没有匹配且允许承载子节点的父级。
+                          {l("没有匹配且允许承载子节点的父级。")}
                         </small>
                       )}
                       {structureParentSearchResult.total >
                         structureParentSearchResult.visible.length && (
                         <small>
-                          仅显示前 {structureParentSearchResult.visible.length}
-                          项；继续输入章节号、标题或祖先路径可缩小范围。
+                          {l("仅显示前 {count} 项；继续输入章节号、标题或祖先路径可缩小范围。", undefined, { count: structureParentSearchResult.visible.length })}
                         </small>
                       )}
                     </div>
                   )}
                   {selectedStructureTargetPath && (
                     <small role="status">
-                      已选择：{selectedStructureTargetPath}
+                      {l("已选择：{path}", undefined, { path: selectedStructureTargetPath })}
                     </small>
                   )}
                   <button
@@ -9892,7 +9893,7 @@ function RequirementTreeOrganizePanel() {
                     }
                     onClick={() => void reparentSelectedStructure()}
                   >
-                    确认重挂
+                    {l("确认重挂")}
                   </button>
                   {reparentDisabledReason && (
                     <small id="structure-reparent-reason" role="status">
@@ -9904,7 +9905,7 @@ function RequirementTreeOrganizePanel() {
 
               {structureAction === "reorder" && (
                 <div className="structure-action-form" role="tabpanel">
-                  <p>仅调整当前节点在同级条款中的逻辑顺序，不改动原文位置。</p>
+                  <p>{l("仅调整当前节点在同级条款中的逻辑顺序，不改动原文位置。")}</p>
                   <div className="structure-order-actions">
                     <button
                       className="button secondary"
@@ -9917,7 +9918,7 @@ function RequirementTreeOrganizePanel() {
                       onClick={() => void reorderSelectedStructure(-1)}
                     >
                       <Icon name="chevron" className="icon-rotate-up" />
-                      上移
+                      {l("上移")}
                     </button>
                     <button
                       className="button secondary"
@@ -9932,7 +9933,7 @@ function RequirementTreeOrganizePanel() {
                       onClick={() => void reorderSelectedStructure(1)}
                     >
                       <Icon name="chevron-down" />
-                      下移
+                      {l("下移")}
                     </button>
                   </div>
                 </div>
@@ -9941,15 +9942,15 @@ function RequirementTreeOrganizePanel() {
               {structureAction === "merge" && (
                 <div className="structure-action-form" role="tabpanel">
                   <label>
-                    <span>作为续接内容合并</span>
+                    <span>{l("作为续接内容合并")}</span>
                     <select
                       value={mergeTargetId}
                       onChange={(event) => setMergeTargetId(event.target.value)}
                     >
-                      <option value="">选择同级节点</option>
+                      <option value="">{l("选择同级节点")}</option>
                       {mergeCandidates.map((node) => (
                         <option key={String(node.id)} value={String(node.id)}>
-                          {String(node.label || "未命名节点")}
+                          {String(node.label || l("未命名节点"))}
                         </option>
                       ))}
                     </select>
@@ -9960,7 +9961,7 @@ function RequirementTreeOrganizePanel() {
                     disabled={Boolean(busyAction) || !mergeTargetId}
                     onClick={() => void mergeSelectedStructure()}
                   >
-                    确认续接合并
+                    {l("确认续接合并")}
                   </button>
                 </div>
               )}
@@ -9970,7 +9971,7 @@ function RequirementTreeOrganizePanel() {
                   {canBoundarySplit ? (
                     <>
                       <label>
-                        <span>拆分位置（字符偏移）</span>
+                        <span>{l("拆分位置（字符偏移）")}</span>
                         <input
                           type="number"
                           min={boundaryStart + 1}
@@ -9981,7 +9982,7 @@ function RequirementTreeOrganizePanel() {
                       </label>
                       <small>
                         可拆范围 {boundaryStart + 1}–{boundaryEnd - 1}；仅作用于
-                        当前唯一、可验证的来源跨度。
+                        {l("当前唯一、可验证的来源跨度。")}
                       </small>
                       <button
                         className="button primary full"
@@ -9993,12 +9994,12 @@ function RequirementTreeOrganizePanel() {
                         }
                         onClick={() => void splitSelectedStructure()}
                       >
-                        确认边界拆分
+                        {l("确认边界拆分")}
                       </button>
                     </>
                   ) : (
-                    <InlineNotice title="当前节点不能安全拆分" tone="warning">
-                      只有具备单一、完整来源跨度的节点才开放边界拆分，避免猜测原文边界。
+                    <InlineNotice title={l("当前节点不能安全拆分")} tone="warning">
+                      {l("只有具备单一、完整来源跨度的节点才开放边界拆分，避免猜测原文边界。")}
                     </InlineNotice>
                   )}
                 </div>
@@ -10012,29 +10013,34 @@ function RequirementTreeOrganizePanel() {
 }
 
 export function RequirementTreePanel() {
+  const l = useUiCopy();
   const { route, updateRoute, selectedDocument } = useWorkspace();
   if (route.mode === "review") {
     return (
       <section className="requirement-tree-page requirement-tree-review-page">
         <header className="requirement-tree-commandbar">
           <div className="requirement-tree-title">
-            <span>需求提取</span>
-            <strong title={selectedDocument?.file_name || "确认清单"}>
-              {selectedDocument?.file_name || "确认清单"}
+            <span>{l("需求提取")}</span>
+            <strong title={selectedDocument?.file_name || l("确认清单")}>
+              {selectedDocument?.file_name || l("确认清单")}
             </strong>
           </div>
-          {route.reviewCase ? <span className="status-badge">原文清单 · 候选核对</span> : <RequirementTreeStageRail
+          {route.reviewCase ? <span className="status-badge">{l("原文清单 · 候选核对")}</span> : <RequirementTreeStageRail
             value="review"
             reviewAvailable
-            onChange={(checkpoint) =>
+            onChange={(view) => {
+              if (view === "analysis") {
+                updateRoute({ task: "analysis", mode: "organize", checkpoint: "list" });
+                return;
+              }
               updateRoute({
                 task: "extraction",
-                mode: checkpoint === "review" ? "review" : "organize",
-                checkpoint,
+                mode: view === "review" ? "review" : "organize",
+                checkpoint: view,
                 requirementSetId:
-                  checkpoint === "review" ? route.requirementSetId : "",
-              })
-            }
+                  view === "review" ? route.requirementSetId : "",
+              });
+            }}
           />}
         </header>
         <RequirementMatrixWorkbench lens="review" />

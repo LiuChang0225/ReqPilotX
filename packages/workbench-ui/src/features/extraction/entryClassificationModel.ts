@@ -62,11 +62,10 @@ export function effectiveEntryClassificationType(
 
 export function entryClassificationLabel(
   value: EntryClassificationType | null,
+  l?: (key: string, fallback?: string) => string,
 ): string {
-  return (
-    ENTRY_CLASSIFICATION_OPTIONS.find((option) => option.value === value)
-      ?.label || "尚未分类"
-  );
+  const label = ENTRY_CLASSIFICATION_OPTIONS.find((option) => option.value === value)?.label;
+  return label ? (l ? l(label) : label) : (l ? l("尚未分类") : "尚未分类");
 }
 
 export function entryClassificationForNode(

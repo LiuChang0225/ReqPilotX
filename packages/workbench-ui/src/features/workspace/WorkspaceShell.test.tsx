@@ -8,6 +8,8 @@ import {
   type WorkspaceContextValue,
 } from "./WorkspaceContext";
 import { WorkspaceShell } from "./WorkspaceShell";
+import { ApplicationHostContext, type WorkbenchApplicationHost } from "../../host/ApplicationHost";
+import { HostLocaleProvider } from "../../host/HostLocaleContext";
 
 vi.mock("../../app/preferences", () => ({
   usePreferences: () => ({
@@ -138,7 +140,7 @@ describe("WorkspaceShell navigation and capability truth", () => {
       "page",
     );
     expect(
-      screen.getByRole("button", { name: "需求整理" }),
+      screen.getByRole("button", { name: "需求提取" }),
     ).not.toHaveAttribute("aria-current");
     expect(
       screen.getByRole("button", { name: "AI 辅助阅读" }),
@@ -167,7 +169,7 @@ describe("document task return navigation", () => {
     rememberExtractionCheckpoint("project-1", "document-1", source, plugin, "list");
     value.route = { ...value.route, task: "analysis", pluginSessionId: sessionId, resultRevision: revisionId };
     show(value);
-    await userEvent.click(screen.getByRole("button", { name: "需求整理" }));
+    await userEvent.click(screen.getByRole("button", { name: "需求提取" }));
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "extraction", mode: "organize", checkpoint: "list" });
   });
 
@@ -176,7 +178,7 @@ describe("document task return navigation", () => {
     rememberViewedWork("project-1", "document-1", source, plugin);
     rememberExtractionCheckpoint("project-1", "document-1", source, plugin, "list");
     show(value);
-    await userEvent.click(screen.getByRole("button", { name: "需求整理" }));
+    await userEvent.click(screen.getByRole("button", { name: "需求提取" }));
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "extraction", mode: "organize", checkpoint: "list", pluginSessionId: sessionId, resultRevision: revisionId });
   });
 
@@ -186,7 +188,7 @@ describe("document task return navigation", () => {
     rememberViewedWork("project-1", "document-1", source, plugin);
     rememberExtractionCheckpoint("project-1", "document-1", source, native, "list");
     show(value);
-    await userEvent.click(screen.getByRole("button", { name: "需求整理" }));
+    await userEvent.click(screen.getByRole("button", { name: "需求提取" }));
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "extraction", mode: "organize", checkpoint: "list" });
     expect(readViewedWork("project-1", "document-1", source)).toEqual(native);
   });
@@ -196,7 +198,7 @@ describe("document task return navigation", () => {
     value.route = { ...value.route, task: "export", pluginSessionId: sessionId, resultRevision: "d".repeat(64) };
     rememberExtractionCheckpoint("project-1", "document-1", source, plugin, "list");
     show(value);
-    await userEvent.click(screen.getByRole("button", { name: "需求整理" }));
+    await userEvent.click(screen.getByRole("button", { name: "需求提取" }));
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "extraction", mode: "organize" });
   });
 
@@ -205,10 +207,18 @@ describe("document task return navigation", () => {
     value.route = { ...value.route, task: "extraction", checkpoint: "list", pluginSessionId: sessionId, resultRevision: revisionId };
     show(value);
     expect(readExtractionCheckpoint("project-1", "document-1", source, plugin)).toBe("list");
-    await userEvent.click(screen.getByRole("button", { name: "需求整理" }));
+    await userEvent.click(screen.getByRole("button", { name: "需求提取" }));
     expect(value.updateRoute).not.toHaveBeenCalled();
     await userEvent.click(screen.getByRole("button", { name: "AI 辅助阅读" }));
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "reading" });
+  });
+
+  it("keeps the requirements document view on reopen for the same source and work", () => {
+    const value = scoped(); value.route = { ...value.route, task: "extraction", mode: "organize", checkpoint: "requirements", pluginSessionId: sessionId, resultRevision: revisionId };
+    show(value);
+    expect(readExtractionCheckpoint("project-1", "document-1", source, plugin)).toBe("requirements");
+    rememberExtractionCheckpoint("project-1", "document-1", source, native, "requirements");
+    expect(readExtractionCheckpoint("project-1", "document-1", source, native)).toBe("requirements");
   });
 
   it("does not recover plugin choices from a replaced source document", async () => {
@@ -216,7 +226,63 @@ describe("document task return navigation", () => {
     value.selectedDocument = { ...value.selectedDocument!, source_sha256: "d".repeat(64) };
     rememberViewedWork("project-1", "document-1", source, plugin);
     show(value);
-    await userEvent.click(screen.getByRole("button", { name: "需求整理" }));
+    await userEvent.click(screen.getByRole("button", { name: "需求提取" }));
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "extraction", mode: "organize" });
+  });
+});
+
+describe("PAIR-edition four-view boundary", () => {
+  const host: WorkbenchApplicationHost = {
+    id: "pair-host", label: "PAIR", modelLabel: "model", captureAvailable: true, taskStartAvailable: true,
+    resourceUrl: path => path, pdfViewerUrl: source => source,
+    restoreTask: async () => null, taskDraft: () => undefined,
+    startTask: async () => { throw new Error("not used"); }, controlTask: async () => { throw new Error("not used"); },
+    openSession: async () => {},
+  };
+  function renderHosted(t?: (key: string, params?: Record<string, unknown>) => string) {
+    render(<HostLocaleProvider t={t ?? (key => key)}><ApplicationHostContext.Provider value={host}>
+      <WorkspaceProvider value={workspaceValue()}>
+        <WorkspaceShell><p>内容</p></WorkspaceShell>
+      </WorkspaceProvider>
+    </ApplicationHostContext.Provider></HostLocaleProvider>);
+  }
+
+  it("replaces the hosted side rail with one compact top flow and keeps project context", () => {
+    renderHosted();
+    for (const label of ["项目管理", "需求提取", "需求分析", "矩阵导出"]) {
+      expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
+    }
+    expect(screen.queryByRole("button", { name: "AI 辅助阅读" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "领域知识库" })).not.toBeInTheDocument();
+    expect(screen.queryByText("知识由 PAIR 管理")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "当前项目：正式项目" })).toBeVisible();
+    expect(screen.getAllByRole("navigation", { name: "工作台导航" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "打开 Agent 设置" })).toHaveLength(1);
+  });
+
+  it("rebinds the four hosted navigation labels through the native locale without remounting the shell", () => {
+    const view = render(<HostLocaleProvider t={key => key === "workbench.locale" ? "en" : key}>
+      <ApplicationHostContext.Provider value={host}>
+        <WorkspaceProvider value={workspaceValue()}>
+          <WorkspaceShell><input aria-label="draft" defaultValue="keep this draft" /></WorkspaceShell>
+        </WorkspaceProvider>
+      </ApplicationHostContext.Provider>
+    </HostLocaleProvider>);
+    expect(screen.getByRole("button", { name: "Projects" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Requirement extraction" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Requirement analysis" })).toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "Matrix export" })).toBeInTheDocument();
+    const draft = screen.getByLabelText("draft");
+    draft.focus();
+    view.rerender(<HostLocaleProvider t={key => key === "workbench.locale" ? "zh" : key}>
+      <ApplicationHostContext.Provider value={host}>
+        <WorkspaceProvider value={workspaceValue()}>
+          <WorkspaceShell><input aria-label="draft" defaultValue="keep this draft" /></WorkspaceShell>
+        </WorkspaceProvider>
+      </ApplicationHostContext.Provider>
+    </HostLocaleProvider>);
+    expect(screen.getByRole("button", { name: "项目管理" })).toBeInTheDocument();
+    expect(screen.getByLabelText("draft")).toBe(draft);
+    expect(screen.getByLabelText("draft")).toHaveValue("keep this draft");
   });
 });

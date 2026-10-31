@@ -39,7 +39,9 @@ Business JSON remains an exact comparison. Excel comparison permits only `_ReqPi
 
 R1 deliberately retains the internal `app` namespace. Install `reqpilotx-engine` only in an isolated portable environment; do not place it beside the full server's `app` package. Moving the authoritative source to `src/reqpilotx` is a later migration slice.
 
-Install the built plugin's `requirements.txt` in a Python 3.11+ virtual environment, then run its `scripts/reqpilot.py doctor`. Move/copy the **whole built directory** to another machine; no source checkout is required for the portable path. The source plugin directory alone is not a complete release bundle. `build-receipt.json.engine_release.core_identity` must match the engine manifest used for the release.
+Install the built plugin's `requirements.txt` in a Python 3.11+ virtual environment, then run its `scripts/reqpilot.py doctor`. Move/copy the **whole built directory** to another machine; no source checkout is required for the portable path. The source plugin directory alone is not a complete release bundle. `build-receipt.json.engine_release.core_identity` must match the engine manifest used for the release. The advertised local ruled-table OCR profile now carries its pinned `numpy` and `opencv-contrib-python` runtime in the engine requirements instead of relying on a caller `PYTHONPATH` or an undeclared system-site package. `doctor.local_ocr` reports `table_profile_supported`, missing Python modules and the exact pins; missing table support remains an explicit reading gap, not an empty complete table.
+
+A table-profile attempt that produces no table observations fails with `TABLE_PROFILE_NO_OBSERVATIONS` and retains its diagnostics without adding an empty source snapshot. Table reading identities include their observed outcome: exact retries are idempotent, while changed or partial outcomes append a distinct snapshot and preserve previous anchors. Existing frozen task bundles retain their original implementation; updating the installed plugin does not rewrite their snapshots or runtime pin.
 
 Prepare a new workspace with project-level discovery:
 
@@ -80,7 +82,7 @@ For native plugin-manager installation, use the Codex plugin-creator workflow to
 
 Read `skills/reqpilot/references/tools.md` for exact input contracts. The tool adapters create only private artifacts and drafts. Formal publication, customer acceptance and production activation are not hidden inside the portable commands.
 
-An optional typed task API now supports the same business request objects through `reqpilot.py task` and a local stdio MCP adapter. It reuses the fixed task CLI, existing workspaces and compilers; it does not create a second task service. MCP uses the separately pinned `requirements-mcp.txt` and is not automatically enabled by the manifest. See [typed task tools and setup](skills/reqpilot/references/task-api.md) for actual actions, retry/revision semantics and the initial capability limits. SDK interoperability and deterministic CLI/MCP equivalence do not establish model-level speed or quality gains.
+An optional typed task API now supports the same business request objects through `reqpilot.py task` and a local stdio MCP adapter. It reuses the fixed task CLI, existing workspaces and compilers; it does not create a second task service. MCP uses the separately pinned `requirements-mcp.txt` and is not automatically enabled by the manifest. See [typed task tools and setup](skills/reqpilot/references/task-api.md) for actual actions, retry/revision semantics and the initial capability limits. SDK interoperability and deterministic CLI/MCP equivalence do not establish model-level speed or quality gains. Self-check may run before structure or items are saved: it records incomplete prerequisites and leaves the same task inspectable and resumable without moving or deleting program-owned check receipts.
 
 After PDF capture, `reading-workspace --source <original.pdf> --source-ir <source_ir.json> --output-dir <new-dir>` reuses the proven page Markdown, high-render and full table-view helpers with source/image indexes. `reading-packet` remains optional exact-data inspection. The updated native host supports page/region zoom, annotation overlays and HTML text reading; `worked-example` exposes the complete synthetic example through the same CLI/native entry. Older pinned packages keep their existing tool surface. See [capture and reading](skills/reqpilot/references/tools-capture.md); generated views and tool-returned images do not establish Agent semantic acceptance or official PDF skill parity.
 
@@ -89,8 +91,10 @@ For an existing result use the [revision loop](skills/reqpilot/references/revisi
 `review-feedback` records actual user feedback or explicit Agent self-review;
 `review-packet` exposes current source-bound context; `review-revise` calls the
 shared classification/visual compilers and carries compatible derived/analysis
-state; `review-close` checks the exact export and rejects stale feedback before
-advancing a new immutable local draft. Existing-SRC image readings are attached
+state; typed `review_apply` also accepts `changes.map_revision.decisions` to run
+the existing source-replayed Map successor without a second pipeline. `review-close`
+checks the exact export and rejects stale feedback before advancing a new
+immutable local draft. Existing-SRC image readings are attached
 without making duplicate image requirements. The same commands run from Codex,
 another coding agent's shell, or an application host adapter.
 Matrix summaries count completed analysis separately from technical conclusions;
@@ -140,3 +144,12 @@ formal acceptance or local opinion import occurs. The fixed runtime capability
 catalog rejects this action for older task packages rather than upgrading them.
 Human writes and saved delivery publication use the application's session-bound
 API; raw assessment/manual artifact uploads remain unsupported.
+
+When `task_deliver` registers or reuses a bound DRAFT, `delivery_handoff`
+downloads that exact retained export into `authoritative-deliveries/` and
+verifies the source, result revision, delivery snapshot and export SHA. Use its
+`path` when claiming an exact matching download; the local program `matrix.xlsx`
+can differ from the server DRAFT in filename prefix, delivery metadata and
+timestamp. The materialized copy stays readable after the managed backend
+restarts. If the download cannot be verified, the response reports
+`AUTHORITATIVE_DRAFT_UNAVAILABLE` instead of claiming byte identity.

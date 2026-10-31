@@ -69,7 +69,7 @@ describe("candidate feedback lifetime", () => {
     await userEvent.clear(screen.getByRole("textbox",{name:"核对反馈"}));
     await userEvent.type(screen.getByRole("textbox",{name:"核对反馈"}),"newer draft");
     await act(async () => { revision=1; finish({state:state()}); await committed; });
-    expect(values.onSaveState).toHaveBeenLastCalledWith("未保存");
+    expect(values.onSaveState).toHaveBeenLastCalledWith({ status: "dirty" });
     second.unmount();
     render(<CandidateReviewInspector {...values} />);
     expect(screen.getByRole("textbox",{name:"核对反馈"})).toHaveValue("newer draft");

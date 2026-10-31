@@ -715,6 +715,7 @@ def write_response_workbook(*, workbook, formats, snapshot, nodes, table_details
     if missing_images or stats['cell_images_failed']:
         raise ValueError(f"SOURCE_IMAGE_EXPORT_INCOMPLETE: figure failures={missing_images}; table cell failures={stats['cell_images_failed']}")
     _write_original_reference_sheet(workbook, snapshot)
+    _write_adopted_reference_sheet(workbook, snapshot)
     e._append_hidden_matrix_meta_sheet(workbook=workbook, formats=formats, snapshot=snapshot, nodes=nodes,
         matrix_row_by_node=navigation_rows, matrix_row_span_by_node={k:(v,v) for k,v in navigation_rows.items()},
         table_sheet_names=table_names, project_name=project_name, customer_name=customer_name,
@@ -724,6 +725,54 @@ def write_response_workbook(*, workbook, formats, snapshot, nodes, table_details
         unresolved_figure_reference_count=missing_images)
     return {'rendered_source_keys': sorted(rendered_figures), 'figure_placements': figure_placements,
             'inserted_placement_count': image_count + stats['cell_images_inserted']}
+
+
+def _write_adopted_reference_sheet(workbook, snapshot):
+    """Versioned derived-record citations; never labels a record hash as an original."""
+    source = snapshot.get('source_item_baseline') or {}
+    references = source.get('analysis_adopted_evidence') or []
+    if not references:
+        return
+    sheet = workbook.add_worksheet('知识记录引用')
+    header = workbook.add_format({'bold': True, 'bg_color': '#31534A', 'font_color': '#FFFFFF', 'text_wrap': True})
+    body = workbook.add_format({'valign': 'top', 'text_wrap': True})
+    titles = ['工程判断单元', '提案状态', '记录名称', '记录ID', '记录类型', '依据来源类型', '内容修订(contentRevision)',
+              '来源文件修订(sourceVersion)', '原始声明(originalSourceVersion)', '可用性', '接纳', '记录路由',
+              '关联原文件/派生文件路由', '原生定位JSON', '引用原文', '分段', 'scope', 'conditions',
+              'review JSON', 'expertApproved声明', '知识库ID', '冻结版本ID', '包版本',
+              '知识目录SHA256', '分析工件SHA256', '本版来源SHA256']
+    sheet.write_row(0, 0, titles, header)
+    sheet.freeze_panes(1, 1)
+    sheet.set_column(0, 5, 28)
+    sheet.set_column(6, 9, 36)
+    sheet.set_column(10, 13, 48)
+    sheet.set_column(14, 14, 70)
+    sheet.set_column(15, 25, 34)
+    row = 1
+    for ref in references:
+        quote = ref['quote']
+        chunks = [quote[index:index + 8000] for index in range(0, len(quote), 8000)] or ['']
+        for number in range(1, len(chunks) + 1):
+            values = [ref['unit_id'], ref['decision'], ref.get('record_name', ''), ref.get('record_id', ''),
+                ref.get('record_kind', ''), ref.get('evidence_origin', ''), ref.get('content_revision', ''),
+                ref.get('source_version', ''), ref.get('original_source_version', ''), ref.get('availability', ''),
+                ref.get('admission', ''), ref.get('record_route', ''), ref.get('linked_source_route', ''),
+                json.dumps(ref.get('source_ref', {}), ensure_ascii=False, sort_keys=True), chunks[number - 1],
+                str(number) + '/' + str(len(chunks)), ref.get('scope', ''), ref.get('conditions', ''),
+                json.dumps(ref.get('review', {}), ensure_ascii=False, sort_keys=True),
+                'true' if ref.get('expert_approved_declared') is True else 'false',
+                ref.get('adopted_library_id', ''), ref.get('adopted_version_id', ''), ref.get('package_version', ''),
+                source.get('catalog_sha256', ''), source.get('analysis_artifact_sha256', ''), source.get('artifact_sha256', '')]
+            if row >= 1_048_576 or any(len(str(value)) > 32767 for value in values):
+                raise ValueError('Adopted knowledge evidence exceeds Excel limits; no silent truncation')
+            for column, value in enumerate(values):
+                if str(value):
+                    sheet.write_string(row, column, str(value), body)
+                else:
+                    sheet.write_blank(row, column, None, body)
+            sheet.set_row(row, 80)
+            row += 1
+    sheet.autofilter(0, 0, row - 1, len(titles) - 1)
 
 
 def _write_original_reference_sheet(workbook, snapshot):

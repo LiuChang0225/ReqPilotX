@@ -1,7 +1,7 @@
 /** Compress consecutive physical pages without inventing coverage in gaps. */
-export function sourcePageLabel(pages: readonly number[]) {
+export function sourcePageLabel(pages: readonly number[], l?: (key: string, fallback?: string) => string) {
   const values = [...new Set(pages)].sort((a, b) => a - b);
-  if (!values.length) return "未绑定页面";
+  if (!values.length) return l ? l("未绑定页面") : "未绑定页面";
   const ranges: string[] = [];
   let start = values[0], previous = values[0];
   for (const page of values.slice(1)) {
@@ -10,5 +10,5 @@ export function sourcePageLabel(pages: readonly number[]) {
     start = previous = page;
   }
   ranges.push(start === previous ? `P${start}` : `P${start}–P${previous}`);
-  return ranges.join("、");
+  return ranges.join(l ? l("、", "、") : "、");
 }

@@ -13,6 +13,7 @@ import {
   StatusBadge,
 } from "../../shared/ui/Feedback";
 import { Icon } from "../../shared/ui/Icon";
+import { useUiCopy } from "../../host/HostLocaleContext";
 import {
   documentScopeKey,
   requirementSetScopeKey,
@@ -31,13 +32,14 @@ function jobId(job: JsonRecord): string {
 async function waitForExport(
   projectId: string,
   started: JsonRecord,
+  l: (key: string, fallback?: string, params?: Record<string, string | number>) => string,
 ): Promise<JsonRecord> {
   if (started.download_url) return started;
   if (String(started.status).toUpperCase() === "SUCCEEDED") {
     return asRecord(started.result);
   }
   const id = String(started.job_id || "");
-  if (!id) throw new Error("导出任务没有返回可轮询的 job_id。");
+  if (!id) throw new Error(l("exports.missingJobId", "导出任务没有返回可轮询的 job_id。"));
   for (let attempt = 0; attempt < 180; attempt += 1) {
     await new Promise((resolve) => window.setTimeout(resolve, 1000));
     const snapshot = await api.exportJob(projectId, id);
@@ -46,14 +48,15 @@ async function waitForExport(
     if (["FAILED", "CANCELLED"].includes(status)) {
       const error = asRecord(snapshot.error);
       throw new Error(
-        compactText(error.message, `导出任务 ${status.toLowerCase()}。`),
+        compactText(error.message, l("exports.jobStatus", "导出任务 {status}。", { status: status.toLowerCase() })),
       );
     }
   }
-  throw new Error("导出任务在三分钟内没有完成，请到历史记录查看。");
+  throw new Error(l("exports.timeout", "导出任务在三分钟内没有完成，请到历史记录查看。"));
 }
 
 export function ExportsPanel() {
+  const l = useUiCopy();
   const {
     route,
     updateRoute,
@@ -167,7 +170,7 @@ export function ExportsPanel() {
         setMatrixError(
           cause instanceof Error
             ? cause.message
-            : "当前版本的统一需求矩阵暂时无法读取。",
+            : l("exports.matrixReadFailed", "当前版本的统一需求矩阵暂时无法读取。"),
         );
       })
       .finally(() => {
@@ -198,23 +201,23 @@ export function ExportsPanel() {
     if (!selectedSetId) return [];
     const blockers: string[] = [];
     if (setStatus !== "LOCKED") {
-      blockers.push("当前需求版本尚未锁定。请先锁定确认清单。");
+      blockers.push(l("exports.blockerUnlocked", "当前需求版本尚未锁定。请先锁定确认清单。"));
     }
     if (!previewStable) {
       blockers.push(
-        "当前需求版本缺少稳定解析预览证明。请返回解析核对，重新生成并锁定清单。",
+        l("exports.blockerPreview", "当前需求版本缺少稳定解析预览证明。请返回解析核对，重新生成并锁定清单。"),
       );
     }
     if (missingEffectiveConclusionCount > 0) {
       blockers.push(
-        `统一需求矩阵有效结论覆盖 ${effectiveCoverage}%，缺少有效结论 ${missingEffectiveConclusionCount} 条。请在需求分析中完成或人工补充这些结论。`,
+        l("exports.blockerCoverage", "统一需求矩阵有效结论覆盖 {coverage}%，缺少有效结论 {missing} 条。请在需求分析中完成或人工补充这些结论。", { coverage: effectiveCoverage, missing: missingEffectiveConclusionCount }),
       );
     }
     if (!matrixReady) {
       blockers.push(
         selectedMatrix?.state === "REQUIRES_REEXTRACTION"
-          ? "统一需求矩阵尚未 READY：当前版本缺少可证明的冻结结构，需要重新提取并生成新确认清单。"
-          : "统一需求矩阵尚未 READY。请等待矩阵生成完成或重试读取。",
+          ? l("exports.blockerReextract", "统一需求矩阵尚未 READY：当前版本缺少可证明的冻结结构，需要重新提取并生成新确认清单。")
+          : l("exports.blockerNotReady", "统一需求矩阵尚未 READY。请等待矩阵生成完成或重试读取。"),
       );
     }
     return blockers;
@@ -245,7 +248,7 @@ export function ExportsPanel() {
           requirement_set_id: selectedSetId,
           mode,
         });
-        return waitForExport(route.projectId, started);
+        return waitForExport(route.projectId, started, l);
       },
       { refresh: "none", scope: "requirementSet" },
     );
@@ -264,9 +267,9 @@ export function ExportsPanel() {
     <section className="management-page exports-page">
       <header className="page-command-header">
         <div>
-          <p className="section-label">矩阵导出</p>
-          <h1>需求版本与矩阵</h1>
-          <p>选择需求版本、核对有效结论覆盖，再创建可追溯矩阵。</p>
+          <p className="section-label">{l("矩阵导出")}</p>
+          <h1>{l("需求版本与矩阵")}</h1>
+          <p>{l("选择需求版本、核对有效结论覆盖，再创建可追溯矩阵。")}</p>
         </div>
         <button
           className="button secondary"
@@ -274,47 +277,47 @@ export function ExportsPanel() {
           onClick={() => void refreshExports()}
         >
           <Icon name="refresh" />
-          刷新记录
+          {l("刷新记录")}
         </button>
       </header>
 
       {!selectedDocument ? (
         <EmptyState
           icon="export"
-          title="先选择客户来源"
-          description="每个导出都严格绑定一份来源文档与一个需求版本。"
+          title={l("先选择客户来源")}
+          description={l("exports.bindNote", "每个导出都严格绑定一份来源文档与一个需求版本。")}
           action={
             <button
               className="button primary"
               type="button"
               onClick={() => updateRoute({ task: "projects" })}
             >
-              打开项目管理
+              {l("打开项目管理")}
             </button>
           }
         />
       ) : requirementSetsLoading ? (
-        <LoadingBlock label="正在读取确认清单" />
+        <LoadingBlock label={l("exports.loadingList", "正在读取确认清单")} />
       ) : requirementSets === null ? (
         <EmptyState
           icon="document"
-          title="确认清单暂不可读取"
-          description="当前文档的确认清单尚未返回，请重试读取。"
+          title={l("确认清单暂不可读取")}
+          description={l("exports.listUnavailable", "当前文档的确认清单尚未返回，请重试读取。")}
           action={
             <button
               className="button primary"
               type="button"
               onClick={() => void refreshDocument()}
             >
-              重试读取
+              {l("重试读取")}
             </button>
           }
         />
       ) : !sets.length ? (
         <EmptyState
           icon="document"
-          title="尚无确认清单"
-          description="请先从解析核对开始，在需求提取中完成结构整理并生成确认清单。"
+          title={l("尚无确认清单")}
+          description={l("exports.startFromExtraction", "请先从解析核对开始，在需求提取中完成结构整理并生成确认清单。")}
           action={
             <button
               className="button primary"
@@ -328,7 +331,7 @@ export function ExportsPanel() {
                 })
               }
             >
-              前往需求提取
+              {l("前往需求提取")}
             </button>
           }
         />
@@ -338,8 +341,8 @@ export function ExportsPanel() {
             <section className="requirement-set-ledger">
               <header>
                 <div>
-                  <p className="section-label">需求版本</p>
-                  <h2>版本台账</h2>
+                  <p className="section-label">{l("需求版本")}</p>
+                  <h2>{l("版本台账")}</h2>
                 </div>
                 <span>{sets.length}</span>
               </header>
@@ -348,11 +351,11 @@ export function ExportsPanel() {
                   <table>
                     <thead>
                       <tr>
-                        <th>版本</th>
-                        <th>状态</th>
-                        <th>AI 分析</th>
-                        <th>有效结论</th>
-                        <th>创建时间</th>
+                        <th>{l("版本")}</th>
+                        <th>{l("状态")}</th>
+                        <th>{l("AI 分析")}</th>
+                        <th>{l("有效结论")}</th>
+                        <th>{l("创建时间")}</th>
                         <th />
                       </tr>
                     </thead>
@@ -404,20 +407,20 @@ export function ExportsPanel() {
                                 set.latest_ai_run_status ??
                                   set.ai_status ??
                                   set.ai_run_status,
-                                "未运行",
+                                l("exports.notRun", "未运行"),
                               )}
                             </td>
                             <td>
                               {matrixSelected && selectedMatrix
                                 ? `${effectiveConclusionCount}/${requirementCount} · ${effectiveCoverage}%`
                                 : matrixSelected && matrixLoading
-                                  ? "读取中…"
-                                  : "选择查看"}
+                                  ? l("exports.reading", "读取中…")
+                                  : l("exports.selectToView", "选择查看")}
                             </td>
                             <td>{formatDate(set.created_at)}</td>
                             <td>
                               {active ? (
-                                <span>已激活</span>
+                                <span>{l("已激活")}</span>
                               ) : (
                                 <button
                                   className="text-button"
@@ -435,7 +438,7 @@ export function ExportsPanel() {
                                     );
                                   }}
                                 >
-                                  设为当前
+                                  {l("设为当前")}
                                 </button>
                               )}
                             </td>
@@ -448,8 +451,8 @@ export function ExportsPanel() {
               ) : (
                 <EmptyState
                   icon="document"
-                  title="尚无确认清单"
-                  description="在需求提取中生成确认清单后才可创建矩阵。"
+                  title={l("尚无确认清单")}
+                  description={l("exports.generateListFirst", "在需求提取中生成确认清单后才可创建矩阵。")}
                 />
               )}
             </section>
@@ -458,8 +461,8 @@ export function ExportsPanel() {
               {!selectedSetId ? (
                 <EmptyState
                   icon="matrix"
-                  title="选择需求版本"
-                  description="请从左侧版本台账选择要核对和导出的确认清单。"
+                  title={l("选择需求版本")}
+                  description={l("exports.chooseFromLedger", "请从左侧版本台账选择要核对和导出的确认清单。")}
                   action={
                     activeSetId ? (
                       <button
@@ -472,18 +475,18 @@ export function ExportsPanel() {
                           )
                         }
                       >
-                        选择当前版本
+                        {l("选择当前版本")}
                       </button>
                     ) : undefined
                   }
                 />
               ) : (
                 <>
-              <p className="section-label">创建导出</p>
-              <h2>创建导出</h2>
+              <p className="section-label">{l("创建导出")}</p>
+              <h2>{l("创建导出")}</h2>
               <div className="export-readiness-meter">
                 <div>
-                  <span>有效结论覆盖</span>
+                  <span>{l("有效结论覆盖")}</span>
                   <strong>{effectiveCoverage}%</strong>
                 </div>
                 <div className="run-progress">
@@ -491,8 +494,8 @@ export function ExportsPanel() {
                 </div>
                 <small>
                   {matrixLoading
-                    ? "正在按统一需求矩阵口径核对"
-                    : `${effectiveConclusionCount}/${requirementCount} 条需分析内容已有有效结论；当前终态 AI 结论默认采用，人工修改为覆盖例外`}
+                    ? l("exports.checkingMatrix", "正在按统一需求矩阵口径核对")
+                    : l("exports.coverageDetail", "{effective}/{total} 条需分析内容已有有效结论；当前终态 AI 结论默认采用，人工修改为覆盖例外", { effective: effectiveConclusionCount, total: requirementCount })}
                 </small>
                 {!matrixLoading && selectedMatrix && (
                   <small>
@@ -502,14 +505,14 @@ export function ExportsPanel() {
                 )}
               </div>
               {matrixError && (
-                <InlineNotice title="统一需求矩阵读取失败" tone="warning">
+                <InlineNotice title={l("统一需求矩阵读取失败")} tone="warning">
                   {matrixError} DRAFT 与 FORMAL 均不会绕过当前版本矩阵。
                   <button
                     className="text-button"
                     type="button"
                     onClick={() => setMatrixReloadKey((current) => current + 1)}
                   >
-                    重试读取
+                    {l("重试读取")}
                   </button>
                 </InlineNotice>
               )}
@@ -517,10 +520,10 @@ export function ExportsPanel() {
                 !matrixError &&
                 selectedSetId &&
                 selectedMatrix?.state !== "READY" && (
-                  <InlineNotice title="统一需求矩阵尚未就绪" tone="warning">
+                  <InlineNotice title={l("统一需求矩阵尚未就绪")} tone="warning">
                     {selectedMatrix?.state === "REQUIRES_REEXTRACTION"
-                      ? "当前版本缺少可证明的冻结结构，请重新提取并生成新版本。"
-                      : "当前版本矩阵尚未完成，DRAFT 与 FORMAL 均暂不可导出。"}
+                      ? l("exports.matrixReextract", "当前版本缺少可证明的冻结结构，请重新提取并生成新版本。")
+                      : l("exports.matrixIncomplete", "当前版本矩阵尚未完成，DRAFT 与 FORMAL 均暂不可导出。")}
                     {selectedMatrix?.state === "REQUIRES_REEXTRACTION" ? (
                       <button
                         className="text-button"
@@ -534,7 +537,7 @@ export function ExportsPanel() {
                               })
                         }
                       >
-                        返回需求提取
+                        {l("返回需求提取")}
                       </button>
                     ) : (
                       <button
@@ -542,13 +545,13 @@ export function ExportsPanel() {
                         type="button"
                         onClick={() => setMatrixReloadKey((current) => current + 1)}
                       >
-                        重试读取
+                        {l("重试读取")}
                       </button>
                     )}
                   </InlineNotice>
                 )}
               <label>
-                <span>需求版本</span>
+                <span>{l("需求版本")}</span>
                 <select
                   name="export-requirement-set"
                   autoComplete="off"
@@ -560,7 +563,7 @@ export function ExportsPanel() {
                     )
                   }
                 >
-                  <option value="">选择需求版本</option>
+                  <option value="">{l("选择需求版本")}</option>
                   {sets.map((set) => (
                     <option key={setId(set)} value={setId(set)}>
                       v{String(set.version ?? set.version_number ?? "—")} ·{" "}
@@ -570,7 +573,7 @@ export function ExportsPanel() {
                 </select>
               </label>
               <fieldset className="export-mode">
-                <legend>导出模式</legend>
+                <legend>{l("导出模式")}</legend>
                 <label>
                   <input
                     type="radio"
@@ -589,7 +592,7 @@ export function ExportsPanel() {
                   />
                   <span>
                     <strong>DRAFT</strong>
-                    <small>允许未满覆盖，用于内部校对</small>
+                    <small>{l("允许未满覆盖，用于内部校对")}</small>
                   </span>
                 </label>
                 <label>
@@ -610,12 +613,12 @@ export function ExportsPanel() {
                   />
                   <span>
                     <strong>FORMAL</strong>
-                    <small>要求锁定版本与 100% 终态有效结论</small>
+                    <small>{l("要求锁定版本与 100% 终态有效结论")}</small>
                   </span>
                 </label>
               </fieldset>
               <label>
-                <span>版本标识</span>
+                <span>{l("版本标识")}</span>
                 <input
                   name="export-version-label"
                   autoComplete="off"
@@ -628,11 +631,11 @@ export function ExportsPanel() {
                       label: event.target.value,
                     })
                   }
-                  placeholder="例如 r33…"
+                  placeholder={l("例如 r33…")}
                 />
               </label>
               <label>
-                <span>对比版本</span>
+                <span>{l("对比版本")}</span>
                 <select
                   name="export-compare-version"
                   autoComplete="off"
@@ -644,7 +647,7 @@ export function ExportsPanel() {
                         })
                       }
                 >
-                  <option value="">不做版本对比</option>
+                  <option value="">{l("不做版本对比")}</option>
                   {documentExports.map((job) => (
                     <option key={jobId(job)} value={jobId(job)}>
                       {compactText(
@@ -656,16 +659,16 @@ export function ExportsPanel() {
                 </select>
               </label>
                   {mode === "FORMAL" && !matrixLoading && !formalReady && (
-                <InlineNotice title="FORMAL 尚未就绪" tone="warning">
-                      <ul aria-label="FORMAL 导出阻断项">
+                <InlineNotice title={l("FORMAL 尚未就绪")} tone="warning">
+                      <ul aria-label={l("FORMAL 导出阻断项")}>
                         {formalBlockers.map((blocker) => (
                           <li key={blocker}>{blocker}</li>
                         ))}
                       </ul>
                       <p>
-                        只有“可见 + 需分析 +
-                        可分析”的内容计入有效结论分母；DRAFT
-                      导出仍可用于内部校对。
+                        {l("只有“可见 + 需分析 +")}
+                        {l("可分析”的内容计入有效结论分母；DRAFT")}
+                      {l("导出仍可用于内部校对。")}
                       </p>
                 </InlineNotice>
               )}
@@ -682,7 +685,7 @@ export function ExportsPanel() {
                 onClick={() => void createExport()}
               >
                 <Icon name="download" />
-                导出需求矩阵
+                {l("导出需求矩阵")}
               </button>
               {lastResult && (
                 <a
@@ -696,7 +699,7 @@ export function ExportsPanel() {
                   target="_blank"
                   rel="noreferrer"
                 >
-                  打开 {compactText(lastResult.file_name, "最新导出")}
+                  {l("exports.openLatest", "打开 {name}", { name: compactText(lastResult.file_name, l("exports.latestExport", "最新导出")) })}
                 </a>
                   )}
                 </>
@@ -707,8 +710,8 @@ export function ExportsPanel() {
           <section className="export-history-panel">
             <header>
               <div>
-                <p className="section-label">导出记录</p>
-                <h2>导出记录</h2>
+                <p className="section-label">{l("导出记录")}</p>
+                <h2>{l("导出记录")}</h2>
               </div>
               <span>{documentExports.length}</span>
             </header>
@@ -740,7 +743,7 @@ export function ExportsPanel() {
                             jobId(job).slice(0, 12),
                           )}
                         </strong>
-                        <small>{fileName || "正在生成文件"}</small>
+                        <small>{fileName || l("exports.generatingFile", "正在生成文件")}</small>
                       </div>
                       <StatusBadge
                         tone={
@@ -755,9 +758,7 @@ export function ExportsPanel() {
                         )}
                       </StatusBadge>
                       <span>
-                        Set v
-                        {String(job.requirement_set_version || "—")} ·{" "}
-                        人工修改覆盖 {jobCoverage}%
+                        {l("exports.setVersion", "Set v{version} · 人工修改覆盖 {coverage}%", { version: String(job.requirement_set_version || "—"), coverage: jobCoverage })}
                       </span>
                       <time>{formatDate(job.created_at)}</time>
                       {downloadUrl ? (
@@ -768,7 +769,7 @@ export function ExportsPanel() {
                           rel="noreferrer"
                         >
                           <Icon name="download" />
-                          下载
+                          {l("下载")}
                         </a>
                       ) : (
                         <span>—</span>
@@ -779,8 +780,8 @@ export function ExportsPanel() {
               ) : (
                 <EmptyState
                   icon="export"
-                  title="还没有导出记录"
-                  description="选择需求版本并创建第一份 DRAFT 或 FORMAL 矩阵。"
+                  title={l("还没有导出记录")}
+                  description={l("exports.firstExportHint", "选择需求版本并创建第一份 DRAFT 或 FORMAL 矩阵。")}
                 />
               )}
             </div>

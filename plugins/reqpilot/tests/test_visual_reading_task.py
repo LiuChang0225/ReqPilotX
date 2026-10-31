@@ -1,6 +1,7 @@
 """Real task lifecycle for local OCR and source-reviewed transcription."""
 from pathlib import Path
 from tempfile import TemporaryDirectory
+import importlib.util
 import json
 import shutil
 import sys
@@ -52,6 +53,31 @@ class VisualReadingTaskTests(unittest.TestCase):
             self.assertTrue(all(snapshots[s['visual_text_snapshot_id']]==s for s in ir['visual_text_snapshots']))
             self.assertTrue(service.invoke('visual_revise',correction)['replayed'])
             self.assertEqual(original_capture.read_bytes(),before);self.assertEqual(source.read_bytes(),original)
+
+    @unittest.skipUnless(shutil.which('tesseract') and importlib.util.find_spec('cv2') and importlib.util.find_spec('numpy'),
+        'local OCR binary plus declared table dependencies required')
+    def test_ruled_table_profile_commits_a_real_cell_grid(self):
+        import pymupdf
+        with TemporaryDirectory() as temp:
+            root=Path(temp);source=root/'table.pdf';doc=pymupdf.open()
+            page=doc.new_page(width=300,height=200)
+            for x in (40,140,260):page.draw_line((x,40),(x,160))
+            for y in (40,100,160):page.draw_line((40,y),(260,y))
+            for x,y,text in ((50,70,'Part'),(150,70,'Qty'),(50,130,'Housing'),(150,130,'1')):
+                page.insert_text((x,y),text,fontsize=12)
+            doc.save(source);doc.close()
+            bridge=TaskBridge(root,ENTRY,project_root=ROOT)
+            state=bridge.invoke('open',{'mode':'create','source':str(source),'goal':'Read the ruled table.','creation_key':'ruled-table'})
+            task=state['task_id'];state=bridge.invoke('prepare',{'task_id':task,'expected_revision':state['revision']})
+            result=bridge.invoke('prepare',{'task_id':task,'expected_revision':state['revision'],
+                'command_id':'ocr-ruled-table','mode':'ocr','pages':[1],'profile':'tables',
+                'table_regions':[{'page':1,'bbox':[35,35,265,165],'header_row_count':1}]})
+            self.assertEqual(result['operation_state'],'COMMITTED',result)
+            reading=Path(result['selected']['READING']['path'])
+            audit=json.loads((reading.parent/'page-0001.ocr-audit.json').read_text())
+            self.assertEqual(audit['diagnostics'],[])
+            self.assertEqual(len(audit['tables']),1)
+            self.assertEqual(len(audit['tables'][0]['cells']),4)
 
     def test_scope_and_correction_selectors_are_explicit(self):
         for changes in ({'mode':'ocr','pages':[]},{'mode':'ocr','pages':[True]},

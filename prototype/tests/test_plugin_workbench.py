@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import hashlib
 import json
+import os
 import sys
 import unittest
 from unittest.mock import patch
@@ -18,7 +19,9 @@ sys.path[:0]=[str(ROOT/'plugins/reqpilot/scripts'),str(ROOT/'plugins/reqpilot/te
 from test_portable import make_fixture,item_decisions,write
 import artifact_tools
 from app.application.agent_workflow import plugin_workbench as api
+from app.application.agent_workflow import fixed_workflow as workflow
 from app.application.errors import ApplicationError
+from task_service import TaskService
 
 class PluginWorkbenchTests(unittest.TestCase):
     def test_export_uses_registered_original_name_not_materialized_digest_filename(self):
@@ -143,7 +146,7 @@ class PluginWorkbenchTests(unittest.TestCase):
         baseline=self.root/'baseline';artifact_tools.compile_items(Namespace(map_dir=mapping,input=self.root/'items-input.json',baseline_dir=None,output_dir=baseline))
         self.artifacts={n:json.loads((baseline/n).read_text()) for n in ('document-map.json','table-previews.json','source-requirement-baseline.json','validation-receipt.json')}
         self.sha=hashlib.sha256(self.source.read_bytes()).hexdigest();self.session='plugin-'+'a'*32
-        self.document={'source_sha256':self.sha,'file_name':self.source.name}
+        self.document={'source_sha256':self.sha,'file_name':self.source.name};self.api=api
         self.patches=[patch.object(api,'_container',return_value=SimpleNamespace(settings=SimpleNamespace(object_root=self.root/'objects'))),
             patch.object(api,'_require_project_document',return_value=self.document),patch.object(api,'resolve_source_record_path',return_value=self.source)]
         for p in self.patches:p.start()
@@ -163,6 +166,400 @@ class PluginWorkbenchTests(unittest.TestCase):
     def feedback(self,state,**overrides):
         fields={'command_id':'feedback','expected_source_sha256':self.sha,'expected_revision_id':state['revision_id'],'source_item_ids':[],'text':'请核对这段内容的上级条件。'};fields.update(overrides)
         return api.post_plugin_feedback('p','d',self.session,api.PluginFeedback(**fields),self.sink())
+    def workflow_state(self, artifacts, *, source=None, map_sha=None, items_sha=None):
+        spec = workflow.workflow_spec(brief_sha256='f'*64, evidence_mode='NONE')
+        mapping = artifacts.get('document-map.json')
+        baseline = artifacts.get('source-requirement-baseline.json')
+        stages = [
+            {'id': 'PREPARATION', 'label': '资料准备', 'status': 'SAVED',
+             'evidence': [{'kind': 'TASK_CONTEXT', 'source_sha256': source or self.sha}]},
+            {'id': 'SOURCE_MAP', 'label': '来源与结构', 'status': 'SAVED' if mapping else 'PENDING'},
+            {'id': 'ITEMS_CLASSIFICATION', 'label': '条目、分类与明确派生', 'status': 'SAVED' if baseline else 'PENDING'},
+            {'id': 'EVIDENCE_ANALYSIS', 'label': '依据分析', 'status': 'SKIPPED', 'reason': 'NO_INTERNAL_EVIDENCE'},
+            {'id': 'SELF_CHECK', 'label': '自查与修正', 'status': 'PENDING'},
+            {'id': 'DELIVERABLE', 'label': '可核对成果', 'status': 'PENDING'},
+        ]
+        if mapping:
+            stages[1]['evidence'] = [{'kind': 'DOCUMENT_MAP', 'source_sha256': source or self.sha,
+                                      'artifact_sha256': map_sha or mapping['artifact_sha256']}]
+        if baseline:
+            stages[2]['evidence'] = [{'kind': 'SOURCE_ITEMS', 'source_sha256': source or self.sha,
+                                      'artifact_sha256': items_sha or baseline['artifact_sha256'],
+                                      'map_sha256': mapping['artifact_sha256']}]
+        return {'schema': workflow.STATE_SCHEMA,
+                'workflow': {**spec, 'schema': workflow.WORKFLOW_SCHEMA, 'evidence_mode': 'NONE'},
+                'source_sha256': source or self.sha, 'stages': stages, 'next_stage': 'SELF_CHECK',
+                'ready_to_review': False, 'verification': 'SAVED_ARTIFACTS_ONLY',
+                'open_items': [], 'human_acceptance': 'NOT_CLAIMED'}
+
+    def real_task_workflow(self, partial=False):
+        task_root = self.root / ('task-full' if not partial else 'task-partial')
+        task_root.mkdir(parents=True, exist_ok=True)
+        service = TaskService(task_root, ROOT/'plugins/reqpilot/scripts/reqpilot.py', ROOT)
+        goal = 'Compile and deliver the synthetic source.'
+        spec = workflow.workflow_spec(brief_sha256=workflow.brief_sha256(goal), evidence_mode='NONE')
+        state = service.invoke('open', {'mode':'create','source':str(self.source),'goal':goal,
+            'creation_key':'cross-full' if not partial else 'cross-partial','workflow':spec})
+        task = state['task_id']; state = service.invoke('prepare', {'task_id':task,'expected_revision':state['revision']})
+        edit = json.loads((self.root/'map-input.json').read_text()); edit['schema_version']='reqpilot-map-edit/v1'; edit.pop('source_sha256',None)
+        mapped = service.invoke('map', {'task_id':task,'expected_revision':state['revision'],'decisions':edit})
+        choices = item_decisions(Path(mapped['selected']['MAP']['output_dir']))
+        for key in ('source_sha256','document_map_artifact_sha256'): choices.pop(key,None)
+        if partial:
+            body = [{k:v for k,v in scope.items() if k != 'structure_only_spans'}
+                    for scope in choices['text_decisions'] if scope['items']]
+            decisions = {'retain_map_structure':True,'text_decisions':body[:1]}
+        else:
+            decisions = choices
+        items = service.invoke('items', {'task_id':task,'expected_revision':mapped['revision'],'decisions':decisions})
+        review = service.invoke('review', {'task_id':task,'expected_revision':items['revision']})
+        deliver = service.invoke('deliver', {'task_id':task,'expected_revision':review['revision']})
+        check = service.invoke('check', {'task_id':task})
+        inspected = service.invoke('inspect', {'task_id':task}); selected = inspected['selected']
+        map_dir = Path(selected['MAP']['output_dir']); item_dir = Path(selected['ITEMS']['path']).parent
+        artifacts = {name:json.loads((map_dir/name).read_text()) for name in ('document-map.json','table-previews.json')}
+        for name in ('source-requirement-baseline.json','validation-receipt.json','item-compilation-receipt.json'):
+            if (item_dir/name).is_file(): artifacts[name]=json.loads((item_dir/name).read_text())
+        check_path = Path(inspected['task_root'])/'workflow-check.json'
+        artifacts['workflow-check.json'] = json.loads(check_path.read_text())
+        return check, artifacts
+
+    def workbench_roundtrip(self, session, artifacts, workflow_state, local_review_sha256):
+        state = api.sync_plugin_draft('p','d',api.PluginDraftUpload(session_id=session,
+            expected_source_sha256=self.sha, artifacts=artifacts, fixed_workflow=workflow_state,
+            local_review_sha256=local_review_sha256), self.sink())
+        from reqpilotx_server.application.agent_workflow import plugin_workbench_delivery as delivery
+        preview = delivery.preview_plugin_delivery_version('p','d',session,self.sink())
+        saved = delivery.save_plugin_delivery_version('p','d',session,delivery.PluginDeliveryVersion(
+            command_id='cross-delivery-'+session[-8:], expected_source_sha256=self.sha,
+            expected_revision_id=preview['revision_id'], expected_version=preview['version'],
+            expected_response_revision=preview['response_revision'],
+            expected_delivery_sha256=preview['delivery_sha256']), self.sink())
+        return state, saved
+
+
+    def test_saved_pair_assessments_surface_in_workbench_reader_and_snapshot(self):
+        from app.application.agent_workflow import source_item_analysis as analysis
+        from app.application.agent_workflow import pair_evidence
+        baseline = self.artifacts['source-requirement-baseline.json']
+        unit = next(record for record in baseline['records'] if record['requirementness'] == 'REQUIREMENT')
+        text = 'SYNTHETIC INTERNAL EVIDENCE: measured response was 28 ms at 12 V and 23 C.'
+        fact_id = 'pair-fact-' + '1'*32
+        fact = {'fact_id': fact_id, 'document_id': 'internal-1', 'kb_id': 'kb-project',
+            'project_id': 'p', 'source_sha256': 'f'*64, 'role': 'PROJECT_EVIDENCE', 'text': text,
+            'text_sha256': hashlib.sha256(text.encode()).hexdigest(),
+            'source_ref': {'kind': 'logical-section', 'location': {'page_number': None, 'section': 1}},
+            'document_name': 'internal.txt', 'document_version': 'v1', 'authority': 'INTERNAL_CONTROLLED',
+            'claim_role': 'PROJECT_RECORD', 'applicability': 'APPLICABLE', 'eligible': True,
+            'authority_verified': True, 'capture_mode': 'PAIR_SELECTED_EVIDENCE',
+            'origin': 'PAIR_SELECTED_SOURCE', 'original_revision': 'f'*64,
+            'extraction_revision': 'e'*64, 'coverage': 'complete', 'location': 'logical-section',
+            'url': '/reqpilotx/knowledge/tasks/x/documents/internal-1'}
+        document = {'id': 'internal-1', 'kb_id': 'kb-project', 'project_id': 'p', 'file_name': 'internal.txt',
+            'source_sha256': 'f'*64, 'doc_version': 'v1', 'status': 'ACTIVE', 'authority': 'INTERNAL_CONTROLLED',
+            'claim_role': 'PROJECT_RECORD', 'applicability': 'APPLICABLE', 'eligible': True}
+        catalog = {'schema_version': 'project-knowledge-facts/v1', 'project_id': 'p', 'knowledge_base_version': 1,
+            'evidence_catalog': {fact_id: fact}, 'documents': [document], 'gaps': [], 'selection': 'EXPLICIT_TASK_EVIDENCE'}
+        catalog['catalog_sha256'] = api.core.canonical_json_sha256(catalog)
+        registration = {'schema_version': pair_evidence.PAIR_EVIDENCE_SCHEMA, 'binding_sha256': 'a'*64,
+            'mode': 'PROJECT_REFERENCES', 'application_id': 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc',
+            'project_id': 'p', 'catalog_sha256': catalog['catalog_sha256'], 'documents': [document], 'facts': [fact],
+            'receipts': [{'tool': 'search', 'request_sha256': 'b'*64, 'returned_at': '2026-10-31T00:00:00Z',
+                'fact_ids': [fact_id]}], 'authority': 'HOST_SELECTED_EVIDENCE_NOT_HUMAN_ACCEPTANCE',
+            'human_acceptance': 'NOT_CLAIMED'}
+        registration['registration_sha256'] = api.core.canonical_json_sha256(registration)
+        packet = analysis.build_source_item_analysis_packet(
+            api.core.DocumentMapArtifactV1.model_validate(self.artifacts['document-map.json']),
+            api.core.SourceRequirementBaselineArtifactV1.model_validate(baseline),
+            self.artifacts['table-previews.json'], catalog, selected_unit_ids=[unit['source_record_id']])
+        decisions = [{'unit_id': unit['source_record_id'], 'decision': 'COMPLIANT',
+            'reason': 'Applicability: 12 V / 23 C. The selected internal result matches the source condition.',
+            'evidence': [{'fact_id': fact_id, 'quote': text}], 'clarification_question': ''}]
+        assessment = analysis.compile_source_item_assessments(packet, {'decisions': decisions})
+        key = 'c'*64
+        self.session = 'plugin-' + 'd'*32
+        payload = {'schema': 'reqpilot-pair-analysis-attestation/v1',
+            'application_id': 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc',
+            'project_id': 'p', 'document_id': 'd', 'task_id': 'task-x',
+            'workbench_ref': self.session, 'binding_sha256': 'a'*64,
+            'mode': 'PROJECT_REFERENCES', 'task_revision': 'revision-x',
+            'command_id': 'command-x', 'unit_ids': [unit['source_record_id']],
+            'decisions': decisions, 'decisions_sha256': api.core.canonical_json_sha256(decisions),
+            'catalog_sha256': catalog['catalog_sha256'],
+            'ledger_sha256': api.core.canonical_json_sha256({'fixture': 'ledger'}),
+            'consumed_fact_ids': [fact_id], 'checked_at': '2026-10-31T00:00:02Z'}
+        attestation = {**payload, 'signature': pair_evidence.sign_pair_attestation(payload, key)}
+        artifacts = {**self.artifacts, 'source-item-assessments.json': assessment,
+            'analysis-packet.json': packet, 'knowledge-catalog.json': catalog,
+            'evidence-registration.json': registration, 'knowledge-attestation.json': attestation}
+        old_key = os.environ.get('REQPILOT_HOST_ATTESTATION_KEY')
+        os.environ['REQPILOT_HOST_ATTESTATION_KEY'] = key
+        try:
+            state = self.sync(artifacts, require_map_confirmation=False)
+        finally:
+            if old_key is None: os.environ.pop('REQPILOT_HOST_ATTESTATION_KEY', None)
+            else: os.environ['REQPILOT_HOST_ATTESTATION_KEY'] = old_key
+        from app.application.agent_workflow import plugin_workbench_reader as reader
+        view = reader.get_plugin_reader('p', 'd', self.session, state['revision_id'], self.sink())
+        self.assertEqual(view['reasoning']['assessed_unit_count'], 1)
+        self.assertEqual(view['reasoning']['assessments']['records'][unit['source_record_id']]['decision'], 'COMPLIANT')
+        directory = api._root('p', 'd', self.session) / 'versions' / state['revision_id']
+        snapshot = json.loads((directory / 'matrix-snapshot.json').read_text())
+        row = next(node for node in snapshot['nodes']
+            if (node.get('source_item') or {}).get('source_item_id') == unit['source_record_id'])
+        self.assertEqual(row['ai_assessment']['decision'], 'COMPLIANT')
+        self.assertIn(fact_id, row['ai_assessment']['analysis_basis'])
+        forged = {key: value for key, value in artifacts.items() if key != 'knowledge-attestation.json'}
+        self.session = 'plugin-' + 'f'*32
+        with self.assertRaisesRegex(ApplicationError, 'Host attestation'):
+            self.sync(forged, require_map_confirmation=False)
+
+    def test_fixed_workflow_analysis_coverage_requires_every_required_unit(self):
+        from app.application.agent_workflow import source_item_analysis as analysis
+        mapping = api.core.DocumentMapArtifactV1.model_validate(self.artifacts['document-map.json'])
+        baseline = api.core.SourceRequirementBaselineArtifactV1.model_validate(
+            self.artifacts['source-requirement-baseline.json'])
+        required = analysis.required_analysis_unit_ids(baseline)
+        self.assertGreater(len(required), 1)
+        decision = {'decision': 'PENDING_EVIDENCE', 'reason': 'Evidence pending.',
+            'evidence': [], 'clarification_question': 'Provide current product evidence.'}
+        spec = workflow.workflow_spec(brief_sha256='f'*64, evidence_mode='PROJECT_REFERENCES')
+        payload = {'schema': workflow.STATE_SCHEMA, 'source_sha256': self.sha,
+            'workflow': {**spec, 'schema': workflow.WORKFLOW_SCHEMA, 'evidence_mode': 'PROJECT_REFERENCES'}}
+        artifacts = {**self.artifacts,
+            'source-item-assessments.json': {'baseline_sha256': baseline.artifact_sha256,
+                'source_sha256': self.sha, 'decomposition_sha256': '',
+                'catalog_sha256': 'a'*64, 'records': {required[0]: decision}},
+            'knowledge-attestation.json': {'schema': 'reqpilot-pair-analysis-attestation/v1',
+                'catalog_sha256': 'a'*64}}
+        state = api._derive_fixed_workflow(payload, self.sha, mapping, baseline, artifacts,
+            self.root, {}, None)
+        stage = {item['id']: item for item in state['stages']}['EVIDENCE_ANALYSIS']
+        self.assertEqual(stage['status'], 'PENDING')
+        self.assertEqual(stage['reason'], 'INTERNAL_EVIDENCE_ANALYSIS_PARTIAL')
+        self.assertFalse(state['ready_to_review'])
+        artifacts['source-item-assessments.json'] = {**artifacts['source-item-assessments.json'],
+            'records': {unit_id: decision for unit_id in required}}
+        state = api._derive_fixed_workflow(payload, self.sha, mapping, baseline, artifacts,
+            self.root, {}, None)
+        stage = {item['id']: item for item in state['stages']}['EVIDENCE_ANALYSIS']
+        self.assertEqual(stage['status'], 'SAVED')
+
+    def test_cumulative_two_batch_analysis_rejects_mutated_retained_record(self):
+        from app.application.agent_workflow import source_item_analysis as analysis
+        from app.application.agent_workflow import pair_evidence
+        mapping = api.core.DocumentMapArtifactV1.model_validate(self.artifacts['document-map.json'])
+        baseline = api.core.SourceRequirementBaselineArtifactV1.model_validate(
+            self.artifacts['source-requirement-baseline.json'])
+        required = analysis.required_analysis_unit_ids(baseline)
+        self.assertGreater(len(required), 1)
+        catalog = {'schema_version': 'project-knowledge-facts/v1', 'project_id': 'p',
+            'knowledge_base_version': 1, 'evidence_catalog': {}, 'documents': [], 'gaps': [],
+            'selection': 'EXPLICIT_TASK_EVIDENCE'}
+        catalog['catalog_sha256'] = api.core.canonical_json_sha256(catalog)
+        registration = {'schema_version': pair_evidence.PAIR_EVIDENCE_SCHEMA, 'binding_sha256': 'a'*64,
+            'mode': 'PROJECT_REFERENCES', 'application_id': 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc',
+            'project_id': 'p', 'catalog_sha256': catalog['catalog_sha256'], 'documents': [], 'facts': [],
+            'receipts': [{'tool': 'search', 'request_sha256': 'b'*64,
+                'returned_at': '2026-10-31T00:00:00Z', 'fact_ids': []}],
+            'authority': 'HOST_SELECTED_EVIDENCE_NOT_HUMAN_ACCEPTANCE', 'human_acceptance': 'NOT_CLAIMED'}
+        registration['registration_sha256'] = api.core.canonical_json_sha256(registration)
+        decisions = [{'unit_id': unit, 'decision': 'PENDING_EVIDENCE', 'reason': 'Evidence pending.',
+            'evidence': [], 'clarification_question': 'Provide current product evidence.'} for unit in required[:2]]
+        first_packet = analysis.build_source_item_analysis_packet(mapping, baseline,
+            self.artifacts['table-previews.json'], catalog, selected_unit_ids=[required[0]])
+        first = analysis.compile_source_item_assessments(first_packet, {'decisions': [decisions[0]]})
+        second_packet = analysis.build_source_item_analysis_packet(mapping, baseline,
+            self.artifacts['table-previews.json'], catalog, selected_unit_ids=[required[1]])
+        second = analysis.compile_source_item_assessments(second_packet, {'decisions': [decisions[1]]},
+            previous=first)
+        self.assertEqual(set(second['records']), set(required[:2]))
+        key = 'c'*64
+        self.session = 'plugin-' + 'd'*32
+        payload = {'schema': 'reqpilot-pair-analysis-attestation/v1',
+            'application_id': 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc',
+            'project_id': 'p', 'document_id': 'd', 'task_id': 'task-x',
+            'workbench_ref': self.session, 'binding_sha256': 'a'*64,
+            'mode': 'PROJECT_REFERENCES', 'task_revision': 'revision-x',
+            'command_id': 'command-x', 'unit_ids': [required[1]], 'decisions': decisions,
+            'decisions_sha256': api.core.canonical_json_sha256(decisions),
+            'catalog_sha256': catalog['catalog_sha256'],
+            'ledger_sha256': api.core.canonical_json_sha256({'fixture': 'ledger'}),
+            'consumed_fact_ids': [], 'checked_at': '2026-10-31T00:00:02Z'}
+        attestation = {**payload, 'signature': pair_evidence.sign_pair_attestation(payload, key)}
+        artifacts = {**self.artifacts, 'source-item-assessments.json': second,
+            'analysis-packet.json': second_packet, 'knowledge-catalog.json': catalog,
+            'evidence-registration.json': registration, 'knowledge-attestation.json': attestation}
+        old_key = os.environ.get('REQPILOT_HOST_ATTESTATION_KEY')
+        os.environ['REQPILOT_HOST_ATTESTATION_KEY'] = key
+        try:
+            state = self.sync(artifacts, require_map_confirmation=False)
+            self.assertEqual(set(second['records']), set(required[:2]))
+            replay = self.sync(artifacts, require_map_confirmation=False)
+            self.assertEqual(replay['revision_id'], state['revision_id'])
+            for field, value in (('decision', 'COMPLIANT'),
+                                 ('reason', 'Forged retained reason.'),
+                                 ('evidence', [{'fact_id': 'forged', 'quote': 'forged'}])):
+                forged = {**artifacts}
+                forged_assessment = json.loads(json.dumps(second))
+                forged_assessment['records'][required[0]][field] = value
+                unsigned = {key: item for key, item in forged_assessment.items()
+                    if key not in {'artifact_id', 'artifact_sha256'}}
+                digest = api.core.canonical_json_sha256(unsigned)
+                forged_assessment.update(artifact_id='source-item-assessments-' + digest[:32],
+                    artifact_sha256=digest)
+                forged['source-item-assessments.json'] = forged_assessment
+                with self.assertRaisesRegex(ApplicationError, 'authenticate every cumulative'):
+                    self.sync(forged, require_map_confirmation=False)
+        finally:
+            if old_key is None: os.environ.pop('REQPILOT_HOST_ATTESTATION_KEY', None)
+            else: os.environ['REQPILOT_HOST_ATTESTATION_KEY'] = old_key
+
+    def test_public_cross_consumer_full_partial_check_and_delivery(self):
+        full_check, full_artifacts = self.real_task_workflow()
+        self.assertTrue(full_check['ready_to_review'], full_check)
+        self.assertIsNotNone(full_check['workflow_check']['delivery_snapshot_sha256'])
+        full_session='plugin-'+'c'*32
+        full_state, saved = self.workbench_roundtrip(full_session, full_artifacts, full_check['workflow'],
+            full_check['workflow_check']['basis']['review_sha256'])
+        self.assertEqual(saved['delivery_sha256'], full_check['workflow_check']['delivery_snapshot_sha256'])
+        public = api.get_plugin_workbench('p','d',full_session,self.sink())['fixed_workflow']
+        self.assertTrue(public['ready_to_review'], public)
+        self.assertEqual({s['id']:s for s in public['stages']}['SELF_CHECK']['status'], 'SAVED')
+        self.assertTrue(api.get_plugin_workbench('p','d',full_session,self.sink())['fixed_workflow']['ready_to_review'])
+
+        partial_check, partial_artifacts = self.real_task_workflow(partial=True)
+        self.assertFalse(partial_check['ready_to_review'], partial_check)
+        partial_session='plugin-'+'d'*32
+        self.workbench_roundtrip(partial_session, partial_artifacts, partial_check['workflow'],
+            partial_check['workflow_check']['basis']['review_sha256'])
+        partial_public = api.get_plugin_workbench('p','d',partial_session,self.sink())['fixed_workflow']
+        self.assertFalse(partial_public['ready_to_review'])
+        self.assertEqual({s['id']:s for s in partial_public['stages']}['ITEMS_CLASSIFICATION']['status'], 'IN_PROGRESS')
+
+        missing = dict(full_artifacts); missing.pop('workflow-check.json')
+        missing_session='plugin-'+'e'*32
+        self.workbench_roundtrip(missing_session, missing, full_check['workflow'],
+            full_check['workflow_check']['basis']['review_sha256'])
+        self.assertFalse(api.get_plugin_workbench('p','d',missing_session,self.sink())['fixed_workflow']['ready_to_review'])
+
+        failed = dict(full_artifacts); failed['workflow-check.json'] = {**full_artifacts['workflow-check.json'], 'status':'FAILED'}
+        failed_session='plugin-'+'f'*32
+        self.workbench_roundtrip(failed_session, failed, full_check['workflow'],
+            full_check['workflow_check']['basis']['review_sha256'])
+        self.assertFalse(api.get_plugin_workbench('p','d',failed_session,self.sink())['fixed_workflow']['ready_to_review'])
+
+        stale = dict(full_artifacts); stale['workflow-check.json'] = {**full_artifacts['workflow-check.json'],
+            'basis':{**full_artifacts['workflow-check.json']['basis'], 'items_sha256':'0'*64}}
+        stale_session='plugin-'+'1'*32
+        self.workbench_roundtrip(stale_session, stale, full_check['workflow'],
+            full_check['workflow_check']['basis']['review_sha256'])
+        self.assertFalse(api.get_plugin_workbench('p','d',stale_session,self.sink())['fixed_workflow']['ready_to_review'])
+
+    def test_fixed_workflow_claims_are_derived_from_uploaded_artifacts(self):
+        claim = self.workflow_state(self.artifacts)
+        claim['ready_to_review'] = True
+        claim['stages'] = [{**stage, 'status': 'SAVED', 'evidence': []} for stage in claim['stages']]
+        empty = self.sync(fixed_workflow=claim, require_map_confirmation=False)
+        self.assertFalse(empty['fixed_workflow']['ready_to_review'])
+        self.assertEqual([stage['status'] for stage in empty['fixed_workflow']['stages']],
+                         ['SAVED', 'PENDING', 'BLOCKED', 'BLOCKED', 'BLOCKED', 'BLOCKED'])
+        self.assertEqual(empty['fixed_workflow']['source_sha256'], self.sha)
+        mapped = self.sync(self.mapping(), fixed_workflow=claim, require_map_confirmation=False)
+        self.assertFalse(mapped['fixed_workflow']['ready_to_review'])
+        self.assertEqual([stage['status'] for stage in mapped['fixed_workflow']['stages']],
+                         ['SAVED', 'SAVED', 'PENDING', 'BLOCKED', 'BLOCKED', 'BLOCKED'])
+        self.assertEqual(mapped['fixed_workflow']['stages'][1]['evidence'][0]['artifact_sha256'],
+                         self.mapping()['document-map.json']['artifact_sha256'])
+        items = self.sync(self.artifacts, mapped['revision_id'], fixed_workflow=claim, require_map_confirmation=False)
+        self.assertFalse(items['fixed_workflow']['ready_to_review'])
+        by_id = {stage['id']: stage for stage in items['fixed_workflow']['stages']}
+        self.assertEqual(by_id['ITEMS_CLASSIFICATION']['status'], 'SAVED')
+        self.assertEqual(by_id['EVIDENCE_ANALYSIS']['status'], 'SKIPPED')
+        self.assertNotEqual(by_id['EVIDENCE_ANALYSIS']['status'], 'SAVED')
+        self.assertEqual(by_id['SELF_CHECK']['status'], 'PENDING')
+        self.assertEqual(by_id['DELIVERABLE']['status'], 'PENDING')
+
+    def test_fixed_workflow_derivation_ignores_sender_stage_status(self):
+        claim = self.workflow_state({})
+        claim['ready_to_review'] = True
+        claim['stages'] = [{**stage, 'status': 'SAVED', 'evidence': []} for stage in claim['stages']]
+        head = {'source_sha256': self.sha, 'revision_id': None, 'delivery_versions': [],
+                'require_map_confirmation': False}
+        derived = api._derive_fixed_workflow(claim, self.sha, None, None, {}, self.root, head)
+        self.assertFalse(derived['ready_to_review'])
+        self.assertEqual([stage['status'] for stage in derived['stages']],
+                         ['SAVED', 'PENDING', 'BLOCKED', 'BLOCKED', 'BLOCKED', 'BLOCKED'])
+        self.assertTrue(all(stage.get('evidence', []) != [] or stage['status'] != 'SAVED'
+                            for stage in derived['stages']))
+
+    def test_fixed_workflow_partial_item_coverage_keeps_items_incomplete(self):
+        claim = self.workflow_state(self.artifacts)
+        artifacts = dict(self.artifacts)
+        artifacts['item-compilation-receipt.json'] = {'source_sha256': self.sha,
+            'baseline_artifact_sha256': artifacts['source-requirement-baseline.json']['artifact_sha256'],
+            'unprocessed_scope_ids': ['scope-unprocessed-a', 'scope-unprocessed-b']}
+        state = self.sync(artifacts, fixed_workflow=claim, require_map_confirmation=False)
+        by_id = {stage['id']: stage for stage in state['fixed_workflow']['stages']}
+        self.assertEqual(by_id['ITEMS_CLASSIFICATION']['status'], 'IN_PROGRESS')
+        self.assertEqual(by_id['ITEMS_CLASSIFICATION']['reason'], 'UNPROCESSED_SOURCE_SCOPE')
+        self.assertFalse(state['fixed_workflow']['ready_to_review'])
+        self.assertIn('UNPROCESSED_SOURCE_SCOPE', state['fixed_workflow']['open_items'])
+
+    def test_fixed_workflow_rejects_wrong_source_or_unknown_definition(self):
+        claim = self.workflow_state(self.mapping())
+        with self.assertRaises(ApplicationError) as wrong_source:
+            self.sync(self.mapping(), fixed_workflow=self.workflow_state(self.mapping(), source='0'*64),
+                      require_map_confirmation=False)
+        self.assertEqual(wrong_source.exception.status_code, 409)
+        with self.assertRaises(ApplicationError) as incompatible:
+            self.sync(self.mapping(), fixed_workflow={**claim, 'schema': 'reqpilot-fixed-workflow-state/v999'},
+                      require_map_confirmation=False)
+        self.assertEqual(incompatible.exception.status_code, 422)
+
+    def test_fixed_workflow_delivery_without_check_is_not_ready_and_goes_stale(self):
+        claim = self.workflow_state(self.artifacts)
+        state = self.sync(self.artifacts, fixed_workflow=claim, require_map_confirmation=False)
+        self.assertFalse(state['fixed_workflow']['ready_to_review'])
+        from reqpilotx_server.application.agent_workflow import plugin_workbench_delivery as delivery
+        view = delivery.preview_plugin_delivery_version('p','d',self.session,self.sink())
+        payload = delivery.PluginDeliveryVersion(command_id='fixed-delivery', expected_source_sha256=self.sha,
+            expected_revision_id=view['revision_id'], expected_version=view['version'],
+            expected_response_revision=view['response_revision'], expected_delivery_sha256=view['delivery_sha256'])
+        delivery.save_plugin_delivery_version('p','d',self.session,payload,self.sink())
+        completed = self.api.get_plugin_workbench('p','d',self.session,self.sink())['fixed_workflow']
+        self.assertFalse(completed['ready_to_review'])
+        by_id = {stage['id']: stage for stage in completed['stages']}
+        self.assertNotEqual(by_id['SELF_CHECK']['status'], 'SAVED')
+        self.assertEqual(by_id['DELIVERABLE']['status'], 'SAVED')
+        self.assertEqual(by_id['DELIVERABLE']['evidence'][0]['kind'], 'DELIVERY_VERSION')
+        changed = self.sync(self.changed_map('Changed basis'), state['revision_id'], fixed_workflow=claim,
+                            require_map_confirmation=False)
+        stale = changed['fixed_workflow']
+        self.assertFalse(stale['ready_to_review'])
+        by_id = {stage['id']: stage for stage in stale['stages']}
+        self.assertIn(by_id['SELF_CHECK']['status'], {'PENDING', 'BLOCKED'})
+        self.assertIn(by_id['DELIVERABLE']['status'], {'PENDING', 'BLOCKED'})
+        self.assertNotEqual(by_id['SELF_CHECK']['status'], 'SAVED')
+        self.assertNotEqual(by_id['DELIVERABLE']['status'], 'SAVED')
+
+    def test_fixed_workflow_corrupt_delivery_receipt_is_unconfirmed_not_ready(self):
+        claim = self.workflow_state(self.artifacts)
+        state = self.sync(self.artifacts, fixed_workflow=claim, require_map_confirmation=False)
+        from reqpilotx_server.application.agent_workflow import plugin_workbench_delivery as delivery
+        view = delivery.preview_plugin_delivery_version('p','d',self.session,self.sink())
+        delivery.save_plugin_delivery_version('p','d',self.session,delivery.PluginDeliveryVersion(
+            command_id='fixed-delivery-corrupt', expected_source_sha256=self.sha,
+            expected_revision_id=view['revision_id'], expected_version=view['version'],
+            expected_response_revision=view['response_revision'], expected_delivery_sha256=view['delivery_sha256']), self.sink())
+        root = self.api._root('p','d',self.session)
+        (root/'deliveries'/'1.json').write_text('{broken')
+        public = self.api.get_plugin_workbench('p','d',self.session,self.sink())['fixed_workflow']
+        self.assertFalse(public['ready_to_review'])
+        self.assertEqual(public['verification'], 'UNCONFIRMED')
+        self.assertEqual(public['stages'], [])
+        self.assertIn('unconfirmed', public)
+
     def test_map_confirmation_then_items_uses_real_shared_snapshot_and_excel(self):
         initial=self.sync();self.assertEqual(initial['stages'],[]);self.assertEqual(initial['model_dispatch'],'NOT_PERFORMED')
         mapping=self.sync(self.mapping());self.assertTrue(mapping['map_confirmation_required'])

@@ -12,6 +12,7 @@ import {
 import { ProjectManagementPanel } from "./ProjectManagementPanel";
 import { api } from "../../shared/api/client";
 import { WorkbenchHostContext } from "../workspace/WorkbenchHostContext";
+import { HostLocaleProvider } from "../../host/HostLocaleContext";
 
 beforeEach(() => {
   HTMLDialogElement.prototype.showModal = function () { this.open = true; };
@@ -277,5 +278,33 @@ describe("ProjectManagementPanel workflow truth", () => {
     fireEvent.click(screen.getAllByRole("button", { name: "重试" })[0]);
     expect(value.setNotice).toHaveBeenCalledWith("请先切回该文件所属项目，再重试上传。");
     expect(upload).toHaveBeenCalledTimes(1);
+  });
+});
+
+describe("project preparation locale flow", () => {
+  it("localizes create/upload chrome and keeps an unsaved project draft through a native locale change", () => {
+    const value = workspaceValue();
+    value.projects = []; value.documents = []; value.selectedProject = null;
+    value.route = { ...value.route, projectId: "", documentId: "" };
+    const renderLocale = (locale: "zh" | "en") => <HostLocaleProvider t={key => key === "workbench.locale" ? locale : key}>
+      <WorkspaceProvider value={value}><ProjectManagementPanel /></WorkspaceProvider>
+    </HostLocaleProvider>;
+    const view = render(renderLocale("en"));
+    fireEvent.click(screen.getByRole("button", { name: "New project" }));
+    expect(screen.getAllByRole("heading", { name: "Create project" }).length).toBeGreaterThan(0);
+    const name = screen.getByRole("textbox", { name: "Project name" });
+    const customer = screen.getByRole("textbox", { name: "Customer name" });
+    fireEvent.change(name, { target: { value: "Unsaved project" } });
+    fireEvent.change(customer, { target: { value: "Unsaved customer" } });
+    expect(screen.getByRole("button", { name: "Add customer source" })).toBeDisabled();
+    view.rerender(renderLocale("zh"));
+    expect(screen.getAllByRole("heading", { name: "创建项目" }).length).toBeGreaterThan(0);
+    expect(screen.getByRole("textbox", { name: "项目名称" })).toBe(name);
+    expect(name).toHaveValue("Unsaved project");
+    expect(customer).toHaveValue("Unsaved customer");
+    view.rerender(renderLocale("en"));
+    expect(screen.getByRole("textbox", { name: "Project name" })).toHaveValue("Unsaved project");
+    expect(screen.getByRole("button", { name: "Create and enter" })).toBeInTheDocument();
+    expect((view.container.textContent || "").replaceAll("正式项目", "").replaceAll("客户 A", "").replaceAll("正式规范.pdf", "")).not.toMatch(/[\u4e00-\u9fff]/);
   });
 });

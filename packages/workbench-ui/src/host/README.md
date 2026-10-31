@@ -12,7 +12,7 @@
 
 构建external配置为`react`、`react-dom`、`react/jsx-runtime`、`react/jsx-dev-runtime`、`react-dom/client`；当前产物实际引用前三个。所有引用必须解析到宿主提供的同一React18.3.1／ReactDOM18.3.1实例，库不自带运行时。不要执行主应用的`main.tsx`或把整个`App`挂入宿主。
 
-公开组件为`ReqPilotXReadonlyPanel`，公开类型和帮助函数从`src/host/index.ts`导出。完整TypeScript合同以`readonlyHost.ts`和`ReqPilotXReadonlyPanelProps`为准。产物不自注册Pair面板，DSH Host／Client注册由集成包装负责。
+公开组件为`ReqPilotXReadonlyPanel`，公开类型和帮助函数从`src/host/index.ts`导出。完整TypeScript合同以`readonlyHost.ts`和`ReqPilotXReadonlyPanelProps`为准。产物不自注册Pair面板，DSH Host／Client注册由集成包装负责。宿主可把槽位提供的原生`t`通过可选`t`prop传入；固定流程状态、流程说明和任务控制等新文案使用该绑定，独立Web没有`t`时保持中文默认。
 
 ```tsx
 <ReqPilotXReadonlyPanel
@@ -34,8 +34,8 @@
 | `client.request` | 与共同request签名相同的实例级读取函数。`createReadonlyHttpClient`复用共同JSON／错误解析，阻止GET／HEAD之外的请求。业务写操作另在provider层再次禁用 |
 | `resourceUrl(path)` | 解析原件、裁剪、知识引用及导出的URL，保留路径／query里的准确来源和版本；不要把每个路径替换成固定latest地址 |
 | `pdfViewerUrl(sourceUrl,page,embedded)` | 返回可用PDF页面地址和asset／worker通道。跨origin独立viewer可传`embedded=1&parentOrigin=<宿主origin>`，必须为准确http(s) origin；PDF继续同时检查origin与实际父窗口 |
-| `sessionBinding` | 宿主实例、workspace、session与业务project／document／source／work的明确绑定。持久化由DSH Host或宿主存储负责，组件只校验和消费，不自行建立隐藏绑定 |
-| `openSession(binding,context)` | 仅用户点击时调用，打开已绑定会话并准备上下文，不自动发送prompt。选中上下文包含当前revision、node、sourceItem及可选derivedUnit；未就绪时拒绝把单条范围扩大成整文 |
+| `sessionBinding` | 宿主实例、workspace、session与业务project／document／source／work的明确绑定；可选`taskId`用于原生任务工具续作。持久化由DSH Host或宿主存储负责，组件只校验和消费，不自行建立隐藏绑定 |
+| `openSession(binding,context?)` | 仅用户点击时调用。无 context 时只导航到同一会话，不写入或发送 prompt；有 context 时可把当前task/revision/node/sourceItem/派生单元及明确的workbench request追加到既有草稿，不覆盖草稿、不自动发送；文字不构成正式人工接受。导航被后续选择取代时不写入 |
 | `execution.getSnapshot/subscribe` | 当前绑定工作的真实运行观察。snapshot对象在没有事件时保持稳定；适配器负责当前run及连接状态。`SUCCEEDED`只表示宿主本轮结束，不表示提取／语义／人工验收完成 |
 | `subscribeWorkUpdates` | 只发真实业务成果保存事件，携带相同来源／work和新revision。匹配事件刷新成果状态；逐token进度不要触发此事件。当前查看的历史版不自动跳最新 |
 | `onSelectionChange` | 宿主保存面板的工作／版本／视图，卸载重挂时通过selection恢复。组件不写宿主history，也不在关闭时取消会话 |
@@ -43,6 +43,31 @@
 没有会话绑定时仍可读已有成果，讨论按钮禁用；没有运行观察则显示未报告，不能用目录中已有Map／Items推断本轮Agent完成了提取。断连显示断连与最后报告时间，保留已读取成果。
 
 若未提供业务成果事件订阅，active面板每5秒同步已保存状态；`active=false`停用该轮询。事件订阅在卸载时清理。只读模式隐藏编辑／确认入口，保留可读取的历史信息和服务声明可用的导出。
+
+## 固定流程与宿主状态
+
+`WorkbenchApplicationHost` 可选提供 `workflow`（服务端声明的固定流程）和
+`taskSetup`（启动缺项）。`HostedAgentPanel` 用它们展示必需客户文档、可选
+内部依据、预期成果和阶段顺序。PAIR 宿主提供 `knowledge` 适配器时，内联选择器
+可上传本项目参考资料、选择团队实时文档或保留主题版本；选择会随任务冻结。
+Host 同时提供 adopted inventory 时，选择器只列出已注册知识库及其当前版本，
+blocked 库不可选，needs-update 如实提示但仍冻结当前版本而不是切最新；恢复草稿中的
+旧版本在当前注册版本变化时标为 stale，必须显式重选，不在异步目录刷新时静默换成
+最新版本。当前切片与旧项目/团队选择互斥。
+开始按钮不要求用户编写目标；补充说明是可选文本，不能取消 Map、条目、自查
+或交付前置条件。只有选择或导入不会形成符合性分析；分析建议由任务证据工具
+读取实际引用后保存，并进入原分析工作台与同版交付。
+
+`ApplicationTaskReceipt.workflowState` 是任务程序根据已保存工件生成的阶段
+投影（`reqpilot-fixed-workflow-state/v1`）。组件把它与 `execution` 运行状态
+分开展示：`SAVED`/`SKIPPED` 是业务成果状态，`RUNNING`/`SUCCEEDED` 仍是宿主
+执行观察，`ready_to_review` 也不是人工接受。没有任务时显示“尚未开始”，
+不把读取结果为 `null` 的服务轮询显示成持续状态错误。共享 `PluginWorkbench`
+在同一页面显示同一投影；历史外部成果没有该字段时保持原界面。
+
+`WorkbenchApplicationHost.startTask` 仍可传空 `goal`；宿主必须把空值视为
+“仅固定流程”，并自行注入服务端 brief。非固定流程的旧宿主不会被新界面
+静默当成兼容；宿主应提供 `taskSetup` 说明缺失能力或模型设置。
 
 ## 验证与限制
 

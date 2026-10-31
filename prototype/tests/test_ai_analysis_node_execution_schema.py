@@ -313,6 +313,7 @@ class AiAnalysisNodeExecutionSchemaTests(unittest.TestCase):
                 """
             )
 
+        db.prepare_test_legacy_sqlite_fixture(legacy_database)
         with patch.object(db, "DB_PATH", legacy_database), patch.object(
             db, "STORAGE_DIR", self.root
         ):

@@ -87,8 +87,15 @@ def doctor(args: argparse.Namespace) -> dict:
             "required_libreoffice_version": "26.2.4.2", "binary_version_validation": "NOT_RUN"},
     }
     tool_files = {"capture": (root / "reqpilotx/tools/fast_source_capture.py").is_file(), "delivery": (root / "reqpilotx/application/agent_workflow/source_item_delivery.py").is_file(), "decomposition": (root / "reqpilotx/application/agent_workflow/source_item_decomposition.py").is_file()}
-    local_ocr={'tesseract_available':shutil.which('tesseract') is not None,
-        'table_dependencies_available':all(importlib.util.find_spec(name) is not None for name in ('cv2','numpy')),
+    table_pins=[line.strip() for line in (PLUGIN_ROOT/'requirements-ocr.txt').read_text(encoding='utf-8').splitlines()
+        if line.strip() and not line.lstrip().startswith('#')]
+    table_missing=[name for name in ('cv2','numpy') if importlib.util.find_spec(name) is None]
+    tesseract_available=shutil.which('tesseract') is not None
+    local_ocr={'tesseract_available':tesseract_available,
+        'table_dependencies_available':not table_missing,
+        'missing_table_dependencies':table_missing,
+        'required_table_pins':table_pins,
+        'table_profile_supported':bool(tesseract_available and not table_missing),
         'optional_table_requirements':str(PLUGIN_ROOT/'requirements-ocr.txt'),
         'tessdata_override_configured':bool(os.environ.get('REQPILOT_TESSDATA_DIR')),
         'source_semantics_verified':False}
@@ -295,7 +302,7 @@ def main() -> int:
     execute.add_argument('--expected-revision', help='The opaque revision returned by workspace status')
     execute.add_argument('--command-id', help='Stable key for replaying one logical operation')
     execute.add_argument('--binding-file',type=Path)
-    for flag in ('input','source-ir','source','map-dir','baseline-dir','annotations','decomposition','previous-decomposition','knowledge-catalog','analysis-packet','analysis-policy','assessments','manual-decisions'):
+    for flag in ('input','source-ir','source','map-dir','baseline-dir','annotations','decomposition','previous-decomposition','knowledge-catalog','analysis-packet','analysis-policy','assessments','knowledge-attestation','manual-decisions'):
         execute.add_argument('--'+flag,type=Path)
     execute.add_argument('--expected-sha256');execute.add_argument('--capture-only',action='store_true');execute.add_argument('--progress',action='store_true')
     execute.add_argument('--full',action='store_true',help='Include complete index/history rather than compact task references')
@@ -362,6 +369,7 @@ def main() -> int:
         operation.add_argument("--previous-decomposition", type=Path)
         operation.add_argument("--knowledge-catalog", type=Path)
         operation.add_argument("--analysis-packet", type=Path)
+        operation.add_argument("--knowledge-attestation", type=Path)
         if name in {'review-open', 'review-revise', 'deliver'}:
             operation.add_argument('--analysis-policy', type=Path, help='Explicit source-bound analysis-policy.json; imported into the review version or used by direct delivery')
         operation.add_argument("--assessments", type=Path)

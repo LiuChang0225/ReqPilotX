@@ -15,7 +15,7 @@ OPERATIONS = ('capture', 'reading-workspace', 'read-pdf-visual', 'revise-visual-
               'compile-annotations', 'compile-decomposition', 'deliver', 'review-open')
 PATH_ARGUMENTS = ('input', 'source_ir', 'source', 'map_dir', 'baseline_dir', 'annotations',
                   'decomposition', 'previous_decomposition', 'knowledge_catalog', 'analysis_packet',
-                  'analysis_policy', 'assessments', 'manual_decisions')
+                  'analysis_policy', 'assessments', 'knowledge_attestation', 'manual_decisions')
 VALUE_ARGUMENTS = ('expected_sha256',)
 BOOL_ARGUMENTS = ('capture_only', 'progress')
 BLOCKED_STATUSES = {'WAITING_FOR_MAP_CONFIRMATION', 'WORKBENCH_NOT_BOUND', 'WORKBENCH_UNAVAILABLE'}
@@ -112,7 +112,8 @@ def initialize(args, entrypoint):
     state = initialize_workspace(args.working_root,args.source,args.goal,
         project_key=args.project_key,document_key=args.document_key,project_id=project,document_id=document,
         require_map_confirmation=confirmation if confirmation is not None else False,runtime_ref=runtime_reference(entrypoint,args.project_root),
-        creation_key=getattr(args,'creation_key',None))
+        creation_key=getattr(args,'creation_key',None),workflow=getattr(args,'workflow',None),
+        knowledge_evidence=getattr(args,'knowledge_evidence',None))
     result = {'status':'WORKSPACE_INITIALIZED',**state}
     if url and state.get('creation_replayed'):
         result['workbench_sync']={'status':'NOT_REEXECUTED','url':state.get('workbench_url'),'local_artifact_preserved':True,
@@ -463,10 +464,10 @@ def compact(value):
     if value.get('current_working'):
         result['current_working']={key:value['current_working'][key] for key in
             ('owner','generation','review_root','review_sha256','version_path','baseline_sha256','document_map_sha256') if key in value['current_working']}
-    for name in ('candidates','incomplete_operations'):
+    for name in ('candidates','incomplete_operations','unresolved_operations','failed_operations'):
         if name in value:
             rows=value[name]
-            result[name]=[{key:row[key] for key in ('operation_id','operation','state','reason','error','output_dir','receipt_path','receipt_sha256') if key in row} for row in rows[:20]]
+            result[name]=[{key:row[key] for key in ('operation_id','operation','state','reason','error','command_id','request_sha256','output_dir','receipt_path','receipt_sha256') if key in row} for row in rows[:20]]
             if len(rows)>20:result[name+'_omitted_count']=len(rows)-20
     if value.get('host_receipt'):
         result['host_receipt']={key:item for key,item in value['host_receipt'].items() if key!='receipt'}

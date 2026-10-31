@@ -18,6 +18,8 @@ from uuid import uuid4
 
 from reqpilotx.application.agent_workflow.artifact_kind_catalog import file_sha256, inside, read_json, validate_bundle
 from reqpilotx.application.agent_workflow.native_task_brief import build_task_brief
+from reqpilotx.application.agent_workflow.fixed_workflow import project_workflow, validate_workflow_spec
+from reqpilotx.application.agent_workflow import knowledge_binding
 from reqpilotx.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
 
 SCHEMA = 'reqpilot-task-workspace/v1'
@@ -25,6 +27,12 @@ INDEX_SCHEMA = 'reqpilot-workspace-index/v1'
 RECEIPT_SCHEMA = 'reqpilot-operation-receipt/v1'
 KEY = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$')
 SHA = re.compile(r'^[a-f0-9]{64}$')
+# A STARTED descriptor has no known outcome. A receipt that is present but not
+# indexed still owes its owning recovery step. Both block workflow readiness.
+UNRESOLVED_OPERATION_STATES = frozenset({'STARTED', 'SAVED_PENDING_RECOVERY'})
+# FAILED/BLOCKED are terminal, known attempts. They remain in the history with
+# their frozen inputs and error, but cannot be the selected producer.
+TERMINAL_FAILURE_STATES = frozenset({'FAILED', 'BLOCKED'})
 
 
 def _now():
@@ -120,6 +128,10 @@ def _read_context(root):
     request = value.get('request') or {}
     if not isinstance(request.get('goal'), str) or not request['goal'].strip() or request.get('origin') != 'USER_REQUEST' or type(request.get('require_map_confirmation')) is not bool:
         raise ValueError('Task request facts are invalid')
+    if request.get('workflow') is not None:
+        validate_workflow_spec(request['workflow'])
+    if request.get('knowledge_evidence') is not None:
+        knowledge_binding.validate_binding(request['knowledge_evidence'])
     binding = value.get('binding_file')
     if not isinstance(binding, str) or not binding:
         raise ValueError('Task binding file reference is invalid')
@@ -247,9 +259,16 @@ def _resolve_ref(root, value):
 
 
 def initialize_workspace(working_root, source, goal, project_key=None, document_key=None,
-                         project_id=None, document_id=None, require_map_confirmation=False, runtime_ref=None, creation_key=None):
+                         project_id=None, document_id=None, require_map_confirmation=False, runtime_ref=None, creation_key=None,
+                         workflow=None, knowledge_evidence=None):
+    if workflow is not None:
+        validate_workflow_spec(workflow)
+    if knowledge_evidence is not None:
+        validate_bound_evidence(knowledge_evidence)
     arguments = dict(project_key=project_key, document_key=document_key, project_id=project_id, document_id=document_id,
-                     require_map_confirmation=require_map_confirmation, runtime_ref=runtime_ref)
+                     require_map_confirmation=require_map_confirmation, runtime_ref=runtime_ref,
+                     **({'workflow': workflow} if workflow is not None else {}),
+                     **({'knowledge_evidence': knowledge_evidence} if knowledge_evidence is not None else {}))
     if creation_key is None:
         return _initialize_workspace(working_root, source, goal, **arguments)
     if not isinstance(creation_key, str) or not creation_key.strip() or len(creation_key) > 200:
@@ -302,7 +321,12 @@ def initialize_workspace(working_root, source, goal, project_key=None, document_
 
 
 def _initialize_workspace(working_root, source, goal, project_key=None, document_key=None,
-                          project_id=None, document_id=None, require_map_confirmation=False, runtime_ref=None, _work_id=None):
+                          project_id=None, document_id=None, require_map_confirmation=False, runtime_ref=None, _work_id=None,
+                          workflow=None, knowledge_evidence=None):
+    if workflow is not None:
+        validate_workflow_spec(workflow)
+    if knowledge_evidence is not None:
+        validate_bound_evidence(knowledge_evidence)
     source = Path(source).expanduser().resolve(strict=True)
     if not source.is_file() or not isinstance(goal, str) or not goal.strip():
         raise ValueError('Task initialization needs an actual original and exact user request')
@@ -342,7 +366,9 @@ def _initialize_workspace(working_root, source, goal, project_key=None, document
         (root / source_relative).chmod(0o400)
         context = _seal({'schema_version': SCHEMA, 'work_id': work_id, 'project_key': project_key, 'document_key': document_key,
             'project_id': project_id, 'document_id': document_id, 'source': {'path': source_relative, 'sha256': source_sha, 'display_name': source.name},
-            'request': {'goal': goal, 'origin': 'USER_REQUEST', 'require_map_confirmation': require_map_confirmation},
+            'request': {'goal': goal, 'origin': 'USER_REQUEST', 'require_map_confirmation': require_map_confirmation,
+                        **({'workflow': workflow} if workflow is not None else {}),
+                        **({'knowledge_evidence': knowledge_evidence} if knowledge_evidence is not None else {})},
             'binding_file': f'runtime-data/workbench-bindings/{source_sha}.json', 'binding_portability': 'TASK_RELATIVE', 'runtime_ref': runtime_ref, 'created_at': _now()}, 'context_sha256')
         _atomic_json(root / 'task-context.json', context)
         _write_index(root, _empty_index(context))
@@ -760,7 +786,7 @@ def record_host_receipt(task_root, operation_id, receipt):
 
 def recover_workspace(task_root):
     root, context = _resolve_task(task_root)
-    recovered, incomplete = [], []
+    recovered = []
     with _locked(root):
         index = _index(root, context)
         known = {v['operation_id'] for v in index['committed']}
@@ -778,8 +804,8 @@ def recover_workspace(task_root):
                 continue
             if (inside(root, operation['output_dir']) / 'operation-receipt.json').is_file():
                 pending.append((operation, _receipt(root, context, operation)))
-            else:
-                incomplete.append({'operation_id': operation['operation_id'], 'state': operation['state'], 'output_dir': operation['output_dir']})
+            # STARTED/FAILED/BLOCKED descriptors without a receipt are not
+            # recovered here. The status projection owns their classification.
         for operation, receipt in sorted(pending, key=lambda pair: (pair[1]['expected_generation'], pair[1]['operation_id'])):
             state = _advance(root, context, index, receipt, force_conflict=sum(r['expected_generation'] == receipt['expected_generation'] for _, r in pending) > 1)
             operation.update(state=state, recovered_at=_now())
@@ -792,7 +818,11 @@ def recover_workspace(task_root):
                 index['host_receipts'].append({'host_receipt_id': value['host_receipt_id'], 'operation_id': value['operation_id'], 'path': str(path.relative_to(root)), 'host_receipt_sha256': value['host_receipt_sha256']})
                 known_host.add(value['host_receipt_id'])
                 _write_index(root, index)
-    return {**workspace_status(root), 'recovered': recovered, 'incomplete_operations': incomplete}
+    status = workspace_status(root)
+    return {**status, 'recovered': recovered,
+            'incomplete_operations': status['unresolved_operations'],
+            'unresolved_operations': status['unresolved_operations'],
+            'failed_operations': status['failed_operations']}
 
 
 def _map_compiler_navigation(root, context, index, selected):
@@ -839,6 +869,35 @@ def _map_compiler_navigation(root, context, index, selected):
         compiler_candidates=choices, path_role='CURRENT_OWNER_MAP')
 
 
+def _classified_operations(root):
+    """Return unresolved work and retained terminal failure history separately."""
+    unresolved, failed = [], []
+    for path in sorted((root / 'operations').glob('op-*.json')):
+        operation = read_json(path)
+        state = operation.get('state')
+        if state in UNRESOLVED_OPERATION_STATES:
+            unresolved.append(operation)
+        elif state in TERMINAL_FAILURE_STATES:
+            failed.append(operation)
+    return unresolved, failed
+
+
+def validate_bound_evidence(value):
+    """Validate a detached Host binding and require a consistent workflow mode."""
+    binding = knowledge_binding.validate_binding(value)
+    return binding
+
+
+def _knowledge_status(root, binding):
+    path = root / 'knowledge-evidence-status.json'
+    if not path.is_file():
+        return None
+    value = knowledge_binding.validate_status(read_json(path), binding)
+    if value['task_id'] != _read_context(root)['work_id']:
+        raise ValueError('EVIDENCE_STATUS_INVALID: task differs')
+    return value
+
+
 def workspace_status(task_root, refresh=True):
     root, context = _resolve_task(task_root)
     index = _index(root, context)
@@ -879,20 +938,71 @@ def workspace_status(task_root, refresh=True):
         policy_path = Path(selected['ITEMS']['path']).parent / 'analysis-policy.json'
         if policy_path.is_file() and (not review or 'analysis-policy.json' in review['files']):
             analysis_policy = read_json(policy_path)
+    workflow_spec = (context.get('request') or {}).get('workflow') or {}
+    if analysis_policy is None and (workflow_spec.get('evidence') or {}).get('mode') == 'NONE':
+        # A fixed workflow declaration can say that no internal evidence is
+        # available. This is a declared branch, not a model or user claim.
+        analysis_policy = {'status': 'SKIPPED', 'reason': 'NO_INTERNAL_EVIDENCE',
+                           'origin': 'FIXED_WORKFLOW_DECLARATION'}
     brief = build_task_brief(goal=context['request']['goal'], origin=context['request']['origin'], source={**context['source'], 'path': str(inside(root, context['source']['path']))},
         stages=selected, review=review, require_map_confirmation=context['request']['require_map_confirmation'], confirmed_map_sha256=confirmed,
         project_id=context.get('project_id'), document_id=context.get('document_id'), analysis_policy=analysis_policy)
+    unresolved_operations, failed_operations = _classified_operations(root)
+    workflow_check = None
+    check_path = root / 'workflow-check.json'
+    if check_path.is_file():
+        workflow_check = read_json(check_path)
+        workflow_check['check_sha256'] = file_sha256(check_path)
+        workflow_check['_path'] = str(check_path)
+    bound_evidence = knowledge_binding.binding_from_request(context.get('request'))
+    evidence_status = _knowledge_status(root, bound_evidence) if bound_evidence else None
+    workflow = project_workflow(context=context, selected=selected, brief=brief, review=review,
+                                check=workflow_check, unresolved_operations=unresolved_operations,
+                                bound_evidence=bound_evidence, evidence_status=evidence_status)
     status = {'schema_version': 'reqpilot-workspace-status/v1', 'task_root': str(root), 'revision': _revision(context, index, review), 'context': context, 'index': index, 'selected': selected, 'brief': brief,
         'current_working': review or {'owner': 'task_workspace', 'generation': index['generation'], 'selected': selected},
         'binding_file': str(binding_path), 'workbench_url': binding.get('url') or binding.get('workbench_url') or (binding.get('base_url', '') + binding['workbench_path'] if binding.get('workbench_path') else None),
         'candidates': deepcopy(index['candidates']), 'committed_operations': deepcopy(index['committed']),
         'running_state': 'UNREPORTED', 'human_acceptance': 'NOT_CLAIMED', 'source_verification': 'BYTES_MATCH',
-        'incomplete_operations': [read_json(p) for p in sorted((root / 'operations').glob('op-*.json')) if read_json(p).get('state') in {'STARTED', 'FAILED', 'BLOCKED', 'SAVED_PENDING_RECOVERY'}]}
+        **({'workflow': workflow} if workflow else {}),
+        **({'workflow_check': workflow_check} if workflow_check else {}),
+        **({'knowledge_evidence': bound_evidence} if bound_evidence else {}),
+        **({'knowledge_evidence_status': evidence_status} if evidence_status else {}),
+        # Keep the historical field name for callers that only need blocking
+        # work; terminal failure history is explicitly separate.
+        'incomplete_operations': unresolved_operations,
+        'unresolved_operations': unresolved_operations,
+        'failed_operations': failed_operations}
+    if workflow:
+        path = root / 'workflow-status.json'
+        try:
+            existing = read_json(path) if path.is_file() else None
+        except (OSError, ValueError):
+            existing = None
+        if existing != workflow:
+            _atomic_json(path, workflow)
     if refresh:
         lines = ['# ReqPilotX 文档任务', '', '## 本轮委托', '', context['request']['goal'], '', '来源：USER_REQUEST', '',
                  '## 程序核对的当前状态', '', brief['work_state_label'], '', '原件：`' + context['source']['path'] + '`',
                  '原件 SHA256：`' + context['source']['sha256'] + '`', '结构确认：' + brief['map_confirmation'],
-                 '内部依据策略：' + brief['analysis_policy']['status'], '人工接受：未声称；程序保存不代表语义正确。', '', '## 可接续工件', '']
+                 '内部依据策略：' + brief['analysis_policy']['status'], '人工接受：未声称；程序保存不代表语义正确。', '']
+        if bound_evidence:
+            lines += ['## 内部依据', '', '模式：`' + bound_evidence['mode'] + '`；绑定：`' + bound_evidence['binding_sha256'] + '`',
+                      '证据工具只能读取该任务冻结的所选文档或保留主题版本；不可用时不得形成新的符合性结论。', '']
+            if bound_evidence['mode'] == 'ADOPTED_KNOWLEDGE':
+                adopted = bound_evidence['adopted']
+                lines += ['已注册知识库：`' + adopted['name'] + '`；库：`' + adopted['library_id']
+                          + '`；冻结版本：`' + adopted['version_id'] + '`。',
+                          'Claims、Wiki 与来源索引摘录是派生内容；只有实际读取并核对 contentRevision 的原件可作原始依据，未读取原件时保留明确不足。', '']
+        if workflow:
+            lines += ['## 固定工作流', '', '版本：`' + workflow['workflow']['version'] + '`；来源：`' + workflow['source_sha256'] + '`',
+                      '阶段推进只认已保存工件；Agent 文字、会话空闲或完成声明不推进阶段。',
+                      '当前阶段：' + str(workflow.get('next_stage') or '已保存可核对成果'),
+                      '可核对：' + ('是' if workflow.get('ready_to_review') else '尚未满足已保存成果条件'),
+                      '未决项：' + (', '.join(workflow.get('open_items') or []) or '无程序记录的未决项'), '']
+            lines += ['- ' + stage['label'] + '：' + stage['status'] + (('（' + stage['reason'] + '）') if stage.get('reason') else '') for stage in workflow['stages']]
+            lines += ['']
+        lines += ['## 可接续工件', '']
         lines += ['- ' + key + '：`' + _relative_or_absolute(root, value['path']) + '`' for key, value in selected.items()] or ['尚无已提交工件；从原件开始。']
         if selected.get('MAP'):
             lines += ['', 'Map编制包：' + str(selected['MAP'].get('compiler_output_dir') or selected['MAP']['compiler_bundle_availability']) + '；可读Map快照与完整重编依赖分别列出。']
@@ -901,7 +1011,8 @@ def workspace_status(task_root, refresh=True):
         if context.get('runtime_ref'): lines += ['', '能力包引用：`' + json.dumps(context['runtime_ref'], ensure_ascii=False) + '`；接续不自动替换已冻结能力包。']
         if review: lines += ['', '当前工作版由 `review/workspace-manifest.json` 指定；未 close 的编制结果仍是候选。']
         if index['candidates']: lines += ['', f"另有 {len(index['candidates'])} 个候选/冲突引用，详见 workspace-index.json；未自动合并。"]
-        if status['incomplete_operations']: lines += ['', '存在未完成操作；恢复只读取最后提交回执，不将半目录当成成果。']
+        if status['unresolved_operations']: lines += ['', '存在未完成的程序操作（未知结果或待恢复回执）；恢复只读取最后提交回执，不将半目录当成成果。']
+        elif status['failed_operations']: lines += ['', '已有失败或阻塞的程序尝试保留在 `operations/`；它们没有提交为当前成果，不阻止已保存成果的当前核对。']
         lines += ['', '## 接续入口', '', '先运行 `workspace status` 核对来源与精确版本；`workspace recover` 处理已保存回执未推进索引的中断。',
                   '工具按需选择，阅读/回查不受阶段目录限制。TASK.md 是事实导航，不增加用户授权或固定阅读步骤。',
                   '工件和展示角色见 workspace-index.json；前端绑定：`' + context['binding_file'] + '`。',

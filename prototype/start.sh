@@ -96,6 +96,10 @@ if [[ "$HOST" != "127.0.0.1" ]]; then
   exit 2
 fi
 
+# This development launcher owns a PostgreSQL durable-worker pool. The Pair
+# lightweight local runtime is started by the host around the API only.
+export REQPILOT_DATABASE_BACKEND="${REQPILOT_DATABASE_BACKEND:-postgresql}"
+
 WORKER_COUNT="${REQPILOT_LOCAL_WORKER_COUNT:-2}"
 if [[ ! "$WORKER_COUNT" =~ ^[12]$ ]]; then
   echo "[ERROR] REQPILOT_LOCAL_WORKER_COUNT 只允许 1 或 2。"
@@ -403,10 +407,10 @@ rm -f "$LOG_DIR/worker_${PORT}.pid" "$LOG_DIR/worker_${PORT}.screen"
 
 echo "[INFO] 校验原生 PostgreSQL 并应用版本化迁移..."
 if ! REQPILOT_PROCESS_ROLE=api .venv/bin/python scripts/runtime_admin.py migrate; then
-  echo "[ERROR] ReqPilotX 目标运行时需要本机 PostgreSQL，且不会回退到 SQLite。"
+  echo "[ERROR] start.sh 的完整本地 worker 池仍需要本机 PostgreSQL。"
   echo "[TIP] 请安装并启动 Postgres.app、Homebrew PostgreSQL 或 PostgreSQL 官方版本，"
   echo "      创建数据库 reqpilotx；也可通过 REQPILOT_DATABASE_URL 指向其他本机数据库。"
-  echo "[TIP] 本地不需要 Docker，也不会连接 RDS/OSS，除非显式设置 REQPILOT_ENV=cloud。"
+  echo "[TIP] Pair 轻量本地模式使用应用自有 SQLite，不经过本开发启动脚本。"
   exit 3
 fi
 

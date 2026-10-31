@@ -12,6 +12,8 @@ from pathlib import Path
 import shutil
 
 from reqpilotx.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
+from reqpilotx.application.agent_workflow.pair_evidence import PAIR_EVIDENCE_SCHEMA
+from reqpilotx.application.agent_workflow.pair_evidence import validate_pair_registration
 from reqpilotx.application.agent_workflow.source_item_analysis import validate_knowledge_catalog
 from reqpilotx.application.knowledge_evidence_capture import capture_knowledge_facts
 from artifact_tools import read, save, required, new_output
@@ -71,6 +73,15 @@ def register(args):
         "fact_count": len(catalog["evidence_catalog"]), "human_acceptance": "NOT_CLAIMED"}
 
 
+
+def verify_pair_catalog(path):
+    catalog = validate_knowledge_catalog(read(path))
+    registration_path = path.parent / 'evidence-registration.json'
+    if not registration_path.is_file():
+        raise ValueError('PAIR evidence catalog requires its frozen Host registration')
+    registration = read(registration_path)
+    return validate_pair_registration(registration, catalog)
+
 def verify_catalog(path):
     catalog = validate_knowledge_catalog(read(path))
     if not catalog["evidence_catalog"] and not catalog.get("documents"):
@@ -79,6 +90,8 @@ def verify_catalog(path):
     if not registration_path.is_file():
         raise ValueError("A nonempty knowledge catalog requires evidence-registration.json and actual registered source files; a self-signed catalog is not evidence")
     registration = read(registration_path)
+    if registration.get('schema_version') == PAIR_EVIDENCE_SCHEMA:
+        return validate_pair_registration(registration, catalog)
     if registration.get("schema_version") != "reqpilot-evidence-registration/v1" or registration.get("registration_sha256") != canonical_json_sha256({k: v for k, v in registration.items() if k != "registration_sha256"}):
         raise ValueError("Evidence registration integrity changed")
     recaptured = _capture_catalog(registration, path.parent)
@@ -94,6 +107,8 @@ def copy_registration(catalog_path, output):
         return
     registration = read(registration_path)
     save(output, "evidence-registration.json", registration)
+    if registration.get('schema_version') == PAIR_EVIDENCE_SCHEMA:
+        return
     for item in registration["documents"]:
         source = _source(catalog_path.parent, item["source_path"])
         target = output / item["source_path"]

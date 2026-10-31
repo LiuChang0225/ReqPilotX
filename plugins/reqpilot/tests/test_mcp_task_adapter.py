@@ -109,7 +109,10 @@ class McpTaskAdapterTests(unittest.TestCase):
             async def exercise():
                 async with Client(params) as client:
                     listing=await client.list_tools()
-                    self.assertEqual(len(listing.tools),len(REQUESTS))
+                    # evidence_status is an internal Host write, not a public MCP business action.
+                    public_actions=set(REQUESTS)-{'evidence_status'}
+                    self.assertEqual(len(listing.tools),len(public_actions))
+                    self.assertNotIn('EvidenceStatus',json.dumps([tool.input_schema for tool in listing.tools]))
                     self.assertIn('source_transcription_revise',{t.name for t in listing.tools})
                     async def call(name,request):
                         reply=await client.call_tool(name,request)
@@ -274,6 +277,45 @@ class McpTaskAdapterTests(unittest.TestCase):
                     self.assertEqual(control[key],candidate[key],key)
             asyncio.run(exercise())
 
+    def test_frozen_preparation_prompt_contains_the_bound_task_resume_identity(self):
+        import subprocess
+        from mcp import Client, StdioServerParameters
+        import build_bundle
+        from portable_fixtures import make_fixture
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, _, _ = make_fixture(root/'fixture')
+            bundle = root/'bundle'
+            build_bundle.build(ROOT, bundle)
+            receipt = json.loads((bundle/'build-receipt.json').read_text())
+            workspace = root/'workspace'
+            payload = {'workspace': str(workspace),
+                'expected_source_sha256': __import__('hashlib').sha256(source.read_bytes()).hexdigest(),
+                'bundle_sha256': receipt['bundle_sha256'], 'application_id': 'reqpilotx-test',
+                'request': {'mode':'create','source':str(source),'goal':'Frozen preparation resume proof.',
+                    'creation_key':'frozen-prepare-proof'}}
+            request_file = root/'prepare.json'; request_file.write_text(json.dumps(payload), encoding='utf-8')
+            completed = subprocess.run([sys.executable, str(bundle/'scripts/host_launch.py'), str(request_file)],
+                text=True, capture_output=True, check=False)
+            self.assertEqual(completed.returncode, 0, completed.stderr[-2000:])
+            prepared = json.loads(completed.stdout)
+            task_id = prepared['task_id']
+            self.assertIn('task_id=' + task_id, prepared['prompt'])
+            self.assertIn('request.md', prepared['prompt'])
+            request_md = (workspace/'request.md').read_text(encoding='utf-8')
+            self.assertIn(task_id, request_md)
+            self.assertIn('request.md', prepared['prompt'])
+            params = StdioServerParameters(command=sys.executable,
+                args=[str(workspace/'.reqpilot/scripts/mcp_server.py'), '--working-root', str(workspace),
+                      '--source-root', str(workspace)])
+            async def exercise():
+                async with Client(params) as client:
+                    resumed = await client.call_tool('task_open', {'mode':'resume','task_id':task_id})
+                    self.assertFalse(resumed.is_error, resumed)
+                    self.assertEqual(resumed.structured_content['status'], 'RESUMED')
+                    self.assertEqual(resumed.structured_content['task_id'], task_id)
+            asyncio.run(exercise())
+
     def test_actual_stdio_discovery_create_capture_replay_and_restart(self):
         from mcp import Client, StdioServerParameters
         from portable_fixtures import make_fixture
@@ -362,6 +404,112 @@ class McpTaskAdapterTests(unittest.TestCase):
                 self.assertEqual(base64.b64decode(pictures[0].data),data)
                 self.assertNotIn('_images',result.structured_content)
         asyncio.run(exercise())
+
+
+    def test_rx03_actual_stdio_map_correction_preserves_review_and_delivers(self):
+        from copy import deepcopy
+        from mcp import Client, StdioServerParameters
+        from portable_fixtures import make_fixture,item_decisions
+        with TemporaryDirectory() as temporary:
+            root=Path(temporary);source,_,mapping=make_fixture(root/'fixture')
+            params=StdioServerParameters(command=sys.executable,args=[str(SCRIPTS/'mcp_server.py'),
+                '--project-root',str(ROOT),'--working-root',str(root)])
+            def edit(value):
+                payload={key:deepcopy(item) for key,item in value.items() if key!='source_sha256'}
+                payload['schema_version']='reqpilot-map-edit/v1'
+                return payload
+            async def exercise():
+                async with Client(params) as client:
+                    async def call(name,request):
+                        reply=await client.call_tool(name,request);self.assertFalse(reply.is_error,reply)
+                        return reply.structured_content
+                    state=await call('task_open',{'mode':'create','source':str(source),
+                        'goal':'Correct the reviewed source structure through native tools.','creation_key':'rx03-stdio'})
+                    task=state['task_id']
+                    async def write(name,request):
+                        nonlocal state
+                        state=await call(name,{'task_id':task,'expected_revision':state['revision'],**request})
+                        self.assertEqual(state['operation_state'],'COMMITTED',state)
+                        return state
+                    await write('source_prepare',{'mode':'capture'})
+                    wrong=edit(mapping)
+                    for node in wrong['nodes']:
+                        if node['node_id']=='s4':node['parent_id']='s2'
+                    await write('map_apply',{'decisions':wrong})
+                    decisions=item_decisions(Path(state['selected']['MAP']['output_dir']))
+                    for key in ('schema_version','source_sha256','document_map_artifact_sha256'):decisions.pop(key,None)
+                    await write('items_apply',{'decisions':decisions})
+                    state=await call('review_prepare',{'task_id':task,'expected_revision':state['revision'],'analysis_policy':'preserve'})
+                    self.assertEqual(state['operation_state'],'COMMITTED',state)
+                    old_review=(Path(state['task_root'])/'review/workspace-manifest.json')
+                    old_review_sha=json.loads(old_review.read_text())['review_sha256']
+                    old_revision=state['revision']
+                    roster=await call('source_read',state['source_items_read']['request'])
+                    first=roster['items'][0]['source_display_id']
+                    corrected=await call('review_apply',{'task_id':task,'expected_revision':state['revision'],
+                        'command_id':'rx03-stdio-map','self_review_finding':{
+                            'text':'Restore the actual Construction owner after the review packet was read.',
+                            'source_item_ids':[first]},'changes':{'map_revision':{'decisions':edit(mapping)}}})
+                    self.assertEqual(corrected['operation_state'],'COMMITTED',corrected)
+                    self.assertTrue(corrected['review_still_current'])
+                    self.assertNotEqual(corrected['new_review_sha256'],old_review_sha)
+                    after_map,after_baseline=__import__('revision_tools').bundle(Path(corrected['candidate']))[:2]
+                    before_map,before_baseline=__import__('revision_tools').bundle(Path(state['task_root'])/'review/versions/initial')[:2]
+                    self.assertEqual(next(node for node in after_map.nodes if node.node_id=='s4').parent_id,'main')
+                    self.assertEqual([record.source_record_id for record in after_baseline.records],
+                        [record.source_record_id for record in before_baseline.records])
+                    state=corrected
+                    delivered=await write('task_deliver',{'command_id':'rx03-stdio-deliver'})
+                    self.assertTrue(delivered['local_delivery_ready'],delivered)
+                    snapshot=json.loads((Path(delivered['result']['output_dir'])/'matrix-snapshot.json').read_text())
+                    self.assertEqual(snapshot['source_item_baseline']['artifact_sha256'],after_baseline.artifact_sha256)
+                    head_bytes=old_review.read_bytes()
+                    stale=await client.call_tool('review_apply',{'task_id':task,'expected_revision':old_revision,
+                        'command_id':'rx03-stdio-stale','changes':{'map_revision':{'decisions':edit(mapping)}}})
+                    self.assertTrue(stale.is_error)
+                    self.assertIn('REVISION_CONFLICT',str(stale))
+                    self.assertEqual(old_review.read_bytes(),head_bytes)
+            asyncio.run(exercise())
+
+
+    def test_rx03_early_check_before_map_is_retained_and_next_legal_write_works(self):
+        from mcp import Client, StdioServerParameters
+        from portable_fixtures import make_fixture
+        from reqpilotx.application.agent_workflow import fixed_workflow as workflow
+        with TemporaryDirectory() as temporary:
+            root=Path(temporary);source,_,mapping=make_fixture(root/'fixture')
+            goal=workflow.compose_goal()
+            spec=workflow.workflow_spec(brief_sha256=workflow.brief_sha256(goal),evidence_mode='NONE')
+            params=StdioServerParameters(command=sys.executable,args=[str(SCRIPTS/'mcp_server.py'),
+                '--project-root',str(ROOT),'--working-root',str(root)])
+            async def exercise():
+                async with Client(params) as client:
+                    async def call(name,request):
+                        reply=await client.call_tool(name,request);self.assertFalse(reply.is_error,reply)
+                        return reply.structured_content
+                    state=await call('task_open',{'mode':'create','source':str(source),'goal':goal,
+                        'creation_key':'early-check-native','workflow':spec})
+                    task=state['task_id'];task_root=Path(state['task_root'])
+                    state=await call('source_prepare',{'task_id':task,'expected_revision':state['revision'],'mode':'capture'})
+                    current=await call('task_inspect',{'task_id':task})
+                    early=await call('task_check',{'task_id':task})
+                    self.assertEqual(early['status'],'CHECKED',early)
+                    self.assertFalse(early['ready_to_review'])
+                    self.assertEqual(early['workflow_check']['status'],'UNCONFIRMED')
+                    receipt=task_root/'workflow-check.json';before=receipt.read_bytes()
+                    self.assertTrue(before)
+                    inspected=await call('task_inspect',{'task_id':task})
+                    self.assertEqual(inspected['revision'],current['revision'])
+                    self.assertFalse(inspected['workflow']['ready_to_review'])
+                    edit={key:value for key,value in mapping.items() if key!='source_sha256'}
+                    edit['schema_version']='reqpilot-map-edit/v1'
+                    mapped=await call('map_apply',{'task_id':task,'expected_revision':inspected['revision'],'decisions':edit})
+                    self.assertEqual(mapped['operation_state'],'COMMITTED',mapped)
+                    self.assertEqual(receipt.read_bytes(),before)
+                    self.assertEqual(mapped['workflow']['stages'][1]['status'],'SAVED')
+                    self.assertFalse(mapped['workflow']['ready_to_review'])
+            asyncio.run(exercise())
+
 
 
 if __name__ == '__main__':unittest.main()

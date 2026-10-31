@@ -2,10 +2,14 @@ import { useWorkspace } from "../workspace/WorkspaceContext";
 import { Tabs } from "../../shared/ui/Tabs";
 import { KnowledgeGraphWorkbench } from "./KnowledgeGraphWorkbench";
 import { ProjectKnowledgePanel } from "./ProjectKnowledgePanel";
+import { useApplicationHost } from "../../host/ApplicationHost";
+import { PairKnowledgeWorkspace } from "../../host/KnowledgeEvidencePicker";
 
 export function KnowledgeWorkspace() {
   const { route, updateRoute, selectedProject } = useWorkspace();
+  const applicationHost = useApplicationHost();
   const reference = Boolean(route.knowledgeSpace && route.knowledgeSpace !== "project");
+  if (applicationHost?.knowledge?.available) return <PairKnowledgeWorkspace projectId={route.projectId} />;
   return <section className="knowledge-workspace">
     <Tabs className="knowledge-scope-tabs" label="知识范围" value={reference ? "reference" : "project"}
       items={[{ value: "project", label: "项目依据" }, { value: "reference", label: "参考资料" }]}

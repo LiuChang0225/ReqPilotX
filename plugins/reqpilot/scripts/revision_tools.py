@@ -176,6 +176,64 @@ def fingerprint(root, directory, baseline, document_map):
             "files": {path.name: digest_file(path) for path in sorted(directory.iterdir()) if path.is_file() and path.suffix == ".json"}}
 
 
+def _scope_request_ids(directory):
+    path = directory / "scope-requests.json"
+    if not path.is_file():
+        return None
+    value = read(path)
+    if not isinstance(value, dict):
+        raise ValueError("Saved scope requests are invalid")
+    text = value.get("text_requests", [])
+    tables = value.get("table_requests", [])
+    if not isinstance(text, list) or not isinstance(tables, list):
+        raise ValueError("Saved scope requests are invalid")
+    ids = {item.get("scope_id") for item in text if isinstance(item, dict)}
+    ids.update(item.get("logical_table_scope_id") for item in tables if isinstance(item, dict))
+    if None in ids or not all(isinstance(item, str) and item for item in ids):
+        raise ValueError("Saved scope requests contain an invalid scope identity")
+    return ids
+
+
+def _coverage_receipt(directory, previous, baseline):
+    """Carry coverage metadata only with the baseline it actually describes.
+
+    Classification and scope revisions change the baseline SHA while leaving
+    the original coverage partition intact (or deliberately rebinding it).
+    Copying the old receipt verbatim makes the published bundle claim a
+    different baseline; recompute the canonical missing scopes from the same
+    scope requests/baseline already saved in this review.
+    """
+    path = directory / "item-compilation-receipt.json"
+    if not path.is_file():
+        return None
+    value = read(path)
+    if (not isinstance(value, dict)
+            or value.get("schema_version") != "reqpilot-item-compilation/v1"
+            or value.get("source_sha256") != previous.source_sha256
+            or value.get("baseline_artifact_id") != previous.artifact_id
+            or value.get("baseline_artifact_sha256") != previous.artifact_sha256
+            or not isinstance(value.get("unprocessed_scope_ids"), list)
+            or not all(isinstance(item, str) and item for item in value.get("unprocessed_scope_ids", []))):
+        raise ValueError("Item coverage receipt differs from its own source baseline; preserve the current review and recompile coverage")
+    if baseline.artifact_sha256 == previous.artifact_sha256:
+        return deepcopy(value)
+    scope_ids = _scope_request_ids(directory)
+    if scope_ids is None:
+        if set(baseline.covered_scope_ids) != set(previous.covered_scope_ids):
+            raise ValueError("Rebinding item coverage requires the saved scope requests; preserve the current review")
+        missing = sorted(value["unprocessed_scope_ids"])
+    else:
+        covered = set(baseline.covered_scope_ids)
+        # Preserve predecessor unprocessed identities that are not represented
+        # by this Map's text/table requests (for example a future scope kind),
+        # while dropping only scopes that are now actually covered.
+        missing = sorted((scope_ids | set(value["unprocessed_scope_ids"])) - covered)
+    return {**value, "source_sha256": baseline.source_sha256,
+            "baseline_artifact_id": baseline.artifact_id,
+            "baseline_artifact_sha256": baseline.artifact_sha256,
+            "unprocessed_scope_ids": missing}
+
+
 def current_bundle(root, head):
     directory = inside(root, head["current"]["version_path"])
     for name, digest in head["current"].get("files", {}).items():
@@ -246,11 +304,179 @@ def summary(status, root, head, **extra):
     return {"status": status, "review_dir": str(root), "review_sha256": head["review_sha256"], "baseline_sha256": head["current"]["baseline_sha256"], "current_version_path": head["current"]["version_path"], **extra}
 
 
+def _coverage_unverified(message):
+    raise ValueError("ITEMS_COVERAGE_UNVERIFIED: " + message + " No review was created; existing artifacts and history were preserved. Recompile or verify the item bundle from the current Map before retrying review_prepare.")
+
+
+def _incomplete(scopes):
+    shown = ", ".join(scopes[:5]) + ("..." if len(scopes) > 5 else "")
+    raise ValueError(f"ITEMS_INCOMPLETE: {len(scopes)} source scope(s) are still unprocessed ({shown}). A portable review cannot accept new/uncovered source scopes after it opens; save all remaining scopes with items_apply, then call review_prepare again. No review was created; existing artifacts and history were preserved.")
+
+
+def _map_scope_ids(document_map):
+    text = {f"text:{node.node_id}" for node in document_map.nodes if node.source_content}
+    return text | {table.scope_id for table in document_map.logical_tables}
+
+
+def _validated_scope_requests(directory, baseline, document_map, tables):
+    path = directory / "scope-requests.json"
+    if not path.is_file():
+        return None
+    try:
+        value = read(path)
+    except (OSError, ValueError) as exc:
+        _coverage_unverified("saved scope requests are unreadable: " + str(exc))
+    if not isinstance(value, dict):
+        _coverage_unverified("saved scope requests are not a JSON object")
+    texts, table_entries = value.get("text_requests"), value.get("table_requests")
+    if not isinstance(texts, list) or not isinstance(table_entries, list):
+        _coverage_unverified("saved scope requests do not contain text_requests/table_requests lists")
+    if not isinstance(tables, dict):
+        _coverage_unverified("table previews are not a JSON object")
+    scope_ids = set()
+    for raw in texts:
+        try:
+            request = core.SourceItemTextScopeRequestV1.model_validate(raw)
+        except (ValueError, TypeError) as exc:
+            _coverage_unverified("a saved text scope request is invalid: " + str(exc))
+        if (request.source_sha256 != baseline.source_sha256
+                or request.source_sha256 != document_map.source_sha256
+                or request.document_map_artifact_id != document_map.artifact_id
+                or request.document_map_artifact_sha256 != document_map.artifact_sha256):
+            _coverage_unverified("a saved text scope request belongs to another source or Map")
+        try:
+            expected = core.build_source_item_text_scope_request(document_map, node_id=request.node_id)
+        except (ValueError, TypeError) as exc:
+            _coverage_unverified("a saved text scope request does not resolve to the current Map: " + str(exc))
+        if request != expected:
+            _coverage_unverified("a saved text scope request differs from the current Map projection")
+        if request.scope_id in scope_ids:
+            _coverage_unverified("saved scope requests contain duplicate identities")
+        scope_ids.add(request.scope_id)
+    tables_by_id = {table.scope_id: table for table in document_map.logical_tables}
+    fragment_fields = ("table_token", "page", "row_range", "native_locator", "source_sequence")
+    for raw in table_entries:
+        try:
+            request = core.SourceRequirementScopeRequestV1.model_validate(raw)
+        except (ValueError, TypeError) as exc:
+            _coverage_unverified("a saved table scope request is invalid: " + str(exc))
+        if (request.source_sha256 != baseline.source_sha256
+                or request.source_sha256 != document_map.source_sha256
+                or request.document_map_artifact_id != document_map.artifact_id
+                or request.document_map_artifact_sha256 != document_map.artifact_sha256):
+            _coverage_unverified("a saved table scope request belongs to another source or Map")
+        table = tables_by_id.get(request.logical_table_scope_id)
+        preview = tables.get(request.logical_table_scope_id)
+        if table is None or not isinstance(preview, dict):
+            _coverage_unverified("a saved table scope request has no current Map/preview owner")
+        if (preview.get("logical_table_scope_id") != request.logical_table_scope_id
+                or preview.get("source_sha256") != document_map.source_sha256):
+            _coverage_unverified("a saved table preview belongs to another source or Map scope")
+        try:
+            expected = core.build_source_requirement_scope_request(document_map, preview)
+        except (ValueError, TypeError) as exc:
+            _coverage_unverified("a saved table preview does not resolve to the current Map: " + str(exc))
+        if request != expected:
+            _coverage_unverified("a saved table scope request differs from the current Map preview projection")
+        if len(expected.fragments) != len(table.fragments):
+            _coverage_unverified("saved table fragment count differs from the current Map")
+        for actual, mapped in zip(expected.fragments, table.fragments):
+            if (any(getattr(actual, field) != getattr(mapped, field) for field in fragment_fields)
+                    or actual.row_count != mapped.row_range[1] - mapped.row_range[0]):
+                _coverage_unverified("saved table fragments differ from the current Map")
+        if request.logical_table_scope_id in scope_ids:
+            _coverage_unverified("saved scope requests contain duplicate identities")
+        scope_ids.add(request.logical_table_scope_id)
+    expected_ids = _map_scope_ids(document_map)
+    if scope_ids != expected_ids:
+        missing = sorted(expected_ids - scope_ids)
+        extra = sorted(scope_ids - expected_ids)
+        _coverage_unverified(f"saved scope requests do not match the current Map (missing={missing[:8]}, extra={extra[:8]})")
+    return scope_ids
+
+
+def _receipt_unprocessed(directory, baseline):
+    path = directory / "item-compilation-receipt.json"
+    if not path.is_file():
+        return None
+    try:
+        value = read(path)
+    except (OSError, ValueError) as exc:
+        _coverage_unverified("item-compilation receipt is unreadable: " + str(exc))
+    if not isinstance(value, dict):
+        _coverage_unverified("item-compilation receipt is not a JSON object")
+    if value.get("schema_version") != "reqpilot-item-compilation/v1":
+        _coverage_unverified("item-compilation receipt schema is not reqpilot-item-compilation/v1")
+    if value.get("source_sha256") != baseline.source_sha256:
+        _coverage_unverified("item-compilation receipt source differs from the baseline")
+    if value.get("baseline_artifact_id") != baseline.artifact_id:
+        _coverage_unverified("item-compilation receipt baseline ID differs from the baseline")
+    if value.get("baseline_artifact_sha256") != baseline.artifact_sha256:
+        _coverage_unverified("item-compilation receipt baseline SHA differs from the baseline")
+    unprocessed = value.get("unprocessed_scope_ids")
+    if (not isinstance(unprocessed, list)
+            or any(not isinstance(item, str) or not item for item in unprocessed)
+            or len(unprocessed) != len(set(unprocessed))):
+        _coverage_unverified("item-compilation receipt unprocessed_scope_ids is not a unique nonempty string list")
+    return unprocessed
+
+
+def require_complete_items_for_review(directory, baseline, document_map, tables):
+    """Refuse a review unless current Map coverage is provably complete.
+
+    Receipts and saved scope requests are evidence, not authority. A missing or
+    stale receipt may be replaced only by a complete projection of the validated
+    current Map; malformed or foreign evidence fails closed instead of reading as
+    an empty gap.
+    """
+    if (baseline.source_sha256 != document_map.source_sha256
+            or baseline.document_map_artifact_id != document_map.artifact_id
+            or baseline.document_map_artifact_sha256 != document_map.artifact_sha256):
+        _coverage_unverified("baseline and current Map lineage differ")
+    if not isinstance(tables, dict):
+        _coverage_unverified("table previews are not a JSON object")
+    table_ids = {table.scope_id for table in document_map.logical_tables}
+    if set(tables) != table_ids:
+        _coverage_unverified("table preview scope set differs from the current Map")
+    for scope, preview in tables.items():
+        if (not isinstance(preview, dict)
+                or preview.get("logical_table_scope_id") != scope
+                or preview.get("source_sha256") != document_map.source_sha256):
+            _coverage_unverified("a table preview belongs to another source or Map scope: " + scope)
+    expected_ids = _map_scope_ids(document_map)
+    covered = set(baseline.covered_scope_ids)
+    nodes = {node.node_id: node for node in document_map.nodes}
+    unexpected = []
+    for scope in sorted(covered - expected_ids):
+        node = nodes.get(scope.removeprefix("image:")) if scope.startswith("image:") else None
+        if node is not None and any(anchor.anchor_kind in {"IMAGE", "FIGURE"} for anchor in node.source_anchors):
+            continue  # standalone image items are covered by images_apply, not text/table scope requests
+        unexpected.append(scope)
+    if unexpected:
+        _coverage_unverified("baseline claims coverage outside the current Map: " + ", ".join(unexpected[:8]))
+    _validated_scope_requests(directory, baseline, document_map, tables)
+    receipt_missing = _receipt_unprocessed(directory, baseline)
+    if baseline.status == "EMPTY":
+        raise ValueError("ITEMS_INCOMPLETE: the selected source-item baseline is EMPTY. A portable review cannot accept new/uncovered source scopes after it opens; save all items with items_apply, then call review_prepare again. No review was created.")
+    actual_missing = sorted(expected_ids - covered)
+    if receipt_missing is not None:
+        listed = set(receipt_missing)
+        if listed & covered:
+            _coverage_unverified("item-compilation receipt lists already-covered scopes as unprocessed")
+        if listed:
+            _incomplete(sorted(listed | set(actual_missing)))
+        if actual_missing:
+            _incomplete(actual_missing)
+        return
+    if actual_missing:
+        _incomplete(actual_missing)
+
 def open_review(args):
     if getattr(args, 'manual_decisions', None) and os.environ.get('REQPILOT_NATIVE_AGENT_TOOLS') == '1':
         raise ValueError('Native Agent tools cannot import engineer opinions')
     source_dir = required(args.baseline_dir, "--baseline-dir")
     document_map, baseline, receipt, tables = bundle(source_dir)
+    require_complete_items_for_review(source_dir, baseline, document_map, tables)
     source = required(args.source, "--source")
     if digest_file(source) != baseline.source_sha256:
         raise ValueError("Review source differs from the imported baseline")
@@ -275,6 +501,9 @@ def open_review(args):
     if evidence_path.is_file():
         from evidence_tools import copy_registration
         copy_registration(evidence_path, directory)
+    attestation_path = getattr(args, "knowledge_attestation", None) or source_dir / "knowledge-attestation.json"
+    if Path(attestation_path).is_file():
+        save(directory, "knowledge-attestation.json", read(attestation_path))
     originals = root / "source"; originals.mkdir(mode=0o700)
     target = originals / source.name; shutil.copyfile(source, target); target.chmod(0o600)
     head = write_head(root, {"schema_version": "reqpilot-review-workspace/v1", "source": {"path": relative(root, target), "sha256": baseline.source_sha256},
@@ -467,6 +696,7 @@ def revise_review(args):
     carry["explicit_replacement_artifact_kinds"] = sorted(replacements)
     evidence_path = getattr(args, "knowledge_catalog", None) or directory / "knowledge-catalog.json"
     validate_state(document_map, baseline, tables, values, evidence_path)
+    coverage_receipt = None if map_rebind else _coverage_receipt(directory, previous, baseline)
     if map_rebind:
         recovery = map_rebind["receipt"].get("text_scope_recovery") or {}
         diff = {"schema_version": "reqpilot-revision-diff/v1", "transition_kind": "DOCUMENT_MAP_REVISION", "source_sha256": baseline.source_sha256,
@@ -490,7 +720,7 @@ def revise_review(args):
     if output is None or root not in output.parents:
         raise ValueError("Candidate output must be a new directory inside the review workspace")
     output = new_output(output)
-    for name in ("document-map.json", "table-previews.json", "scope-requests.json", "map-compilation-receipt.json", "item-compilation-receipt.json"):
+    for name in ("document-map.json", "table-previews.json", "scope-requests.json", "map-compilation-receipt.json"):
         if (directory / name).is_file() and not map_rebind:
             shutil.copyfile(directory / name, output / name)
     if map_rebind:
@@ -501,6 +731,8 @@ def revise_review(args):
         table_requests = [core.build_source_requirement_scope_request(document_map, preview).model_dump(mode="json") for preview in tables.values()]
         save(output, "scope-requests.json", {"text_requests": text_requests, "table_requests": table_requests})
     save(output, "source-requirement-baseline.json", baseline.model_dump(mode="json")); save(output, "validation-receipt.json", validation.model_dump(mode="json"))
+    if coverage_receipt is not None:
+        save(output, "item-compilation-receipt.json", coverage_receipt)
     for key, item in values.items():
         save(output, STATE_FILES[key], item)
     if 'manual_decisions' in replacements:
@@ -510,6 +742,9 @@ def revise_review(args):
     if evidence_path.is_file():
         from evidence_tools import copy_registration
         copy_registration(evidence_path, output)
+    attestation_path = getattr(args, "knowledge_attestation", None) or directory / "knowledge-attestation.json"
+    if Path(attestation_path).is_file():
+        save(output, "knowledge-attestation.json", read(attestation_path))
     save(output, "revision-diff.json", diff); save(output, "carry-forward.json", carry)
     if coordination:
         save(output, "classification-coordination.json", coordination.model_dump(mode="json")); save(output, "classification-proof.json", proof.model_dump(mode="json"))

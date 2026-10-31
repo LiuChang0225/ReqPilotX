@@ -1,24 +1,17 @@
-import schaefflerLogoUrl from "../../assets/schaeffler-logo.svg?url";
 import { AppLink } from "../navigation";
+import { ProductLogo } from "./ProductLogo";
+import { useUiCopy } from "../../host/HostLocaleContext";
 
 export function Brand({ compact = false }: { compact?: boolean }) {
+  const l = useUiCopy();
   return (
     <AppLink
-      aria-label="Schaeffler ReqPilotX"
+      aria-label={l("shell.productHome", "ReqPilotX 首页")}
       className={`brand-lockup${compact ? " is-compact" : ""}`}
       to="/"
     >
-      <img
-        src={schaefflerLogoUrl}
-        alt="Schaeffler"
-        width={283}
-        height={71}
-      />
-      <span className="brand-rule" aria-hidden="true" />
-      <span className="brand-words">
-        <strong>ReqPilotX</strong>
-        {!compact && <small>Requirement Intelligence</small>}
-      </span>
+      <ProductLogo variant="lockup" className="brand-logo-lockup" />
+      <ProductLogo variant="symbol" className="brand-logo-symbol" />
     </AppLink>
   );
 }

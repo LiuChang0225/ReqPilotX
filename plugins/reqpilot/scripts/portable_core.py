@@ -26,6 +26,7 @@ MODULE_ROOTS = (
     "reqpilotx.application.agent_workflow.source_item_decomposition",
     "reqpilotx.application.agent_workflow.source_item_visual",
     "reqpilotx.application.agent_workflow.source_item_analysis",
+    "reqpilotx.application.agent_workflow.pair_evidence",
     "reqpilotx.application.knowledge_evidence_capture",
     "reqpilotx.application.openkb_originals",
     "reqpilotx.application.agent_workflow.document_map_revision",
@@ -48,6 +49,11 @@ DEPENDENCIES = {
     "PIL": "Pillow",
     "jsonschema": "jsonschema",
     "pyxlsb": "pyxlsb",
+    # read_ruled_table is part of the advertised local table-OCR profile.
+    # Keep its pinned runtime available instead of relying on a caller's
+    # PYTHONPATH or an undeclared system-site package.
+    "cv2": "opencv-contrib-python",
+    "numpy": "numpy",
 }
 TRANSITIVE_DEPENDENCIES = {"lxml": "python-docx"}
 NAMESPACE_INITIALIZERS = frozenset()
@@ -200,6 +206,7 @@ def selected_module_roots(*, extraction_only: bool = False) -> tuple[str, ...]:
         "source_item_decomposition",
         "source_item_visual",
         "source_item_analysis",
+        "pair_evidence",
         "openkb_originals",
     )
     return tuple(module for module in MODULE_ROOTS if not module.endswith(excluded))

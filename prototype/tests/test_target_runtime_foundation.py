@@ -141,15 +141,17 @@ class RuntimeSettingsTests(unittest.TestCase):
         self.assertEqual(settings.local_worker_count, 1)
         self.assertIn("testserver", settings.allowed_hosts)
 
-    def test_local_mode_defaults_to_native_postgres_and_local_objects(self) -> None:
+    def test_local_mode_defaults_to_lightweight_sqlite_and_local_objects(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:
             settings = RuntimeSettings.from_environment(
                 environment={"REQPILOT_STORAGE_DIR": temporary},
                 prototype_dir=Path(temporary),
             )
         self.assertEqual(settings.deployment_mode, DeploymentMode.LOCAL)
-        self.assertEqual(settings.database_backend, DatabaseBackend.POSTGRESQL)
-        self.assertEqual(settings.database_url, "postgresql://localhost/reqpilotx")
+        self.assertEqual(settings.database_backend, DatabaseBackend.SQLITE_LOCAL)
+        self.assertTrue(settings.is_sqlite)
+        self.assertFalse(settings.is_test)
+        self.assertEqual(settings.database_url, "")
         self.assertEqual(settings.object_store_backend, ObjectStoreBackend.LOCAL)
         self.assertEqual(settings.local_worker_count, 2)
         self.assertEqual(
@@ -158,6 +160,18 @@ class RuntimeSettingsTests(unittest.TestCase):
         )
         self.assertEqual(settings.agent_runtime_backend, AgentRuntimeBackend.NONE)
         self.assertFalse(settings.agent_customer_data_enabled)
+
+    def test_explicit_local_postgres_route_remains_available(self) -> None:
+        with tempfile.TemporaryDirectory() as temporary:
+            settings = RuntimeSettings.from_environment(
+                environment={
+                    "REQPILOT_STORAGE_DIR": temporary,
+                    "REQPILOT_DATABASE_URL": "postgresql://localhost/reqpilotx",
+                },
+                prototype_dir=Path(temporary),
+            )
+        self.assertEqual(settings.database_backend, DatabaseBackend.POSTGRESQL)
+        self.assertEqual(settings.database_url, "postgresql://localhost/reqpilotx")
 
     def test_codex_agent_runtime_requires_local_absolute_existing_paths(self) -> None:
         with tempfile.TemporaryDirectory() as temporary:

@@ -1,6 +1,16 @@
 /** Durable task identities are shared by the complete workbench and Pair's existing task API. */
 function acceptedTaskReceipt(value, applicationId, input) {
-  return Boolean(value?.schema === 'reqpilot-pair-launch/v1' && value.status === 'ACCEPTED' && value.applicationId === applicationId
+  const workflow = value?.schema === 'reqpilot-pair-launch/v2'
+    ? value.workflow?.schema === 'reqpilot-fixed-workflow/v1' && value.workflow.id === 'reqpilot-fixed-workflow'
+      && typeof value.workflow.version === 'string'
+      && ((value.workflowState?.schema === 'reqpilot-fixed-workflow-state/v1'
+        && value.workflowState.source_sha256 === input.sourceSha256
+        && value.workflowState.workflow?.version === value.workflow.version
+        && value.workflowState.human_acceptance === 'NOT_CLAIMED')
+        || (value.workflowState === null && typeof value.workflowUnconfirmed?.reason === 'string'
+          && value.workflowUnconfirmed.reason.length > 0))
+    : value?.schema === 'reqpilot-pair-launch/v1';
+  return Boolean(workflow && value.status === 'ACCEPTED' && value.applicationId === applicationId
     && ['commandId', 'projectId', 'documentId', 'sourceSha256'].every(key => value[key] === input[key])
     && typeof value.sessionId === 'string' && value.sessionId && typeof value.workspaceId === 'string' && value.workspaceId
     && /^plugin-[a-f0-9]{32}$/.test(value.workRef || ''));
@@ -11,7 +21,7 @@ function createPairTaskController(config, openSession, transport = fetch) {
   const read = key => { const value = localStorage.getItem(key); return value ? JSON.parse(value) : null; };
   const write = (key, value) => localStorage.setItem(key, JSON.stringify(value));
   const validIntent = (prior, input) => Boolean(prior && ['projectId', 'documentId', 'sourceSha256'].every(key => prior[key] === input[key])
-    && /^[a-f0-9-]{36}$/.test(prior.commandId || '') && typeof prior.goal === 'string' && prior.goal.trim());
+    && /^[a-f0-9-]{36}$/.test(prior.commandId || '') && typeof prior.goal === 'string');
   const readIntent = input => {
     let prior;
     try { prior = read(scopeKey(input)); }
@@ -59,17 +69,25 @@ function createPairTaskController(config, openSession, transport = fetch) {
   }
   return {
     restoreTask,
-    taskDraft: input => { const prior = readIntent(input); return prior ? { goal: prior.goal, requireMapConfirmation: prior.requireMapConfirmation === true } : undefined; },
+    taskDraft: input => { const prior = readIntent(input); if (!prior) return undefined;
+      const knowledge = prior.knowledge || (prior.adoptedKnowledge
+        ? { mode: 'NONE', adopted: { ...prior.adoptedKnowledge } } : null);
+      return { goal: prior.goal, requireMapConfirmation: prior.requireMapConfirmation === true,
+        ...(knowledge ? { knowledge } : {}) }; },
     openSession,
     async startTask(input) {
       if (!config.capabilities['agent.start']) throw Error('当前连接未提供 PAIR 任务启动能力。');
       const key = scopeKey(input);
       const existing = await restoreTask(input);
       const prior = readIntent(input);
-      const sameRequest = prior && prior.goal === input.goal && (prior.requireMapConfirmation === true) === (input.requireMapConfirmation === true);
+      const sameRequest = prior && prior.goal === input.goal && (prior.requireMapConfirmation === true) === (input.requireMapConfirmation === true)
+      && JSON.stringify(prior.knowledge || null) === JSON.stringify(input.knowledge || null)
+      && JSON.stringify(prior.adoptedKnowledge || null) === JSON.stringify(input.adoptedKnowledge || null);
       if (existing && sameRequest) return existing;
       if (prior && !existing && !sameRequest) throw Error('已有尚未确认的原任务，请先用原目标和确认策略恢复，再创建新任务。');
-      const intent = prior && !existing ? prior : { ...input, commandId: crypto.randomUUID(), requireMapConfirmation: input.requireMapConfirmation === true };
+      const intent = prior && !existing ? prior : { ...input, knowledge: input.knowledge || null,
+        adoptedKnowledge: input.adoptedKnowledge || null,
+        commandId: crypto.randomUUID(), requireMapConfirmation: input.requireMapConfirmation === true };
       // Match the Host's request limits before retaining a command that cannot be sent.
       if (intent.goal.length > 12000 || new TextEncoder().encode(JSON.stringify(intent)).byteLength > 32768) throw Error('任务目标过长，请精简目标，资料通过文件导入后重试。');
       write(key, intent);

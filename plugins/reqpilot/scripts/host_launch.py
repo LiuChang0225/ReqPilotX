@@ -18,11 +18,38 @@ def digest(value):
 
 
 def prepare(payload):
-    if set(payload) != {'workspace', 'expected_source_sha256', 'bundle_sha256', 'application_id', 'request'}:
+    allowed = {'workspace', 'expected_source_sha256', 'bundle_sha256', 'application_id', 'request',
+               'knowledge_evidence', 'evidence_mode', 'evidence_reason'}
+    if not {'workspace', 'expected_source_sha256', 'bundle_sha256', 'application_id', 'request'} <= set(payload) or set(payload) - allowed:
         raise ValueError('HOST_PREPARE_INVALID_FIELDS')
     reqpilot.load_runtime()
     from task_service import OpenRequest, TaskService
-    request = OpenRequest.model_validate(payload['request'])
+    from reqpilotx.application.agent_workflow import fixed_workflow
+    supplied = payload['request']
+    if not isinstance(supplied, dict):
+        raise ValueError('HOST_PREPARE_INVALID_REQUEST')
+    if 'goal' in supplied and 'supplementary_instructions' in supplied:
+        raise ValueError('HOST_PREPARE_AMBIGUOUS_INSTRUCTIONS')
+    notes = supplied.pop('supplementary_instructions', supplied.pop('goal', ''))
+    goal = fixed_workflow.compose_goal(notes)
+    request_value = {**supplied, 'goal': goal}
+    if supplied.get('workflow') is not None:
+        raise ValueError('HOST_PREPARE_WORKFLOW_IS_SERVER_OWNED')
+    binding = payload.get('knowledge_evidence')
+    mode = payload.get('evidence_mode', 'NONE')
+    if binding is None:
+        if mode != 'NONE':
+            raise ValueError('HOST_EVIDENCE_BINDING_REQUIRED')
+    else:
+        from reqpilotx.application.agent_workflow import knowledge_binding
+        binding = knowledge_binding.validate_binding(binding)
+        if binding['mode'] != mode:
+            raise ValueError('HOST_EVIDENCE_MODE_CONFLICT')
+        request_value['knowledge_evidence'] = binding
+    request_value['workflow'] = fixed_workflow.workflow_spec(
+        brief_sha256=fixed_workflow.brief_sha256(goal), evidence_mode=mode,
+        evidence_reason=payload.get('evidence_reason') or ('NO_INTERNAL_EVIDENCE' if mode == 'NONE' else 'HOST_SELECTED_TASK_EVIDENCE'))
+    request = OpenRequest.model_validate(request_value)
     if request.mode != 'create' or not request.source or not request.goal or not request.creation_key:
         raise ValueError('HOST_PREPARE_REQUIRES_CREATE')
     source = Path(request.source).resolve(strict=True)
@@ -82,15 +109,22 @@ def prepare(payload):
     task_path = str((task_root / 'TASK.md').relative_to(workspace))
     cli = shlex.join([sys.executable, str(entry.relative_to(workspace))])
     instruction = ('# 本轮委托\n\n' + request.goal + '\n\n# 已准备的任务\n\n'
-                   + '先读取 AGENTS.md 和 `' + task_path + '`，沿用已有任务，不另建任务。\n'
-                   + '任务标识：`' + task_id + '`。\n'
-                   + '本机工具入口：`' + cli + '`；typed task 命令的 --working-root 为当前工作目录。\n'
-                   + '业务规则、角色技能和阶段事实以该固定能力包及 TASK.md 为准。\n')
+                   + '本任务已挂载 ReqPilotX typed MCP 工具。先调用 `task_open`（`mode=resume`，`task_id=' + task_id + '`），'
+                   + '再按返回的 revision、selected、next_action 及 scope_read/source_items_read 句柄继续；沿用已有任务，不另建任务。\n'
+                   + '不要先运行 CLI --help、检查运行时实现、编辑任务回执或目录。CLI 入口 `' + cli + '` 仅是同类契约的后备传输。\n'
+                   + '业务规则、角色技能和阶段事实以该固定能力包及 TASK.md 为准。公开操作无法恢复时，保留工件并报告确切限制。\n'
+                   + '交付时如返回 delivery_handoff，优先使用其中已核对的权威保留 DRAFT 文件路径；除非明确字节匹配，不要把程序本地 matrix.xlsx 说成同一保留下载。\n')
     (workspace / 'request.md').write_text(instruction, encoding='utf-8')
     return {'schema': 'reqpilot-host-launch/v1', 'workspace': str(workspace), 'task_id': task_id,
             'task_root': str(task_root), 'source_sha256': sha, 'bundle_sha256': payload['bundle_sha256'],
             'work_ref': result['workbench_link'].get('session_id'), 'revision': result['revision'],
-            'prompt': '请执行 request.md 中的本轮委托，沿用其中已准备的任务。',
+            'workflow': result.get('workflow'),
+            'workflow_version': fixed_workflow.WORKFLOW_VERSION,
+            'goal': request.goal,
+            'preparation_identity': identity,
+            'preparation_request': semantic,
+            'supplementary_instructions_included': bool(str(notes).strip()),
+            'prompt': '先调用已挂载的 task_open（mode=resume，task_id=' + task_id + '），再按返回句柄执行固定工作流。首次恢复后可按需读取 request.md 中的用户补充说明；不要先查看 CLI 帮助、运行时实现或编辑回执；阶段完成只以已保存工件和程序检查为准。交付时如返回 delivery_handoff，优先使用其中已核对的权威保留 DRAFT 文件路径，不要把程序本地 matrix.xlsx 说成同一保留下载。',
             'execution': 'NOT_STARTED', 'semantic_acceptance': 'NOT_CLAIMED',
             'tools': {'schema': 'reqpilot-host-tools/v1', 'mcp': {
                 'command': sys.executable,
@@ -100,7 +134,11 @@ def prepare(payload):
 
 if __name__ == '__main__':
     if sys.argv[1:] == ['--describe']:
-        print(json.dumps({'schema': 'reqpilot-host-launch/v1', 'tools_schema': 'reqpilot-host-tools/v1'}))
+        reqpilot.load_runtime()
+        from reqpilotx.application.agent_workflow import fixed_workflow
+        print(json.dumps({'schema': 'reqpilot-host-launch/v1', 'tools_schema': 'reqpilot-host-tools/v1',
+                          'workflow_schema': fixed_workflow.WORKFLOW_SCHEMA,
+                          'workflow': fixed_workflow.public_descriptor()}, ensure_ascii=False))
         raise SystemExit(0)
     try:
         value = prepare(json.loads(Path(sys.argv[1]).read_text(encoding='utf-8')))

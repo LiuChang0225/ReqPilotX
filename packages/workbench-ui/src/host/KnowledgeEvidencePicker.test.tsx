@@ -1,0 +1,104 @@
+import { fireEvent, render, screen, waitFor } from "@testing-library/react";
+import userEvent from "@testing-library/user-event";
+import { describe, expect, it, vi } from "vitest";
+import { ApplicationHostContext, type WorkbenchApplicationHost } from "./ApplicationHost";
+import { KnowledgeEvidencePicker } from "./KnowledgeEvidencePicker";
+import { HostLocaleProvider } from "./HostLocaleContext";
+
+function host(): WorkbenchApplicationHost {
+  const knowledge = {
+    available: true,
+    inventory: vi.fn(async () => ({ available: true, projectLibrary: { id: "kb-project", name: "项目参考" },
+      projectDocuments: [{ id: "p-doc", name: "internal.txt", coverage: "complete" as const, wiki: "not-requested" }],
+      teamLibraries: [{ id: "kb-team", name: "团队规范", documents: [{ id: "t-doc", name: "team.md", coverage: "complete" as const, wiki: "not-requested" }] }] })),
+    uploadReference: vi.fn(async () => ({})),
+    retryReference: vi.fn(async () => ({})),
+    teamTopics: vi.fn(async () => [{ kbId: "kb-team", versionId: "topic-v1", topicId: "topic", title: "设计主题",
+      availability: { state: "available" as const, acceptedBy: "reviewer" },
+      verification: { state: "verified" as const, confirmedBy: "reviewer" },
+      origin: "human-authored" as const, applicability: { state: "known" as const, description: "适用" }, authors: ["reviewer"] }]),
+    teamLibraries: vi.fn(async () => []),
+  };
+  return { id: "host", label: "PAIR", modelLabel: "model", captureAvailable: false, taskStartAvailable: true,
+    resourceUrl: path => path, pdfViewerUrl: source => source, knowledge,
+    startTask: vi.fn(), restoreTask: vi.fn(async () => null), taskDraft: vi.fn(), controlTask: vi.fn(), openSession: vi.fn() };
+}
+
+describe("KnowledgeEvidencePicker", () => {
+  it("selects only explicit project and retained-topic evidence", async () => {
+    const value = host(); const onChange = vi.fn();
+    const { unmount } = render(<ApplicationHostContext.Provider value={value}><KnowledgeEvidencePicker projectId="p" onChange={onChange} /></ApplicationHostContext.Provider>);
+    await screen.findByText("internal.txt");
+    await userEvent.click(screen.getByRole("checkbox", { name: /internal.txt/ }));
+    await userEvent.selectOptions(screen.getByLabelText("选择团队知识库"), "kb-team");
+    await userEvent.click(screen.getByRole("button", { name: "保留主题版本" }));
+    await screen.findByText("设计主题");
+    await userEvent.click(screen.getByRole("radio"));
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith(expect.objectContaining({
+      mode: "COMBINED", projectDocumentIds: ["p-doc"],
+      team: expect.objectContaining({ kbId: "kb-team", topicVersionId: "topic-v1" }),
+    })));
+    expect(value.knowledge?.teamTopics).toHaveBeenCalledWith("kb-team");
+    unmount();
+  });
+
+  it("uploads a project reference through the Host rather than a generic JSON form", async () => {
+    const value = host();
+    const { container } = render(<ApplicationHostContext.Provider value={value}><KnowledgeEvidencePicker projectId="p" /></ApplicationHostContext.Provider>);
+    await screen.findByText("internal.txt");
+    const file = new File(["internal source"], "new-reference.txt", { type: "text/plain" });
+    const input = container.querySelector("input[type=file]") as HTMLInputElement;
+    fireEvent.change(input, { target: { files: [file] } });
+    await waitFor(() => expect(value.knowledge?.uploadReference).toHaveBeenCalledWith("p", file, "REFERENCE"));
+  });
+
+  it("selects an exact registered adopted version and refuses a blocked library", async () => {
+    const value = host(); const onChange = vi.fn();
+    value.knowledge = { ...value.knowledge!, adoptionAvailable: true,
+      adoptedLibraries: vi.fn(async () => [
+        { id: "adopted-ready", name: "Synthetic adopted", versionId: "a".repeat(64),
+          state: "ready" as const, recommendation: "direct-use", packageVersion: "1.0.0" },
+        { id: "adopted-blocked", name: "Blocked adopted", versionId: "b".repeat(64),
+          state: "blocked" as const, recommendation: "rebuild", packageVersion: null },
+      ]) };
+    const { unmount } = render(<ApplicationHostContext.Provider value={value}><KnowledgeEvidencePicker projectId="p" onChange={onChange} /></ApplicationHostContext.Provider>);
+    await screen.findByText("internal.txt");
+    const blocked = await screen.findByRole("option", { name: /Blocked adopted/ });
+    expect(blocked).toBeDisabled();
+    await userEvent.selectOptions(screen.getByLabelText("选择已注册知识库"), "adopted-ready");
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({ mode: "NONE",
+      adopted: { libraryId: "adopted-ready", versionId: "a".repeat(64) } }));
+    expect(screen.getByText(/冻结版本：aaaaaaaaaaaa/)).toBeVisible();
+    expect(screen.getByText(/不自动切换到新版本/)).toBeVisible();
+    unmount();
+  });
+
+  it("keeps a restored v1 adopted choice stale instead of silently selecting current v2", async () => {
+    const value = host(); const onChange = vi.fn();
+    value.knowledge = { ...value.knowledge!, adoptionAvailable: true,
+      adoptedLibraries: vi.fn(async () => [{ id: "adopted-v2", name: "Synthetic adopted",
+        versionId: "b".repeat(64), state: "ready" as const, recommendation: "direct-use", packageVersion: "2.0.0" }]) };
+    const initial = { mode: "NONE" as const, adopted: { libraryId: "adopted-v2", versionId: "a".repeat(64) } };
+    const { unmount } = render(<ApplicationHostContext.Provider value={value}><KnowledgeEvidencePicker projectId="p" initial={initial} onChange={onChange} /></ApplicationHostContext.Provider>);
+    await screen.findByText(/当前注册版本已变为 bbbbbbbbbbbb/);
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({ mode: "NONE",
+      adopted: { libraryId: "adopted-v2", versionId: "a".repeat(64) } }));
+    await userEvent.selectOptions(screen.getByLabelText("选择已注册知识库"), "adopted-v2");
+    await waitFor(() => expect(onChange).toHaveBeenLastCalledWith({ mode: "NONE",
+      adopted: { libraryId: "adopted-v2", versionId: "b".repeat(64) } }));
+    expect(screen.getByText(/冻结版本：bbbbbbbbbbbb/)).toBeVisible();
+    unmount();
+  });
+
+  it("localizes the evidence preparation controls while preserving names and IDs", async () => {
+    const value = host();
+    render(<HostLocaleProvider locale="en"><ApplicationHostContext.Provider value={value}><KnowledgeEvidencePicker projectId="p" onChange={vi.fn()} /></ApplicationHostContext.Provider></HostLocaleProvider>);
+    await screen.findByText("internal.txt");
+    expect(screen.getByText("Project references")).toBeVisible();
+    expect(screen.getAllByText("internal.txt").length).toBeGreaterThan(0);
+    await userEvent.selectOptions(screen.getByLabelText("Select team knowledge library"), "kb-team");
+    expect(screen.getByText("Team knowledge libraries")).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Retained topic version" })).toBeVisible();
+    expect(screen.getAllByText("团队规范").length).toBeGreaterThan(0);
+  });
+})

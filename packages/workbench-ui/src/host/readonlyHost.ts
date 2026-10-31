@@ -5,13 +5,16 @@ import type { WorkbenchPresentation } from "../features/workspace/WorkbenchHostC
 
 export type ReadonlyWorkSelection = {
   projectId: string; documentId: string; sourceSha256: string; workRef: string; revisionId?: string;
-  view?: "structure" | "items" | "analysis" | "export";
+  view?: "structure" | "items" | "requirements" | "analysis" | "export";
 };
 export type SessionBinding = Pick<ReadonlyWorkSelection, "projectId" | "documentId" | "sourceSha256" | "workRef"> & {
-  hostId: string; workspaceId: string; sessionId: string;
+  hostId: string; workspaceId: string; sessionId: string; taskId?: string;
 };
 export type SessionDiscussionContext = ReadonlyWorkSelection & {
   scope: "document" | "selected"; nodeId?: string; sourceItemId?: string; derivedUnitId?: string;
+  taskId?: string;
+  /** Explicit user intent from the workbench, carried as draft text; it never sends or records acceptance. */
+  request?: string;
 };
 export type HostExecutionSnapshot = SessionBinding & {
   runId: string; status: "RUNNING" | "WAITING" | "IDLE" | "SUCCEEDED" | "FAILED" | "INTERRUPTED";
@@ -33,8 +36,8 @@ export type ReadonlyWorkbenchHost = {
   pdfViewerUrl: WorkbenchPresentation["pdfViewerUrl"];
   sessionBinding?: SessionBinding | null;
   execution?: ExecutionSource;
-  /** Only a user action calls this. The adapter opens the bound conversation and prepares context; it must not auto-send a prompt. */
-  openSession?: (binding: SessionBinding, context: SessionDiscussionContext) => void | Promise<void>;
+  /** Only a user action calls this. Without context it opens the bound conversation; with context it may prepare the current selection. It must not auto-send or replace an existing draft. */
+  openSession?: (binding: SessionBinding, context?: SessionDiscussionContext) => void | Promise<void>;
   subscribeWorkUpdates?: (listener: (event: WorkUpdatedEvent) => void) => () => void;
   onSelectionChange?: (selection: ReadonlyWorkSelection) => void;
 };

@@ -143,6 +143,7 @@ def post_plugin_engineer_responses(project_id: str, document_id: str, session_id
             manual = compile_manual_decisions(context, choices, previous=previous, origin='USER_INPUT', decided_at=work._now())
             snapshot = work.build_delivery_snapshot(mapping, baseline, artifacts['table-previews.json'],
                 annotations=artifacts.get('image-annotations.json'), decomposition=artifacts.get('source-item-decomposition.json'),
+                assessments=artifacts.get('source-item-assessments.json'),
                 analysis_policy=artifacts.get('analysis-policy.json'), manual_decisions=manual)
         except ValueError as exc:
             raise work.ApplicationError(status_code=422, detail=str(exc)) from exc

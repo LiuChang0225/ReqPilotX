@@ -4,7 +4,7 @@ import { SourceDocumentStageResults, type SourceStage } from "../extraction/Sour
 import { Icon } from "../../shared/ui/Icon";
 import { useWorkspace } from "./WorkspaceContext";
 import { DocumentAgentContext, type DocumentAgentBinding } from "./DocumentAgentContext";
-import { agentTaskLabel, documentDeliveryLabel, useDocumentWorkSummary } from "./documentWorkSummary";
+import { agentTaskLabel, documentDeliveryLabel, documentWorkErrorLabel, useDocumentWorkSummary } from "./documentWorkSummary";
 import { PluginWorkbench } from "./PluginWorkbench";
 import { usePluginWorkbench } from "./usePluginWorkbench";
 import { rememberViewedWork } from "./documentWorkSelection";
@@ -14,6 +14,7 @@ import { DocumentWorkPicker } from "./DocumentWorkPicker";
 import { selectedPluginWork, type PluginWorkSummary } from "./documentWorkCatalog";
 import { useApplicationHost } from "../../host/ApplicationHost";
 import { HostedAgentPanel } from "../../host/HostedAgentPanel";
+import { useUiCopy } from "../../host/HostLocaleContext";
 
 /** One document task, shared by structure, source review, analysis and delivery. */
 export function DocumentWorkSurface({ children }: PropsWithChildren) {
@@ -23,6 +24,7 @@ export function DocumentWorkSurface({ children }: PropsWithChildren) {
   return <DocumentSurface key={`${route.projectId}:${route.documentId}:${selectedDocument!.source_sha256}`}>{children}</DocumentSurface>;
 }
 function DocumentSurface({ children }: PropsWithChildren) {
+  const l = useUiCopy();
   const applicationHost = useApplicationHost();
   const { route, updateRoute, selectedDocument, refreshDocument } = useWorkspace();
   const sourceSha256 = String(selectedDocument?.source_sha256 || "");
@@ -119,37 +121,37 @@ function DocumentSurface({ children }: PropsWithChildren) {
       ...(route.task === "extraction" ? { mode: "organize", checkpoint: selected.checkpoint } : {}) });
   };
   return <DocumentAgentContext.Provider value={context}>
-    <section className={`document-work-surface${opened ? " is-agent-open" : ""}`} aria-label="文档任务与成果" data-producer={isExternal ? "EXTERNAL_PLUGIN" : "NATIVE"} data-viewed-revision={isExternal ? plugin.pinned || "" : baseline}>
+    <section className={`document-work-surface${opened ? " is-agent-open" : ""}`} aria-label={l("work.surfaceAria", "文档任务与成果")} data-producer={isExternal ? "EXTERNAL_PLUGIN" : "NATIVE"} data-viewed-revision={isExternal ? plugin.pinned || "" : baseline}>
       <header className="document-work-status">
         <div><DocumentWorkPicker projectId={route.projectId} documentId={route.documentId} sourceSha256={sourceSha256}
             selectedSession={route.pluginSessionId} selectedTitle={plugin.state?.goal || undefined} summary={summary} onSelect={selectWork} />
-          {!isExternal && <span className="document-saved-label"><Icon name="document" size={14} />{documentDeliveryLabel(summary)}</span>}
-          {isExternal && plugin.state ? <span role="status">{!plugin.state.revision_id ? "尚无阶段成果" : !plugin.current && plugin.pinned ? "正在核对历史版本" : plugin.state.map_confirmation_required ? "待核对结构" : "成果已保存"}</span> : null}
-          {isExternal && Boolean(plugin.state?.versions.length) && <label className="work-version-picker">核对版本<select aria-label="核对版本" value={plugin.pinned || ""} onChange={event => plugin.selectRevision(event.target.value)}>{plugin.state!.versions.map(value => <option key={value.revision_id} value={value.revision_id}>v{value.number}{value.revision_id === plugin.state?.revision_id ? " · 最新" : ""}</option>)}</select></label>}
-          {!isExternal && summary?.delivery && <span>{summary.delivery.source_item_count} 原文 · {summary.delivery.requirement_count} 需求</span>}
-          {!isExternal && <span className="document-task-label" role="status">{summary?.taskError || (!summary && !currentTask ? "正在同步任务…" : agentTaskLabel(currentTask))}</span>}
+          {!isExternal && <span className="document-saved-label"><Icon name="document" size={14} />{documentDeliveryLabel(summary, l)}</span>}
+          {isExternal && plugin.state ? <span role="status">{!plugin.state.revision_id ? l("work.noStageResult", "尚无阶段成果") : !plugin.current && plugin.pinned ? l("work.checkingHistory", "正在核对历史版本") : plugin.state.map_confirmation_required ? l("work.statusMapConfirmation", "待核对结构") : l("work.resultSaved", "成果已保存")}</span> : null}
+          {isExternal && Boolean(plugin.state?.versions.length) && <label className="work-version-picker">{l("work.checkVersion", "核对版本")}<select aria-label={l("work.checkVersion", "核对版本")} value={plugin.pinned || ""} onChange={event => plugin.selectRevision(event.target.value)}>{plugin.state!.versions.map(value => <option key={value.revision_id} value={value.revision_id}>v{value.number}{value.revision_id === plugin.state?.revision_id ? l("work.latestSuffix", " · 最新") : ""}</option>)}</select></label>}
+          {!isExternal && summary?.delivery && <span>{l("library.sourceAndRequirementCounts", "{source} 原文 · {requirements} 需求", { source: summary.delivery.source_item_count, requirements: summary.delivery.requirement_count })}</span>}
+          {!isExternal && <span className="document-task-label" role="status">{documentWorkErrorLabel(summary?.taskError || "", l) || (!summary && !currentTask ? l("work.syncingTask", "正在同步任务…") : agentTaskLabel(currentTask, l))}</span>}
         </div>
-        <button ref={trigger} type="button" className="button secondary compact" aria-expanded={opened} onClick={() => opened ? setOpened(false) : show()}><Icon name="spark" size={15} />{opened ? "收起协作" : "Agent 协作"}</button>
+        <button ref={trigger} type="button" className="button secondary compact" aria-expanded={opened} onClick={() => opened ? setOpened(false) : show()}><Icon name="spark" size={15} />{opened ? l("work.collapseAgent", "收起协作") : l("work.agentCollaboration", "Agent 协作")}</button>
       </header>
-      {isExternal && plugin.error && <p className="agent-inline-notice is-error" role="alert">{plugin.error} <button className="button ghost compact" onClick={plugin.refresh}>重新同步</button></p>}
+      {isExternal && plugin.error && <p className="agent-inline-notice is-error" role="alert">{plugin.error} <button className="button ghost compact" onClick={plugin.refresh}>{l("work.resync", "重新同步")}</button></p>}
       {isExternal && plugin.notice && <p className="agent-inline-notice" role="status">{plugin.notice}</p>}
-      {isExternal && plugin.state?.revision_id && plugin.pinned && !plugin.current && <p className="stage-update-notice" role="status">有新成果，正在核对的版本保持不变。<button className="button secondary compact" onClick={() => plugin.selectRevision(plugin.state!.revision_id!)}>查看最新成果</button></p>}
+      {isExternal && plugin.state?.revision_id && plugin.pinned && !plugin.current && <p className="stage-update-notice" role="status">{l("work.newResultKeptVersion", "有新成果，正在核对的版本保持不变。")}<button className="button secondary compact" onClick={() => plugin.selectRevision(plugin.state!.revision_id!)}>{l("work.viewLatest", "查看最新成果")}</button></p>}
       <div className="document-work-layout">
         <div className="document-work-main">
-          {!isExternal && !summary && <div className="document-loading" role="status"><Icon name="refresh" size={18} /><strong>正在读取当前文档成果</strong><span>正在同步工作版与任务状态…</span></div>}
+          {!isExternal && !summary && <div className="document-loading" role="status"><Icon name="refresh" size={18} /><strong>{l("work.loadingCurrentResult", "正在读取当前文档成果")}</strong><span>{l("work.loadingCurrentResultDetail", "正在同步工作版与任务状态…")}</span></div>}
           <div className="document-existing-surface" hidden={!isExternal && (Boolean(stageCurrent) || !summary)}>{isExternal ? <PluginWorkbench provider={plugin} projectId={route.projectId} documentId={route.documentId} sourceSha256={sourceSha256} documentName={selectedDocument!.file_name}/> : children}</div>
-          {stageCurrent && <section className="document-stage-workspace" aria-label="阶段成果工作区">
-            <header><div><h2>{stageCurrent.stage === "MAP" ? "核对文档结构" : "核对原文条目"}</h2><p>{selectedDocument?.file_name} · 已保存的阶段草稿</p></div>
-              <button className="button ghost compact" type="button" onClick={() => setStage(null)}>{baseline ? "返回当前工作版" : "返回文档"}</button></header>
-            {stageChanged && <p className="stage-update-notice" role="status">当前任务的阶段成果有更新，正在核对的版本保持不变。{stageLatest && <button type="button" className="button secondary compact" onClick={() => openStage(stageLatest)}>查看最新成果</button>}</p>}
+          {stageCurrent && <section className="document-stage-workspace" aria-label={l("work.stageWorkspaceAria", "阶段成果工作区")}>
+            <header><div><h2>{stageCurrent.stage === "MAP" ? l("work.verifyStructure", "核对文档结构") : l("work.verifyItems", "核对原文条目")}</h2><p>{selectedDocument?.file_name} · {l("work.savedStageDraft", "已保存的阶段草稿")}</p></div>
+              <button className="button ghost compact" type="button" onClick={() => setStage(null)}>{baseline ? l("work.backToCurrent", "返回当前工作版") : l("work.backToDocument", "返回文档")}</button></header>
+            {stageChanged && <p className="stage-update-notice" role="status">{l("work.stageUpdatedKept", "当前任务的阶段成果有更新，正在核对的版本保持不变。")}{stageLatest && <button type="button" className="button secondary compact" onClick={() => openStage(stageLatest)}>{l("work.viewLatest", "查看最新成果")}</button>}</p>}
             <SourceDocumentStageResults root={root} taskId={stageCurrent.taskId} sourceSha256={stageCurrent.sourceSha256}
               stages={[stageCurrent]} confirmationRequired={Boolean(!stageChanged && stageCurrent.taskId === currentTask?.task_id && currentTask.map_confirmation_required)}
               initialStage={stageCurrent.stage} workspace sourceFileUrl={sourceFileUrl}
               onConfirmed={value => { const next = value as AgentLoopTask; setOverride(next); receiveTask(next); updated(); }} />
           </section>}
         </div>
-        <aside className="document-agent-pane" hidden={!opened} aria-label="Agent 任务工作区">
-          {applicationHost && <HostedAgentPanel projectId={route.projectId} documentId={route.documentId} sourceSha256={sourceSha256}
+        <aside className="document-agent-pane" hidden={!opened} aria-label={l("work.agentPaneAria", "Agent 任务工作区")}>
+          {applicationHost && <HostedAgentPanel projectId={route.projectId} documentId={route.documentId} documentName={selectedDocument?.file_name} sourceSha256={sourceSha256}
             workRef={route.pluginSessionId} revisionId={plugin.pinned || undefined} selectedRevisionId={route.resultRevision} binding={activeBinding} initialGoal={initialGoal} onAccepted={value => {
               updateRoute({ pluginSessionId: value.workRef, resultRevision: undefined, task: "extraction", mode: "organize", checkpoint: "structure" }); updated();
             }} onClose={() => { setOpened(false); trigger.current?.focus(); }} />}

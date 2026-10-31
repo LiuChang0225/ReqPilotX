@@ -664,7 +664,7 @@ describe("ReadingWorkspacePage conversation-first reader", () => {
     expect(screen.getByRole("region", { name: "文档阅读工作区" })).toBeVisible();
     expect(screen.getByRole("combobox", { name: "当前阅读文档" })).toHaveValue("document-1");
     expect(screen.queryByRole("combobox", { name: "阅读项目" })).not.toBeInTheDocument();
-    expect(screen.queryByRole("link", { name: "Schaeffler ReqPilotX" })).not.toBeInTheDocument();
+    expect(screen.queryByRole("link", { name: "ReqPilotX 首页" })).not.toBeInTheDocument();
     expect(screen.getByRole("button", { name: "会话历史" })).toBeEnabled();
     expect(screen.getByRole("button", { name: "文档辅助信息" })).toBeEnabled();
     expect(apiMocks.sendMessage).not.toHaveBeenCalled();

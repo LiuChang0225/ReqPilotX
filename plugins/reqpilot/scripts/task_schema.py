@@ -14,15 +14,17 @@ PURPOSES = {
     'open':'创建原件绑定任务，或凭 task_id 接续现有任务。', 'inspect':'读取当前任务版本、成果与待办。',
     'prepare':'保存原件捕获、逐页阅读材料或有界本地OCR；数字重读保留差异，表格保留单元格。', 'read':'读取原文、页图、条目、scope 与真实反馈。',
     'visual_revise':'回查原图后纠正视觉转写或表格单元格；保留原始OCR和旧结果，返回可编制来源。',
-    'map':'按来源证据编制或修改 Document Map。', 'items':'为尚未覆盖的原文 scope 保存条目判断。',
+    'map':'按来源证据编制或修改 Document Map。', 'items':'为尚未覆盖的原文 scope 保存条目判断；形成 review 前必须先完成所有当前 scope。',
     'images':'识别真正独立的图像条目；辅助图仍随所属条款或表格。',
     'annotations':'保存原编号、主题、上下文或图片释读。', 'decomposition':'编制已授权的 SPLIT/KEEP/UNDO。',
-    'review':'形成可修订工作版；不需要先造一个无意义 candidate。',
+    'review':'形成可修订工作版；当前 Items 仍有未处理 scope 时拒绝打开，不需要先造一个无意义 candidate。',
     'revise':'修订已有条目的分类、scope、释读或 annotation，并交付同版 Excel。',
     'check':'核对来源、当前工作版、已登记交付与工作台；不代替语义审阅。',
     'deliver':'程序导出当前版本并登记首次同版交付。', 'sync':'取回反馈，或显式补同步已保存的当前成果。',
     'recover':'恢复已有工件登记；不盲目重跑未知执行。',
     'delivery_read':'只读取本任务绑定工作台的人工响应、交付预览、历史及同版快照；不创建用户意见或正式接受。',
+    'analysis':'把当前 PAIR 会话实际读取的内部依据保存为当前 Map/条目的分析建议；不使用第二模型运行时。',
+    'evidence_status':'Host 记录冻结证据绑定的可用性；不创建 Agent 分析或人工意见。',
 }
 NOTES = {
     'task_id':'使用 task_open 返回的持久 task_id；不猜测 latest 任务。',
@@ -60,6 +62,7 @@ COMMON_RULES = [
     '必填表示 JSON 字段必需；可省略不等于可以传 null。Map 中省略表示保留，空列表等显式值可能表示清空。',
     '字段、枚举、嵌套类型来自同一个 REQUESTS.model_json_schema；下列业务条件还由现有 validator/compiler 验证。',
     '请求骨架中的 null 是明确待填位置，不是假造的原件 ID 或判断；不要把未填骨架直接提交。',
+    '固定工作流阶段以已保存工件为准；Agent 文字、会话空闲或完成声明不推进阶段，补充说明也不能取消 Map/条目/交付前置检查。',
 ]
 
 
@@ -137,6 +140,9 @@ def _facts(context,scope):
     facts={key:value for key,value in {'task_id':task,'revision':context.get('revision'),'current_owner':owner}.items() if value is not None}
     if context.get('selected') is not None:facts['available_stages']=list(context['selected'])
     elif context.get('available_stages') is not None:facts['available_stages']=context['available_stages']
+    workflow=context.get('workflow')
+    if isinstance(workflow,dict):
+        facts['fixed_workflow']={key:workflow.get(key) for key in ('workflow','next_stage','ready_to_review','open_items') if key in workflow}
     actual_scope={key:value for key,value in (scope or {}).items() if key in {'scope_id','scope_kind','logical_table_scope_id','source_item_id','node_id','page','content_ref'}}
     return facts,actual_scope
 
@@ -167,6 +173,9 @@ def _rules(action,facts):
             'page/image 按页码或准确capture图像位置读取，缺页文/高清图会自动准备登记；继续写入使用这次返回的revision。',
             'max_chars超过24000时按24000返回并保留continuation；item需要当前SRC，长结果按next_read续读。'],
         'sync':['publish_current_review 需要当前 expected_revision；retry_publication 需要真实 operation_id，旧 producer 不会强行补发。'],
+        'analysis':['先通过本任务证据工具读取所选来源；只能引用已返回的 fact_id 和原文引文，不能自造目录或证据。',
+            '每个待分析单元必须给出当前 unit_id；无充分依据时使用 PENDING_EVIDENCE 或 NEEDS_CLARIFICATION 并写明具体缺口。',
+            '分析建议不是工程师正式意见或人工接受；保存后由现有工作台与同版导出显示。'],
     }
     rules.extend(additions.get(action,[]))
     return {'current_owner':facts.get('current_owner'),'rules':rules,'stage_changed_by_describe':False}

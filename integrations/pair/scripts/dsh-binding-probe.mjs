@@ -89,7 +89,8 @@ async function run(ctx) {
   const defaultBefore = ctx.get('agentDefaultModel').currentSelection();
   const createRequests = [], blockedPrompts = []; let realPromptCalls = 0;
   const launcher = new TaskLauncher(runtime, { capabilityRoot, agentPreset: 'standard', taskMcp: mcp,
-    ...(admission ? { agentModel: { provider: 'reqpilot-probe', model: 'noop', reasoningEffort: 'xhigh' } } : {}) }, () => ({ workspaces, sessions: {
+    ...(admission ? { agentModel: { provider: 'reqpilot-probe', model: 'noop', reasoningEffort: 'xhigh' } } : {}) }, () => ({ workspaces,
+    defaultModel: ctx.get('agentDefaultModel'), sessions: {
     ...(recover ? { inspect: id => sessions.inspect(id) } : {}),
     ...(control ? { inspect: id => sessions.inspect(id) } : {}),
     ...(cancel ? { cancel: request => sessions.cancel(request) } : {}),

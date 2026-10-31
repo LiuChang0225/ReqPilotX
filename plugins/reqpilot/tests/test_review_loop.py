@@ -3,6 +3,7 @@ from argparse import Namespace
 from copy import deepcopy
 import json
 from pathlib import Path
+import shutil
 import sys
 import tempfile
 import unittest
@@ -10,6 +11,7 @@ import unittest
 sys.path.insert(0, str(Path(__file__).parent))
 from test_portable import artifact_tools, item_decisions, make_fixture, write
 import revision_tools as loop
+from reqpilotx.application.agent_workflow.artifact_kind_catalog import validate_bundle
 
 
 def args(**values):
@@ -219,6 +221,33 @@ class ReviewLoopTests(unittest.TestCase):
         broken = json.loads(history_path.read_text()); broken["feedback"][0]["origin"] = "USER"; write(history_path, broken)
         with self.assertRaisesRegex(ValueError, "history integrity"):
             loop.verify_review(args(review_dir=self.review))
+
+    def test_classification_revision_rebinds_coverage_receipt_and_rejects_stale_foreign_or_corrupt(self):
+        candidate, _ = self.revise()
+        after = loop.bundle(candidate)[1]
+        previous_receipt = json.loads((self.review / "versions/initial/item-compilation-receipt.json").read_text())
+        receipt = json.loads((candidate / "item-compilation-receipt.json").read_text())
+        self.assertNotEqual(after.artifact_sha256, self.baseline.artifact_sha256)
+        self.assertEqual(receipt["source_sha256"], after.source_sha256)
+        self.assertEqual(receipt["baseline_artifact_id"], after.artifact_id)
+        self.assertEqual(receipt["baseline_artifact_sha256"], after.artifact_sha256)
+        self.assertEqual(receipt["unprocessed_scope_ids"], previous_receipt["unprocessed_scope_ids"])
+        validate_bundle(candidate, self.baseline.source_sha256, operation='review-revise')
+        mutations = (
+            ("stale", {"baseline_artifact_id": self.baseline.artifact_id,
+                       "baseline_artifact_sha256": self.baseline.artifact_sha256}),
+            ("foreign", {"source_sha256": "0" * 64}),
+            ("corrupt", {"unprocessed_scope_ids": "not-a-list"}),
+        )
+        for name, changes in mutations:
+            with self.subTest(name=name):
+                tampered = self.root / ("tampered-" + name)
+                shutil.copytree(candidate, tampered)
+                value = json.loads((tampered / "item-compilation-receipt.json").read_text())
+                value.update(changes)
+                write(tampered / "item-compilation-receipt.json", value)
+                with self.assertRaisesRegex(ValueError, "coverage receipt differs"):
+                    validate_bundle(tampered, self.baseline.source_sha256, operation='review-revise')
 
     def test_arriving_feedback_rejects_old_candidate_without_losing_new_feedback(self):
         candidate, _ = self.revise()

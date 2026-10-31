@@ -7,6 +7,8 @@ from unittest.mock import Mock, patch
 from .runtime_isolation import activate_test_runtime
 activate_test_runtime()
 from app.application.agent_workflow import source_document_loop_jobs as source
+from app.application.agent_workflow import source_item_loop_jobs as item_loop
+from reqpilotx_server.application.runtime import RUNTIME_STATE
 
 class SourceDocumentModelSelectionTests(TestCase):
     def test_task_selection_reaches_driver_and_legacy_defaults_remain(self):
@@ -29,6 +31,20 @@ class SourceDocumentModelSelectionTests(TestCase):
                 self.assertEqual((driver.call_args.kwargs['model_id'],driver.call_args.kwargs['reasoning_effort']),expected)
                 self.assertEqual(result['status'],'NEEDS_CONTINUATION')
                 self.assertFalse(result['application_saved'])
+    def test_latest_reports_no_task_when_legacy_local_jobs_are_disabled(self):
+        response = SimpleNamespace(headers={})
+        container = SimpleNamespace(jobs=None)
+        with patch.object(source, '_require_project_document', return_value={}), patch.object(RUNTIME_STATE, 'container', container):
+            value = source.get_latest_source_document_loop('p', 'd', response)
+        self.assertIsNone(value['task_id'])
+        self.assertEqual(value['job_status'], 'NOT_STARTED')
+        self.assertEqual(value['job_availability'], 'UNAVAILABLE_LOCAL_RUNTIME')
+        with patch.object(item_loop, '_require_project_document', return_value={}), patch.object(RUNTIME_STATE, 'container', container):
+            value = item_loop.get_latest_source_item_loop('p', 'd', response)
+        self.assertIsNone(value['task_id'])
+        self.assertEqual(value['job_status'], 'NOT_STARTED')
+        self.assertEqual(value['job_availability'], 'UNAVAILABLE_LOCAL_RUNTIME')
+
     def test_optional_fields_preserve_legacy_request_serialization(self):
         request=source.SourceDocumentLoopStartV1(command_id='legacy',expected_source_sha256='a'*64,goal='Read')
         self.assertNotIn('model_id',request.model_dump(mode='json'))

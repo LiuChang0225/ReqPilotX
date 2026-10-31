@@ -1898,12 +1898,54 @@ class ExporterTableLayersTests(unittest.TestCase):
 
     def test_title_column_strips_common_direct_number_separators(self) -> None:
         node = {"source_number": "1.1"}
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(
+            {"source_number": "1."}, "1..NET implementation"), ".NET implementation")
         for value in ("1.1) 标题", "1.1）标题", "1.1. 标题", "1.1。标题"):
             with self.subTest(value=value):
                 self.assertEqual(
                     exporter_module._matrix_title_without_direct_number(node, value),
                     "标题",
                 )
+
+    def test_identifier_only_title_cell_does_not_repeat_source_number(self) -> None:
+        node = {"source_number": "1.1", "display_title": "1.1", "label": "1.1"}
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(node, "1.1"), "")
+        self.assertEqual(exporter_module._matrix_node_display_title(node), "未提供标题")
+        self.assertEqual(exporter_module._matrix_heading_path_label(node), "1.1")
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(
+            {"source_number": "1"}, ". Scope"), "Scope")
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(
+            {"source_number": "1."}, "1. .NET implementation"), ".NET implementation")
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(
+            {"source_number": "1."}, "1. -40 °C operation"), "-40 °C operation")
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(
+            {"source_number": "1"}, "1. -40 °C operation"), "-40 °C operation")
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(
+            {"source_number": "1"}, "1 -40 °C operation"), "-40 °C operation")
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(
+            {"source_number": "1"}, "1-40 °C operation"), "-40 °C operation")
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(
+            {"source_number": "1."}, "1. (Scope)"), "(Scope)")
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(
+            {"source_number": "1."}, "1. [Customer requirements]"), "[Customer requirements]")
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(
+            {"source_number": "3.1"}, "3.1.1 Power supply"), "3.1.1 Power supply")
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(
+            {"source_number": "3.1"}, "3.10 Power supply"), "3.10 Power supply")
+
+    def test_heading_path_keeps_number_separator_without_duplicating_it(self) -> None:
+        self.assertEqual(exporter_module._matrix_heading_path_label(
+            {"source_number": "1", "display_title": ". Scope", "label": ". Scope"}), "1. Scope")
+        self.assertEqual(exporter_module._matrix_heading_path_label(
+            {"source_number": ".", "display_title": "Scope", "label": "Scope"}), "Scope")
+        self.assertEqual(exporter_module._matrix_heading_path_label(
+            {"source_number": "1.", "display_title": "(Scope)", "label": "(Scope)"}), "1. (Scope)")
+        self.assertEqual(exporter_module._matrix_heading_path_label(
+            {"source_number": "2.", "display_title": "[Customer requirements]", "label": "[Customer requirements]"}),
+            "2. [Customer requirements]")
+        self.assertEqual(exporter_module._matrix_heading_path_label(
+            {"source_number": "1.", "display_title": ".NET implementation", "label": ".NET implementation"}),
+            "1. .NET implementation")
 
     def test_body_copy_detection_strips_direct_number_on_either_side(self) -> None:
         base = {

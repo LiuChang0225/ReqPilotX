@@ -28,6 +28,7 @@ from reqpilotx_server.adapters.agents.provider_tool_loop import (
     provider_loop_ready,
 )
 from reqpilotx_server.infrastructure.runtime_settings import AgentRuntimeBackend
+from reqpilotx_server.application.agent_workflow.document_map_jobs import _runtime_container
 from reqpilotx_server.application.agent_workflow.native_loop_tools import NativeLoopToolHost
 from reqpilotx_server.application.agent_workflow.native_loop_progress import native_tool_activity
 from reqpilotx_server.application.agent_workflow.native_loop_workspace import (
@@ -531,7 +532,10 @@ def get_latest_source_document_loop(
 ):
     response.headers.update(_no_store_headers())
     _require_project_document(project_id, document_id)
-    container = _container()
+    container = _runtime_container()
+    if container.jobs is None:
+        return {"schema_version": SCHEMA, "task_id": None, "job_status": "NOT_STARTED",
+                "job_availability": "UNAVAILABLE_LOCAL_RUNTIME"}
     job = container.jobs.get_latest(
         kind=EXTRACTION_JOB_KIND,
         aggregate_type="sor-document",

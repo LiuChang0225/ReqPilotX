@@ -64,12 +64,12 @@ class MapSourceRange(InputModel):
 
 class MapHeading(InputModel):
     source: SourceSelection
-    label: StrictStr = ''
+    label: StrictStr = Field(default='', description='Exact visible original number/prefix, without its following title or a bare separator.')
 
 
 class NumberedBody(InputModel):
     source: SourceSelection
-    label: Nonempty
+    label: Nonempty = Field(description='Exact visible original number/prefix only; do not repeat the body title or use a bare separator.')
     continuations: tuple[SourceSelection, ...] = ()
 
 
@@ -91,8 +91,8 @@ class MapNodeEdit(InputModel):
     node_id: Annotated[StrictStr, Field(min_length=1,max_length=200)]
     parent_id: Annotated[StrictStr, Field(min_length=1,max_length=200)] | None = None
     kind: Literal['DOCUMENT','ATTACHMENT','SECTION','COVER','TABLE_OF_CONTENTS','DOCUMENT_CONTROL'] = None
-    title: Annotated[StrictStr, Field(min_length=1,max_length=1000)] = None
-    label: Annotated[StrictStr, Field(max_length=240)] = None
+    title: Annotated[StrictStr, Field(min_length=1,max_length=1000, description='Visible source heading or body title; do not reduce it to the identifier or repeat the label prefix.')] = None
+    label: Annotated[StrictStr, Field(max_length=240, description='Exact visible original number/prefix only; never a bare separator or a copy of the title.')] = None
     title_source_ids: tuple[SourceRef,...] = None
     content_source_ids: tuple[SourceRef,...] = None
     title_reference_source_ids: tuple[SourceRef,...] = None

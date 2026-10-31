@@ -13,6 +13,15 @@ import { ManagedRuntime } from '../host/src/managed-runtime.js';
 import { nativeSubprocess } from './native-subprocess.mjs';
 const python = process.env.PAIR_RECONNECT_PYTHON, capabilityRoot = process.env.PAIR_RECONNECT_BUNDLE;
 const enabled = Boolean(python && capabilityRoot);
+const defaultModel = { provider: 'reqpilot-scripted', model: 'noop', reasoningEffort: 'max' };
+const workflowSpec = { schema: 'reqpilot-fixed-workflow/v1', id: 'reqpilot-fixed-workflow', version: '1.0.0',
+  definition_sha256: '8ae3c9a5dd94e9e9827cfd4150b1483ed00488453c8fd0608b2466ed073e9997', evidence: { mode: 'NONE', reason: 'INTERNAL_EVIDENCE_NOT_WIRED' } };
+const launcherWithWorkflow = (runtime, services, bundleSha) => {
+  const launcher = new TaskLauncher(runtime, { taskMcp: true }, () => services);
+  launcher.ready = true; launcher.capabilityRoot = capabilityRoot; launcher.bundleSha = bundleSha;
+  launcher.workflow = workflowSpec; launcher.workflowDescriptor = { ...workflowSpec, stages: [] };
+  return launcher;
+};
 const sha = value => createHash('sha256').update(value).digest('hex');
 async function fixture(populated = false) {
   const root = await mkdtemp(join(tmpdir(), 'reqpilot-trusted-reconnect-'));
@@ -25,10 +34,11 @@ async function fixture(populated = false) {
   }
   const sourceSha = sha(source), commandId = randomUUID();
   const bundleSha = JSON.parse(await readFile(join(capabilityRoot, 'build-receipt.json'), 'utf8')).bundle_sha256;
-  const works = new Map(), events = [], calls = { prompt: [], create: 0, workspace: 0, resume: [], writes: 0 };
+  const works = new Map(), events = [], calls = { prompt: [], create: 0, workspace: 0, resume: [], writes: 0, model: [] };
   let server, binding, changedSource = false, foreignProof = false, foreignWork = false, lostAck = false;
   const sessions = {
-    async create(input) { calls.create++; binding = { sessionId: input.sessionId, workspaceId: input.workspaceId }; return { sessionId: input.sessionId }; },
+    async create(input) { calls.create++; binding = { sessionId: input.sessionId, workspaceId: input.workspaceId,
+      cwd: join(root, 'task-workspaces', commandId) }; return { sessionId: input.sessionId }; },
     async inspect(id) { assert.equal(id, binding.sessionId); return { session: binding, events }; },
     async prompt(input) {
       calls.prompt.push(input);
@@ -49,7 +59,10 @@ async function fixture(populated = false) {
       return { accepted: true };
     },
   };
-  const services = { sessions, workspaces: { async create() { calls.workspace++; return { workspace: { workspaceId: 'workspace-owned' } }; } } };
+  const services = { sessions: { ...sessions,
+      async selectSessionModel(value) { calls.model = (calls.model || []).concat([value]); const { sessionId, ...selected } = value; return { selected }; } },
+    defaultModel: { currentSelection: () => ({ ...defaultModel }) },
+    workspaces: { async create() { calls.workspace++; return { workspace: { workspaceId: 'workspace-owned' } }; } } };
   const listen = async (port = 0) => {
     server = createServer(async (req, res) => {
       const url = new URL(req.url, 'http://localhost');
@@ -72,11 +85,14 @@ async function fixture(populated = false) {
         if (input.artifacts?.['document-map.json']) {
           work.revision_id = sha(JSON.stringify(input.artifacts)); work.revision_number++;
           work.stages = [{ stage: 'MAP', artifact_sha256: input.artifacts['document-map.json'].artifact_sha256 }];
+          work.versions.push({ revision_id: work.revision_id, number: work.revision_number,
+            stages: work.stages, created_at: '2026-11-01T00:00:00.000Z' });
         }
         send(work); return;
       }
       const work = works.get(req.url.split('/').at(-1));
-      if (work) send({ ...work, ...(foreignWork ? { session_id: 'plugin-' + 'f'.repeat(32) } : {}) });
+      if (work) send({ schema_version: 'reqpilot-plugin-workbench/v1', work_ref: work.session_id,
+        feedback_resolutions: {}, ...work, ...(foreignWork ? { session_id: 'plugin-' + 'f'.repeat(32) } : {}) });
       else { res.writeHead(404); res.end(); }
     });
     server.listen(port, '127.0.0.1'); await once(server, 'listening');
@@ -85,7 +101,7 @@ async function fixture(populated = false) {
     await writeFile(join(root, 'api-instance.json'), JSON.stringify({ instanceId: runtime.token, pid: process.pid, origin: runtime.snapshot.serviceOrigin }));
   };
   await listen();
-  let launcher = new TaskLauncher(runtime, { taskMcp: true }, () => services); launcher.ready = true; launcher.capabilityRoot = capabilityRoot; launcher.bundleSha = bundleSha;
+  let launcher = launcherWithWorkflow(runtime, services, bundleSha);
   const input = { commandId, projectId: 'p', documentId: 'd', sourceSha256: sourceSha, goal: 'Use this synthetic source only.' };
   const saved = async () => JSON.parse(await readFile(join(root, 'task-launches', commandId + '.json'), 'utf8'));
   const started = await launcher.start(input);
@@ -115,7 +131,7 @@ print(json.dumps({'operation_id':operation['operation_id'],'publication':publish
     const prior = runtime.snapshot.serviceOrigin;
     await new Promise(ok => server.close(ok)); await launcher.close(); await runtime.release();
     runtime = new ManagedRuntime(nativeSubprocess, { dataRoot: root, python }); await runtime.claim(); await listen(reusePort ? new URL(prior).port : 0);
-    launcher = new TaskLauncher(runtime, { taskMcp: true }, () => services); launcher.ready = true; launcher.capabilityRoot = capabilityRoot; launcher.bundleSha = bundleSha;
+    launcher = launcherWithWorkflow(runtime, services, bundleSha);
     if (!reusePort) assert.notEqual(runtime.snapshot.serviceOrigin, prior);
     return prior;
   };
@@ -128,20 +144,29 @@ print(json.dumps({'operation_id':operation['operation_id'],'publication':publish
 }
 
 test('owned lease/port transition reconnects one frozen task and a NEW continuation reads its feedback', { skip: !enabled }, async () => {
-  const f = await fixture(); try {
+  const f = await fixture(true); try {
     const before = await f.saved(), writes = f.calls.writes;
     const prior = await f.transition();
     assert.equal((await f.launcher.inspect(before.commandId)).controlCapabilities.continue, false);
     assert.equal((await f.launcher.inspect(before.commandId)).controlCapabilities.reconnect, true);
     await assert.rejects(f.launcher.toolBinding(f.started.sessionId), /RECONNECT_REQUIRED/);
     await assert.rejects(f.launcher.control(f.control('continue')), /INTERRUPTED/);
-    f.works.get(f.started.workRef).feedback.push({ feedback_id: 'human-feedback', text: 'Check the changed condition.', baseline_sha256: null });
+    const work = f.works.get(f.started.workRef);
+    assert.match(work.revision_id, /^[a-f0-9]{64}$/);
+    work.feedback.push({ feedback_id: 'human-feedback', expected_source_sha256: f.sourceSha,
+      expected_revision_id: work.revision_id, source_item_ids: [], text: 'Check the changed condition.',
+      baseline_sha256: work.versions.at(-1)?.baseline_sha256 ?? null, origin: 'USER_REQUEST' });
     const reconnected = await f.launcher.control(f.control('reconnect'));
     assert.equal(reconnected.controlCapabilities.continue, true);
     const after = await f.saved();
     assert.equal(after.reconnectEvidence.fromOrigin, prior); assert.equal(after.serviceOrigin, f.runtime.snapshot.serviceOrigin);
     for (const key of ['applicationId', 'sessionId', 'workspaceId', 'bundleSha', 'sourceSha256', 'workspaceRelative']) assert.equal(after[key], before[key]);
     assert.deepEqual(after.prepared, before.prepared);
+    assert.deepEqual(after.selectedAgentModel, before.selectedAgentModel);
+    assert.deepEqual(after.workflow, before.workflow);
+    assert.equal(after.prepared.goal, before.prepared.goal);
+    assert.equal(after.prepared.preparation_identity, before.prepared.preparation_identity);
+    assert.deepEqual(after.prepared.preparation_request, before.prepared.preparation_request);
     const control = f.control('continue'); await f.launcher.control(control); await f.launcher.control(control);
     assert.equal(f.calls.prompt.length, 2); assert.equal(f.calls.create, 1); assert.equal(f.calls.workspace, 1); assert.equal(f.calls.writes, writes);
     assert.equal(f.calls.resume[0].resume.status, 'RESUMED'); assert.equal(f.calls.resume[0].resume.task_id, before.prepared.task_id);

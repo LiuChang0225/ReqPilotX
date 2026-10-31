@@ -83,6 +83,16 @@ describe("workspace route", () => {
     );
   });
 
+  it("round-trips the requirements document view with the same source and work", () => {
+    const session = "plugin-" + "b".repeat(32);
+    const route = parseWorkspaceRoute(
+      `?task=extraction&mode=organize&checkpoint=requirements&projectId=p1&documentId=d1&pluginSessionId=${session}`,
+    );
+    expect(route).toMatchObject({ task: "extraction", mode: "organize", checkpoint: "requirements", projectId: "p1", documentId: "d1", pluginSessionId: session });
+    const reopened = parseWorkspaceRoute(serializeWorkspaceRoute(route));
+    expect(reopened).toEqual(route);
+  });
+
   it("ignores checkpoints that conflict with the extraction data boundary", () => {
     expect(
       parseWorkspaceRoute(

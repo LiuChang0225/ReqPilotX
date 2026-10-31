@@ -20,6 +20,15 @@ class SourcePathLabelTests(unittest.TestCase):
         ("3.1", "3.1 Power supply", "3.1 Power supply"),
         ("3.1", "3.10 Power supply", "3.1 3.10 Power supply"),
         ("3.1", "3.1.1 Power supply", "3.1 3.1.1 Power supply"),
+        ("1", ". Scope", "1. Scope"),
+        ("1.", ". Scope", "1. Scope"),
+        ("1", "、Scope", "1、Scope"),
+        ("1.", "、Scope", "1.、Scope"),
+        (".", "Scope", "Scope"),
+        ("1.", "(Scope)", "1. (Scope)"),
+        ("2.", "[Customer requirements]", "2. [Customer requirements]"),
+        ("1.", ".NET implementation", "1. .NET implementation"),
+        ("1", ".NET implementation", "1 .NET implementation"),
     )
 
     def test_exact_number_prefix_composition(self) -> None:

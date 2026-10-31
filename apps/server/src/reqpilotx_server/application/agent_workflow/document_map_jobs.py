@@ -155,13 +155,25 @@ def start_document_source_items(
     }
 
 
-def _container():
+def _runtime_container():
     from reqpilotx_server.application.runtime import RUNTIME_STATE
 
     value = RUNTIME_STATE.container
+    if value is None:
+        raise ApplicationError(
+            status_code=503,
+            detail={
+                "code": "application_runtime_unavailable",
+                "message": "The application runtime is not initialized.",
+            },
+        )
+    return value
+
+
+def _container():
+    value = _runtime_container()
     if (
-        value is None
-        or value.jobs is None
+        value.jobs is None
         or value.agent_structure_loop_repository is None
     ):
         raise ApplicationError(

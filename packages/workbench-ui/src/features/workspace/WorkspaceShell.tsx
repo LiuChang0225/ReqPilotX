@@ -15,6 +15,7 @@ import { usePreferences } from "../../app/preferences";
 import { isSaasAccountMode } from "../../shared/api/saasSession";
 import { AppLink, useNavigate, useBrowserLocation } from "../../shared/navigation";
 import { HostAgentSettings, useApplicationHost, useApplicationWidth } from "../../host/ApplicationHost";
+import { useUiCopy } from "../../host/HostLocaleContext";
 import { cx } from "../../shared/lib/format";
 import { knowledgeGate } from "../../shared/runtime/processingCapabilities";
 import { Brand } from "../../shared/ui/Brand";
@@ -32,49 +33,49 @@ const primaryNavigation: Array<{
 }> = [
   {
     task: "projects",
-    label: "项目管理",
-    description: "项目、来源与知识依据",
+    label: "shell.projects",
+    description: "shell.projectsDesc",
     icon: "projects",
   },
   {
     task: "reading",
-    label: "AI 辅助阅读",
-    description: "单文档阅读与结构地图",
+    label: "shell.reading",
+    description: "shell.readingDesc",
     icon: "eye",
   },
   {
     task: "extraction",
-    label: "需求整理",
-    description: "读取原文、核对结构与条目",
+    label: "shell.extraction",
+    description: "shell.extractionDesc",
     icon: "tree",
   },
   {
     task: "analysis",
-    label: "需求分析",
-    description: "证据、建议与结论",
+    label: "shell.analysis",
+    description: "shell.analysisDesc",
     icon: "analysis",
   },
   {
     task: "knowledge",
-    label: "领域知识库",
-    description: "项目依据与参考资料",
+    label: "shell.knowledge",
+    description: "shell.knowledgeDesc",
     icon: "knowledge",
   },
   {
     task: "export",
-    label: "矩阵导出",
-    description: "版本、比较与下载",
+    label: "shell.export",
+    description: "shell.exportDesc",
     icon: "matrix",
   },
 ];
 
 const taskTitles: Record<WorkspaceTask, string> = {
-  projects: "项目管理",
-  reading: "AI 辅助阅读",
-  extraction: "需求整理",
-  analysis: "需求分析",
-  knowledge: "领域知识库",
-  export: "矩阵导出",
+  projects: "shell.projects",
+  reading: "shell.reading",
+  extraction: "shell.extraction",
+  analysis: "shell.analysis",
+  knowledge: "shell.knowledge",
+  export: "shell.export",
 };
 
 const SIDEBAR_PREFERENCE_KEY = "reqpilotx:workspace-sidebar:v2";
@@ -91,6 +92,7 @@ function initialSidebarMode(): "expanded" | "compact" {
 }
 
 export function WorkspaceShell({ children }: PropsWithChildren) {
+  const l = useUiCopy();
   const applicationHost = useApplicationHost();
   const applicationWidth = useApplicationWidth();
   const navigate = useNavigate();
@@ -141,19 +143,26 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
     extraction: requirementCount,
     analysis: analyzedCount,
   };
+  const hostedNavigation = primaryNavigation.filter(
+    (item) =>
+      !["reading", "knowledge"].includes(item.task) &&
+      (!isSaasAccountMode() || item.task !== "knowledge"),
+  );
   const currentKnowledgeGate = knowledgeGate(
     processingProfile,
     runtimeCapabilities,
   );
-  const knowledgeStatusLabel = !selectedProject
-    ? "选择项目查看能力"
+  const knowledgeStatusLabel = applicationHost
+    ? l("shell.knowledgeHostManaged", "知识由 PAIR 管理")
+    : !selectedProject
+    ? l("shell.knowledgeSelectProject", "选择项目查看能力")
     : !processingProfile
-      ? "正在读取项目能力"
+      ? l("shell.knowledgeLoading", "正在读取项目能力")
       : processingProfile.knowledge_backend === "none"
-        ? "语义检索未启用"
+        ? l("shell.knowledgeDisabled", "语义检索未启用")
         : currentKnowledgeGate.ready
-          ? "知识检索已连接"
-          : "知识检索待连接";
+          ? l("shell.knowledgeConnected", "知识检索已连接")
+          : l("shell.knowledgePending", "知识检索待连接");
 
   useEffect(() => {
     try {
@@ -274,9 +283,9 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
       style={applicationHost ? { height: "100%", minHeight: 0 } : undefined}
     >
       <a className="skip-link" href="#workspace-content">
-        跳到主工作区
+        {l("shell.skip", "跳到主工作区")}
       </a>
-      <aside ref={sidebarRef} className="workspace-sidebar">
+      {!applicationHost && <aside ref={sidebarRef} className="workspace-sidebar">
         <div className="workspace-brand">
           <div className="workspace-brand-lockup">
             <Brand compact />
@@ -288,11 +297,11 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
             aria-label={
               railViewport
                 ? sidebarOverlayOpen
-                  ? "关闭工作台导航"
-                  : "打开工作台导航"
+                  ? l("shell.closeNav", "关闭工作台导航")
+                  : l("shell.openNav", "打开工作台导航")
                 : sidebarMode === "expanded"
-                  ? "收起工作台导航"
-                  : "展开工作台导航"
+                  ? l("shell.collapseNav", "收起工作台导航")
+                  : l("shell.expandNav", "展开工作台导航")
             }
             aria-expanded={
               railViewport ? sidebarOverlayOpen : sidebarMode === "expanded"
@@ -314,26 +323,28 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
         </div>
 
         <button
-          aria-label={`当前项目：${selectedProject?.name || "未选择"}`}
+          aria-label={l("shell.currentProjectAria", "当前项目：{name}", { name: selectedProject?.name || l("shell.notSelected", "未选择") })}
           className="project-context"
           type="button"
           onClick={() => chooseTask("projects")}
         >
-          <small>当前项目</small>
-          <strong>{selectedProject?.name || "选择项目"}</strong>
-          <span>{selectedDocument?.file_name || "尚未选择客户来源"}</span>
+          <small>{l("shell.currentProject", "当前项目")}</small>
+          <strong>{selectedProject?.name || l("shell.selectProject", "选择项目")}</strong>
+          <span>{selectedDocument?.file_name || l("shell.noSource", "尚未选择客户来源")}</span>
         </button>
 
-        <nav className="workspace-navigation" aria-label="工作台导航">
-          <span className="nav-group-label">工作空间</span>
-          {primaryNavigation.filter(item => !isSaasAccountMode() || item.task !== "knowledge").map((item) => {
+        <nav className="workspace-navigation" aria-label={l("shell.navAria", "工作台导航")}>
+          <span className="nav-group-label">{l("shell.navGroup", "工作空间")}</span>
+          {primaryNavigation.filter(item => (!applicationHost || !["reading", "knowledge"].includes(item.task)) && (!isSaasAccountMode() || item.task !== "knowledge")).map((item) => {
             const active = route.task === item.task;
             const count = counts[item.task];
+            const label = l(item.label, item.label);
+            const description = l(item.description, item.description);
             return (
               <button
-                aria-label={item.label}
+                aria-label={label}
                 aria-current={active ? "page" : undefined}
-                title={`${item.label} · ${item.description}`}
+                title={`${label} · ${description}`}
                 key={item.task}
                 type="button"
                 className={cx("nav-item", active && "is-active")}
@@ -341,8 +352,8 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
               >
                 <Icon name={item.icon} size={19} />
                 <span>
-                  <strong>{item.label}</strong>
-                  <small>{item.description}</small>
+                  <strong>{label}</strong>
+                  <small>{description}</small>
                 </span>
                 {Boolean(count) && <em>{count}</em>}
               </button>
@@ -359,23 +370,23 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
           />
           <div>
             <strong>
-              {route.reviewCase ? "本地原文核对" : readiness?.runtime_ready ? "本地核心就绪" : "检查基础服务"}
+              {route.reviewCase ? l("shell.localReview", "本地原文核对") : readiness?.runtime_ready ? l("shell.coreReady", "本地核心就绪") : l("shell.checkServices", "检查基础服务")}
             </strong>
             <small>
-              {route.reviewCase ? "候选与反馈分别保留" : knowledgeStatusLabel}
+              {route.reviewCase ? l("shell.candidatesKept", "候选与反馈分别保留") : knowledgeStatusLabel}
             </small>
           </div>
         </div>
-        {!isSaasAccountMode() && <button className="nav-item workspace-agent-settings" type="button" onClick={() => setSettingsOpen(true)} aria-label="Agent 设置">
-          <Icon name="settings" size={19} /><span><strong>Agent 设置</strong><small>连接与处理方式</small></span>
+        {!isSaasAccountMode() && <button className="nav-item workspace-agent-settings" type="button" onClick={() => setSettingsOpen(true)} aria-label={l("shell.agentSettings", "Agent 设置")}>
+          <Icon name="settings" size={19} /><span><strong>{l("shell.agentSettings", "Agent 设置")}</strong><small>{l("shell.agentSettingsDesc", "连接与处理方式")}</small></span>
         </button>}
-      </aside>
+      </aside>}
 
-      {sidebarOverlayOpen && (
+      {!applicationHost && sidebarOverlayOpen && (
         <button
           className="sidebar-backdrop"
           type="button"
-          aria-label="关闭工作台导航"
+          aria-label={l("shell.closeNav", "关闭工作台导航")}
           onClick={() => setSidebarOverlayOpen(false)}
         />
       )}
@@ -383,23 +394,61 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
       <section className="workspace-body">
         <header className="workspace-topbar">
           <div className="workspace-context-strip">
-            <div className="workspace-breadcrumb">
-              <span>{selectedProject?.name || "ReqPilotX"}</span>
-              <i>/</i>
-              <strong>{taskTitles[route.task]}</strong>
-            </div>
+            {applicationHost ? (
+              <>
+                <Brand compact />
+                <button
+                  className="workspace-hosted-context"
+                  type="button"
+                  aria-label={l("shell.currentProjectAria", "当前项目：{name}", { name: selectedProject?.name || l("shell.notSelected", "未选择") })}
+                  onClick={() => chooseTask("projects")}
+                >
+                  <strong>{selectedProject?.name || l("shell.selectProject", "选择项目")}</strong>
+                  <span>{selectedDocument?.file_name || l("shell.noSource", "尚未选择客户来源")}</span>
+                </button>
+
+              </>
+            ) : (
+              <div className="workspace-breadcrumb">
+                <span>{selectedProject?.name || "ReqPilotX"}</span>
+                <i>/</i>
+                <strong>{l(taskTitles[route.task], taskTitles[route.task])}</strong>
+              </div>
+            )}
           </div>
+          {applicationHost && (
+            <nav className="workspace-hosted-flow" aria-label={l("shell.navAria", "工作台导航")}>
+              {hostedNavigation.map((item, index) => {
+                const active = route.task === item.task;
+                const label = l(item.label, item.label);
+                return (
+                  <button
+                    key={item.task}
+                    type="button"
+                    className={cx("workspace-hosted-flow-item", active && "is-active")}
+                    aria-current={active ? "page" : undefined}
+                    aria-label={label}
+                    title={`${index + 1}. ${label}`}
+                    onClick={() => chooseTask(item.task)}
+                  >
+                    <span aria-hidden="true">{index + 1}</span>
+                    <strong>{label}</strong>
+                  </button>
+                );
+              })}
+            </nav>
+          )}
           <div className="workspace-toolbar">
             {notice && (
               <span className="workspace-notice" role="status" aria-live="polite">
                 {notice}
               </span>
             )}
-            <button
+            {applicationHost ? <details className="workspace-more-actions"><summary aria-label={l("shell.moreActions", "更多操作")}>{l("shell.moreActions", "更多操作")}</summary><div className="workspace-more-actions-menu">            <button
               className="button ghost compact workspace-sync-button"
               type="button"
-              aria-label="同步当前文档的最新状态，不会重新提取"
-              title="同步最新状态；不会重新提取或修改结构"
+              aria-label={l("shell.syncAria", "同步当前文档的最新状态，不会重新提取")}
+              title={l("shell.syncTitle", "同步最新状态；不会重新提取或修改结构")}
               onClick={() => void refreshDocument()}
               disabled={refreshing}
             >
@@ -407,21 +456,21 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
                 name="refresh"
                 className={refreshing ? "is-spinning" : ""}
               />
-              <span>{refreshing ? "同步中" : "同步"}</span>
+              <span>{refreshing ? l("common.syncing", "同步中") : l("common.sync", "同步")}</span>
             </button>
             {!isSaasAccountMode() && <button
               className="button secondary compact"
               type="button"
-              aria-label="打开 Agent 设置"
-              title="Agent 设置"
+              aria-label={l("shell.agentSettingsAria", "打开 Agent 设置")}
+              title={l("shell.agentSettings", "Agent 设置")}
               onClick={() => setSettingsOpen(true)}
             >
-              <Icon name="settings" /><span>Agent 设置</span>
+              <Icon name="settings" /><span>{l("shell.agentSettings", "Agent 设置")}</span>
             </button>}
             <button
               className="icon-button"
               type="button"
-              aria-label="切换主题"
+              aria-label={l("shell.toggleTheme", "切换主题")}
               onClick={toggleTheme}
             >
               <Icon name={theme === "light" ? "moon" : "sun"} />
@@ -429,11 +478,51 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
             <AppLink
               className="icon-button"
               to="/home"
-              aria-label="打开工作首页"
-              title="工作首页"
+              aria-label={l("shell.openHome", "打开工作首页")}
+              title={l("shell.home", "工作首页")}
             >
               <Icon name="home" />
             </AppLink>
+</div></details> : <>            <button
+              className="button ghost compact workspace-sync-button"
+              type="button"
+              aria-label={l("shell.syncAria", "同步当前文档的最新状态，不会重新提取")}
+              title={l("shell.syncTitle", "同步最新状态；不会重新提取或修改结构")}
+              onClick={() => void refreshDocument()}
+              disabled={refreshing}
+            >
+              <Icon
+                name="refresh"
+                className={refreshing ? "is-spinning" : ""}
+              />
+              <span>{refreshing ? l("common.syncing", "同步中") : l("common.sync", "同步")}</span>
+            </button>
+            {!isSaasAccountMode() && <button
+              className="button secondary compact"
+              type="button"
+              aria-label={l("shell.agentSettingsAria", "打开 Agent 设置")}
+              title={l("shell.agentSettings", "Agent 设置")}
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Icon name="settings" /><span>{l("shell.agentSettings", "Agent 设置")}</span>
+            </button>}
+            <button
+              className="icon-button"
+              type="button"
+              aria-label={l("shell.toggleTheme", "切换主题")}
+              onClick={toggleTheme}
+            >
+              <Icon name={theme === "light" ? "moon" : "sun"} />
+            </button>
+            <AppLink
+              className="icon-button"
+              to="/home"
+              aria-label={l("shell.openHome", "打开工作首页")}
+              title={l("shell.home", "工作首页")}
+            >
+              <Icon name="home" />
+            </AppLink>
+</>}
           </div>
         </header>
         <main id="workspace-content" className="workspace-content" tabIndex={-1}>
@@ -443,25 +532,25 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
 
       <Dialog
         open={settingsOpen}
-        title="Agent 与处理设置"
+        title={l("shell.agentSettingsTitle", "Agent 与处理设置")}
         className="settings-dialog"
         onClose={closeSettings}
       >
         <header className="dialog-command-header">
           <div>
-            <p className="section-label">本地工作区</p>
-            <h2>Agent 与处理设置</h2>
+            <p className="section-label">{l("shell.localWorkspace", "本地工作区")}</p>
+            <h2>{l("shell.agentSettingsTitle", "Agent 与处理设置")}</h2>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭设置"
+            aria-label={l("shell.closeSettings", "关闭设置")}
             onClick={closeSettings}
           >
             <Icon name="close" />
           </button>
         </header>
-        {settingsOpen && (applicationHost ? <HostAgentSettings /> : route.reviewCase ? <p>当前入口用于核对已生成的原文候选；运行配置在常规项目入口管理。</p> : <SettingsPanel />)}
+        {settingsOpen && (applicationHost ? <HostAgentSettings /> : route.reviewCase ? <p>{l("shell.reviewCaseNote", "当前入口用于核对已生成的原文候选；运行配置在常规项目入口管理。")}</p> : <SettingsPanel />)}
       </Dialog>
     </div>
   );

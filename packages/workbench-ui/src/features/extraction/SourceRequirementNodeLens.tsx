@@ -50,6 +50,7 @@ interface SourceItemLensProps {
   nextReviewLabel?: string;
   capabilities?: SourceItemReviewContext["capabilities"];
   analysisMode?: boolean;
+  requirementsView?: boolean;
   onChangePurpose?: (purpose: "review" | "analysis") => void;
   analysisUnitIds?: string[];
   tableView?: boolean; selectedDerivedUnitId?: string; onAnalysisUnitChange?: (unitId: string) => void;
@@ -58,7 +59,7 @@ interface SourceItemLensProps {
   tableModelsById: Record<string, StructuredTableModel[]>;
   activePage: number;
   onPageChange: (page: number) => void;
-  onShowSource: () => void;
+  onShowSource: (focus?: boolean) => void;
   onLocateNative?: (ids: string[]) => void;
   onEvidenceChange: (overlays: SourceRequirementEvidenceOverlay[]) => void;
   onFeedbackSaved: () => void;
@@ -145,6 +146,7 @@ export function SourceItemLens({
   nextReviewLabel = "下一项",
   capabilities,
   analysisMode = false,
+  requirementsView = false,
   onChangePurpose,
   analysisUnitIds,
   tableView = false, selectedDerivedUnitId, onAnalysisUnitChange,
@@ -563,7 +565,7 @@ export function SourceItemLens({
     element.scrollIntoView?.({ block: "start", behavior: "smooth" });
   };
   const openFeedback = () => {
-    if (host.readOnly) { if (documentAgent?.collaborationAvailable) documentAgent.show("", "selected"); return; }
+    if (host.readOnly) { if (documentAgent?.collaborationAvailable) documentAgent.show(feedback.trim(), "selected"); return; }
     if (isSaasAccountMode() && documentAgent) { documentAgent.show(feedback.trim(), "selected"); return; }
     if (sharedFeedback && !hasLegacyDraft) { documentAgent!.show("", "selected"); return; }
     setFeedbackOpen(true);
@@ -574,7 +576,7 @@ export function SourceItemLens({
   const originalBlock = detail ? (
 <section ref={originalRef} className="source-review-original" aria-label="本条原文与证据">
             {detail.record.text_bindings.length > 0 && <section className="source-item-verbatim" aria-label="当前原文条目的逐字内容">
-              <header><strong>客户原文</strong></header>
+              <header><strong>提取原文</strong><span>提取的客户原文 · 可对照来源核查</span></header>
               {detail.record.text_bindings.map(binding => <article key={`${binding.content_id}:${binding.start_offset}`}>
                 <div><p>{binding.reading_projection?.display_text ?? binding.text}</p>
                   {binding.reading_projection?.remaining_partial_overlaps?.length ? <small>仍有部分文字交叠，请结合原页核查。</small> : null}
@@ -608,29 +610,42 @@ export function SourceItemLens({
               onPageChange={page => { onPageChange(page); onShowSource(); }} />
           </div>;
   return (
-    <section className="source-requirement-lens" aria-label="原文需求清单">
+    <section className="source-requirement-lens" aria-label={requirementsView ? "需求清单内容" : "原文条目内容"} data-lens={requirementsView ? "requirements" : "source"} data-has-source-path={Boolean(selected?.ancestor_path?.filter(Boolean).length)}>
       {loading ? <div className="source-requirement-state" role="status">正在读取当前原文条目与表格证据…</div>
         : error ? <div className="source-requirement-state is-error" role="alert">{error}</div>
-        : selected && detail ? <article className={`source-requirement-detail${responseMode ? " is-analysis-mode" : ""}`}>
+        : selected && detail ? <article className={`source-requirement-detail${responseMode ? " is-analysis-mode" : ""}${requirementsView ? " is-requirements-view" : ""}`}>
           <header ref={reviewHeaderRef} className="source-review-item-header">
             <div className="source-review-identity">
+              {requirementsView && <span className="source-review-lens-label">{selectedChild ? "派生需求 · 原文依据" : selected.requirementness === "REQUIREMENT" ? "已识别需求 · 原文依据" : "来源上下文 · 保留原文"}</span>}
               <span>{selectedChild ? `${selectedChild.requirement_display_id} · 派生自 ${selected.requirement_display_id || selected.source_display_id} · 来源 ${selected.source_display_id}` : `${selected.requirement_display_id || selected.source_display_id}${selected.requirement_display_id ? ` · 来源 ${selected.source_display_id}` : ""}`}</span>
               <h4>{selectedChild?.text || sourceHeading || selected.display_label}</h4>
-              <span className="source-original-number">{selectedChild ? "来源原编号" : "客户原编号"}：{originalNumber(selectedChild || selected)}</span>
-              {!sourceHeading && detail.record.image_bindings?.length ? <small>图像条目 · 辅助标题</small> : null}
-              <div className="source-review-facets">
-                <span>{selectedChild ? "派生需求" : selected.requirementness === "REQUIREMENT" ? "需求" : "非需求"}</span>
-                {selected.requirementness === "REQUIREMENT"
-                  ? (selectedChild?.requirement_kinds || selected.requirement_kinds).map(kind => <span key={kind}>{requirementKindLabel(kind)}</span>)
-                  : <span>{nonRequirementLabel(selected.non_requirement_role)}</span>}
-                {review?.focus_areas.length ? <button type="button" className="source-review-priority" title={review.focus_reason}
-                  aria-expanded={focusReasonOpen} onClick={() => setFocusReasonOpen(value => !value)}>
-                  重点分析 · {review.focus_areas.map(area => FOCUS_LABELS[area]).join(" / ")}</button> : null}
-                {review?.needs_attention ? <span className="source-review-attention">有待核对事项</span> : null}
+              <div className="source-review-origin-line">
+                <span className="source-original-number">{selectedChild ? "来源原编号" : "客户原编号"}：{originalNumber(selectedChild || selected)}</span>
+                {selected.ancestor_path?.filter(Boolean).length ? <span className="source-requirement-path" title={selected.ancestor_path.filter(Boolean).join(" / ")}>{selected.ancestor_path.filter(Boolean).join(" / ")}</span> : null}
+                {!sourceHeading && detail.record.image_bindings?.length ? <small>图像条目 · 辅助标题</small> : null}
               </div>
             </div>
+            {(evidencePages.length > 1 || evidencePages.length > 0 && !detail.record.text_bindings.length) && <nav className="source-requirement-pages source-requirement-page-nav" aria-label="原文页码入口">
+              <span>原文页</span>
+              {evidencePages.map(page => <button type="button" key={page} className={page === activePage ? "is-active" : ""}
+                aria-pressed={page === activePage} onClick={() => { onPageChange(page); onShowSource(true); }}>P{page}</button>)}
+            </nav>}
+          </header>
+
+          {originalBlock}
+
+          <div className="source-review-meta">
+            <div className="source-review-facets">
+              <span>{selectedChild ? "派生需求" : selected.requirementness === "REQUIREMENT" ? "需求" : "非需求"}</span>
+              {selected.requirementness === "REQUIREMENT"
+                ? (selectedChild?.requirement_kinds || selected.requirement_kinds).map(kind => <span key={kind}>{requirementKindLabel(kind)}</span>)
+                : <span>{nonRequirementLabel(selected.non_requirement_role)}</span>}
+              {review?.focus_areas.length ? <button type="button" className="source-review-priority" title={review.focus_reason}
+                aria-expanded={focusReasonOpen} onClick={() => setFocusReasonOpen(value => !value)}>
+                重点分析 · {review.focus_areas.map(area => FOCUS_LABELS[area]).join(" / ")}</button> : null}
+              {review?.needs_attention ? <span className="source-review-attention">有待核对事项</span> : null}
+            </div>
             <nav className="source-review-shortcuts" aria-label="本条审阅操作">
-              <button type="button" onClick={() => { setOriginalOpen(true); requestAnimationFrame(() => jump(originalRef.current)); }}>原文</button>
               {children.length > 0 && !parentOverview && !selectedChild && <button type="button" onClick={() => jump(derivedRef.current)}>派生 {children.length}</button>}
               {detail.record.visual_interpretation?.text && <button type="button" onClick={() => jump(imageReadingRef.current)}>图与释读</button>}
               {review?.changed_from_previous === true && <button type="button" onClick={() => jump(changesRef.current)}>本次变化</button>}
@@ -638,7 +653,7 @@ export function SourceItemLens({
               {!analysisMode && selected.requirementness === "REQUIREMENT" && onChangePurpose && <button type="button" onClick={() => onChangePurpose("analysis")}>评审此项响应</button>}
               {onNextReviewItem && <button type="button" disabled={atReviewEnd && !nextAnalysisUnit} title={atReviewEnd && !nextAnalysisUnit ? "已到当前筛选的最后一项" : undefined} onClick={nextItem}>{nextAnalysisUnit ? "下个分析单元" : nextReviewLabel}</button>}
             </nav>
-          </header>
+          </div>
 
           {review?.focus_areas.length && focusReasonOpen ? <p className="source-review-focus-reason">{review.focus_reason}</p> : null}
           {review?.attention_reasons.length ? <section className="source-review-issues" aria-label="本条待核对事项">
@@ -649,8 +664,7 @@ export function SourceItemLens({
             {!analysisMode && <button type="button" className="button secondary compact" disabled={isSaasAccountMode() || Boolean(sourceReader) || reasoning?.busy} title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined} onClick={() => void reasoning?.run("decomposition", selectedSourceItemId)}>检查本条拆分</button>}
             {analysisMode && <button type="button" className="button secondary compact" disabled={isSaasAccountMode() || Boolean(sourceReader) || reasoning?.busy} title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined} onClick={() => void reasoning?.run("analysis", selectedSourceItemId)}>分析本条派生项</button>}
           </div></section>}
-          {responseMode && analysisBlock}
-          {responseMode ? <details className="analysis-original" open={originalOpen} onToggle={event => setOriginalOpen(event.currentTarget.open)}><summary>客户原文与图表 · 展开核对完整内容</summary>{originalBlock}</details> : originalBlock}
+          {analysisBlock}
 
           {Boolean(detail.record.context_source_items?.length) && <details className="source-requirement-shared-context">
             <summary>关联原文与条件 · {detail.record.context_source_items!.length} 项</summary>
@@ -686,7 +700,6 @@ export function SourceItemLens({
               onLocate={page => { onPageChange(page); onShowSource(); }} />)}
           </details> : null}
 
-          {!responseMode && analysisBlock}
 
           <details className="source-requirement-agent-explanation" open={explanationOpen}
             onToggle={event => setExplanationOpen(event.currentTarget.open)}>

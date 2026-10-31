@@ -12,8 +12,7 @@ export function installTaskMcp(ctx, launcher, loadBridge = () => import('@deepse
     state.closed = true;
     state.disposal = (async () => {
       const cleanup = [Promise.resolve().then(() => state.disposeAssembly())];
-      const handle = state.handle;
-      if (handle) cleanup.push(Promise.resolve().then(() => handle.dispose()));
+      for (const handle of state.handles || []) cleanup.push(Promise.resolve().then(() => handle.dispose()));
       if (state.readiness) cleanup.push(Promise.resolve(state.readiness).then(() => undefined, () => undefined));
       const results = await Promise.allSettled(cleanup);
       results.push(...await Promise.allSettled([...state.assemblies]));
@@ -23,27 +22,34 @@ export function installTaskMcp(ctx, launcher, loadBridge = () => import('@deepse
   };
   const disposeCreated = ctx.on('agent/created', ({ agent }) => {
     if (closing) return;
-    const state = { agent, closed: false, readiness: undefined, handle: undefined,
+    const state = { agent, closed: false, readiness: undefined, handles: [],
       disposal: undefined, assemblies: new Set(), disposeAssembly: () => {}, lifecycle: undefined };
     const mount = async context => {
-      const binding = await launcher.toolBinding(agent.id);
-      if (!binding || closing || state.closed) return false;
+      const discovered = typeof launcher.toolBindings === 'function'
+        ? await launcher.toolBindings(agent.id)
+        : [await launcher.toolBinding(agent.id)].filter(Boolean);
+      const bindings = (Array.isArray(discovered) ? discovered : [discovered]).filter(Boolean);
+      if (!bindings.length || closing || state.closed) return false;
       context.signal?.throwIfAborted();
       const bridge = await loadBridge();
       if (closing || state.closed) return false;
       context.signal?.throwIfAborted();
-      const handle = agent.ctx.plugin(bridge, { serverName: 'reqpilot', transport: 'stdio',
-        command: binding.command, args: binding.args, cwd: binding.cwd,
-        toolCallTimeoutMs: 120000, failOnStartupError: true });
-      state.handle = handle;
+      const mounted = [];
       try {
-        await handle;
-        if (closing || state.closed) { await handle.dispose(); return false; }
-        context.signal?.throwIfAborted();
+        for (const binding of bindings) {
+          const handle = agent.ctx.plugin(bridge, { serverName: binding.serverName || 'reqpilot', transport: 'stdio',
+            command: binding.command, args: binding.args, cwd: binding.cwd,
+            toolCallTimeoutMs: 120000, failOnStartupError: true });
+          mounted.push(handle);
+          state.handles = mounted;
+          await handle;
+          if (closing || state.closed) { await handle.dispose(); return false; }
+          context.signal?.throwIfAborted();
+        }
         return true;
       } catch (error) {
-        await handle.dispose();
-        if (state.handle === handle) state.handle = undefined;
+        for (const handle of mounted) await handle.dispose().catch(() => {});
+        state.handles = [];
         if (closing || state.closed) return false;
         throw error;
       }

@@ -5,7 +5,7 @@ import { clearScopedUiStateIfUnchanged, useScopedUiState } from "../../shared/ho
 import { classificationLabels } from "../matrix/classificationFacets";
 import type { MatrixMutationRequest } from "../matrix/RequirementMatrixWorkbench";
 
-type SaveState = "" | "未保存" | "保存中…" | "保存失败，请重试" | `已保存 ${string}`;
+type SaveState = { status: "idle" | "dirty" | "saving" | "failed" | "saved"; savedAt?: string };
 interface ReviewState { revision: number; sourceRevision: string; writeToken: string; targets: Record<string, JsonRecord> }
 export function CandidateReviewInspector({ node, topics, saveRef, onSaveState, onSaved, resetSignal, beginMutation, isMutationCurrent, isTargetCurrent }: {
   node: RequirementMatrixNode | null; topics: Record<string, string>;
@@ -31,18 +31,18 @@ export function CandidateReviewInspector({ node, topics, saveRef, onSaveState, o
     try { const next = await request<ReviewState>("/api/review-state"); setState(current => !current || next.revision >= current.revision ? next : current); setError(""); }
     catch (cause) { setError(cause instanceof Error ? cause.message : String(cause)); }
   }, []);
-  useEffect(() => { setPending(false); setMessage(""); void load(); onSaveState(draft ? "未保存" : ""); }, [target, load, onSaveState]);
+  useEffect(() => { setPending(false); setMessage(""); void load(); onSaveState({ status: draft ? "dirty" : "idle" }); }, [target, load, onSaveState]);
   useEffect(() => {
     if (consumedResetSignal.current === resetSignal) return;
     consumedResetSignal.current = resetSignal;
-    setDraft(""); onSaveState("");
+    setDraft(""); onSaveState({ status: "idle" });
   }, [resetSignal, setDraft, onSaveState]);
   const save = useCallback(async (action: "comment" | "confirm" | "undo" = "comment") => {
     if (!node || !meta.sourceRevision || !state || pending || (action === "comment" && !draft.trim())) return false;
     const selected = target;
     const mutation = beginMutation();
     const lastEvent = asRecord(state.targets[target]).lastEventId;
-    setPending(true); setError(""); onSaveState("保存中…");
+    setPending(true); setError(""); onSaveState({ status: "saving" });
     try {
       const response = await request<{ state: ReviewState }>("/api/review", { method: "POST",
         headers: { "X-Review-Token": state.writeToken },
@@ -57,13 +57,13 @@ export function CandidateReviewInspector({ node, topics, saveRef, onSaveState, o
         setMessage(action === "undo" ? "已撤销本条最近一次核对操作" : action === "confirm" ? "已记录本条核对确认" : "反馈已保存");
       }
       if (isMutationCurrent(mutation)) {
-        if (isTargetCurrent(selected)) onSaveState(cleared ? `已保存 ${new Date().toLocaleTimeString("zh-CN")}` : "未保存");
+        if (isTargetCurrent(selected)) onSaveState(cleared ? { status: "saved", savedAt: new Date().toLocaleTimeString("zh-CN") } : { status: "dirty" });
         await onSaved();
       }
       return true;
     } catch (cause) {
       if (active.current === selected) setError(cause instanceof Error ? cause.message : String(cause));
-      if (isMutationCurrent(mutation) && isTargetCurrent(selected)) onSaveState("保存失败，请重试");
+      if (isMutationCurrent(mutation) && isTargetCurrent(selected)) onSaveState({ status: "failed" });
       return false;
     } finally { if (active.current === selected) setPending(false); }
   }, [draft, draftKey, meta.sourceRevision, node, onSaveState, onSaved, pending, setDraft, state, target, beginMutation, isMutationCurrent, isTargetCurrent]);
@@ -94,7 +94,7 @@ export function CandidateReviewInspector({ node, topics, saveRef, onSaveState, o
     {meta.ownerFeedback ? <section className="matrix-inspector-section"><p className="section-label">已收到的用户反馈</p><p>{String(meta.ownerFeedback)}</p></section> : null}
     <section className="matrix-inspector-section"><label className="field"><span>核对反馈</span>
       <textarea rows={5} value={draft} disabled={pending} placeholder="记录分类、拆分、标签或原文定位的问题…"
-        onChange={event => { setDraft(event.target.value); onSaveState(event.target.value ? "未保存" : ""); }} />
+        onChange={event => { setDraft(event.target.value); onSaveState({ status: event.target.value ? "dirty" : "idle" }); }} />
     </label><div className="matrix-inspector-actions">
       <button type="button" className="button primary" disabled={!state || pending || !draft.trim()} onClick={() => void save()}>保存反馈</button>
       <button type="button" className="button secondary" disabled={!state || pending} onClick={() => void save("confirm")}>确认本条</button>

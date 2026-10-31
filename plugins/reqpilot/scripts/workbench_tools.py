@@ -11,7 +11,10 @@ from urllib.parse import parse_qs, quote, urlencode, urlsplit, urlunsplit
 from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 ARTIFACTS=('document-map.json','table-previews.json','source-requirement-baseline.json','validation-receipt.json',
-           'image-annotations.json','source-item-decomposition.json','analysis-policy.json')
+           'item-compilation-receipt.json','workflow-check.json','image-annotations.json',
+           'source-item-decomposition.json','analysis-policy.json',
+           'source-item-assessments.json','analysis-packet.json','knowledge-catalog.json',
+           'evidence-registration.json','knowledge-attestation.json')
 
 
 def read(path):return json.loads(Path(path).read_text(encoding='utf-8'))
@@ -43,6 +46,23 @@ def request(url,payload=None):
         try:body=json.loads(body).get('detail',body)
         except ValueError:pass
         raise ValueError(f'Workbench HTTP {exc.code}: {body}') from exc
+
+
+def download(url):
+    """Read one immutable binary export from the configured local application."""
+    parsed=urlsplit(url)
+    if parsed.scheme not in {'http','https'} or parsed.hostname not in {'127.0.0.1','localhost','::1'} or parsed.username or parsed.password:
+        raise ValueError('Workbench export requires the configured local application URL')
+    try:
+        with build_opener(NoRedirect()).open(Request(url,headers={'Accept':'application/vnd.openxmlformats-officedocument.spreadsheetml.sheet'}),timeout=15) as response:
+            data=response.read()
+            headers={key.lower():value for key,value in response.headers.items()}
+            return data,headers
+    except HTTPError as exc:
+        body=exc.read(8000).decode('utf-8',errors='replace')
+        try:body=json.loads(body).get('detail',body)
+        except ValueError:pass
+        raise ValueError(f'Workbench export HTTP {exc.code}: {body}') from exc
 
 
 def binding_path(sha):return Path.cwd()/'runtime-data/workbench-bindings'/f'{sha}.json'
@@ -207,9 +227,9 @@ def source_and_artifacts(args):
     if folder:
         folder=folder.resolve(strict=True)
         if not getattr(args,'map_dir',None):
-            unsupported=[n for n in ('source-item-assessments.json','manual-decisions.json') if (folder/n).is_file()]
+            unsupported=[n for n in ('manual-decisions.json',) if (folder/n).is_file()]
             if unsupported:
-                raise ValueError('This draft includes analysis/engineer-opinion evidence not yet supported by this transport; do not omit it: '+', '.join(unsupported))
+                raise ValueError('This draft includes engineer opinions; do not omit them. Import through the explicit user-owned workbench path: '+', '.join(unsupported))
         names=ARTIFACTS[:2] if getattr(args,'map_dir',None) else ARTIFACTS
         artifacts={n:read(folder/n) for n in names if (folder/n).is_file()}
         if 'document-map.json' not in artifacts:raise ValueError('The selected directory has no compiled Document Map')
@@ -271,9 +291,18 @@ def sync_workbench(args):
         # Refresh confirmations/feedback, but never silently adopt a newer source revision for a writer.
         if state and state['revision_id']!=binding['revision_id']:
             raise ValueError('The workbench has another revision. Run workbench-pull, inspect it and decide how to continue.')
+        fixed_workflow=None
+        if task:
+            from reqpilotx.application.agent_workflow.task_workspace import workspace_status
+            local_state=workspace_status(task[0],refresh=False)
+            fixed_workflow=local_state.get('workflow')
+            check_path=Path(task[0])/'workflow-check.json'
+            if check_path.is_file() and 'workflow-check.json' not in artifacts:
+                artifacts['workflow-check.json']=read(check_path)
         if state is None:
             state=request(api,{'session_id':binding['session_id'],'expected_source_sha256':sha,
-                'require_map_confirmation':binding['require_map_confirmation'],'goal':getattr(args,'goal','') or ''})
+                'require_map_confirmation':binding['require_map_confirmation'],'goal':getattr(args,'goal','') or '',
+                **({'fixed_workflow':fixed_workflow} if fixed_workflow else {})})
             _validate_state(state,binding)
             save(path,binding)
         _remember_task_binding(task,path,binding)
@@ -292,7 +321,8 @@ def sync_workbench(args):
                     if item:resolutions[remote_id]=item['resolution_reason']
             state=request(api,{'session_id':binding['session_id'],'expected_source_sha256':sha,
                 'expected_revision_id':binding['revision_id'],'require_map_confirmation':binding['require_map_confirmation'],
-                'artifacts':artifacts,'local_review_sha256':review_sha,'feedback_resolutions':resolutions})
+                'artifacts':artifacts,'local_review_sha256':review_sha,'feedback_resolutions':resolutions,
+                **({'fixed_workflow':fixed_workflow} if fixed_workflow else {})})
             _validate_state(state,binding)
         url=_remember_result_url(binding,state)
         if artifacts:

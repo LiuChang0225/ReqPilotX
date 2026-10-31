@@ -3,11 +3,36 @@ import discovery from './application-discovery.cjs';
 import { installTaskMcp } from './task-mcp.js';
 import { TaskLauncher } from './task-launch.js';
 import { ManagedRuntime } from './managed-runtime.js';
+import { KnowledgeBridge, KnowledgeError } from './knowledge.js';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 export const name = 'reqpilotx-readonly-host';
 export const inject = ['webServer', 'connection', 'subprocess'];
 export const PREFIX = '/reqpilotx';
+export const APPLICATION_VERSION = '0.2.0';
+export const applicationMetadata = Object.freeze({
+  id: 'reqpilotx',
+  name: { en: 'ReqPilotX', zh: 'ReqPilotX' },
+  description: {
+    en: 'Evidence-driven customer requirement intake, source structure, requirement items, self-check and reviewed delivery.',
+    zh: '面向客户文档的证据驱动需求整理、原文结构、需求条目、自查与可核对交付。',
+  },
+  domain: 'GEN', stage: 'requirement-analysis', version: APPLICATION_VERSION,
+  owner: 'PAIR Team', integrationAuthor: 'PAIR Team', authors: [], panelId: 'reqpilotx',
+});
+/** Availability only, never model or business acceptance. */
+export function applicationReadStatus(runtime) {
+  const status = runtime?.snapshot?.status;
+  return status === 'READY' ? 'ready' : status === 'ERROR' || status === 'STOPPED' ? 'unavailable' : 'starting';
+}
+/** Optional Host discovery consumer; a raw DSH without the service keeps its own sidebar. */
+export function registerPairApplication(ctx, runtime) {
+  const center = typeof ctx.get === 'function' ? ctx.get('pairSkillCenter') : ctx.pairSkillCenter;
+  if (!center || typeof center.registerApplication !== 'function') return null;
+  ctx.effect(() => center.registerApplication(applicationMetadata, () => applicationReadStatus(runtime)),
+    'reqpilotx: application discovery');
+  return applicationMetadata;
+}
 
 /** Validate the explicit service origin; credentials and path routing are not accepted. */
 export function serviceOrigin(value) {
@@ -28,16 +53,107 @@ export function proxyTarget(requestUrl, origin) {
   return new URL(path + url.search, origin);
 }
 
+/** Business-facing knowledge routes. Original bytes and search stay owned by PAIR. */
+async function handleKnowledge(knowledge, url, req, res) {
+  const send = (status, value) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(value === undefined ? undefined : JSON.stringify(value)); };
+  if (req.method === 'GET' && url.pathname === PREFIX + '/knowledge/inventory') {
+    const projectId = url.searchParams.get('projectId') || '';
+    if (!projectId) throw new KnowledgeError('INVALID_PROJECT', 422);
+    send(200, await knowledge.inventory(projectId)); return true;
+  }
+  if (req.method === 'GET' && url.pathname === PREFIX + '/knowledge/adopted') {
+    send(200, await knowledge.adoptedInventory()); return true;
+  }
+  const upload = /^\/reqpilotx\/knowledge\/projects\/([^/]+)\/references$/.exec(url.pathname);
+  if (upload && req.method === 'POST') {
+    const projectId = decodeURIComponent(upload[1]);
+    const name = String(url.searchParams.get('name') || '');
+    const kind = String(url.searchParams.get('kind') || 'REFERENCE');
+    const chunks = []; let size = 0;
+    for await (const chunk of req) { size += chunk.length; if (size > 128 * 1024 * 1024) throw new KnowledgeError('REFERENCE_TOO_LARGE', 413); chunks.push(chunk); }
+    send(201, await knowledge.uploadProjectReference(projectId, name, Buffer.concat(chunks), kind)); return true;
+  }
+  const retry = /^\/reqpilotx\/knowledge\/projects\/([^/]+)\/references\/([^/]+)\/retry$/.exec(url.pathname);
+  if (retry && req.method === 'POST') {
+    send(200, await knowledge.retryProjectReference(decodeURIComponent(retry[1]), decodeURIComponent(retry[2]))); return true;
+  }
+  const topics = /^\/reqpilotx\/knowledge\/team\/([^/]+)\/topics$/.exec(url.pathname);
+  if (topics && req.method === 'GET') {
+    send(200, { versions: await knowledge.teamTopics(decodeURIComponent(topics[1])) }); return true;
+  }
+  if (req.method === 'GET' && url.pathname === PREFIX + '/knowledge/team') {
+    send(200, { libraries: await knowledge.teamInventory() }); return true;
+  }
+  const task = /^\/reqpilotx\/knowledge\/tasks\/([^/]+)$/.exec(url.pathname);
+  if (task && req.method === 'GET') {
+    const commandId = decodeURIComponent(task[1]);
+    const binding = await knowledge.loadBinding(commandId);
+    send(200, { bindingSha256: binding.binding_sha256, mode: binding.mode,
+      status: await knowledge.checkBinding(commandId) }); return true;
+  }
+  const adoptedSource = /^\/reqpilotx\/knowledge\/tasks\/([^/]+)\/adopted\/source\/([^/]+)$/.exec(url.pathname);
+  if (adoptedSource && req.method === 'GET') {
+    const value = await knowledge.adoptedSource(decodeURIComponent(adoptedSource[1]), decodeURIComponent(adoptedSource[2]));
+    res.writeHead(200, { 'content-type': value.mime || 'application/octet-stream',
+      'content-disposition': 'inline; filename="' + encodeURIComponent(value.filename || adoptedSource[2]) + '"',
+      'cache-control': 'no-store', 'x-content-type-options': 'nosniff',
+      'x-reqpilot-adopted-content-revision': value.contentRevision || '',
+      ...(value.sourceVersion ? { 'x-reqpilot-adopted-source-version': value.sourceVersion } : {}) });
+    res.end(value.bytes); return true;
+  }
+  const adoptedImage = /^\/reqpilotx\/knowledge\/tasks\/([^/]+)\/adopted\/image\/([^/]+)$/.exec(url.pathname);
+  if (adoptedImage && req.method === 'GET') {
+    const value = await knowledge.adoptedImage(decodeURIComponent(adoptedImage[1]), decodeURIComponent(adoptedImage[2]));
+    res.writeHead(200, { 'content-type': value.mime || 'application/octet-stream', 'cache-control': 'no-store',
+      'x-content-type-options': 'nosniff' });
+    res.end(value.bytes); return true;
+  }
+  const adoptedRecord = /^\/reqpilotx\/knowledge\/tasks\/([^/]+)\/adopted\/records$/.exec(url.pathname);
+  if (adoptedRecord && req.method === 'GET') {
+    const kind = String(url.searchParams.get('kind') || '');
+    const id = String(url.searchParams.get('id') || '');
+    const path = String(url.searchParams.get('path') || '');
+    const request = kind === 'wiki' ? { kind, path } : kind === 'source' ? { kind, sourceId: id } : { kind, id };
+    send(200, (await knowledge.adoptedRecord(decodeURIComponent(adoptedRecord[1]), request)).result); return true;
+  }
+  const original = /^\/reqpilotx\/knowledge\/tasks\/([^/]+)\/documents\/([^/]+)$/.exec(url.pathname);
+  if (original && req.method === 'GET') {
+    const commandId = decodeURIComponent(original[1]);
+    const documentId = decodeURIComponent(original[2]);
+    const value = await knowledge.original(commandId, documentId, url.searchParams.get('version'));
+    const bytes = Buffer.from(value.bytes || value);
+    res.writeHead(200, { 'content-type': value.document?.mime || 'application/octet-stream',
+      'content-disposition': 'inline; filename="' + encodeURIComponent(value.document?.name || documentId) + '"',
+      'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+    res.end(bytes); return true;
+  }
+  return false;
+}
+
 /** Authenticated resource broker with an explicit write policy; no Pair credentials go upstream. */
-export function createHandler(origin, reject, transport = fetch, runtimeSnapshot, taskLauncher) {
+export function createHandler(origin, reject, transport = fetch, runtimeSnapshot, taskLauncher, knowledge = null) {
+  const resolve = value => typeof value === 'function' ? value() : value;
   return async (req, res) => {
     const denied = reject(req);
     if (denied !== undefined) { res.writeHead(denied); res.end(); return; }
     const url = new URL(req.url, 'http://pair.invalid');
     const state = runtimeSnapshot ? runtimeSnapshot() : { serviceOrigin: origin, mode: 'readonly-connect', status: 'READY' };
+    const currentKnowledge = resolve(knowledge);
+    const currentLauncher = resolve(taskLauncher);
+    if (currentKnowledge && url.pathname.startsWith(PREFIX + '/knowledge/')) {
+      try {
+        const result = await handleKnowledge(currentKnowledge, url, req, res);
+        if (result !== false) return;
+      } catch (error) {
+        const status = error instanceof KnowledgeError ? error.status : (error.status || 502);
+        res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(JSON.stringify({ error: error.code || 'KNOWLEDGE_REQUEST_FAILED', message: error.message }));
+        return;
+      }
+    }
     if (url.pathname === PREFIX + '/tasks' || url.pathname === PREFIX + '/tasks/start' || url.pathname.startsWith(PREFIX + '/tasks/')) {
       try {
-        if (!taskLauncher) { res.writeHead(503); res.end(JSON.stringify({ error: 'TASK_LAUNCH_NOT_CONFIGURED' })); return; }
+        if (!currentLauncher) { res.writeHead(503); res.end(JSON.stringify({ error: 'TASK_LAUNCH_NOT_CONFIGURED' })); return; }
         let result;
         const control = /^\/reqpilotx\/tasks\/([^/]+)\/control$/.exec(url.pathname);
         if ((url.pathname === PREFIX + '/tasks/start' || control) && req.method === 'POST') {
@@ -46,12 +162,12 @@ export function createHandler(origin, reject, transport = fetch, runtimeSnapshot
           const input = JSON.parse(text);
           if (control) {
             if (input.commandId !== control[1]) { res.writeHead(422); res.end(); return; }
-            result = await taskLauncher.control(input);
-          } else result = await taskLauncher.start(input);
+            result = await currentLauncher.control(input);
+          } else result = await currentLauncher.start(input);
         } else if (req.method === 'GET' && url.pathname === PREFIX + '/tasks') {
-          result = await taskLauncher.list(Object.fromEntries(url.searchParams));
+          result = await currentLauncher.list(Object.fromEntries(url.searchParams));
         } else if (req.method === 'GET' && url.pathname !== PREFIX + '/tasks/start' && !control) {
-          result = await taskLauncher.inspect(url.pathname.slice((PREFIX + '/tasks/').length));
+          result = await currentLauncher.inspect(url.pathname.slice((PREFIX + '/tasks/').length));
         } else { res.writeHead(405); res.end(); return; }
         res.writeHead(req.method === 'POST' ? 202 : 200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(result));
       } catch (error) {
@@ -99,21 +215,62 @@ export function createHandler(origin, reject, transport = fetch, runtimeSnapshot
 }
 
 /** Mount the route and own runtime lifecycle through the Cordis effect lifetime. */
-export function apply(ctx, config = {}) {
+export function apply(ctx, config = {}, makeRuntime = (scope, settings) => new ManagedRuntime(scope.subprocess, settings)) {
   const connect = config.mode === 'connect' || (!config.mode && config.serviceOrigin);
-  const runtime = connect ? null : new ManagedRuntime(ctx.subprocess, config);
-  const taskLauncher = runtime && config.capabilityRoot ? new TaskLauncher(runtime, config, () => ({ sessions: ctx.get('sessionController'), workspaces: ctx.get('workspaceController'), liveStatus: id => ctx.get('agents')?.get(id)?.status })) : null;
-  if (taskLauncher && config.taskMcp === true) installTaskMcp(ctx, taskLauncher);
+  const runtime = connect ? null : makeRuntime(ctx, config);
+  const applicationId = () => {
+    if (!runtime || !runtime.ownerId) return null;
+    try { return discovery.publicConfiguration({ ...runtime.snapshot, ownerId: runtime.ownerId }).applicationId; }
+    catch { return null; }
+  };
+  let knowledge = null;
+  let taskLauncher = null;
+  const ensureLauncher = () => {
+    if (!runtime || taskLauncher || !config.capabilityRoot) return taskLauncher;
+    taskLauncher = new TaskLauncher(runtime, config, () => ({ sessions: ctx.get('sessionController'), workspaces: ctx.get('workspaceController'), defaultModel: ctx.get('agentDefaultModel'), liveStatus: id => ctx.get('agents')?.get(id)?.status }), fetch, knowledge);
+    if (config.taskMcp === true) installTaskMcp(ctx, taskLauncher);
+    ctx.effect(() => () => taskLauncher.close(), 'reqpilotx: task launch lifetime');
+    if (runtime.snapshot.status === 'READY') void taskLauncher.initialize().catch(() => { taskLauncher.ready = false; });
+    return taskLauncher;
+  };
+  const mountKnowledge = (scope, service) => {
+    if (!service || !runtime || knowledge) return knowledge;
+    const bridge = new KnowledgeBridge({ service, runtime, dataRoot: runtime.dataRoot, applicationId });
+    knowledge = bridge;
+    scope.effect(() => async () => {
+      if (knowledge === bridge) {
+        knowledge = null;
+        taskLauncher?.attachKnowledge(null);
+      }
+      await bridge.close();
+    }, 'reqpilotx: knowledge evidence lifetime');
+    if (taskLauncher) taskLauncher.attachKnowledge(knowledge);
+    else ensureLauncher();
+    return knowledge;
+  };
   const origin = connect ? serviceOrigin(config.serviceOrigin) : null;
-  if (runtime) ctx.effect(() => () => runtime.stop(), 'reqpilotx: managed runtime');
-  if (taskLauncher) ctx.effect(() => () => taskLauncher.close(), 'reqpilotx: task launch lifetime');
+  if (runtime) {
+    ensureLauncher();
+    if (typeof ctx.inject === 'function') {
+      ctx.inject(['knowledge'], scope => { mountKnowledge(scope, typeof scope.get === 'function' ? scope.get('knowledge') : scope.knowledge); });
+      ctx.inject(['pairSkillCenter'], scope => { registerPairApplication(scope, runtime); });
+    } else {
+      if (typeof ctx.get === 'function') mountKnowledge(ctx, ctx.get('knowledge'));
+      registerPairApplication(ctx, runtime);
+    }
+    ctx.effect(() => () => runtime.stop(), 'reqpilotx: managed runtime');
+  }
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: PREFIX,
     handler: createHandler(origin, req => ctx.connection.requestRejection(req), fetch, runtime ? () => ({ ...runtime.snapshot, ownerId: runtime.ownerId,
       workbenchCapture: config.workbenchCapture === true,
-      taskModel: config.agentModel,
+      taskModel: taskLauncher?.currentModel() || config.agentModel,
+      taskWorkflow: taskLauncher?.workflowDescriptor,
+      taskStartIssue: taskLauncher?.startIssue() || null,
       taskLookupAvailable: Boolean(taskLauncher),
-      taskLaunchReady: taskLauncher?.available() === true, taskCancelReady: taskLauncher?.canCancel() === true,
-      taskContinueReady: taskLauncher?.canContinue() === true, taskReconnectReady: taskLauncher?.canReconnect() === true }) : undefined, taskLauncher),
+      taskLaunchReady: taskLauncher?.startAvailable() === true, taskCancelReady: taskLauncher?.canCancel() === true,
+      taskContinueReady: taskLauncher?.canContinue() === true, taskReconnectReady: taskLauncher?.canReconnect() === true,
+      knowledgeAvailable: knowledge?.available() === true,
+      knowledgeAdoptionAvailable: knowledge?.adoptionAvailable() === true }) : undefined, () => taskLauncher, () => knowledge),
   }), 'reqpilotx: application route');
   if (runtime) void runtime.start().then(async () => { if (runtime.snapshot.status === 'READY') await taskLauncher?.initialize(); }).catch(() => { if (taskLauncher) taskLauncher.ready = false; });
 }
