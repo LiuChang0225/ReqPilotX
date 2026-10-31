@@ -201,9 +201,10 @@ def read_page(frame, *, profile='page', tessdata_dir=None, table_regions=()):
     version_data={'implementation_sha256':hashlib.sha256(Path(__file__).read_bytes()).hexdigest(),
                   'profile':profile,'table_regions':list(table_regions),'engine':_engine_identity(tessdata_dir)}
     import json
-    version='tess1-'+hashlib.sha256(json.dumps(version_data,sort_keys=True).encode()).hexdigest()[:32]
+    def reading_version():
+        return 'tess1-'+hashlib.sha256(json.dumps(version_data,sort_keys=True).encode()).hexdigest()[:32]
     common=dict(source_sha256=frame.source_sha256,page_image_sha256=frame.page_image_sha256,
-                provider_id='local-tesseract',provider_version=version,page_number=frame.page_number)
+                provider_id='local-tesseract',page_number=frame.page_number)
     observations=[];audit={'config':version_data,'page_words':[],'line_rechecks':[],
                            'numeric_rechecks':[],'tables':[],'diagnostics':[]}
     def add(box,text,layout=None):
@@ -212,6 +213,7 @@ def read_page(frame, *, profile='page', tessdata_dir=None, table_regions=()):
             observation_id=stable_visual_text_observation_id(**common,observation_index=index,bbox=box),
             confidence=None,content_type='TABLE' if layout else 'TEXT',layout_table=layout))
     if profile!='tables':
+        common['provider_version']=reading_version()
         words=recognize_image(image,tessdata_dir=tessdata_dir)
         audit['page_words']=words
         for line in _line_groups(words):
@@ -241,12 +243,25 @@ def read_page(frame, *, profile='page', tessdata_dir=None, table_regions=()):
                         'original':old,'candidate':candidate,'bbox':_page_box(frame,roi),
                         'source_pixel_bbox':roi,'words':alternative,'applied':False,
                         'disagrees':''.join(old.split())!=''.join(candidate.split())})
+    tables=[]
     for region in table_regions:
         try:
             box,layout,raw=read_ruled_table(frame,image,region,tessdata_dir=tessdata_dir)
-            add(box,'',layout);audit['tables'].append(raw)
+            tables.append((box,layout));audit['tables'].append(raw)
         except (ValueError,ImportError) as exc:
             audit['diagnostics'].append({'region':region,'message':str(exc)})
+    if profile=='tables' and table_regions:
+        if not tables:
+            reasons='; '.join(str(item.get('message')) for item in audit['diagnostics'])
+            raise ValueError('TABLE_PROFILE_NO_OBSERVATIONS: no requested table region produced evidence'
+                             + (': '+reasons if reasons else ''))
+        version_data['table_outcome_sha256']=hashlib.sha256(
+            json.dumps({'tables':audit['tables'],'diagnostics':audit['diagnostics']},
+                       sort_keys=True,ensure_ascii=False).encode()).hexdigest()
+    if 'provider_version' not in common:
+        common['provider_version']=reading_version()
+    for box,layout in tables:
+        add(box,'',layout)
     shape=dict(page_bbox=frame.page_bbox,page_image_width_px=frame.page_image_width_px,
                page_image_height_px=frame.page_image_height_px)
     evaluated=tuple(t for t in ('TEXT','TABLE') if any(o.content_type==t for o in observations)) or ('TEXT',)

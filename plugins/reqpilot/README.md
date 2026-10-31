@@ -41,6 +41,8 @@ R1 deliberately retains the internal `app` namespace. Install `reqpilotx-engine`
 
 Install the built plugin's `requirements.txt` in a Python 3.11+ virtual environment, then run its `scripts/reqpilot.py doctor`. Move/copy the **whole built directory** to another machine; no source checkout is required for the portable path. The source plugin directory alone is not a complete release bundle. `build-receipt.json.engine_release.core_identity` must match the engine manifest used for the release. The advertised local ruled-table OCR profile now carries its pinned `numpy` and `opencv-contrib-python` runtime in the engine requirements instead of relying on a caller `PYTHONPATH` or an undeclared system-site package. `doctor.local_ocr` reports `table_profile_supported`, missing Python modules and the exact pins; missing table support remains an explicit reading gap, not an empty complete table.
 
+A table-profile attempt that produces no table observations fails with `TABLE_PROFILE_NO_OBSERVATIONS` and retains its diagnostics without adding an empty source snapshot. Table reading identities include their observed outcome: exact retries are idempotent, while changed or partial outcomes append a distinct snapshot and preserve previous anchors. Existing frozen task bundles retain their original implementation; updating the installed plugin does not rewrite their snapshots or runtime pin.
+
 Prepare a new workspace with project-level discovery:
 
 ```bash
