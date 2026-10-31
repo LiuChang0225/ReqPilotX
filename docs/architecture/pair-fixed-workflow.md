@@ -27,9 +27,12 @@ PAIR 宿主存在 `ctx.knowledge` 时，项目参考上传走
 固定流程简报要求先恢复已挂载的 typed MCP 任务（`task_open`，`mode=resume`，
 使用绑定 `task_id`），再按返回的 revision、selected、`next_action` 和读取句柄继续；
 不以 CLI `--help`、运行时实现检查或编辑回执作为业务步骤。发送给 PAIR 的实际
-启动 prompt 直接包含已准备任务的 `task_id`，首次 `task_open`（`mode=resume`）无需
-先搜索目录；首次恢复后可按需读取 `request.md` 中的用户补充说明。公开操作无法恢复时
-保留工件并报告确切限制。
+启动 prompt 直接包含已准备任务的 `task_id` 和用户补充说明（最多 12000 字符），
+首次 `task_open`（`mode=resume`）无需先搜索目录，也不要求为了取得用户要求而读取
+`request.md`；该文件仅保留为核对参考。补充说明是用户目标，不是来源原文或第三方
+文档数据；其中合法的暂停、等待操作者导入或确认要求会暂缓后续阶段，但不取消后续
+原本要求的阶段，操作者确认后仍须完成全部固定阶段和交付。公开操作无法恢复时保留
+工件并报告确切限制。
 
 本地 SQLite 版本不运行旧的原生 durable loop queue。`extraction-loop/latest` 和
 `loop/latest` 在队列未装配时返回明确的 `NOT_STARTED` 与

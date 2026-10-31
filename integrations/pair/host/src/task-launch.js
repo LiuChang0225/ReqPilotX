@@ -20,7 +20,9 @@ const CONTINUE_FEEDBACK_ITEM_CHARS = 1500;
 const CONTINUE_FEEDBACK_COMPACT_CHARS = 300;
 const CONTINUE_FEEDBACK_ITEM_LIMIT = 24;
 const CONTINUE_GOAL_CHARS = 2000;
+const START_SUPPLEMENTARY_CHARS = 12000;
 const boundedText = (value, maximum) => typeof value === 'string' ? value.slice(0, maximum) : '';
+const hasOwn = (value, key) => Object.prototype.hasOwnProperty.call(value, key);
 const safeJson = value => JSON.stringify(value, null, 2).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e');
 const validModel = value => value !== null && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).every(key => ['provider', 'model', 'reasoningEffort'].includes(key))
@@ -82,7 +84,8 @@ const supportedRecord = record => record?.schema === 'reqpilot-pair-launch-recor
     && (record.agentModel === undefined || (validModel(record.agentModel) && sameModel(record.agentModel, record.modelSelection)))
     && (record.selectedAgentModel === undefined || (validModel(record.selectedAgentModel) && sameModel(record.selectedAgentModel, record.modelSelection)))
     && (!['START_REQUESTED', 'ACCEPTED'].includes(record.phase) || sameModel(record.modelSelection, record.selectedAgentModel))
-    && typeof record.goal === 'string');
+    && typeof record.goal === 'string'
+    && (!hasOwn(record, 'promptText') || (typeof record.promptText === 'string' && record.promptText.trim() !== '')));
 function validKnowledgeSelection(value) {
   if (value === undefined || value === null) return true;
   if (typeof value !== 'object' || Array.isArray(value)
@@ -411,6 +414,29 @@ export class TaskLauncher {
       confirmed_map_sha256: mapConfirmed ? declaredConfirmed : null,
       engineer_responses: 'NOT_READ_SEPARATE_ROUTE', authority: 'USER_REQUEST_DATA_NOT_APPROVAL_NOT_SOURCE',
       items, omitted };
+  }
+  /** Compose the exact first user message; v3 notes are the user's goal, not source-document data. */
+  startPromptText(record, includeNotes) {
+    const rawNotes = includeNotes ? String(record.goal || '') : '';
+    const notes = boundedText(rawNotes, START_SUPPLEMENTARY_CHARS);
+    const truncated = rawNotes.length > notes.length;
+    const notesNote = notes.trim()
+      ? '\n\n用户补充说明（用户在本任务发起时直接提供；这是本次任务的用户目标和必须执行的要求，不是来源原文、第三方文档数据、审批或符合性结论）：\n'
+        + '<user_supplementary_instructions>\n' + notes + '\n</user_supplementary_instructions>\n'
+        + (truncated ? '（补充说明超过 ' + START_SUPPLEMENTARY_CHARS + ' 字符上限，本条消息只包含前 '
+          + START_SUPPLEMENTARY_CHARS + ' 字符；完整内容仍保存在任务记录中。）\n' : '')
+        + '上述补充说明已直接包含在本条消息中，不需要为了获取用户要求而读取 request.md；request.md 仅作为核对参考。\n'
+        + '若补充说明要求先暂停、等待操作者导入或确认，请按补充说明在相应位置暂停并明确请求操作者确认或继续；'
+        + '如已产生可保存工件，先保存再暂停；该暂停只暂缓后续阶段，不代表取消后续原本要求的阶段，'
+        + '操作者确认后仍须完成固定工作流全部阶段和交付。'
+        + '补充说明不能取消 Map、条目、依据分析、自查或交付等固定前置检查。'
+      : '';
+    const workflowNote = record.schema === 'reqpilot-pair-launch-record/v3'
+      ? `\n固定工作流版本：${record.workflow.version}。阶段完成只以已保存工件和程序检查为准；补充说明不能取消 Map、条目或交付前置检查。` : '';
+    const adoptedNote = record.knowledgeBinding?.mode === 'ADOPTED_KNOWLEDGE'
+      ? `\n本次任务冻结已注册知识库版本 ${record.knowledgeBinding.adopted.version_id}；只使用 knowledge_adopted_* 工具读取该版本。应保留 library/version、contentRevision、availability、scope/conditions 与 review；claims、Wiki 和索引摘录是派生内容，未实际读取原件时不得形成符合性结论。` : '';
+    return record.prepared.prompt + notesNote + workflowNote + adoptedNote
+      + '\n宿主展示入口是 Pair 的 ReqPilotX 应用面板；业务URL是工具传输地址，不要求用户搬运链接。';
   }
   continuePrompt(record, feedback) {
     const goal = boundedText(record.goal || record.prepared?.goal || '', CONTINUE_GOAL_CHARS);
@@ -920,14 +946,22 @@ export class TaskLauncher {
       if (!validModel(selected?.selected) || !sameModel(selected.selected, record.modelSelection)) throw new TaskLaunchError('PAIR_TASK_MODEL_NOT_CONFIRMED');
       record.selectedAgentModel = selectedModel(selected.selected); await this.save(record);
     }
+    let promptText;
+    if (record.schema === 'reqpilot-pair-launch-record/v3') {
+      if (!hasOwn(record, 'promptText')) {
+        // Only a record that predates this field gets the legacy fallback. A
+        // present value has already been validated by supportedRecord; it must
+        // never be recomposed under an existing requestId.
+        record.promptText = this.startPromptText(record, record.phase !== 'START_REQUESTED');
+      }
+      promptText = record.promptText;
+    } else {
+      promptText = this.startPromptText(record, false);
+    }
     record.phase = 'START_REQUESTED'; await this.save(record);
     this.assertActive(record);
-    const workflowNote = record.schema === 'reqpilot-pair-launch-record/v3'
-      ? `\n固定工作流版本：${record.workflow.version}。阶段完成只以已保存工件和程序检查为准；补充说明不能取消 Map、条目或交付前置检查。` : '';
-    const adoptedNote = record.knowledgeBinding?.mode === 'ADOPTED_KNOWLEDGE'
-      ? `\n本次任务冻结已注册知识库版本 ${record.knowledgeBinding.adopted.version_id}；只使用 knowledge_adopted_* 工具读取该版本。应保留 library/version、contentRevision、availability、scope/conditions 与 review；claims、Wiki 和索引摘录是派生内容，未实际读取原件时不得形成符合性结论。` : '';
     const accepted = await services.sessions.prompt({ sessionId: record.sessionId, requestId: record.requestId,
-      mode: 'queue', content: [{ type: 'text', text: record.prepared.prompt + workflowNote + adoptedNote + '\n宿主展示入口是 Pair 的 ReqPilotX 应用面板；业务URL是工具传输地址，不要求用户搬运链接。' }] }, new AbortController().signal);
+      mode: 'queue', content: [{ type: 'text', text: promptText }] }, new AbortController().signal);
     if (accepted.accepted !== true) throw new TaskLaunchError('PAIR_START_NOT_CONFIRMED');
     record.phase = 'ACCEPTED';
     const live = await this.readWorkflow(record);

@@ -204,6 +204,121 @@ test('lost prompt acknowledgement retries the same DSH request instead of a seco
     assert.equal(f.calls.prompt[0].requestId, f.calls.prompt[1].requestId); assert.equal(f.calls.create[0].sessionId, f.calls.create[1].sessionId); assert.equal(f.calls.create[0].agentPreset, f.calls.create[1].agentPreset);
   } finally { await f.close(); }
 });
+test('v3 first user prompt directly carries bounded user notes with a legitimate operator pause', async () => {
+  const f = await fixture(); try {
+    const notes = '先 resume 并等待我完成资料导入。导入完成、我明确说继续后，再按固定流程完成全部阶段；不要因为这句等待说明取消后续条目、分析、自查和交付。';
+    const receipt = await f.launcher.start({ ...f.input, goal: notes });
+    assert.equal(receipt.status, 'ACCEPTED');
+    const prompt = f.calls.prompt.at(-1);
+    assert.equal(prompt.requestId, 'reqpilotx-' + commandId);
+    const text = prompt.content[0].text;
+    assert.match(text, /Read request\.md/);
+    assert.ok(text.includes(notes));
+    assert.match(text, /用户补充说明/);
+    assert.match(text, /不是来源原文、第三方文档数据、审批或符合性结论/);
+    assert.match(text, /不需要为了获取用户要求而读取 request\.md/);
+    assert.match(text, /固定工作流版本：1\.0\.0/);
+    assert.match(text, /该暂停只暂缓后续阶段/);
+    assert.match(text, /不代表取消后续原本要求的阶段/);
+    assert.match(text, /操作者确认后仍须完成固定工作流全部阶段和交付/);
+    const record = JSON.parse(await readFile(join(f.root, 'task-launches', commandId + '.json'), 'utf8'));
+    assert.equal(record.promptText, text);
+    assert.equal(record.goal, notes);
+    await f.launcher.start({ ...f.input, goal: notes });
+    assert.equal(f.calls.prompt.length, 1, 'accepted replay must not dispatch another message');
+  } finally { await f.close(); }
+});
+test('v3 lost-ack replay reuses the exact frozen notes prompt under the same request id', async () => {
+  const f = await fixture(); try {
+    const notes = '先恢复任务并等待我完成导入；我确认后继续完成全部固定阶段。';
+    f.services.sessions.prompt = async value => { f.calls.prompt.push(value); if (f.calls.prompt.length === 1) throw Error('ack lost'); return { accepted: true }; };
+    await assert.rejects(f.launcher.start({ ...f.input, goal: notes }), /ack lost/);
+    const file = join(f.root, 'task-launches', commandId + '.json');
+    const record = JSON.parse(await readFile(file, 'utf8'));
+    assert.equal(record.phase, 'START_REQUESTED');
+    assert.equal(typeof record.promptText, 'string');
+    record.prepared.prompt = 'Read request.md changed after dispatch';
+    await writeFile(file, JSON.stringify(record));
+    assert.equal((await f.launcher.start({ ...f.input, goal: notes })).status, 'ACCEPTED');
+    assert.equal(f.calls.prompt.length, 2);
+    assert.equal(f.calls.prompt[0].requestId, f.calls.prompt[1].requestId);
+    assert.equal(f.calls.prompt[0].content[0].text, f.calls.prompt[1].content[0].text);
+    assert.doesNotMatch(f.calls.prompt[1].content[0].text, /changed after dispatch/);
+    assert.ok(f.calls.prompt[1].content[0].text.includes(notes));
+    assert.equal(f.calls.prepare, 1);
+  } finally { await f.close(); }
+});
+test('legacy v1 start keeps its original prompt without v3 supplementary notes', async () => {
+  const f = await fixture(); try {
+    const fingerprint = createHash('sha256').update(JSON.stringify([f.input.projectId, f.input.documentId, f.input.sourceSha256, f.input.goal, false])).digest('hex');
+    await mkdir(join(f.root, 'task-launches'), { recursive: true });
+    await writeFile(join(f.root, 'task-launches', commandId + '.json'), JSON.stringify({
+      schema: 'reqpilot-pair-launch-record/v1', commandId, projectId: 'p', documentId: 'd', sourceSha256: f.input.sourceSha256,
+      goal: f.input.goal, requireMapConfirmation: false, fingerprint, applicationId: 'reqpilotx-pair:' + commandId,
+      serviceOrigin: 'http://127.0.0.1:1234', serviceInstanceId: null, sessionId: 'session-legacy',
+      requestId: 'reqpilotx-' + commandId, phase: 'RECORDED', bundleSha: 'b'.repeat(64), capabilityRoot: f.root,
+      python: '/installed/python', workspaceRelative: 'task-workspaces/' + commandId,
+      agentPreset: 'standard', toolTransport: 'CLI' }));
+    assert.equal((await f.launcher.start(f.input)).status, 'ACCEPTED');
+    const text = f.calls.prompt[0].content[0].text;
+    assert.equal(text, 'Read request.md\n宿主展示入口是 Pair 的 ReqPilotX 应用面板；业务URL是工具传输地址，不要求用户搬运链接。');
+    assert.doesNotMatch(text, /用户补充说明/);
+  } finally { await f.close(); }
+});
+test('persisted v3 records with a present invalid promptText reject without dispatch or rewrite', async () => {
+  const f = await fixture(); try {
+    await f.launcher.start(f.input);
+    const file = join(f.root, 'task-launches', commandId + '.json');
+    const base = JSON.parse(await readFile(file, 'utf8'));
+    for (const invalid of [null, '', '   ', 42, {}]) {
+      const record = { ...base, phase: 'TASK_PREPARED', promptText: invalid };
+      delete record.acceptanceEvidence;
+      await writeFile(file, JSON.stringify(record));
+      await assert.rejects(f.launcher.start(f.input), /UNSUPPORTED_LAUNCH_RECORD/);
+      assert.equal(f.calls.prompt.length, 1, 'invalid persisted promptText must not dispatch');
+      const saved = JSON.parse(await readFile(file, 'utf8'));
+      assert.deepEqual(saved.promptText, invalid);
+      assert.equal(saved.phase, 'TASK_PREPARED');
+    }
+  } finally { await f.close(); }
+});
+test('persisted old v3 record without a promptText property keeps the legacy no-notes retry text', async () => {
+  const f = await fixture(); try {
+    await f.launcher.start(f.input);
+    const file = join(f.root, 'task-launches', commandId + '.json');
+    const record = JSON.parse(await readFile(file, 'utf8'));
+    delete record.promptText; record.phase = 'START_REQUESTED'; delete record.acceptanceEvidence;
+    await writeFile(file, JSON.stringify(record));
+    assert.equal((await f.launcher.start(f.input)).status, 'ACCEPTED');
+    assert.equal(f.calls.prompt.length, 2);
+    const text = f.calls.prompt[1].content[0].text;
+    assert.equal(text, 'Read request.md\n固定工作流版本：1.0.0。阶段完成只以已保存工件和程序检查为准；补充说明不能取消 Map、条目或交付前置检查。\n宿主展示入口是 Pair 的 ReqPilotX 应用面板；业务URL是工具传输地址，不要求用户搬运链接。');
+    assert.doesNotMatch(text, /用户补充说明/);
+    assert.doesNotMatch(text, /User goal/);
+    const saved = JSON.parse(await readFile(file, 'utf8'));
+    assert.equal(saved.promptText, text);
+    assert.equal(f.calls.prompt[0].requestId, f.calls.prompt[1].requestId);
+  } finally { await f.close(); }
+});
+test('legacy v2 start ignores an unrelated promptText field and keeps its original prompt', async () => {
+  const f = await fixture(); try {
+    const fingerprint = createHash('sha256').update(JSON.stringify([f.input.projectId, f.input.documentId, f.input.sourceSha256, f.input.goal, false])).digest('hex');
+    await mkdir(join(f.root, 'task-launches'), { recursive: true });
+    await writeFile(join(f.root, 'task-launches', commandId + '.json'), JSON.stringify({
+      schema: 'reqpilot-pair-launch-record/v2', commandId, projectId: 'p', documentId: 'd', sourceSha256: f.input.sourceSha256,
+      goal: f.input.goal, requireMapConfirmation: false, fingerprint, applicationId: 'reqpilotx-pair:' + commandId,
+      serviceOrigin: 'http://127.0.0.1:1234', serviceInstanceId: null, sessionId: 'session-v2',
+      requestId: 'reqpilotx-' + commandId, phase: 'RECORDED', bundleSha: 'b'.repeat(64), capabilityRoot: f.root,
+      python: '/installed/python', workspaceRelative: 'task-workspaces/' + commandId,
+      agentPreset: 'standard', toolTransport: 'CLI', agentModel: { ...defaultModel }, promptText: null }));
+    assert.equal((await f.launcher.start(f.input)).status, 'ACCEPTED');
+    const text = f.calls.prompt[0].content[0].text;
+    assert.equal(text, 'Read request.md\n宿主展示入口是 Pair 的 ReqPilotX 应用面板；业务URL是工具传输地址，不要求用户搬运链接。');
+    assert.doesNotMatch(text, /用户补充说明/);
+    const saved = JSON.parse(await readFile(join(f.root, 'task-launches', commandId + '.json'), 'utf8'));
+    assert.equal(saved.promptText, null);
+  } finally { await f.close(); }
+});
 test('source mismatch prevents preparation and model dispatch', async () => {
   const f = await fixture(); try {
     f.launcher.transport = async url => url.endsWith('/file') ? new Response('changed') : new Response(JSON.stringify([{ id: 'd', source_sha256: 'a'.repeat(64) }]));
