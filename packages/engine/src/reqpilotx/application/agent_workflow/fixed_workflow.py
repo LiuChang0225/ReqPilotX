@@ -296,10 +296,11 @@ def project_workflow(*, context: dict, selected: dict, brief: dict,
 
     review_sha = review.get('review_sha256') if review else None
     delivery = selected.get('DELIVERY')
-    delivery_current = bool(delivery and delivery.get('baseline_sha256') == items.get('artifact_sha256'))
+    delivery_current = bool(delivery and baseline_current
+                            and delivery.get('baseline_sha256') == items.get('artifact_sha256'))
     check = check or {}
     basis = check.get('basis') or {}
-    check_current = bool(check and basis.get('source_sha256') == source_sha256
+    check_current = bool(check and baseline_current and basis.get('source_sha256') == source_sha256
                          and basis.get('map_sha256') == mapping.get('artifact_sha256')
                          and basis.get('items_sha256') == items.get('artifact_sha256')
                          and basis.get('review_sha256') == review_sha)

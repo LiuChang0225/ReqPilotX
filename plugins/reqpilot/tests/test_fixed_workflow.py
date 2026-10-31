@@ -163,6 +163,31 @@ class FixedWorkflowTests(unittest.TestCase):
             self.assertEqual(inspected['workflow']['stages'][2]['reason'], 'SOURCE_MAP_REQUIRED')
             self.assertEqual((Path(opened['task_root'])/'workflow-status.json').exists(), True)
 
+    def test_early_check_preserves_task_before_map_and_items_exist(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, _, mapping = make_fixture(root / 'fixture')
+            service = TaskService(root, ENTRY, ROOT)
+            state = service.invoke('open', {'mode': 'create', 'source': str(source),
+                'goal': workflow.compose_goal(), 'creation_key': 'early-check', 'workflow': spec()})
+            task = state['task_id']
+            for phase in ('before-prepare', 'before-map', 'before-items'):
+                with self.subTest(phase=phase):
+                    checked = service.invoke('check', {'task_id': task})
+                    self.assertFalse(checked['ready_to_review'])
+                    state = service.invoke('inspect', {'task_id': task})
+                    self.assertFalse(state['workflow']['ready_to_review'])
+                    receipt = Path(state['task_root']) / 'workflow-check.json'
+                    self.assertTrue(receipt.is_file())
+                    if phase == 'before-prepare':
+                        service.invoke('prepare', {'task_id': task, 'expected_revision': state['revision']})
+                    elif phase == 'before-map':
+                        edit = {k: v for k, v in mapping.items() if k != 'source_sha256'}
+                        edit['schema_version'] = 'reqpilot-map-edit/v1'
+                        service.invoke('map', {'task_id': task, 'expected_revision': state['revision'], 'decisions': edit})
+            self.assertEqual(state['workflow']['stages'][1]['status'], 'SAVED')
+            self.assertEqual(state['workflow']['stages'][2]['status'], 'PENDING')
+
     def test_workflow_version_mismatch_is_rejected_before_task_creation(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
