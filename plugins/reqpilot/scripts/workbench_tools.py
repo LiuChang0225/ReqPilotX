@@ -14,7 +14,7 @@ ARTIFACTS=('document-map.json','table-previews.json','source-requirement-baselin
            'item-compilation-receipt.json','workflow-check.json','image-annotations.json',
            'source-item-decomposition.json','analysis-policy.json',
            'source-item-assessments.json','analysis-packet.json','knowledge-catalog.json',
-           'evidence-registration.json')
+           'evidence-registration.json','knowledge-attestation.json')
 
 
 def read(path):return json.loads(Path(path).read_text(encoding='utf-8'))

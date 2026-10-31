@@ -111,9 +111,17 @@ export function KnowledgeEvidencePicker({ projectId, initial, onChange, disabled
         {teamMode === "LIVE" ? <ul>{library?.documents.map(item => <li key={item.id}><label>
           <input type="checkbox" disabled={disabled} checked={teamIds.includes(item.id)} onChange={event => setTeamIds(value => event.target.checked ? [...value, item.id] : value.filter(id => id !== item.id))} />
           <span><strong>{item.name}</strong><small>{coverageLabel(item.coverage)} · {wikiLabel(item.wiki)}</small></span></label></li>)}</ul>
-          : <ul>{topics.map(item => <li key={item.version_id}><label>
-            <input type="radio" name="team-topic" disabled={disabled} checked={topicId === item.version_id} onChange={() => setTopicId(item.version_id)} />
-            <span><strong>{item.label || item.version_id}</strong><small>{[item.availability, item.review_state, item.version_id.slice(0, 12)].filter(Boolean).join(" · ")}</small></span></label></li>)}
+          : <ul>{topics.map(item => <li key={item.versionId}><label>
+            <input type="radio" name="team-topic" disabled={disabled || item.availability.state !== "available"}
+              checked={topicId === item.versionId} onChange={() => setTopicId(item.versionId)} />
+            <span><strong>{item.title}</strong><small>{[
+              item.availability.state === "available" ? "可用" : "草稿（不可选）",
+              item.verification.state === "verified" ? "已核验" : "待核验",
+              item.origin,
+              item.availability.acceptedBy,
+              item.verification.confirmedBy,
+              item.versionId.slice(0, 12),
+            ].filter(Boolean).join(" · ")}</small></span></label></li>)}
             {!topics.length && <li className="knowledge-evidence-note">该库没有可读取的保留主题版本。</li>}</ul>}
         <label className="knowledge-evidence-authority"><input type="checkbox" disabled={disabled} checked={authoritative} onChange={event => setAuthoritative(event.target.checked)} />由用户声明为已核准内部依据（仍不等于人工接受）</label>
         </>}

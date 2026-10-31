@@ -45,7 +45,12 @@ export interface ApplicationKnowledgeInventory {
   teamLibraries: { id: string; name: string; documents: ApplicationKnowledgeDocument[] }[];
 }
 export interface ApplicationKnowledgeTopic {
-  version_id: string; label?: string; review_state?: string; availability?: string; authors?: string[];
+  kbId: string; versionId: string; topicId: string; title: string;
+  availability: { state: "available" | "draft"; acceptedBy?: string };
+  verification: { state: "verified" | "pending"; confirmedBy?: string };
+  origin: "ai-organized" | "human-authored";
+  applicability: { state: "known" | "unknown"; description?: string };
+  authors: string[];
 }
 export interface ApplicationKnowledgeHost {
   available: boolean;

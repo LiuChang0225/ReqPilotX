@@ -226,6 +226,7 @@ class ReviewRequest(WriteRequest):
     assessments: str | None = Field(default=None, description='Sealed source-item assessments bound to analysis_packet and knowledge_catalog.')
     analysis_packet: str | None = Field(default=None, description='The exact sealed analysis packet for assessments.')
     knowledge_catalog: str | None = Field(default=None, description='The registered knowledge catalog used by the analysis packet.')
+    knowledge_attestation: str | None = Field(default=None, description='Host-signed analysis attestation for the exact task revision and decisions.')
 
     @model_validator(mode='after')
     def complete_analysis_inputs(self):
@@ -258,7 +259,7 @@ class AnalysisDecision(Request):
 class AnalysisRequest(WriteRequest):
     decisions: list[AnalysisDecision] = Field(min_length=1)
     unit_ids: list[str] | None = Field(default=None, description='Actual analysis unit IDs returned by the current source item/decomposition read. Omit to assess every current unit.')
-    knowledge_catalog: str | None = Field(default=None, description='Host-written frozen catalog inside this task; omitted uses inputs/knowledge/knowledge-catalog.json.')
+    knowledge_attestation: dict | None = Field(default=None, description='Host-signed statement for this exact task revision, command and decisions.')
 
     @field_validator('decisions', 'unit_ids', mode='before')
     @classmethod
@@ -559,7 +560,7 @@ class TaskService:
         if baseline.document_map_artifact_sha256 != document_map.artifact_sha256:
             raise ValueError('ITEMS_REQUIRED: the saved Map and source items differ')
         tables = read(map_dir / 'table-previews.json')
-        catalog_path = self._analysis_path(root, request.knowledge_catalog, root / 'inputs/knowledge/knowledge-catalog.json')
+        catalog_path = root / 'inputs/knowledge/knowledge-catalog.json'
         if not catalog_path.is_file():
             raise ValueError('KNOWLEDGE_CATALOG_REQUIRED: read selected evidence through the task tools before analysis')
         catalog = verify_catalog(catalog_path)
@@ -570,13 +571,28 @@ class TaskService:
         if (registration.get('binding_sha256') != bound['binding_sha256']
                 or registration.get('mode') != bound['mode']):
             raise ValueError('EVIDENCE_BINDING_MISMATCH: the catalog belongs to another task evidence binding')
+        import os
+        from reqpilotx.application.agent_workflow import pair_evidence
+        key = os.environ.get('REQPILOT_HOST_ATTESTATION_KEY')
+        if not key:
+            raise ValueError('HOST_EVIDENCE_ATTESTATION_REQUIRED: PAIR analysis must be submitted through the owning Host')
+        if not request.command_id:
+            raise ValueError('COMMAND_ID_REQUIRED: PAIR analysis needs the observed command identity')
         unit_ids = request.unit_ids
+        normalized_decisions = [item.model_dump(mode='json') for item in request.decisions]
+        pair_evidence.verify_pair_attestation(request.knowledge_attestation, key,
+            expected={'application_id': bound['application_id'], 'project_id': bound['project_id'],
+                'document_id': state['context'].get('document_id') or '',
+                'task_id': request.task_id, 'binding_sha256': bound['binding_sha256'],
+                'mode': bound['mode'], 'task_revision': request.expected_revision,
+                'command_id': request.command_id, 'unit_ids': unit_ids,
+                'workbench_ref': state.get('workbench_link', {}).get('session_id') or ''},
+            catalog=catalog, decisions=normalized_decisions)
         if unit_ids is not None and (not unit_ids or len(unit_ids) != len(set(unit_ids))):
             raise ValueError('INVALID_DECISION: analysis unit_ids must be unique and nonempty')
-        packet = analysis_core.build_source_item_analysis_packet(
-            document_map, baseline, tables, catalog, selected_unit_ids=unit_ids)
-        candidate = {'decisions': [item.model_dump(mode='json') for item in request.decisions]}
+        candidate = {'decisions': normalized_decisions}
         previous_assessments = previous_packet = None
+        decomposition = None
         reviewed = state['current_working'].get('owner') == 'portable_review'
         review_root = root / 'review'
         if reviewed:
@@ -585,20 +601,38 @@ class TaskService:
             values = review_module.state(current_dir)
             previous_assessments = values.get('assessments')
             previous_packet = values.get('analysis_packet')
+            decomposition = values.get('decomposition')
+        packet = analysis_core.build_source_item_analysis_packet(
+            document_map, baseline, tables, catalog, decomposition=decomposition,
+            selected_unit_ids=unit_ids)
+        if reviewed:
             if previous_assessments and previous_packet and previous_packet.get('packet_sha256') == packet['packet_sha256']:
                 expected = analysis_core.compile_source_item_assessments(packet, candidate)
                 selected_ids = set(packet.get('selected_unit_ids', [unit['unit_id'] for unit in packet['units']]))
                 if all(previous_assessments.get('records', {}).get(unit_id) == expected['records'].get(unit_id)
                         for unit_id in selected_ids):
+                    previous_attestation = current_dir / 'knowledge-attestation.json'
+                    prior = (read(previous_attestation)
+                             if previous_attestation.is_file() else {})
+                    if (state['revision'] != request.expected_revision
+                            and (prior.get('command_id') != request.command_id
+                                 or prior.get('task_revision') != request.expected_revision)):
+                        raise ValueError('REVISION_CONFLICT: refresh the task before reusing an older observed analysis revision')
+                    saved_scope = analysis_core.assessment_scope_status(
+                        baseline, decomposition, previous_assessments)
                     return {'status': 'ANALYSIS_ALREADY_SAVED', **task_summary(state),
                         'analysis': {'artifact_sha256': previous_assessments['artifact_sha256'],
                                      'packet_sha256': packet['packet_sha256'],
                                      'assessed_unit_count': len(previous_assessments.get('records', {})),
+                                     'required_unit_count': len(saved_scope['required']),
+                                     'remaining_unit_ids': saved_scope['missing'],
+                                     'complete': saved_scope['complete'],
                                      'human_acceptance': 'NOT_CLAIMED'}}
         artifact = analysis_core.compile_source_item_assessments(
             packet, candidate, previous=previous_assessments,
             input_packet_ref={'task_id': request.task_id, 'source': 'TASK_EVIDENCE_RUNTIME_BINDING'})
         analysis_core.validate_source_item_assessments(packet, artifact)
+        scope_status = analysis_core.assessment_scope_status(baseline, decomposition, artifact)
         directory = root / 'inputs' / 'analysis' / artifact['artifact_sha256'][:32]
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
         def freeze(name, value):
@@ -616,6 +650,7 @@ class TaskService:
         if not registration_path.is_file():
             raise ValueError('KNOWLEDGE_CATALOG_REQUIRED: the selected evidence registration is missing')
         freeze('evidence-registration.json', read(registration_path))
+        attestation_file = freeze('knowledge-attestation.json', request.knowledge_attestation)
         packet_file = freeze('analysis-packet.json', packet)
         assessments_file = freeze('source-item-assessments.json', artifact)
         policy_file = freeze('analysis-policy.json', {
@@ -631,29 +666,37 @@ class TaskService:
                           'expected_review_sha256': head['review_sha256'],
                           'expected_baseline_sha256': baseline.artifact_sha256},
                 replacements={'assessments': assessments_file, 'analysis_packet': packet_file,
-                              'knowledge_catalog': catalog_file, 'analysis_policy': policy_file},
+                              'knowledge_catalog': catalog_file, 'analysis_policy': policy_file,
+                              'knowledge_attestation': attestation_file},
                 request_payload={'analysis_request': explicit,
                     'replacements': {key: digest_file(path) for key, path in {
                         'assessments': assessments_file, 'analysis_packet': packet_file,
-                        'knowledge_catalog': catalog_file, 'analysis_policy': policy_file}.items()}})
+                        'knowledge_catalog': catalog_file, 'analysis_policy': policy_file,
+                        'knowledge_attestation': attestation_file}.items()}})
             summary = task_summary(self.state(request.task_id)[1])
             return {**result, **summary, 'analysis': {
                 'artifact_sha256': artifact['artifact_sha256'],
                 'packet_sha256': packet['packet_sha256'],
                 'assessed_unit_count': len(artifact.get('records', {})),
+                'required_unit_count': len(scope_status['required']),
+                'remaining_unit_ids': scope_status['missing'],
+                'complete': scope_status['complete'],
                 'human_acceptance': 'NOT_CLAIMED'}}
         from task_review_policy import prepare_review
         review_request = ReviewRequest(task_id=request.task_id,
             expected_revision=request.expected_revision,
             command_id=command + '-open', analysis_policy='available',
             assessments=str(assessments_file), analysis_packet=str(packet_file),
-            knowledge_catalog=str(catalog_file))
+            knowledge_catalog=str(catalog_file), knowledge_attestation=str(attestation_file))
         result = prepare_review(self, root, state, review_request)
         summary = task_summary(self.state(request.task_id)[1])
         return {**result, **summary, 'analysis': {
             'artifact_sha256': artifact['artifact_sha256'],
             'packet_sha256': packet['packet_sha256'],
             'assessed_unit_count': len(artifact.get('records', {})),
+            'required_unit_count': len(scope_status['required']),
+            'remaining_unit_ids': scope_status['missing'],
+            'complete': scope_status['complete'],
             'human_acceptance': 'NOT_CLAIMED'}}
 
     @staticmethod
@@ -822,7 +865,32 @@ class TaskService:
         if action == 'review' and request.assessments:
             analysis_paths = {'assessments': self._analysis_path(root, request.assessments, None),
                 'analysis_packet': self._analysis_path(root, request.analysis_packet, None),
-                'knowledge_catalog': self._analysis_path(root, request.knowledge_catalog, None)}
+                'knowledge_catalog': self._analysis_path(root, request.knowledge_catalog, None),
+                'knowledge_attestation': self._analysis_path(root, request.knowledge_attestation, None)}
+            bound = (state['context'].get('request') or {}).get('knowledge_evidence')
+            if not bound:
+                raise ValueError('EVIDENCE_BINDING_MISSING: review analysis requires a task evidence binding')
+            key = __import__('os').environ.get('REQPILOT_HOST_ATTESTATION_KEY')
+            if not key:
+                raise ValueError('HOST_EVIDENCE_ATTESTATION_REQUIRED: PAIR review requires the owning Host')
+            from reqpilotx.application.agent_workflow import pair_evidence
+            from artifact_tools import read as read_artifact
+            from evidence_tools import verify_catalog
+            catalog = verify_catalog(analysis_paths['knowledge_catalog'])
+            attestation = read_artifact(analysis_paths['knowledge_attestation'])
+            pair_evidence.verify_pair_attestation(attestation, key,
+                expected={'application_id': bound['application_id'], 'project_id': bound['project_id'],
+                    'document_id': state['context'].get('document_id') or '', 'task_id': request.task_id,
+                    'binding_sha256': bound['binding_sha256'], 'mode': bound['mode'],
+                    'task_revision': request.expected_revision,
+                    'workbench_ref': state.get('workbench_link', {}).get('session_id') or ''},
+                catalog=catalog)
+            records = read_artifact(analysis_paths['assessments']).get('records') or {}
+            for decision in attestation.get('decisions', []):
+                expected_record = {name: decision[name] for name in
+                    ('decision', 'reason', 'evidence', 'clarification_question')}
+                if records.get(decision.get('unit_id')) != expected_record:
+                    raise ValueError('HOST_ATTESTATION_INVALID: assessment decisions differ from Host attestation')
         args = Namespace(operation=operation, workspace=root, binding_file=None, input=input_path,
             analysis_policy=policy_path,
             expected_revision=request.expected_revision, command_id=command_id, request_payload=explicit,

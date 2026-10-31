@@ -69,14 +69,25 @@ function fakeKnowledge() {
       return { document, job: { id: 'job-' + id, documentId: id, state: 'source-ready', message: '', updatedAt: '', model: null }, sourceReady: true, wiki: 'not-requested' };
     },
     original: async id => { const document = documents.get(id); if (!document) throw Error('document-unavailable'); return { document, bytes: Buffer.from(document.pages[0].text) }; },
-    topicVersions: async (caller, kbId) => [{ versionId: 'topic-v1', label: 'Retained design topic', reviewState: 'VERIFIED', availability: 'AVAILABLE', authors: ['engineer'] }],
+    topicVersions: async (caller, kbId) => [{ kbId: 'kb-team', versionId: 'topic-v1', topicId: 'topic-id',
+      title: 'Retained design topic', availability: { state: 'available', acceptedBy: 'curator' },
+      verification: { state: 'verified', confirmedBy: 'reviewer' }, origin: 'human-authored',
+      applicability: { state: 'known', description: 'Team design applicability' }, authors: ['engineer'] }],
     topicSelection: caller => pins.get(caller),
     selectTopicVersion: async (caller, kbId, versionId) => { calls.push({ op: 'selectTopicVersion', caller, kbId, versionId });
       if (versionId === null) pins.delete(caller); else pins.set(caller, { kbId, versionId }); },
     readTopicVersion: async (caller, kbId, versionId) => {
       if (pins.get(caller)?.versionId !== versionId) throw Object.assign(Error('pinned-topic-required'), { code: 'pinned-topic-required' });
-      return { versionId, title: 'Retained design topic', sections: [{ heading: 'Design', text: 'The retained team topic states the valve opens in 28 ms at 12 V and 23 C.' }],
-        sources: [{ document_id: 'team-topic-source', name: 'design.md', original_revision: 'd'.repeat(64), excerpts: [{ text: 'The retained team topic states the valve opens in 28 ms at 12 V and 23 C.', page: 2 }] }] };
+      return { formatVersion: 1, versionId, kbId, topicId: 'topic-id',
+        availability: { state: 'available', acceptedBy: 'curator' },
+        verification: { state: 'verified', confirmedBy: 'reviewer' }, origin: 'human-authored',
+        topic: { title: 'Retained design topic', applicability: { state: 'known', description: 'Team design applicability' },
+          content: 'Derived topic content stays separate from source citations.', revision: 'c'.repeat(64) },
+        authors: ['engineer'], sources: [{ documentId: '11111111-1111-4111-8111-111111111111', title: 'design.md',
+          originalRevision: 'd'.repeat(64), extractionRevision: 'e'.repeat(64), coverage: 'complete',
+          location: { kind: 'physical-page', number: 2 },
+          text: 'The retained team topic states the valve opens in 28 ms at 12 V and 23 C.',
+          url: '/api/pair-knowledge/topic/source/kb-team/topic-v1/11111111-1111-4111-8111-111111111111' }] };
     },
     topicOriginal: async (kbId, versionId, documentId) => ({ document: { name: 'design.md', mime: 'text/markdown' }, bytes: Buffer.from('topic original') }),
     close: async () => {},
@@ -127,11 +138,17 @@ test('project, team-topic and combined bindings use isolated scopes and consumed
     bridge.registerRecord({ commandId: 'command-two', prepared: { task_root: taskRoot, workspace: taskRoot, task_id: 'task-two' } });
     const mixed = await bridge.search('command-two', 'valve', 10);
     assert.ok(mixed.facts.some(fact => fact.document_id === 'project-doc'));
-    assert.ok(mixed.facts.some(fact => fact.origin === 'PAIR_RETAINED_TOPIC'));
+    assert.ok(mixed.facts.some(fact => fact.origin === 'PAIR_RETAINED_TOPIC'
+      && fact.document_id === '11111111-1111-4111-8111-111111111111'
+      && fact.source_ref.location.number === 2));
     assert.equal(service.calls.filter(value => value.op === 'search' && value.caller === combined.team.caller).length, 0);
     assert.equal((await bridge.checkBinding('command-two')).state, 'CURRENT');
     const topic = await bridge.topicRead('command-two');
-    assert.ok(topic.facts.some(fact => fact.origin === 'PAIR_RETAINED_TOPIC'));
+    assert.equal(topic.topic.content, 'Derived topic content stays separate from source citations.');
+    assert.equal(topic.sources[0].location.number, 2);
+    assert.ok(topic.facts.every(fact => fact.origin === 'PAIR_RETAINED_TOPIC'));
+    assert.equal(topic.facts[0].document_id, topic.sources[0].documentId);
+    assert.equal(topic.facts[0].original_revision, topic.sources[0].originalRevision);
     assert.equal(service.calls.some(value => value.op === 'search' && value.caller === combined.team.caller), false);
   } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
 });
@@ -233,27 +250,87 @@ test('analysis transport writes the consumed catalog and invokes the typed task 
     bridge.registerRecord({ commandId: 'analysis-command', python: '/installed/python', capabilityRoot: bundle,
       prepared: { task_root: taskRoot, workspace: taskRoot, task_id: 'task-analysis' } });
     const calls = [];
-    bridge.runtime = { dataRoot: root, async command(argv) {
-      calls.push(argv);
-      if (argv.includes('inspect')) return JSON.stringify({ status: 'READY', task_id: 'task-analysis', revision: 'workspace-revision-one' });
+    bridge.runtime = { dataRoot: root, attestationKey: 'f'.repeat(64), async command(argv, env) {
+      calls.push({ argv, env });
+      assert.equal(env.REQPILOT_HOST_ATTESTATION_KEY, 'f'.repeat(64));
       const request = JSON.parse(await readFile(argv[argv.indexOf('--input') + 1], 'utf8'));
       assert.equal(request.expected_revision, 'workspace-revision-one');
+      assert.equal(request.command_id, 'model-command-one');
       assert.equal(request.decisions[0].unit_id, 'u1');
+      assert.equal(request.knowledge_attestation.task_revision, 'workspace-revision-one');
+      assert.equal(request.knowledge_attestation.command_id, 'model-command-one');
+      assert.equal(request.knowledge_attestation.signature.length, 64);
       return JSON.stringify({ status: 'WORKSPACE_OPERATION_SAVED', operation_state: 'COMMITTED',
         analysis: { artifact_sha256: 'a'.repeat(64), assessed_unit_count: 1, human_acceptance: 'NOT_CLAIMED' } });
     } };
     const search = await bridge.search('analysis-command', 'standby', 5);
     const fact = search.facts[0];
+    await assert.rejects(bridge.analysis('analysis-command', [{ unit_id: 'u1', decision: 'COMPLIANT',
+      reason: 'The selected internal result covers the source condition.',
+      evidence: [{ fact_id: 'not-consumed', quote: 'invented' }], clarification_question: '' }],
+      ['u1'], 'workspace-revision-one', 'model-command-one'), /EVIDENCE_FACT_NOT_CONSUMED/);
+    assert.equal(calls.length, 0);
     const result = await bridge.analysis('analysis-command', [{ unit_id: 'u1', decision: 'COMPLIANT',
       reason: 'The selected internal result covers the source condition.',
-      evidence: [{ fact_id: fact.fact_id, quote: fact.text }], clarification_question: '' }], ['u1']);
+      evidence: [{ fact_id: fact.fact_id, quote: fact.text }], clarification_question: '' }],
+      ['u1'], 'workspace-revision-one', 'model-command-one');
     assert.equal(result.analysis.assessed_unit_count, 1);
-    assert.equal(calls.length, 2);
-    assert.ok(calls[0].includes('inspect'));
-    assert.ok(calls[1].includes('analysis'));
+    assert.equal(calls.length, 1);
+    assert.ok(calls[0].argv.includes('analysis'));
+    assert.ok(!calls[0].argv.includes('inspect'));
     const catalog = JSON.parse(await readFile(join(taskRoot, 'inputs/knowledge/knowledge-catalog.json'), 'utf8'));
     assert.ok(catalog.evidence_catalog[fact.fact_id]);
     const registration = JSON.parse(await readFile(join(taskRoot, 'inputs/knowledge/evidence-registration.json'), 'utf8'));
     assert.equal(registration.receipts.length, 1);
   } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+import { EventEmitter } from 'node:events';
+function fakeServer({ fail = false, delay = 0 } = {}) {
+  return () => {
+    const server = new EventEmitter();
+    server.listening = false; server.closed = false;
+    server.listen = () => {
+      if (fail) { queueMicrotask(() => server.emit('error', Error('listen failed'))); return; }
+      setTimeout(() => { if (!server.closed) { server.listening = true; server.emit('listening'); } }, delay);
+    };
+    server.address = () => ({ port: 4242 });
+    server.close = callback => { server.closed = true; server.listening = false; callback?.(); };
+    return server;
+  };
+}
+
+test('concurrent evidence server start shares one listener and retries after failure', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-knowledge-lifecycle-'));
+  let attempts = 0;
+  const bridge = new KnowledgeBridge({ service: fakeKnowledge(), dataRoot: root,
+    applicationId: fakeKnowledge().applicationId, serverFactory: () => {
+      attempts += 1; return fakeServer({ fail: attempts === 1 })();
+    } });
+  try {
+    await assert.rejects(bridge.ensureServer(), /listen failed/);
+    const [first, second] = await Promise.all([bridge.ensureServer(), bridge.ensureServer()]);
+    assert.equal(first, second);
+    assert.equal(attempts, 2);
+    assert.equal(first.endpoint, 'http://127.0.0.1:4242');
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('close during startup awaits the listener and leaves no server or retry path', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-knowledge-close-'));
+  const created = [];
+  const bridge = new KnowledgeBridge({ service: fakeKnowledge(), dataRoot: root,
+    applicationId: fakeKnowledge().applicationId, serverFactory: () => {
+      const server = fakeServer({ delay: 20 })(); created.push(server); return server;
+    } });
+  try {
+    const starting = bridge.ensureServer();
+    await new Promise(resolve => setTimeout(resolve, 1));
+    const closing = bridge.close();
+    await assert.rejects(starting, /KNOWLEDGE_SERVICE_STOPPING/);
+    await closing;
+    assert.equal(created.length, 1);
+    assert.equal(created[0].closed, true);
+    await assert.rejects(bridge.ensureServer(), /KNOWLEDGE_SERVICE_STOPPING/);
+  } finally { await rm(root, { recursive: true, force: true }); }
 });

@@ -21,6 +21,7 @@ SEALED_REPLACEMENTS = {key: value[0] for key, value in REPLACEMENTS.items()} | {
     'assessments': 'source-item-assessments.json',
     'analysis_packet': 'analysis-packet.json',
     'knowledge_catalog': 'knowledge-catalog.json',
+    'knowledge_attestation': 'knowledge-attestation.json',
 }
 REVISION_FIELDS = {'schema_version', 'expected_review_sha256', 'expected_baseline_sha256', 'model_id',
                    'decisions', 'scope_revision', 'visual_readings', 'annotation_updates', 'addressed_feedback_ids'}

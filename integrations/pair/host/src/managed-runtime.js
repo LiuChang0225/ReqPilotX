@@ -51,6 +51,16 @@ export class ManagedRuntime {
       catch (e) { if (e.code === 'ENOENT') continue; throw e; }
     }
     this.ownerId = owner.id;
+    const keyPath = join(this.dataRoot, 'attestation.key');
+    try {
+      const value = (await readFile(keyPath, 'utf8')).trim();
+      if (!/^[0-9a-f]{64}$/.test(value)) throw Error('Host attestation key is invalid.');
+      this.attestationKey = value;
+    } catch (e) {
+      if (e.code !== 'ENOENT') throw e;
+      this.attestationKey = randomBytes(32).toString('hex');
+      await writeFile(keyPath, this.attestationKey + '\n', { mode: 0o600, flag: 'wx' });
+    }
     const lock = join(this.dataRoot, 'runtime.lock');
     try { const prior = JSON.parse(await readFile(lock, 'utf8')); if (ownerAlive(prior.pid)) throw Error('This ReqPilotX data directory is already in use by another Pair process.'); await unlink(lock); }
     catch (e) { if (e.code !== 'ENOENT') throw e; }
@@ -128,7 +138,7 @@ export class ManagedRuntime {
     this.stage('storage', '正在初始化应用数据目录');
     await mkdir(join(this.dataRoot, 'storage'), { recursive: true, mode: 0o700 });
     await mkdir(join(this.dataRoot, 'scratch'), { recursive: true, mode: 0o700 });
-    const env = { REQPILOT_ENV: 'local', REQPILOT_PROCESS_ROLE: 'api', REQPILOT_AGENT_RUNTIME: 'none', REQPILOT_DATABASE_BACKEND: 'sqlite-local', REQPILOT_STORAGE_DIR: join(this.dataRoot, 'storage'), REQPILOT_FRONTEND_DIR: this.frontendRoot, REQPILOT_OBJECT_ROOT: join(this.dataRoot, 'storage'), REQPILOT_SCRATCH_ROOT: join(this.dataRoot, 'scratch'), REQPILOT_ALLOWED_HOSTS: '127.0.0.1,localhost', REQPILOT_MANAGED_INSTANCE: this.token, REQPILOT_MANAGED_OWNER: this.ownerId, REQPILOT_MANAGED_PROOF_KEY: this.endpointProofKey };
+    const env = { REQPILOT_ENV: 'local', REQPILOT_PROCESS_ROLE: 'api', REQPILOT_AGENT_RUNTIME: 'none', REQPILOT_DATABASE_BACKEND: 'sqlite-local', REQPILOT_STORAGE_DIR: join(this.dataRoot, 'storage'), REQPILOT_FRONTEND_DIR: this.frontendRoot, REQPILOT_OBJECT_ROOT: join(this.dataRoot, 'storage'), REQPILOT_SCRATCH_ROOT: join(this.dataRoot, 'scratch'), REQPILOT_ALLOWED_HOSTS: '127.0.0.1,localhost', REQPILOT_MANAGED_INSTANCE: this.token, REQPILOT_MANAGED_OWNER: this.ownerId, REQPILOT_MANAGED_PROOF_KEY: this.endpointProofKey, REQPILOT_HOST_ATTESTATION_KEY: this.attestationKey };
     this.stage('migrations', '正在恢复项目与文档存储');
     await this.command([this.python, '-I', this.wrapper, 'migrate'], env);
     this.stage('api', '正在启动 ReqPilotX');

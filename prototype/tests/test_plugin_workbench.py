@@ -8,6 +8,7 @@ from tempfile import TemporaryDirectory
 from types import SimpleNamespace
 import hashlib
 import json
+import os
 import sys
 import unittest
 from unittest.mock import patch
@@ -271,14 +272,32 @@ class PluginWorkbenchTests(unittest.TestCase):
             api.core.DocumentMapArtifactV1.model_validate(self.artifacts['document-map.json']),
             api.core.SourceRequirementBaselineArtifactV1.model_validate(baseline),
             self.artifacts['table-previews.json'], catalog, selected_unit_ids=[unit['source_record_id']])
-        assessment = analysis.compile_source_item_assessments(packet, {'decisions': [{
-            'unit_id': unit['source_record_id'], 'decision': 'COMPLIANT',
+        decisions = [{'unit_id': unit['source_record_id'], 'decision': 'COMPLIANT',
             'reason': 'Applicability: 12 V / 23 C. The selected internal result matches the source condition.',
-            'evidence': [{'fact_id': fact_id, 'quote': text}], 'clarification_question': ''}]})
+            'evidence': [{'fact_id': fact_id, 'quote': text}], 'clarification_question': ''}]
+        assessment = analysis.compile_source_item_assessments(packet, {'decisions': decisions})
+        key = 'c'*64
+        payload = {'schema': 'reqpilot-pair-analysis-attestation/v1',
+            'application_id': 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc',
+            'project_id': 'p', 'document_id': 'd', 'task_id': 'task-x',
+            'workbench_ref': self.session, 'binding_sha256': 'a'*64,
+            'mode': 'PROJECT_REFERENCES', 'task_revision': 'revision-x',
+            'command_id': 'command-x', 'unit_ids': [unit['source_record_id']],
+            'decisions': decisions, 'decisions_sha256': api.core.canonical_json_sha256(decisions),
+            'catalog_sha256': catalog['catalog_sha256'],
+            'ledger_sha256': api.core.canonical_json_sha256({'fixture': 'ledger'}),
+            'consumed_fact_ids': [fact_id], 'checked_at': '2026-10-31T00:00:02Z'}
+        attestation = {**payload, 'signature': pair_evidence.sign_pair_attestation(payload, key)}
         artifacts = {**self.artifacts, 'source-item-assessments.json': assessment,
             'analysis-packet.json': packet, 'knowledge-catalog.json': catalog,
-            'evidence-registration.json': registration}
-        state = self.sync(artifacts, require_map_confirmation=False)
+            'evidence-registration.json': registration, 'knowledge-attestation.json': attestation}
+        old_key = os.environ.get('REQPILOT_HOST_ATTESTATION_KEY')
+        os.environ['REQPILOT_HOST_ATTESTATION_KEY'] = key
+        try:
+            state = self.sync(artifacts, require_map_confirmation=False)
+        finally:
+            if old_key is None: os.environ.pop('REQPILOT_HOST_ATTESTATION_KEY', None)
+            else: os.environ['REQPILOT_HOST_ATTESTATION_KEY'] = old_key
         from app.application.agent_workflow import plugin_workbench_reader as reader
         view = reader.get_plugin_reader('p', 'd', self.session, state['revision_id'], self.sink())
         self.assertEqual(view['reasoning']['assessed_unit_count'], 1)
@@ -289,6 +308,41 @@ class PluginWorkbenchTests(unittest.TestCase):
             if (node.get('source_item') or {}).get('source_item_id') == unit['source_record_id'])
         self.assertEqual(row['ai_assessment']['decision'], 'COMPLIANT')
         self.assertIn(fact_id, row['ai_assessment']['analysis_basis'])
+        forged = {key: value for key, value in artifacts.items() if key != 'knowledge-attestation.json'}
+        self.session = 'plugin-' + 'f'*32
+        with self.assertRaisesRegex(ApplicationError, 'Host attestation'):
+            self.sync(forged, require_map_confirmation=False)
+
+    def test_fixed_workflow_analysis_coverage_requires_every_required_unit(self):
+        from app.application.agent_workflow import source_item_analysis as analysis
+        mapping = api.core.DocumentMapArtifactV1.model_validate(self.artifacts['document-map.json'])
+        baseline = api.core.SourceRequirementBaselineArtifactV1.model_validate(
+            self.artifacts['source-requirement-baseline.json'])
+        required = analysis.required_analysis_unit_ids(baseline)
+        self.assertGreater(len(required), 1)
+        decision = {'decision': 'PENDING_EVIDENCE', 'reason': 'Evidence pending.',
+            'evidence': [], 'clarification_question': 'Provide current product evidence.'}
+        spec = workflow.workflow_spec(brief_sha256='f'*64, evidence_mode='PROJECT_REFERENCES')
+        payload = {'schema': workflow.STATE_SCHEMA, 'source_sha256': self.sha,
+            'workflow': {**spec, 'schema': workflow.WORKFLOW_SCHEMA, 'evidence_mode': 'PROJECT_REFERENCES'}}
+        artifacts = {**self.artifacts,
+            'source-item-assessments.json': {'baseline_sha256': baseline.artifact_sha256,
+                'source_sha256': self.sha, 'decomposition_sha256': '',
+                'catalog_sha256': 'a'*64, 'records': {required[0]: decision}},
+            'knowledge-attestation.json': {'schema': 'reqpilot-pair-analysis-attestation/v1',
+                'catalog_sha256': 'a'*64}}
+        state = api._derive_fixed_workflow(payload, self.sha, mapping, baseline, artifacts,
+            self.root, {}, None)
+        stage = {item['id']: item for item in state['stages']}['EVIDENCE_ANALYSIS']
+        self.assertEqual(stage['status'], 'PENDING')
+        self.assertEqual(stage['reason'], 'INTERNAL_EVIDENCE_ANALYSIS_PARTIAL')
+        self.assertFalse(state['ready_to_review'])
+        artifacts['source-item-assessments.json'] = {**artifacts['source-item-assessments.json'],
+            'records': {unit_id: decision for unit_id in required}}
+        state = api._derive_fixed_workflow(payload, self.sha, mapping, baseline, artifacts,
+            self.root, {}, None)
+        stage = {item['id']: item for item in state['stages']}['EVIDENCE_ANALYSIS']
+        self.assertEqual(stage['status'], 'SAVED')
 
     def test_public_cross_consumer_full_partial_check_and_delivery(self):
         full_check, full_artifacts = self.real_task_workflow()

@@ -11,6 +11,8 @@ import json
 from pathlib import Path
 
 from reqpilotx.application.agent_workflow import knowledge_binding
+from reqpilotx.application.agent_workflow import source_item_analysis
+from reqpilotx.application.agent_workflow import source_requirement_baseline as source_core
 
 WORKFLOW_SCHEMA = 'reqpilot-fixed-workflow/v1'
 STATE_SCHEMA = 'reqpilot-fixed-workflow-state/v1'
@@ -177,7 +179,7 @@ def _decomposition_remaining(selected: dict) -> int:
     return len(remaining) if isinstance(remaining, list) else 1
 
 
-def _assessments_evidence(review: dict | None, source_sha256: str):
+def _assessment_projection(review: dict | None, source_sha256: str):
     if not review:
         return None
     root = review.get('review_root')
@@ -185,17 +187,38 @@ def _assessments_evidence(review: dict | None, source_sha256: str):
         return None
     base = Path(root)
     version = review.get('version_path')
-    path = (base / version / 'source-item-assessments.json') if version else (base / 'source-item-assessments.json')
-    if not path.is_file():
+    directory = (base / version) if version else base
+    baseline_path = directory / 'source-requirement-baseline.json'
+    assessment_path = directory / 'source-item-assessments.json'
+    attestation_path = directory / 'knowledge-attestation.json'
+    if not baseline_path.is_file() and not assessment_path.is_file():
         return None
+    if (not baseline_path.is_file() or not assessment_path.is_file()
+            or not attestation_path.is_file()):
+        return {'complete': False, 'invalid': True, 'required': [], 'assessed': [], 'missing': [],
+                'evidence': None, 'path': str(assessment_path)}
     try:
-        artifact = json.loads(path.read_text(encoding='utf-8'))
-    except (OSError, ValueError, TypeError):
-        return None
-    if not isinstance(artifact, dict) or artifact.get('source_sha256') != source_sha256:
-        return None
-    return _evidence('ASSESSMENTS', source_sha256=source_sha256,
-                     artifact_sha256=artifact.get('artifact_sha256'), path=str(path))
+        baseline = source_core.SourceRequirementBaselineArtifactV1.model_validate_json(
+            baseline_path.read_text(encoding='utf-8'))
+        decomposition_path = directory / 'source-item-decomposition.json'
+        decomposition = (json.loads(decomposition_path.read_text(encoding='utf-8'))
+                         if decomposition_path.is_file() else None)
+        artifact = json.loads(assessment_path.read_text(encoding='utf-8'))
+        attestation = json.loads(attestation_path.read_text(encoding='utf-8'))
+        if (not isinstance(artifact, dict) or artifact.get('source_sha256') != source_sha256
+                or not isinstance(attestation, dict)
+                or attestation.get('schema') != 'reqpilot-pair-analysis-attestation/v1'
+                or attestation.get('catalog_sha256') != artifact.get('catalog_sha256')):
+            raise ValueError('assessment source or Host attestation differs')
+        status = source_item_analysis.assessment_scope_status(baseline, decomposition, artifact)
+    except (OSError, ValueError, TypeError, KeyError):
+        return {'complete': False, 'invalid': True, 'required': [], 'assessed': [], 'missing': [],
+                'evidence': None, 'path': str(assessment_path)}
+    evidence = _evidence('ASSESSMENTS', source_sha256=source_sha256,
+        artifact_sha256=artifact.get('artifact_sha256'), path=str(assessment_path),
+        count=len(status['assessed']), required=len(status['required']),
+        missing=len(status['missing']))
+    return {**status, 'invalid': False, 'evidence': evidence, 'path': str(assessment_path)}
 
 
 def project_workflow(*, context: dict, selected: dict, brief: dict,
@@ -294,9 +317,15 @@ def project_workflow(*, context: dict, selected: dict, brief: dict,
     else:
         # Supplied internal evidence requires retained analysis. A policy flag
         # or a selected document is not an analysis result.
-        saved = _assessments_evidence(review, source_sha256)
+        projection = _assessment_projection(review, source_sha256)
+        saved = bool(projection and projection.get('complete') and projection.get('evidence'))
         if saved:
             analysis_status, analysis_reason = 'SAVED', None
+        elif projection and projection.get('required') and not projection.get('invalid'):
+            analysis_status = 'PENDING'
+            analysis_reason = ('INTERNAL_EVIDENCE_ANALYSIS_PARTIAL' if projection.get('current')
+                               else 'INTERNAL_EVIDENCE_ANALYSIS_REQUIRED')
+            open_items.append('INTERNAL_EVIDENCE_ANALYSIS_REQUIRED')
         elif status_state in {'UNAVAILABLE', 'INVALID'}:
             analysis_status = 'PENDING'
             analysis_reason = 'EVIDENCE_BINDING_UNAVAILABLE'
@@ -316,8 +345,8 @@ def project_workflow(*, context: dict, selected: dict, brief: dict,
     if analysis_status == 'SKIPPED':
         evidence_list.append(_evidence('WORKFLOW_BRANCH', source_sha256=source_sha256,
                                        branch='NO_INTERNAL_EVIDENCE'))
-    elif analysis_status == 'SAVED':
-        evidence_list.append(_assessments_evidence(review, source_sha256))
+    elif analysis_status in {'SAVED', 'PENDING'} and projection and projection.get('evidence'):
+        evidence_list.append(projection['evidence'])
     stages.append(_stage('EVIDENCE_ANALYSIS', analysis_status, evidence=evidence_list,
                          reason=analysis_reason,
                          branch='NO_INTERNAL_EVIDENCE' if mode == 'NONE' else 'INTERNAL_EVIDENCE'))

@@ -184,9 +184,9 @@ export function createHandler(origin, reject, transport = fetch, runtimeSnapshot
 }
 
 /** Mount the route and own runtime lifecycle through the Cordis effect lifetime. */
-export function apply(ctx, config = {}) {
+export function apply(ctx, config = {}, makeRuntime = (scope, settings) => new ManagedRuntime(scope.subprocess, settings)) {
   const connect = config.mode === 'connect' || (!config.mode && config.serviceOrigin);
-  const runtime = connect ? null : new ManagedRuntime(ctx.subprocess, config);
+  const runtime = connect ? null : makeRuntime(ctx, config);
   const knowledgeService = !connect && typeof ctx.get === 'function' ? ctx.get('knowledge') : undefined;
   const applicationId = () => {
     if (!runtime || !runtime.ownerId) return null;
@@ -213,7 +213,8 @@ export function apply(ctx, config = {}) {
       taskStartIssue: taskLauncher?.startIssue() || null,
       taskLookupAvailable: Boolean(taskLauncher),
       taskLaunchReady: taskLauncher?.startAvailable() === true, taskCancelReady: taskLauncher?.canCancel() === true,
-      taskContinueReady: taskLauncher?.canContinue() === true, taskReconnectReady: taskLauncher?.canReconnect() === true }) : undefined, taskLauncher),
+      taskContinueReady: taskLauncher?.canContinue() === true, taskReconnectReady: taskLauncher?.canReconnect() === true,
+      knowledgeAvailable: knowledge?.available() === true }) : undefined, taskLauncher, knowledge),
   }), 'reqpilotx: application route');
   if (runtime) void runtime.start().then(async () => { if (runtime.snapshot.status === 'READY') await taskLauncher?.initialize(); }).catch(() => { if (taskLauncher) taskLauncher.ready = false; });
 }

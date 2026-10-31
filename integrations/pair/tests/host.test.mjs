@@ -143,3 +143,38 @@ test('knowledge business routes expose project references and frozen task status
     assert.deepEqual(calls, [['inventory', 'p'], ['upload', 'p', 'ref.txt', 'REFERENCE', 'original'], ['binding', 'command-one'], ['check', 'command-one']]);
   } finally { await proxy.close(); }
 });
+
+test('actual apply composition mounts the owned knowledge service on the Host route and public capability projection', async () => {
+  const ownerId = '12345678-1234-4234-8234-123456789abc';
+  const base = { id: 'kb-project', name: 'Project references', owner: { kind: 'application-project',
+    applicationId: 'reqpilotx-pair:' + ownerId, projectId: 'p' } };
+  const knowledge = {
+    getProjectReferenceLibrary: owner => owner.projectId === 'p' ? base : undefined,
+    ensureProjectReferenceLibrary: async () => base,
+    snapshot: () => ({ bases: [base], documents: [], jobs: [] }),
+  };
+  let handler; const disposers = [];
+  const runtime = { ownerId, dataRoot: '/tmp/reqpilotx-apply-test', snapshot: { mode: 'managed', status: 'STARTING' },
+    async start() { this.snapshot = { ...this.snapshot, status: 'READY', serviceOrigin: 'http://127.0.0.1:1234', instanceId: 'instance' }; },
+    async stop() {} };
+  const scope = {
+    subprocess: {}, connection: { requestRejection: () => undefined },
+    get(name) { return name === 'knowledge' ? knowledge : undefined; },
+    effect(run) { const dispose = run(); disposers.push(dispose); return dispose; },
+    webServer: { register(route) { assert.equal(route.path, '/reqpilotx'); handler = route.handler; return () => { handler = null; }; } },
+  };
+  apply(scope, { workbenchCapture: false }, () => runtime);
+  const proxy = await serve(handler);
+  try {
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const config = await (await fetch(proxy.url + '/reqpilotx/config')).json();
+    assert.equal(config.knowledge.schema, 'reqpilot-knowledge-host/v1');
+    assert.equal(config.knowledge.available, true);
+    const inventory = await (await fetch(proxy.url + '/reqpilotx/knowledge/inventory?projectId=p')).json();
+    assert.equal(inventory.projectLibrary.id, 'kb-project');
+    assert.equal(inventory.available, true);
+  } finally {
+    await proxy.close();
+    for (const dispose of disposers.reverse()) if (typeof dispose === 'function') await dispose();
+  }
+});

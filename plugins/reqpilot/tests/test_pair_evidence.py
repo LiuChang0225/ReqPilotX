@@ -1,6 +1,7 @@
 """Task-bound PAIR evidence catalogs, typed analysis and workflow refusals."""
 import hashlib
 import json
+import os
 from pathlib import Path
 import sys
 from tempfile import TemporaryDirectory
@@ -12,7 +13,12 @@ sys.path[:0] = [str(ENTRY.parent), str(ROOT / 'prototype'), str(ROOT / 'packages
 from test_portable import item_decisions, make_fixture
 from reqpilotx.application.agent_workflow import fixed_workflow as workflow
 from reqpilotx.application.agent_workflow import knowledge_binding as binding_module
+from reqpilotx.application.agent_workflow import pair_evidence
+from reqpilotx.application.agent_workflow import source_item_analysis
+from reqpilotx.application.agent_workflow import source_requirement_baseline as source_core
 from task_service import TaskService
+
+KEY = 'a' * 64
 
 
 TEXT = 'SYNTHETIC INTERNAL EVIDENCE: the measured standby current was 4 mA at 12 V and 25 C.'
@@ -21,6 +27,20 @@ TEXT = 'SYNTHETIC INTERNAL EVIDENCE: the measured standby current was 4 mA at 12
 def canonical(value):
     return hashlib.sha256(json.dumps(value, sort_keys=True, ensure_ascii=False,
         separators=(',', ':')).encode()).hexdigest()
+
+
+def attestation(binding, task_id, revision, command, unit_ids, decisions, catalog):
+    payload = {'schema': 'reqpilot-pair-analysis-attestation/v1',
+        'application_id': binding['application_id'], 'project_id': binding['project_id'],
+        'document_id': '', 'task_id': task_id, 'workbench_ref': '',
+        'binding_sha256': binding['binding_sha256'], 'mode': binding['mode'],
+        'task_revision': revision, 'command_id': command, 'unit_ids': unit_ids,
+        'decisions': decisions, 'decisions_sha256': canonical(decisions),
+        'catalog_sha256': catalog['catalog_sha256'],
+        'ledger_sha256': canonical({'fixture': 'host-ledger'}),
+        'consumed_fact_ids': sorted(catalog['evidence_catalog']),
+        'checked_at': '2026-10-31T00:00:02Z'}
+    return {**payload, 'signature': pair_evidence.sign_pair_attestation(payload, KEY)}
 
 
 def task_binding(source_sha, *, mode='PROJECT_REFERENCES'):
@@ -82,6 +102,45 @@ def pair_catalog(binding_sha):
 
 
 class PairEvidenceTaskTests(unittest.TestCase):
+    def setUp(self):
+        os.environ['REQPILOT_HOST_ATTESTATION_KEY'] = KEY
+
+    def tearDown(self):
+        os.environ.pop('REQPILOT_HOST_ATTESTATION_KEY', None)
+
+    def analyze(self, service, state, catalog, decisions, *, command, unit_ids=None, revision=None):
+        binding = json.loads((Path(state['task_root']) / 'task-context.json').read_text())['request']['knowledge_evidence']
+        revision = revision or state['revision']
+        signed = attestation(binding, state['task_id'], revision, command, unit_ids, decisions, catalog)
+        return service.invoke('analysis', {'task_id': state['task_id'],
+            'expected_revision': revision, 'command_id': command,
+            'unit_ids': unit_ids, 'decisions': decisions, 'knowledge_attestation': signed})
+
+    def requirements(self, baseline):
+        return source_item_analysis.required_analysis_unit_ids(
+            source_core.SourceRequirementBaselineArtifactV1.model_validate(baseline))
+
+    def test_retained_topic_binding_uses_exact_provider_fields_and_source_refs(self):
+        value = task_binding('f'*64, mode='TEAM_KNOWLEDGE')
+        source = {'documentId': '11111111-1111-4111-8111-111111111111', 'title': 'design.md',
+            'originalRevision': 'd'*64, 'extractionRevision': 'e'*64, 'coverage': 'complete',
+            'location': {'kind': 'physical-page', 'number': 2}}
+        value['team'] = {'kind': 'TOPIC', 'library_id': 'kb-team', 'caller': 'task:team',
+            'roles': {'topic-v1': {'authority': 'INTERNAL_CONTROLLED',
+                'claimRole': 'PROJECT_RECORD', 'applicability': 'APPLICABLE', 'label': 'topic'}},
+            'topic': {'version_id': 'topic-v1', 'topic_id': 'topic-id', 'title': 'Retained topic',
+                'availability': {'state': 'available', 'acceptedBy': 'curator'},
+                'verification': {'state': 'verified', 'confirmedBy': 'reviewer'},
+                'origin': 'human-authored',
+                'applicability': {'state': 'known', 'description': 'Applicable to the controller.'},
+                'authors': ['engineer'], 'topic_revision': 'a'*64,
+                'sources_digest': canonical([source]), 'sources': [source]}}
+        value['binding_sha256'] = canonical({key: item for key, item in value.items() if key != 'binding_sha256'})
+        binding = binding_module.validate_binding(value)
+        self.assertEqual(binding['team']['topic']['sources'][0]['documentId'], source['documentId'])
+        self.assertEqual(binding['team']['topic']['verification']['state'], 'verified')
+        self.assertNotIn('source_sha256', binding['team']['topic']['sources'][0])
+
     def prepare(self, root):
         source, _, mapping = make_fixture(root / 'customer')
         binding = task_binding(hashlib.sha256(source.read_bytes()).hexdigest())
@@ -111,28 +170,46 @@ class PairEvidenceTaskTests(unittest.TestCase):
         (knowledge / 'evidence-registration.json').write_text(json.dumps(registration, ensure_ascii=False))
         return service, state, catalog, registration
 
-    def test_consumed_pair_facts_save_analysis_and_same_version_excel(self):
+    def test_consumed_pair_facts_save_partial_then_full_analysis_and_same_version_excel(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             service, state, catalog, _ = self.prepare(root)
             baseline = json.loads(Path(state['selected']['ITEMS']['path']).read_text())
-            unit = baseline['records'][0]
+            required = self.requirements(baseline)
+            unit = required[0]
             fact = next(iter(catalog['evidence_catalog'].values()))
-            result = service.invoke('analysis', {'task_id': state['task_id'],
-                'expected_revision': state['revision'], 'unit_ids': [unit['source_record_id']],
-                'decisions': [{'unit_id': unit['source_record_id'], 'decision': 'COMPLIANT',
-                    'reason': 'Applicability: 12 V / 25 C. The selected internal test result matches the source condition and criterion.',
-                    'evidence': [{'fact_id': fact['fact_id'], 'quote': TEXT}],
-                    'clarification_question': ''}]})
-            self.assertEqual(result['analysis']['assessed_unit_count'], 1, result)
-            by_id = {item['id']: item for item in result['workflow']['stages']}
-            self.assertEqual(by_id['EVIDENCE_ANALYSIS']['status'], 'SAVED', result['workflow'])
-            review_root = Path(result['task_root']) / 'review'
+            compliant = {'unit_id': unit, 'decision': 'COMPLIANT',
+                'reason': 'Applicability: 12 V / 25 C. The selected internal test result matches the source condition and criterion.',
+                'evidence': [{'fact_id': fact['fact_id'], 'quote': TEXT}],
+                'clarification_question': ''}
+            partial = self.analyze(service, state, catalog, [compliant], command='analysis-partial', unit_ids=[unit])
+            self.assertEqual(partial['analysis']['assessed_unit_count'], 1, partial)
+            self.assertFalse(partial['analysis']['complete'], partial)
+            self.assertEqual(set(partial['analysis']['remaining_unit_ids']), set(required[1:]))
+            by_id = {item['id']: item for item in partial['workflow']['stages']}
+            self.assertEqual(by_id['EVIDENCE_ANALYSIS']['status'], 'PENDING', partial['workflow'])
+            self.assertEqual(by_id['EVIDENCE_ANALYSIS']['reason'], 'INTERNAL_EVIDENCE_ANALYSIS_PARTIAL')
+            self.assertFalse(partial['workflow']['ready_to_review'])
+            replay = self.analyze(service, state, catalog, [compliant], command='analysis-partial',
+                unit_ids=[unit], revision=state['revision'])
+            self.assertEqual(replay['status'], 'ANALYSIS_ALREADY_SAVED', replay)
+            decisions = [compliant] + [{'unit_id': item, 'decision': 'PENDING_EVIDENCE',
+                'reason': 'No suitable internal evidence has been read for this unit.',
+                'evidence': [], 'clarification_question': 'Provide the current product evidence for this requirement.'}
+                for item in required[1:]]
+            current = service.invoke('inspect', {'task_id': state['task_id']})
+            complete = self.analyze(service, current, catalog, decisions, command='analysis-complete')
+            self.assertTrue(complete['analysis']['complete'], complete)
+            self.assertEqual(complete['analysis']['remaining_unit_ids'], [])
+            by_id = {item['id']: item for item in complete['workflow']['stages']}
+            self.assertEqual(by_id['EVIDENCE_ANALYSIS']['status'], 'SAVED', complete['workflow'])
+            review_root = Path(complete['task_root']) / 'review'
             head = json.loads((review_root / 'workspace-manifest.json').read_text())
             review_values = json.loads((review_root / head['current']['version_path']
                 / 'source-item-assessments.json').read_text())
             self.assertEqual(review_values['authority'], 'AGENT_WORKING_PROPOSAL')
-            self.assertEqual(review_values['records'][unit['source_record_id']]['decision'], 'COMPLIANT')
+            self.assertEqual(review_values['records'][unit]['decision'], 'COMPLIANT')
+            self.assertEqual(set(review_values['records']), set(required))
             current = service.invoke('inspect', {'task_id': state['task_id']})
             delivered = service.invoke('deliver', {'task_id': state['task_id'],
                 'expected_revision': current['revision'], 'command_id': 'pair-analysis-delivery'})
@@ -140,7 +217,7 @@ class PairEvidenceTaskTests(unittest.TestCase):
             delivery_dir = Path(delivered['result']['output_dir'])
             snapshot = json.loads((delivery_dir / 'matrix-snapshot.json').read_text())
             matching = [node for node in snapshot['nodes']
-                if (node.get('source_item') or {}).get('source_item_id') == unit['source_record_id']]
+                if (node.get('source_item') or {}).get('source_item_id') == unit]
             self.assertTrue(matching)
             assessment = matching[0]['ai_assessment']
             self.assertEqual(assessment['decision'], 'COMPLIANT')
@@ -148,8 +225,7 @@ class PairEvidenceTaskTests(unittest.TestCase):
             self.assertIn(fact['fact_id'], assessment['analysis_basis'])
             self.assertTrue((delivery_dir / 'matrix.xlsx').is_file())
 
-
-    def test_existing_review_gains_analysis_without_replacing_source(self):
+    def test_existing_review_gains_full_analysis_without_replacing_source(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             service, state, catalog, _ = self.prepare(root)
@@ -158,46 +234,62 @@ class PairEvidenceTaskTests(unittest.TestCase):
             self.assertEqual(review['operation_state'], 'COMMITTED', review)
             self.assertEqual({item['id']: item for item in review['workflow']['stages']}['EVIDENCE_ANALYSIS']['status'], 'PENDING')
             baseline = json.loads(Path(review['selected']['ITEMS']['path']).read_text())
-            unit = baseline['records'][0]
+            required = self.requirements(baseline)
             fact = next(iter(catalog['evidence_catalog'].values()))
-            result = service.invoke('analysis', {'task_id': state['task_id'],
-                'expected_revision': review['revision'], 'unit_ids': [unit['source_record_id']],
-                'decisions': [{'unit_id': unit['source_record_id'], 'decision': 'COMPLIANT',
-                    'reason': 'The selected internal evidence covers the declared operating condition.',
-                    'evidence': [{'fact_id': fact['fact_id'], 'quote': TEXT}],
-                    'clarification_question': ''}]})
+            decisions = [{'unit_id': required[0], 'decision': 'COMPLIANT',
+                'reason': 'The selected internal evidence covers the declared operating condition.',
+                'evidence': [{'fact_id': fact['fact_id'], 'quote': TEXT}],
+                'clarification_question': ''}] + [
+                {'unit_id': item, 'decision': 'PENDING_EVIDENCE',
+                 'reason': 'No suitable internal evidence has been read for this unit.',
+                 'evidence': [], 'clarification_question': 'Provide the current product evidence for this requirement.'}
+                for item in required[1:]]
+            result = self.analyze(service, review, catalog, decisions, command='existing-review-analysis')
             self.assertEqual({item['id']: item for item in result['workflow']['stages']}['EVIDENCE_ANALYSIS']['status'], 'SAVED', result)
             self.assertEqual(result['operation_state'], 'COMMITTED', result)
             current = service.invoke('inspect', {'task_id': state['task_id']})
             self.assertEqual(result['selected']['ITEMS']['artifact_sha256'], baseline['artifact_sha256'])
             self.assertEqual(result['selected']['MAP']['artifact_sha256'], review['selected']['MAP']['artifact_sha256'])
             self.assertRegex(result['new_review_sha256'], r'^[0-9a-f]{64}$')
-            replay = service.invoke('analysis', {'task_id': state['task_id'],
-                'expected_revision': current['revision'], 'unit_ids': [unit['source_record_id']],
-                'decisions': [{'unit_id': unit['source_record_id'], 'decision': 'COMPLIANT',
-                    'reason': 'The selected internal evidence covers the declared operating condition.',
-                    'evidence': [{'fact_id': fact['fact_id'], 'quote': TEXT}],
-                    'clarification_question': ''}]})
+            replay = self.analyze(service, current, catalog, decisions, command='existing-review-analysis')
             self.assertEqual(replay['status'], 'ANALYSIS_ALREADY_SAVED', replay)
 
-    def test_fact_not_consumed_or_unknown_authority_cannot_claim_compliance(self):
+    def test_forged_catalog_without_host_attestation_and_unknown_authority_are_rejected(self):
         with TemporaryDirectory() as temporary:
             root = Path(temporary)
             service, state, catalog, registration = self.prepare(root)
             baseline = json.loads(Path(state['selected']['ITEMS']['path']).read_text())
-            unit = baseline['records'][0]
+            unit = self.requirements(baseline)[0]
             fact = next(iter(catalog['evidence_catalog'].values()))
-            registration['receipts'][0]['fact_ids'] = []
-            registration['registration_sha256'] = canonical({key: value for key, value in registration.items() if key != 'registration_sha256'})
-            knowledge = Path(state['task_root']) / 'inputs' / 'knowledge'
-            (knowledge / 'evidence-registration.json').write_text(json.dumps(registration))
-            with self.assertRaisesRegex(ValueError, 'not consumed'):
+            decisions = [{'unit_id': unit, 'decision': 'COMPLIANT', 'reason': 'Unsupported.',
+                'evidence': [{'fact_id': fact['fact_id'], 'quote': TEXT}], 'clarification_question': ''}]
+            # Public-path attack: a model can rewrite catalog/registration but
+            # cannot obtain the Host key, so no valid attestation is produced.
+            os.environ.pop('REQPILOT_HOST_ATTESTATION_KEY', None)
+            with self.assertRaisesRegex(ValueError, 'HOST_EVIDENCE_ATTESTATION_REQUIRED'):
                 service.invoke('analysis', {'task_id': state['task_id'],
-                    'expected_revision': state['revision'], 'unit_ids': [unit['source_record_id']],
-                    'decisions': [{'unit_id': unit['source_record_id'], 'decision': 'COMPLIANT',
-                        'reason': 'Unsupported.', 'evidence': [{'fact_id': fact['fact_id'], 'quote': TEXT}],
-                        'clarification_question': ''}]})
-            catalog, registration = pair_catalog(state['knowledge_evidence']['binding_sha256'])
+                    'expected_revision': state['revision'], 'command_id': 'forged-no-provider',
+                    'unit_ids': [unit], 'decisions': decisions})
+            os.environ['REQPILOT_HOST_ATTESTATION_KEY'] = KEY
+            # A copied/valid attestation cannot authorize a different catalog.
+            signed = attestation(json.loads((Path(state['task_root']) / 'task-context.json').read_text())['request']['knowledge_evidence'],
+                state['task_id'], state['revision'], 'forged-catalog', [unit], decisions, catalog)
+            catalog['evidence_catalog'][fact['fact_id']]['text'] = 'FORGED TEXT'
+            catalog['evidence_catalog'][fact['fact_id']]['text_sha256'] = hashlib.sha256(b'FORGED TEXT').hexdigest()
+            catalog['catalog_sha256'] = canonical({key: value for key, value in catalog.items() if key != 'catalog_sha256'})
+            knowledge = Path(state['task_root']) / 'inputs' / 'knowledge'
+            registration['catalog_sha256'] = catalog['catalog_sha256']
+            registration['facts'] = [catalog['evidence_catalog'][fact['fact_id']]]
+            registration['registration_sha256'] = canonical({key: value for key, value in registration.items() if key != 'registration_sha256'})
+            (knowledge / 'knowledge-catalog.json').write_text(json.dumps(catalog))
+            (knowledge / 'evidence-registration.json').write_text(json.dumps(registration))
+            with self.assertRaisesRegex(ValueError, 'HOST_ATTESTATION_INVALID'):
+                service.invoke('analysis', {'task_id': state['task_id'],
+                    'expected_revision': state['revision'], 'command_id': 'forged-catalog',
+                    'unit_ids': [unit], 'decisions': decisions, 'knowledge_attestation': signed})
+            catalog, registration = pair_catalog(state['knowledge_evidence']['binding_sha256']
+                if state.get('knowledge_evidence') else
+                json.loads((Path(state['task_root']) / 'task-context.json').read_text())['request']['knowledge_evidence']['binding_sha256'])
             fact = next(iter(catalog['evidence_catalog'].values()))
             fact['authority'] = 'UNKNOWN'; fact['authority_verified'] = False
             catalog['catalog_sha256'] = canonical({key: value for key, value in catalog.items() if key != 'catalog_sha256'})
@@ -205,12 +297,33 @@ class PairEvidenceTaskTests(unittest.TestCase):
             registration['registration_sha256'] = canonical({key: value for key, value in registration.items() if key != 'registration_sha256'})
             (knowledge / 'knowledge-catalog.json').write_text(json.dumps(catalog))
             (knowledge / 'evidence-registration.json').write_text(json.dumps(registration))
+            signed = attestation(json.loads((Path(state['task_root']) / 'task-context.json').read_text())['request']['knowledge_evidence'],
+                state['task_id'], state['revision'], 'unknown-authority', [unit], decisions, catalog)
             with self.assertRaisesRegex(ValueError, 'authority-verified'):
                 service.invoke('analysis', {'task_id': state['task_id'],
-                    'expected_revision': state['revision'], 'unit_ids': [unit['source_record_id']],
-                    'decisions': [{'unit_id': unit['source_record_id'], 'decision': 'COMPLIANT',
-                        'reason': 'Unsupported.', 'evidence': [{'fact_id': fact['fact_id'], 'quote': TEXT}],
-                        'clarification_question': ''}]})
+                    'expected_revision': state['revision'], 'command_id': 'unknown-authority',
+                    'unit_ids': [unit], 'decisions': decisions, 'knowledge_attestation': signed})
+
+    def test_stale_observed_revision_is_rejected_not_retargeted(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            service, state, catalog, _ = self.prepare(root)
+            baseline = json.loads(Path(state['selected']['ITEMS']['path']).read_text())
+            unit = self.requirements(baseline)[0]
+            fact = next(iter(catalog['evidence_catalog'].values()))
+            decisions = [{'unit_id': unit, 'decision': 'COMPLIANT',
+                'reason': 'The selected internal evidence covers the declared condition.',
+                'evidence': [{'fact_id': fact['fact_id'], 'quote': TEXT}],
+                'clarification_question': ''}]
+            stale_revision = state['revision']
+            first = self.analyze(service, state, catalog, decisions, command='stale-first', unit_ids=[unit])
+            self.assertEqual(first['operation_state'], 'COMMITTED', first)
+            signed = attestation(json.loads((Path(state['task_root']) / 'task-context.json').read_text())['request']['knowledge_evidence'],
+                state['task_id'], stale_revision, 'stale-old', [unit], decisions, catalog)
+            with self.assertRaisesRegex(ValueError, 'REVISION_CONFLICT|current review advanced|selected task state changed'):
+                service.invoke('analysis', {'task_id': state['task_id'],
+                    'expected_revision': stale_revision, 'command_id': 'stale-old',
+                    'unit_ids': [unit], 'decisions': decisions, 'knowledge_attestation': signed})
 
     def test_unavailable_binding_is_visible_and_does_not_retarget(self):
         with TemporaryDirectory() as temporary:

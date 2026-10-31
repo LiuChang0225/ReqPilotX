@@ -1,5 +1,5 @@
 /** Task-bound PAIR knowledge consumer. PAIR owns originals; ReqPilotX owns bindings. */
-import { createHash, randomBytes } from 'node:crypto';
+import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdir, readFile, writeFile, rename, chmod } from 'node:fs/promises';
 import { join } from 'node:path';
@@ -67,74 +67,37 @@ function documentSummary(document, job = null) {
 }
 
 function topicMetadata(topic) {
-  return {
-    version_id: String(topic?.versionId || topic?.version_id || topic?.id || ''),
-    label: String(topic?.label || topic?.title || topic?.name || ''),
-    review_state: String(topic?.reviewState || topic?.review_state || topic?.status || ''),
-    availability: String(topic?.availability || topic?.state || ''),
-    authors: Array.isArray(topic?.authors) ? topic.authors.map(String) : [],
-  };
+  const availability = topic?.availability;
+  const verification = topic?.verification;
+  const applicability = topic?.applicability;
+  if (!topic || typeof topic !== 'object' || typeof topic.versionId !== 'string'
+    || typeof topic.kbId !== 'string' || typeof topic.topicId !== 'string'
+    || typeof topic.title !== 'string' || !['ai-organized', 'human-authored'].includes(topic.origin)
+    || !Array.isArray(topic.authors) || topic.authors.some(item => typeof item !== 'string')
+    || !availability || !['available', 'draft'].includes(availability.state)
+    || !verification || !['verified', 'pending'].includes(verification.state)
+    || !applicability || !['known', 'unknown'].includes(applicability.state)) {
+    throw new KnowledgeError('TEAM_TOPIC_METADATA_INVALID', 502);
+  }
+  return { kbId: topic.kbId, versionId: topic.versionId, topicId: topic.topicId,
+    title: topic.title, availability, verification, origin: topic.origin,
+    applicability, authors: topic.authors };
 }
 
-function findExcerpts(root, commandId, versionId) {
-  const facts = [];
-  const seen = new Set();
-  const add = (text, context) => {
-    if (typeof text !== 'string' || !text.trim()) return;
-    const documentId = String(context.documentId || context.document_id || '');
-    const location = context.location || {};
-    const page = Number(context.page ?? location.page_number ?? location.page ?? 0) || null;
-    const section = context.section ?? location.section ?? location.section_title ?? null;
-    const key = [documentId, page, section, sha(text)].join(':');
-    if (seen.has(key)) return;
-    seen.add(key);
-    facts.push({ text, documentId: documentId || `topic-${versionId}`,
-      name: String(context.name || context.document_name || context.title || '保留主题'),
-      page, section, originalRevision: String(context.originalRevision || context.original_revision || context.source_sha256 || ''),
-      extractionRevision: String(context.extractionRevision || context.extraction_revision || ''),
-      coverage: String(context.coverage || 'complete'),
-      mime: String(context.mime || 'text/markdown') });
-  };
-  const walk = (node, inherited) => {
-    if (Array.isArray(node)) { node.forEach(item => walk(item, inherited)); return; }
-    if (!node || typeof node !== 'object') return;
-    const source = node.source && typeof node.source === 'object' && !Array.isArray(node.source) ? node.source : {};
-    const cite = node.citation && typeof node.citation === 'object' && !Array.isArray(node.citation) ? node.citation : {};
-    const location = node.location && typeof node.location === 'object' && !Array.isArray(node.location) ? node.location : {};
-    const context = {
-      ...inherited,
-      documentId: node.documentId || node.document_id || node.sourceDocumentId || node.source_document_id || source.documentId || source.document_id || cite.documentId || cite.document_id || inherited.documentId,
-      name: node.documentName || node.document_name || node.title || source.name || cite.title || inherited.name,
-      title: node.title || inherited.title,
-      page: node.page ?? node.page_number ?? location.page_number ?? location.page ?? cite.page ?? inherited.page,
-      section: node.section ?? node.section_title ?? location.section ?? location.section_title ?? inherited.section,
-      location: Object.keys(location).length ? location : inherited.location,
-      originalRevision: node.originalRevision || node.original_revision || node.source_sha256 || source.originalRevision || source.original_revision || source.sha256 || cite.originalRevision || inherited.originalRevision,
-      extractionRevision: node.extractionRevision || node.extraction_revision || source.extractionRevision || source.extraction_revision || inherited.extractionRevision,
-      coverage: node.coverage || source.coverage || inherited.coverage,
-      mime: node.mime || source.mime || inherited.mime,
-    };
-    // Prefer an explicit excerpt over a full body when both exist.
-    const excerpts = node.excerpts || node.sourceExcerpts || node.source_excerpts || node.references || [];
-    if (Array.isArray(excerpts) && excerpts.length) excerpts.forEach(item => walk(item, context));
-    let found = false;
-    for (const field of ['excerpt', 'quote']) {
-      if (typeof node[field] === 'string') { add(node[field], context); found = true; }
-    }
-    if (!found) for (const field of ['text', 'content', 'statement', 'body']) {
-      if (typeof node[field] === 'string') {
-        // SC-KB containers often carry body text of the topic itself; those
-        // remain citable as topic evidence without claiming an original page.
-        add(node[field], context); found = true;
-      }
-    }
-    for (const [key, value] of Object.entries(node)) {
-      if (['excerpt', 'quote', 'text', 'content', 'statement', 'body', 'source', 'citation', 'location'].includes(key)) continue;
-      if (value && typeof value === 'object') walk(value, context);
-    }
-  };
-  walk(root, {});
-  return facts;
+function topicSourceMetadata(source) {
+  if (!source || typeof source !== 'object' || typeof source.documentId !== 'string'
+    || typeof source.title !== 'string' || !/^[0-9a-f]{64}$/.test(source.originalRevision || '')
+    || !/^[0-9a-f]{64}$/.test(source.extractionRevision || '')
+    || !['complete', 'partial', 'unknown'].includes(source.coverage)
+    || !source.location || !['physical-page', 'logical-section'].includes(source.location.kind)
+    || !Number.isSafeInteger(source.location.number) || source.location.number < 1
+    || typeof source.text !== 'string' || !source.text.trim()) {
+    throw new KnowledgeError('TEAM_TOPIC_SOURCE_INVALID', 502);
+  }
+  return { documentId: source.documentId, title: source.title,
+    originalRevision: source.originalRevision, extractionRevision: source.extractionRevision,
+    coverage: source.coverage,
+    location: { kind: source.location.kind, number: source.location.number } };
 }
 
 export class KnowledgeBridge {
@@ -144,6 +107,7 @@ export class KnowledgeBridge {
     this.dataRoot = dataRoot; this.applicationId = applicationId || null;
     this.serverFactory = serverFactory; this.toolScript = toolScript;
     this.records = records; this.pending = new Map(); this.server = null; this.serverState = null;
+    this.serverPromise = null; this.closing = false;
     this.tokens = new Map();
   }
   appId() {
@@ -247,7 +211,7 @@ export class KnowledgeBridge {
     const caller = 'reqpilotx-pair:ui:' + this.appId() + ':' + kbId;
     await this.api().select(caller, [kbId]);
     const versions = await this.api().topicVersions(caller, kbId);
-    return (versions || []).map(topicMetadata).filter(item => item.version_id);
+    return (versions || []).map(topicMetadata);
   }
   async prepareBinding({ commandId, projectId, mode, projectDocumentIds = [], team = null }) {
     if (!SAFE.test(commandId) || !SAFE.test(projectId) || !MODES.includes(mode))
@@ -295,16 +259,29 @@ export class KnowledgeBridge {
         const caller = 'reqpilotx-task:' + this.appId() + ':' + commandId + ':team';
         await api.select(caller, [base.id]);
         if (selection.team.topicVersionId) {
-          const versions = await api.topicVersions(caller, base.id);
-          const version = (versions || []).map(topicMetadata).find(item => item.version_id === selection.team.topicVersionId);
+          const versions = (await api.topicVersions(caller, base.id)).map(topicMetadata);
+          const version = versions.find(item => item.versionId === selection.team.topicVersionId);
           if (!version) throw new KnowledgeError('TEAM_TOPIC_VERSION_UNAVAILABLE', 422);
-          await api.selectTopicVersion(caller, base.id, version.version_id);
+          if (version.availability.state !== 'available') throw new KnowledgeError('TEAM_TOPIC_DRAFT', 422);
+          await api.selectTopicVersion(caller, base.id, version.versionId);
           const selectionPin = api.topicSelection(caller);
-          if (!selectionPin) throw new KnowledgeError('TEAM_TOPIC_NOT_SELECTED');
-          const read = await api.readTopicVersion(caller, base.id, version.version_id);
+          if (!selectionPin || selectionPin.kbId !== base.id || selectionPin.versionId !== version.versionId)
+            throw new KnowledgeError('TEAM_TOPIC_NOT_SELECTED');
+          const read = await api.readTopicVersion(caller, base.id, version.versionId);
+          if (read.versionId !== version.versionId || read.kbId !== base.id
+            || read.topicId !== version.topicId || read.origin !== version.origin
+            || read.availability.state !== 'available' || typeof read.topic?.revision !== 'string'
+            || !/^[0-9a-f]{64}$/.test(read.topic.revision)) {
+            throw new KnowledgeError('TEAM_TOPIC_READ_SHAPE_INVALID', 502);
+          }
+          const sources = read.sources.map(topicSourceMetadata);
           binding.team = { kind: 'TOPIC', library_id: base.id, caller,
-            topic: { ...version, content_digest: digest(read) },
-            roles: { [version.version_id]: roleFor('REFERENCE', selection.team.authoritative, version.label || base.name) } };
+            topic: { version_id: version.versionId, topic_id: version.topicId, title: version.title,
+              availability: version.availability, verification: version.verification,
+              origin: version.origin, applicability: version.applicability,
+              authors: version.authors, topic_revision: read.topic.revision,
+              sources_digest: digest(sources), sources },
+            roles: { [version.versionId]: roleFor('REFERENCE', selection.team.authoritative, version.title || base.name) } };
         } else {
           const pin = api.topicSelection(caller);
           if (pin) await api.selectTopicVersion(caller, base.id, null);
@@ -356,7 +333,11 @@ export class KnowledgeBridge {
         if (!pin) return { state: 'CHANGED', message: '保留主题选择已不在当前任务范围' };
         const read = await api.readTopicVersion(binding.team.caller, binding.team.library_id,
           binding.team.topic.version_id);
-        if (digest(read) !== binding.team.topic.content_digest)
+        const sources = read.sources.map(topicSourceMetadata);
+        if (read.versionId !== binding.team.topic.version_id
+          || read.topicId !== binding.team.topic.topic_id
+          || read.topic?.revision !== binding.team.topic.topic_revision
+          || digest(sources) !== binding.team.topic.sources_digest)
           return { state: 'CHANGED', message: '保留主题版本的原文或摘录已变化' };
       }
       return { state: 'CURRENT', message: '' };
@@ -416,31 +397,65 @@ export class KnowledgeBridge {
     return run;
   }
   catalogDocuments(binding) {
-    const roleForDoc = (document, kbId, kind) => {
-      if (kind === 'TOPIC') {
-        const role = binding.team?.roles?.[binding.team.topic?.version_id] || roleFor('REFERENCE');
-        return { id: 'topic-' + binding.team.topic.version_id, kb_id: kbId, project_id: binding.project_id,
-          file_name: document.name || binding.team.topic.label || '保留主题', source_sha256: document.originalRevision || sha(stable(binding.team.topic)),
-          doc_version: binding.team.topic.version_id, status: 'ACTIVE', authority: role.authority,
-          claim_role: role.claimRole, applicability: role.applicability, eligible: true };
+    const liveDocument = (document, kbId, role) => ({
+      id: document.documentId, kb_id: kbId, project_id: binding.project_id,
+      file_name: document.name, source_sha256: document.originalRevision,
+      doc_version: document.extractionRevision.slice(0, 12), status: document.state || 'indexed',
+      extractionRevision: document.extractionRevision, location: document.location,
+      coverage: document.coverage, authority: role.authority, claim_role: role.claimRole,
+      applicability: role.applicability, eligible: true });
+    const project = (binding.project?.documents || []).map(document => liveDocument(document,
+      binding.project.library_id, binding.project.roles?.[document.documentId] || roleFor('REFERENCE')));
+    const teamLive = (binding.team?.documents || []).map(document => liveDocument(document,
+      binding.team.library_id, binding.team.roles?.[document.documentId] || roleFor('REFERENCE')));
+    const topic = [];
+    if (binding.team?.kind === 'TOPIC') {
+      const role = binding.team.roles?.[binding.team.topic.version_id] || roleFor('REFERENCE');
+      const applicability = binding.team.topic.applicability.state === 'known'
+        ? binding.team.topic.applicability.description : role.applicability;
+      for (const source of binding.team.topic.sources) {
+        topic.push({ id: source.documentId, kb_id: binding.team.library_id, project_id: binding.project_id,
+          file_name: source.title, source_sha256: source.originalRevision,
+          doc_version: source.extractionRevision.slice(0, 12), status: 'ACTIVE',
+          extractionRevision: source.extractionRevision, location: source.location.kind,
+          coverage: source.coverage, authority: role.authority, claim_role: role.claimRole,
+          applicability, eligible: true, topic_version_id: binding.team.topic.version_id,
+          topic_id: binding.team.topic.topic_id, topic_origin: binding.team.topic.origin,
+          topic_availability: binding.team.topic.availability,
+          topic_verification: binding.team.topic.verification });
       }
-      const role = (document.team ? binding.team?.roles?.[document.documentId] : binding.project?.roles?.[document.documentId]) || roleFor('REFERENCE');
-      return { id: document.documentId, kb_id: kbId, project_id: binding.project_id,
-        file_name: document.name, source_sha256: document.originalRevision,
-        doc_version: document.extractionRevision.slice(0, 12), status: document.state || 'indexed',
-        extractionRevision: document.extractionRevision, location: document.location,
-        coverage: document.coverage,
-        authority: role.authority, claim_role: role.claimRole, applicability: role.applicability,
-        eligible: true };
-    };
-    const documents = [
-      ...(binding.project?.documents || []).map(item => ({ ...item, team: false })),
-      ...(binding.team?.documents || []).map(item => ({ ...item, team: true })),
-    ].map(item => roleForDoc(item, item.kbId));
-    if (binding.team?.kind === 'TOPIC') documents.push(roleForDoc({ name: binding.team.topic.label,
-      originalRevision: sha(stable(binding.team.topic)), extractionRevision: binding.team.topic.version_id,
-      location: 'logical-section', coverage: 'complete' }, binding.team.library_id, 'TOPIC'));
-    return documents;
+    }
+    return [...project, ...teamLive, ...topic];
+  }
+  topicFact(commandId, binding, source, text = source.text) {
+    const topic = binding.team.topic;
+    const role = binding.team.roles?.[topic.version_id] || roleFor('REFERENCE');
+    const verified = role.authority === 'INTERNAL_CONTROLLED' && topic.verification.state === 'verified';
+    const applicability = topic.applicability.state === 'known'
+      ? topic.applicability.description : role.applicability;
+    const location = { kind: source.location.kind, number: source.location.number };
+    const id = 'pair-fact-' + digest({ binding: binding.binding_sha256,
+      source: topicSourceMetadata(source), location, text }).slice(0, 32);
+    return { fact_id: id, document_id: source.documentId, kb_id: binding.team.library_id,
+      project_id: binding.project_id, source_sha256: source.originalRevision,
+      role: 'PROJECT_EVIDENCE', text, text_sha256: sha(text),
+      source_ref: { kind: source.location.kind,
+        location: { page_number: source.location.kind === 'physical-page' ? source.location.number : null,
+          section: source.location.kind === 'logical-section' ? source.location.number : null,
+          number: source.location.number },
+        document_id: source.documentId, coverage: source.coverage },
+      document_name: source.title, document_version: source.extractionRevision.slice(0, 12),
+      authority: verified ? role.authority : (topic.verification.state === 'verified' ? 'TOPIC_VERIFIED_NO_ACCEPTANCE' : 'UNKNOWN'),
+      claim_role: role.claimRole, applicability, eligible: true, authority_verified: verified,
+      capture_mode: 'PAIR_RETAINED_TOPIC', origin: 'PAIR_RETAINED_TOPIC',
+      original_revision: source.originalRevision, extraction_revision: source.extractionRevision,
+      coverage: source.coverage, location: source.location.kind,
+      topic_version_id: topic.version_id, topic_id: topic.topic_id,
+      topic_origin: topic.origin, topic_availability: topic.availability,
+      topic_verification: topic.verification,
+      url: '/reqpilotx/knowledge/tasks/' + encodeURIComponent(commandId)
+        + '/documents/' + encodeURIComponent(source.documentId)
+        + '?version=' + encodeURIComponent(topic.version_id) };
   }
   fact(commandId, binding, document, text, location, origin) {
     const id = 'pair-fact-' + digest({ binding: binding.binding_sha256, document: document.id,
@@ -491,20 +506,11 @@ export class KnowledgeBridge {
       facts.push(...hits.map(hit => this.mapLiveHit(commandId, binding, byId.get(hit.documentId) || documents.find(d => d.id === hit.documentId), hit)));
     } else if (binding.team?.kind === 'TOPIC') {
       const read = await api.readTopicVersion(binding.team.caller, binding.team.library_id, binding.team.topic.version_id);
-      const topicDoc = documents.find(item => item.id === 'topic-' + binding.team.topic.version_id);
       const tokens = query.toLocaleLowerCase().split(/\s+/).filter(Boolean);
-      facts.push(...findExcerpts(read, commandId, binding.team.topic.version_id)
-        .filter(item => tokens.every(token => item.text.toLocaleLowerCase().includes(token))
-          || tokens.some(token => item.text.toLocaleLowerCase().includes(token)))
-        .map(item => {
-          const source = /^[0-9a-f]{64}$/.test(item.originalRevision) ? item.originalRevision : topicDoc.source_sha256;
-          const doc = byId.get(item.documentId) || { ...topicDoc, id: item.documentId,
-            file_name: item.name, source_sha256: source,
-            extractionRevision: item.extractionRevision };
-          return this.fact(commandId, binding, doc, item.text,
-            { kind: item.page ? 'physical-page' : 'logical-section', page: item.page,
-              section: item.section, coverage: item.coverage }, 'PAIR_RETAINED_TOPIC');
-        }));
+      facts.push(...read.sources.filter(source => tokens.every(token =>
+        source.text.toLocaleLowerCase().includes(token)) || tokens.some(token =>
+        source.text.toLocaleLowerCase().includes(token)))
+        .map(source => this.topicFact(commandId, binding, source)));
     }
     facts = [...new Map(facts.map(item => [item.fact_id, item])).values()].slice(0, limit);
     await this.recordConsumption(commandId, 'search', { query, limit }, facts);
@@ -545,6 +551,20 @@ export class KnowledgeBridge {
         pages: Array(read.pages.length), expectedPages: read.document.expectedPages, state: 'indexed', wikiState: read.document.wiki }),
         pages: read.pages.map(page => ({ number: page.number, url: page.url })), facts, truncated: read.truncated };
     }
+    if (binding.team?.kind === 'TOPIC') {
+      const read = await api.readTopicVersion(binding.team.caller, binding.team.library_id, binding.team.topic.version_id);
+      const source = read.sources.find(item => item.documentId === documentId);
+      if (!source) throw new KnowledgeError('DOCUMENT_NOT_SELECTED', 409, 'Only documents frozen in this task binding can be read');
+      const fact = this.topicFact(commandId, binding, source);
+      await this.recordConsumption(commandId, 'read', { documentId, firstPage, count }, [fact]);
+      return { bindingSha256: binding.binding_sha256,
+        document: { id: source.documentId, kbId: binding.team.library_id, name: source.title,
+          mime: 'text/markdown', state: 'indexed', sha256: source.originalRevision,
+          pages: source.location.number, expectedPages: source.location.number,
+          coverage: source.coverage, extractionRevision: source.extractionRevision,
+          wiki: 'not-requested' },
+        pages: [{ number: source.location.number, url: fact.url }], facts: [fact], truncated: false };
+    }
     throw new KnowledgeError('DOCUMENT_NOT_SELECTED', 409, 'Only documents frozen in this task binding can be read');
   }
   async topicRead(commandId) {
@@ -552,22 +572,13 @@ export class KnowledgeBridge {
     const binding = await this.loadBinding(commandId);
     if (binding.team?.kind !== 'TOPIC') throw new KnowledgeError('RETAINED_TOPIC_NOT_SELECTED', 409);
     const read = await this.api().readTopicVersion(binding.team.caller, binding.team.library_id, binding.team.topic.version_id);
-    const documents = this.catalogDocuments(binding);
-    const topicDoc = documents.find(item => item.id === 'topic-' + binding.team.topic.version_id);
-    const facts = findExcerpts(read, commandId, binding.team.topic.version_id).map(item => {
-      const source = /^[0-9a-f]{64}$/.test(item.originalRevision) ? item.originalRevision : topicDoc.source_sha256;
-      const doc = documents.find(row => row.id === item.documentId) || { ...topicDoc, id: item.documentId,
-        file_name: item.name, source_sha256: source,
-        extractionRevision: item.extractionRevision };
-      return this.fact(commandId, binding, doc, item.text,
-        { kind: item.page ? 'physical-page' : 'logical-section', page: item.page,
-          section: item.section, coverage: item.coverage }, 'PAIR_RETAINED_TOPIC');
-    });
+    const facts = read.sources.map(source => this.topicFact(commandId, binding, source));
     await this.recordConsumption(commandId, 'topic_read', {}, facts);
-    return { bindingSha256: binding.binding_sha256, topic: {
-      versionId: binding.team.topic.version_id, label: binding.team.topic.label,
-      reviewState: binding.team.topic.review_state, availability: binding.team.topic.availability,
-      authors: binding.team.topic.authors }, topicRead: read, facts };
+    return { bindingSha256: binding.binding_sha256,
+      kbId: read.kbId, topicId: read.topicId, versionId: read.versionId,
+      origin: read.origin, authors: read.authors, availability: read.availability,
+      verification: read.verification, applicability: read.topic.applicability,
+      topic: read.topic, sources: read.sources, topicRead: read, facts };
   }
   async catalog(commandId) {
     const binding = await this.loadBinding(commandId);
@@ -596,31 +607,64 @@ export class KnowledgeBridge {
     await this.writeJson(join(directory, 'evidence-registration.json'), registration, 0o400);
     return { catalog, registration };
   }
-  async analysis(commandId, decisions, unitIds) {
+  async analysis(commandId, decisions, unitIds, expectedRevision, modelCommandId) {
     const record = this.getRecord(commandId);
     if (!record?.prepared?.task_root) throw new KnowledgeError('TASK_NOT_PREPARED', 409);
     if (!Array.isArray(decisions) || !decisions.length) throw new KnowledgeError('INVALID_ANALYSIS', 422);
+    if (typeof expectedRevision !== 'string' || !expectedRevision) throw new KnowledgeError('EXPECTED_REVISION_REQUIRED', 422);
+    if (typeof modelCommandId !== 'string' || !modelCommandId) throw new KnowledgeError('COMMAND_ID_REQUIRED', 422);
+    if (unitIds !== undefined && unitIds !== null && (!Array.isArray(unitIds) || !unitIds.length
+      || unitIds.some(item => typeof item !== 'string' || !item) || new Set(unitIds).size !== unitIds.length))
+      throw new KnowledgeError('INVALID_ANALYSIS', 422);
+    const normalized = decisions.map(item => {
+      if (!item || typeof item !== 'object' || typeof item.unit_id !== 'string' || !item.unit_id
+        || typeof item.decision !== 'string' || typeof item.reason !== 'string'
+        || !Array.isArray(item.evidence)) throw new KnowledgeError('INVALID_ANALYSIS', 422);
+      return { unit_id: item.unit_id, decision: item.decision, reason: item.reason,
+        evidence: item.evidence.map(citation => {
+          if (!citation || typeof citation.fact_id !== 'string' || typeof citation.quote !== 'string')
+            throw new KnowledgeError('INVALID_ANALYSIS', 422);
+          return { fact_id: citation.fact_id, quote: citation.quote };
+        }),
+        clarification_question: typeof item.clarification_question === 'string' ? item.clarification_question : '' };
+    });
     await this.requireCurrent(commandId, 'analysis');
-    await this.writeCatalog(commandId);
+    const binding = await this.loadBinding(commandId);
+    const consumed = await this.loadConsumption(commandId);
+    for (const decision of normalized) for (const citation of decision.evidence) {
+      const fact = consumed.facts[citation.fact_id];
+      if (!fact || !citation.quote.trim() || !fact.text.includes(citation.quote))
+        throw new KnowledgeError('EVIDENCE_FACT_NOT_CONSUMED', 409, 'Cite only exact quotes from logged task evidence results');
+    }
+    const { catalog, registration } = await this.writeCatalog(commandId);
+    if (!this.runtime.attestationKey) throw new KnowledgeError('HOST_ATTESTATION_KEY_UNAVAILABLE', 503);
+    const payload = { schema: 'reqpilot-pair-analysis-attestation/v1',
+      application_id: binding.application_id, project_id: binding.project_id,
+      document_id: record.documentId || '', task_id: record.prepared.task_id,
+      workbench_ref: record.prepared.work_ref || '',
+      binding_sha256: binding.binding_sha256,
+      mode: binding.mode, task_revision: expectedRevision, command_id: modelCommandId,
+      unit_ids: unitIds || null, decisions: normalized,
+      decisions_sha256: digest(normalized), catalog_sha256: catalog.catalog_sha256,
+      ledger_sha256: digest({ facts: consumed.facts, receipts: consumed.receipts }),
+      consumed_fact_ids: Object.keys(consumed.facts).sort(),
+      checked_at: new Date().toISOString() };
+    const signature = createHmac('sha256', Buffer.from(this.runtime.attestationKey, 'hex'))
+      .update(digest(payload)).digest('hex');
+    const attestation = { ...payload, signature };
     const workspace = record.prepared.workspace;
     const directory = join(this.runtime.dataRoot, 'knowledge-analysis');
     await mkdir(directory, { recursive: true, mode: 0o700 });
-    const inspectFile = join(directory, commandId + '-inspect.json');
-    const inspectRequest = join(directory, commandId + '-inspect-current.json');
-    await writeFile(inspectRequest, JSON.stringify({ task_id: record.prepared.task_id }), { mode: 0o600 });
-    const inspected = await this.runtime.command([record.python, '-I', join(record.capabilityRoot, 'scripts/reqpilot.py'),
-      'task', 'inspect', '--working-root', workspace, '--input', inspectRequest],
-      { PYTHONPATH: undefined, PYTHONHOME: undefined, REQPILOT_DEVELOPMENT_ROOT: undefined },
-      { signal: AbortSignal.timeout(120000) });
-    let current;
-    try { current = JSON.parse(inspected); } catch { throw new KnowledgeError('TASK_STATE_UNREADABLE', 502); }
-    if (!current?.task_id || !current?.revision) throw new KnowledgeError('TASK_STATE_UNREADABLE', 502);
-    const request = { task_id: record.prepared.task_id, expected_revision: current.revision,
-      decisions, ...(unitIds ? { unit_ids: unitIds } : {}) };
-    await writeFile(inspectFile, JSON.stringify(request), { mode: 0o600 });
+    const requestFile = join(directory, commandId + '-analysis.json');
+    const request = { task_id: record.prepared.task_id, expected_revision: expectedRevision,
+      command_id: modelCommandId, decisions: normalized,
+      ...(unitIds ? { unit_ids: unitIds } : {}),
+      knowledge_attestation: attestation };
+    await writeFile(requestFile, JSON.stringify(request), { mode: 0o600 });
     const stdout = await this.runtime.command([record.python, '-I', join(record.capabilityRoot, 'scripts/reqpilot.py'),
-      'task', 'analysis', '--working-root', workspace, '--input', inspectFile],
-      { PYTHONPATH: undefined, PYTHONHOME: undefined, REQPILOT_DEVELOPMENT_ROOT: undefined },
+      'task', 'analysis', '--working-root', workspace, '--input', requestFile],
+      { PYTHONPATH: undefined, PYTHONHOME: undefined, REQPILOT_DEVELOPMENT_ROOT: undefined,
+        REQPILOT_HOST_ATTESTATION_KEY: this.runtime.attestationKey },
       { signal: AbortSignal.timeout(300000) });
     let result;
     try { result = JSON.parse(stdout); } catch { throw new KnowledgeError('ANALYSIS_RESULT_UNREADABLE', 502); }
@@ -639,12 +683,29 @@ export class KnowledgeBridge {
     throw new KnowledgeError('DOCUMENT_NOT_SELECTED', 409);
   }
   async ensureServer() {
+    if (this.closing) throw new KnowledgeError('KNOWLEDGE_SERVICE_STOPPING', 503);
     if (this.serverState) return this.serverState;
-    const state = { server: this.serverFactory(async (req, res) => this.handleEvidence(req, res)) };
-    state.server.listen(0, '127.0.0.1'); await once(state.server, 'listening');
-    state.endpoint = 'http://127.0.0.1:' + state.server.address().port;
-    this.serverState = state; this.server = state.server;
-    return state;
+    if (!this.serverPromise) this.serverPromise = this.startServer();
+    return this.serverPromise;
+  }
+  async startServer() {
+    let state;
+    try {
+      state = { server: this.serverFactory(async (req, res) => this.handleEvidence(req, res)) };
+      state.server.listen(0, '127.0.0.1');
+      await once(state.server, 'listening');
+      if (this.closing) {
+        await new Promise(resolve => state.server.close(resolve));
+        throw new KnowledgeError('KNOWLEDGE_SERVICE_STOPPING', 503);
+      }
+      state.endpoint = 'http://127.0.0.1:' + state.server.address().port;
+      this.serverState = state; this.server = state.server;
+      return state;
+    } catch (error) {
+      this.serverPromise = null; this.serverState = null; this.server = null;
+      if (!this.closing && state?.server?.listening) await new Promise(resolve => state.server.close(resolve));
+      throw error;
+    }
   }
   async runtimeFile(commandId) {
     const state = await this.ensureServer();
@@ -663,6 +724,11 @@ export class KnowledgeBridge {
   }
   async handleEvidence(req, res) {
     try {
+      if (this.closing) {
+        res.writeHead(503, { 'content-type': 'application/json' });
+        res.end('{"error":"KNOWLEDGE_SERVICE_STOPPING"}');
+        return;
+      }
       const token = (req.headers.authorization || '').replace(/^Bearer\s+/i, '');
       const commandId = this.tokens.get(token);
       if (!commandId) { res.writeHead(401, { 'content-type': 'application/json' }); res.end('{"error":"UNAUTHORIZED"}'); return; }
@@ -673,7 +739,8 @@ export class KnowledgeBridge {
       if (req.url === '/evidence/search') result = await this.search(commandId, body.query, body.limit ?? 8);
       else if (req.url === '/evidence/read') result = await this.read(commandId, body.documentId, body.firstPage ?? 1, body.count ?? 4);
       else if (req.url === '/evidence/topic') result = await this.topicRead(commandId);
-      else if (req.url === '/evidence/analysis') result = await this.analysis(commandId, body.decisions, body.unitIds);
+      else if (req.url === '/evidence/analysis') result = await this.analysis(commandId, body.decisions,
+        body.unitIds, body.expectedRevision, body.commandId);
       else { res.writeHead(404); res.end(); return; }
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
       res.end(JSON.stringify({ ok: true, result }));
@@ -683,7 +750,10 @@ export class KnowledgeBridge {
     }
   }
   async close() {
+    this.closing = true;
+    if (this.serverPromise) await this.serverPromise.catch(() => undefined);
+    await Promise.allSettled([...this.pending.values()]);
     if (this.server) await new Promise(resolve => this.server.close(resolve));
-    this.server = null; this.serverState = null; this.tokens.clear();
+    this.server = null; this.serverState = null; this.serverPromise = null; this.tokens.clear();
   }
 }

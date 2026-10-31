@@ -80,8 +80,10 @@ def create_server(runtime: dict):
                      inputSchema={"type": "object", "properties": {}, "additionalProperties": False},
                      annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)),
                 Tool(name="knowledge_analysis_save",
-                     description="Save source-bound Agent analysis through the existing ReqPilotX assessment owner. Cover each requested unit once; cite only returned fact_id/quote pairs. Missing or unsuitable evidence must be PENDING_EVIDENCE or NEEDS_CLARIFICATION. The result is a working proposal, not a formal engineer opinion or human acceptance, and appears in the analysis workbench and same-version Excel.",
+                     description="Save source-bound Agent analysis through the existing ReqPilotX assessment owner. Pass the exact task revision you observed and a stable command_id; stale judgments are rejected, never retargeted. Cover each requested unit once; cite only returned fact_id/quote pairs. Missing or unsuitable evidence must be PENDING_EVIDENCE or NEEDS_CLARIFICATION. The result is a working proposal, not a formal engineer opinion or human acceptance, and appears in the analysis workbench and same-version Excel.",
                      inputSchema={"type": "object", "properties": {
+                         "expected_revision": {"type": "string", "minLength": 1},
+                         "command_id": {"type": "string", "minLength": 1},
                          "unitIds": {"type": "array", "items": {"type": "string"}, "minItems": 1},
                          "decisions": {"type": "array", "minItems": 1, "items": {
                              "type": "object", "additionalProperties": False,
@@ -94,7 +96,7 @@ def create_server(runtime: dict):
                                      "required": ["fact_id", "quote"]}},
                                  "clarification_question": {"type": "string"}},
                              "required": ["unit_id", "decision", "reason", "evidence"]}}},
-                         "required": ["decisions"], "additionalProperties": False},
+                         "required": ["expected_revision", "command_id", "decisions"], "additionalProperties": False},
                      annotations=ToolAnnotations(readOnlyHint=False, destructiveHint=False, idempotentHint=True)),
             ]
 
@@ -111,7 +113,9 @@ def create_server(runtime: dict):
                     result = call(runtime, "/evidence/topic", {})
                 elif name == "knowledge_analysis_save":
                     result = call(runtime, "/evidence/analysis", {
-                        "decisions": arguments.get("decisions"), "unitIds": arguments.get("unitIds")})
+                        "decisions": arguments.get("decisions"), "unitIds": arguments.get("unitIds"),
+                        "expectedRevision": arguments.get("expected_revision"),
+                        "commandId": arguments.get("command_id")})
                 else:
                     result = {"status": "FAILED", "error_code": "UNKNOWN_TOOL",
                               "message": "Use a tool from the advertised catalog."}

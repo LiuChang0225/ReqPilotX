@@ -102,6 +102,39 @@ def _documents(values, field):
     return result
 
 
+def _topic_sources(values):
+    if not isinstance(values, list):
+        raise ValueError('EVIDENCE_BINDING_INVALID: team.topic.sources')
+    result = []
+    seen = set()
+    for value in values:
+        if not isinstance(value, dict) or set(value) != {
+                'documentId', 'title', 'originalRevision', 'extractionRevision',
+                'coverage', 'location'}:
+            raise ValueError('EVIDENCE_BINDING_INVALID: team.topic.source')
+        location = value.get('location')
+        if (not isinstance(location, dict) or set(location) != {'kind', 'number'}
+                or location.get('kind') not in LOCATIONS
+                or type(location.get('number')) is not int or location['number'] < 1):
+            raise ValueError('EVIDENCE_BINDING_INVALID: team.topic.source.location')
+        source = {
+            'documentId': _text(value.get('documentId'), 'team.topic.source.documentId'),
+            'title': _text(value.get('title'), 'team.topic.source.title'),
+            'originalRevision': _sha(value.get('originalRevision'), 'team.topic.source.originalRevision'),
+            'extractionRevision': _sha(value.get('extractionRevision'), 'team.topic.source.extractionRevision'),
+            'coverage': value.get('coverage'),
+            'location': {'kind': location['kind'], 'number': location['number']},
+        }
+        if source['coverage'] not in COVERAGE:
+            raise ValueError('EVIDENCE_BINDING_INVALID: team.topic.source.coverage')
+        key = (source['documentId'], source['location']['kind'], source['location']['number'])
+        if key in seen:
+            raise ValueError('EVIDENCE_BINDING_INVALID: duplicate topic source')
+        seen.add(key)
+        result.append(source)
+    return result
+
+
 def validate_binding(value) -> dict:
     if not isinstance(value, dict):
         raise ValueError('EVIDENCE_BINDING_INVALID: object')
@@ -167,20 +200,55 @@ def validate_binding(value) -> dict:
             if team.get('documents') is not None:
                 raise ValueError('EVIDENCE_BINDING_INVALID: topic has live documents')
             topic = team.get('topic')
-            if not isinstance(topic, dict) or set(topic) - {
-                    'version_id', 'label', 'review_state', 'availability', 'authors',
-                    'content_digest'}:
+            allowed_topic = {'version_id', 'topic_id', 'title', 'availability',
+                             'verification', 'origin', 'applicability', 'authors',
+                             'topic_revision', 'sources_digest', 'sources'}
+            if not isinstance(topic, dict) or set(topic) != allowed_topic:
                 raise ValueError('EVIDENCE_BINDING_INVALID: team.topic')
+            availability = topic.get('availability')
+            verification = topic.get('verification')
+            applicability = topic.get('applicability')
+            if (not isinstance(availability, dict)
+                    or availability.get('state') != 'available'
+                    or set(availability) - {'state', 'acceptedBy'}
+                    or not isinstance(availability.get('acceptedBy'), str)
+                    or not availability['acceptedBy'].strip()):
+                raise ValueError('EVIDENCE_BINDING_INVALID: team.topic.availability')
+            if (not isinstance(verification, dict)
+                    or verification.get('state') not in {'verified', 'pending'}
+                    or set(verification) - {'state', 'confirmedBy'}):
+                raise ValueError('EVIDENCE_BINDING_INVALID: team.topic.verification')
+            if verification['state'] == 'verified':
+                if not isinstance(verification.get('confirmedBy'), str) or not verification['confirmedBy'].strip():
+                    raise ValueError('EVIDENCE_BINDING_INVALID: team.topic.verification')
+            elif 'confirmedBy' in verification:
+                raise ValueError('EVIDENCE_BINDING_INVALID: team.topic.verification')
+            if (not isinstance(applicability, dict)
+                    or applicability.get('state') not in {'known', 'unknown'}
+                    or set(applicability) - {'state', 'description'}):
+                raise ValueError('EVIDENCE_BINDING_INVALID: team.topic.applicability')
+            if applicability['state'] == 'known':
+                if not isinstance(applicability.get('description'), str) or not applicability['description'].strip():
+                    raise ValueError('EVIDENCE_BINDING_INVALID: team.topic.applicability')
+            elif 'description' in applicability:
+                raise ValueError('EVIDENCE_BINDING_INVALID: team.topic.applicability')
+            if topic.get('origin') not in {'ai-organized', 'human-authored'}:
+                raise ValueError('EVIDENCE_BINDING_INVALID: team.topic.origin')
             result['team']['topic'] = {
                 'version_id': _text(topic.get('version_id'), 'team.topic.version_id'),
-                'label': _text(topic.get('label', ''), 'team.topic.label', allow_empty=True),
-                'review_state': _text(topic.get('review_state', ''), 'team.topic.review_state', allow_empty=True),
-                'availability': _text(topic.get('availability', ''), 'team.topic.availability', allow_empty=True),
-                'authors': [str(item) for item in (topic.get('authors') or [])],
+                'topic_id': _text(topic.get('topic_id'), 'team.topic.topic_id'),
+                'title': _text(topic.get('title'), 'team.topic.title'),
+                'availability': {'state': 'available', 'acceptedBy': availability['acceptedBy'].strip()},
+                'verification': ({'state': 'verified', 'confirmedBy': verification['confirmedBy'].strip()}
+                                 if verification['state'] == 'verified' else {'state': 'pending'}),
+                'origin': topic['origin'],
+                'applicability': ({'state': 'known', 'description': applicability['description'].strip()}
+                                  if applicability['state'] == 'known' else {'state': 'unknown'}),
+                'authors': [_text(item, 'team.topic.authors') for item in (topic.get('authors') or [])],
+                'topic_revision': _sha(topic.get('topic_revision'), 'team.topic.topic_revision'),
+                'sources_digest': _sha(topic.get('sources_digest'), 'team.topic.sources_digest'),
+                'sources': _topic_sources(topic.get('sources')),
             }
-            if topic.get('content_digest') is not None:
-                result['team']['topic']['content_digest'] = _sha(
-                    topic.get('content_digest'), 'team.topic.content_digest')
     has_project = bool(result.get('project') and result['project']['documents'])
     has_team = bool(result.get('team') and (
         result['team'].get('documents') if result['team']['kind'] == 'LIVE'

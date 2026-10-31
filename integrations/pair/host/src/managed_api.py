@@ -34,7 +34,8 @@ def installation():
 def configure_environment():
     allowed = {"REQPILOT_DATABASE_URL", "REQPILOT_DATABASE_BACKEND", "REQPILOT_STORAGE_DIR",
                "REQPILOT_FRONTEND_DIR", "REQPILOT_OBJECT_ROOT", "REQPILOT_SCRATCH_ROOT",
-               "REQPILOT_MANAGED_INSTANCE", "REQPILOT_MANAGED_OWNER", "REQPILOT_MANAGED_PROOF_KEY"}
+               "REQPILOT_MANAGED_INSTANCE", "REQPILOT_MANAGED_OWNER", "REQPILOT_MANAGED_PROOF_KEY",
+               "REQPILOT_HOST_ATTESTATION_KEY"}
     for key in list(os.environ):
         if key.startswith(("REQPILOT_", "REQPILOTX_", "OPENAI_", "AZURE_", "DASHSCOPE_", "ALIYUN_")) and key not in allowed:
             del os.environ[key]

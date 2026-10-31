@@ -9,6 +9,7 @@ from datetime import datetime, timezone
 from functools import lru_cache
 import hashlib
 import json
+import os
 from pathlib import Path
 import re
 from typing import Any
@@ -35,7 +36,7 @@ ARTIFACT_NAMES = {
     'table-previews.json', 'item-compilation-receipt.json', 'workflow-check.json',
     'image-annotations.json', 'source-item-decomposition.json', 'analysis-policy.json',
     'source-item-assessments.json', 'analysis-packet.json', 'knowledge-catalog.json',
-    'evidence-registration.json',
+    'evidence-registration.json', 'knowledge-attestation.json',
 }
 
 
@@ -151,6 +152,8 @@ def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root
     remaining = len(remaining) if isinstance(remaining, list) else 1
     policy = artifacts.get('analysis-policy.json') or {}
     assessments = artifacts.get('source-item-assessments.json') or {}
+    analysis_scope = (analysis_core.assessment_scope_status(baseline, decomposition, assessments)
+                      if baseline and assessments and artifacts.get('knowledge-attestation.json') else None)
     mode = spec['evidence']['mode']
     open_items = []
     blocking = []
@@ -193,8 +196,13 @@ def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root
     elif mode == 'NONE':
         evidence_status, evidence_reason = 'SKIPPED', 'NO_INTERNAL_EVIDENCE'
         open_items.append('EVIDENCE_ANALYSIS_SKIPPED')
-    elif assessments and assessments.get('baseline_sha256') == baseline.artifact_sha256:
+    elif analysis_scope and analysis_scope['complete']:
         evidence_status, evidence_reason = 'SAVED', None
+    elif analysis_scope and analysis_scope['required']:
+        evidence_status = 'PENDING'
+        evidence_reason = ('INTERNAL_EVIDENCE_ANALYSIS_PARTIAL' if analysis_scope.get('current')
+                           else 'INTERNAL_EVIDENCE_ANALYSIS_REQUIRED')
+        open_items.append('INTERNAL_EVIDENCE_ANALYSIS_REQUIRED')
     elif policy.get('status') == 'SKIPPED' and mode == 'NONE':
         evidence_status, evidence_reason = 'SKIPPED', policy.get('reason') or 'USER_SKIPPED'
         open_items.append('EVIDENCE_ANALYSIS_SKIPPED')
@@ -318,7 +326,8 @@ def _current_fixed_workflow(root, head):
                          ('source-item-decomposition.json', 'analysis-policy.json',
                           'item-compilation-receipt.json', 'workflow-check.json',
                           'source-item-assessments.json', 'analysis-packet.json',
-                          'knowledge-catalog.json', 'evidence-registration.json')
+                          'knowledge-catalog.json', 'evidence-registration.json',
+                          'knowledge-attestation.json')
                          if name in version['files']}
         else:
             mapping = None; baseline = None; artifacts = {}
@@ -378,7 +387,7 @@ def _public(root,head):
         'producer':'EXTERNAL_PLUGIN','model_dispatch':'NOT_PERFORMED','human_acceptance':'NOT_CLAIMED'}
 
 
-def _compile_view(artifacts, source_sha):
+def _compile_view(artifacts, source_sha, *, project_id, document_id, workbench_ref):
     unknown=set(artifacts)-ARTIFACT_NAMES
     if unknown:
         raise ValueError('Unsupported proof-bearing artifacts: '+', '.join(sorted(unknown))+'. Existing analysis or engineer opinions must not be omitted; their evidence transport is not yet supported.')
@@ -412,11 +421,26 @@ def _compile_view(artifacts, source_sha):
     view_baseline=baseline or core.create_empty_source_requirement_baseline(mapping)[0]
     assessment_values = (artifacts.get('source-item-assessments.json'),
         artifacts.get('analysis-packet.json'), artifacts.get('knowledge-catalog.json'),
-        artifacts.get('evidence-registration.json'))
+        artifacts.get('evidence-registration.json'), artifacts.get('knowledge-attestation.json'))
     if any(value is not None for value in assessment_values):
         if not all(value is not None for value in assessment_values) or baseline is None:
-            raise ValueError('Saved analysis requires its assessments, packet, knowledge catalog and evidence registration')
+            raise ValueError('Saved analysis requires its assessments, packet, knowledge catalog, evidence registration and Host attestation')
         catalog = pair_evidence.validate_pair_registration(assessment_values[3], assessment_values[2])
+        key = os.environ.get('REQPILOT_HOST_ATTESTATION_KEY')
+        if not key:
+            raise ValueError('Host evidence attestation key is unavailable')
+        attestation = pair_evidence.verify_pair_attestation(assessment_values[4], key, catalog=catalog)
+        if (attestation.get('project_id') != project_id
+                or attestation.get('document_id') != document_id
+                or attestation.get('workbench_ref') != workbench_ref
+                or catalog.get('project_id') != project_id
+                or attestation.get('catalog_sha256') != catalog.get('catalog_sha256')):
+            raise ValueError('Host evidence attestation belongs to another project, document or workbench work')
+        records = assessment_values[0].get('records') or {}
+        for decision in attestation.get('decisions', []):
+            expected = {key: decision[key] for key in ('decision', 'reason', 'evidence', 'clarification_question')}
+            if records.get(decision.get('unit_id')) != expected:
+                raise ValueError('Host attestation decisions differ from the saved assessment records')
         packet = assessment_values[1]
         expected = analysis_core.build_source_item_analysis_packet(mapping, baseline,
             artifacts['table-previews.json'], catalog,
@@ -445,7 +469,8 @@ def sync_plugin_draft(project_id: str,document_id: str,payload: PluginDraftUploa
     if len(json.dumps(payload.artifacts,ensure_ascii=False).encode())>64*1024*1024:
         raise ApplicationError(status_code=413,detail='本次成果过大，请按已保存的完整业务范围分批同步。')
     try:
-        mapping,baseline,snapshot,policy=_compile_view(payload.artifacts,payload.expected_source_sha256)
+        mapping,baseline,snapshot,policy=_compile_view(payload.artifacts,payload.expected_source_sha256,
+            project_id=project_id, document_id=document_id, workbench_ref=payload.session_id)
         source=Path(resolve_source_record_path(document)).resolve(strict=True)
         if hashlib.sha256(source.read_bytes()).hexdigest()!=payload.expected_source_sha256:
             raise ValueError('Registered original bytes changed')

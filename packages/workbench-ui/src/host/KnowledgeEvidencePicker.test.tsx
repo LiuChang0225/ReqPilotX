@@ -12,7 +12,10 @@ function host(): WorkbenchApplicationHost {
       teamLibraries: [{ id: "kb-team", name: "团队规范", documents: [{ id: "t-doc", name: "team.md", coverage: "complete" as const, wiki: "not-requested" }] }] })),
     uploadReference: vi.fn(async () => ({})),
     retryReference: vi.fn(async () => ({})),
-    teamTopics: vi.fn(async () => [{ version_id: "topic-v1", label: "设计主题", availability: "AVAILABLE", review_state: "VERIFIED" }]),
+    teamTopics: vi.fn(async () => [{ kbId: "kb-team", versionId: "topic-v1", topicId: "topic", title: "设计主题",
+      availability: { state: "available" as const, acceptedBy: "reviewer" },
+      verification: { state: "verified" as const, confirmedBy: "reviewer" },
+      origin: "human-authored" as const, applicability: { state: "known" as const, description: "适用" }, authors: ["reviewer"] }]),
     teamLibraries: vi.fn(async () => []),
   };
   return { id: "host", label: "PAIR", modelLabel: "model", captureAvailable: false, taskStartAvailable: true,

@@ -15,7 +15,7 @@ OPERATIONS = ('capture', 'reading-workspace', 'read-pdf-visual', 'revise-visual-
               'compile-annotations', 'compile-decomposition', 'deliver', 'review-open')
 PATH_ARGUMENTS = ('input', 'source_ir', 'source', 'map_dir', 'baseline_dir', 'annotations',
                   'decomposition', 'previous_decomposition', 'knowledge_catalog', 'analysis_packet',
-                  'analysis_policy', 'assessments', 'manual_decisions')
+                  'analysis_policy', 'assessments', 'knowledge_attestation', 'manual_decisions')
 VALUE_ARGUMENTS = ('expected_sha256',)
 BOOL_ARGUMENTS = ('capture_only', 'progress')
 BLOCKED_STATUSES = {'WAITING_FOR_MAP_CONFIRMATION', 'WORKBENCH_NOT_BOUND', 'WORKBENCH_UNAVAILABLE'}

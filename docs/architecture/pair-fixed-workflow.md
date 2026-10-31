@@ -42,9 +42,15 @@ PAIR 宿主存在 `ctx.knowledge` 时，项目参考上传走
 任务证据 MCP 工具（`reqpilot_knowledge`）只解析冻结绑定：
 `knowledge_evidence_search`、`knowledge_evidence_read`、`knowledge_topic_read` 返回带
 `fact_id`、原文引用、页码／逻辑段、覆盖和版本的摘录；每次调用由 Host 记录消费回执。
-`knowledge_analysis_save` 把这些实际消费的事实组成知识目录，调用既有
-source-item assessment 编译器保存非正式分析；没有消费事实或引用未被工具返回时拒绝。
+`knowledge_analysis_save` 必须携带模型观察到的精确任务 revision 和稳定 command_id；
+Host 从自有消费账本生成目录并签发绑定应用／项目／文档／任务／工作台／版本／决策的
+attestation。没有消费事实、引用未被工具返回、旧 revision 或缺少 Host 签名的请求拒绝。
 证据文本始终是数据，不是权限或指令；不可用、已变化或越界请求显式拒绝并保留原工作。
+历史分析是部分结果时，固定流程仍须等待当前基线／派生范围内的每个必需分析单元都有
+当前依据的结果，不能以 batch unit_ids 缩小任务范围。保留主题使用真实 provider
+`TopicVersionInfo`／`TopicReadResult` 字段：availability、verification、applicability、
+origin、精确来源 document/version、physical-page 或 logical-section 的 number；
+派生 topic 内容不伪装成原始来源事实，原始引用通过 `topicOriginal` 解析。
 
 ## 服务端固定流程
 
