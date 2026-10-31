@@ -697,6 +697,7 @@ class TaskService:
             response['delivery_handoff'] = handoff or {'status': 'AUTHORITATIVE_DRAFT_UNAVAILABLE',
                 'reason': 'CURRENT_DRAFT_NOT_PUBLISHED', 'durable': False, 'exact_download': False}
             response['exact_download_ready'] = bool(response['delivery_handoff'].get('status') == 'AUTHORITATIVE_DRAFT_READY'
+                and response['delivery_handoff'].get('currentness') == 'CURRENT'
                 and response['delivery_handoff'].get('durable') is True)
             response['result']['delivery_handoff'] = response['delivery_handoff']
             published = bool(draft.get('status') in {'DRAFT_REGISTERED','DRAFT_REUSED'}

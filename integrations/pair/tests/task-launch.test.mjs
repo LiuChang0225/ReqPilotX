@@ -56,7 +56,8 @@ const codexModel = { provider: 'openai-codex', model: 'gpt-6.1-sol', reasoningEf
 test('native tasks bind the configured model before admission and retain it across acknowledgement retries', async () => {
   const f = await fixture({ agentModel: codexModel, taskMcp: true }); try {
     f.services.sessions.selectSessionModel = async request => {
-      f.calls.model.push(request); assert.equal(f.calls.prompt.length, 0);
+      f.calls.model.push(request);
+      if (f.calls.model.length === 1) assert.equal(f.calls.prompt.length, 0);
       const { sessionId, ...selected } = request; assert.equal(sessionId, f.calls.create[0].sessionId);
       return { selected };
     };
@@ -68,7 +69,9 @@ test('native tasks bind the configured model before admission and retain it acro
     try {
       const receipt = await retry.start(f.input);
       assert.deepEqual(receipt.agentModel, codexModel); assert.deepEqual(receipt.selectedAgentModel, codexModel);
-      assert.equal(f.calls.model.length, 1); assert.equal(f.calls.prompt[0].requestId, f.calls.prompt[1].requestId);
+      assert.equal(f.calls.model.length, 2);
+      assert.deepEqual(f.calls.model[1], f.calls.model[0]);
+      assert.equal(f.calls.prompt[0].requestId, f.calls.prompt[1].requestId);
       assert.equal((await retry.inspect(commandId)).selectedAgentModel.reasoningEffort, 'xhigh');
       assert.ok(await retry.toolBinding(receipt.sessionId));
       assert.equal(f.calls.workspaceTitle.length, 1);
@@ -474,5 +477,95 @@ test('a retried prepared record with another source/bundle is refused before Ses
     await writeFile(file, JSON.stringify(record));
     await assert.rejects(f.launcher.start(f.input), /TASK_PREPARED_SOURCE_MISMATCH/);
     assert.equal(f.calls.create.length, 1); assert.equal(f.calls.prompt.length, 1);
+  } finally { await f.close(); }
+});
+
+test('master {meta,events} reconnect uses the same observation both times and rejects concurrent change', async () => {
+  const f = await fixture({ taskMcp: true }); try {
+    const started = await f.launcher.start(f.input);
+    const file = join(f.root, 'task-launches', commandId + '.json');
+    const record = JSON.parse(await readFile(file, 'utf8'));
+    f.runtime.snapshot.serviceOrigin = 'http://127.0.0.1:7777';
+    f.runtime.verifyEndpoint = async () => ({ ownerId: f.runtime.ownerId, instanceId: 'instance-new',
+      serviceOrigin: f.runtime.snapshot.serviceOrigin });
+    const originalCommand = f.runtime.command;
+    f.runtime.command = async (argv, env, options) => {
+      if (argv.some(value => String(value).endsWith('task-reconnect.py'))) {
+        const payload = JSON.parse(await readFile(argv[argv.length - 1], 'utf8'));
+        return JSON.stringify({ schema: 'reqpilot-pair-reconnect/v1', workspace: payload.workspace,
+          task_id: payload.task_id, work_ref: payload.work_ref, source_sha256: payload.source_sha256,
+          bundle_sha256: payload.bundle_sha256, service_origin: payload.to_origin, mutation_replayed: false });
+      }
+      return originalCommand(argv, env, options);
+    };
+    const meta = { id: started.sessionId, cwd: join(f.root, 'task-workspaces', commandId), workspaceId: 'workspace-one' };
+    const events = [{ type: 'user/message', seq: 1, data: { source: { kind: 'user', rpcId: record.requestId } } },
+      { type: 'turn/start', seq: 2, data: {} }, { type: 'turn/end', seq: 3, data: {} }];
+    let reads = 0;
+    f.services.sessions.inspect = async () => ({ meta, events: reads++ === 0 ? events : events.map(event => ({ ...event })) });
+    await f.launcher.reconnect(record);
+    const saved = JSON.parse(await readFile(file, 'utf8'));
+    assert.equal(saved.serviceOrigin, 'http://127.0.0.1:7777');
+    assert.equal(saved.reconnectEvidence.instanceId, 'instance-new');
+    assert.equal(reads, 2);
+
+    const changed = JSON.parse(await readFile(file, 'utf8'));
+    changed.serviceOrigin = 'http://127.0.0.1:1234'; changed.serviceInstanceId = null;
+    await writeFile(file, JSON.stringify(changed));
+    f.runtime.snapshot.serviceOrigin = 'http://127.0.0.1:7778';
+    f.runtime.verifyEndpoint = async () => ({ ownerId: f.runtime.ownerId, instanceId: 'instance-later',
+      serviceOrigin: f.runtime.snapshot.serviceOrigin });
+    reads = 0;
+    f.services.sessions.inspect = async () => ({ meta, events: reads++ === 0 ? events : [...events, { type: 'assistant/message', seq: 4, data: { text: 'concurrent' } }] });
+    await assert.rejects(f.launcher.reconnect(changed), /TASK_RECONNECT_SESSION_CHANGED/);
+    const after = JSON.parse(await readFile(file, 'utf8'));
+    assert.ok(after.reconnectIntent, 'failed reconnect keeps the frozen intent for explicit recovery');
+    assert.equal(after.serviceOrigin, 'http://127.0.0.1:1234');
+  } finally { await f.close(); }
+});
+
+test('a recreated Session reinstalls the frozen model before the retried prompt', async () => {
+  const f = await fixture(); try {
+    const started = await f.launcher.start(f.input);
+    assert.equal(f.calls.model.length, 1);
+    let liveSelection = null;
+    f.services.sessions.selectSessionModel = async ({ sessionId, ...selected }) => {
+      f.calls.model.push({ sessionId, ...selected });
+      liveSelection = selected;
+      return { selected };
+    };
+    f.services.sessions.prompt = async value => {
+      assert.deepEqual(liveSelection, defaultModel);
+      f.calls.prompt.push(value);
+      return { accepted: true };
+    };
+    const file = join(f.root, 'task-launches', commandId + '.json');
+    const record = JSON.parse(await readFile(file, 'utf8'));
+    record.phase = 'TASK_PREPARED'; delete record.acceptanceEvidence;
+    await writeFile(file, JSON.stringify(record));
+    const receipt = await f.launcher.start(f.input);
+    assert.equal(receipt.status, 'ACCEPTED');
+    assert.equal(f.calls.create.length, 2);
+    assert.equal(f.calls.create[1].sessionId, started.sessionId);
+    assert.equal(f.calls.model.length, 2);
+    assert.deepEqual(f.calls.model[1], { sessionId: started.sessionId, ...defaultModel });
+    assert.deepEqual(liveSelection, defaultModel);
+    assert.deepEqual(receipt.selectedAgentModel, defaultModel);
+    assert.equal(f.calls.prompt.length, 2);
+    assert.equal(f.calls.prompt[1].requestId, f.calls.prompt[0].requestId);
+  } finally { await f.close(); }
+});
+
+test('a recreated Session without model selection support refuses the retried prompt', async () => {
+  const f = await fixture(); try {
+    await f.launcher.start(f.input);
+    const file = join(f.root, 'task-launches', commandId + '.json');
+    const record = JSON.parse(await readFile(file, 'utf8'));
+    record.phase = 'TASK_PREPARED'; delete record.acceptanceEvidence;
+    await writeFile(file, JSON.stringify(record));
+    delete f.services.sessions.selectSessionModel;
+    await assert.rejects(f.launcher.start(f.input), /PAIR_SESSION_MODEL_SELECTION_UNSUPPORTED/);
+    assert.equal(f.calls.prompt.length, 1);
+    assert.equal((await f.launcher.inspect(commandId)).status, 'TASK_PREPARED');
   } finally { await f.close(); }
 });

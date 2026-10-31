@@ -20,6 +20,14 @@ def _same_local_revision(root, revision):
     return current
 
 
+def _remote_current(binding, expected_revision, source_sha256):
+    """Read the bound remote head and apply the existing exact revision/source rule."""
+    current=request(_api(binding))
+    _validate_state(current,binding)
+    return current, (current.get('revision_id')==expected_revision
+        and current.get('source_sha256')==source_sha256)
+
+
 def _bound_scope(state):
     root=Path(state['task_root']).resolve(strict=True)
     actual=_same_local_revision(root,state['revision'])
@@ -88,7 +96,7 @@ def workbench_link(state: dict) -> dict:
                         and binding.get('synchronized_result_revision')==revision):
                     match=True
         coordinates={'task_id':context['work_id'],'work_ref':binding.get('session_id'),
-            'session_id':binding.get('session_id'),'result_revision':revision,
+            'result_revision':revision,
             'project_id':binding.get('project_id'),'document_id':binding.get('document_id'),
             'source_sha256':binding.get('source_sha256'),
             'selection':{'projectId':binding.get('project_id'),'documentId':binding.get('document_id'),
@@ -98,7 +106,9 @@ def workbench_link(state: dict) -> dict:
             'workbench_entry':{'kind':'PAIR_REQPILOTX_WORKBENCH','action':'OPEN_ORIGINAL_WORKBENCH',
                 'user_action':'Open ReqPilotX in PAIR and select this saved work.',
                 'url':None,'coordinates':coordinates},
-            'chat_entry':{'kind':'PAIR_NATIVE_SESSION','action':'openSession','coordinates':coordinates},
+            # This binding proves the ReqPilotX work/session identity, not a
+            # Host-owned PAIR Session UUID. Standalone cannot invent chat identity.
+            'chat_entry':None,
             'session_id':binding['session_id'],'result_revision':revision,
             'link_target':'SAVED_REMOTE_RESULT' if revision else 'SOURCE_WORK',
             'local_content_match':match,'local_revision':state['revision'],
@@ -247,8 +257,34 @@ def sync_current_review(root: Path, expected_revision: str, *, materialize_autho
                     unchanged=False
                 elif materialize_authoritative:
                     authoritative=materialize_authoritative_draft(root,current,binding,draft)
-        return {'status':('CURRENT_REVIEW_SYNCHRONIZED' if result['status']=='WORKBENCH_SYNCHRONIZED' else result['status']) if unchanged else 'SYNCHRONIZED_LOCAL_ADVANCED',
-            'workbench_sync':result,'draft_delivery':draft,'authoritative_draft':authoritative,
+                    if authoritative.get('status')=='AUTHORITATIVE_DRAFT_READY':
+                        # The download is frozen to this exact revision/hash, but
+                        # the handoff may only claim currentness after rechecking
+                        # both owners because a public manual response can land
+                        # while the export is in flight.
+                        final_local=core.workspace_status(root,refresh=False)
+                        local_ok=(final_local['revision']==state['revision']
+                            and final_local['current_working'].get('review_sha256')==owner['review_sha256'])
+                        try:
+                            _, remote_ok=_remote_current(binding,result.get('revision_id'),
+                                state['context']['source']['sha256'])
+                            remote_error=None
+                        except (ValueError,OSError,KeyError,TypeError,RuntimeError) as exc:
+                            remote_ok=False; remote_error=str(exc)
+                        if not local_ok or not remote_ok:
+                            authoritative={**authoritative,'status':'AUTHORITATIVE_DRAFT_STALE',
+                                'currentness':'STALE','stale':True,'refresh_required':True,
+                                'reason':'LOCAL_OR_REMOTE_HEAD_CHANGED_DURING_DOWNLOAD',
+                                **({'remote_error':remote_error} if remote_error else {})}
+                            draft={**draft,'status':'CONFLICT','reason':'CURRENTNESS_CHANGED_DURING_DOWNLOAD',
+                                'remote_current':False,'local_artifact_preserved':True}
+                            unchanged=False
+                        else:
+                            authoritative={**authoritative,'currentness':'CURRENT','stale':False,'refresh_required':False}
+        status=('CURRENT_REVIEW_SYNCHRONIZED' if result['status']=='WORKBENCH_SYNCHRONIZED' else result['status']) if unchanged else (
+            'CURRENTNESS_CHANGED' if authoritative and authoritative.get('status')=='AUTHORITATIVE_DRAFT_STALE'
+            else 'SYNCHRONIZED_LOCAL_ADVANCED')
+        return {'status':status,'workbench_sync':result,'draft_delivery':draft,'authoritative_draft':authoritative,
             'synchronized_basis':basis,'current_revision':current['revision'],
             'still_current':unchanged,'source_and_model_not_recompiled':True,'local_artifact_preserved':True}
 
@@ -266,12 +302,7 @@ def _ensure_current_draft(state, binding, expected_revision):
             or basis.get('review_sha256')!=review.get('review_sha256')):
         return {'status':'NOT_PUBLISHED','reason':'CURRENT_PASSED_CHECK_REQUIRED','local_artifact_preserved':True}
     def remote_current():
-        current=request(api)
-        _validate_state(current,binding)
-        if (current.get('revision_id')!=expected_revision
-                or current.get('source_sha256')!=state['context']['source']['sha256']):
-            return current, False
-        return current, True
+        return _remote_current(binding, expected_revision, state['context']['source']['sha256'])
     api=_api(binding)
     try:
         preview=request(api+'/versions/preview')

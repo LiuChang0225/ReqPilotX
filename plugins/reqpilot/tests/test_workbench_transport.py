@@ -570,7 +570,9 @@ class WorkbenchTransportTests(unittest.TestCase):
         result = service.invoke('deliver', {'task_id':task,'expected_revision':revision,'command_id':'authoritative-draft'})
         handoff = result['delivery_handoff']
         self.assertEqual(handoff['status'], 'AUTHORITATIVE_DRAFT_READY', result)
+        self.assertEqual(handoff['currentness'], 'CURRENT')
         self.assertTrue(handoff['durable']); self.assertTrue(handoff['exact_download']); self.assertTrue(result['exact_download_ready'])
+        self.assertTrue(result['workbench_handoff']['still_current']); self.assertTrue(result['workbench_handoff']['ready'])
         path = Path(handoff['path']); self.assertTrue(path.is_file())
         versions = delivery_api.list_plugin_delivery_versions('p','d',bound['session_id'],self.backend.sink())['versions']
         authoritative = delivery_api.download_plugin_delivery_version('p','d',bound['session_id'],versions[0]['revision'])
@@ -587,6 +589,38 @@ class WorkbenchTransportTests(unittest.TestCase):
         with patch.object(self.task_workbench_module,'download',side_effect=OSError('managed backend restarted')):
             self.assertTrue(path.is_file())
             self.assertEqual(path.read_bytes(), authoritative.content)
+
+    def test_deliver_handoff_rechecks_currentness_after_download(self):
+        import hashlib
+        task, service, inspected, review = self.workflow_task(deliver=False)
+        bound = transport.sync_workbench(self.args(workspace=Path(inspected['task_root']), review_dir=review,
+            url='http://127.0.0.1:18080/workspace?projectId=p&documentId=d', no_map_confirmation=True))
+        revision = service.invoke('inspect', {'task_id':task})['revision']
+        captured = {}
+        def download_then_manual(url):
+            captured['versions'] = delivery_api.list_plugin_delivery_versions('p','d',bound['session_id'],self.backend.sink())['versions']
+            data, headers = self.download_impl(url)
+            view = delivery_api.get_plugin_engineer_responses('p','d',bound['session_id'],self.backend.sink())
+            unit_id, unit = next(iter(view['units'].items()))
+            delivery_api.post_plugin_engineer_responses('p','d',bound['session_id'],delivery_api.PluginEngineerResponse(
+                command_id='midflight-manual', expected_source_sha256=self.backend.sha,
+                expected_revision_id=view['revision_id'], expected_version=view['version'],
+                expected_response_revision=view['response_revision'], expected_baseline_sha256=view['baseline_sha256'],
+                decisions=[{'unit_id':unit_id,'expected_unit_context_sha256':unit['unit_context_sha256'],
+                    'decision':'COMPLIANT','reason':'synthetic mid-download response'}]), self.backend.sink())
+            return data, headers
+        with patch.object(self.task_workbench_module,'download',side_effect=download_then_manual):
+            result = service.invoke('deliver', {'task_id':task,'expected_revision':revision,'command_id':'authoritative-race'})
+        handoff = result['delivery_handoff']
+        self.assertEqual(handoff['status'], 'AUTHORITATIVE_DRAFT_STALE', result)
+        self.assertEqual(handoff['currentness'], 'STALE'); self.assertTrue(handoff['stale']); self.assertTrue(handoff['refresh_required'])
+        self.assertTrue(handoff['durable']); self.assertTrue(handoff['exact_download'])
+        self.assertFalse(result['exact_download_ready']); self.assertFalse(result['handoff_ready'])
+        self.assertFalse(result['workbench_handoff']['still_current']); self.assertFalse(result['workbench_handoff']['remote_current'])
+        self.assertFalse(result['workbench_handoff']['ready']); self.assertFalse(result['workbench_handoff']['exact_download_ready'])
+        path = Path(handoff['path']); self.assertTrue(path.is_file())
+        self.assertEqual(hashlib.sha256(path.read_bytes()).hexdigest(), captured['versions'][0]['export_sha256'])
+        self.assertEqual(handoff['export_sha256'], captured['versions'][0]['export_sha256'])
 
     def test_manual_change_after_draft_commit_preserves_history_without_current_handoff(self):
         task, service, inspected, review = self.workflow_task(deliver=False)

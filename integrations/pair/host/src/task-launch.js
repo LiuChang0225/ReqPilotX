@@ -53,6 +53,10 @@ const validWorkflowProjection = (value, record) => {
 };
 const sessionMeta = inspection => inspection?.meta ?? inspection?.session ?? null;
 const sessionEvents = inspection => Array.isArray(inspection?.events) ? inspection.events : [];
+const sessionObservation = inspection => {
+  const meta = sessionMeta(inspection), events = sessionEvents(inspection);
+  return { meta, events, fingerprint: sha(JSON.stringify([meta, events])) };
+};
 const sessionNotFound = error => error?.code === 'session/not-found' || /not[- ]found/i.test(String(error?.message || ''));
 const sessionTurnState = events => {
   const starts = events.map((event, index) => event?.type === 'turn/start' ? index : -1).filter(index => index >= 0);
@@ -307,15 +311,25 @@ export class TaskLauncher {
       || record.prepared?.bundle_sha256 !== record.bundleSha || record.prepared?.source_sha256 !== record.sourceSha256)
       throw new TaskLaunchError('TASK_RECONNECT_WORKSPACE_MISMATCH');
     const inspection = await this.services().sessions.inspect(record.sessionId);
-    // Accept the inspected header shape while requiring the exact Session,
-    // workspace path and recorded workspace identity. Missing metadata fails closed.
-    const meta = sessionMeta(inspection);
-    if (!meta || (meta.sessionId !== undefined && meta.sessionId !== record.sessionId)
-      || (meta.id !== undefined && meta.id !== record.sessionId)
-      || typeof meta.cwd !== 'string' || resolve(meta.cwd) !== workspace
-      || (record.workspaceId && meta.workspaceId !== undefined && meta.workspaceId !== record.workspaceId))
-      throw new TaskLaunchError('TASK_RECONNECT_SESSION_MISMATCH');
-    const sessionFingerprint = sha(JSON.stringify([meta, inspection.events]));
+    const observed = sessionObservation(inspection);
+    const validateObservation = value => {
+      // The master SessionInspection is `{meta,events}`; frozen/mock adapters
+      // may expose `{session,events}`. Both reads use this same exact rule.
+      if (!value.meta || (value.meta.sessionId !== undefined && value.meta.sessionId !== record.sessionId)
+        || (value.meta.id !== undefined && value.meta.id !== record.sessionId)
+        || typeof value.meta.cwd !== 'string' || resolve(value.meta.cwd) !== workspace
+        || (record.workspaceId && value.meta.workspaceId !== undefined && value.meta.workspaceId !== record.workspaceId))
+        throw new TaskLaunchError('TASK_RECONNECT_SESSION_MISMATCH');
+      const header = value.events.findLast(event => event?.type === 'request/header')?.data?.header?.config;
+      if (header && record.selectedAgentModel && (header.provider !== record.selectedAgentModel.provider
+        || header.model !== record.selectedAgentModel.model
+        || (header.reasoningEffort !== undefined && record.selectedAgentModel.reasoningEffort !== undefined
+          && header.reasoningEffort !== record.selectedAgentModel.reasoningEffort)))
+        throw new TaskLaunchError('TASK_RECONNECT_MODEL_MISMATCH');
+      return value;
+    };
+    validateObservation(observed);
+    const sessionFingerprint = observed.fingerprint;
     const userEvent = requestId => inspection.events?.find(value => value.type === 'user/message'
       && value.data?.source?.kind === 'user' && value.data.source.rpcId === requestId);
     if (!userEvent(record.requestId)) throw new TaskLaunchError('TASK_MUTATION_OUTCOME_UNKNOWN');
@@ -377,7 +391,9 @@ export class TaskLauncher {
     catch { throw new TaskLaunchError('TASK_RECONNECT_ENDPOINT_UNTRUSTED'); }
     if (JSON.stringify(after) !== JSON.stringify(endpoint)) throw new TaskLaunchError('TASK_RECONNECT_ENDPOINT_UNTRUSTED');
     const finalInspection = await this.services().sessions.inspect(record.sessionId);
-    if (sha(JSON.stringify([finalInspection?.session, finalInspection?.events])) !== sessionFingerprint
+    const finalObserved = sessionObservation(finalInspection);
+    validateObservation(finalObserved);
+    if (finalObserved.fingerprint !== sessionFingerprint
       || this.services().liveStatus?.(record.sessionId) === 'running')
       throw new TaskLaunchError('TASK_RECONNECT_SESSION_CHANGED');
     const prior = record.serviceOrigin;
@@ -566,13 +582,21 @@ export class TaskLauncher {
       const session = await services.sessions.create({ sessionId: record.sessionId, workspaceId: record.workspaceId, agentPreset: record.agentPreset });
       if (session.sessionId !== record.sessionId) throw new TaskLaunchError('PAIR_SESSION_IDENTITY_MISMATCH');
     }
-    if (record.schema === 'reqpilot-pair-launch-record/v2' && !record.selectedAgentModel) {
+    // A saved `selectedAgentModel` proves a selection for the old Agent
+    // instance, not for an Agent recreated after restart/ENOSPC. Whenever this
+    // run had to call create, re-install the exact frozen selection on that
+    // live instance before any prompt. A started Session is restored instead
+    // and must already carry the frozen request header (checked above).
+    const createdInstance = !restored;
+    if (record.schema === 'reqpilot-pair-launch-record/v2' && (createdInstance || !record.selectedAgentModel)) {
+      if (typeof services.sessions.selectSessionModel !== 'function') throw new TaskLaunchError('PAIR_SESSION_MODEL_SELECTION_UNSUPPORTED', 503);
       this.assertActive(record);
       const result = await services.sessions.selectSessionModel({ sessionId: record.sessionId, ...record.agentModel });
       if (!validModel(result?.selected) || !sameModel(result.selected, record.agentModel)) throw new TaskLaunchError('PAIR_TASK_MODEL_NOT_CONFIRMED');
       record.selectedAgentModel = selectedModel(result.selected); await this.save(record);
     }
-    if (record.schema === 'reqpilot-pair-launch-record/v3' && !record.selectedAgentModel) {
+    if (record.schema === 'reqpilot-pair-launch-record/v3' && (createdInstance || !record.selectedAgentModel)) {
+      if (typeof services.sessions.selectSessionModel !== 'function') throw new TaskLaunchError('PAIR_SESSION_MODEL_SELECTION_UNSUPPORTED', 503);
       this.assertActive(record);
       let selected;
       try { selected = await services.sessions.selectSessionModel({ sessionId: record.sessionId, ...record.modelSelection }); }

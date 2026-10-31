@@ -3,12 +3,12 @@
   "groups": [
     {
       "id": "current-portable-skills",
-      "source_tree_sha256": "6050c3422c88cbeb6ee39f8d371269365f3a56a217a9d4ea6713f0fd29e2fa99",
+      "source_tree_sha256": "9df835e458244789272e9a253702945925de308d095e421b979b7a1944753a16",
       "files": [
         {
           "path": "skills/reqpilot/SKILL.md",
-          "sha256": "43cfd88e468855b6f50d68bb944cca632f778a6c2cc3e5473a91c1a6b6e2b74d",
-          "bytes": 8236
+          "sha256": "796fc936bfa023e6c339f4b0f41eb2d0ebfdfd84e9ab99899bbe96e24d9021c6",
+          "bytes": 8332
         },
         {
           "path": "skills/reqpilot/agents/openai.yaml",
@@ -77,8 +77,8 @@
         },
         {
           "path": "skills/reqpilot/references/task-api.md",
-          "sha256": "a4b665aaa2a3141c25fbcdc8fe35a44fa98031a54fb2376cf2c023e95032ac98",
-          "bytes": 23506
+          "sha256": "7dd1201dacc5e4795c20ad012d097bfcb8f8916276d493ae90dc6eef9a814732",
+          "bytes": 23622
         },
         {
           "path": "skills/reqpilot/references/task-workspaces.md",

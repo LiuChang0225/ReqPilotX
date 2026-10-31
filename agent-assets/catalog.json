@@ -27,7 +27,7 @@
       "classification": "CURRENT",
       "asset_kind": "PORTABLE_PLUGIN_SKILLS_AND_REFERENCES",
       "source": "agent-assets/current/plugin-skills",
-      "tree_sha256": "6050c3422c88cbeb6ee39f8d371269365f3a56a217a9d4ea6713f0fd29e2fa99",
+      "tree_sha256": "9df835e458244789272e9a253702945925de308d095e421b979b7a1944753a16",
       "consumers": [
         "ReqPilotX portable plugin discovery",
         "native registered capability bundles",

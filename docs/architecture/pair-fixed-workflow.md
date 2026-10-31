@@ -97,7 +97,8 @@ Map 确认、无内部依据和显式派生是声明的分支；Map/items/delive
 不一致时拒绝覆盖并返回重新读取当前任务的恢复动作，不自动改绑最新版本。
 会话中的文字和模型建议仍不构成正式人工接受。`workbench_entry` 返回稳定
 `task_id`／`work_ref`／`result_revision`／`session_id` 和“选择原工作台”动作，
-不把 Session 聊天入口冒充工作台；`chat_entry` 单独表示打开同一 PAIR 会话。
+不把 Session 聊天入口冒充工作台；`chat_entry` 只在宿主提供已核验的原生 Session UUID 时使用，可移植工作台不从业务
+`work_ref` 推导或伪造 PAIR 会话身份。
 `workbench_url` 只是托管服务传输地址，服务重启后可能失效，不作为长期入口。
 绑定任务登记或复用 DRAFT 时，`task_deliver.delivery_handoff` 把该保留版本的
 精确导出下载到任务自有目录并核对来源、版本、snapshot 与 export SHA；该副本
