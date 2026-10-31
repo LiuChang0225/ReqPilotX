@@ -33,8 +33,8 @@ export type ReadonlyWorkbenchHost = {
   pdfViewerUrl: WorkbenchPresentation["pdfViewerUrl"];
   sessionBinding?: SessionBinding | null;
   execution?: ExecutionSource;
-  /** Only a user action calls this. The adapter opens the bound conversation and prepares context; it must not auto-send a prompt. */
-  openSession?: (binding: SessionBinding, context: SessionDiscussionContext) => void | Promise<void>;
+  /** Only a user action calls this. Without context it opens the bound conversation; with context it may prepare the current selection. It must not auto-send or replace an existing draft. */
+  openSession?: (binding: SessionBinding, context?: SessionDiscussionContext) => void | Promise<void>;
   subscribeWorkUpdates?: (listener: (event: WorkUpdatedEvent) => void) => () => void;
   onSelectionChange?: (selection: ReadonlyWorkSelection) => void;
 };

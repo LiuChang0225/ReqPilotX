@@ -463,10 +463,10 @@ def compact(value):
     if value.get('current_working'):
         result['current_working']={key:value['current_working'][key] for key in
             ('owner','generation','review_root','review_sha256','version_path','baseline_sha256','document_map_sha256') if key in value['current_working']}
-    for name in ('candidates','incomplete_operations'):
+    for name in ('candidates','incomplete_operations','unresolved_operations','failed_operations'):
         if name in value:
             rows=value[name]
-            result[name]=[{key:row[key] for key in ('operation_id','operation','state','reason','error','output_dir','receipt_path','receipt_sha256') if key in row} for row in rows[:20]]
+            result[name]=[{key:row[key] for key in ('operation_id','operation','state','reason','error','command_id','request_sha256','output_dir','receipt_path','receipt_sha256') if key in row} for row in rows[:20]]
             if len(rows)>20:result[name+'_omitted_count']=len(rows)-20
     if value.get('host_receipt'):
         result['host_receipt']={key:item for key,item in value['host_receipt'].items() if key!='receipt'}

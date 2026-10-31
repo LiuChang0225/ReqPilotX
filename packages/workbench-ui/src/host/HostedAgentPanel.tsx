@@ -94,10 +94,7 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
   }[host.taskSetup] || host.taskSetup : "";
   const controls = <div className="agent-control-actions">
     {bound && <button type="button" className="button secondary compact" disabled={busy} onClick={() => {
-      const selected = workRef === bound.workRef && revisionId && binding?.revisionId === revisionId ? binding : null;
-      void host.openSession(bound.sessionId, { projectId, documentId, sourceSha256, workRef: bound.workRef, revisionId,
-        scope: selected ? "selected" : "document", ...(selected ? { nodeId: selected.selectedNodeId, sourceItemId: selected.selectedSourceItemId || undefined, derivedUnitId: selected.selectedDerivedUnitId } : {})
-      }).catch(cause => { if (activeSelection.current === selection) setFailure({ selection, message: String(cause.message || cause) }); });
+      void host.openSession(bound.sessionId).catch(cause => { if (activeSelection.current === selection) setFailure({ selection, message: String(cause.message || cause) }); });
     }}>打开 PAIR 会话</button>}
     {bound?.controlCapabilities?.cancel && <button type="button" className="button secondary compact" disabled={busy} onClick={() => void run("cancel")}>停止本轮</button>}
     {bound?.controlCapabilities?.continue && <button type="button" className="button secondary compact" disabled={busy} onClick={() => void run("continue")}>继续同一任务</button>}

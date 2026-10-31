@@ -196,7 +196,7 @@ def _assessments_evidence(review: dict | None, source_sha256: str):
 
 def project_workflow(*, context: dict, selected: dict, brief: dict,
                      review: dict | None = None, check: dict | None = None,
-                     incomplete_operations=None) -> dict | None:
+                     unresolved_operations=None, incomplete_operations=None) -> dict | None:
     """Project only program-saved artifact identities into the fixed stage order."""
     spec = (context.get('request') or {}).get('workflow')
     if not spec:
@@ -348,9 +348,14 @@ def project_workflow(*, context: dict, selected: dict, brief: dict,
     stages.append(_stage('DELIVERABLE', delivery_status, evidence=delivery_evidence,
                          reason=delivery_reason))
 
-    for operation in incomplete_operations or []:
-        state = operation.get('state')
-        if state in {'STARTED', 'FAILED', 'BLOCKED', 'SAVED_PENDING_RECOVERY'}:
+    # STARTED has no known outcome; SAVED_PENDING_RECOVERY still owes its
+    # receipt reconciliation. FAILED/BLOCKED attempts are retained history and
+    # never become the selected producer, so a later valid successor may make
+    # the current artifacts ready. Older callers may still pass the combined
+    # compatibility field; terminal entries in it stay non-blocking.
+    unresolved = unresolved_operations if unresolved_operations is not None else incomplete_operations
+    for operation in unresolved or []:
+        if operation.get('state') in {'STARTED', 'SAVED_PENDING_RECOVERY', 'UNKNOWN'}:
             open_items.append('INCOMPLETE_OPERATION')
             break
     blocking = [item for item in open_items if item in {

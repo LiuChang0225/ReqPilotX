@@ -52,6 +52,7 @@ export interface WorkbenchApplicationHost extends Pick<WorkbenchPresentation, "r
   restoreTask(input: { projectId: string; documentId: string; sourceSha256: string; workRef?: string }, options?: { signal?: AbortSignal }): Promise<ApplicationTaskReceipt | null>;
   taskDraft(input: { projectId: string; documentId: string; sourceSha256: string }): { goal: string; requireMapConfirmation: boolean } | undefined;
   controlTask(receipt: ApplicationTaskReceipt, action: "cancel" | "continue" | "reconnect"): Promise<ApplicationTaskReceipt>;
+  /** View-only by default; explicit context may prepare the selected source without sending or replacing an existing draft. */
   openSession(sessionId: string, context?: { projectId: string; documentId: string; sourceSha256: string; workRef: string; revisionId?: string;
     scope: "document" | "selected"; nodeId?: string; sourceItemId?: string; derivedUnitId?: string }): Promise<void>;
 }

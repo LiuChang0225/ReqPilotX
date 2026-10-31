@@ -57,7 +57,7 @@ Check `numbering_review` when the projected original number is blank, includes t
 
 ## Replay and completion
 
-An optional `command_id` identifies one logical mutation. Otherwise a deterministic request fingerprint is used. Repeat the same request after a lost response; do not invent a replacement ID. Same key with different input is rejected. An existing `STARTED` operation returns `UNKNOWN`, not a second execution. `SAVED_PENDING_RECOVERY` refers to an existing receipt that can be reconciled with `task_recover`.
+An optional `command_id` identifies one logical mutation. Otherwise a deterministic request fingerprint is used. Repeat the same request after a lost response; do not invent a replacement ID. Same key with different input is rejected. An existing `STARTED` operation returns `UNKNOWN`, not a second execution. `SAVED_PENDING_RECOVERY` refers to an existing receipt that can be reconciled with `task_recover`. A terminal `FAILED`/`BLOCKED` attempt remains in task history with its frozen inputs and error, but it never becomes a selected artifact; a later committed successor and current checks can make the workflow ready. `STARTED`, unknown outcomes and pending recovery still block or require recovery.
 
 Local `COMMITTED`, workbench synchronization, registered Excel and source-semantic review are distinct. `task_deliver` can verify same-version workbench data, but it does not verify browser rendering or make an engineer's acceptance decision. An unattached export remains saved; use the established exact `review-attach-delivery` CLI if attachment recovery is needed. Failed/unavailable synchronization does not justify redoing reading or replacing the whole task.
 

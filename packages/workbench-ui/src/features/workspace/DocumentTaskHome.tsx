@@ -7,6 +7,7 @@ import { useWorkspace } from "./WorkspaceContext";
 import { useApplicationHost } from "../../host/ApplicationHost";
 import { useWorkbenchHost } from "./WorkbenchHostContext";
 import { agentTaskLabel, agentProgressLabel, isAgentTaskActive } from "./documentWorkSummary";
+import { sourceHeadingLabel } from "../extraction/sourceHeadingLabel";
 import "./document-intake.css";
 
 type Evidence = { raw_text?: string; native_locator?: { page_number?: number | null } };
@@ -133,7 +134,7 @@ function DocumentIntake({ fileName, sourceFileUrl, projectId, documentId, source
           <label className="document-intake-search"><Icon name="search" size={15} /><span className="sr-only">搜索结构候选</span><input aria-label="搜索结构候选" type="search" placeholder="查找编号或原文" value={query} onChange={event => { setQuery(event.target.value); setLimit(50); }} /></label>
           <p className="document-intake-count">显示 {Math.min(limit, filtered.length)} / {filtered.length} 个候选 · 展开查看原文</p>
           <ol className="document-intake-list" aria-label="结构候选清单">{filtered.slice(0, limit).map(row => <li key={row.id}>
-            <details><summary><span className="document-intake-kind">{row.kind}</span><span>{row.label && !row.title.startsWith(row.label) ? `${row.label} ` : ""}{row.title}</span></summary>
+            <details><summary><span className="document-intake-kind">{row.kind}</span><span>{sourceHeadingLabel(row.label, row.title)}</span></summary>
               <p className="document-intake-source-text">{row.text || row.title}</p>
               {isPdf && row.pages.length > 0 && <div className="document-intake-page-links">{row.pages.map(page => <button type="button" key={page} className="button ghost compact" onClick={() => setPreviewPage(page)}>查看原件第 {page} 页<Icon name="arrow" size={13} /></button>)}</div>}
             </details>

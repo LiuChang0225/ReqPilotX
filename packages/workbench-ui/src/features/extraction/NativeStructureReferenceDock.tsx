@@ -39,6 +39,7 @@ import type {
 } from "../../shared/api/contracts";
 import { cx } from "../../shared/lib/format";
 import { Icon } from "../../shared/ui/Icon";
+import { sourceHeadingLabel } from "./sourceHeadingLabel";
 import { StructuredTable } from "../restoration/StructuredTable";
 import { tableDisplayTitle, tableDisplayAuthority } from "../restoration/tableDisplay";
 import type {
@@ -249,7 +250,7 @@ function pageLabel(pages: readonly number[]): string {
 }
 
 function nodeTitle(node: NativeStructureTreeNodeV1): string {
-  return [...new Set([node.label, node.title].filter(Boolean))].join(" ") || "未命名结构节点";
+  return sourceHeadingLabel(node.label, node.title) || "未命名结构节点";
 }
 
 function nodeKindLabel(node: NativeStructureTreeNodeV1): string {

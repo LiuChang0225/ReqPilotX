@@ -26,6 +26,12 @@ INDEX_SCHEMA = 'reqpilot-workspace-index/v1'
 RECEIPT_SCHEMA = 'reqpilot-operation-receipt/v1'
 KEY = re.compile(r'^[A-Za-z0-9][A-Za-z0-9_-]{0,127}$')
 SHA = re.compile(r'^[a-f0-9]{64}$')
+# A STARTED descriptor has no known outcome. A receipt that is present but not
+# indexed still owes its owning recovery step. Both block workflow readiness.
+UNRESOLVED_OPERATION_STATES = frozenset({'STARTED', 'SAVED_PENDING_RECOVERY'})
+# FAILED/BLOCKED are terminal, known attempts. They remain in the history with
+# their frozen inputs and error, but cannot be the selected producer.
+TERMINAL_FAILURE_STATES = frozenset({'FAILED', 'BLOCKED'})
 
 
 def _now():
@@ -771,7 +777,7 @@ def record_host_receipt(task_root, operation_id, receipt):
 
 def recover_workspace(task_root):
     root, context = _resolve_task(task_root)
-    recovered, incomplete = [], []
+    recovered = []
     with _locked(root):
         index = _index(root, context)
         known = {v['operation_id'] for v in index['committed']}
@@ -789,8 +795,8 @@ def recover_workspace(task_root):
                 continue
             if (inside(root, operation['output_dir']) / 'operation-receipt.json').is_file():
                 pending.append((operation, _receipt(root, context, operation)))
-            else:
-                incomplete.append({'operation_id': operation['operation_id'], 'state': operation['state'], 'output_dir': operation['output_dir']})
+            # STARTED/FAILED/BLOCKED descriptors without a receipt are not
+            # recovered here. The status projection owns their classification.
         for operation, receipt in sorted(pending, key=lambda pair: (pair[1]['expected_generation'], pair[1]['operation_id'])):
             state = _advance(root, context, index, receipt, force_conflict=sum(r['expected_generation'] == receipt['expected_generation'] for _, r in pending) > 1)
             operation.update(state=state, recovered_at=_now())
@@ -803,7 +809,11 @@ def recover_workspace(task_root):
                 index['host_receipts'].append({'host_receipt_id': value['host_receipt_id'], 'operation_id': value['operation_id'], 'path': str(path.relative_to(root)), 'host_receipt_sha256': value['host_receipt_sha256']})
                 known_host.add(value['host_receipt_id'])
                 _write_index(root, index)
-    return {**workspace_status(root), 'recovered': recovered, 'incomplete_operations': incomplete}
+    status = workspace_status(root)
+    return {**status, 'recovered': recovered,
+            'incomplete_operations': status['unresolved_operations'],
+            'unresolved_operations': status['unresolved_operations'],
+            'failed_operations': status['failed_operations']}
 
 
 def _map_compiler_navigation(root, context, index, selected):
@@ -848,6 +858,19 @@ def _map_compiler_navigation(root, context, index, selected):
         producer_path=str(Path(chosen) / 'document-map.json') if chosen else None,
         compiler_bundle_availability='AVAILABLE' if chosen else 'EXPLICIT_SELECTION_REQUIRED' if choices else 'UNAVAILABLE',
         compiler_candidates=choices, path_role='CURRENT_OWNER_MAP')
+
+
+def _classified_operations(root):
+    """Return unresolved work and retained terminal failure history separately."""
+    unresolved, failed = [], []
+    for path in sorted((root / 'operations').glob('op-*.json')):
+        operation = read_json(path)
+        state = operation.get('state')
+        if state in UNRESOLVED_OPERATION_STATES:
+            unresolved.append(operation)
+        elif state in TERMINAL_FAILURE_STATES:
+            failed.append(operation)
+    return unresolved, failed
 
 
 def workspace_status(task_root, refresh=True):
@@ -899,7 +922,7 @@ def workspace_status(task_root, refresh=True):
     brief = build_task_brief(goal=context['request']['goal'], origin=context['request']['origin'], source={**context['source'], 'path': str(inside(root, context['source']['path']))},
         stages=selected, review=review, require_map_confirmation=context['request']['require_map_confirmation'], confirmed_map_sha256=confirmed,
         project_id=context.get('project_id'), document_id=context.get('document_id'), analysis_policy=analysis_policy)
-    incomplete_operations = [read_json(p) for p in sorted((root / 'operations').glob('op-*.json')) if read_json(p).get('state') in {'STARTED', 'FAILED', 'BLOCKED', 'SAVED_PENDING_RECOVERY'}]
+    unresolved_operations, failed_operations = _classified_operations(root)
     workflow_check = None
     check_path = root / 'workflow-check.json'
     if check_path.is_file():
@@ -907,7 +930,7 @@ def workspace_status(task_root, refresh=True):
         workflow_check['check_sha256'] = file_sha256(check_path)
         workflow_check['_path'] = str(check_path)
     workflow = project_workflow(context=context, selected=selected, brief=brief, review=review,
-                                check=workflow_check, incomplete_operations=incomplete_operations)
+                                check=workflow_check, unresolved_operations=unresolved_operations)
     status = {'schema_version': 'reqpilot-workspace-status/v1', 'task_root': str(root), 'revision': _revision(context, index, review), 'context': context, 'index': index, 'selected': selected, 'brief': brief,
         'current_working': review or {'owner': 'task_workspace', 'generation': index['generation'], 'selected': selected},
         'binding_file': str(binding_path), 'workbench_url': binding.get('url') or binding.get('workbench_url') or (binding.get('base_url', '') + binding['workbench_path'] if binding.get('workbench_path') else None),
@@ -915,7 +938,11 @@ def workspace_status(task_root, refresh=True):
         'running_state': 'UNREPORTED', 'human_acceptance': 'NOT_CLAIMED', 'source_verification': 'BYTES_MATCH',
         **({'workflow': workflow} if workflow else {}),
         **({'workflow_check': workflow_check} if workflow_check else {}),
-        'incomplete_operations': incomplete_operations}
+        # Keep the historical field name for callers that only need blocking
+        # work; terminal failure history is explicitly separate.
+        'incomplete_operations': unresolved_operations,
+        'unresolved_operations': unresolved_operations,
+        'failed_operations': failed_operations}
     if workflow:
         path = root / 'workflow-status.json'
         try:
@@ -946,7 +973,8 @@ def workspace_status(task_root, refresh=True):
         if context.get('runtime_ref'): lines += ['', '能力包引用：`' + json.dumps(context['runtime_ref'], ensure_ascii=False) + '`；接续不自动替换已冻结能力包。']
         if review: lines += ['', '当前工作版由 `review/workspace-manifest.json` 指定；未 close 的编制结果仍是候选。']
         if index['candidates']: lines += ['', f"另有 {len(index['candidates'])} 个候选/冲突引用，详见 workspace-index.json；未自动合并。"]
-        if status['incomplete_operations']: lines += ['', '存在未完成操作；恢复只读取最后提交回执，不将半目录当成成果。']
+        if status['unresolved_operations']: lines += ['', '存在未完成的程序操作（未知结果或待恢复回执）；恢复只读取最后提交回执，不将半目录当成成果。']
+        elif status['failed_operations']: lines += ['', '已有失败或阻塞的程序尝试保留在 `operations/`；它们没有提交为当前成果，不阻止已保存成果的当前核对。']
         lines += ['', '## 接续入口', '', '先运行 `workspace status` 核对来源与精确版本；`workspace recover` 处理已保存回执未推进索引的中断。',
                   '工具按需选择，阅读/回查不受阶段目录限制。TASK.md 是事实导航，不增加用户授权或固定阅读步骤。',
                   '工件和展示角色见 workspace-index.json；前端绑定：`' + context['binding_file'] + '`。',

@@ -25,7 +25,7 @@ const taskWorkflowState = hash => ({ ...workflowState(hash), stages: [
   { id: 'DELIVERABLE', label: '可核对成果', status: 'BLOCKED', reason: 'ITEMS_REQUIRED' } ] });
 async function fixture(config = {}) {
   const root = await mkdtemp(join(tmpdir(), 'reqpilot-launch-')); const source = Buffer.from('original'); const hash = createHash('sha256').update(source).digest('hex');
-  const calls = { prepare: 0, create: [], prompt: [], workspace: [], model: [] };
+  const calls = { prepare: 0, create: [], prompt: [], workspace: [], workspaceTitle: [], model: [] };
   let taskWorkflow = taskWorkflowState(hash);
   const runtime = { dataRoot: root, python: '/installed/python', ownerId: commandId, snapshot: { status: 'READY', mode: 'managed', serviceOrigin: 'http://127.0.0.1:1234' }, async command(args) {
     if (args.some(value => value.endsWith('task-workflow.py'))) return JSON.stringify({ status: 'READY', task_id: 'task-one', workflow: taskWorkflow });
@@ -33,7 +33,8 @@ async function fixture(config = {}) {
     return JSON.stringify({ schema: 'reqpilot-host-launch/v1', workspace: input.workspace, task_id: 'task-one', work_ref: 'plugin-' + 'a'.repeat(32), source_sha256: hash, bundle_sha256: 'b'.repeat(64), prompt: 'Read request.md', workflow: workflowState(hash), tools: { schema: 'reqpilot-host-tools/v1', mcp: { command: runtime.python, args: [join(input.workspace, '.reqpilot/scripts/mcp_server.py'), '--working-root', input.workspace, '--source-root', input.workspace], cwd: input.workspace } } });
   } };
   const services = { defaultModel: { currentSelection: () => ({ ...defaultModel }) },
-    workspaces: { async create(value) { calls.workspace.push(value); return { workspace: { workspaceId: 'workspace-one' } }; } },
+    workspaces: { async create(value) { calls.workspace.push(value); return { workspace: { workspaceId: 'workspace-one' } }; },
+      async rename(id, title) { calls.workspaceTitle.push({ id, title }); return { workspace: { workspaceId: id, title } }; } },
     sessions: { async create(value) { calls.create.push(value); return { sessionId: value.sessionId }; },
       async selectSessionModel(value) { calls.model.push(value); const { sessionId, ...selected } = value; return { selected }; },
       async prompt(value) { calls.prompt.push(value); return { accepted: true }; } } };
@@ -62,6 +63,9 @@ test('native tasks bind the configured model before admission and retain it acro
       assert.equal(f.calls.model.length, 1); assert.equal(f.calls.prompt[0].requestId, f.calls.prompt[1].requestId);
       assert.equal((await retry.inspect(commandId)).selectedAgentModel.reasoningEffort, 'xhigh');
       assert.ok(await retry.toolBinding(receipt.sessionId));
+      assert.equal(f.calls.workspaceTitle.length, 1);
+      assert.equal(f.calls.workspaceTitle[0].id, 'workspace-one');
+      assert.match(f.calls.workspaceTitle[0].title, /ReqPilotX · source\.pdf/);
       const record = JSON.parse(await readFile(join(f.root, 'task-launches', commandId + '.json'), 'utf8'));
       assert.equal(record.schema, 'reqpilot-pair-launch-record/v3');
       assert.deepEqual(record.modelSelection, codexModel);

@@ -35,7 +35,7 @@
 | `resourceUrl(path)` | 解析原件、裁剪、知识引用及导出的URL，保留路径／query里的准确来源和版本；不要把每个路径替换成固定latest地址 |
 | `pdfViewerUrl(sourceUrl,page,embedded)` | 返回可用PDF页面地址和asset／worker通道。跨origin独立viewer可传`embedded=1&parentOrigin=<宿主origin>`，必须为准确http(s) origin；PDF继续同时检查origin与实际父窗口 |
 | `sessionBinding` | 宿主实例、workspace、session与业务project／document／source／work的明确绑定。持久化由DSH Host或宿主存储负责，组件只校验和消费，不自行建立隐藏绑定 |
-| `openSession(binding,context)` | 仅用户点击时调用，打开已绑定会话并准备上下文，不自动发送prompt。选中上下文包含当前revision、node、sourceItem及可选derivedUnit；未就绪时拒绝把单条范围扩大成整文 |
+| `openSession(binding,context?)` | 仅用户点击时调用。无 context 时只导航到同一会话，不写入或发送 prompt；有 context 时可把当前revision/node/sourceItem/派生单元追加到既有草稿，不覆盖草稿、不自动发送。导航被后续选择取代时不写入 |
 | `execution.getSnapshot/subscribe` | 当前绑定工作的真实运行观察。snapshot对象在没有事件时保持稳定；适配器负责当前run及连接状态。`SUCCEEDED`只表示宿主本轮结束，不表示提取／语义／人工验收完成 |
 | `subscribeWorkUpdates` | 只发真实业务成果保存事件，携带相同来源／work和新revision。匹配事件刷新成果状态；逐token进度不要触发此事件。当前查看的历史版不自动跳最新 |
 | `onSelectionChange` | 宿主保存面板的工作／版本／视图，卸载重挂时通过selection恢复。组件不写宿主history，也不在关闭时取消会话 |

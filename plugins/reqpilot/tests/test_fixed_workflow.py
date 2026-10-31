@@ -100,6 +100,30 @@ class FixedWorkflowTests(unittest.TestCase):
             self.assertEqual(ready['stages'][-1]['status'], 'SAVED')
             self.assertEqual(ready['human_acceptance'], 'NOT_CLAIMED')
 
+    def test_terminal_failure_history_does_not_block_ready_but_unknown_operations_do(self):
+        with TemporaryDirectory() as temporary:
+            delivery = Path(temporary) / 'delivery'; delivery.mkdir()
+            (delivery / 'matrix-snapshot.json').write_text('{}')
+            (delivery / 'matrix.xlsx').write_bytes(b'synthetic workbook')
+            chosen = selected(); chosen['DELIVERY'] = {'path': str(delivery / 'matrix-snapshot.json'),
+                'artifact_sha256': DELIVERY, 'baseline_sha256': ITEMS}
+            review = {'review_root': str(Path(temporary) / 'review'), 'review_sha256': '1'*64,
+                      'stages': {'MAP': {'artifact_sha256': MAP}, 'ITEMS': {'artifact_sha256': ITEMS}}}
+            passed = {'status': 'PASSED', 'review_verified': True, 'current_delivery_registered': True,
+                      'delivery_xlsx_sha256': workflow.file_sha256(delivery / 'matrix.xlsx'),
+                      'basis': {'source_sha256': SOURCE, 'map_sha256': MAP, 'items_sha256': ITEMS, 'review_sha256': '1'*64}}
+            historical = [{'operation_id': 'op-' + '1'*32, 'operation': 'compile-map', 'state': 'FAILED',
+                           'error': 'malformed Map attempt', 'inputs': {'input': {'sha256': '2'*64}}}]
+            ready = workflow.project_workflow(context=context(), selected=chosen, brief=brief(), review=review,
+                                              check=passed, unresolved_operations=[], incomplete_operations=historical)
+            self.assertTrue(ready['ready_to_review'])
+            self.assertNotIn('INCOMPLETE_OPERATION', ready['open_items'])
+            for state in ('STARTED', 'SAVED_PENDING_RECOVERY'):
+                blocked = workflow.project_workflow(context=context(), selected=chosen, brief=brief(), review=review,
+                                                    check=passed, unresolved_operations=[{**historical[0], 'state': state}])
+                self.assertFalse(blocked['ready_to_review'])
+                self.assertIn('INCOMPLETE_OPERATION', blocked['open_items'])
+
     def test_unprocessed_source_scope_keeps_full_items_incomplete(self):
         chosen = selected(); chosen['ITEMS'] = {**chosen['ITEMS'], 'unprocessed_scope_ids': ['scope-2', 'scope-3']}
         state = workflow.project_workflow(context=context(), selected=chosen, brief=brief())

@@ -21,6 +21,17 @@ mixed content stays together, and derivation/reference are not source containmen
 Read [the loop implementation plan](../../../docs/需求提取/闭环工程与双路径实施.md)
 when selecting work across the fast-code, Agent, and App Server paths.
 
+## Host startup
+
+When a PAIR/fixed-workflow task mounts ReqPilotX typed MCP tools, start by
+resuming the already-bound task with `task_open` (`mode=resume`, the task id in
+the launch or request). Follow the returned revision, selected artifacts,
+`next_action` and read handles before choosing another tool. Do not open with CLI
+`--help`, runtime implementation inspection, receipt editing or directory
+guessing; those are not business steps. If a public operation cannot recover,
+retain the saved artifacts and report the exact limitation instead of probing
+implementation or weakening source checks.
+
 ## Outcome and latitude
 
 Turn an authorized customer document into a source-faithful original ledger,

@@ -449,6 +449,58 @@ class WorkbenchTransportTests(unittest.TestCase):
             self.assertFalse(public['ready_to_review'], name)
             self.assertEqual(len(delivery_api.list_plugin_delivery_versions('p','d',bound['session_id'],self.backend.sink())['versions']),0)
 
+    def test_malformed_map_history_survives_reload_without_blocking_valid_successor(self):
+        import hashlib
+        from copy import deepcopy
+        task_root = self.root / 'transport-failed-map-successor'
+        task_root.mkdir(parents=True, exist_ok=True)
+        service = TaskService(task_root, ROOT/'plugins/reqpilot/scripts/reqpilot.py', ROOT)
+        goal = 'Recover from one malformed Map attempt and publish the fixed workflow draft.'
+        spec = workflow.workflow_spec(brief_sha256=workflow.brief_sha256(goal), evidence_mode='NONE')
+        state = service.invoke('open', {'mode':'create','source':str(self.backend.source),'goal':goal,
+            'creation_key':'failed-map-successor','workflow':spec})
+        task = state['task_id']; state = service.invoke('prepare', {'task_id':task,'expected_revision':state['revision']})
+        edit = json.loads((self.root/'map-input.json').read_text())
+        edit['schema_version'] = 'reqpilot-map-edit/v1'; edit.pop('source_sha256', None)
+        malformed = deepcopy(edit); malformed['nodes'][1]['content_source_ids'] = ['guessed-source']
+        failed = service.invoke('map', {'task_id':task,'expected_revision':state['revision'],'decisions':malformed})
+        self.assertEqual(failed['status'], 'FAILED')
+        self.assertEqual(failed['operation_state'], 'FAILED')
+        failed_id = failed['operation_id']
+        inspected = service.invoke('inspect', {'task_id':task})
+        self.assertEqual(inspected['incomplete_operations'], [])
+        self.assertNotIn('INCOMPLETE_OPERATION', inspected['workflow']['open_items'])
+        self.assertEqual(inspected['failed_operations'][0]['operation_id'], failed_id)
+        self.assertIn('guessed-source', inspected['failed_operations'][0]['error'])
+
+        state = service.invoke('map', {'task_id':task,'expected_revision':inspected['revision'],'decisions':edit})
+        self.assertEqual(state['operation_state'], 'COMMITTED')
+        choices = item_decisions(Path(state['selected']['MAP']['output_dir']))
+        for key in ('source_sha256','document_map_artifact_sha256'): choices.pop(key,None)
+        state = service.invoke('items', {'task_id':task,'expected_revision':state['revision'],'decisions':choices})
+        state = service.invoke('review', {'task_id':task,'expected_revision':state['revision']})
+        state = service.invoke('deliver', {'task_id':task,'expected_revision':state['revision']})
+        check = service.invoke('check', {'task_id':task})
+        self.assertTrue(check['ready_to_review'])
+        inspected = service.invoke('inspect', {'task_id':task})
+        self.assertEqual(inspected['incomplete_operations'], [])
+        self.assertEqual(inspected['failed_operations'][0]['operation_id'], failed_id)
+        bound = transport.sync_workbench(self.args(workspace=Path(inspected['task_root']),
+            review_dir=Path(service.state(task)[1]['current_working']['review_root']),
+            url='http://127.0.0.1:18080/workspace?projectId=p&documentId=d', no_map_confirmation=True))
+        revision = service.invoke('inspect', {'task_id':task})['revision']
+        synced = service.invoke('sync', {'task_id':task,'expected_revision':revision,'direction':'publish_current_review'})
+        self.assertEqual(synced['sync']['draft_delivery']['status'], 'DRAFT_REGISTERED')
+        public = api.get_plugin_workbench('p','d',bound['session_id'],self.backend.sink())['fixed_workflow']
+        self.assertTrue(public['ready_to_review'], public)
+        reloaded = TaskService(task_root, ROOT/'plugins/reqpilot/scripts/reqpilot.py', ROOT)
+        after = reloaded.invoke('inspect', {'task_id':task})
+        self.assertTrue(after['workflow']['ready_to_review'])
+        self.assertEqual(after['incomplete_operations'], [])
+        self.assertEqual(after['failed_operations'][0]['operation_id'], failed_id)
+        self.assertIn('guessed-source', after['failed_operations'][0]['error'])
+        self.assertTrue((Path(after['task_root'])/'operations'/(failed_id+'.json')).is_file())
+
     def test_partial_draft_remains_available_without_full_workflow_handoff(self):
         task, service, inspected, review = self.workflow_task(partial=True, deliver=False)
         bound = transport.sync_workbench(self.args(workspace=Path(inspected['task_root']), review_dir=review,

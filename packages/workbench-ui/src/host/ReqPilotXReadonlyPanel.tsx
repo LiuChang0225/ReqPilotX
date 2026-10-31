@@ -63,6 +63,11 @@ function ReadonlyPanel({ selection: initial, host, documentName, theme = "light"
     return () => { if (owner.current === token) { owner.current = null; selectedContextRef.current = null; } };
   }, []);
   const canDiscuss = Boolean(binding && host.openSession && !opening);
+  const openOnly = useCallback(() => {
+    if (!binding || !host.openSession || opening) return;
+    setIssue(""); setOpening(true);
+    Promise.resolve().then(() => host.openSession!(binding)).catch(error => setIssue(error instanceof Error ? error.message : "关联会话暂不可打开，请重试。")).finally(() => setOpening(false));
+  }, [binding, host.openSession, opening]);
   const show = useCallback((_goal = "", scope: "selected" | "document" = "document") => {
     if (!binding || !host.openSession || opening) return;
     const captured = selectionRef.current;
@@ -88,7 +93,7 @@ function ReadonlyPanel({ selection: initial, host, documentName, theme = "light"
           {!provider.state?.versions.some(version => version.revision_id === provider.pinned) && <option value={provider.pinned || ""}>{!provider.state ? "正在同步版本" : provider.pinned ? "指定版本不可用" : "尚无成果"}</option>}{provider.state?.versions.map(version => <option key={version.revision_id} value={version.revision_id}>v{version.number}{version.revision_id === provider.state?.revision_id ? " · 最新" : ""}</option>)}
         </select></label>
         <button type="button" className="button ghost compact" onClick={provider.refresh}>同步成果</button>
-        <button type="button" className="button secondary compact" disabled={!canDiscuss} onClick={() => show()}>{opening ? "正在打开会话…" : `打开关联${host.label}会话`}</button>
+        <button type="button" className="button secondary compact" disabled={!canDiscuss} onClick={openOnly}>{opening ? "正在打开会话…" : `打开关联${host.label}会话`}</button>
       </header>
       <div className="readonly-panel-status"><span role="status">{execution && !execution.connected ? "运行状态连接中断" : status}</span>
         {execution?.connected && execution.status === "RUNNING" && execution.activityLabel && <span>{execution.activityLabel}</span>}

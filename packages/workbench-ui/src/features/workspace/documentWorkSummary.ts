@@ -26,6 +26,8 @@ export type DocumentWorkSummary = {
   sourceSha256: string;
   delivery: SourceItemDeliveryState | null;
   task: AgentLoopTask | null;
+  /** The task API's own empty/missing state, distinct from a failed read. */
+  taskStatus?: "NOT_STARTED" | "RECORDED" | "UNKNOWN" | string;
   pluginDraft?: { session_id: string; source_sha256: string; revision_id: string | null; revision_number: number; workbench_path: string; map_confirmation_required?: boolean } | null;
   deliveryError: string;
   taskError: string;
@@ -57,10 +59,19 @@ export async function readDocumentWorkSummary(projectId: string, documentId: str
       } else if (!(delivery.reason instanceof ApiError && (delivery.reason.status === 404 || delivery.reason.status === 409 && String(delivery.reason.message).includes("原文条目尚未生成")))) {
         result.deliveryError = "暂时无法读取工作版";
       }
-      if (latest.status === "fulfilled" && latest.value?.task_id) {
-        if (!latest.value.source_sha256 || latest.value.source_sha256 === sourceSha256) result.task = latest.value;
-        else result.taskError = "任务属于其他来源版本";
-      } else if (latest.status === "rejected" && !(latest.reason instanceof ApiError && latest.reason.status === 404)) {
+      if (latest.status === "fulfilled") {
+        if (latest.value?.task_id) {
+          if (!latest.value.source_sha256 || latest.value.source_sha256 === sourceSha256) {
+            result.task = latest.value; result.taskStatus = latest.value.job_status || "RECORDED";
+          } else result.taskError = "任务属于其他来源版本";
+        } else {
+          // An explicit empty response is NOT_STARTED, not an unreadable task.
+          result.taskStatus = latest.value?.job_status || "NOT_STARTED";
+        }
+      } else if (latest.reason instanceof ApiError && latest.reason.status === 404) {
+        result.taskStatus = "NOT_STARTED";
+      } else {
+        result.taskStatus = "UNKNOWN";
         result.taskError = "任务状态暂未同步";
       }
   return result;

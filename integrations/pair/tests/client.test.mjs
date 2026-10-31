@@ -21,29 +21,115 @@ test('built client is lazy and uses only the shared host React modules; register
   assert.equal(styles.length, 0); assert.equal(hostRequire('react/package.json').version, '18.3.1');
 });
 
-test('selected source context is inserted with draft revision guard, never auto-submitted or silently dropped', async () => {
-  let entry, main, input = { phase: 'plain', draft: 'Existing user text', draftRev: 7 }; const insertions = [], navigations = [];
+function expectedHostServices(overrides = {}) {
+  const navigations = [], insertions = [], using = []; let input = { phase: 'plain', draft: 'Existing user text', draftRev: 7 };
+  const scope = { bail(_scope, event, payload) { insertions.push({ event, payload }); return true; } };
+  const services = {
+    uiWorkspace: { openSession(id) { navigations.push(id); } },
+    layout: { beginNavigation() { return new AbortController().signal; }, selectPanel() {} },
+    sessions: { async using(id, options, operation) {
+      using.push({ id, options });
+      return operation({ ready: Promise.resolve(), binding: { ctx: scope } });
+    } },
+    conversation: { input: { for() { return { state: { getSnapshot() { return input; } } }; } } },
+    ...overrides,
+  };
+  return { services, navigations, insertions, using, scope, get input() { return input; }, set input(value) { input = value; } };
+}
+
+test('view-only navigation opens the same native Session without touching the composer', async () => {
+  let entry, main;
   vm.runInNewContext(await readFile(new URL('../client/lib/client.js', import.meta.url), 'utf8'), {
     window: { __ModuleLoader__: { load(value) { entry = value; } } },
     document: { createElement() { return { dataset: {}, remove() {} }; }, head: { append() {} } }, URL,
   });
+  let touched = false;
+  const fake = expectedHostServices({ conversation: { input: { for() { touched = true; throw Error('must not prepare'); } } } });
   const plugin = entry.factory(hostRequire);
-  const scope = { bail(_scope, event, payload) { insertions.push({ event, payload }); return true; } };
   plugin.apply({ effect(fn) { fn(); }, locale: { register() { return () => {}; } },
     slots: { inject(_name, fn) { fn(); }, register(options) { if (options.name === 'main') main = options; return () => {}; } },
-    layout: { beginNavigation() { return new AbortController().signal; }, selectPanel(value) { navigations.push(value); } },
-    sessions: { async open(id) { assert.equal(id, 'session-bound'); }, scope() { return scope; } },
-    conversation: { input: { for() { return { state: { getSnapshot() { return input; } } }; } } },
+    ...fake.services,
+  });
+  await main.inject().openSession('session-bound');
+  assert.deepEqual(fake.navigations, ['session-bound']);
+  assert.deepEqual(fake.insertions, []); assert.deepEqual(fake.using, []); assert.equal(touched, false);
+});
+
+test('selected discussion context uses documented scope retention, appends without replacing the draft, and never auto-submits', async () => {
+  let entry, main;
+  vm.runInNewContext(await readFile(new URL('../client/lib/client.js', import.meta.url), 'utf8'), {
+    window: { __ModuleLoader__: { load(value) { entry = value; } } },
+    document: { createElement() { return { dataset: {}, remove() {} }; }, head: { append() {} } }, URL,
+  });
+  const fake = expectedHostServices();
+  const plugin = entry.factory(hostRequire);
+  plugin.apply({ effect(fn) { fn(); }, locale: { register() { return () => {}; } },
+    slots: { inject(_name, fn) { fn(); }, register(options) { if (options.name === 'main') main = options; return () => {}; } },
+    ...fake.services,
   });
   const context = { projectId: 'p', documentId: 'd', sourceSha256: 'a'.repeat(64), workRef: 'plugin-work', revisionId: 'b'.repeat(64), scope: 'selected', sourceItemId: 'source-item', ignoredPrivateField: '/private/path' };
   await main.inject().openSession('session-bound', context);
-  assert.equal(insertions.length, 1); assert.equal(insertions[0].event, 'slash/input-insert-text');
-  assert.equal(insertions[0].payload.span.draftRev, 7); assert.equal(insertions[0].payload.span.end, 0);
-  assert.match(insertions[0].payload.text, /source-item/); assert.match(insertions[0].payload.text, /revisionId/); assert.doesNotMatch(insertions[0].payload.text, /private/);
-  assert.equal(input.draft, 'Existing user text'); assert.deepEqual(navigations, [null]);
-  input = { ...input, phase: 'submitting' };
+  assert.deepEqual(fake.navigations, ['session-bound']);
+  assert.equal(fake.using.length, 1); assert.equal(fake.using[0].id, 'session-bound'); assert.equal(fake.using[0].options.source, 'controllerOperation');
+  assert.equal(fake.insertions.length, 1); assert.equal(fake.insertions[0].event, 'slash/input-insert-text');
+  assert.equal(fake.insertions[0].payload.span.draftRev, 7); assert.equal(fake.insertions[0].payload.span.start, 'Existing user text'.length);
+  assert.equal(fake.insertions[0].payload.span.end, 'Existing user text'.length); assert.match(fake.insertions[0].payload.text, /^\n\n讨论当前选中的原文/);
+  assert.match(fake.insertions[0].payload.text, /source-item/); assert.match(fake.insertions[0].payload.text, /revisionId/); assert.doesNotMatch(fake.insertions[0].payload.text, /private/);
+  assert.equal(fake.input.draft, 'Existing user text');
+  fake.input = { ...fake.input, phase: 'submitting' };
   await assert.rejects(main.inject().openSession('session-bound', context), /稍后/);
-  assert.equal(insertions.length, 1);
+  assert.equal(fake.insertions.length, 1);
+});
+
+test('a first native view retains the prepared discussion draft across operation release', async () => {
+  let entry, main, references = 0, shell, displayed; const navigation = new AbortController();
+  vm.runInNewContext(await readFile(new URL('../client/lib/client.js', import.meta.url), 'utf8'), {
+    window: { __ModuleLoader__: { load(value) { entry = value; } } },
+    document: { createElement() { return { dataset: {}, remove() {} }; }, head: { append() {} } }, URL,
+  });
+  const scope = { bail(_scope, _event, payload) {
+    shell.draft = shell.draft.slice(0, payload.span.start) + payload.text + shell.draft.slice(payload.span.end);
+    return true;
+  } };
+  const plugin = entry.factory(hostRequire);
+  plugin.apply({ effect(fn) { fn(); }, locale: { register() { return () => {}; } },
+    slots: { inject(_name, fn) { fn(); }, register(options) { if (options.name === 'main') main = options; return () => {}; } },
+    layout: { beginNavigation() { return navigation.signal; } },
+    sessions: { async using(_id, _options, operation) {
+      references++; shell = { phase: 'plain', draft: 'Existing user text', draftRev: 1 };
+      try { return await operation({ ready: Promise.resolve(), binding: { ctx: scope } }); }
+      finally { if (--references === 0) shell = undefined; }
+    } },
+    conversation: { input: { for() { return { state: { getSnapshot() { return shell; } } }; } } },
+    uiWorkspace: { openSession() {
+      references++;
+      displayed = shell ?? { phase: 'plain', draft: '', draftRev: 1 };
+      navigation.abort();
+    } },
+  });
+  await main.inject().openSession('session-bound', { projectId: 'p', documentId: 'd', sourceSha256: 'a'.repeat(64), workRef: 'plugin-work', revisionId: 'b'.repeat(64), sourceItemId: 'selected-item' });
+  assert.equal(references, 1);
+  assert.match(displayed.draft, /^Existing user text\n\n讨论当前选中的原文/);
+  assert.match(displayed.draft, /selected-item/);
+});
+
+test('a later navigation supersedes discussion preparation before any draft insertion', async () => {
+  let entry, main; const controller = new AbortController(); const insertions = [], navigations = [];
+  vm.runInNewContext(await readFile(new URL('../client/lib/client.js', import.meta.url), 'utf8'), {
+    window: { __ModuleLoader__: { load(value) { entry = value; } } },
+    document: { createElement() { return { dataset: {}, remove() {} }; }, head: { append() {} } }, URL,
+  });
+  const scope = { bail(_scope, event, payload) { insertions.push({ event, payload }); return true; } };
+  const plugin = entry.factory(hostRequire);
+  plugin.apply({ effect(fn) { fn(); }, locale: { register() { return () => {}; } },
+    slots: { inject(_name, fn) { fn(); }, register(options) { if (options.name === 'main') main = options; return () => {}; } },
+    uiWorkspace: { openSession(id) { navigations.push(id); } },
+    layout: { beginNavigation() { return controller.signal; }, selectPanel() {} },
+    sessions: { async using(_id, _options, operation) { controller.abort(); return operation({ ready: Promise.resolve(), binding: { ctx: scope } }); } },
+    conversation: { input: { for() { return { state: { getSnapshot() { return { phase: 'plain', draft: '', draftRev: 1 }; } } }; } } },
+  });
+  await assert.rejects(main.inject().openSession('session-bound', { projectId: 'p', documentId: 'd', sourceSha256: 'a'.repeat(64), workRef: 'plugin-work', scope: 'document' }), /另一项工作/);
+  assert.deepEqual(navigations, []); assert.deepEqual(insertions, []);
 });
 
 test('managed workbench writes only explicitly discovered session-bound operations', async () => {

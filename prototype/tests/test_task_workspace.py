@@ -220,7 +220,22 @@ class TaskWorkspaceTests(unittest.TestCase):
         recovered = workspace.recover_workspace(self.root)
         self.assertEqual(recovered['recovered'], [{'operation_id': operation['operation_id'], 'state': 'COMMITTED'}])
         self.assertIn('MAP', recovered['selected'])
-        self.assertEqual(len(recovered['incomplete_operations']), 1)
+        self.assertEqual(recovered['incomplete_operations'], [])
+        self.assertEqual(len(recovered['failed_operations']), 1)
+        self.assertEqual(recovered['failed_operations'][0]['state'], 'FAILED')
+
+    def test_started_without_receipt_stays_unresolved_while_terminal_failure_is_history(self):
+        started = workspace.begin_operation(self.root, 'compile-map')
+        status = workspace.workspace_status(self.root, refresh=False)
+        self.assertEqual([item['operation_id'] for item in status['unresolved_operations']], [started['operation_id']])
+        self.assertEqual(status['incomplete_operations'], status['unresolved_operations'])
+        self.assertEqual(status['failed_operations'], [])
+        workspace.fail_operation(self.root, started['operation_id'], 'controlled synthetic failure')
+        status = workspace.workspace_status(self.root, refresh=False)
+        self.assertEqual(status['unresolved_operations'], [])
+        self.assertEqual(status['incomplete_operations'], [])
+        self.assertEqual(status['failed_operations'][0]['operation_id'], started['operation_id'])
+        self.assertEqual(status['failed_operations'][0]['error'], 'controlled synthetic failure')
 
     def test_index_before_operation_descriptor_interruption_recovers_without_recommit(self):
         op = self.compile_map()

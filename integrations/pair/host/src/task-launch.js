@@ -442,7 +442,9 @@ export class TaskLauncher {
       const chunks = []; let size = 0;
       for await (const bytes of response.body) { size += bytes.length; if (size > 128 * 1024 * 1024) throw new TaskLaunchError('SOURCE_TOO_LARGE', 413); chunks.push(bytes); }
       const original = Buffer.concat(chunks); if (sha(original) !== document.source_sha256) throw new TaskLaunchError('SOURCE_CHANGED');
-      record.sourceSha256 = document.source_sha256; await this.save(record);
+      record.sourceSha256 = document.source_sha256;
+      record.documentName = String(document.file_name || '').trim().slice(0, 160) || undefined;
+      await this.save(record);
       const inputRoot = join(this.root, input.commandId + '-input'); await mkdir(inputRoot, { recursive: true, mode: 0o700 });
       const source = join(inputRoot, basename(document.file_name || 'source.pdf')); await writeFile(source, original, { mode: 0o600 });
       const helper = await stat(join(workspace, '.reqpilot/scripts/host_launch.py')).then(() => join(workspace, '.reqpilot/scripts/host_launch.py')).catch(error => { if (error.code === 'ENOENT') return join(record.capabilityRoot, 'scripts/host_launch.py'); throw error; });
@@ -477,7 +479,14 @@ export class TaskLauncher {
     if (!record.workspaceId) {
       const created = await services.workspaces.create({ path: workspace });
       if (!created.workspace?.workspaceId) throw new TaskLaunchError('PAIR_WORKSPACE_NOT_CONFIRMED');
-      record.workspaceId = created.workspace.workspaceId; await this.save(record);
+      record.workspaceId = created.workspace.workspaceId;
+      // New native workspaces get a readable registry title. Existing task
+      // workspaces keep their path and identity so retries are unchanged.
+      if (record.documentName && typeof services.workspaces.rename === 'function') {
+        const title = ('ReqPilotX · ' + record.documentName + ' · ' + record.commandId.slice(0, 8)).slice(0, 180);
+        try { await services.workspaces.rename(record.workspaceId, title); } catch { /* Title is display-only; the task identity remains valid. */ }
+      }
+      await this.save(record);
     }
     // Explicit identities let DSH adopt the same Session and deduplicate ambiguous prompt responses.
     this.assertActive(record);

@@ -1905,6 +1905,20 @@ class ExporterTableLayersTests(unittest.TestCase):
                     "标题",
                 )
 
+    def test_identifier_only_title_cell_does_not_repeat_source_number(self) -> None:
+        node = {"source_number": "1.1", "display_title": "1.1", "label": "1.1"}
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(node, "1.1"), "")
+        self.assertEqual(exporter_module._matrix_node_display_title(node), "未提供标题")
+        self.assertEqual(exporter_module._matrix_heading_path_label(node), "1.1")
+        self.assertEqual(exporter_module._matrix_title_without_direct_number(
+            {"source_number": "1"}, ". Scope"), "Scope")
+
+    def test_heading_path_keeps_number_separator_without_duplicating_it(self) -> None:
+        self.assertEqual(exporter_module._matrix_heading_path_label(
+            {"source_number": "1", "display_title": ". Scope", "label": ". Scope"}), "1. Scope")
+        self.assertEqual(exporter_module._matrix_heading_path_label(
+            {"source_number": ".", "display_title": "Scope", "label": "Scope"}), "Scope")
+
     def test_body_copy_detection_strips_direct_number_on_either_side(self) -> None:
         base = {
             "requirement_id": "requirement-1",

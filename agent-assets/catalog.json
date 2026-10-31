@@ -6,7 +6,7 @@
       "classification": "CURRENT",
       "asset_kind": "PROJECT_DISCOVERY_SKILL",
       "source": "agent-assets/current/project-skills",
-      "tree_sha256": "a4542d0da61da19ae4e3a3dc6e58df50778385125bd82eb3573bceb966d351d7",
+      "tree_sha256": "ff79afbe7c14eaaa609c5432029d58cd1c5b4647258910830856599f6669659a",
       "consumers": [
         "Codex project skill discovery from .agents/skills",
         "engineers performing the current extraction and feedback loop"
@@ -27,7 +27,7 @@
       "classification": "CURRENT",
       "asset_kind": "PORTABLE_PLUGIN_SKILLS_AND_REFERENCES",
       "source": "agent-assets/current/plugin-skills",
-      "tree_sha256": "0af251ae9871ef2b8707239ad7ece061a99f4f8e89742637f21679cefa5c8cb9",
+      "tree_sha256": "4f1f2d4a9e042d053f75ef5393b1451c6887e554ccfab85fad7ee14994358632",
       "consumers": [
         "ReqPilotX portable plugin discovery",
         "native registered capability bundles",

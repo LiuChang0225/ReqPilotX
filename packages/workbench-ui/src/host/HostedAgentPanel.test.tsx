@@ -40,7 +40,7 @@ it("adopts confirmed reconnect capabilities and opens the exact persisted Pair S
   expect(await screen.findByRole("button", { name: "继续同一任务" })).toBeVisible();
   expect(screen.queryByRole("button", { name: "核对并重连原任务" })).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "打开 PAIR 会话" }));
-  await waitFor(() => expect(value.openSession).toHaveBeenCalledWith("session-one", expect.objectContaining({ projectId: "p", documentId: "d", workRef: receipt.workRef, scope: "document" })));
+  await waitFor(() => expect(value.openSession).toHaveBeenCalledWith("session-one"));
   expect(value.controlTask).toHaveBeenCalledWith(expect.objectContaining({ commandId: "command-one", workRef: receipt.workRef }), "reconnect");
 });
 it("restores a pending task's original goal without submitting it", async () => {
@@ -72,7 +72,7 @@ it.each(["resolve", "reject"])("ignores a late %s from another work and keeps on
   await act(async () => { if (completion === "resolve") old.resolve(receipt); else old.reject(Error("old work error")); });
   expect(screen.queryByText("old work error")).not.toBeInTheDocument();
   fireEvent.click(screen.getByRole("button", { name: "打开 PAIR 会话" }));
-  expect(value.openSession).toHaveBeenCalledWith(other.sessionId, expect.objectContaining({ workRef: other.workRef }));
+  expect(value.openSession).toHaveBeenCalledWith(other.sessionId);
   expect(vi.getTimerCount()).toBe(1);
   await act(async () => { await vi.advanceTimersByTimeAsync(3000); });
   expect(vi.mocked(value.restoreTask).mock.calls.map(([input]) => input.workRef)).toEqual([receipt.workRef, other.workRef, other.workRef]);
@@ -145,7 +145,7 @@ it("does not navigate to a newly accepted task after the user selects a differen
   await act(async () => { pending.resolve(receipt); });
   expect(accepted).not.toHaveBeenCalled();
   fireEvent.click(screen.getByRole("button", { name: "打开 PAIR 会话" }));
-  expect(value.openSession).toHaveBeenCalledWith(other.sessionId, expect.objectContaining({ workRef: other.workRef }));
+  expect(value.openSession).toHaveBeenCalledWith(other.sessionId);
 });
 
 it("does not overwrite a control acknowledgement with an older restore in the same selection", async () => {

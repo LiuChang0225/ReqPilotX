@@ -356,6 +356,8 @@ def task_summary(state):
         'selected': state['selected'], 'human_acceptance': 'NOT_CLAIMED',
         **({'workflow': state['workflow']} if state.get('workflow') else {}),
         'pending_decomposition': decomposition_attention(state),
+        'incomplete_operations': state['incomplete_operations'][:10],
+        **({'failed_operations': state['failed_operations'][:10]} if state.get('failed_operations') else {}),
         'capabilities': {'contract_version': CONTRACT_VERSION, 'actions': list(REQUESTS),
             'map_items_semantics': 'EXISTING_COMPILERS', 'existing_item_revision': 'TYPED_REVIEW_APPLY',
             'assessment_and_engineer_opinion_transport': 'UNSUPPORTED',
@@ -868,6 +870,7 @@ class TaskService:
             'ready_to_review': bool((state.get('workflow') or {}).get('ready_to_review')),
             'review_verified':False, 'current_delivery_registered':False,
             'remaining':state['brief'], 'incomplete_operations':state['incomplete_operations'][:10],
+            **({'failed_operations':state['failed_operations'][:10]} if state.get('failed_operations') else {}),
             'pending_decomposition':decomposition_attention(state)}
         if state['current_working']['owner'] == 'portable_review':
             from revision_tools import verify_review, load_head

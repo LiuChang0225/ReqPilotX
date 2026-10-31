@@ -6,17 +6,20 @@ const statusLabels: Record<string, string> = {
 };
 const reasonLabels: Record<string, string> = {
   SOURCE_MAP_REQUIRED: "需要先保存文档结构", ITEMS_NOT_SAVED: "尚未保存原文条目",
-  MAP_CONFIRMATION_REQUIRED: "等待确认这一版结构", SCOPED_DERIVATION_REMAINING: "明确授权的派生范围尚未处理完",
+  ITEMS_REQUIRED: "需要先保存原文条目", MAP_CONFIRMATION_REQUIRED: "等待确认这一版结构",
+  SCOPED_DERIVATION_REMAINING: "明确授权的派生范围尚未处理完", UNPROCESSED_SOURCE_SCOPE: "仍有原文范围尚未处理",
   NO_INTERNAL_EVIDENCE: "未提供内部依据", INTERNAL_EVIDENCE_NOT_WIRED: "当前版本尚未接入内部依据",
   INTERNAL_EVIDENCE_ANALYSIS_REQUIRED: "内部依据分析尚未保存", WORKFLOW_EVIDENCE_CONFLICT: "工作流声明与依据状态不一致",
-  SELF_CHECK_NOT_SAVED: "尚无已保存自查", SELF_CHECK_BASIS_CHANGED: "自查依据已变化，需要重新核对",
+  SELF_CHECK_NOT_SAVED: "尚无已保存自查", SELF_CHECK_NOT_RUN: "尚未运行程序自查",
+  SELF_CHECK_BASIS_CHANGED: "自查依据已变化，需要重新核对", SELF_CHECK_FAILED: "程序自查未通过",
   DELIVERABLE_NOT_SAVED: "尚未保存交付成果", SELF_CHECK_REQUIRED: "需要先完成自查",
-  INCOMPLETE_OPERATION: "存在未完成程序操作", EVIDENCE_ANALYSIS_SKIPPED: "依据分析按声明跳过",
+  INCOMPLETE_OPERATION: "存在结果未知或待恢复的程序操作", OPERATION_FAILURE: "保留失败尝试记录",
+  EVIDENCE_ANALYSIS_SKIPPED: "依据分析按声明跳过",
 };
 const evidenceLabels: Record<string, string> = {
   TASK_CONTEXT: "任务与来源", DOCUMENT_MAP: "文档结构", SOURCE_ITEMS: "原文条目",
   DECOMPOSITION: "明确派生", REVIEW_HEAD: "自查工作版", DELIVERY: "已保存交付",
-  WORKFLOW_BRANCH: "声明分支",
+  WORKFLOW_BRANCH: "声明分支", WORKFLOW_CHECK: "程序自查", DELIVERY_VERSION: "已保存交付版本",
 };
 
 export function FixedWorkflowSummary({ workflow }: { workflow?: ApplicationWorkflowDescriptor | null }) {

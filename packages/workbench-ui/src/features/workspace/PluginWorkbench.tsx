@@ -8,7 +8,10 @@ import type { WorkspaceContextValue } from "./WorkspaceContext";
 import { useWorkbenchHost } from "./WorkbenchHostContext";
 import { DeliveryVersions } from "./DeliveryVersions";
 import { FixedWorkflowStatus } from "../../host/FixedWorkflowStatus";
+import { useApplicationHost } from "../../host/ApplicationHost";
 export type { PluginState } from "./documentWorkProvider";
+
+function applicationLabel(label?: string) { return label ? `${label} ` : "PAIR "; }
 
 type PluginWorkbenchProps = {
   provider: PluginWorkbenchProvider; projectId: string; documentId: string; sourceSha256: string; documentName: string;
@@ -21,6 +24,8 @@ export function PluginWorkbench(props: PluginWorkbenchProps) {
 /** The same business view mounted by the standalone shell or a host panel. */
 export function PluginWorkbenchContent({ provider, projectId, documentId, sourceSha256, documentName, route, updateRoute }: PluginWorkbenchProps & Pick<WorkspaceContextValue, "route" | "updateRoute">) {
   const host = useWorkbenchHost();
+  const applicationHost = useApplicationHost();
+  const taskNoun = applicationHost ? `${applicationLabel(applicationHost.label)}会话` : "外部任务";
   const [page, setPage] = useState(1), [error, setError] = useState("");
   const { reader, state, version, current } = provider;
   useEffect(() => { setError(""); }, [provider.pinned, projectId, documentId]);
@@ -31,7 +36,7 @@ export function PluginWorkbenchContent({ provider, projectId, documentId, source
   if (route.task === "export" && !reader) return <section className="source-working-export" aria-label="当前核对版交付"><h1>交付当前核对版</h1><p role="status">{state && !state.revision_id ? "当前任务只有来源，尚无可导出的阶段成果。" : provider.error ? "当前版本暂不可读取，请重新同步或选择已保存版本。" : "正在读取当前核对版的交付内容…"}</p><button type="button" className="button secondary" onClick={() => updateRoute({ task: "extraction", mode: "organize", checkpoint: "structure" })}>返回当前工作</button></section>;
   if (route.task === "export") return <section className="source-working-export" aria-label="当前核对版交付">
     <header><div><span>{documentName}</span><h1>交付当前核对版</h1></div><span>v{version?.number || "—"}{current ? " · 最新" : " · 历史版本"}</span></header>
-    <section className="working-export-readiness"><strong>{hasItems ? "可核对的评审草稿" : "条目成果尚未保存"}</strong><p>{hasItems ? "导出包含当前核对版全部已保存内容，来源、父子关系与分类保持一致。" : "当前只有结构成果，可先核对结构并向原外部任务反馈。"}</p>
+    <section className="working-export-readiness"><strong>{hasItems ? "可核对的评审草稿" : "条目成果尚未保存"}</strong><p>{hasItems ? "导出包含当前核对版全部已保存内容，来源、父子关系与分类保持一致。" : `当前只有结构成果，可先核对结构并向原${taskNoun}反馈。`}</p>
       {reader?.analysis_policy?.status === "SKIPPED" && <p>符合性分析未执行：{reader.analysis_policy.reason === "USER_SKIPPED" ? "本次选择跳过" : "未提供内部依据"}。</p>}
     </section>
     {reader?.outline && <dl><div><dt>原文条目</dt><dd>{reader.outline.summary.source_item_count}</dd></div><div><dt>原文需求</dt><dd>{reader.outline.summary.requirement_count}</dd></div><div><dt>保留的非需求</dt><dd>{reader.outline.summary.non_requirement_count}</dd></div><div><dt>实际分析单元</dt><dd>{reader.reasoning?.analysis_unit_count ?? "未提供"}</dd></div></dl>}
@@ -47,10 +52,10 @@ export function PluginWorkbenchContent({ provider, projectId, documentId, source
     </header>}
     {error && <p role="alert">{error}</p>}
     {state?.fixed_workflow && <FixedWorkflowStatus state={state.fixed_workflow} />}
-    {!host.readOnly && current && state?.map_confirmation_required && route.task === "extraction" && !itemsMode && <section className="stage-approval-card" aria-label="确认文档结构"><div><strong>核对这一版结构后继续</strong><p>确认会保存到当前版本；由原外部任务取回后继续整理条目。</p></div><button className="button primary compact" disabled={!reader || provider.pending || !provider.capability("confirm_map").enabled} onClick={() => void confirm()}>确认此结构</button></section>}
-    {route.task === "analysis" && <p className="agent-policy-note">{reader?.analysis_policy?.status === "SKIPPED" ? "符合性分析未执行：未提供内部依据或本次选择跳过。" : "当前显示外部已保存成果。"} {host.readOnly ? "当前面板只读，可核对来源与已保存建议。" : provider.capability("save_engineer_response").enabled ? "工程师响应保存为新的成果版本，来源与 Agent 建议继续保留。" : provider.capability("save_engineer_response").reason || "当前版本只读，可核对来源与已保存意见。"}</p>}
+    {!host.readOnly && current && state?.map_confirmation_required && route.task === "extraction" && !itemsMode && <section className="stage-approval-card" aria-label="确认文档结构"><div><strong>核对这一版结构后继续</strong><p>确认会保存到当前版本；由原{taskNoun}取回后继续整理条目。</p></div><button className="button primary compact" disabled={!reader || provider.pending || !provider.capability("confirm_map").enabled} onClick={() => void confirm()}>确认此结构</button></section>}
+    {route.task === "analysis" && <p className="agent-policy-note">{reader?.analysis_policy?.status === "SKIPPED" ? "符合性分析未执行：未提供内部依据或本次选择跳过。" : "当前显示已保存成果。"} {host.readOnly ? "当前面板只读，可核对来源与已保存建议。" : provider.capability("save_engineer_response").enabled ? "工程师响应保存为新的成果版本，来源与 Agent 建议继续保留。" : provider.capability("save_engineer_response").reason || "当前版本只读，可核对来源与已保存意见。"}</p>}
     {state && !state.revision_id && <div className="source-only-work"><p>当前任务已绑定这份原件，尚未保存结构或条目。可先阅读原件，后续成果会保留在这个任务中。</p>{host.readOnly ? <a className="button secondary" href={sourceUrl} target="_blank" rel="noreferrer">阅读原件</a> : <button type="button" className="button secondary" onClick={() => updateRoute({ task: "reading" })}>阅读原件</button>}</div>}
-    {!reader ? state && !state.revision_id ? null : <p role="status">{provider.error ? "当前核对版暂不可读取，请重新同步或选择已保存版本。" : !state ? "正在同步外部成果…" : provider.pinned ? "正在读取当前核对版…" : "等待外部任务保存首个结构成果…"}</p> : route.task === "analysis" && !hasItems ? <p>当前只有结构草稿；条目形成后可查看响应。</p> : <NativeStructureReferenceDock
+    {!reader ? state && !state.revision_id ? null : <p role="status">{provider.error ? "当前核对版暂不可读取，请重新同步或选择已保存版本。" : !state ? "正在同步成果…" : provider.pinned ? "正在读取当前核对版…" : `等待${taskNoun}保存首个结构成果…`}</p> : route.task === "analysis" && !hasItems ? <p>当前只有结构草稿；条目形成后可查看响应。</p> : <NativeStructureReferenceDock
       key={`${provider.scope}:${reader.reference.artifact_id}:${reader.outline?.baseline?.artifact_sha256 || reader.revision_id}`} projectId={projectId} documentId={documentId} sourceSha256={sourceSha256} sourceReader={reader}
       onChangePurpose={purpose => updateRoute({ task: purpose === "analysis" ? "analysis" : "extraction", mode: "organize", checkpoint: "list" })}
       sourceFileUrl={sourceUrl} showSourcePreview activePage={page} onPageChange={setPage} mode={itemsMode ? "SOURCE_REQUIREMENTS" : "STRUCTURE"} purpose={route.task === "analysis" ? "analysis" : "review"}/> }
