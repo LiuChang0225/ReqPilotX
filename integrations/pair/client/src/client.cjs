@@ -81,7 +81,7 @@ Object.assign(copy.zh, {
   'external.targetSelected': '当前原文范围', 'external.targetDocument': '整个文档',
   'external.saved': '意见已保存到 v{version} · {target}，待外部任务取回。', 'external.saveFailed': '保存未完成，请重试。',
   'external.briefCopied': '接续说明已复制；请回到原外部任务继续。此操作未启动模型。', 'external.copyFailed': '暂时无法复制，请使用当前工作台链接回到原外部任务继续。',
-  'external.contextAria': '任务上下文', 'external.reviewVersion': '核对版 v{number}', 'external.sourceBound': '来源已绑定',
+  'external.contextAria': '任务上下文', 'external.reviewVersion': '核对版 v{version}', 'external.sourceBound': '来源已绑定',
   'external.syncingWork': '正在同步工作', 'external.feedbackLabel': '给外部任务的修改意见',
   'external.feedbackPlaceholder': '记录要核对或修改的内容；保存后由原外部任务取回…', 'external.scope': '修改范围',
   'external.scopeClause': '当前条款', 'external.scopeNode': '当前结构范围', 'external.saving': '正在保存…', 'external.save': '保存意见',
