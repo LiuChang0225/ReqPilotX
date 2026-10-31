@@ -23,3 +23,5 @@ The installed package uses the public `reqpilotx` namespace and can be installed
 beside `reqpilotx-server`; the engine has no import dependency on the server,
 database, worker, API or concrete Agent host. Legacy `prototype/app` modules are
 development compatibility aliases and are not included in the engine wheel.
+
+The selected engine boundary includes the PAIR evidence attestation API used by the installed application server. Server startup and signed-analysis verification must resolve that API from the built engine, without a source checkout.

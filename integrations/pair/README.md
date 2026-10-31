@@ -168,7 +168,7 @@ Unverified: abrupt-crash/orphan recovery, fresh-machine dependency installation,
 
 ## Upgrade with shared artifacts
 
-Host 0.1.1 requires `@deepseek-ai/dsh-mcp-client` exactly `0.2.1-alpha.2` as a peer, with the same version declared for development checks. The profile supplies the matching framework core through ordinary DSH resolution; the adapter does not install a private framework copy. Keep the profile's `autoInstallPeers: false`. After replacing an older Host, use the normal plugin/package-manager update to remove its obsolete `0.1.5-rc.2` dependency resolution. Verify the default import from the installed Host under the packaged DSH profile; a source-checkout import or manually selected core path does not establish that integration.
+The 0.2.0 Host/Client/bundle targets DSH `0.2.1-rc.2`. Host requires `@deepseek-ai/dsh-mcp-client` exactly `0.2.1-rc.2` as a peer, with the same version declared for development checks. Client also declares the injected Workspace, Session, locale, layout and renderer packages as exact `0.2.1-rc.2` peers. An incompatible runtime must reject installation; no version-risk exemption is part of this release. The profile supplies the matching framework core through ordinary DSH resolution; the adapter does not install a private framework copy. Keep the profile's `autoInstallPeers: false`. After replacing an older Host, use the normal plugin/package-manager update to remove its obsolete `0.1.5-rc.2` dependency resolution. Verify the default import from the installed Host under the packaged DSH profile; a source-checkout import or manually selected core path does not establish that integration.
 
 On macOS, run the import check against an installed PAIR application and a new private output directory:
 

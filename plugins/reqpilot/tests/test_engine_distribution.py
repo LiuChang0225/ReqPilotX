@@ -122,6 +122,29 @@ class EngineDistributionTests(unittest.TestCase):
             self.assertEqual(len(manifest["runtime_files"]), len(select_core(ROOT).members))
             self.assertTrue((stage / "src/reqpilotx/application/agent_workflow/source_requirement_baseline.py").is_file())
             self.assertTrue((stage / "src/reqpilotx/tools/fast_source_capture.py").is_file())
+            dependency_roots = [entry for entry in sys.path if entry
+                                and {"site-packages", "dist-packages"}.intersection(Path(entry).parts)]
+            probe = """import sys,json
+from pathlib import Path
+sys.path.extend(json.loads(sys.argv[2]))
+root=Path(sys.argv[1]);sys.path.insert(0,str(root))
+from reqpilotx.application.agent_workflow import pair_evidence
+assert Path(pair_evidence.__file__).resolve().is_relative_to(root.resolve())
+for name,module in list(sys.modules.items()):
+    if name == 'reqpilotx' or name.startswith('reqpilotx.'):
+        filename = getattr(module, '__file__', None)
+        if filename:
+            assert Path(filename).resolve().is_relative_to(root.resolve()), name
+try:
+    pair_evidence.verify_pair_attestation({}, 'f'*64)
+except ValueError as exc:
+    assert 'HOST_ATTESTATION_INVALID' in str(exc)
+else:
+    raise AssertionError('An unsigned statement was accepted')
+"""
+            result = subprocess.run([sys.executable, "-I", "-c", probe, str(stage / "src"), json.dumps(dependency_roots)],
+                                    cwd=temporary, capture_output=True, text=True)
+            self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
             pyproject = (stage / "pyproject.toml").read_text(encoding="utf-8")
             self.assertIn(f'version = "{manifest["version"]}"', pyproject)
             for requirement in manifest["requirements"]:
