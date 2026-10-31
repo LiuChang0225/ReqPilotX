@@ -1,8 +1,9 @@
-"""RX06 explicit PostgreSQL-to-SQLite migration with export receipts."""
+"""Local explicit PostgreSQL-to-SQLite migration with export receipts."""
 
 from __future__ import annotations
 
 import argparse
+import io
 import json
 import os
 import re
@@ -19,8 +20,8 @@ from pathlib import Path
 from typing import Any, Iterable, Iterator
 
 from reqpilotx_server.resource_paths import postgres_migration_dir
-from reqpilotx_server.tools.rx06_common import (
-    Rx06Error,
+from reqpilotx_server.tools.local_migration_common import (
+    LocalMigrationError,
     canonical_json,
     is_within,
     json_safe,
@@ -31,27 +32,33 @@ from reqpilotx_server.tools.rx06_common import (
     require_absolute,
     require_sha256,
     safe_relative_file,
+    secure_open_object,
     safe_relative_key,
     secure_directory,
     secure_file,
     sha256_bytes,
     sha256_file,
+    sha256_text,
     value_digest,
     verify_runtime_references,
     write_json,
+    write_new_json,
+    LOCAL_KNOWLEDGE_MAPPING_FILE,
+    LOCAL_METADATA_DIR,
+    LOCAL_OWNERSHIP_FILE,
+    LOCAL_RECEIPT_FILE,
 )
 
 
-EXPORT_FORMAT = "reqpilotx-postgres-sqlite-export"
+EXPORT_FORMAT = "reqpilotx-local-migration-export"
 EXPORT_FORMAT_VERSION = 1
-RECEIPT_SCHEMA_VERSION = "reqpilotx-rx06-receipt/v1"
+RECEIPT_SCHEMA_VERSION = "reqpilotx-local-migration-receipt/v1"
 KNOWLEDGE_MAPPING_SCHEMA_VERSION = "reqpilotx-knowledge-mapping/v1"
+OWNERSHIP_SCHEMA_VERSION = "reqpilotx-source-project-ownership/v1"
 MANIFEST_NAME = "manifest.json"
 TABLES_DIR = "tables"
 OBJECTS_DIR = "objects"
 KNOWLEDGE_MAPPING_FILE = "knowledge-mapping.json"
-RECEIPT_DIR = "rx06"
-RECEIPT_FILE = "receipt.json"
 SUPPORTED_STATUSES = {"RESOLVED", "UNRESOLVED", "UNAVAILABLE"}
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
@@ -198,15 +205,15 @@ _SPECS = (
     _spec("requirement_enrichment_publication_bindings", ("binding_id",), "project_id = ANY(%s)"),
     _spec("requirement_enrichment_publication_row_bindings", ("binding_id", "publication_order"), "binding_id IN (SELECT binding_id FROM requirement_enrichment_publication_bindings WHERE project_id = ANY(%s))"),
     _spec("source_asset_references", ("document_id", "source_sha256", "storage_key"), "project_id = ANY(%s)", "export_only", "Local SQLite owns source objects through capture references; this PostgreSQL GC manifest is exported for recovery but not imported."),
-    _spec("agent_structure_proposals", ("id",), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent Structure proposal store in RX06 scope."),
-    _spec("agent_structure_proposal_events", ("id",), "proposal_id IN (SELECT id FROM agent_structure_proposals WHERE project_id = ANY(%s))", "export_only", "Local SQLite has no Agent Structure proposal store in RX06 scope."),
-    _spec("agent_structure_steer_commands", ("id",), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent Structure steer store in RX06 scope."),
-    _spec("agent_table_materializations", ("id",), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent table materialization store in RX06 scope."),
-    _spec("agent_table_materialization_commands", ("project_id", "sor_document_id", "source_sha256", "effective_structure_snapshot_id", "materializer_logical_table_id", "command_id"), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent table materialization store in RX06 scope."),
-    _spec("agent_structure_handoff_attempts", ("attempt_id",), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent Structure handoff store in RX06 scope."),
-    _spec("agent_structure_activity_events", ("event_id",), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent Activity store in RX06 scope."),
-    _spec("agent_structure_working_revisions", ("revision_id",), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent Structure working-revision store in RX06 scope."),
-    _spec("agent_structure_working_revision_heads", ("project_id", "sor_document_id", "source_sha256", "base_artifact_id", "base_projection_sha256"), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent Structure working-revision store in RX06 scope."),
+    _spec("agent_structure_proposals", ("id",), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent Structure proposal store in this local migration scope."),
+    _spec("agent_structure_proposal_events", ("id",), "proposal_id IN (SELECT id FROM agent_structure_proposals WHERE project_id = ANY(%s))", "export_only", "Local SQLite has no Agent Structure proposal store in this local migration scope."),
+    _spec("agent_structure_steer_commands", ("id",), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent Structure steer store in this local migration scope."),
+    _spec("agent_table_materializations", ("id",), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent table materialization store in this local migration scope."),
+    _spec("agent_table_materialization_commands", ("project_id", "sor_document_id", "source_sha256", "effective_structure_snapshot_id", "materializer_logical_table_id", "command_id"), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent table materialization store in this local migration scope."),
+    _spec("agent_structure_handoff_attempts", ("attempt_id",), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent Structure handoff store in this local migration scope."),
+    _spec("agent_structure_activity_events", ("event_id",), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent Activity store in this local migration scope."),
+    _spec("agent_structure_working_revisions", ("revision_id",), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent Structure working-revision store in this local migration scope."),
+    _spec("agent_structure_working_revision_heads", ("project_id", "sor_document_id", "source_sha256", "base_artifact_id", "base_projection_sha256"), "project_id = ANY(%s)", "export_only", "Local SQLite has no Agent Structure working-revision store in this local migration scope."),
     _spec("runtime_jobs", ("id",), None, "skipped", "Durable PostgreSQL runtime/worker state is never replayed or copied."),
     _spec("runtime_worker_fleet", ("worker_id",), None, "skipped", "Ephemeral worker identities are never copied."),
     _spec("source_asset_staging_references", ("job_id", "attempt_generation", "storage_key"), None, "skipped", "Transient runtime staging references are not business data."),
@@ -223,7 +230,7 @@ _SPECS = (
     _spec("saas_sessions", ("token_sha256",), None, "skipped", "Credential-bearing SaaS session rows are never exported."),
     _spec("saas_auth_attempts", ("bucket",), None, "skipped", "Credential-bearing SaaS authentication rows are never exported."),
     _spec("saas_invitations", ("token_sha256",), None, "skipped", "Credential-bearing SaaS invitation rows are never exported."),
-    _spec("saas_project_owners", ("project_id",), None, "skipped", "SaaS identity binding is not part of the local business root."),
+    _spec("saas_project_owners", ("project_id",), "project_id = ANY(%s)", "export_only", "Original PostgreSQL project ownership evidence is retained separately from excluded SaaS credentials; local SQLite has no owner table."),
 )
 _TABLE_SPECS = {spec.name: spec for spec in _SPECS}
 _IMPORT_ORDER = tuple(spec.name for spec in _SPECS if spec.disposition == "imported")
@@ -235,11 +242,11 @@ def _packaged_migrations() -> list[dict[str, str]]:
         stem = path.stem
         version, separator, name = stem.partition("_")
         if not separator or not version.isdigit() or not name:
-            raise Rx06Error(f"PostgreSQL migration filename is not recognized: {path.name}")
+            raise LocalMigrationError(f"PostgreSQL migration filename is not recognized: {path.name}")
         raw = path.read_text(encoding="utf-8").encode("utf-8")
         migrations.append({"version": version, "name": name, "sha256": sha256_bytes(raw)})
     if not migrations:
-        raise Rx06Error("No packaged PostgreSQL migrations are installed.")
+        raise LocalMigrationError("No packaged PostgreSQL migrations are installed.")
     return migrations
 
 
@@ -256,8 +263,8 @@ def _assert_specs_cover_schema(known: set[str]) -> None:
     missing = sorted(known - set(_TABLE_SPECS))
     extra = sorted(set(_TABLE_SPECS) - known)
     if missing or extra:
-        raise Rx06Error(
-            "RX06 table classification changed: missing="
+        raise LocalMigrationError(
+            "Local migration table classification changed: missing="
             + ",".join(missing)
             + " extra="
             + ",".join(extra)
@@ -274,7 +281,7 @@ def _verify_source_migrations(source: Any) -> list[dict[str, str]]:
     if observed != expected:
         unknown = sorted(observed - expected)
         missing = sorted(expected - observed)
-        raise Rx06Error(
+        raise LocalMigrationError(
             "Source PostgreSQL schema is not the exact packaged version: unknown="
             + ",".join(item[0] for item in unknown)
             + " missing="
@@ -289,7 +296,7 @@ def _assert_known_source_tables(source: Any) -> set[str]:
     observed = {str(name) for name in source.base_tables()}
     unknown = sorted(observed - known)
     if unknown:
-        raise Rx06Error("Source PostgreSQL has unknown tables: " + ", ".join(unknown))
+        raise LocalMigrationError("Source PostgreSQL has unknown tables: " + ", ".join(unknown))
     return known
 
 
@@ -316,6 +323,8 @@ def _collect_keys(value: Any, *, out: dict[str, set[str]], expected: dict[str, s
             or normalized.endswith("_storage_key")
             or normalized.endswith("_object_key")
         ):
+            if not item.strip():
+                continue
             storage_key = safe_relative_key(item)
             out.setdefault(storage_key, set())
             for hash_key in (
@@ -334,16 +343,24 @@ def _row_object_references(table: str, row: dict[str, Any]) -> tuple[dict[str, s
     expected: dict[str, set[str]] = {}
     for key, value in row.items():
         if isinstance(value, str) and (key in _OBJECT_KEYS or key.endswith("_storage_key") or key.endswith("_object_key")):
+            if not value.strip():
+                continue
             storage_key = safe_relative_key(value)
             keys.setdefault(storage_key, set())
             for hash_key in ("sha256", "source_sha256", key.replace("_key", "_sha256")):
                 candidate = row.get(hash_key)
                 if isinstance(candidate, str) and _SHA256_RE.fullmatch(candidate.lower()):
                     expected.setdefault(storage_key, set()).add(candidate.lower())
-        if (table, key) in _JSON_COLUMNS and isinstance(value, str) and value.strip():
-            try:
-                parsed = json.loads(value)
-            except json.JSONDecodeError:
+        if (table, key) in _JSON_COLUMNS:
+            parsed = value
+            if isinstance(value, str):
+                if not value.strip():
+                    continue
+                try:
+                    parsed = json.loads(value)
+                except json.JSONDecodeError:
+                    continue
+            elif not isinstance(value, (dict, list)):
                 continue
             _collect_keys(parsed, out=keys, expected=expected)
     return keys, expected
@@ -362,18 +379,10 @@ def _object_media_type(key: str) -> str:
     }.get(suffix, "application/octet-stream")
 
 
-def _validate_object_file(root: Path, key: str, expected: set[str], stored: dict[str, Any] | None) -> dict[str, Any]:
-    safe_key = safe_relative_key(key)
-    path = root / safe_key
-    if path.is_symlink() or not path.is_file():
-        raise Rx06Error(f"Referenced object is missing or unsafe: {safe_key}")
-    digest = sha256_file(path)
-    size = path.stat().st_size
-    if expected and digest not in expected:
-        raise Rx06Error(f"Referenced object hash mismatch: {safe_key}")
+def _object_entry(safe_key: str, digest: str, size: int, stored: dict[str, Any] | None) -> dict[str, Any]:
     if stored is not None:
         if str(stored.get("sha256")) != digest or int(stored.get("size_bytes")) != size:
-            raise Rx06Error(f"Stored object metadata mismatch: {safe_key}")
+            raise LocalMigrationError(f"Stored object metadata mismatch: {safe_key}")
     return {
         "storage_key": safe_key,
         "path": f"{OBJECTS_DIR}/{safe_key}",
@@ -414,34 +423,34 @@ def _load_knowledge_mapping(path: Path | None) -> dict[str, Any]:
         return {"provided": False, "unresolved": [], "mappings": [], "report": {"status": "MISSING", "blockers": ["KNOWLEDGE_MAPPING_MISSING"], "unresolved": [], "unmatched": []}}
     source = require_absolute(path, field="knowledge map")
     if not source.is_file() or source.is_symlink():
-        raise Rx06Error("Knowledge mapping input is missing or unsafe.")
+        raise LocalMigrationError("Knowledge mapping input is missing or unsafe.")
     payload = read_json(source)
     if not isinstance(payload, dict) or payload.get("schema_version") != KNOWLEDGE_MAPPING_SCHEMA_VERSION:
-        raise Rx06Error("Knowledge mapping schema is unsupported.")
+        raise LocalMigrationError("Knowledge mapping schema is unsupported.")
     mappings = payload.get("mappings")
     if not isinstance(mappings, list):
-        raise Rx06Error("Knowledge mapping must contain a mappings list.")
+        raise LocalMigrationError("Knowledge mapping must contain a mappings list.")
     seen: set[tuple[str, str]] = set()
     unresolved: list[dict[str, Any]] = []
     normalized: list[dict[str, Any]] = []
     for item in mappings:
         if not isinstance(item, dict):
-            raise Rx06Error("Knowledge mapping contains an invalid entry.")
+            raise LocalMigrationError("Knowledge mapping contains an invalid entry.")
         source_kind = str(item.get("source_kind") or "").strip()
         source_id = str(item.get("source_id") or "").strip()
         status = str(item.get("status") or "").strip().upper()
         if not source_kind or not source_id or status not in SUPPORTED_STATUSES:
-            raise Rx06Error("Knowledge mapping entry identity or status is invalid.")
+            raise LocalMigrationError("Knowledge mapping entry identity or status is invalid.")
         identity = (source_kind, source_id)
         if identity in seen:
-            raise Rx06Error("Knowledge mapping contains duplicate source identities.")
+            raise LocalMigrationError("Knowledge mapping contains duplicate source identities.")
         seen.add(identity)
         target_kind = str(item.get("target_kind") or "").strip()
         target_id = str(item.get("target_id") or "").strip()
         if status == "RESOLVED" and (not target_kind or not target_id):
-            raise Rx06Error("Resolved knowledge mappings require a target identity.")
+            raise LocalMigrationError("Resolved knowledge mappings require a target identity.")
         if status != "RESOLVED" and target_id:
-            raise Rx06Error("Unresolved knowledge mappings must not claim a target identity.")
+            raise LocalMigrationError("Unresolved knowledge mappings must not claim a target identity.")
         entry = {
             "source_kind": source_kind,
             "source_id": source_id,
@@ -505,65 +514,78 @@ def _knowledge_report(mapping: dict[str, Any], exported_documents: list[dict[str
 def _load_export_tables(export_dir: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     manifest = read_json(export_dir / MANIFEST_NAME)
     if not isinstance(manifest, dict) or manifest.get("format") != EXPORT_FORMAT or manifest.get("format_version") != EXPORT_FORMAT_VERSION:
-        raise Rx06Error("Export manifest format is unsupported.")
+        raise LocalMigrationError("Export manifest format is unsupported.")
     if manifest.get("source", {}).get("schema_migrations") != _packaged_migrations():
-        raise Rx06Error("Export was created for a different packaged PostgreSQL schema version.")
+        raise LocalMigrationError("Export was created for a different packaged PostgreSQL schema version.")
     if not isinstance(manifest.get("tables"), list):
-        raise Rx06Error("Export manifest tables are invalid.")
+        raise LocalMigrationError("Export manifest tables are invalid.")
     table_entries: dict[str, dict[str, Any]] = {}
     for entry in manifest["tables"]:
         if not isinstance(entry, dict):
-            raise Rx06Error("Export manifest contains an invalid table entry.")
+            raise LocalMigrationError("Export manifest contains an invalid table entry.")
         name = str(entry.get("name") or "")
         if name in table_entries:
-            raise Rx06Error(f"Export contains duplicate table entries: {name}")
+            raise LocalMigrationError(f"Export contains duplicate table entries: {name}")
         if name not in _TABLE_SPECS:
-            raise Rx06Error(f"Export contains an unsupported table: {name}")
+            raise LocalMigrationError(f"Export contains an unsupported table: {name}")
         spec = _TABLE_SPECS[name]
         if entry.get("primary_key") != list(spec.primary_key):
-            raise Rx06Error(f"Export primary key is unsupported for {name}.")
+            raise LocalMigrationError(f"Export primary key is unsupported for {name}.")
         if entry.get("disposition") != spec.disposition:
-            raise Rx06Error(f"Export table disposition is invalid for {name}.")
+            raise LocalMigrationError(f"Export table disposition is invalid for {name}.")
         columns = entry.get("columns")
         if not isinstance(columns, list) or len({str(column) for column in columns}) != len(columns):
-            raise Rx06Error(f"Export table columns are invalid for {name}.")
+            raise LocalMigrationError(f"Export table columns are invalid for {name}.")
         if any(_SAFE_IDENTIFIER_RE.fullmatch(str(column)) is None for column in columns):
-            raise Rx06Error(f"Export table column identifiers are unsafe for {name}.")
+            raise LocalMigrationError(f"Export table column identifiers are unsafe for {name}.")
         hits = _secret_columns(name, columns)
         if hits:
-            raise Rx06Error("Export contains credential-like columns: " + ", ".join(hits))
+            raise LocalMigrationError("Export contains credential-like columns: " + ", ".join(hits))
         data_path = safe_relative_file(entry.get("data_path"))
-        path = export_dir / data_path
-        if not path.is_file() or path.is_symlink():
-            raise Rx06Error(f"Export table file is missing: {name}")
-        actual_size = path.stat().st_size
-        actual_sha = sha256_file(path)
-        if actual_size != int(entry.get("data_size", -1)) or actual_sha != entry.get("data_sha256"):
-            raise Rx06Error(f"Export table file was changed: {name}")
+        try:
+            with secure_open_object(export_dir, data_path) as (stream, file_stat):
+                digest = sha256()
+                actual_size = 0
+                while True:
+                    chunk = stream.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+                    actual_size += len(chunk)
+                if actual_size != int(file_stat.st_size):
+                    raise LocalMigrationError(f"Export table changed while it was read: {name}")
+        except LocalMigrationError:
+            raise
+        if actual_size != int(entry.get("data_size", -1)) or digest.hexdigest() != entry.get("data_sha256"):
+            raise LocalMigrationError(f"Export table file was changed: {name}")
         rows: list[dict[str, Any]] = []
-        with path.open("r", encoding="utf-8") as stream:
+        with (export_dir / data_path).open("r", encoding="utf-8") as stream:
             for line_number, line in enumerate(stream, 1):
                 if not line.strip():
-                    raise Rx06Error(f"Export table {name} has a blank row at line {line_number}.")
+                    raise LocalMigrationError(f"Export table {name} has a blank row at line {line_number}.")
                 try:
                     row = json.loads(line)
                 except json.JSONDecodeError as exc:
-                    raise Rx06Error(f"Export table {name} is not valid JSONL.") from exc
+                    raise LocalMigrationError(f"Export table {name} is not valid JSONL.") from exc
                 if not isinstance(row, dict):
-                    raise Rx06Error(f"Export table {name} row is not an object.")
+                    raise LocalMigrationError(f"Export table {name} row is not an object.")
                 rows.append(row)
         if len(rows) != int(entry.get("row_count", -1)):
-            raise Rx06Error(f"Export table row count changed: {name}")
+            raise LocalMigrationError(f"Export table row count changed: {name}")
         if records_digest(rows) != entry.get("records_sha256"):
-            raise Rx06Error(f"Export table row digest changed: {name}")
+            raise LocalMigrationError(f"Export table row digest changed: {name}")
         if primary_key_digest(rows, spec.primary_key) != entry.get("primary_key_sha256"):
-            raise Rx06Error(f"Export table primary key digest changed: {name}")
+            raise LocalMigrationError(f"Export table primary key digest changed: {name}")
         if any(str(key) not in {str(column) for column in columns} for row in rows for key in row):
-            raise Rx06Error(f"Export table {name} contains undeclared columns.")
+            raise LocalMigrationError(f"Export table {name} contains undeclared columns.")
         table_entries[name] = entry
-    missing_imported = [name for name in _IMPORT_ORDER if name not in table_entries]
-    if missing_imported:
-        raise Rx06Error("Export is missing imported tables: " + ", ".join(missing_imported))
+    missing_required = [
+        spec.name
+        for spec in _SPECS
+        if spec.disposition != "skipped" and spec.name not in table_entries
+    ]
+    if missing_required:
+        raise LocalMigrationError("Export is missing required tables: " + ", ".join(missing_required))
     selection = manifest.get("source", {}).get("selection") or {}
     project_ids = [str(item).strip() for item in (selection.get("project_ids") or [])]
     if (
@@ -572,45 +594,66 @@ def _load_export_tables(export_dir: Path) -> tuple[dict[str, Any], dict[str, dic
         or any(not item for item in project_ids)
         or sorted(set(project_ids)) != project_ids
     ):
-        raise Rx06Error("Export selection is invalid.")
+        raise LocalMigrationError("Export selection is invalid.")
     return manifest, table_entries
 
 
 def _iter_export_rows(export_dir: Path, entry: dict[str, Any]) -> Iterator[dict[str, Any]]:
-    path = export_dir / safe_relative_file(entry.get("data_path"))
-    with path.open("r", encoding="utf-8") as stream:
-        for line in stream:
-            yield json.loads(line)
+    data_path = safe_relative_file(entry.get("data_path"))
+    with secure_open_object(export_dir, data_path) as (stream, _file_stat):
+        with io.TextIOWrapper(stream, encoding="utf-8") as text_stream:
+            for line in text_stream:
+                yield json.loads(line)
 
 
 def validate_export(export_dir: Path) -> tuple[dict[str, Any], dict[str, dict[str, Any]]]:
     directory = require_absolute(export_dir, field="export directory")
     if not directory.is_dir() or directory.is_symlink():
-        raise Rx06Error("Export directory is missing or unsafe.")
+        raise LocalMigrationError("Export directory is missing or unsafe.")
     manifest, table_entries = _load_export_tables(directory)
     objects = manifest.get("objects")
     if not isinstance(objects, list):
-        raise Rx06Error("Export object list is invalid.")
+        raise LocalMigrationError("Export object list is invalid.")
     seen: set[str] = set()
     for entry in objects:
         if not isinstance(entry, dict):
-            raise Rx06Error("Export contains an invalid object entry.")
+            raise LocalMigrationError("Export contains an invalid object entry.")
         key = safe_relative_key(entry.get("storage_key"))
         if key in seen:
-            raise Rx06Error("Export contains duplicate object keys.")
+            raise LocalMigrationError("Export contains duplicate object keys.")
         seen.add(key)
-        path = directory / safe_relative_file(entry.get("path"))
-        if not path.is_file() or path.is_symlink():
-            raise Rx06Error(f"Export object file is missing: {key}")
-        if path.stat().st_size != int(entry.get("size_bytes", -1)) or sha256_file(path) != entry.get("sha256"):
-            raise Rx06Error(f"Export object hash mismatch: {key}")
-        if require_sha256(entry.get("sha256"), field=f"object {key}") != sha256_file(path):
-            raise Rx06Error(f"Export object identity mismatch: {key}")
+        relative_path = safe_relative_file(entry.get("path"))
+        try:
+            with secure_open_object(directory, relative_path) as (stream, file_stat):
+                digest = sha256()
+                size = 0
+                while True:
+                    chunk = stream.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    digest.update(chunk)
+                    size += len(chunk)
+                if size != int(file_stat.st_size):
+                    raise LocalMigrationError(f"Export object changed while it was read: {key}")
+        except LocalMigrationError:
+            raise
+        actual_sha = digest.hexdigest()
+        if size != int(entry.get("size_bytes", -1)) or actual_sha != entry.get("sha256"):
+            raise LocalMigrationError(f"Export object hash mismatch: {key}")
+        if require_sha256(entry.get("sha256"), field=f"object {key}") != actual_sha:
+            raise LocalMigrationError(f"Export object identity mismatch: {key}")
     mapping_entry = manifest.get("knowledge_mapping") or {}
     if mapping_entry.get("provided"):
-        mapping_path = directory / safe_relative_file(mapping_entry.get("path"))
-        if not mapping_path.is_file() or mapping_path.is_symlink() or sha256_file(mapping_path) != mapping_entry.get("sha256"):
-            raise Rx06Error("Export knowledge mapping was changed.")
+        mapping_relative = safe_relative_file(mapping_entry.get("path"))
+        with secure_open_object(directory, mapping_relative) as (stream, _file_stat):
+            digest = sha256()
+            while True:
+                chunk = stream.read(1024 * 1024)
+                if not chunk:
+                    break
+                digest.update(chunk)
+        if digest.hexdigest() != mapping_entry.get("sha256"):
+            raise LocalMigrationError("Export knowledge mapping was changed.")
     return manifest, table_entries
 
 
@@ -621,12 +664,12 @@ class _PsycopgSource:
             from psycopg.rows import dict_row
             from psycopg import IsolationLevel
         except ImportError as exc:
-            raise Rx06Error("PostgreSQL export requires the optional psycopg package.") from exc
+            raise LocalMigrationError("PostgreSQL export requires the optional psycopg package.") from exc
         self._psycopg = psycopg
         try:
             self._connection = psycopg.connect(database_url, row_factory=dict_row, autocommit=False)
         except Exception as exc:
-            raise Rx06Error("PostgreSQL source connection failed; no URL or credential was logged.") from exc
+            raise LocalMigrationError("PostgreSQL source connection failed; no URL or credential was logged.") from exc
         self._connection.isolation_level = IsolationLevel.REPEATABLE_READ
         self._connection.read_only = True
         identity = self._connection.execute(
@@ -642,7 +685,7 @@ class _PsycopgSource:
             str((transaction or {}).get("read_only") or "").lower() not in {"on", "true"}
             or str((transaction or {}).get("isolation") or "").lower() != "repeatable read"
         ):
-            raise Rx06Error("PostgreSQL export transaction is not repeatable-read read-only.")
+            raise LocalMigrationError("PostgreSQL export transaction is not repeatable-read read-only.")
 
     def close(self) -> None:
         self._connection.rollback()
@@ -654,7 +697,7 @@ class _PsycopgSource:
                 "SELECT version, name, sha256 FROM schema_migrations ORDER BY version"
             ).fetchall()
         except Exception as exc:
-            raise Rx06Error("Source PostgreSQL has no readable schema_migrations ledger.") from exc
+            raise LocalMigrationError("Source PostgreSQL has no readable schema_migrations ledger.") from exc
         return [dict(row) for row in rows]
 
     def base_tables(self) -> set[str]:
@@ -667,7 +710,7 @@ class _PsycopgSource:
                 """
             ).fetchall()
         except Exception as exc:
-            raise Rx06Error("Source PostgreSQL table inventory failed.") from exc
+            raise LocalMigrationError("Source PostgreSQL table inventory failed.") from exc
         return {str(row["table_name"]) for row in rows}
 
     def fetch_rows(
@@ -678,28 +721,28 @@ class _PsycopgSource:
         order_by: tuple[str, ...],
     ) -> list[dict[str, Any]]:
         if _SAFE_IDENTIFIER_RE.fullmatch(table) is None:
-            raise Rx06Error("Unsafe source table name.")
+            raise LocalMigrationError("Unsafe source table name.")
         order = ", ".join(f'"{column}"' for column in order_by)
         where = f" WHERE {filter_sql}" if filter_sql else ""
         sql = f'SELECT * FROM "{table}"{where} ORDER BY {order}'
         try:
             rows = self._connection.execute(sql, params).fetchall()
         except Exception as exc:
-            raise Rx06Error(f"Source query failed for table {table}.") from exc
+            raise LocalMigrationError(f"Source query failed for table {table}.") from exc
         return [dict(row) for row in rows]
 
     def fetch_by_keys(self, table: str, key_column: str, keys: list[str]) -> list[dict[str, Any]]:
         if not keys:
             return []
         if _SAFE_IDENTIFIER_RE.fullmatch(table) is None or _SAFE_IDENTIFIER_RE.fullmatch(key_column) is None:
-            raise Rx06Error("Unsafe source table or key column name.")
+            raise LocalMigrationError("Unsafe source table or key column name.")
         try:
             rows = self._connection.execute(
                 f'SELECT * FROM "{table}" WHERE "{key_column}" = ANY(%s) ORDER BY "{key_column}"',
                 (keys,),
             ).fetchall()
         except Exception as exc:
-            raise Rx06Error(f"Source query failed for table {table}.") from exc
+            raise LocalMigrationError(f"Source query failed for table {table}.") from exc
         return [dict(row) for row in rows]
 
 
@@ -713,24 +756,24 @@ def _export_selected(
 ) -> dict[str, Any]:
     projects = sorted({str(item).strip() for item in project_ids if str(item).strip()})
     if not projects:
-        raise Rx06Error("At least one explicit source project id is required.")
+        raise LocalMigrationError("At least one explicit source project id is required.")
     packaged = _verify_source_migrations(source)
     _assert_known_source_tables(source)
     selected_rows = source.fetch_rows("projects", "id = ANY(%s)", (projects,), ("id",))
     selected_ids = sorted(str(row.get("id")) for row in selected_rows)
     if selected_ids != projects:
         missing = sorted(set(projects) - set(selected_ids))
-        raise Rx06Error("Selected source projects are missing: " + ", ".join(missing))
+        raise LocalMigrationError("Selected source projects are missing: " + ", ".join(missing))
     source_root = require_absolute(object_root, field="object root")
     if not source_root.is_dir() or source_root.is_symlink():
-        raise Rx06Error("Source object root is missing or unsafe.")
+        raise LocalMigrationError("Source object root is missing or unsafe.")
     output = require_absolute(output_dir, field="export output")
     if output.exists():
-        raise Rx06Error("Export output already exists; existing exports are never overwritten.")
+        raise LocalMigrationError("Export output already exists; existing exports are never overwritten.")
     if (output.parent / "app.db").is_file() and (output.parent / "objects").is_dir():
-        raise Rx06Error("Export output must not be created inside an application root.")
+        raise LocalMigrationError("Export output must not be created inside an application root.")
     if is_within(output, source_root) or is_within(source_root, output):
-        raise Rx06Error("Export output and source object root must not contain one another.")
+        raise LocalMigrationError("Export output and source object root must not contain one another.")
     output.parent.mkdir(parents=True, exist_ok=True)
     staging = output.parent / f".{output.name}.{uuid.uuid4().hex}.tmp"
     mapping = _load_knowledge_mapping(knowledge_map_path)
@@ -756,7 +799,7 @@ def _export_selected(
                     object_expected.setdefault(key, set()).update(hashes)
                 hits = _secret_columns(spec.name, row.keys())
                 if hits:
-                    raise Rx06Error("Source contains credential-like columns: " + ", ".join(hits))
+                    raise LocalMigrationError("Source contains credential-like columns: " + ", ".join(hits))
         all_keys = sorted(object_keys)
         stored_rows = source.fetch_by_keys("stored_objects", "storage_key", all_keys)
         stored_by_key = {str(row["storage_key"]): row for row in stored_rows}
@@ -765,25 +808,40 @@ def _export_selected(
         table_payloads["source_asset_managed_objects"] = managed_rows
         object_entries: list[dict[str, Any]] = []
         for key in all_keys:
+            safe_key = safe_relative_key(key)
             expected = set(object_expected.get(key, set()))
             stored = stored_by_key.get(key)
             if stored is not None:
                 expected.add(str(stored.get("sha256")))
-            entry = _validate_object_file(source_root, key, expected, stored)
-            source_path = source_root / key
-            target_path = staging / entry["path"]
+            target_path = staging / OBJECTS_DIR / safe_key
             target_path.parent.mkdir(parents=True, exist_ok=True)
-            with source_path.open("rb") as reader, target_path.open("wb") as writer:
-                while True:
-                    chunk = reader.read(1024 * 1024)
-                    if not chunk:
-                        break
-                    writer.write(chunk)
-                writer.flush()
-                os.fsync(writer.fileno())
+            with secure_open_object(source_root, safe_key) as (reader, before):
+                digest = sha256()
+                size = 0
+                with target_path.open("wb") as writer:
+                    while True:
+                        chunk = reader.read(1024 * 1024)
+                        if not chunk:
+                            break
+                        digest.update(chunk)
+                        size += len(chunk)
+                        writer.write(chunk)
+                    writer.flush()
+                    os.fsync(writer.fileno())
+                after = os.fstat(reader.fileno())
+            if (
+                size != int(before.st_size)
+                or (after.st_dev, after.st_ino, after.st_size, after.st_mtime_ns)
+                != (before.st_dev, before.st_ino, before.st_size, before.st_mtime_ns)
+            ):
+                raise LocalMigrationError(f"Object changed while it was exported: {safe_key}")
+            actual = digest.hexdigest()
+            if expected and actual not in expected:
+                raise LocalMigrationError(f"Referenced object hash mismatch: {safe_key}")
+            entry = _object_entry(safe_key, actual, size, stored)
             secure_file(target_path)
-            if sha256_file(target_path) != entry["sha256"]:
-                raise Rx06Error(f"Object changed while it was exported: {key}")
+            if sha256_file(target_path) != actual:
+                raise LocalMigrationError(f"Object bytes changed while they were exported: {safe_key}")
             object_entries.append(entry)
         table_entries: list[dict[str, Any]] = []
         for spec in _SPECS:
@@ -795,7 +853,7 @@ def _export_selected(
             columns = written["columns"]
             hits = _secret_columns(spec.name, columns)
             if hits:
-                raise Rx06Error("Source contains credential-like columns: " + ", ".join(hits))
+                raise LocalMigrationError("Source contains credential-like columns: " + ", ".join(hits))
             table_entries.append(
                 {
                     "name": spec.name,
@@ -822,7 +880,7 @@ def _export_selected(
             "format": EXPORT_FORMAT,
             "format_version": EXPORT_FORMAT_VERSION,
             "created_at": datetime.now(timezone.utc).isoformat(),
-            "export_id": f"rx06-export-{uuid.uuid4().hex}",
+            "export_id": f"local-export-{uuid.uuid4().hex}",
             "source": {
                 "database_name": str(getattr(source, "database_name", "") or ""),
                 "server_version": str(getattr(source, "server_version", "") or ""),
@@ -854,16 +912,16 @@ def _export_selected(
 def _inventory(source: Any, *, project_ids: list[str], object_root: Path) -> dict[str, Any]:
     projects = sorted({str(item).strip() for item in project_ids if str(item).strip()})
     if not projects:
-        raise Rx06Error("At least one explicit source project id is required.")
+        raise LocalMigrationError("At least one explicit source project id is required.")
     packaged = _verify_source_migrations(source)
     _assert_known_source_tables(source)
     source_root = require_absolute(object_root, field="object root")
     if not source_root.is_dir() or source_root.is_symlink():
-        raise Rx06Error("Source object root is missing or unsafe.")
+        raise LocalMigrationError("Source object root is missing or unsafe.")
     selected = source.fetch_rows("projects", "id = ANY(%s)", (projects,), ("id",))
     selected_ids = sorted(str(row.get("id")) for row in selected)
     if selected_ids != projects:
-        raise Rx06Error("Selected source projects are missing.")
+        raise LocalMigrationError("Selected source projects are missing.")
     counts: dict[str, int] = {}
     object_keys: set[str] = set()
     active_jobs = 0
@@ -886,18 +944,22 @@ def _inventory(source: Any, *, project_ids: list[str], object_root: Path) -> dic
             object_keys.update(keys)
     object_bytes = 0
     missing_objects: list[str] = []
+    unsafe_objects: list[str] = []
     for key in sorted(object_keys):
-        path = source_root / safe_relative_key(key)
-        if path.is_file() and not path.is_symlink():
-            object_bytes += path.stat().st_size
-        else:
+        try:
+            with secure_open_object(source_root, key) as (_stream, file_stat):
+                object_bytes += int(file_stat.st_size)
+        except LocalMigrationError:
             missing_objects.append(key)
+            candidate = source_root / safe_relative_key(key)
+            if not is_within(candidate.resolve(strict=False), source_root):
+                unsafe_objects.append(key)
     return {
-        "format": "reqpilotx-rx06-inventory/v1",
+        "format": "reqpilotx-local-migration-inventory/v1",
         "selection": {"mode": "explicit-projects", "project_ids": projects},
         "schema": {"migrations": packaged, "fingerprint_sha256": value_digest(canonical_json(item) for item in packaged)},
         "tables": counts,
-        "objects": {"count": len(object_keys), "bytes": object_bytes, "missing": missing_objects, "storage_keys": sorted(object_keys)},
+        "objects": {"count": len(object_keys), "bytes": object_bytes, "missing": missing_objects, "unsafe": unsafe_objects, "storage_keys": sorted(object_keys)},
         "active_analysis_jobs": active_jobs,
         "knowledge_documents": knowledge_documents,
         "writes_source": False,
@@ -926,10 +988,10 @@ def _bootstrap_target(root: Path) -> None:
             ),
         }
     )
-    command = [sys.executable, "-m", "reqpilotx_server.tools.rx06_migration", "_bootstrap-target", "--root", str(root)]
+    command = [sys.executable, "-m", "reqpilotx_server.tools.local_migration", "_bootstrap-target", "--root", str(root)]
     result = subprocess.run(command, env=environment, capture_output=True, text=True, timeout=120, check=False)
     if result.returncode != 0:
-        raise Rx06Error("Target schema bootstrap failed: " + (result.stderr.strip() or result.stdout.strip()))
+        raise LocalMigrationError("Target schema bootstrap failed: " + (result.stderr.strip() or result.stdout.strip()))
 
 
 def _bootstrap_target_in_process(root: Path) -> None:
@@ -1025,7 +1087,7 @@ def _target_schema_fingerprint(database_path: Path) -> str:
 def _target_columns(conn: sqlite3.Connection, table: str) -> dict[str, str]:
     rows = conn.execute(f'PRAGMA table_info("{table}")').fetchall()
     if not rows:
-        raise Rx06Error(f"Target table is missing: {table}")
+        raise LocalMigrationError(f"Target table is missing: {table}")
     return {str(row[1]): str(row[2] or "").upper() for row in rows}
 
 
@@ -1044,7 +1106,7 @@ def _normalize_value(value: Any, target_type: str, *, target_column: str) -> Any
         return int(value) if target_type.startswith("INT") else value
     if isinstance(value, (dict, list)):
         if "TEXT" not in target_type and target_type:
-            raise Rx06Error(f"Target column {target_column} cannot store structured JSON.")
+            raise LocalMigrationError(f"Target column {target_column} cannot store structured JSON.")
         return canonical_json(value)
     if hasattr(value, "as_integer_ratio"):
         return int(value) if target_type.startswith("INT") else float(value)
@@ -1056,22 +1118,92 @@ def _quarantine_active_rows(table: str, row: dict[str, Any]) -> dict[str, Any]:
     now = datetime.now(timezone.utc).isoformat()
     if table == "ai_analysis_jobs" and str(result.get("status") or "").upper() in {"PENDING", "RUNNING", "CANCEL_REQUESTED"}:
         result["status"] = "FAILED"
-        result["error_message"] = "Interrupted by RX06 PostgreSQL-to-SQLite migration; explicitly rerun this job."
+        result["error_message"] = "Interrupted by local migration from PostgreSQL to SQLite; explicitly rerun this job."
         result["finished_at"] = str(result.get("finished_at") or now)
         result["updated_at"] = result["finished_at"]
     elif table == "ai_analysis_job_targets" and str(result.get("status") or "").upper() in {"WAITING", "RUNNING", "PUBLISHING"}:
         result["status"] = "FAILED"
         result["retryable"] = 1
-        result["error_code"] = "rx06_migration_interrupted"
-        result["error_message"] = "Interrupted by RX06 migration; retry this node explicitly."
+        result["error_code"] = "local_migration_interrupted"
+        result["error_message"] = "Interrupted by local migration; retry this node explicitly."
         result["updated_at"] = now
     elif table == "ai_analysis_node_attempts" and str(result.get("status") or "").upper() == "RUNNING":
         result["status"] = "FAILED"
-        result["error_code"] = "rx06_migration_interrupted"
-        result["error_message"] = "Interrupted by RX06 migration before publication."
+        result["error_code"] = "local_migration_interrupted"
+        result["error_message"] = "Interrupted by local migration before publication."
         result["finished_at"] = str(result.get("finished_at") or now)
         result["updated_at"] = result["finished_at"]
     return result
+
+
+def _retain_knowledge_mapping(export_dir: Path, staging: Path, manifest: dict[str, Any]) -> dict[str, Any]:
+    entry = manifest.get("knowledge_mapping") or {}
+    if not entry.get("provided"):
+        return {"provided": False}
+    relative_path = safe_relative_file(entry.get("path"))
+    try:
+        with secure_open_object(export_dir, relative_path) as (stream, file_stat):
+            mapping_bytes = stream.read()
+            if len(mapping_bytes) != int(file_stat.st_size):
+                raise LocalMigrationError("Exported knowledge mapping changed while it was read.")
+    except LocalMigrationError:
+        raise
+    if sha256_bytes(mapping_bytes) != entry.get("sha256"):
+        raise LocalMigrationError("Exported knowledge mapping file hash changed.")
+    target_dir = staging / LOCAL_METADATA_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / LOCAL_KNOWLEDGE_MAPPING_FILE
+    target.write_bytes(mapping_bytes)
+    secure_file(target)
+    if sha256_file(target) != entry.get("sha256"):
+        raise LocalMigrationError("Retained knowledge mapping file hash changed.")
+    mapping = _load_knowledge_mapping(target)
+    if not mapping.get("provided"):
+        raise LocalMigrationError("Exported knowledge mapping is unreadable.")
+    return {
+        "provided": True,
+        "schema_version": KNOWLEDGE_MAPPING_SCHEMA_VERSION,
+        "path": LOCAL_KNOWLEDGE_MAPPING_FILE,
+        "sha256": sha256_file(target),
+        "mappings": mapping["mappings"],
+        "unresolved": mapping["unresolved"],
+    }
+
+
+def _retain_ownership_evidence(export_dir: Path, staging: Path, table_entries: dict[str, dict[str, Any]]) -> dict[str, Any]:
+    entry = table_entries.get("saas_project_owners")
+    rows = list(_iter_export_rows(export_dir, entry)) if entry is not None else []
+    normalized = sorted(
+        [
+            {
+                "project_id": str(row.get("project_id") or ""),
+                "account_id": str(row.get("account_id") or ""),
+            }
+            for row in rows
+        ],
+        key=lambda row: (row["project_id"], row["account_id"]),
+    )
+    if not normalized:
+        return {"provided": False, "row_count": 0}
+    body = {
+        "schema_version": OWNERSHIP_SCHEMA_VERSION,
+        "source_table": "saas_project_owners",
+        "rows": normalized,
+    }
+    content_sha256 = sha256_text(canonical_json(body))
+    payload = {**body, "content_sha256": content_sha256}
+    target_dir = staging / LOCAL_METADATA_DIR
+    target_dir.mkdir(parents=True, exist_ok=True)
+    target = target_dir / LOCAL_OWNERSHIP_FILE
+    write_json(target, payload)
+    return {
+        "provided": True,
+        "path": LOCAL_OWNERSHIP_FILE,
+        "sha256": sha256_file(target),
+        "content_sha256": content_sha256,
+        "row_count": len(normalized),
+        "rows": normalized,
+    }
 
 
 def _validate_manual_rows_real(rows: list[dict[str, Any]], document_sources: dict[tuple[str, str], str]) -> None:
@@ -1085,19 +1217,19 @@ def _validate_manual_rows_real(rows: list[dict[str, Any]], document_sources: dic
         previous_sha = ""
         for index, item in enumerate(items, 1):
             if int(item["revision"]) != index:
-                raise Rx06Error(f"Manual decision revisions are not contiguous for {project_id}/{document_id}.")
+                raise LocalMigrationError(f"Manual decision revisions are not contiguous for {project_id}/{document_id}.")
             try:
                 artifact = json.loads(str(item["artifact_json"]))
             except json.JSONDecodeError as exc:
-                raise Rx06Error("Manual decision artifact is not valid JSON.") from exc
+                raise LocalMigrationError("Manual decision artifact is not valid JSON.") from exc
             validate_manual_decisions(artifact)
             if artifact.get("artifact_sha256") != item.get("artifact_sha256"):
-                raise Rx06Error("Manual decision artifact hash does not match its row.")
+                raise LocalMigrationError("Manual decision artifact hash does not match its row.")
             if str(artifact.get("predecessor_sha256") or "") != previous_sha:
-                raise Rx06Error("Manual decision predecessor chain is broken.")
+                raise LocalMigrationError("Manual decision predecessor chain is broken.")
             require_sha256(artifact.get("source_sha256"), field="manual decision source_sha256")
             if str(item.get("command_id") or "") == "":
-                raise Rx06Error("Manual decision command id is blank.")
+                raise LocalMigrationError("Manual decision command id is blank.")
             previous_sha = str(item["artifact_sha256"])
 
 
@@ -1111,52 +1243,53 @@ def _validate_delivery_rows(rows: list[dict[str, Any]], objects: dict[str, dict[
         items.sort(key=lambda item: int(item["revision"]))
         for index, item in enumerate(items, 1):
             if int(item["revision"]) != index:
-                raise Rx06Error(f"Delivery revisions are not contiguous for {project_id}/{document_id}.")
+                raise LocalMigrationError(f"Delivery revisions are not contiguous for {project_id}/{document_id}.")
             try:
                 artifact = json.loads(str(item["artifact_json"]))
             except json.JSONDecodeError as exc:
-                raise Rx06Error("Delivery artifact is not valid JSON.") from exc
+                raise LocalMigrationError("Delivery artifact is not valid JSON.") from exc
             artifact_body = {key: value for key, value in artifact.items() if key != "artifact_sha256"}
             if canonical_json_sha256(artifact_body) != item.get("artifact_sha256"):
-                raise Rx06Error("Delivery artifact hash does not match its row.")
+                raise LocalMigrationError("Delivery artifact hash does not match its row.")
             if artifact.get("artifact_sha256") not in {None, item.get("artifact_sha256")}:
-                raise Rx06Error("Delivery embedded artifact hash does not match its row.")
+                raise LocalMigrationError("Delivery embedded artifact hash does not match its row.")
             snapshot = artifact.get("snapshot") or {}
             if canonical_json_sha256({key: value for key, value in snapshot.items() if key != "delivery_sha256"}) != snapshot.get("delivery_sha256"):
-                raise Rx06Error("Delivery snapshot hash does not match its artifact.")
+                raise LocalMigrationError("Delivery snapshot hash does not match its artifact.")
             source = snapshot.get("source_item_baseline") or {}
             require_sha256(source.get("source_sha256"), field="delivery source_sha256")
             key = safe_relative_key(artifact.get("export_key"))
             entry = objects.get(key)
             if entry is None:
-                raise Rx06Error("Delivery workbook object is missing from the export.")
+                raise LocalMigrationError("Delivery workbook object is missing from the export.")
             if require_sha256(artifact.get("export_sha256"), field="delivery export_sha256") != entry.get("sha256"):
-                raise Rx06Error("Delivery workbook hash does not match the exported object.")
+                raise LocalMigrationError("Delivery workbook hash does not match the exported object.")
             workbook_path = entry.get("_absolute_path")
             if not isinstance(workbook_path, Path) or not workbook_path.is_file():
-                raise Rx06Error("Delivery workbook bytes are missing.")
+                raise LocalMigrationError("Delivery workbook bytes are missing.")
             with zipfile.ZipFile(workbook_path) as archive:
                 if "xl/workbook.xml" not in archive.namelist():
-                    raise Rx06Error("Delivery workbook is not an XLSX workbook.")
+                    raise LocalMigrationError("Delivery workbook is not an XLSX workbook.")
 
 
 def _materialize_objects(export_dir: Path, target_root: Path, manifest: dict[str, Any]) -> None:
     for entry in manifest.get("objects", []):
         key = safe_relative_key(entry.get("storage_key"))
-        source = export_dir / safe_relative_file(entry.get("path"))
+        relative_path = safe_relative_file(entry.get("path"))
         target = target_root / OBJECTS_DIR / key
         target.parent.mkdir(parents=True, exist_ok=True)
-        with source.open("rb") as reader, target.open("wb") as writer:
-            while True:
-                chunk = reader.read(1024 * 1024)
-                if not chunk:
-                    break
-                writer.write(chunk)
-            writer.flush()
-            os.fsync(writer.fileno())
+        with secure_open_object(export_dir, relative_path) as (reader, _file_stat):
+            with target.open("wb") as writer:
+                while True:
+                    chunk = reader.read(1024 * 1024)
+                    if not chunk:
+                        break
+                    writer.write(chunk)
+                writer.flush()
+                os.fsync(writer.fileno())
         secure_file(target)
         if target.stat().st_size != int(entry.get("size_bytes", -1)) or sha256_file(target) != entry.get("sha256"):
-            raise Rx06Error(f"Object changed while it was materialized: {key}")
+            raise LocalMigrationError(f"Object changed while it was materialized: {key}")
         entry["_absolute_path"] = target
 
 
@@ -1207,7 +1340,7 @@ def _populate_target(
             for column in source_columns:
                 if column in target_columns or column == aliases[0] or column in dropped:
                     continue
-                raise Rx06Error(f"Target schema would drop {table}.{column}.")
+                raise LocalMigrationError(f"Target schema would drop {table}.{column}.")
             rows = manual_rows if table == "source_item_manual_decision_versions" else delivery_rows if table == "source_item_delivery_versions" else _iter_export_rows(export_dir, entry)
             normalized_rows: list[dict[str, Any]] = []
             for raw in rows:
@@ -1227,11 +1360,11 @@ def _populate_target(
                             if table == "knowledge_document_syncs":
                                 payload[target_column] = ""
                                 continue
-                            raise Rx06Error(f"{table}.{source_column} must not be blank.")
+                            raise LocalMigrationError(f"{table}.{source_column} must not be blank.")
                         key = safe_relative_key(raw_key)
                         object_entry = objects.get(key)
                         if object_entry is None:
-                            raise Rx06Error(f"Missing object for {table}.{source_column}: {key}")
+                            raise LocalMigrationError(f"Missing object for {table}.{source_column}: {key}")
                         if target_column == "payload_path":
                             payload[target_column] = _target_object_path(target_root, key)
                         else:
@@ -1239,7 +1372,7 @@ def _populate_target(
                         if table in {"sor_documents", "knowledge_documents"}:
                             expected_hash = str(row.get("source_sha256") or "").lower()
                             if expected_hash and expected_hash != object_entry.get("sha256"):
-                                raise Rx06Error(f"Source hash does not match object bytes for {table}.{row.get('id')}.")
+                                raise LocalMigrationError(f"Source hash does not match object bytes for {table}.{row.get('id')}.")
                             payload["source_sha256"] = object_entry["sha256"]
                             payload["source_size"] = int(object_entry["size_bytes"])
                         continue
@@ -1269,11 +1402,11 @@ def _populate_target(
                 "primary_key": list(spec.primary_key),
             }
             if len(target_rows) != len(normalized_rows):
-                raise Rx06Error(f"Target row count does not match imported rows for {table}.")
+                raise LocalMigrationError(f"Target row count does not match imported rows for {table}.")
             if len(target_rows) != int(entry.get("row_count") or 0):
-                raise Rx06Error(f"Target row count does not match export for {table}.")
+                raise LocalMigrationError(f"Target row count does not match export for {table}.")
             if target_table_digests[table]["primary_key_sha256"] != entry.get("primary_key_sha256"):
-                raise Rx06Error(f"Target primary key digest does not match export for {table}.")
+                raise LocalMigrationError(f"Target primary key digest does not match export for {table}.")
         conn.commit()
     except BaseException:
         conn.rollback()
@@ -1299,6 +1432,8 @@ def _activation_blockers(manifest: dict[str, Any], table_entries: dict[str, dict
     ]
     if export_only:
         blockers.append("UNSUPPORTED_BUSINESS_TABLES_RETAINED_EXPORT_ONLY")
+    if int((table_entries.get("saas_project_owners") or {}).get("row_count") or 0) > 0:
+        blockers.append("SOURCE_PROJECT_OWNERSHIP_RETAINED_AS_EVIDENCE")
     return sorted(set(blockers))
 
 
@@ -1326,6 +1461,49 @@ def _verify_domain_records(conn: sqlite3.Connection, root: Path, receipt: dict[s
     return {"manual_decision_versions": len(manual), "delivery_versions": len(delivery)}
 
 
+def _verify_retained_mapping(root: Path, receipt: dict[str, Any]) -> dict[str, Any]:
+    info = (receipt.get("knowledge") or {}).get("mapping") or {}
+    if not info.get("provided"):
+        return {"provided": False}
+    path = Path(root) / LOCAL_METADATA_DIR / safe_relative_file(info.get("path"))
+    if not path.is_file() or path.is_symlink() or sha256_file(path) != info.get("sha256"):
+        raise LocalMigrationError("Retained knowledge mapping is missing or changed.")
+    mapping = _load_knowledge_mapping(path)
+    if mapping.get("mappings") != info.get("mappings"):
+        raise LocalMigrationError("Retained knowledge mapping entries changed.")
+    if mapping.get("unresolved") != info.get("unresolved"):
+        raise LocalMigrationError("Retained knowledge mapping unresolved entries changed.")
+    return {
+        "provided": True,
+        "schema_version": mapping.get("schema_version"),
+        "mapping_count": len(mapping.get("mappings") or []),
+        "sha256": info.get("sha256"),
+    }
+
+
+def _verify_retained_ownership(root: Path, receipt: dict[str, Any]) -> dict[str, Any]:
+    info = receipt.get("ownership") or {}
+    if not info.get("provided"):
+        return {"provided": False, "row_count": 0}
+    path = Path(root) / LOCAL_METADATA_DIR / safe_relative_file(info.get("path"))
+    if not path.is_file() or path.is_symlink() or sha256_file(path) != info.get("sha256"):
+        raise LocalMigrationError("Retained project ownership evidence is missing or changed.")
+    payload = read_json(path)
+    if not isinstance(payload, dict) or payload.get("schema_version") != OWNERSHIP_SCHEMA_VERSION:
+        raise LocalMigrationError("Retained project ownership evidence schema is unsupported.")
+    if payload.get("source_table") != "saas_project_owners" or payload.get("rows") != info.get("rows"):
+        raise LocalMigrationError("Retained project ownership evidence rows changed.")
+    body = {key: value for key, value in payload.items() if key != "content_sha256"}
+    if sha256_text(canonical_json(body)) != payload.get("content_sha256") or payload.get("content_sha256") != info.get("content_sha256"):
+        raise LocalMigrationError("Retained project ownership evidence digest changed.")
+    return {
+        "provided": True,
+        "row_count": len(payload.get("rows") or []),
+        "sha256": info.get("sha256"),
+        "rows": payload.get("rows"),
+    }
+
+
 def _verify_target_root(
     root: Path,
     *,
@@ -1335,38 +1513,40 @@ def _verify_target_root(
 ) -> dict[str, Any]:
     database_path = Path(root) / "app.db"
     if not database_path.is_file() or database_path.is_symlink():
-        raise Rx06Error("Target root does not contain a safe app.db.")
+        raise LocalMigrationError("Target root does not contain a safe app.db.")
     conn = sqlite3.connect(database_path.resolve().as_uri() + "?mode=ro", uri=True, timeout=10.0)
     conn.row_factory = sqlite3.Row
     try:
         integrity = conn.execute("PRAGMA integrity_check").fetchone()
         if integrity is None or str(integrity[0]).lower() != "ok":
-            raise Rx06Error("Target SQLite integrity_check failed.")
+            raise LocalMigrationError("Target SQLite integrity_check failed.")
         foreign_keys = conn.execute("PRAGMA foreign_key_check").fetchall()
         if foreign_keys:
-            raise Rx06Error("Target SQLite foreign_key_check found violations.")
+            raise LocalMigrationError("Target SQLite foreign_key_check found violations.")
         active_jobs = conn.execute(
             "SELECT count(*) FROM ai_analysis_jobs WHERE status IN ('PENDING','RUNNING','CANCEL_REQUESTED')"
         ).fetchone()[0]
         if int(active_jobs):
-            raise Rx06Error("Target still contains active analysis jobs; RX06 never replays them.")
+            raise LocalMigrationError("Target still contains active analysis jobs; Local migration never replays them.")
         if receipt is not None:
             if _target_schema_fingerprint(database_path) != receipt.get("target_schema_fingerprint_sha256"):
-                raise Rx06Error("Target SQLite schema fingerprint does not match the receipt.")
+                raise LocalMigrationError("Target SQLite schema fingerprint does not match the receipt.")
             for name, expected in receipt.get("tables", {}).items():
                 if name not in _TABLE_SPECS:
-                    raise Rx06Error(f"Receipt contains an unsupported table: {name}")
+                    raise LocalMigrationError(f"Receipt contains an unsupported table: {name}")
                 spec = _TABLE_SPECS[name]
                 primary_key = tuple(expected.get("primary_key") or spec.primary_key)
                 rows = [{key: row[key] for key in row.keys()} for row in conn.execute(f'SELECT * FROM "{name}"').fetchall()]
                 if len(rows) != int(expected["row_count"]):
-                    raise Rx06Error(f"Target row count changed: {name}")
+                    raise LocalMigrationError(f"Target row count changed: {name}")
                 if records_digest(rows) != expected["records_sha256"]:
-                    raise Rx06Error(f"Target row digest changed: {name}")
+                    raise LocalMigrationError(f"Target row digest changed: {name}")
                 if primary_key_digest(rows, primary_key) != expected["primary_key_sha256"]:
-                    raise Rx06Error(f"Target primary key digest changed: {name}")
+                    raise LocalMigrationError(f"Target primary key digest changed: {name}")
         reference_counts = verify_runtime_references(database_path, root, stored_root=stored_root)
         domain_counts = _verify_domain_records(conn, root, receipt) if receipt is not None else {}
+        knowledge_mapping = _verify_retained_mapping(root, receipt) if receipt is not None else {"provided": False}
+        ownership = _verify_retained_ownership(root, receipt) if receipt is not None else {"provided": False, "row_count": 0}
     finally:
         conn.close()
     return {
@@ -1376,6 +1556,8 @@ def _verify_target_root(
         "active_analysis_jobs": 0,
         "references": reference_counts,
         "domain_records": domain_counts,
+        "knowledge_mapping": knowledge_mapping,
+        "ownership": ownership,
     }
 
 
@@ -1383,22 +1565,24 @@ def import_export(export_dir: Path, target_root: Path) -> dict[str, Any]:
     source = require_absolute(export_dir, field="export directory")
     target = require_absolute(target_root, field="target root")
     if not source.is_dir() or source.is_symlink():
-        raise Rx06Error("Export directory is missing or unsafe.")
+        raise LocalMigrationError("Export directory is missing or unsafe.")
     if target.exists():
-        raise Rx06Error("Target root already exists; RX06 never overwrites an existing root.")
+        raise LocalMigrationError("Target root already exists; Local migration never overwrites an existing root.")
     if (target.parent / "app.db").is_file() and (target.parent / "objects").is_dir():
-        raise Rx06Error("Target root must not be created inside an existing application root.")
+        raise LocalMigrationError("Target root must not be created inside an existing application root.")
     if is_within(target, source) or is_within(source, target):
-        raise Rx06Error("Target root and export directory must not contain one another.")
+        raise LocalMigrationError("Target root and export directory must not contain one another.")
     manifest, table_entries = validate_export(source)
     target.parent.mkdir(parents=True, exist_ok=True)
-    staging = target.parent / f".{target.name}.rx06-{uuid.uuid4().hex}.tmp"
-    incomplete = staging / ".RX06-INCOMPLETE"
+    staging = target.parent / f".{target.name}.local-migration-{uuid.uuid4().hex}.tmp"
+    incomplete = staging / ".LOCAL-MIGRATION-INCOMPLETE"
     try:
         staging.mkdir(mode=0o700)
-        incomplete.write_text("RX06 target is incomplete and must not be activated.\n", encoding="utf-8")
+        incomplete.write_text("Local migration target is incomplete and must not be activated.\n", encoding="utf-8")
         _bootstrap_target(staging)
         _materialize_objects(source, staging, manifest)
+        retained_mapping = _retain_knowledge_mapping(source, staging, manifest)
+        retained_ownership = _retain_ownership_evidence(source, staging, table_entries)
         populated = _populate_target(
             export_dir=source,
             target_root=target,
@@ -1406,10 +1590,12 @@ def import_export(export_dir: Path, target_root: Path) -> dict[str, Any]:
             manifest=manifest,
             table_entries=table_entries,
         )
+        knowledge = _knowledge_target_report(manifest)
+        knowledge["mapping"] = retained_mapping
         receipt = {
             "schema_version": RECEIPT_SCHEMA_VERSION,
             "status": "COMPLETE",
-            "migration_id": "rx06-" + uuid.uuid4().hex,
+            "migration_id": "local-migration-" + uuid.uuid4().hex,
             "created_at": datetime.now(timezone.utc).isoformat(),
             "target_root_name": target.name,
             "source_export_id": manifest.get("export_id"),
@@ -1425,7 +1611,8 @@ def import_export(export_dir: Path, target_root: Path) -> dict[str, Any]:
                 for item in manifest.get("objects", [])
             },
             "active_jobs_quarantined": populated["active_jobs_quarantined"],
-            "knowledge": _knowledge_target_report(manifest),
+            "knowledge": knowledge,
+            "ownership": retained_ownership,
             "activation_ready": not _activation_blockers(manifest, table_entries),
             "activation_blockers": _activation_blockers(manifest, table_entries),
             "support_limits": [
@@ -1436,8 +1623,8 @@ def import_export(export_dir: Path, target_root: Path) -> dict[str, Any]:
             ],
         }
         receipt["verification"] = _verify_target_root(staging, receipt=receipt, manifest=manifest, stored_root=target)
-        (staging / RECEIPT_DIR).mkdir(mode=0o700, exist_ok=True)
-        write_json(staging / RECEIPT_DIR / RECEIPT_FILE, receipt)
+        (staging / LOCAL_METADATA_DIR).mkdir(mode=0o700, exist_ok=True)
+        write_json(staging / LOCAL_METADATA_DIR / LOCAL_RECEIPT_FILE, receipt)
         incomplete.unlink(missing_ok=True)
         rename_no_replace(staging, target)
         final_verification = _verify_target_root(target, receipt=receipt, manifest=manifest)
@@ -1445,14 +1632,14 @@ def import_export(export_dir: Path, target_root: Path) -> dict[str, Any]:
     except BaseException as exc:
         if staging.exists():
             try:
-                incomplete.write_text("RX06 target is incomplete and must not be activated.\n", encoding="utf-8")
+                incomplete.write_text("Local migration target is incomplete and must not be activated.\n", encoding="utf-8")
             except OSError:
                 pass
-            raise Rx06Error(f"RX06 import failed; incomplete staging retained at {staging}: {exc}") from exc
+            raise LocalMigrationError(f"Local migration import failed; incomplete staging retained at {staging}: {exc}") from exc
         if target.exists():
             try:
-                (target / ".RX06-VERIFY-FAILED").write_text(
-                    "RX06 target verification failed after publication; do not activate.\n",
+                (target / ".LOCAL-MIGRATION-VERIFY-FAILED").write_text(
+                    "Local migration target verification failed after publication; do not activate.\n",
                     encoding="utf-8",
                 )
             except OSError:
@@ -1462,20 +1649,20 @@ def import_export(export_dir: Path, target_root: Path) -> dict[str, Any]:
 
 def verify_target(target_root: Path) -> dict[str, Any]:
     target = require_absolute(target_root, field="target root")
-    receipt_path = target / RECEIPT_DIR / RECEIPT_FILE
+    receipt_path = target / LOCAL_METADATA_DIR / LOCAL_RECEIPT_FILE
     if not receipt_path.is_file() or receipt_path.is_symlink():
-        raise Rx06Error("Target root has no RX06 completion receipt.")
+        raise LocalMigrationError("Target root has no local migration completion receipt.")
     receipt = read_json(receipt_path)
     if not isinstance(receipt, dict) or receipt.get("schema_version") != RECEIPT_SCHEMA_VERSION:
-        raise Rx06Error("Target receipt schema is unsupported.")
+        raise LocalMigrationError("Target receipt schema is unsupported.")
     if receipt.get("status") != "COMPLETE":
-        raise Rx06Error("Target receipt is not complete.")
+        raise LocalMigrationError("Target receipt is not complete.")
     verification = _verify_target_root(target, receipt=receipt)
     return {"ok": True, "receipt": receipt, "verification": verification}
 
 
 def _parser() -> argparse.ArgumentParser:
-    parser = argparse.ArgumentParser(description="RX06 explicit PostgreSQL-to-SQLite migration.")
+    parser = argparse.ArgumentParser(description="Local explicit PostgreSQL-to-SQLite migration.")
     commands = parser.add_subparsers(dest="command", required=True)
 
     inventory = commands.add_parser("inventory", help="Read-only source inventory.")
@@ -1524,14 +1711,24 @@ def main(argv: Iterable[str] | None = None) -> int:
             return 0
         database_url = str(os.environ.get(args.database_url_env) or "").strip()
         if not database_url:
-            raise Rx06Error(f"Set {args.database_url_env} for PostgreSQL export access.")
+            raise LocalMigrationError(f"Set {args.database_url_env} for PostgreSQL export access.")
         source = _PsycopgSource(database_url)
         try:
             if args.command == "inventory":
-                report = _inventory(source, project_ids=args.project_id, object_root=args.object_root)
-                encoded = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True)
+                source_root = require_absolute(args.object_root, field="object root")
+                output_path = None
                 if args.output:
-                    write_json(require_absolute(args.output, field="inventory output"), report)
+                    output_path = require_absolute(args.output, field="inventory output")
+                    if output_path.exists():
+                        raise LocalMigrationError("Inventory output already exists; existing files are never overwritten.")
+                    if (output_path.parent / "app.db").is_file() and (output_path.parent / "objects").is_dir():
+                        raise LocalMigrationError("Inventory output must not be created inside an application root.")
+                    if is_within(output_path, source_root) or is_within(source_root, output_path):
+                        raise LocalMigrationError("Inventory output and source object root must not contain one another.")
+                report = _inventory(source, project_ids=args.project_id, object_root=source_root)
+                encoded = json.dumps(report, ensure_ascii=False, indent=2, sort_keys=True)
+                if output_path is not None:
+                    write_new_json(output_path, report)
                 print(encoded)
                 return 0
             manifest = _export_selected(
@@ -1547,11 +1744,11 @@ def main(argv: Iterable[str] | None = None) -> int:
             return 0
         finally:
             source.close()
-    except (Rx06Error, OSError, sqlite3.Error) as exc:
+    except (LocalMigrationError, OSError, sqlite3.Error) as exc:
         print(json.dumps({"ok": False, "error": str(exc)}, ensure_ascii=False))
         return 2
     except Exception as exc:
-        print(json.dumps({"ok": False, "error": f"RX06 failed: {type(exc).__name__}"}, ensure_ascii=False))
+        print(json.dumps({"ok": False, "error": f"Local migration failed: {type(exc).__name__}"}, ensure_ascii=False))
         return 2
 
 

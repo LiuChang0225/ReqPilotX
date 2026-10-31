@@ -1,4 +1,4 @@
-"""Shared fail-closed helpers for ReqPilotX RX06 migration and backup tooling."""
+"""Shared fail-closed helpers for ReqPilotX local migration migration and backup tooling."""
 
 from __future__ import annotations
 
@@ -12,14 +12,19 @@ import sqlite3
 import stat
 import sys
 import uuid
-from contextlib import closing
+from contextlib import closing, contextmanager
 from pathlib import Path, PurePosixPath, PureWindowsPath
 from typing import Any, Iterable
 
 
-class Rx06Error(RuntimeError):
+class LocalMigrationError(RuntimeError):
     """A migration or backup safety contract failed."""
 
+
+LOCAL_METADATA_DIR = "local-migration"
+LOCAL_RECEIPT_FILE = "receipt.json"
+LOCAL_KNOWLEDGE_MAPPING_FILE = "knowledge-mapping.json"
+LOCAL_OWNERSHIP_FILE = "project-ownership.json"
 
 _SHA256_RE = re.compile(r"^[0-9a-f]{64}$")
 _SQLITE_NAMES = {"app.db", "app.db-wal", "app.db-shm", "app.db-journal"}
@@ -51,7 +56,7 @@ def sha256_file(path: Path) -> str:
 def require_sha256(value: Any, *, field: str) -> str:
     normalized = str(value or "").strip().lower()
     if _SHA256_RE.fullmatch(normalized) is None:
-        raise Rx06Error(f"{field} must be a lowercase SHA-256 identity.")
+        raise LocalMigrationError(f"{field} must be a lowercase SHA-256 identity.")
     return normalized
 
 
@@ -89,7 +94,7 @@ def safe_relative_key(value: Any) -> str:
         or ".." in windows.parts
         or any(part in {"", "."} for part in path.parts)
     ):
-        raise Rx06Error("Object key must be a safe relative path.")
+        raise LocalMigrationError("Object key must be a safe relative path.")
     return path.as_posix()
 
 
@@ -108,7 +113,7 @@ def safe_relative_file(value: Any) -> str:
         or ".." in path.parts
         or ".." in windows.parts
     ):
-        raise Rx06Error("Manifest path must be a safe relative POSIX path.")
+        raise LocalMigrationError("Manifest path must be a safe relative POSIX path.")
     return path.as_posix()
 
 
@@ -120,14 +125,14 @@ def json_safe(value: Any) -> Any:
     if isinstance(value, (list, tuple)):
         return [json_safe(item) for item in value]
     if isinstance(value, (bytes, bytearray, memoryview)):
-        raise Rx06Error("Binary database values require an explicit export contract.")
+        raise LocalMigrationError("Binary database values require an explicit export contract.")
     isoformat = getattr(value, "isoformat", None)
     if callable(isoformat):
         return isoformat()
     if hasattr(value, "as_integer_ratio"):
         numerator, denominator = value.as_integer_ratio()
         return numerator if denominator == 1 else float(value)
-    raise Rx06Error(f"Unsupported database value type: {type(value).__name__}")
+    raise LocalMigrationError(f"Unsupported database value type: {type(value).__name__}")
 
 
 def write_json(path: Path, payload: Any) -> None:
@@ -144,19 +149,38 @@ def write_json(path: Path, payload: Any) -> None:
         temporary.unlink(missing_ok=True)
 
 
+def write_new_json(path: Path, payload: Any) -> None:
+    target = require_absolute(path, field="JSON output")
+    if target.exists():
+        raise LocalMigrationError("JSON output already exists; existing files are never overwritten.")
+    target.parent.mkdir(parents=True, exist_ok=True)
+    temporary = target.parent / f".{target.name}.{uuid.uuid4().hex}.tmp"
+    try:
+        temporary.write_text(
+            json.dumps(payload, ensure_ascii=False, indent=2, sort_keys=True) + "\n",
+            encoding="utf-8",
+        )
+        secure_file(temporary)
+        with temporary.open("rb+") as stream:
+            os.fsync(stream.fileno())
+        rename_no_replace(temporary, target)
+    finally:
+        temporary.unlink(missing_ok=True)
+
+
 def read_json(path: Path) -> Any:
     try:
         return json.loads(Path(path).read_text(encoding="utf-8"))
     except (OSError, UnicodeDecodeError, json.JSONDecodeError) as exc:
-        raise Rx06Error(f"JSON file is unreadable: {Path(path).name}") from exc
+        raise LocalMigrationError(f"JSON file is unreadable: {Path(path).name}") from exc
 
 
 def require_absolute(path: Path, *, field: str) -> Path:
     candidate = Path(path).expanduser()
     if not candidate.is_absolute():
-        raise Rx06Error(f"{field} must be absolute.")
+        raise LocalMigrationError(f"{field} must be absolute.")
     if candidate.is_symlink():
-        raise Rx06Error(f"{field} must not be a symbolic link.")
+        raise LocalMigrationError(f"{field} must not be a symbolic link.")
     return candidate.resolve(strict=False)
 
 
@@ -172,12 +196,12 @@ def rename_no_replace(source: Path, destination: Path) -> None:
     source = Path(source)
     destination = Path(destination)
     if source.parent.resolve() != destination.parent.resolve():
-        raise Rx06Error("Atomic no-replace rename requires sibling paths.")
+        raise LocalMigrationError("Atomic no-replace rename requires sibling paths.")
     if sys.platform == "darwin":
         libc = ctypes.CDLL(None, use_errno=True)
         function = getattr(libc, "renamex_np", None)
         if function is None:
-            raise Rx06Error("macOS renamex_np is unavailable; refusing unsafe rename fallback.")
+            raise LocalMigrationError("macOS renamex_np is unavailable; refusing unsafe rename fallback.")
         function.argtypes = [ctypes.c_char_p, ctypes.c_char_p, ctypes.c_uint]
         function.restype = ctypes.c_int
         result = function(os.fsencode(source), os.fsencode(destination), 0x00000004)
@@ -188,7 +212,7 @@ def rename_no_replace(source: Path, destination: Path) -> None:
         libc = ctypes.CDLL(None, use_errno=True)
         function = getattr(libc, "renameat2", None)
         if function is None:
-            raise Rx06Error("Linux renameat2 is unavailable; refusing unsafe rename fallback.")
+            raise LocalMigrationError("Linux renameat2 is unavailable; refusing unsafe rename fallback.")
         function.argtypes = [
             ctypes.c_int, ctypes.c_char_p, ctypes.c_int, ctypes.c_char_p, ctypes.c_uint,
         ]
@@ -201,22 +225,22 @@ def rename_no_replace(source: Path, destination: Path) -> None:
         kernel32 = ctypes.WinDLL("kernel32", use_last_error=True)
         function = getattr(kernel32, "MoveFileW", None)
         if function is None:
-            raise Rx06Error("Windows MoveFileW is unavailable; refusing unsafe rename fallback.")
+            raise LocalMigrationError("Windows MoveFileW is unavailable; refusing unsafe rename fallback.")
         function.argtypes = [ctypes.c_wchar_p, ctypes.c_wchar_p]
         function.restype = ctypes.c_int
         if not function(str(source), str(destination)):
             error_code = ctypes.get_last_error()
             if error_code in {80, 183}:
-                raise Rx06Error("Atomic rename destination already exists.")
-            raise Rx06Error(f"Windows atomic no-replace rename failed with error {error_code}.")
+                raise LocalMigrationError("Atomic rename destination already exists.")
+            raise LocalMigrationError(f"Windows atomic no-replace rename failed with error {error_code}.")
         return
-    raise Rx06Error("Atomic no-replace rename is unavailable on this platform.")
+    raise LocalMigrationError("Atomic no-replace rename is unavailable on this platform.")
 
 
 def _raise_rename_error(error_code: int) -> None:
     if error_code in {errno.EEXIST, errno.ENOTEMPTY}:
-        raise Rx06Error("Atomic rename destination already exists.")
-    raise Rx06Error(f"Atomic no-replace rename failed with errno {error_code}.")
+        raise LocalMigrationError("Atomic rename destination already exists.")
+    raise LocalMigrationError(f"Atomic no-replace rename failed with errno {error_code}.")
 
 
 def secure_file(path: Path) -> None:
@@ -244,17 +268,17 @@ def iter_files(root: Path, *, exclude_sqlite_sidecars: bool = True) -> tuple[lis
         for name in list(dirnames):
             path = current_path / name
             if path.is_symlink():
-                raise Rx06Error(f"Tree contains a symbolic link: {path.relative_to(root)}")
+                raise LocalMigrationError(f"Tree contains a symbolic link: {path.relative_to(root)}")
             directories.append(path.relative_to(root).as_posix())
         for name in filenames:
             if exclude_sqlite_sidecars and current_path == root and name in _SQLITE_NAMES:
                 continue
             path = current_path / name
             if path.is_symlink():
-                raise Rx06Error(f"Tree contains a symbolic link: {path.relative_to(root)}")
+                raise LocalMigrationError(f"Tree contains a symbolic link: {path.relative_to(root)}")
             mode = path.stat(follow_symlinks=False).st_mode
             if not stat.S_ISREG(mode):
-                raise Rx06Error(f"Tree contains an unsafe file: {path.relative_to(root)}")
+                raise LocalMigrationError(f"Tree contains an unsafe file: {path.relative_to(root)}")
             files[path.relative_to(root).as_posix()] = (path.stat().st_size, sha256_file(path))
     return sorted(set(directories)), files
 
@@ -284,7 +308,7 @@ def copy_tree_files(
         secure_file(target)
         actual = (target.stat().st_size, sha256_file(target))
         if actual != expected:
-            raise Rx06Error(f"Tree file changed while it was copied: {relative}")
+            raise LocalMigrationError(f"Tree file changed while it was copied: {relative}")
 
 
 def sqlite_quick_check(path: Path) -> None:
@@ -292,14 +316,14 @@ def sqlite_quick_check(path: Path) -> None:
         with closing(sqlite3.connect(Path(path).resolve().as_uri() + "?mode=ro", uri=True, timeout=10.0)) as conn:
             result = conn.execute("PRAGMA quick_check").fetchone()
     except sqlite3.DatabaseError as exc:
-        raise Rx06Error("SQLite integrity check could not be completed.") from exc
+        raise LocalMigrationError("SQLite integrity check could not be completed.") from exc
     if not result or str(result[0]).lower() != "ok":
-        raise Rx06Error("SQLite integrity check failed.")
+        raise LocalMigrationError("SQLite integrity check failed.")
 
 
 def sqlite_snapshot(source_path: Path, destination_path: Path) -> None:
     if not source_path.is_file() or source_path.is_symlink():
-        raise Rx06Error("Storage does not contain a safe app.db database.")
+        raise LocalMigrationError("Storage does not contain a safe app.db database.")
     destination_path.parent.mkdir(parents=True, exist_ok=True)
     try:
         with closing(sqlite3.connect(source_path.resolve().as_uri() + "?mode=ro", uri=True, timeout=30.0)) as source, closing(sqlite3.connect(destination_path, timeout=30.0)) as destination:
@@ -307,7 +331,7 @@ def sqlite_snapshot(source_path: Path, destination_path: Path) -> None:
             destination.execute("PRAGMA journal_mode=DELETE")
             destination.commit()
     except sqlite3.DatabaseError as exc:
-        raise Rx06Error("SQLite online backup failed.") from exc
+        raise LocalMigrationError("SQLite online backup failed.") from exc
     sqlite_quick_check(destination_path)
 
 
@@ -333,24 +357,93 @@ def database_logical_digest(path: Path) -> str:
         conn.close()
 
 
+@contextmanager
+def secure_open_object(root: Path, key: str):
+    root_path = Path(root).expanduser()
+    if not root_path.is_absolute() or root_path.is_symlink():
+        raise LocalMigrationError("Object root must be an absolute non-symlink directory.")
+    root_path = root_path.resolve(strict=False)
+    if not root_path.is_dir():
+        raise LocalMigrationError("Object root is missing.")
+    if (
+        os.name != "posix"
+        or not hasattr(os, "O_NOFOLLOW")
+        or os.open not in os.supports_dir_fd
+    ):
+        raise LocalMigrationError("Secure object opening is unavailable on this platform.")
+    relative = safe_relative_key(key)
+    parts = relative.split("/")
+    directory_flags = os.O_RDONLY | getattr(os, "O_DIRECTORY", 0)
+    descriptor = -1
+    try:
+        descriptor = os.open(str(root_path), directory_flags)
+        root_stat = os.fstat(descriptor)
+        if not stat.S_ISDIR(root_stat.st_mode):
+            raise LocalMigrationError("Object root is not a directory.")
+        for part in parts[:-1]:
+            next_descriptor = os.open(
+                part,
+                directory_flags | os.O_NOFOLLOW,
+                dir_fd=descriptor,
+            )
+            os.close(descriptor)
+            descriptor = next_descriptor
+            component = os.fstat(descriptor)
+            if not stat.S_ISDIR(component.st_mode):
+                raise LocalMigrationError(f"Object path component is not a directory: {part}")
+        file_descriptor = os.open(
+            parts[-1],
+            os.O_RDONLY | os.O_NOFOLLOW,
+            dir_fd=descriptor,
+        )
+        os.close(descriptor)
+        descriptor = file_descriptor
+        file_stat = os.fstat(descriptor)
+        if not stat.S_ISREG(file_stat.st_mode):
+            raise LocalMigrationError("Object reference is not a regular file.")
+        stream = os.fdopen(descriptor, "rb")
+        descriptor = -1
+        with stream:
+            yield stream, file_stat
+    except OSError as exc:
+        raise LocalMigrationError(f"Object path is missing or unsafe: {relative}") from exc
+    finally:
+        if descriptor >= 0:
+            os.close(descriptor)
+
+
+def secure_file_identity(root: Path, absolute_path: Any) -> tuple[int, str]:
+    root_path = Path(root).expanduser().resolve(strict=False)
+    candidate = Path(str(absolute_path or "")).expanduser()
+    if not candidate.is_absolute():
+        raise LocalMigrationError("Referenced local path must be absolute.")
+    resolved = candidate.resolve(strict=False)
+    if not is_within(resolved, root_path):
+        raise LocalMigrationError("Referenced local path escapes the application root.")
+    relative = resolved.relative_to(root_path).as_posix()
+    with secure_open_object(root_path, relative) as (stream, file_stat):
+        digest = hashlib.sha256()
+        size = 0
+        while True:
+            chunk = stream.read(1024 * 1024)
+            if not chunk:
+                break
+            digest.update(chunk)
+            size += len(chunk)
+        if size != int(file_stat.st_size):
+            raise LocalMigrationError("Referenced file changed while it was read.")
+        return size, digest.hexdigest()
+
+
 def _check_referenced_file(root: Path, value: Any, *, label: str, expected_sha256: str = "", expected_size: int | None = None) -> None:
     raw = str(value or "").strip()
     if not raw:
-        raise Rx06Error(f"{label} is blank.")
-    path = Path(raw)
-    if not path.is_absolute():
-        raise Rx06Error(f"{label} must be an absolute local path.")
-    resolved = path.resolve(strict=False)
-    if not is_within(resolved, root):
-        raise Rx06Error(f"{label} escapes the application root.")
-    if not resolved.is_file() or resolved.is_symlink():
-        raise Rx06Error(f"{label} is missing or unsafe.")
-    if expected_sha256:
-        actual = sha256_file(resolved)
-        if actual != expected_sha256.lower():
-            raise Rx06Error(f"{label} hash mismatch.")
-    if expected_size is not None and resolved.stat().st_size != int(expected_size):
-        raise Rx06Error(f"{label} size mismatch.")
+        raise LocalMigrationError(f"{label} is blank.")
+    size, digest = secure_file_identity(root, raw)
+    if expected_sha256 and digest != expected_sha256.lower():
+        raise LocalMigrationError(f"{label} hash mismatch.")
+    if expected_size is not None and size != int(expected_size):
+        raise LocalMigrationError(f"{label} size mismatch.")
 
 
 
@@ -415,7 +508,7 @@ def verify_runtime_references(database_path: Path, root: Path, *, stored_root: P
                 try:
                     artifact = json.loads(str(row["artifact_json"]))
                 except json.JSONDecodeError as exc:
-                    raise Rx06Error(f"source_item_delivery_versions.{row['sor_document_id']}#{row['revision']} is not valid JSON.") from exc
+                    raise LocalMigrationError(f"source_item_delivery_versions.{row['sor_document_id']}#{row['revision']} is not valid JSON.") from exc
                 key = safe_relative_key(artifact.get("export_key"))
                 _check_referenced_file(root, mapped(str(root / "objects" / key)), label=f"delivery {row['sor_document_id']}#{row['revision']}", expected_sha256=require_sha256(artifact.get("export_sha256"), field="delivery export_sha256"))
                 counts["deliveries"] += 1
@@ -425,7 +518,7 @@ def verify_runtime_references(database_path: Path, root: Path, *, stored_root: P
 
 
 __all__ = [
-    "Rx06Error",
+    "LocalMigrationError",
     "canonical_json",
     "copy_tree_files",
     "database_logical_digest",
@@ -450,4 +543,11 @@ __all__ = [
     "value_digest",
     "verify_runtime_references",
     "write_json",
+    "write_new_json",
+    "secure_open_object",
+    "secure_file_identity",
+    "LOCAL_METADATA_DIR",
+    "LOCAL_RECEIPT_FILE",
+    "LOCAL_KNOWLEDGE_MAPPING_FILE",
+    "LOCAL_OWNERSHIP_FILE",
 ]
