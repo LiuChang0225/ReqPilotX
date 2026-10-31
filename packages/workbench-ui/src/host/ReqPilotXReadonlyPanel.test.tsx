@@ -14,7 +14,7 @@ vi.mock("../features/extraction/NativeStructureReferenceDock", () => ({ NativeSt
   const agent = useDocumentAgent();
   useEffect(() => bindingHarness.skip ? undefined : agent?.bind({ sourceSha256: sourceReader.source_sha256, baselineSha256: "basis", revisionId: sourceReader.revision_id,
     selectedSourceItemId: "source", selectedNodeId: "node", selectedDerivedUnitId: "child", onUpdated: () => {} }), [agent?.bind, sourceReader.revision_id]);
-  return <div>共用业务工作面<button type="button" disabled={!agent?.collaborationAvailable} onClick={() => agent?.show("", "selected")}>讨论当前条目</button></div>;
+  return <div>共用业务工作面<button type="button" disabled={!agent?.collaborationAvailable} onClick={() => agent?.show("", "selected")}>讨论当前条目</button><button type="button" disabled={!agent?.collaborationAvailable} onClick={() => agent?.show("Correct this clause under the same source.", "selected")}>请求修正</button></div>;
 } }));
 afterEach(() => { cleanup(); localStorage.clear(); vi.restoreAllMocks(); });
 const selection: ReadonlyWorkSelection = { projectId: "p", documentId: "d", sourceSha256: "a".repeat(64), workRef: `plugin-${"b".repeat(32)}`, revisionId: "1".repeat(64), view: "items" };
@@ -51,6 +51,41 @@ it("opens only the explicitly bound session with the selected source and derived
   await screen.findByText("共用业务工作面");
   fireEvent.click(screen.getByRole("button",{name:"讨论当前条目"}));
   await waitFor(()=>expect(host.openSession).toHaveBeenCalledWith(binding,{...selection,scope:"selected",nodeId:"node",sourceItemId:"source",derivedUnitId:"child"}));
+});
+it("opens the selected result context without sending or replacing the native draft", async () => {
+  const {host}=setup(); render(<ReqPilotXReadonlyPanel host={host} selection={selection} documentName="source.pdf" />);
+  await screen.findByText("共用业务工作面");
+  fireEvent.click(screen.getByRole("button",{name:"讨论当前成果"}));
+  await waitFor(()=>expect(host.openSession).toHaveBeenCalledWith(binding,{...selection,scope:"document"}));
+});
+it("carries an explicit workbench request and task identity into the same native draft without sending", async () => {
+  const {host}=setup(); host.sessionBinding={...binding,taskId:"task-one"};
+  render(<ReqPilotXReadonlyPanel host={host} selection={selection} documentName="source.pdf" />);
+  await screen.findByText("共用业务工作面");
+  fireEvent.click(screen.getByRole("button",{name:"请求修正"}));
+  await waitFor(()=>expect(host.openSession).toHaveBeenCalledWith({...binding,taskId:"task-one"},
+    {...selection,scope:"selected",nodeId:"node",sourceItemId:"source",derivedUnitId:"child",taskId:"task-one",request:"Correct this clause under the same source."}));
+});
+it("localizes touched review, feedback and delivery controls through the host translator", async () => {
+  const {host}=setup();
+  const dictionary: Record<string,string> = {
+    "panel.titleRead":"ReqPilotX · Read-only work panel", "panel.version":"Review version",
+    "panel.sync":"Sync result", "panel.openSession":"Open linked {label} session",
+    "panel.executionUnreported":"The host has not reported execution status for this work",
+    "panel.syncingResult":"Syncing result", "panel.noHostSession":"No host session is linked yet",
+    "panel.views":"Business views",
+    "panel.view.structure":"Source structure", "panel.view.items":"Source items",
+    "panel.view.analysis":"Responses and evidence", "panel.view.export":"Versions and export",
+    "panel.noStageResult":"No stage result yet", "panel.syncingVersions":"Syncing versions",
+  };
+  const t=(key:string,params?:Record<string,unknown>)=>dictionary[key]?.replace(/\{(\w+)\}/g,(_m,n)=>String(params?.[n]??`{${n}}`)) ?? key;
+  render(<ReqPilotXReadonlyPanel host={host} selection={selection} documentName="source.pdf" t={t}/>);
+  await screen.findByText("共用业务工作面");
+  expect(screen.getByText("ReqPilotX · Read-only work panel")).toBeInTheDocument();
+  expect(screen.getByRole("combobox",{name:"Review version"})).toBeInTheDocument();
+  expect(screen.getByRole("button",{name:"Sync result"})).toBeInTheDocument();
+  expect(screen.getByRole("button",{name:"Versions and export"})).toBeInTheDocument();
+  expect(screen.getByText("The host has not reported execution status for this work")).toBeInTheDocument();
 });
 it("refuses unrelated session bindings and never uses their reported progress", async () => {
   const {host,update} = setup(); host.sessionBinding = {...binding,workRef:`plugin-${"c".repeat(32)}`};

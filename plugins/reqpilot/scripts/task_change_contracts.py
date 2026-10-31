@@ -14,7 +14,7 @@ from reqpilotx.application.agent_workflow.source_item_decomposition import (
 from reqpilotx.application.agent_workflow.source_item_visual import SourceItemImageDecisionV1
 from task_contracts import (
     InputModel, Nonempty, ItemDecisionsRequest, TextDecisionInput, TableDecisionInput,
-    TextItemInput, TableRecordInput, LocalItemKey,
+    TextItemInput, TableRecordInput, LocalItemKey, MapEditRequest,
     _canonical_sets, _unique, bind_item_decisions,
 )
 
@@ -258,12 +258,18 @@ class ScopeReplacementInput(InputModel):
     comparison_scope_ids: tuple[Nonempty, ...] = ()
 
 
+class MapRevisionChange(InputModel):
+    """Bounded Map successor through the existing source-replay compiler."""
+    decisions: MapEditRequest = Field(description='Map edit decisions using the same editor as map_apply; program compiles the candidate, replays source decisions and closes one review revision.')
+
+
 class ExistingItemsChangeRequest(InputModel):
     decisions: tuple[ClassificationChangeInput, ...] = ()
     model_id: Nonempty = None
     visual_readings: tuple[VisualReadingInput, ...] = ()
     annotation_updates: tuple[AnnotationUpdateInput, ...] = ()
     scope_revision: ScopeReplacementInput = None
+    map_revision: MapRevisionChange = Field(default=None, description='Bounded Map correction after review. The program compiles the candidate through the existing Map compiler, preserves source/identity and unaffected items, then closes one review revision.')
     addressed_feedback_ids: tuple[Nonempty, ...] = ()
 
     @model_validator(mode='before')
@@ -277,9 +283,11 @@ class ExistingItemsChangeRequest(InputModel):
             raise ValueError('Classification needs the actual model_id')
         if self.decisions and self.scope_revision is not None:
             raise ValueError('Scope replacement already contains classification; do not combine coordination')
+        if self.map_revision is not None and (self.decisions or self.visual_readings or self.annotation_updates or self.scope_revision):
+            raise ValueError('Map correction is a separate bounded review change; do not combine it with classification, item-scope, visual or annotation changes')
         if len(self.addressed_feedback_ids) != len(set(self.addressed_feedback_ids)):
             raise ValueError('Feedback references must be unique')
-        if not (self.decisions or self.visual_readings or self.annotation_updates or self.scope_revision):
+        if not (self.decisions or self.visual_readings or self.annotation_updates or self.scope_revision or self.map_revision):
             raise ValueError('Supply explicit existing-item changes')
         return self
 

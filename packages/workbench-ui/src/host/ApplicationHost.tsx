@@ -28,7 +28,7 @@ export interface ApplicationWorkflowState {
 }
 export interface ApplicationTaskReceipt {
   schema?: string; commandId: string; projectId: string; documentId: string; sourceSha256: string;
-  sessionId: string; workRef: string; status: string;
+  taskId?: string; sessionId: string; workRef: string; status: string;
   modelSelection?: { provider: string; model: string; reasoningEffort?: string };
   selectedAgentModel?: { provider: string; model: string; reasoningEffort?: string };
   workflow?: ApplicationWorkflowDescriptor | { id: string; version: string; schema: string; definition_sha256: string };
@@ -54,7 +54,9 @@ export interface WorkbenchApplicationHost extends Pick<WorkbenchPresentation, "r
   controlTask(receipt: ApplicationTaskReceipt, action: "cancel" | "continue" | "reconnect"): Promise<ApplicationTaskReceipt>;
   /** View-only by default; explicit context may prepare the selected source without sending or replacing an existing draft. */
   openSession(sessionId: string, context?: { projectId: string; documentId: string; sourceSha256: string; workRef: string; revisionId?: string;
-    scope: "document" | "selected"; nodeId?: string; sourceItemId?: string; derivedUnitId?: string }): Promise<void>;
+    taskId?: string; scope: "document" | "selected"; nodeId?: string; sourceItemId?: string; derivedUnitId?: string;
+    /** Explicit workbench intent carried as draft text; it does not send or claim acceptance. */
+    request?: string }): Promise<void>;
 }
 
 export const ApplicationHostContext = createContext<WorkbenchApplicationHost | null>(null);

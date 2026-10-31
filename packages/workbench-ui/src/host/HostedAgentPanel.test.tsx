@@ -6,7 +6,7 @@ import { HostLocaleProvider } from "./HostLocaleContext";
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 const receipt: ApplicationTaskReceipt = { commandId: "command-one", projectId: "p", documentId: "d", sourceSha256: "a".repeat(64),
-  workRef: "plugin-" + "b".repeat(32), sessionId: "session-one", status: "ACCEPTED" };
+  taskId: "task-one", workRef: "plugin-" + "b".repeat(32), sessionId: "session-one", status: "ACCEPTED" };
 function host(): WorkbenchApplicationHost {
   return { id: "host-one", label: "PAIR", modelLabel: "Configured task model", captureAvailable: false, taskStartAvailable: true,
     resourceUrl: path => path, pdfViewerUrl: source => source, startTask: vi.fn(async () => receipt),
@@ -43,6 +43,21 @@ it("adopts confirmed reconnect capabilities and opens the exact persisted Pair S
   fireEvent.click(screen.getByRole("button", { name: "打开 PAIR 会话" }));
   await waitFor(() => expect(value.openSession).toHaveBeenCalledWith("session-one"));
   expect(value.controlTask).toHaveBeenCalledWith(expect.objectContaining({ commandId: "command-one", workRef: receipt.workRef }), "reconnect");
+});
+it("prepares the selected source discussion with the exact task identity and never sends it", async () => {
+  const value = host();
+  vi.mocked(value.restoreTask).mockResolvedValue(receipt);
+  const accepted = vi.fn();
+  render(<ApplicationHostContext.Provider value={value}><HostedAgentPanel projectId="p" documentId="d" sourceSha256={receipt.sourceSha256}
+    workRef={receipt.workRef} initialGoal="Keep this goal" onAccepted={accepted} onClose={() => {}}
+    binding={{ sourceSha256: receipt.sourceSha256, baselineSha256: "baseline", selectedSourceItemId: "SRC-0001",
+      selectedNodeId: "node-one", selectedDerivedUnitId: "unit-one", revisionId: "c".repeat(64), onUpdated: () => {} }} /></ApplicationHostContext.Provider>);
+  fireEvent.click(await screen.findByRole("button", { name: "在会话中讨论当前成果" }));
+  await waitFor(() => expect(value.openSession).toHaveBeenCalledWith("session-one", {
+    projectId: "p", documentId: "d", sourceSha256: receipt.sourceSha256, workRef: receipt.workRef,
+    revisionId: "c".repeat(64), taskId: "task-one", scope: "selected", nodeId: "node-one",
+    sourceItemId: "SRC-0001", derivedUnitId: "unit-one" }));
+  expect(accepted).not.toHaveBeenCalled();
 });
 it("restores a pending task's original goal without submitting it", async () => {
   const value = host(); value.taskDraft = () => ({ goal: "Original durable task goal", requireMapConfirmation: true });

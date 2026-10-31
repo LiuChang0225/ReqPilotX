@@ -86,6 +86,19 @@ CAS／幂等交付接口注册或复用一份 DRAFT（`acceptance=null`，不创
 Map 确认、无内部依据和显式派生是声明的分支；Map/items/delivery 原有校验
 继续拥有前置条件。没有 Map 保存条目、错误来源或错误工作流版本都会被拒绝。
 
+## 成果后修订与交付
+
+在已保存 review 后，原生会话中的只读解释不写业务数据；明确的派生和局部修正
+继续通过同一 TaskService／review CAS 路径保存。类型化 `review_apply` 现在提供
+`changes.map_revision.decisions`：程序复用既有 Map 编辑器编译候选，在 review
+内保存候选的原始来源决策，再通过现有 Map lineage／review-revise 编译、导出并
+关闭一个新版本；不另起 Map 或 review 流水线。来源身份、未受影响条目、评估和
+正式人工意见由现有 carry／rebind 逻辑保留。任务 revision、review head 或来源
+不一致时拒绝覆盖并返回重新读取当前任务的恢复动作，不自动改绑最新版本。
+会话中的文字和模型建议仍不构成正式人工接受。结果入口优先返回稳定
+`task_id`／`work_ref`／`result_revision`／`session_id` 和宿主打开会话动作；
+`workbench_url` 只是托管服务传输地址，服务重启后可能失效，不作为长期入口。
+
 ## 模型、请求与恢复
 
 新任务使用 PAIR 当前选定的默认模型和推理档位。启动记录
@@ -106,15 +119,17 @@ v3 任务返回 `reqpilot-pair-launch/v2` 公共 receipt，包含绑定来源的
 Host 登记使用 PAIR 源码检出中的真实 Cordis service/fiber 验证注册、运行状态变化
 和随 fiber 释放。原生 Session 使用源码支持的 `pair` profile、隔离 `DSH_HOME`、
 仅回环地址的 OpenAI-compatible 脚本端点和该路由的显式批准；真实
-SessionController/Workspace/MCP 完成一次 `task_open` 后结束。脚本文字没有推进
-未保存的 Map/条目阶段。该证明是 keyless/scripted，不是真实 Provider 或业务验收。
+SessionController/Workspace/MCP 完成 `task_open`、`review_apply` 的有界 Map 修正和
+`task_deliver`。脚本文字没有推进未保存阶段；Map 修正和交付只在真实工具返回已保存
+回执后成立。该证明是 keyless/scripted，不是真实 Provider 或业务验收。
 源码检出缺少预构建原生 system addon 时，runner 只把安装包中匹配的预构建复制到
 私有输出并记录该精确依赖，不修改生产策略或用户 profile。
 
 ## 未覆盖范围
 
 - 真实 Go Max 任务、原生 PAIR 浏览器和真实客户文档由父任务验收；
-- RX03 的成果后原生会话解释／派生／修订本轮只保留既有 hooks；
+- RX03 的成果后解释／派生／局部 Map 修正与同版交付已通过本地公共任务路径验证；
+  真实 Provider 和原生浏览器观察由父任务运行新的脚本化 Session fixture；
 - RX04/05 的项目参考和团队知识仍不可用，工作台如实显示不可用；
 - 冻结能力包准备另使用合成 HTTP 与脚本化 Session 控制器；真实 DSH 原生
   Session 证明只覆盖 keyless 脚本路由。

@@ -100,10 +100,22 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
     TASK_START_NOT_CONFIGURED: "PAIR 任务启动尚未配置：请确认能力包已安装并已选择默认模型。",
   };
   const setupMessage = host.taskSetup ? l(`hosted.setup.${host.taskSetup}`, setupFallbacks[host.taskSetup] || host.taskSetup) : "";
+  const discuss = () => {
+    if (!bound) return;
+    const selectedRevision = binding?.revisionId || selectedRevisionId || revisionId;
+    const selectedItem = binding?.selectedSourceItemId || binding?.selectedNodeId ? "selected" as const : "document" as const;
+    void host.openSession(bound.sessionId, { projectId, documentId, sourceSha256, workRef: bound.workRef,
+      ...(selectedRevision ? { revisionId: selectedRevision } : {}), ...(bound.taskId ? { taskId: bound.taskId } : {}),
+      scope: selectedItem, ...(binding?.selectedNodeId ? { nodeId: binding.selectedNodeId } : {}),
+      ...(binding?.selectedSourceItemId ? { sourceItemId: binding.selectedSourceItemId } : {}),
+      ...(binding?.selectedDerivedUnitId ? { derivedUnitId: binding.selectedDerivedUnitId } : {}) })
+      .catch(cause => { if (activeSelection.current === selection) setFailure({ selection, message: String(cause.message || cause) }); });
+  };
   const controls = <div className="agent-control-actions">
     {bound && <button type="button" className="button secondary compact" disabled={busy} onClick={() => {
       void host.openSession(bound.sessionId).catch(cause => { if (activeSelection.current === selection) setFailure({ selection, message: String(cause.message || cause) }); });
     }}>{l("control.openSession", "打开 PAIR 会话")}</button>}
+    {bound && <button type="button" className="button ghost compact" disabled={busy} onClick={discuss}>{l("control.discussSelected", "在会话中讨论当前成果")}</button>}
     {bound?.controlCapabilities?.cancel && <button type="button" className="button secondary compact" disabled={busy} onClick={() => void run("cancel")}>{l("control.stop", "停止本轮")}</button>}
     {bound?.controlCapabilities?.continue && <button type="button" className="button secondary compact" disabled={busy} onClick={() => void run("continue")}>{l("control.continue", "继续同一任务")}</button>}
     {bound?.controlCapabilities?.reconnect && <button type="button" className="button secondary compact" disabled={busy} onClick={() => void run("reconnect")}>{l("control.reconnect", "核对并重连原任务")}</button>}

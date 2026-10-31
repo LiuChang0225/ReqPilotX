@@ -89,8 +89,10 @@ For an existing result use the [revision loop](skills/reqpilot/references/revisi
 `review-feedback` records actual user feedback or explicit Agent self-review;
 `review-packet` exposes current source-bound context; `review-revise` calls the
 shared classification/visual compilers and carries compatible derived/analysis
-state; `review-close` checks the exact export and rejects stale feedback before
-advancing a new immutable local draft. Existing-SRC image readings are attached
+state; typed `review_apply` also accepts `changes.map_revision.decisions` to run
+the existing source-replayed Map successor without a second pipeline. `review-close`
+checks the exact export and rejects stale feedback before advancing a new
+immutable local draft. Existing-SRC image readings are attached
 without making duplicate image requirements. The same commands run from Codex,
 another coding agent's shell, or an application host adapter.
 Matrix summaries count completed analysis separately from technical conclusions;

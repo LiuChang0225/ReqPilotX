@@ -67,14 +67,16 @@ test('selected discussion context uses documented scope retention, appends witho
     slots: { inject(_name, fn) { fn(); }, register(options) { if (options.name === 'main') main = options; return () => {}; } },
     ...fake.services,
   });
-  const context = { projectId: 'p', documentId: 'd', sourceSha256: 'a'.repeat(64), workRef: 'plugin-work', revisionId: 'b'.repeat(64), scope: 'selected', sourceItemId: 'source-item', ignoredPrivateField: '/private/path' };
+  const context = { taskId: 'task-1234', projectId: 'p', documentId: 'd', sourceSha256: 'a'.repeat(64), workRef: 'plugin-work', revisionId: 'b'.repeat(64), scope: 'selected', sourceItemId: 'source-item', request: 'Please correct the selected clause.', ignoredPrivateField: '/private/path' };
   await main.inject().openSession('session-bound', context);
   assert.deepEqual(fake.navigations, ['session-bound']);
   assert.equal(fake.using.length, 1); assert.equal(fake.using[0].id, 'session-bound'); assert.equal(fake.using[0].options.source, 'controllerOperation');
   assert.equal(fake.insertions.length, 1); assert.equal(fake.insertions[0].event, 'slash/input-insert-text');
   assert.equal(fake.insertions[0].payload.span.draftRev, 7); assert.equal(fake.insertions[0].payload.span.start, 'Existing user text'.length);
   assert.equal(fake.insertions[0].payload.span.end, 'Existing user text'.length); assert.match(fake.insertions[0].payload.text, /^\n\n讨论当前选中的原文/);
-  assert.match(fake.insertions[0].payload.text, /source-item/); assert.match(fake.insertions[0].payload.text, /revisionId/); assert.doesNotMatch(fake.insertions[0].payload.text, /private/);
+  assert.match(fake.insertions[0].payload.text, /source-item/); assert.match(fake.insertions[0].payload.text, /revisionId/);
+  assert.match(fake.insertions[0].payload.text, /task-1234/); assert.match(fake.insertions[0].payload.text, /Please correct the selected clause\./);
+  assert.match(fake.insertions[0].payload.text, /不等同于正式人工接受/); assert.doesNotMatch(fake.insertions[0].payload.text, /private/);
   assert.equal(fake.input.draft, 'Existing user text');
   fake.input = { ...fake.input, phase: 'submitting' };
   await assert.rejects(main.inject().openSession('session-bound', context), /稍后/);

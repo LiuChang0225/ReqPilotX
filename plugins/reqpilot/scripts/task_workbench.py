@@ -62,7 +62,8 @@ def workbench_link(state: dict) -> dict:
     This is deliberately separate from verifying current server content. A
     successful old synchronization remains linkable when local work advances.
     """
-    unavailable={'url':None,'local_content_match':None,'remote_current_verified':False}
+    unavailable={'url':None,'url_role':'NOT_AVAILABLE','durable_entry':None,
+        'local_content_match':None,'remote_current_verified':False}
     try:
         context=state['context'];root=Path(state['task_root']).resolve(strict=True)
         path=Path(state['binding_file']).resolve()
@@ -84,7 +85,13 @@ def workbench_link(state: dict) -> dict:
                 elif (current_review and binding.get('synchronized_local_review_sha256')==current_review
                         and binding.get('synchronized_result_revision')==revision):
                     match=True
-        return {'url':url,'session_id':binding['session_id'],'result_revision':revision,
+        return {'url':url,'url_role':'MANAGED_SERVICE_TRANSPORT_EPHEMERAL',
+            'durable_entry':{'kind':'PAIR_REQPILOTX_APPLICATION','action':'openSession',
+                'task_id':context['work_id'],'work_ref':binding.get('session_id'),
+                'session_id':binding.get('session_id'),'result_revision':revision,
+                'project_id':binding.get('project_id'),'document_id':binding.get('document_id'),
+                'source_sha256':binding.get('source_sha256')},
+            'session_id':binding['session_id'],'result_revision':revision,
             'link_target':'SAVED_REMOTE_RESULT' if revision else 'SOURCE_WORK',
             'local_content_match':match,'local_revision':state['revision'],
             'observation':'SAVED_BINDING','remote_current_verified':False}

@@ -1,6 +1,8 @@
 """Route typed judgments through existing compilers and one review command."""
 from pathlib import Path
 import json
+import os
+import shutil
 
 from task_change_contracts import (bind_annotation_changes, bind_decomposition_decisions,
     bind_existing_item_changes, bind_image_items, source_item_record)
@@ -46,6 +48,38 @@ def compiler_decisions(state,action,request):
     raise ValueError('UNSUPPORTED_CHANGE')
 
 
+def _recoverable_conflict(message, state):
+    error = ValueError(message)
+    error.next_action = {'tool': 'task_inspect', 'request': {
+        'task_id': state['context']['work_id'], 'include_history': True}}
+    error.retry_guidance = 'Re-read the current task/review and source identity; submit a new command against the exact current version. Do not retarget this request to latest.'
+    return error
+
+
+def _candidate_tree(directory):
+    directory = Path(directory)
+    return {str(path.relative_to(directory)): core.file_sha256(path)
+            for path in sorted(directory.rglob('*')) if path.is_file() and not path.is_symlink()}
+
+
+def _stage_map_candidate(source, target):
+    """Freeze the compiled Map replay inputs inside the review workspace."""
+    source, target = Path(source).resolve(strict=True), Path(target)
+    if target.exists():
+        if _candidate_tree(source) != _candidate_tree(target):
+            raise ValueError('MAP_CANDIDATE_CONFLICT: compiled Map output differs from the saved review Map candidate')
+        return target
+    target.parent.mkdir(parents=True, exist_ok=True, mode=0o700)
+    staging = target.parent / ('.' + target.name + '.staging')
+    if staging.exists(): shutil.rmtree(staging)
+    shutil.copytree(source, staging)
+    if _candidate_tree(source) != _candidate_tree(staging):
+        shutil.rmtree(staging, ignore_errors=True)
+        raise ValueError('MAP_CANDIDATE_COPY_FAILED: preserve the compiled task output and retry')
+    os.replace(staging, target)
+    return target
+
+
 def execute_change(service,root,state,action,request):
     from task_service import digest,task_summary
     from task_review import apply_review
@@ -69,11 +103,28 @@ def execute_change(service,root,state,action,request):
         return service.write(root,state,action,request)
     if action=='images':raise ValueError('EXISTING_REVIEW: initial independent-image recognition must precede review preparation; revise existing image items explicitly')
     if not reviewed:raise ReviewRequired(state)
-    revision=None;compiled=None;finding=None
+    revision=None;compiled=None;finding=None;map_candidate=None
+    map_change=getattr(request.changes,'map_revision',None) if action=='revise' else None
+    if map_change is not None:
+        review_root=Path(state['current_working']['review_root'])
+        identifier=core._command_operation_id(state['context'],command)
+        map_candidate=review_root/'map-candidates'/identifier
     if operation is None:
-        if state['revision']!=request.expected_revision:raise ValueError('REVISION_CONFLICT: refresh the affected source before writing')
+        if state['revision']!=request.expected_revision:raise _recoverable_conflict('REVISION_CONFLICT: refresh the affected source before writing',state)
         _,mapping,baseline,tables=current_inputs(state)
-        if action=='revise':revision=bind_existing_item_changes(request.changes,mapping,baseline,table_previews=tables)
+        if map_change is not None:
+            from task_service import MapRequest
+            compiled_map=service.write(root,state,'map',MapRequest(task_id=request.task_id,
+                expected_revision=request.expected_revision,command_id=command+':map',decisions=map_change.decisions))
+            if compiled_map.get('operation_state') not in {'SAVED_CANDIDATE','COMMITTED'}:
+                raise ValueError('MAP_CANDIDATE_NOT_SAVED: inspect the recorded Map operation before retrying')
+            if compiled_map.get('base_revision')!=request.expected_revision:
+                raise _recoverable_conflict('REVISION_CONFLICT: compiled Map candidate was bound to another task revision',state)
+            output_dir=(compiled_map.get('result') or {}).get('output_dir')
+            if not output_dir:raise ValueError('MAP_CANDIDATE_OUTPUT_UNAVAILABLE: preserve the saved operation and retry')
+            _stage_map_candidate(output_dir,map_candidate)
+            revision={'map_revision':{'candidate_map_path':str(map_candidate.relative_to(review_root))}}
+        elif action=='revise':revision=bind_existing_item_changes(request.changes,mapping,baseline,table_previews=tables)
         elif action=='annotations':
             envelope=compiler_decisions(state,action,request)
             revision={k:envelope[k] for k in ('visual_readings','annotation_updates') if envelope.get(k)}
@@ -89,10 +140,16 @@ def execute_change(service,root,state,action,request):
         if request.self_review_finding:
             finding=request.self_review_finding.model_dump(mode='json')
             finding['source_item_ids']=[source_item_record(baseline,ref).source_record_id for ref in finding['source_item_ids']]
-    value=apply_review(root,expected_revision=request.expected_revision,command_id=command,revision=revision,
-        compile_replacements=compiled,origin=request.origin,
-        resolutions=[r.model_dump(mode='json') for r in request.resolutions],
-        self_review_finding=finding,request_payload=explicit)
+    try:
+        value=apply_review(root,expected_revision=request.expected_revision,command_id=command,revision=revision,
+            compile_replacements=compiled,origin=request.origin,
+            resolutions=[r.model_dump(mode='json') for r in request.resolutions],
+            self_review_finding=finding,map_candidate=map_candidate,request_payload=explicit)
+    except ValueError as exc:
+        if str(exc).startswith(('REVISION_CONFLICT:','CURRENT_REVIEW_REQUIRED:','Review changed since','Map source inputs changed')):
+            exc.next_action={'tool':'task_inspect','request':{'task_id':state['context']['work_id'],'include_history':True}}
+            exc.retry_guidance='Re-read the current task/review and source identity; submit a new command against the exact current version. Do not retarget this request to latest.'
+        raise
     try:summary=task_summary(core.workspace_status(root,refresh=False))
     except Exception:summary={'task_id':request.task_id,'task_root':str(root)}
     response={**summary,**value,'human_acceptance':'NOT_CLAIMED','handoff_ready':False}

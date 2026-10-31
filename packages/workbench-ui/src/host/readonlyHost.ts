@@ -8,10 +8,13 @@ export type ReadonlyWorkSelection = {
   view?: "structure" | "items" | "analysis" | "export";
 };
 export type SessionBinding = Pick<ReadonlyWorkSelection, "projectId" | "documentId" | "sourceSha256" | "workRef"> & {
-  hostId: string; workspaceId: string; sessionId: string;
+  hostId: string; workspaceId: string; sessionId: string; taskId?: string;
 };
 export type SessionDiscussionContext = ReadonlyWorkSelection & {
   scope: "document" | "selected"; nodeId?: string; sourceItemId?: string; derivedUnitId?: string;
+  taskId?: string;
+  /** Explicit user intent from the workbench, carried as draft text; it never sends or records acceptance. */
+  request?: string;
 };
 export type HostExecutionSnapshot = SessionBinding & {
   runId: string; status: "RUNNING" | "WAITING" | "IDLE" | "SUCCEEDED" | "FAILED" | "INTERRUPTED";

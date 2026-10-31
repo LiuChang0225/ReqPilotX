@@ -5702,7 +5702,7 @@ export function NativeStructureReferenceDock({
                 </section>
 
                 {isSaasAccountMode() && !sourceReader && <p role="status">{SAAS_LEGACY_STRUCTURE_UNAVAILABLE_MESSAGE} 原有指引草稿保留，发送前请在文档协作中核对。</p>}
-                {host.readOnly ? <div className="native-hierarchy-feedback-actions"><button type="button" className="button secondary compact" disabled={!documentAgent?.collaborationAvailable} onClick={() => documentAgent?.show("", "selected")}>在会话中讨论此节点</button></div> : sourceReader && documentAgent?.producer === "EXTERNAL_PLUGIN" && !message && !externalDraft.otherDrafts.length
+                {host.readOnly ? <div className="native-hierarchy-feedback-actions"><button type="button" className="button secondary compact" disabled={!documentAgent?.collaborationAvailable} onClick={() => documentAgent?.show(message.trim(), "selected")}>在会话中讨论此节点</button></div> : sourceReader && documentAgent?.producer === "EXTERNAL_PLUGIN" && !message && !externalDraft.otherDrafts.length
                   ? <div className="native-hierarchy-feedback-actions"><small>修改意见将绑定当前节点，在协作区统一记录。</small><button type="button" className="button secondary compact" onClick={() => documentAgent.show("", "selected")}>在协作中调整此节点</button></div>
                   : <><label className="native-hierarchy-feedback">
                   <span>

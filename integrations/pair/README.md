@@ -217,6 +217,20 @@ checkout currently lacks its prebuilt native system addon, so the runner copies
 the matching installed prebuilt into the private output and records that exact
 dependency; production policy and profiles are untouched.
 
+## RX03 verification entry point
+
+```sh
+node integrations/pair/scripts/dsh-native-rx03.mjs   "/absolute/PAIR/source" <installed-python> <frozen-bundle>   reports/pair-lightweight/work/03-native-session
+```
+
+This fixture creates a synthetic source, prepares a real task/Map/Items/review
+through the frozen capability, then lets a scripted native turn call
+`task_open`, `review_apply` with `changes.map_revision.decisions`, and
+`task_deliver` through the actual MCP protocol. It records the public Session
+events, work/task/revision identity and final workflow state. The route is the
+same explicitly approved loopback OpenAI-compatible profile as RX02; it is not
+a provider-model, browser-rendering or human-acceptance proof.
+
 ## Application discovery contract
 
 The authenticated `/reqpilotx/config` response now implements `reqpilot-application-host/v1`. `application-discovery.cjs` is embedded from the Host source into the Client build; the build receipt records its hash. This is a Pair transport contract, not a new business schema or an implementation of MCP Apps.

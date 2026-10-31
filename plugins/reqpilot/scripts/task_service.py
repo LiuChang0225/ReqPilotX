@@ -352,7 +352,8 @@ def task_summary(state):
         'source': context['source'], 'goal': context['request']['goal'],
         'require_map_confirmation': context['request']['require_map_confirmation'],
         'runtime': context.get('runtime_ref'), 'current_owner': state['current_working']['owner'],
-        'workbench_url': link['url'], 'workbench_link': link, 'brief': state['brief'],
+        'workbench_url': link['url'], 'workbench_link': link,
+        'workbench_entry': link.get('durable_entry'), 'brief': state['brief'],
         'selected': state['selected'], 'human_acceptance': 'NOT_CLAIMED',
         **({'workflow': state['workflow']} if state.get('workflow') else {}),
         'pending_decomposition': decomposition_attention(state),
@@ -360,6 +361,7 @@ def task_summary(state):
         **({'failed_operations': state['failed_operations'][:10]} if state.get('failed_operations') else {}),
         'capabilities': {'contract_version': CONTRACT_VERSION, 'actions': list(REQUESTS),
             'map_items_semantics': 'EXISTING_COMPILERS', 'existing_item_revision': 'TYPED_REVIEW_APPLY',
+            'existing_map_revision': 'TYPED_REVIEW_APPLY_MAP_REVISION',
             'assessment_and_engineer_opinion_transport': 'UNSUPPORTED',
             'saved_human_response_and_delivery_read': 'BOUND_WORKBENCH_READ_ONLY'},
     }

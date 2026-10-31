@@ -563,7 +563,7 @@ export function SourceItemLens({
     element.scrollIntoView?.({ block: "start", behavior: "smooth" });
   };
   const openFeedback = () => {
-    if (host.readOnly) { if (documentAgent?.collaborationAvailable) documentAgent.show("", "selected"); return; }
+    if (host.readOnly) { if (documentAgent?.collaborationAvailable) documentAgent.show(feedback.trim(), "selected"); return; }
     if (isSaasAccountMode() && documentAgent) { documentAgent.show(feedback.trim(), "selected"); return; }
     if (sharedFeedback && !hasLegacyDraft) { documentAgent!.show("", "selected"); return; }
     setFeedbackOpen(true);

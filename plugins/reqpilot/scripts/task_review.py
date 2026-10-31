@@ -20,7 +20,7 @@ SEALED_REPLACEMENTS = {key: value[0] for key, value in REPLACEMENTS.items()} | {
     'analysis_policy': 'analysis-policy.json',
 }
 REVISION_FIELDS = {'schema_version', 'expected_review_sha256', 'expected_baseline_sha256', 'model_id',
-                   'decisions', 'scope_revision', 'visual_readings', 'annotation_updates', 'addressed_feedback_ids'}
+                   'decisions', 'scope_revision', 'map_revision', 'visual_readings', 'annotation_updates', 'addressed_feedback_ids'}
 
 
 def _once(path, value):
@@ -152,7 +152,7 @@ def _present(root, operation, *, replayed, execution_state, host=None):
 def apply_review(root: Path, *, expected_revision: str, command_id: str, revision: dict | None,
                  replacements: dict[str, Path] | None = None, compile_replacements: dict[str, dict] | None = None,
                  origin: str = 'AGENT_SELF_REVIEW', resolutions: list[dict] | None = None,
-                 self_review_finding: dict | None = None,
+                 self_review_finding: dict | None = None, map_candidate: Path | None = None,
                  request_payload: dict | None = None) -> dict:
     root, context = core._resolve_task(root)
     replacements = replacements or {}; compile_replacements = compile_replacements or {}
@@ -167,7 +167,20 @@ def apply_review(root: Path, *, expected_revision: str, command_id: str, revisio
         if state['revision'] != expected_revision: raise ValueError('REVISION_CONFLICT: refresh the task before creating a review command')
         if state['current_working']['owner'] != 'portable_review': raise ValueError('CURRENT_REVIEW_REQUIRED: prepare the review first')
         if not isinstance(revision, dict) or set(revision) - REVISION_FIELDS:
-            raise ValueError('INVALID_DECISION: revision supports classification, scope replacement, visual readings and annotation updates only')
+            raise ValueError('INVALID_DECISION: revision supports classification, item-scope replacement, bounded Map revision, visual readings and annotation updates only')
+        if revision.get('map_revision') is not None:
+            reference = revision['map_revision']
+            if (not isinstance(reference, dict) or set(reference) != {'candidate_map_path'}
+                    or not isinstance(reference.get('candidate_map_path'), str) or not reference['candidate_map_path']
+                    or revision.get('decisions')):
+                raise ValueError('INVALID_DECISION: map_revision takes only a compiled candidate_map_path inside this review; classifications use a separate revision')
+            candidate_dir = core.inside(root / 'review', reference['candidate_map_path'])
+            if not candidate_dir.is_dir():
+                raise ValueError('INVALID_DECISION: compiled Map candidate directory is missing; preserve the task output and retry the same command')
+            if map_candidate is not None and candidate_dir.resolve() != Path(map_candidate).resolve():
+                raise ValueError('INVALID_DECISION: map_candidate differs from the declared review candidate')
+        elif map_candidate is not None:
+            raise ValueError('INVALID_DECISION: map_candidate requires map_revision in the frozen revision')
         if origin not in {'AGENT_SELF_REVIEW', 'USER'}: raise ValueError('INVALID_DECISION: use an actual review origin')
         if self_review_finding is not None:
             if (origin != 'AGENT_SELF_REVIEW' or not isinstance(self_review_finding, dict)
@@ -200,7 +213,9 @@ def apply_review(root: Path, *, expected_revision: str, command_id: str, revisio
             target = inputs / SEALED_REPLACEMENTS[key]
             value = core.read_json(Path(path)); _once(target, value); copied[key] = target
         _once(inputs / 'request.json', supplied)
-        planned = core.begin_operation(root, OPERATION, {'input': inputs / 'request.json', 'replacements': copied},
+        planned = core.begin_operation(root, OPERATION,
+            {'input': inputs / 'request.json', 'replacements': copied,
+             **({'map_candidate': map_candidate} if map_candidate is not None else {})},
             expected_revision=expected_revision, command_id=command_id, request=request)
     else: planned = prior
     lock_root = root / 'operations' / 'review-command-locks' / planned['operation_id']

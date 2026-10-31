@@ -403,4 +403,70 @@ class McpTaskAdapterTests(unittest.TestCase):
         asyncio.run(exercise())
 
 
+    def test_rx03_actual_stdio_map_correction_preserves_review_and_delivers(self):
+        from copy import deepcopy
+        from mcp import Client, StdioServerParameters
+        from portable_fixtures import make_fixture,item_decisions
+        with TemporaryDirectory() as temporary:
+            root=Path(temporary);source,_,mapping=make_fixture(root/'fixture')
+            params=StdioServerParameters(command=sys.executable,args=[str(SCRIPTS/'mcp_server.py'),
+                '--project-root',str(ROOT),'--working-root',str(root)])
+            def edit(value):
+                payload={key:deepcopy(item) for key,item in value.items() if key!='source_sha256'}
+                payload['schema_version']='reqpilot-map-edit/v1'
+                return payload
+            async def exercise():
+                async with Client(params) as client:
+                    async def call(name,request):
+                        reply=await client.call_tool(name,request);self.assertFalse(reply.is_error,reply)
+                        return reply.structured_content
+                    state=await call('task_open',{'mode':'create','source':str(source),
+                        'goal':'Correct the reviewed source structure through native tools.','creation_key':'rx03-stdio'})
+                    task=state['task_id']
+                    async def write(name,request):
+                        nonlocal state
+                        state=await call(name,{'task_id':task,'expected_revision':state['revision'],**request})
+                        self.assertEqual(state['operation_state'],'COMMITTED',state)
+                        return state
+                    await write('source_prepare',{'mode':'capture'})
+                    wrong=edit(mapping)
+                    for node in wrong['nodes']:
+                        if node['node_id']=='s4':node['parent_id']='s2'
+                    await write('map_apply',{'decisions':wrong})
+                    decisions=item_decisions(Path(state['selected']['MAP']['output_dir']))
+                    for key in ('schema_version','source_sha256','document_map_artifact_sha256'):decisions.pop(key,None)
+                    await write('items_apply',{'decisions':decisions})
+                    state=await call('review_prepare',{'task_id':task,'expected_revision':state['revision'],'analysis_policy':'preserve'})
+                    self.assertEqual(state['operation_state'],'COMMITTED',state)
+                    old_review=(Path(state['task_root'])/'review/workspace-manifest.json')
+                    old_review_sha=json.loads(old_review.read_text())['review_sha256']
+                    old_revision=state['revision']
+                    roster=await call('source_read',state['source_items_read']['request'])
+                    first=roster['items'][0]['source_display_id']
+                    corrected=await call('review_apply',{'task_id':task,'expected_revision':state['revision'],
+                        'command_id':'rx03-stdio-map','self_review_finding':{
+                            'text':'Restore the actual Construction owner after the review packet was read.',
+                            'source_item_ids':[first]},'changes':{'map_revision':{'decisions':edit(mapping)}}})
+                    self.assertEqual(corrected['operation_state'],'COMMITTED',corrected)
+                    self.assertTrue(corrected['review_still_current'])
+                    self.assertNotEqual(corrected['new_review_sha256'],old_review_sha)
+                    after_map,after_baseline=__import__('revision_tools').bundle(Path(corrected['candidate']))[:2]
+                    before_map,before_baseline=__import__('revision_tools').bundle(Path(state['task_root'])/'review/versions/initial')[:2]
+                    self.assertEqual(next(node for node in after_map.nodes if node.node_id=='s4').parent_id,'main')
+                    self.assertEqual([record.source_record_id for record in after_baseline.records],
+                        [record.source_record_id for record in before_baseline.records])
+                    state=corrected
+                    delivered=await write('task_deliver',{'command_id':'rx03-stdio-deliver'})
+                    self.assertTrue(delivered['local_delivery_ready'],delivered)
+                    snapshot=json.loads((Path(delivered['result']['output_dir'])/'matrix-snapshot.json').read_text())
+                    self.assertEqual(snapshot['source_item_baseline']['artifact_sha256'],after_baseline.artifact_sha256)
+                    head_bytes=old_review.read_bytes()
+                    stale=await client.call_tool('review_apply',{'task_id':task,'expected_revision':old_revision,
+                        'command_id':'rx03-stdio-stale','changes':{'map_revision':{'decisions':edit(mapping)}}})
+                    self.assertTrue(stale.is_error)
+                    self.assertIn('REVISION_CONFLICT',str(stale))
+                    self.assertEqual(old_review.read_bytes(),head_bytes)
+            asyncio.run(exercise())
+
+
 if __name__ == '__main__':unittest.main()
