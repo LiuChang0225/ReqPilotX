@@ -1,6 +1,6 @@
 # PAIR 固定业务流程与任务模型选择
 
-更新：2026-10-31。本文记录固定流程的当前实现，不声明真实模型、原生浏览器或业务语义验收已完成。验收范围由 [PAIR 迁移规格](https://github.com/LiuChang0225/PAIR/blob/codex/pair-integration-20261027/docs/pair/development/reqpilotx/spec.zh.md)拥有。
+更新：2026-11-01。本文记录固定流程的当前实现，不声明真实模型、原生浏览器或业务语义验收已完成。验收范围由 [PAIR 迁移规格](https://github.com/LiuChang0225/PAIR/blob/codex/pair-integration-20261027/docs/pair/development/reqpilotx/spec.zh.md)拥有。
 
 ## 入口与资料引导
 
@@ -89,6 +89,11 @@ attestation。没有消费事实、引用未被工具返回、旧 revision 或�
 历史分析是部分结果时，固定流程仍须等待当前基线／派生范围内的每个必需分析单元都有
 当前依据的结果，不能以 batch unit_ids 缩小任务范围。Host attestation 对累计结果集签名；
 工作台上传必须让每个已保存 assessment 记录都由该 Host 签名集认证，不能只校验最后一批。
+Host 的 `analysis`／`evidence_status` 只通过固定 `task-workflow.py` 入口执行：先验证任务
+`.reqpilot` 的完整清单、摘要和任务／来源／项目／文档／工作台／revision 绑定，再把认证
+字节放入 Host 私有只读缓存并从缓存导入；不会在持有 attestation key 时执行可写工作区代码。
+分析仍以任务原始冻结入口身份触发 review 子进程，但子进程执行同一私有缓存字节；旧冻结包
+缺少签名验证能力时返回可执行的“不支持”错误，不替换当前安装或伪造分析结果。
 原有 partial 合并、无关历史记录和人工决定保留；attestation 的 workbench ref 取自校验过的
 task-owned binding，不读取不存在的内部状态字段。保留主题使用真实 provider
 `TopicVersionInfo`／`TopicReadResult` 字段：availability、verification、applicability、

@@ -222,6 +222,44 @@ export class KnowledgeBridge {
   }
   getRecord(commandId) { return this.records.get(commandId) || null; }
   registerRecord(record) { if (record?.commandId) this.records.set(record.commandId, record); }
+  redact(error) {
+    const value = String(error?.message || error);
+    const key = this.runtime?.attestationKey;
+    return key ? value.split(key).join('[redacted]') : value;
+  }
+  /** Only the fixed isolated actions; the pinned task package is authenticated by task-workflow.py. */
+  async taskCommand(record, action, requestFile, fields = {}, { attestation = false, timeout = 60000, workspace = null } = {}) {
+    workspace ||= record?.prepared?.workspace;
+    if (!record?.python || !workspace || !record.prepared?.task_id || !this.runtime?.command)
+      throw new KnowledgeError('TASK_COMMAND_UNAVAILABLE', 503);
+    const bundleSha = record.bundleSha || record.prepared.bundle_sha256;
+    const sourceSha = record.sourceSha256 || record.prepared.source_sha256;
+    if (!/^[a-f0-9]{64}$/.test(bundleSha || '') || !/^[a-f0-9]{64}$/.test(sourceSha || ''))
+      throw new KnowledgeError('TASK_COMMAND_BINDING_MISSING', 409);
+    const directory = join(this.runtime.dataRoot || this.dataRoot, 'task-commands');
+    await mkdir(directory, { recursive: true, mode: 0o700 });
+    const file = join(directory, record.commandId + '-' + action + '-' + randomBytes(6).toString('hex') + '.json');
+    const payload = { schema: 'reqpilot-pair-host-command/v1', action,
+      task_id: record.prepared.task_id, bundle_sha256: bundleSha, source_sha256: sourceSha,
+      project_id: record.projectId, document_id: record.documentId,
+      work_ref: record.prepared.work_ref || '', expected_revision: fields.expected_revision,
+      workflow: record.workflow, request_file: requestFile };
+    if (payload.expected_revision === undefined) delete payload.expected_revision;
+    if (payload.workflow === undefined) delete payload.workflow;
+    await writeFile(file, JSON.stringify(payload), { mode: 0o600 });
+    const cacheRoot = join(this.runtime.dataRoot || this.dataRoot, 'task-launches', record.commandId + '-capability');
+    const env = { PYTHONPATH: undefined, PYTHONHOME: undefined, REQPILOT_DEVELOPMENT_ROOT: undefined,
+      ...(attestation ? { REQPILOT_HOST_ATTESTATION_KEY: this.runtime.attestationKey } : {}) };
+    let stdout;
+    try {
+      stdout = await this.runtime.command([record.python, '-I', fileURLToPath(new URL('./task-workflow.py', import.meta.url)),
+        file, workspace, cacheRoot], env, { signal: AbortSignal.timeout(timeout) });
+    } catch (error) {
+      throw new KnowledgeError('TASK_COMMAND_FAILED', 502, this.redact(error));
+    }
+    try { return JSON.parse(stdout); }
+    catch { throw new KnowledgeError('TASK_COMMAND_RESULT_UNREADABLE', 502, this.redact(stdout).slice(0, 4000)); }
+  }
   bindingPath(commandId) { return join(this.dataRoot, 'knowledge-bindings', commandId + '.binding.json'); }
   runtimePath(commandId) { return join(this.dataRoot, 'knowledge-bindings', commandId + '.runtime.json'); }
   consumptionPath(commandId) { return join(this.dataRoot, 'knowledge-consumption', commandId + '.json'); }
@@ -508,18 +546,20 @@ export class KnowledgeBridge {
     if (!record || !this.runtime) return false;
     try {
       const workspace = record.prepared?.workspace || join(this.runtime.dataRoot, record.workspaceRelative || '');
-      const capabilityRoot = record.capabilityRoot;
-      if (!workspace || !capabilityRoot) return false;
+      if (!workspace) return false;
       const request = { task_id: record.prepared?.task_id, state, message,
         binding_sha256: (await this.loadBinding(commandId)).binding_sha256 };
-      const file = join(this.runtime.dataRoot, 'knowledge-status-' + commandId + '.json');
-      await writeFile(file, JSON.stringify(request), { mode: 0o600 });
-      await this.runtime.command([record.python, '-I', join(capabilityRoot, 'scripts/reqpilot.py'),
-        'task', 'evidence_status', '--working-root', workspace, '--input', file],
-        { PYTHONPATH: undefined, PYTHONHOME: undefined, REQPILOT_DEVELOPMENT_ROOT: undefined },
-        { signal: AbortSignal.timeout(60000) });
+      const file = join(this.runtime.dataRoot,
+        'knowledge-status-' + commandId + '-' + randomBytes(16).toString('hex') + '.json');
+      await writeFile(file, JSON.stringify(request), { mode: 0o600, flag: 'wx' });
+      const result = await this.taskCommand(record, 'evidence_status', file, {}, { timeout: 60000, workspace });
+      if (result?.status === 'FAILED') throw new KnowledgeError(
+        result.error_code || 'EVIDENCE_STATUS_NOT_SAVED', 409, result.message || result.error || result.status);
       return true;
-    } catch { /* The original evidence refusal remains authoritative. */ }
+    } catch (error) {
+      /* The original evidence refusal remains authoritative; keep the detail out of protocol output. */
+      this.lastStatusError = this.redact(error);
+    }
     return false;
   }
   async requireCurrent(commandId, tool) {
@@ -869,20 +909,16 @@ export class KnowledgeBridge {
     const workspace = record.prepared.workspace;
     const directory = join(this.runtime.dataRoot, 'knowledge-analysis');
     await mkdir(directory, { recursive: true, mode: 0o700 });
-    const requestFile = join(directory, commandId + '-analysis.json');
+    const requestFile = join(directory,
+      commandId + '-analysis-' + randomBytes(16).toString('hex') + '.json');
     const request = { task_id: record.prepared.task_id, expected_revision: expectedRevision,
       command_id: modelCommandId, decisions: normalized,
       unit_ids: batchIds, knowledge_attestation: attestation };
-    await writeFile(requestFile, JSON.stringify(request), { mode: 0o600 });
-    const stdout = await this.runtime.command([record.python, '-I', join(record.capabilityRoot, 'scripts/reqpilot.py'),
-      'task', 'analysis', '--working-root', workspace, '--input', requestFile],
-      { PYTHONPATH: undefined, PYTHONHOME: undefined, REQPILOT_DEVELOPMENT_ROOT: undefined,
-        REQPILOT_HOST_ATTESTATION_KEY: this.runtime.attestationKey },
-      { signal: AbortSignal.timeout(300000) });
-    let result;
-    try { result = JSON.parse(stdout); } catch { throw new KnowledgeError('ANALYSIS_RESULT_UNREADABLE', 502); }
+    await writeFile(requestFile, JSON.stringify(request), { mode: 0o600, flag: 'wx' });
+    const result = await this.taskCommand(record, 'analysis', requestFile,
+      { expected_revision: expectedRevision }, { attestation: true, timeout: 300000 });
     if (result.status === 'FAILED' || result.status === 'UNKNOWN') throw new KnowledgeError(
-      result.error_code || 'ANALYSIS_NOT_SAVED', 409, result.message || result.error || result.status);
+      result.error_code || 'ANALYSIS_NOT_SAVED', 409, this.redact(result.message || result.error || result.status));
     if (!prior) history.entries.push({ command_id: modelCommandId, task_revision: expectedRevision,
       decisions: normalized, checked_at: new Date().toISOString() });
     await this.saveAnalysisHistory(commandId, history);

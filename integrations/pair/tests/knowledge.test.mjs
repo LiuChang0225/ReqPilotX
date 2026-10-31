@@ -181,12 +181,18 @@ test('team selection rejects another application-project base and changed versio
     service.documents.get('team-doc').backendRevision = 'c'.repeat(64);
     assert.equal((await bridge.checkBinding('stable')).state, 'CHANGED');
     const statuses = [];
-    bridge.getRecord = () => ({ commandId: 'stable', prepared: { task_root: join(root, 'task'), workspace: join(root, 'task'), task_id: 'task-stable' }, capabilityRoot: join(root, 'bundle') });
-    bridge.runtime = { dataRoot: root, command: async (argv, env, options) => { statuses.push(argv); return '{"status":"EVIDENCE_STATUS_SAVED"}'; } };
+    bridge.getRecord = () => ({ commandId: 'stable', python: '/installed/python', sourceSha256: 'c'.repeat(64),
+      bundleSha: 'd'.repeat(64),
+      prepared: { task_root: join(root, 'task'), workspace: join(root, 'task'), task_id: 'task-stable' },
+      capabilityRoot: join(root, 'bundle') });
+    bridge.runtime = { dataRoot: root, command: async (argv, env, options) => {
+      statuses.push(JSON.parse(await readFile(argv[3], 'utf8')));
+      return '{"status":"EVIDENCE_STATUS_SAVED"}';
+    } };
     await mkdir(join(root, 'task'), { recursive: true });
     await assert.rejects(bridge.search('stable', 'valve', 5), /KNOWLEDGE_EVIDENCE_CHANGED/);
     assert.equal(statuses.length, 1);
-    assert.ok(statuses[0].includes('evidence_status'));
+    assert.equal(statuses[0].action, 'evidence_status');
   } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
 });
 
@@ -421,12 +427,14 @@ test('analysis transport writes the consumed catalog and invokes the typed task 
     const taskRoot = join(root, 'task'); const bundle = join(root, 'bundle');
     await mkdir(taskRoot, { recursive: true }); await mkdir(join(bundle, 'scripts'), { recursive: true });
     bridge.registerRecord({ commandId: 'analysis-command', python: '/installed/python', capabilityRoot: bundle,
+      sourceSha256: 'd'.repeat(64), bundleSha: 'e'.repeat(64),
       prepared: { task_root: taskRoot, workspace: taskRoot, task_id: 'task-analysis' } });
     const calls = [];
     bridge.runtime = { dataRoot: root, attestationKey: 'f'.repeat(64), async command(argv, env) {
-      calls.push({ argv, env });
+      const payload = JSON.parse(await readFile(argv[3], 'utf8'));
+      calls.push({ argv, env, payload });
       assert.equal(env.REQPILOT_HOST_ATTESTATION_KEY, 'f'.repeat(64));
-      const request = JSON.parse(await readFile(argv[argv.indexOf('--input') + 1], 'utf8'));
+      const request = JSON.parse(await readFile(payload.request_file, 'utf8'));
       assert.equal(request.expected_revision, request.command_id === 'model-command-two'
         ? 'workspace-revision-two' : 'workspace-revision-one');
       assert.equal(request.command_id, request.decisions[0].unit_id === 'u2' ? 'model-command-two' : 'model-command-one');
@@ -449,16 +457,15 @@ test('analysis transport writes the consumed catalog and invokes the typed task 
       ['u1'], 'workspace-revision-one', 'model-command-one');
     assert.equal(result.analysis.assessed_unit_count, 1);
     assert.equal(calls.length, 1);
-    assert.ok(calls[0].argv.includes('analysis'));
-    assert.ok(!calls[0].argv.includes('inspect'));
-    const firstRequest = JSON.parse(await readFile(calls[0].argv[calls[0].argv.indexOf('--input') + 1], 'utf8'));
+    assert.equal(calls[0].payload.action, 'analysis');
+    const firstRequest = JSON.parse(await readFile(calls[0].payload.request_file, 'utf8'));
     assert.deepEqual(firstRequest.knowledge_attestation.decisions.map(item => item.unit_id), ['u1']);
     const second = await bridge.analysis('analysis-command', [{ unit_id: 'u2', decision: 'PENDING_EVIDENCE',
       reason: 'No suitable evidence for this unit.', evidence: [],
       clarification_question: 'Provide current evidence.' }], ['u2'], 'workspace-revision-two', 'model-command-two');
     assert.equal(second.analysis.assessed_unit_count, 1);
     assert.equal(calls.length, 2);
-    const secondRequest = JSON.parse(await readFile(calls[1].argv[calls[1].argv.indexOf('--input') + 1], 'utf8'));
+    const secondRequest = JSON.parse(await readFile(calls[1].payload.request_file, 'utf8'));
     assert.deepEqual(secondRequest.decisions.map(item => item.unit_id), ['u2']);
     assert.equal(secondRequest.knowledge_attestation.task_revision, 'workspace-revision-two');
     assert.deepEqual(secondRequest.knowledge_attestation.decisions.map(item => item.unit_id).sort(), ['u1', 'u2']);
@@ -647,10 +654,12 @@ test('analysis accepts unit subsets in caller order and normalizes the submitted
     await bridge.prepareBinding({ commandId: 'ordered-command', projectId: 'p', mode: 'PROJECT_REFERENCES', projectDocumentIds: ['project-doc'] });
     const taskRoot = join(root, 'task'); await mkdir(taskRoot, { recursive: true });
     bridge.registerRecord({ commandId: 'ordered-command', python: '/installed/python', capabilityRoot: root,
+      sourceSha256: 'd'.repeat(64), bundleSha: 'e'.repeat(64),
       prepared: { task_root: taskRoot, workspace: taskRoot, task_id: 'task-ordered' } });
     let submitted;
     bridge.runtime = { dataRoot: root, attestationKey: 'f'.repeat(64), async command(argv) {
-      submitted = JSON.parse(await readFile(argv[argv.indexOf('--input') + 1], 'utf8'));
+      const payload = JSON.parse(await readFile(argv[3], 'utf8'));
+      submitted = JSON.parse(await readFile(payload.request_file, 'utf8'));
       return JSON.stringify({ status: 'WORKSPACE_OPERATION_SAVED', operation_state: 'COMMITTED' });
     } };
     const ids = ['u2', 'u1'];
@@ -887,12 +896,14 @@ test('adopted version changes and cumulative attestation cannot silently retarge
       libraryId: service.adoptedLibraries()[0].id, versionId: 'b'.repeat(64) });
     const taskRoot = join(root, 'task'); await mkdir(taskRoot, { recursive: true });
     const requests = [];
-    bridge.registerRecord({ commandId: 'adopted-version', documentId: 'doc', prepared: { task_root: taskRoot,
+    bridge.registerRecord({ commandId: 'adopted-version', documentId: 'doc', sourceSha256: 'd'.repeat(64),
+      bundleSha: 'e'.repeat(64), prepared: { task_root: taskRoot,
       workspace: taskRoot, task_id: 'task-adopted', work_ref: 'plugin-' + 'a'.repeat(32) },
     workspace: taskRoot, capabilityRoot: join(root, 'bundle'), python: '/installed/python' });
     bridge.runtime = { dataRoot: root, attestationKey: 'a'.repeat(64),
       command: async (argv, env, options) => {
-        const input = JSON.parse(await readFile(argv.at(-1), 'utf8')); requests.push(input);
+        const payload = JSON.parse(await readFile(argv[3], 'utf8'));
+        const input = JSON.parse(await readFile(payload.request_file, 'utf8')); requests.push(input);
         return JSON.stringify({ status: 'SAVED', analysis: { assessed_unit_count: 2 } });
       } };
     const first = await bridge.adoptedEvidence('adopted-version', 'allowable load', 8);
