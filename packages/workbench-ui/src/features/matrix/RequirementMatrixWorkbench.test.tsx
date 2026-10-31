@@ -24,6 +24,7 @@ import {
   profileReady,
   RequirementMatrixWorkbench,
 } from "./RequirementMatrixWorkbench";
+import { HostLocaleProvider } from "../../host/HostLocaleContext";
 
 describe("profileReady", () => {
   it("trusts an explicit false readiness instead of legacy configured flags", () => {
@@ -4843,5 +4844,26 @@ describe("RequirementMatrixWorkbench", () => {
       "aria-selected",
       "false",
     );
+  });
+});
+
+describe("RequirementMatrixWorkbench English host locale", () => {
+  it("keeps a confirmed set analysis/review surface usable in English", async () => {
+    const { matrix, root } = fixture();
+    installResizeObserver({ treeWidth: 350, workbenchWidth: 1200 });
+    installReviewMatrixApis(matrix, root);
+    const value = workspaceValue("legacy-set");
+    value.requirementSets = {
+      active_requirement_set_id: "legacy-set",
+      requirement_sets: [{ id: "legacy-set", version_label: "版本 1", status: "LOCKED" }],
+    };
+    const view = render(<HostLocaleProvider t={key => key === "workbench.locale" ? "en" : key}>
+      <WorkspaceProvider value={value}><RequirementMatrixWorkbench lens="review" /></WorkspaceProvider>
+    </HostLocaleProvider>);
+    expect(await screen.findByRole("combobox", { name: "Requirement version" })).toHaveValue("legacy-set");
+    expect(screen.getByRole("region", { name: "Requirement confirmation list" })).toBeVisible();
+    expect(screen.queryByText("需求版本")).not.toBeInTheDocument();
+    expect(screen.queryByText("分析全部需求")).not.toBeInTheDocument();
+    expect(screen.queryByText("返回检查")).not.toBeInTheDocument();
   });
 });

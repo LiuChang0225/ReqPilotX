@@ -6,6 +6,7 @@
 import { extractionPhrasesEn } from "./extraction-phrases";
 import { dockPhrasesEn } from "./dock-phrases";
 import { pluginPhrasesEn } from "./plugin-phrases";
+import { matrixPhrasesEn } from "./matrix-phrases";
 
 export type UiLocale = "zh" | "en";
 
@@ -1598,6 +1599,7 @@ const en: Record<string, string> = {
   ...extractionPhrasesEn,
   ...dockPhrasesEn,
   ...pluginPhrasesEn,
+  ...matrixPhrasesEn,
   "common.saving": "Saving…",
   "stage.updatedResync": "The stage changed; resync before opening it.",
   "stage.updatedReopen": "The stage changed; reopen it.",

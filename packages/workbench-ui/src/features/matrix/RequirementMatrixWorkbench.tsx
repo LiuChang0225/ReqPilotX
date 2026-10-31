@@ -69,6 +69,7 @@ import {
   type RequirementMatrixLens,
   type RequirementMatrixRow,
 } from "./requirementMatrixModel";
+import { useUiCopy } from "../../host/HostLocaleContext";
 
 const MATRIX_ROW_HEIGHT = 64;
 const MATRIX_OVERSCAN = 8;
@@ -114,8 +115,7 @@ type BatchScope = "branch" | "filter" | "all";
 type MatrixWorkflowDialog = "lock" | "unlock" | "analysis" | "stop" | null;
 type MatrixWorkflowPending = "lock" | "unlock" | "analysis" | "stop" | null;
 type AnalysisRetryKind = "" | "preview" | "start";
-type SaveState =
-  "" | "未保存" | "保存中…" | "保存失败，请重试" | `已保存 ${string}`;
+type SaveState = string;
 type MatrixMutationKind = "single" | "batch";
 export type MatrixMutationRequest = {
   generation: number;
@@ -139,6 +139,7 @@ function optionalNonNegativeInteger(...values: unknown[]): number | null {
 
 function lockReadinessItemMessage(
   item: RequirementSetLockReadinessItem,
+  l?: (key: string, fallback?: string) => string,
 ): string {
   const recoveryMessages: Record<string, string> = {
     REQUIREMENT_SET_SELECTION_CHANGED:
@@ -153,45 +154,37 @@ function lockReadinessItemMessage(
   if (typeof item === "string") {
     const message = item.trim();
     const recovery = recoveryMessages[message.toUpperCase()];
-    if (recovery) return recovery;
+    if (recovery) return l ? l(recovery) : recovery;
     if (!message || /^[A-Z0-9_.:-]+$/.test(message)) {
-      return "清单存在需要处理的问题，请返回清单检查后重试。";
+      const text = "清单存在需要处理的问题，请返回清单检查后重试。";
+      return l ? l(text) : text;
     }
     return message;
   }
   const code = String(item.code || "").trim().toUpperCase();
   const message = compactText(item.message || item.detail, "");
   if (message && !/^[A-Z0-9_.:-]+$/.test(message)) return message;
-  return (
-    recoveryMessages[code] ||
-    "清单存在需要处理的问题，请返回清单检查后重试。"
-  );
+  const fallback = recoveryMessages[code] || "清单存在需要处理的问题，请返回清单检查后重试。";
+  return l ? l(fallback) : fallback;
 }
 
 function workflowErrorMessage(
   cause: unknown,
   action: "lock" | "unlock" | "readiness",
+  l?: (key: string, fallback?: string) => string,
 ): { message: string; conflict: boolean } {
+  const text = (key: string) => l ? l(key) : key;
   if (cause instanceof ApiError && cause.status === 409) {
     return {
-      message:
-        action === "unlock"
-          ? "当前清单已发生变化。请关闭提示并重新检查后再解锁。"
-          : "清单内容已发生变化，请刷新摘要后重新核对锁定范围。",
+      message: action === "unlock" ? text("当前清单已发生变化。请关闭提示并重新检查后再解锁。") : text("清单内容已发生变化，请刷新摘要后重新核对锁定范围。"),
       conflict: true,
     };
   }
   if (action === "readiness") {
-    return {
-      message: "暂时无法读取锁定摘要。请检查连接后重新读取。",
-      conflict: false,
-    };
+    return { message: text("暂时无法读取锁定摘要。请检查连接后重新读取。"), conflict: false };
   }
   return {
-    message:
-      action === "unlock"
-        ? "清单未能解锁，当前已锁定清单没有改变。请稍后重试。"
-        : "清单未能锁定，当前内容没有改变。请重新读取摘要后重试。",
+    message: action === "unlock" ? text("清单未能解锁，当前已锁定清单没有改变。请稍后重试。") : text("清单未能锁定，当前内容没有改变。请重新读取摘要后重试。"),
     conflict: false,
   };
 }
@@ -203,9 +196,8 @@ function apiErrorCode(cause: unknown): string {
   return String(detail.code || payload.code || "").trim().toLowerCase();
 }
 
-function aiStageLabel(stage: string): string {
-  return (
-    {
+function aiStageLabel(stage: string, l?: (key: string, fallback?: string) => string): string {
+  const value = ({
       starting: "正在启动",
       queued: "等待开始",
       pending: "等待开始",
@@ -218,17 +210,13 @@ function aiStageLabel(stage: string): string {
       completed_with_warnings: "部分项目未完成",
       succeeded: "已完成",
       failed: "运行失败",
-    }[stage.toLowerCase()] || "任务状态更新中"
-  );
+    } as Record<string, string>)[stage.toLowerCase()] || "任务状态更新中";
+  return l ? l(value) : value;
 }
 
-function analysisScopeLabel(scope: RequirementAnalysisScope): string {
-  return {
-    CURRENT: "当前项",
-    SELECTED: "所选项",
-    ALL: "全部分析项",
-    FAILED_ONLY: "仅重试失败项",
-  }[scope];
+function analysisScopeLabel(scope: RequirementAnalysisScope, l?: (key: string, fallback?: string) => string): string {
+  const value = ({ CURRENT: "当前项", SELECTED: "所选项", ALL: "全部分析项", FAILED_ONLY: "仅重试失败项" } as Record<string, string>)[scope] || "";
+  return l ? l(value) : value;
 }
 
 const ANALYSIS_NODE_EXECUTION_STATUSES = new Set<RequirementAnalysisNodeExecutionStatus>([
@@ -400,13 +388,15 @@ function analysisExecutionsMatchCounts(
 function analysisExecutionStatusLabel(
   execution: RequirementAnalysisNodeExecution | null,
   fallback: string,
+  l?: (key: string, fallback?: string) => string,
 ): string {
+  const text = (key: string) => l ? l(key) : key;
   if (!execution) return fallback;
-  if (execution.status === "WAITING") return "等待分析";
-  if (["RUNNING", "PUBLISHING"].includes(execution.status)) return "分析中";
-  if (execution.status === "FAILED") return "分析失败";
-  if (execution.status === "CANCELLED") return "未完成";
-  return execution.published ? "AI 已分析" : "未完成";
+  if (execution.status === "WAITING") return text("等待分析");
+  if (["RUNNING", "PUBLISHING"].includes(execution.status)) return text("分析中");
+  if (execution.status === "FAILED") return text("分析失败");
+  if (execution.status === "CANCELLED") return text("未完成");
+  return execution.published ? text("AI 已分析") : text("未完成");
 }
 
 function analysisScopePreviewMatchesRequest(
@@ -502,16 +492,15 @@ function analysisScopeCommandId(): string {
   return `analysis-${Date.now()}-${Math.random().toString(16).slice(2)}`;
 }
 
-function analysisSkipReasonLabel(reason: string): string {
-  return (
-    {
+function analysisSkipReasonLabel(reason: string, l?: (key: string, fallback?: string) => string): string {
+  const value = ({
       SYSTEM_NON_BUSINESS: "系统内容不进入分析",
       NOT_VISIBLE: "当前不在可分析范围",
       NOT_MARKED_FOR_ANALYSIS: "已设为仅保留或排除分析",
       NOT_ELIGIBLE: "章节、标题或上下文不单独分析",
       MISSING_REQUIREMENT_BINDING: "未绑定可分析需求",
-    }[reason.toUpperCase()] || "不满足当前分析条件"
-  );
+    } as Record<string, string>)[reason.toUpperCase()] || "不满足当前分析条件";
+  return l ? l(value) : value;
 }
 
 function logicalTableContainsRecord(
@@ -850,28 +839,23 @@ function replaceMatrixNodes(
   };
 }
 
-function dispositionLabel(value: string): string {
-  return (
-    dispositionOptions.find((option) => option.value === value)?.label ||
-    "仅保留"
-  );
+function dispositionLabel(value: string, l?: (key: string, fallback?: string) => string): string {
+  const label = dispositionOptions.find((option) => option.value === value)?.label || "仅保留";
+  return l ? l(label) : label;
 }
 
-function decisionLabel(value: string): string {
-  return decisionOptions.find(([key]) => key === value)?.[1] || "待确认";
+function decisionLabel(value: string, l?: (key: string, fallback?: string) => string): string {
+  const label = decisionOptions.find(([key]) => key === value)?.[1] || "待确认";
+  return l ? l(label) : label;
 }
 
-function assessmentModeLabel(value: unknown): string {
+function assessmentModeLabel(value: unknown, l?: (key: string, fallback?: string) => string): string {
   const labels: Record<string, string> = {
-    EVIDENCE: "证据辅助分析",
-    EVIDENCE_DRIVEN: "证据辅助分析",
-    LLM: "智能辅助分析",
-    AI: "智能辅助分析",
-    RULE: "本地规则预判",
-    LOCAL_RULE: "本地规则预判",
-    MANUAL: "人工录入",
+    EVIDENCE: "证据辅助分析", EVIDENCE_DRIVEN: "证据辅助分析", LLM: "智能辅助分析", AI: "智能辅助分析",
+    RULE: "本地规则预判", LOCAL_RULE: "本地规则预判", MANUAL: "人工录入",
   };
-  return labels[String(value || "").toUpperCase()] || "辅助分析";
+  const label = labels[String(value || "").toUpperCase()] || "辅助分析";
+  return l ? l(label) : label;
 }
 
 export function profileReady(profile: AiProfile | null): boolean {
@@ -922,6 +906,7 @@ function MatrixInspector({
   onRetryDetail: () => void;
   analysisExecution: RequirementAnalysisNodeExecution | null;
 }) {
+  const l = useUiCopy();
   const [disposition, setDisposition] =
     useState<RequirementMatrixNodeDisposition>(node?.disposition || "RETAIN");
   const [dispositionReason, setDispositionReason] = useState(
@@ -955,7 +940,7 @@ function MatrixInspector({
   }, [node?.node_id, onSaveState, resetSignal]);
 
   const save = useCallback(async (): Promise<boolean> => {
-    if (!node || saveState === "保存中…") return false;
+    if (!node || saveState === l("保存中…")) return false;
     if (
       (lens === "review" &&
         (!canEditDisposition ||
@@ -966,7 +951,7 @@ function MatrixInspector({
       return false;
     }
     const mutationRequest = beginMatrixMutation();
-    onSaveState("保存中…");
+    onSaveState(l("保存中…"));
     try {
       if (lens === "review") {
         const response = await api.updateRequirementMatrixDisposition(
@@ -1002,11 +987,11 @@ function MatrixInspector({
         const responseNode = asRecord(response).node as RequirementMatrixNode;
         onNodeUpdated(responseNode);
       }
-      onSaveState(`已保存 ${savedTimeFormatter.format(new Date())}`);
+      onSaveState(l("已保存 {time}", undefined, { time: savedTimeFormatter.format(new Date()) }));
       return true;
     } catch {
       if (!isMatrixMutationCurrent(mutationRequest)) return false;
-      onSaveState("保存失败，请重试");
+      onSaveState(l("保存失败，请重试"));
       return false;
     }
   }, [
@@ -1035,8 +1020,8 @@ function MatrixInspector({
     return (
       <EmptyState
         icon="requirement"
-        title="选择一项开始检查"
-        description="检查器会集中显示处置、AI 建议和人工结论。"
+        title={l("选择一项开始检查")}
+        description={l("检查器会集中显示处置、AI 建议和人工结论。")}
       />
     );
   }
@@ -1054,10 +1039,10 @@ function MatrixInspector({
       : null;
   const aiConclusionLabel =
     conclusionContract.conclusionSource === "AI_DEFAULT"
-      ? "AI 结论 · 默认采用"
+      ? l("AI 结论 · 默认采用")
       : conclusionContract.conclusionSource === "HUMAN_OVERRIDE" && assessment
-        ? "AI 原结论 · 已被人工修改"
-        : "AI 结论";
+        ? l("AI 原结论 · 已被人工修改")
+        : l("AI 结论");
   const staleAssessment = node.stale_ai_assessment;
   const staleDecision = node.stale_manual_decision;
   const persistedAssessment = aiAssessmentPermitted
@@ -1079,7 +1064,7 @@ function MatrixInspector({
     <div className="matrix-inspector-content">
       <header className="matrix-inspector-heading">
         <div>
-          <span>{lens === "review" ? "确认清单" : "分析检查器"}</span>
+          <span>{lens === "review" ? l("确认清单") : l("分析检查器")}</span>
           <h2>{matrixNodeLabel(node)}</h2>
         </div>
         <StatusBadge tone={matrixAnalysisTone(displayedAnalysisStatus)}>
@@ -1088,9 +1073,9 @@ function MatrixInspector({
       </header>
 
       {lens === "analysis" && analysisExecution?.status === "FAILED" && (
-        <InlineNotice tone="warning" title="本次分析失败">
+        <InlineNotice tone="warning" title={l("本次分析失败")}>
           {analysisExecution.error_message ||
-            "当前项本次没有生成新结果；如已有历史结果，仍保留为上一版结果。"}
+            l("当前项本次没有生成新结果；如已有历史结果，仍保留为上一版结果。")}
         </InlineNotice>
       )}
 
@@ -1101,10 +1086,10 @@ function MatrixInspector({
       )}
 
       {detailError && (
-        <InlineNotice title="版本详情读取失败" tone="warning">
+        <InlineNotice title={l("版本详情读取失败")} tone="warning">
           {detailError}
           <button className="text-button" type="button" onClick={onRetryDetail}>
-            重试
+            {l("重试")}
           </button>
         </InlineNotice>
       )}
@@ -1112,13 +1097,13 @@ function MatrixInspector({
       {lens === "review" ? (
         <>
           {isContainer ? (
-            <InlineNotice tone="info" title="内容分组无需单独设置">
-              章节、条款和表格分组负责保留层级，其状态由下级条目汇总。展开后可处理具体条目，也可使用清单上方的批量处理一次应用到当前范围。
+            <InlineNotice tone="info" title={l("内容分组无需单独设置")}>
+              {l("章节、条款和表格分组负责保留层级，其状态由下级条目汇总。展开后可处理具体条目，也可使用清单上方的批量处理一次应用到当前范围。")}
             </InlineNotice>
           ) : (
             <>
               <section className="matrix-inspector-section">
-                <p className="section-label">在正式清单中的处理方式</p>
+                <p className="section-label">{l("在正式清单中的处理方式")}</p>
                 <div className="matrix-disposition-options">
                   {dispositionOptions.map((option) => (
                     <label
@@ -1140,51 +1125,51 @@ function MatrixInspector({
                         }
                         onChange={() => {
                           setDisposition(option.value);
-                          onSaveState("未保存");
+                          onSaveState(l("未保存"));
                         }}
                       />
                       <span>
-                        <strong>{option.label}</strong>
-                        <small>{option.description}</small>
+                        <strong>{l(option.label)}</strong>
+                        <small>{l(option.description)}</small>
                       </span>
                     </label>
                   ))}
                 </div>
               </section>
               <label className="matrix-inspector-field">
-                <span>处置说明（可选）</span>
+                <span>{l("处置说明（可选）")}</span>
                 <textarea
                   name="matrix-disposition-reason"
                   autoComplete="off"
                   rows={3}
                   value={dispositionReason}
                   disabled={!canEditDisposition}
-                  placeholder="仅在需要说明排除或保留原因时填写"
+                  placeholder={l("仅在需要说明排除或保留原因时填写")}
                   onChange={(event) => {
                     setDispositionReason(event.target.value);
-                    onSaveState("未保存");
+                    onSaveState(l("未保存"));
                   }}
                 />
               </label>
             </>
           )}
-          <InlineNotice tone="info" title="正文保持版本原样">
-            确认清单只决定“需分析 / 仅保留 / 排除”。如需修正文档结构或内容边界，请返回结构整理生成新版本。
+          <InlineNotice tone="info" title={l("正文保持版本原样")}>
+            {l("确认清单只决定“需分析 / 仅保留 / 排除”。如需修正文档结构或内容边界，请返回结构整理生成新版本。")}
           </InlineNotice>
           {!isContainer && !canEditDisposition && (
             <p className="matrix-form-hint">
-              只有当前激活且未锁定的需求版本可以修改清单处置。
+              {l("只有当前激活且未锁定的需求版本可以修改清单处置。")}
             </p>
           )}
         </>
       ) : (
         <>
           {conclusionContract.conclusionSource === "STALE_REFERENCE" && (
-            <InlineNotice tone="warning" title="需重新分析">
-              <p>内容或分析上下文已经变化；上版结果仅作历史追溯，不作为当前结论。</p>
+            <InlineNotice tone="warning" title={l("需重新分析")}>
+              <p>{l("内容或分析上下文已经变化；上版结果仅作历史追溯，不作为当前结论。")}</p>
               {staleAssessment && (
                 <p>
-                  上版 AI 建议：
+                  {l("上版 AI 建议：")}
                   {objectText(
                     staleAssessment.decision ||
                       staleAssessment.compliance_status,
@@ -1192,7 +1177,7 @@ function MatrixInspector({
                 </p>
               )}
               {staleDecision && (
-                <p>上版人工结论：{decisionLabel(staleDecision.decision)}</p>
+                <p>上版人工结论：{decisionLabel(staleDecision.decision, l)}</p>
               )}
             </InlineNotice>
           )}
@@ -1205,7 +1190,7 @@ function MatrixInspector({
                     ? objectText(
                         assessment.decision || assessment.compliance_status,
                       )
-                    : "尚无可采用的当前 AI 结论"}
+                    : l("尚无可采用的当前 AI 结论")}
                 </h3>
               </div>
               {assessment?.confidence !== null && assessment?.confidence !== undefined && (
@@ -1214,22 +1199,22 @@ function MatrixInspector({
             </div>
             {assessment?.reason && <p>{String(assessment.reason)}</p>}
             {assessment?.assessment_mode && (
-              <small>分析方式：{assessmentModeLabel(assessment.assessment_mode)}</small>
+              <small>分析方式：{assessmentModeLabel(assessment.assessment_mode, l)}</small>
             )}
           </section>
 
           {detailLoading ? (
-            <LoadingBlock label="正在读取版本证据" />
+            <LoadingBlock label={l("正在读取版本证据")} />
           ) : (
             <>
               {evidenceFindings.length > 0 && (
                 <section className="matrix-inspector-section">
-                  <p className="section-label">证据判断</p>
+                  <p className="section-label">{l("证据判断")}</p>
                   <div className="matrix-evidence-list">
                     {evidenceFindings.map((finding, index) => (
                       <article key={String(finding.retrieval_evidence_id || index)}>
                         <strong>{objectText(finding.finding) || `证据 ${index + 1}`}</strong>
-                        <p>{objectText(finding.rationale) || "已绑定到当前版本。"}</p>
+                        <p>{objectText(finding.rationale) || l("已绑定到当前版本。")}</p>
                       </article>
                     ))}
                   </div>
@@ -1237,7 +1222,7 @@ function MatrixInspector({
               )}
               {subJudgments.length > 0 && (
                 <section className="matrix-inspector-section">
-                  <p className="section-label">分项判断</p>
+                  <p className="section-label">{l("分项判断")}</p>
                   {subJudgments.map((item, index) => (
                     <p key={String(item.id || index)}>{objectText(item)}</p>
                   ))}
@@ -1245,7 +1230,7 @@ function MatrixInspector({
               )}
               {missingItems.length > 0 && (
                 <section className="matrix-inspector-section is-warning">
-                  <p className="section-label">待补充信息</p>
+                  <p className="section-label">{l("待补充信息")}</p>
                   {missingItems.map((item, index) => (
                     <p key={String(item.id || index)}>
                       {objectText(item.item || item.required_input || item)}
@@ -1257,9 +1242,9 @@ function MatrixInspector({
           )}
 
           <section className="matrix-inspector-section is-decision">
-            <p className="section-label">人工修改（可选）</p>
+            <p className="section-label">{l("人工修改（可选）")}</p>
             <label className="matrix-inspector-field">
-              <span>结论</span>
+              <span>{l("结论")}</span>
               <select
                 name="matrix-manual-decision"
                 autoComplete="off"
@@ -1267,19 +1252,19 @@ function MatrixInspector({
                 disabled={!canWriteDecision}
                 onChange={(event) => {
                   setDecision(event.target.value);
-                  onSaveState("未保存");
+                  onSaveState(l("未保存"));
                 }}
               >
-                <option value="">保持 AI 结论（未修改）</option>
+                <option value="">{l("保持 AI 结论（未修改）")}</option>
                 {decisionOptions.map(([value, label]) => (
                   <option value={value} key={value}>
-                    {label}
+                    {l(label)}
                   </option>
                 ))}
               </select>
             </label>
             <label className="matrix-inspector-field">
-              <span>工程师说明</span>
+              <span>{l("工程师说明")}</span>
               <textarea
                 name="matrix-decision-reason"
                 autoComplete="off"
@@ -1288,18 +1273,18 @@ function MatrixInspector({
                 disabled={!canWriteDecision}
                 onChange={(event) => {
                   setDecisionReason(event.target.value);
-                  onSaveState("未保存");
+                  onSaveState(l("未保存"));
                 }}
               />
             </label>
             {!matrixAnalysisEligible(node) && (
               <p className="matrix-form-hint">
-                当前项是层级或上下文，不进入单独的符合性判定。
+                {l("当前项是层级或上下文，不进入单独的符合性判定。")}
               </p>
             )}
             {matrixAnalysisEligible(node) && !canWriteDecision && (
               <p className="matrix-form-hint">
-                人工结论只能写入当前已锁定的确认清单。
+                {l("人工结论只能写入当前已锁定的确认清单。")}
               </p>
             )}
           </section>
@@ -1308,13 +1293,13 @@ function MatrixInspector({
 
       <footer className="matrix-inspector-footer">
         <span aria-live="polite">
-          {saveState || `当前：${dispositionLabel(node.disposition)}`}
+          {saveState || `当前：${dispositionLabel(node.disposition, l)}`}
         </span>
         <button
           className="button primary"
           type="button"
           disabled={
-            saveState === "保存中…" ||
+            saveState === l("保存中…") ||
             (lens === "review"
               ? !canEditDisposition ||
                 (isContainer && disposition !== "RETAIN") ||
@@ -1324,14 +1309,14 @@ function MatrixInspector({
           onClick={() => void save()}
         >
           <Icon
-            name={saveState === "保存失败，请重试" ? "refresh" : "check"}
+            name={saveState === l("保存失败，请重试") ? "refresh" : "check"}
             size={15}
           />
-          {saveState === "保存中…"
-            ? "保存中…"
-            : saveState === "保存失败，请重试"
-              ? "重试保存"
-              : "保存"}
+          {saveState === l("保存中…")
+            ? l("保存中…")
+            : saveState === l("保存失败，请重试")
+              ? l("重试保存")
+              : l("保存")}
           <kbd>⌘↵</kbd>
         </button>
       </footer>
@@ -1344,6 +1329,7 @@ export function RequirementMatrixWorkbench({
 }: {
   lens: RequirementMatrixLens;
 }) {
+  const l = useUiCopy();
   const {
     route,
     updateRoute,
@@ -1417,7 +1403,7 @@ export function RequirementMatrixWorkbench({
   const [tableDetails, setTableDetails] = useState<RequirementMatrixLogicalTable[]>([]);
   const [saveState, setSaveState] = useState<SaveState>("");
   const hasUnsavedChanges =
-    saveState === "未保存" || saveState === "保存失败，请重试";
+    saveState === l("未保存") || saveState === l("保存失败，请重试");
   const [matrixRefreshPending, setMatrixRefreshPending] = useState(false);
   const [resetSignal, setResetSignal] = useState(0);
   const [batchOpen, setBatchOpen] = useState(false);
@@ -1427,9 +1413,9 @@ export function RequirementMatrixWorkbench({
   const [batchReason, setBatchReason] = useState("");
   const [batchState, setBatchState] = useState("");
   const matrixMutationPending =
-    saveState === "保存中…" ||
-    batchState === "保存中…" ||
-    batchState === "正在撤销…";
+    saveState === l("保存中…") ||
+    batchState === l("保存中…") ||
+    batchState === l("正在撤销…");
   const [workflowDialog, setWorkflowDialog] =
     useState<MatrixWorkflowDialog>(null);
   const [workflowPending, setWorkflowPending] =
@@ -1601,7 +1587,7 @@ export function RequirementMatrixWorkbench({
       if (requestId !== matrixRequestRef.current) return;
       setMatrix(null);
       setMatrixError(
-        cause instanceof Error ? cause : new Error("需求矩阵暂时无法读取。"),
+        cause instanceof Error ? cause : new Error(l("需求矩阵暂时无法读取。")),
       );
     } finally {
       if (requestId === matrixRequestRef.current) setMatrixLoading(false);
@@ -1630,7 +1616,7 @@ export function RequirementMatrixWorkbench({
     } catch (cause) {
       if (requestId !== lockReadinessRequestRef.current) return;
       focusLockConfirmAfterReadinessRef.current = false;
-      const error = workflowErrorMessage(cause, "readiness");
+      const error = workflowErrorMessage(cause, "readiness", l);
       setWorkflowError(error.message);
       setWorkflowConflict(error.conflict);
     } finally {
@@ -1910,7 +1896,7 @@ export function RequirementMatrixWorkbench({
         if (!active) return;
         setPagePayload(null);
         setSourceError(
-          cause instanceof Error ? cause.message : "当前页无法读取。",
+          cause instanceof Error ? cause.message : l("当前页无法读取。"),
         );
       });
     return () => {
@@ -1992,7 +1978,7 @@ export function RequirementMatrixWorkbench({
       detailResult.status === "rejected"
         ? detailResult.reason instanceof Error
           ? detailResult.reason.message
-          : "完整父条款暂时无法读取。"
+          : l("完整父条款暂时无法读取。")
         : "",
     );
     setTableDetails(
@@ -2005,7 +1991,7 @@ export function RequirementMatrixWorkbench({
     ).length;
     setTableError(
       failedTableCount
-        ? `${failedTableCount} 个表格还原详情暂时无法读取。`
+        ? l("{count} 个表格还原详情暂时无法读取。", undefined, { count: failedTableCount })
         : "",
     );
     setDetailLoading(false);
@@ -2104,7 +2090,7 @@ export function RequirementMatrixWorkbench({
               : role.includes("FIGURE")
                 ? "FIGURE"
                 : "TEXT",
-            label: index === 0 ? "当前内容" : "",
+            label: index === 0 ? l("当前内容") : "",
             bbox,
             sourceBounds: pageSnapshot.bounds,
             selected: true,
@@ -2181,7 +2167,7 @@ export function RequirementMatrixWorkbench({
     };
     window.addEventListener("beforeunload", beforeUnload);
     const unregister = registerNavigationGuard(() =>
-      window.confirm("当前修改尚未保存，确定离开吗？"),
+      window.confirm(l("当前修改尚未保存，确定离开吗？")),
     );
     return () => {
       window.removeEventListener("beforeunload", beforeUnload);
@@ -2354,7 +2340,7 @@ export function RequirementMatrixWorkbench({
         !force &&
         next.node.node_id !== selectedId &&
         hasUnsavedChanges &&
-        !window.confirm("当前修改尚未保存，确定切换到其他内容吗？")
+        !window.confirm(l("当前修改尚未保存，确定切换到其他内容吗？"))
       ) {
         requestAnimationFrame(() => rowRefs.current.get(selectedId)?.focus());
         return;
@@ -2617,7 +2603,7 @@ export function RequirementMatrixWorkbench({
     optionalNonNegativeInteger(currentAiJob.failed_requirements);
   const aiCancelledCount = aiExecutionCounts?.cancelled ?? null;
   const aiRetryableFailedCount = aiExecutionCounts?.retryable_failed ?? 0;
-  const aiRemainingLabel = aiRunning ? "等待" : "未完成";
+  const aiRemainingLabel = aiRunning ? l("等待") : l("未完成");
   const aiCanCancel =
     aiRunning &&
     (recoverableJobModeValid || aiCurrentStage !== "publishing") &&
@@ -2772,7 +2758,7 @@ export function RequirementMatrixWorkbench({
     let locked: Awaited<ReturnType<typeof api.lockExtraction>> | null = null;
     try {
       locked = await runAction(
-        "锁定确认清单",
+        l("锁定确认清单"),
         async () => {
           try {
             return await api.lockExtraction(
@@ -2792,7 +2778,7 @@ export function RequirementMatrixWorkbench({
       actionError = cause;
     }
     if (!locked) {
-      const error = workflowErrorMessage(actionError, "lock");
+      const error = workflowErrorMessage(actionError, "lock", l);
       setWorkflowPending(null);
       setWorkflowError(error.message);
       setWorkflowConflict(error.conflict);
@@ -2947,8 +2933,8 @@ export function RequirementMatrixWorkbench({
           setAnalysisPreviewError(
             conflictCode === "analysis_tree_identity_mismatch" ||
               conflictCode === "matrix_requires_reextraction"
-              ? "当前冻结需求矩阵无法验证。请返回需求提取重新生成并锁定清单。"
-              : "服务端拒绝了当前分析范围。本次不会启动任务，请关闭后刷新再试。",
+              ? l("当前冻结需求矩阵无法验证。请返回需求提取重新生成并锁定清单。")
+              : l("服务端拒绝了当前分析范围。本次不会启动任务，请关闭后刷新再试。"),
           );
           return;
         }
@@ -2959,7 +2945,7 @@ export function RequirementMatrixWorkbench({
           setAnalysisRetryKind("");
           setAnalysisScopePreview(null);
           setAnalysisPreviewError(
-            "服务端返回的范围身份与当前清单不一致。本次不会启动任务，请关闭并同步清单。",
+            l("服务端返回的范围身份与当前清单不一致。本次不会启动任务，请关闭并同步清单。"),
           );
           return;
         }
@@ -2971,12 +2957,12 @@ export function RequirementMatrixWorkbench({
           setAnalysisRetryKind("");
           setAnalysisScopePreview(null);
           setAnalysisPreviewError(
-            cause.message || "当前范围不能启动分析，请关闭后检查清单。",
+            cause.message || l("当前范围不能启动分析，请关闭后检查清单。"),
           );
           return;
         }
         setAnalysisRetryKind("preview");
-        setAnalysisPreviewError("暂时无法核对分析范围。请检查连接后重新读取。");
+        setAnalysisPreviewError(l("暂时无法核对分析范围。请检查连接后重新读取。"));
       } finally {
         if (requestId === analysisPreviewRequestRef.current) {
           setAnalysisPreviewLoading(false);
@@ -3024,7 +3010,7 @@ export function RequirementMatrixWorkbench({
     setWorkflowPending("analysis");
     let startError: unknown = null;
     const started = await runAction(
-      "启动需求分析",
+      l("启动需求分析"),
       async () => {
         try {
           return await api.startAi(
@@ -3043,8 +3029,8 @@ export function RequirementMatrixWorkbench({
       {
         refresh: "none",
         scope: "requirementSet",
-        successNotice: `已创建${analysisScopeLabel(analysisScopeRequest.scope)} ${analysisScopePreview.target_count} 项分析任务`,
-        failureNotice: "分析任务未创建",
+        successNotice: l("已创建{scope} {count} 项分析任务", undefined, { scope: analysisScopeLabel(analysisScopeRequest.scope, l), count: analysisScopePreview.target_count }),
+        failureNotice: l("分析任务未创建"),
       },
     );
     setWorkflowPending(null);
@@ -3095,7 +3081,7 @@ export function RequirementMatrixWorkbench({
       ) {
         setAnalysisRetryKind("");
         setAnalysisPreviewError(
-          startError.message || "当前范围不能启动分析，请关闭后检查清单。",
+          startError.message || l("当前范围不能启动分析，请关闭后检查清单。"),
         );
         return;
       }
@@ -3105,8 +3091,8 @@ export function RequirementMatrixWorkbench({
       setAnalysisRetryKind(canRepreview ? "preview" : "start");
       setAnalysisPreviewError(
         canRepreview
-          ? "清单或已确认范围已经变化。本次任务没有创建，请重新核对范围。"
-          : "没有收到明确的启动结果。将使用同一操作 ID 重试，以免重复创建任务。",
+          ? l("清单或已确认范围已经变化。本次任务没有创建，请重新核对范围。")
+          : l("没有收到明确的启动结果。将使用同一操作 ID 重试，以免重复创建任务。"),
       );
       return;
     }
@@ -3142,7 +3128,7 @@ export function RequirementMatrixWorkbench({
     setWorkflowPending("analysis");
     let startError: unknown = null;
     const started = await runAction(
-      "启动全部需求分析",
+      l("启动全部需求分析"),
       async () => {
         try {
           return await api.startAiLegacy(
@@ -3159,16 +3145,16 @@ export function RequirementMatrixWorkbench({
       {
         refresh: "none",
         scope: "requirementSet",
-        successNotice: `已创建全部 ${actualAnalysisCount} 项分析任务`,
-        failureNotice: "分析任务未创建",
+        successNotice: l("已创建全部 {count} 项分析任务", undefined, { count: actualAnalysisCount }),
+        failureNotice: l("分析任务未创建"),
       },
     );
     setWorkflowPending(null);
     if (!started) {
       setWorkflowError(
         startError instanceof ApiError && startError.status === 409
-          ? "当前清单或分析任务状态已经变化，本次任务没有创建。请关闭后刷新再试。"
-          : "分析任务没有创建。请检查连接后重试。",
+          ? l("当前清单或分析任务状态已经变化，本次任务没有创建。请关闭后刷新再试。")
+          : l("分析任务没有创建。请检查连接后重试。"),
       );
       return;
     }
@@ -3194,7 +3180,7 @@ export function RequirementMatrixWorkbench({
     setWorkflowError("");
     let stopError: unknown = null;
     const stopped = await runAction(
-      "提交停止分析请求",
+      l("提交停止分析请求"),
       async () => {
         try {
           return await api.stopAi(
@@ -3210,16 +3196,16 @@ export function RequirementMatrixWorkbench({
       {
         refresh: "none",
         scope: "requirementSet",
-        successNotice: "已提交停止请求，正在等待当前步骤结束",
-        failureNotice: "停止请求未提交",
+        successNotice: l("已提交停止请求，正在等待当前步骤结束"),
+        failureNotice: l("停止请求未提交"),
       },
     );
     setWorkflowPending(null);
     if (!stopped) {
       setWorkflowError(
         stopError instanceof ApiError && stopError.status === 409
-          ? "任务状态已经变化，停止请求未提交。请关闭后查看最新进度。"
-          : "停止请求未提交。请检查连接后重试。",
+          ? l("任务状态已经变化，停止请求未提交。请关闭后查看最新进度。")
+          : l("停止请求未提交。请检查连接后重试。"),
       );
       return;
     }
@@ -3245,7 +3231,7 @@ export function RequirementMatrixWorkbench({
     } | null = null;
     try {
       derived = await runAction(
-        "解锁并修改",
+        l("解锁并修改"),
         async () => {
           try {
             const payload = await api.deriveRequirementSet(
@@ -3272,7 +3258,7 @@ export function RequirementMatrixWorkbench({
       actionError = cause;
     }
     if (!derived) {
-      const error = workflowErrorMessage(actionError, "unlock");
+      const error = workflowErrorMessage(actionError, "unlock", l);
       setWorkflowPending(null);
       setWorkflowError(error.message);
       setWorkflowConflict(error.conflict);
@@ -3303,8 +3289,8 @@ export function RequirementMatrixWorkbench({
       !matrix ||
       !canBatchDisposition ||
       !batchCandidateNodes.length ||
-      batchState === "保存中…" ||
-      batchState === "正在撤销…"
+      batchState === l("保存中…") ||
+      batchState === l("正在撤销…")
     ) {
       return;
     }
@@ -3314,7 +3300,7 @@ export function RequirementMatrixWorkbench({
       reason: String(node.disposition_reason || ""),
     }));
     const mutationRequest = beginMatrixMutation("batch");
-    setBatchState("保存中…");
+    setBatchState(l("保存中…"));
     try {
       const response = await api.updateRequirementMatrixDispositions(
         route.projectId,
@@ -3360,13 +3346,13 @@ export function RequirementMatrixWorkbench({
             : [];
         }),
       );
-      setBatchState(`已批量处理 ${updatedNodes.length} 项`);
+      setBatchState(l("已批量处理 {count} 项", undefined, { count: updatedNodes.length }));
       setBatchOpen(false);
       setBatchReason("");
     } catch (cause) {
       if (!isMatrixMutationCurrent(mutationRequest)) return;
       setBatchState(
-        cause instanceof Error ? cause.message : "批量处理失败，请重试。",
+        cause instanceof Error ? cause.message : l("批量处理失败，请重试。"),
       );
     }
   }, [
@@ -3388,13 +3374,13 @@ export function RequirementMatrixWorkbench({
       !matrix ||
       !canBatchDisposition ||
       !batchUndo.length ||
-      batchState === "保存中…" ||
-      batchState === "正在撤销…"
+      batchState === l("保存中…") ||
+      batchState === l("正在撤销…")
     ) {
       return;
     }
     const mutationRequest = beginMatrixMutation("batch");
-    setBatchState("正在撤销…");
+    setBatchState(l("正在撤销…"));
     try {
       const response = await api.updateRequirementMatrixDispositions(
         route.projectId,
@@ -3425,11 +3411,11 @@ export function RequirementMatrixWorkbench({
           : current,
       );
       setBatchUndo([]);
-      setBatchState(`已撤销 ${updatedNodes.length} 项批量处理`);
+      setBatchState(l("已撤销 {count} 项批量处理", undefined, { count: updatedNodes.length }));
     } catch (cause) {
       if (!isMatrixMutationCurrent(mutationRequest)) return;
       setBatchState(
-        cause instanceof Error ? cause.message : "撤销失败，请刷新后重试。",
+        cause instanceof Error ? cause.message : l("撤销失败，请刷新后重试。"),
       );
     }
   }, [
@@ -3455,20 +3441,20 @@ export function RequirementMatrixWorkbench({
     return (
       <EmptyState
         icon="projects"
-        title="先选择项目和来源文件"
-        description="统一需求矩阵严格绑定项目、文档和需求版本。"
+        title={l("先选择项目和来源文件")}
+        description={l("统一需求矩阵严格绑定项目、文档和需求版本。")}
       />
     );
   }
   if (requirementSets === null || matrixLoading) {
-    return <LoadingBlock label="正在读取统一需求矩阵" />;
+    return <LoadingBlock label={l("正在读取统一需求矩阵")} />;
   }
   if (!selectedSetId) {
     return (
       <EmptyState
         icon="matrix"
-        title="尚无确认清单"
-        description="请先从解析核对开始，完成结构整理并生成确认清单。"
+        title={l("尚无确认清单")}
+        description={l("请先从解析核对开始，完成结构整理并生成确认清单。")}
         action={
           <button
             className="button primary"
@@ -3482,7 +3468,7 @@ export function RequirementMatrixWorkbench({
               })
             }
           >
-            前往需求提取
+            {l("前往需求提取")}
           </button>
         }
       />
@@ -3493,8 +3479,8 @@ export function RequirementMatrixWorkbench({
     return (
       <EmptyState
         icon="refresh"
-        title="该历史版本需要重新提取"
-        description="当前版本缺少可证明的冻结结构或证据，不会用后来变化的整理结果猜测补齐。"
+        title={l("该历史版本需要重新提取")}
+        description={l("当前版本缺少可证明的冻结结构或证据，不会用后来变化的整理结果猜测补齐。")}
         action={
           <button
             className="button primary"
@@ -3508,7 +3494,7 @@ export function RequirementMatrixWorkbench({
               })
             }
           >
-            前往需求提取
+            {l("前往需求提取")}
           </button>
         }
       />
@@ -3518,8 +3504,8 @@ export function RequirementMatrixWorkbench({
     return (
       <EmptyState
         icon="tree"
-        title="需求矩阵尚未生成"
-        description="完成结构整理并生成确认清单后，层级内容会在这里出现。"
+        title={l("需求矩阵尚未生成")}
+        description={l("完成结构整理并生成确认清单后，层级内容会在这里出现。")}
         action={
           <button
             className="button primary"
@@ -3533,7 +3519,7 @@ export function RequirementMatrixWorkbench({
               })
             }
           >
-            前往需求提取
+            {l("前往需求提取")}
           </button>
         }
       />
@@ -3544,25 +3530,25 @@ export function RequirementMatrixWorkbench({
     <>
       {(detailError || tableError) && (
         <div className="matrix-detail-error" role="alert">
-          <InlineNotice title="部分版本内容读取失败" tone="warning">
+          <InlineNotice title={l("部分版本内容读取失败")} tone="warning">
             {[detailError, tableError].filter(Boolean).join(" ")}
             <button
               className="text-button"
               type="button"
               onClick={() => void loadSelectedDetail()}
             >
-              重试
+              {l("重试")}
             </button>
           </InlineNotice>
         </div>
       )}
       {selectedRecordPresentationState === "loading" ? (
-        <LoadingBlock label="正在还原当前表格条目…" />
+        <LoadingBlock label={l("正在还原当前表格条目…")} />
       ) : selectedRecordPresentationState === "error" ? (
         <EmptyState
           icon="matrix"
-          title="当前表格条目尚未还原"
-          description="没有取得可验证的当前行和表头，因此不会用整张原表临时替代。"
+          title={l("当前表格条目尚未还原")}
+          description={l("没有取得可验证的当前行和表头，因此不会用整张原表临时替代。")}
           action={
             <button
               className="button secondary"
@@ -3570,7 +3556,7 @@ export function RequirementMatrixWorkbench({
               onClick={() => void loadSelectedDetail()}
             >
               <Icon name="refresh" size={14} />
-              重试
+              {l("重试")}
             </button>
           }
         />
@@ -3600,20 +3586,20 @@ export function RequirementMatrixWorkbench({
     <div className="matrix-pdf-view">
       <header>
         <div>
-          <span>可信原文</span>
+          <span>{l("可信原文")}</span>
           <strong>原 PDF · 第 {pdfPage} 页</strong>
         </div>
         <div className="matrix-pdf-controls">
           <button
             type="button"
-            aria-label="上一页"
+            aria-label={l("上一页")}
             disabled={pdfPage <= 1}
             onClick={() => setPdfPage(Math.max(1, pdfPage - 1))}
           >
             <Icon name="chevron" size={14} className="is-back" />
           </button>
           <label>
-            <span className="sr-only">PDF 页码</span>
+            <span className="sr-only">{l("PDF 页码")}</span>
             <input
               type="number"
               name="matrix-pdf-page"
@@ -3635,7 +3621,7 @@ export function RequirementMatrixWorkbench({
           <span>/ {maxPage}</span>
           <button
             type="button"
-            aria-label="下一页"
+            aria-label={l("下一页")}
             disabled={pdfPage >= maxPage}
             onClick={() => setPdfPage(Math.min(maxPage, pdfPage + 1))}
           >
@@ -3645,7 +3631,7 @@ export function RequirementMatrixWorkbench({
             href={`/pdf-viewer?pdf=${encodeURIComponent(pdfPath)}&page=${pdfPage}`}
             target="_blank"
             rel="noreferrer"
-            aria-label="在新窗口打开 PDF"
+            aria-label={l("在新窗口打开 PDF")}
           >
             <Icon name="external" size={14} />
           </a>
@@ -3655,7 +3641,7 @@ export function RequirementMatrixWorkbench({
       <iframe
         ref={pdfFrameRef}
         src={pdfViewerUrl}
-        title="带当前内容框选的原 PDF"
+        title={l("带当前内容框选的原 PDF")}
       />
     </div>
   );
@@ -3702,26 +3688,26 @@ export function RequirementMatrixWorkbench({
       className="requirement-matrix-workbench"
       data-lens={lens}
       data-active-detail={detailPane}
-      aria-label={lens === "review" ? "需求确认清单" : "需求分析矩阵"}
+      aria-label={lens === "review" ? l("需求确认清单") : l("需求分析矩阵")}
     >
       <header className="matrix-workbench-toolbar">
         {lens === "review" ? (
-          <div className="matrix-review-summary" aria-label="确认清单统计">
-            {isCandidateReview ? <><strong>{String(candidateMetadata.sourceCount || 0)} 条原文</strong><span>{String(candidateMetadata.derivedCount || 0)} 条派生</span><span>来源与候选分别保留</span></> : <><strong>{businessContentCount} 项清单内容</strong><span>{actualAnalysisCount} 项需分析</span><span>{businessNonAnalysisCount} 项不分析</span></>}
+          <div className="matrix-review-summary" aria-label={l("确认清单统计")}>
+            {isCandidateReview ? <><strong>{String(candidateMetadata.sourceCount || 0)} 条原文</strong><span>{String(candidateMetadata.derivedCount || 0)} 条派生</span><span>{l("来源与候选分别保留")}</span></> : <><strong>{businessContentCount} 项清单内容</strong><span>{actualAnalysisCount} 项需分析</span><span>{businessNonAnalysisCount} 项不分析</span></>}
           </div>
         ) : (
           <div className="matrix-workbench-title">
-            <span>需求分析</span>
-            <h1>需求合规矩阵</h1>
+            <span>{l("需求分析")}</span>
+            <h1>{l("需求合规矩阵")}</h1>
             <p>
               {businessContentCount} 项可见内容 · {actualAnalysisCount}{" "}
-              项分析范围
+              {l("项分析范围")}
             </p>
           </div>
         )}
         <div className="matrix-workbench-actions">
           <label className="matrix-version-select">
-            <span>需求版本</span>
+            <span>{l("需求版本")}</span>
             <select
               name="matrix-requirement-set"
               autoComplete="off"
@@ -3747,13 +3733,13 @@ export function RequirementMatrixWorkbench({
               {sets.map((set) => (
                 <option value={setId(set)} key={setId(set)}>
                   {requirementSetLabel(set)}
-                  {setId(set) === activeSetId ? " · 当前" : ""}
+                  {setId(set) === activeSetId ? l(" · 当前") : ""}
                 </option>
               ))}
             </select>
           </label>
           <StatusBadge tone={setStatus === "LOCKED" ? "success" : "warning"}>
-            {setStatus === "LOCKED" ? "已锁定" : "确认中"}
+            {setStatus === "LOCKED" ? l("已锁定") : l("确认中")}
           </StatusBadge>
           {!isCandidateReview && canBatchDisposition && (
             <button
@@ -3763,7 +3749,7 @@ export function RequirementMatrixWorkbench({
               onClick={() => setBatchOpen((current) => !current)}
             >
               <Icon name="check" size={15} />
-              批量处理
+              {l("批量处理")}
             </button>
           )}
           {!isCandidateReview && lens === "review" &&
@@ -3778,8 +3764,8 @@ export function RequirementMatrixWorkbench({
             >
               <Icon name="lock" size={15} />
               {actualAnalysisCount > 0
-                ? `锁定 ${actualAnalysisCount} 条需求并进入分析`
-                : "锁定清单并查看矩阵"}
+                ? l("锁定 {count} 条需求并进入分析", undefined, { count: actualAnalysisCount })
+                : l("锁定清单并查看矩阵")}
             </button>
           )}
           {lens === "review" &&
@@ -3791,11 +3777,11 @@ export function RequirementMatrixWorkbench({
                 className="button secondary"
                 type="button"
                 disabled={Boolean(busyAction)}
-                title="保留当前已锁定清单，并创建一份可编辑清单"
+                title={l("保留当前已锁定清单，并创建一份可编辑清单")}
                 onClick={openUnlockConfirmation}
               >
                 <Icon name="refresh" size={15} />
-                解锁并修改
+                {l("解锁并修改")}
               </button>
             )}
           {lens === "analysis" &&
@@ -3808,12 +3794,12 @@ export function RequirementMatrixWorkbench({
                   disabled={Boolean(busyAction) || !aiCanCancel}
                   title={
                     aiCancelRequested
-                      ? "停止请求已提交，正在等待当前步骤结束"
+                      ? l("停止请求已提交，正在等待当前步骤结束")
                       : aiPublishing && !recoverableJobModeValid
-                        ? "本次分析正在原子发布，当前不能停止"
+                        ? l("本次分析正在原子发布，当前不能停止")
                         : aiCanCancel
-                      ? "停止本次分析"
-                      : "当前任务状态不能停止"
+                      ? l("停止本次分析")
+                      : l("当前任务状态不能停止")
                   }
                   onClick={() => {
                     setWorkflowError("");
@@ -3822,23 +3808,23 @@ export function RequirementMatrixWorkbench({
                 >
                   <Icon name="stop" size={15} />
                   {aiCancelRequested
-                    ? "正在停止"
+                    ? l("正在停止")
                     : aiPublishing && !recoverableJobModeValid
-                      ? "正在发布"
+                      ? l("正在发布")
                       : aiCanCancel
-                        ? "停止分析"
-                        : "暂不可停止"}
+                        ? l("停止分析")
+                        : l("暂不可停止")}
                 </button>
               ) : actualAnalysisCount > 0 ? (
                 analysisActionsSupported ? (
-                  <div className="matrix-analysis-actions" role="group" aria-label="启动需求分析">
+                  <div className="matrix-analysis-actions" role="group" aria-label={l("启动需求分析")}>
                     <button
                       className="button secondary"
                       type="button"
                       disabled={Boolean(busyAction) || !aiProfileReady || !canAnalyzeCurrent}
                       onClick={() => void openAnalysisConfirmation("CURRENT")}
                     >
-                      分析当前项
+                      {l("分析当前项")}
                     </button>
                     <button
                       className="button secondary"
@@ -3867,17 +3853,17 @@ export function RequirementMatrixWorkbench({
                     className="button primary"
                     type="button"
                     disabled
-                    title="服务端返回的逐项分析状态不完整；为避免重复任务，暂不允许启动"
+                    title={l("服务端返回的逐项分析状态不完整；为避免重复任务，暂不允许启动")}
                   >
                     <Icon name="refresh" size={15} />
-                    分析状态需要刷新
+                    {l("分析状态需要刷新")}
                   </button>
                 ) : legacyAnalysisSupported ? (
                   <button
                     className="button primary"
                     type="button"
                     disabled={Boolean(busyAction) || !aiProfileReady}
-                    title="当前服务端未回显精确范围能力，将沿用安全的全部分析确认流程"
+                    title={l("当前服务端未回显精确范围能力，将沿用安全的全部分析确认流程")}
                     onClick={openLegacyAnalysisConfirmation}
                   >
                     <Icon name="spark" size={15} />
@@ -3888,27 +3874,27 @@ export function RequirementMatrixWorkbench({
                     className="button primary"
                     type="button"
                     disabled
-                    title="服务端分析能力尚未确认，暂不允许启动任务"
+                    title={l("服务端分析能力尚未确认，暂不允许启动任务")}
                   >
                     <Icon name="spark" size={15} />
-                    分析能力尚未确认
+                    {l("分析能力尚未确认")}
                   </button>
                 )
               ) : null
           )}
           {selectedSetId !== activeSetId && (
-            <span className="matrix-readonly-note">历史清单只读</span>
+            <span className="matrix-readonly-note">{l("历史清单只读")}</span>
           )}
         </div>
       </header>
 
       {isCandidateReview && <div className="matrix-workflow-notice"><p>{String(candidateMetadata.scope || "")}</p></div>}
       {(isCandidateReview || matrix?.nodes.some(node => node.classification_paths?.length)) && <div className="matrix-facet-toolbar">
-        <label>需求类别<select aria-label="筛选需求类别" value={category} onChange={event => setCategory(event.target.value)}>{CLASSIFICATION_OPTIONS.map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-        <label>主题标签<select aria-label="筛选主题标签" value={topic} onChange={event => setTopic(event.target.value)}><option value="">全部主题</option>{Object.entries(topicLabels).map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></label>
-        {(category || topic) && <button type="button" className="text-button" onClick={() => { setCategory(""); setTopic(""); }}>清除分类筛选</button>}
-        {isCandidateReview && <button type="button" className="button secondary" disabled={exportState === "正在导出…"} onClick={async () => {
-          setExportState("正在导出…");
+        <label>{l("需求类别")}<select aria-label={l("筛选需求类别")} value={category} onChange={event => setCategory(event.target.value)}>{CLASSIFICATION_OPTIONS.map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+        <label>{l("主题标签")}<select aria-label={l("筛选主题标签")} value={topic} onChange={event => setTopic(event.target.value)}><option value="">{l("全部主题")}</option>{Object.entries(topicLabels).map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></label>
+        {(category || topic) && <button type="button" className="text-button" onClick={() => { setCategory(""); setTopic(""); }}>{l("清除分类筛选")}</button>}
+        {isCandidateReview && <button type="button" className="button secondary" disabled={exportState === l("正在导出…")} onClick={async () => {
+          setExportState(l("正在导出…"));
           try {
             const state = await request<JsonRecord>("/api/review-state");
             const completeSource = candidateMetadata.exportScope === "COMPLETE_SOURCE";
@@ -3916,10 +3902,10 @@ export function RequirementMatrixWorkbench({
               ? (matrix?.nodes || []).filter(node => Boolean(node.candidate_review)).map(node => node.node_id)
               : matchingCandidateExportIds(matrix, query, filter, facets);
             const response = await fetch("/api/candidate-review/export", { method: "POST", headers: { "Content-Type": "application/json", "X-Review-Token": String(state.writeToken) }, body: JSON.stringify({ sourceRevision: matrix?.tree_sha256, expectedRevision: state.revision, nodeIds: ids }) });
-            if (!response.ok) throw new Error("导出未完成，请刷新后重试。");
-            const url = URL.createObjectURL(await response.blob()); const link = document.createElement("a"); link.href = url; link.download = "ReqPilotX-原文核对清单.xlsx"; link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); setExportState(completeSource ? "已导出完整原文矩阵" : "已导出当前命中条目");
+            if (!response.ok) throw new Error(l("导出未完成，请刷新后重试。"));
+            const url = URL.createObjectURL(await response.blob()); const link = document.createElement("a"); link.href = url; link.download = l("ReqPilotX-原文核对清单.xlsx"); link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); setExportState(completeSource ? l("已导出完整原文矩阵") : l("已导出当前命中条目"));
           } catch (cause) { setExportState(cause instanceof Error ? cause.message : String(cause)); }
-        }}>{candidateMetadata.exportScope === "COMPLETE_SOURCE" ? "导出完整原文矩阵" : "导出筛选结果"}</button>}
+        }}>{candidateMetadata.exportScope === "COMPLETE_SOURCE" ? l("导出完整原文矩阵") : l("导出筛选结果")}</button>}
         <span role="status" aria-live="polite">{exportState}</span>
       </div>}
       {lens === "review" &&
@@ -3929,13 +3915,13 @@ export function RequirementMatrixWorkbench({
               tone={staleAnalysisTargetCount > 0 ? "warning" : "success"}
               title={
                 staleAnalysisTargetCount > 0
-                  ? `本次修改后有 ${staleAnalysisTargetCount} 条分析结果需要重跑`
-                  : "本次修改后没有分析结果需要重跑"
+                  ? l("本次修改后有 {count} 条分析结果需要重跑", undefined, { count: staleAnalysisTargetCount })
+                  : l("本次修改后没有分析结果需要重跑")
               }
             >
               {staleAnalysisTargetCount > 0
-                ? "这些结果已标记为历史参考；未受影响的分析与人工结论继续保留。"
-                : "当前没有仍处于分析范围且需要重跑的结果；未受影响结果继续有效。"}
+                ? l("这些结果已标记为历史参考；未受影响的分析与人工结论继续保留。")
+                : l("当前没有仍处于分析范围且需要重跑的结果；未受影响结果继续有效。")}
             </InlineNotice>
           </div>
         )}
@@ -3945,15 +3931,15 @@ export function RequirementMatrixWorkbench({
         (zeroAnalysisLocked ||
           (actualAnalysisCount === 0 && setStatus === "LOCKED")) && (
         <div className="matrix-workflow-notice" role="status" aria-live="polite">
-          <InlineNotice tone="success" title="清单已锁定，没有待分析项">
-            <p>全部内容继续保留在当前矩阵中；本次没有启动 AI，也没有进入空分析页面。</p>
+          <InlineNotice tone="success" title={l("清单已锁定，没有待分析项")}>
+            <p>{l("全部内容继续保留在当前矩阵中；本次没有启动 AI，也没有进入空分析页面。")}</p>
             <div className="matrix-workflow-notice-actions">
               <button
                 className="button secondary"
                 type="button"
                 onClick={openUnlockConfirmation}
               >
-                解锁并修改
+                {l("解锁并修改")}
               </button>
               <button
                 className="button secondary"
@@ -3965,7 +3951,7 @@ export function RequirementMatrixWorkbench({
                     })
                 }
               >
-                前往矩阵导出
+                {l("前往矩阵导出")}
               </button>
             </div>
           </InlineNotice>
@@ -3977,8 +3963,8 @@ export function RequirementMatrixWorkbench({
         setStatus === "LOCKED" &&
         actualAnalysisCount === 0 && (
           <div className="matrix-workflow-notice" role="status" aria-live="polite">
-            <InlineNotice tone="info" title="当前清单没有需要分析的内容">
-              <p>全部业务内容仍保留在矩阵中；这里不会创建空分析任务。</p>
+            <InlineNotice tone="info" title={l("当前清单没有需要分析的内容")}>
+              <p>{l("全部业务内容仍保留在矩阵中；这里不会创建空分析任务。")}</p>
               <div className="matrix-workflow-notice-actions">
                 <button
                   className="button secondary"
@@ -3990,7 +3976,7 @@ export function RequirementMatrixWorkbench({
                     })
                   }
                 >
-                  前往矩阵导出
+                  {l("前往矩阵导出")}
                 </button>
                 <button
                   className="button ghost"
@@ -4002,7 +3988,7 @@ export function RequirementMatrixWorkbench({
                     })
                   }
                 >
-                  返回确认清单
+                  {l("返回确认清单")}
                 </button>
               </div>
             </InlineNotice>
@@ -4010,34 +3996,34 @@ export function RequirementMatrixWorkbench({
         )}
 
       {lens === "analysis" && currentAiJobId && (
-        <section className="matrix-ai-progress" aria-label="需求分析进度">
+        <section className="matrix-ai-progress" aria-label={l("需求分析进度")}>
           {recoverableJobMalformed ? (
-            <InlineNotice tone="warning" title="逐项分析状态暂时不完整">
-              为避免重复启动或误重试，当前操作已暂停。请刷新后查看最新状态。
+            <InlineNotice tone="warning" title={l("逐项分析状态暂时不完整")}>
+              {l("为避免重复启动或误重试，当前操作已暂停。请刷新后查看最新状态。")}
             </InlineNotice>
           ) : (
             <>
               <span className="sr-only" role="status" aria-live="polite">
-                {aiStageLabel(aiCurrentStage)}，
+                {aiStageLabel(aiCurrentStage, l)}，
                 {recoverableExecutionStatusValid
-                  ? `已处理 ${aiCompletedCount}/${aiTotalCount}，成功 ${aiSucceededCount ?? 0}，失败 ${aiFailedCount ?? 0}，运行 ${aiActiveCount}，等待 ${aiWaitingCount}，已发布 ${aiPublishedCount}`
-                  : `本次已计算 ${aiCompletedCount}/${aiTotalCount}，本次已发布 ${aiPublishedCount}/${aiTotalCount}`}
+                  ? l("已处理 {done}/{total}，成功 {succeeded}，失败 {failed}，运行 {active}，等待 {waiting}，已发布 {published}", undefined, { done: aiCompletedCount, total: aiTotalCount, succeeded: aiSucceededCount ?? 0, failed: aiFailedCount ?? 0, active: aiActiveCount, waiting: aiWaitingCount, published: aiPublishedCount })
+                  : l("本次已计算 {done}/{total}，本次已发布 {published}/{total}", undefined, { done: aiCompletedCount, total: aiTotalCount, published: aiPublishedCount })}
               </span>
               <div className="matrix-ai-progress-heading">
                 <div>
-                  <strong>{aiStageLabel(aiCurrentStage)}</strong>
+                  <strong>{aiStageLabel(aiCurrentStage, l)}</strong>
                   <span>
-                    {analysisScopeLabel(aiScope || "ALL")} ·{" "}
+                    {analysisScopeLabel(aiScope || "ALL", l)} ·{" "}
                     {recoverableExecutionStatusValid
-                      ? `已处理 ${aiCompletedCount}/${aiTotalCount}`
-                      : `本次已计算 ${aiCompletedCount}/${aiTotalCount}`}
+                      ? l("已处理 {done}/{total}", undefined, { done: aiCompletedCount, total: aiTotalCount })
+                      : l("本次已计算 {done}/{total}", undefined, { done: aiCompletedCount, total: aiTotalCount })}
                   </span>
                 </div>
                 <div className="matrix-ai-progress-actions">
                   <span className="matrix-ai-publish-mode">
                     {recoverableExecutionStatusValid
-                      ? `逐项发布 · 已发布 ${aiPublishedCount}/${aiTotalCount}`
-                      : `本次已发布 ${aiPublishedCount}/${aiTotalCount}`}
+                      ? l("逐项发布 · 已发布 {published}/{total}", undefined, { published: aiPublishedCount, total: aiTotalCount })
+                      : l("本次已发布 {published}/{total}", undefined, { published: aiPublishedCount, total: aiTotalCount })}
                   </span>
                   {canRetryFailedAnalysis && (
                     <button
@@ -4052,7 +4038,7 @@ export function RequirementMatrixWorkbench({
                       }
                     >
                       <Icon name="refresh" size={14} />
-                      重试失败 {aiRetryableFailedCount} 项
+                      {l("重试失败 {count} 项", undefined, { count: aiRetryableFailedCount })}
                     </button>
                   )}
                 </div>
@@ -4062,13 +4048,13 @@ export function RequirementMatrixWorkbench({
                 value={aiCompletedCount}
                 aria-label={
                   recoverableExecutionStatusValid
-                    ? `已处理 ${aiCompletedCount} 项，共 ${aiTotalCount} 项`
-                    : `本次已计算 ${aiCompletedCount} 项，共 ${aiTotalCount} 项`
+                    ? l("已处理 {done} 项，共 {total} 项", undefined, { done: aiCompletedCount, total: aiTotalCount })
+                    : l("本次已计算 {done} 项，共 {total} 项", undefined, { done: aiCompletedCount, total: aiTotalCount })
                 }
                 aria-valuetext={
                   recoverableExecutionStatusValid
-                    ? `已处理 ${aiCompletedCount}/${aiTotalCount}，成功 ${aiSucceededCount ?? 0}，失败 ${aiFailedCount ?? 0}，已发布 ${aiPublishedCount}/${aiTotalCount}`
-                    : `本次已计算 ${aiCompletedCount}/${aiTotalCount}，本次已发布 ${aiPublishedCount}/${aiTotalCount}`
+                    ? l("已处理 {done}/{total}，成功 {succeeded}，失败 {failed}，已发布 {published}/{total}", undefined, { done: aiCompletedCount, total: aiTotalCount, succeeded: aiSucceededCount ?? 0, failed: aiFailedCount ?? 0, published: aiPublishedCount })
+                    : l("本次已计算 {done}/{total}，本次已发布 {published}/{total}", undefined, { done: aiCompletedCount, total: aiTotalCount, published: aiPublishedCount })
                 }
               />
               <div className="matrix-ai-progress-counts">
@@ -4098,7 +4084,7 @@ export function RequirementMatrixWorkbench({
                     {aiFailedCount !== null && (
                       <span>失败 {aiFailedCount}</span>
                     )}
-                    {currentAiStatus === "FAILED" && <span>任务失败</span>}
+                    {currentAiStatus === "FAILED" && <span>{l("任务失败")}</span>}
                   </>
                 )}
               </div>
@@ -4117,26 +4103,26 @@ export function RequirementMatrixWorkbench({
 
       <Dialog
         open={workflowDialog === "lock"}
-        title="锁定确认清单"
+        title={l("锁定确认清单")}
         className="confirm-action-dialog matrix-workflow-dialog"
         busy={workflowPending === "lock"}
         onClose={closeWorkflowDialog}
       >
         <header>
           <div>
-            <p className="section-label">锁定确认清单</p>
+            <p className="section-label">{l("锁定确认清单")}</p>
             <h2>
               {lockReadinessLoading
-                ? "正在检查锁定范围"
+                ? l("正在检查锁定范围")
                 : lockWillEnterAnalysis
-                ? `锁定 ${lockAnalysisCount} 条需求并进入分析`
-                : "锁定清单并查看矩阵"}
+                ? l("锁定 {count} 条需求并进入分析", undefined, { count: lockAnalysisCount })
+                : l("锁定清单并查看矩阵")}
             </h2>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭锁定确认"
+            aria-label={l("关闭锁定确认")}
             disabled={workflowPending === "lock"}
             onClick={closeWorkflowDialog}
           >
@@ -4145,7 +4131,7 @@ export function RequirementMatrixWorkbench({
         </header>
         <div className="matrix-workflow-dialog-body">
           {lockReadinessLoading && (
-            <LoadingBlock label="正在读取清单数量和风险…" />
+            <LoadingBlock label={l("正在读取清单数量和风险…")} />
           )}
           {workflowDialog === "lock" && workflowError && (
             <div
@@ -4155,7 +4141,7 @@ export function RequirementMatrixWorkbench({
               tabIndex={-1}
             >
               <div>
-                <strong>{workflowConflict ? "锁定范围需要更新" : "暂时无法锁定"}</strong>
+                <strong>{workflowConflict ? l("锁定范围需要更新") : l("暂时无法锁定")}</strong>
                 <p>{workflowError}</p>
               </div>
               <button
@@ -4165,7 +4151,7 @@ export function RequirementMatrixWorkbench({
                 onClick={() => void loadLockReadiness(true)}
               >
                 <Icon name="refresh" size={15} />
-                重新读取摘要
+                {l("重新读取摘要")}
               </button>
             </div>
           )}
@@ -4173,25 +4159,25 @@ export function RequirementMatrixWorkbench({
             <>
               <dl className="matrix-action-receipt matrix-lock-receipt">
                 <div>
-                  <dt>清单内容</dt>
+                  <dt>{l("清单内容")}</dt>
                   <dd>{lockReadiness.counts.visible_content}</dd>
                 </div>
                 <div>
-                  <dt>需分析</dt>
+                  <dt>{l("需分析")}</dt>
                   <dd>{lockReadiness.counts.analysis_targets}</dd>
                 </div>
                 <div>
-                  <dt>仅保留</dt>
+                  <dt>{l("仅保留")}</dt>
                   <dd>{lockReadiness.counts.retained_visible}</dd>
                 </div>
                 <div>
-                  <dt>排除分析</dt>
+                  <dt>{l("排除分析")}</dt>
                   <dd>{lockReadiness.counts.excluded_visible}</dd>
                 </div>
               </dl>
-              <section className="matrix-lock-readiness-details" aria-label="锁定清单明细">
+              <section className="matrix-lock-readiness-details" aria-label={l("锁定清单明细")}>
                 <div>
-                  <strong>内容分类</strong>
+                  <strong>{l("内容分类")}</strong>
                   {lockClassificationCountsAvailable ? (
                     <>
                       <span>
@@ -4207,11 +4193,11 @@ export function RequirementMatrixWorkbench({
                       </span>
                     </>
                   ) : (
-                    <span>未记录</span>
+                    <span>{l("未记录")}</span>
                   )}
                 </div>
                 <div>
-                  <strong>条目构成</strong>
+                  <strong>{l("条目构成")}</strong>
                   {lockCompositionCountsAvailable ? (
                     <>
                       <span>
@@ -4225,35 +4211,35 @@ export function RequirementMatrixWorkbench({
                       </span>
                     </>
                   ) : (
-                    <span>未记录</span>
+                    <span>{l("未记录")}</span>
                   )}
                 </div>
               </section>
               {lockCountMetadataUnavailable && (
-                <InlineNotice tone="info" title="明细来源未证明">
-                  当前版本没有提供可验证的分类与条目构成来源；系统不会把兼容数值冒充真实统计，也不会据此改变锁定资格。
+                <InlineNotice tone="info" title={l("明细来源未证明")}>
+                  {l("当前版本没有提供可验证的分类与条目构成来源；系统不会把兼容数值冒充真实统计，也不会据此改变锁定资格。")}
                 </InlineNotice>
               )}
               {lockReadiness.hard_blockers.length > 0 && (
-                <InlineNotice tone="danger" title="需要先处理以下问题">
+                <InlineNotice tone="danger" title={l("需要先处理以下问题")}>
                   <ul className="matrix-readiness-messages">
                     {lockReadiness.hard_blockers.map((item, index) => (
-                      <li key={`blocker-${index}`}>{lockReadinessItemMessage(item)}</li>
+                      <li key={`blocker-${index}`}>{lockReadinessItemMessage(item, l)}</li>
                     ))}
                   </ul>
                 </InlineNotice>
               )}
               {!lockReadiness.can_lock &&
                 lockReadiness.hard_blockers.length === 0 && (
-                  <InlineNotice tone="danger" title="当前清单暂时不能锁定">
-                    请重新读取摘要；如果问题持续，请返回清单检查内容。
+                  <InlineNotice tone="danger" title={l("当前清单暂时不能锁定")}>
+                    {l("请重新读取摘要；如果问题持续，请返回清单检查内容。")}
                   </InlineNotice>
                 )}
               {lockReadiness.warnings.length > 0 && (
-                <InlineNotice tone="warning" title="可带风险继续">
+                <InlineNotice tone="warning" title={l("可带风险继续")}>
                   <ul className="matrix-readiness-messages">
                     {lockReadiness.warnings.map((item, index) => (
-                      <li key={`warning-${index}`}>{lockReadinessItemMessage(item)}</li>
+                      <li key={`warning-${index}`}>{lockReadinessItemMessage(item, l)}</li>
                     ))}
                   </ul>
                 </InlineNotice>
@@ -4262,13 +4248,13 @@ export function RequirementMatrixWorkbench({
                 tone={lockWillEnterAnalysis ? "info" : "warning"}
                 title={
                   lockWillEnterAnalysis
-                    ? "锁定不会自动运行分析"
-                    : "当前没有需要分析的内容"
+                    ? l("锁定不会自动运行分析")
+                    : l("当前没有需要分析的内容")
                 }
               >
                 {lockWillEnterAnalysis
-                  ? "锁定后进入分析页面，仍需再次确认才会启动；进入页面本身不会运行 AI。"
-                  : "锁定后停留在当前矩阵，不调用 AI；你可以直接导出，或解锁并修改处理方式。"}
+                  ? l("锁定后进入分析页面，仍需再次确认才会启动；进入页面本身不会运行 AI。")
+                  : l("锁定后停留在当前矩阵，不调用 AI；你可以直接导出，或解锁并修改处理方式。")}
               </InlineNotice>
             </>
           )}
@@ -4280,7 +4266,7 @@ export function RequirementMatrixWorkbench({
             disabled={workflowPending === "lock"}
             onClick={closeWorkflowDialog}
           >
-            返回检查
+            {l("返回检查")}
           </button>
           <button
             ref={lockConfirmButtonRef}
@@ -4298,30 +4284,30 @@ export function RequirementMatrixWorkbench({
           >
             <Icon name="lock" size={15} />
             {workflowPending === "lock"
-              ? "正在锁定…"
+              ? l("正在锁定…")
               : lockWillEnterAnalysis
-              ? `锁定并进入分析 · ${lockAnalysisCount} 项`
-              : "锁定清单"}
+              ? l("锁定并进入分析 · {count} 项", undefined, { count: lockAnalysisCount })
+              : l("锁定清单")}
           </button>
         </footer>
       </Dialog>
 
       <Dialog
         open={workflowDialog === "unlock"}
-        title="解锁并修改"
+        title={l("解锁并修改")}
         className="confirm-action-dialog matrix-workflow-dialog"
         busy={workflowPending === "unlock"}
         onClose={closeWorkflowDialog}
       >
         <header>
           <div>
-            <p className="section-label">确认清单</p>
-            <h2>解锁并修改</h2>
+            <p className="section-label">{l("确认清单")}</p>
+            <h2>{l("解锁并修改")}</h2>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭解锁确认"
+            aria-label={l("关闭解锁确认")}
             disabled={workflowPending === "unlock"}
             onClick={closeWorkflowDialog}
           >
@@ -4329,11 +4315,11 @@ export function RequirementMatrixWorkbench({
           </button>
         </header>
         <div className="matrix-workflow-dialog-body">
-          <InlineNotice tone="info" title="当前已锁定清单会继续保留">
-            系统会创建一份可编辑清单并切换过去，不会改写当前已锁定清单。
+          <InlineNotice tone="info" title={l("当前已锁定清单会继续保留")}>
+            {l("系统会创建一份可编辑清单并切换过去，不会改写当前已锁定清单。")}
           </InlineNotice>
           <p className="matrix-workflow-explanation">
-            未修改内容的分析结果会继续使用；修改后，系统只提示实际需要重新分析的内容。
+            {l("未修改内容的分析结果会继续使用；修改后，系统只提示实际需要重新分析的内容。")}
           </p>
           {workflowDialog === "unlock" && workflowError && (
             <div
@@ -4343,7 +4329,7 @@ export function RequirementMatrixWorkbench({
               tabIndex={-1}
             >
               <div>
-                <strong>{workflowConflict ? "清单需要重新检查" : "暂时无法解锁"}</strong>
+                <strong>{workflowConflict ? l("清单需要重新检查") : l("暂时无法解锁")}</strong>
                 <p>{workflowError}</p>
               </div>
             </div>
@@ -4359,7 +4345,7 @@ export function RequirementMatrixWorkbench({
               else closeWorkflowDialog();
             }}
           >
-            {workflowConflict ? "关闭并重新检查" : "保持锁定"}
+            {workflowConflict ? l("关闭并重新检查") : l("保持锁定")}
           </button>
           <button
             className="button primary"
@@ -4372,7 +4358,7 @@ export function RequirementMatrixWorkbench({
             onClick={() => void deriveEditableConfirmation()}
           >
             <Icon name="refresh" size={15} />
-            {workflowPending === "unlock" ? "正在解锁…" : "解锁并继续修改"}
+            {workflowPending === "unlock" ? l("正在解锁…") : l("解锁并继续修改")}
           </button>
         </footer>
       </Dialog>
@@ -4384,7 +4370,7 @@ export function RequirementMatrixWorkbench({
             ? legacyAnalysisSupported
             : analysisRequestCapabilityAvailable)
         }
-        title={legacyAnalysisConfirmation ? "分析全部需求" : "确认分析范围"}
+        title={legacyAnalysisConfirmation ? l("分析全部需求") : l("确认分析范围")}
         className="confirm-action-dialog matrix-workflow-dialog"
         busy={
           analysisPreviewLoading || workflowPending === "analysis"
@@ -4393,19 +4379,19 @@ export function RequirementMatrixWorkbench({
       >
         <header>
           <div>
-            <p className="section-label">需求分析范围</p>
+            <p className="section-label">{l("需求分析范围")}</p>
             <h2>
               {analysisPreviewLoading
-                ? "正在核对实际目标"
+                ? l("正在核对实际目标")
                 : legacyAnalysisConfirmation
-                  ? `分析全部 ${actualAnalysisCount} 项`
-                : `${analysisScopeLabel(analysisScopeRequest?.scope || "ALL")} · ${analysisScopePreview?.target_count ?? 0} 项`}
+                  ? l("分析全部 {count} 项", undefined, { count: actualAnalysisCount })
+                : l("{scope} · {count} 项", undefined, { scope: analysisScopeLabel(analysisScopeRequest?.scope || "ALL", l), count: analysisScopePreview?.target_count ?? 0 })}
             </h2>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭分析确认"
+            aria-label={l("关闭分析确认")}
             disabled={workflowPending === "analysis"}
             onClick={closeWorkflowDialog}
           >
@@ -4414,7 +4400,7 @@ export function RequirementMatrixWorkbench({
         </header>
         <div className="matrix-workflow-dialog-body">
           {analysisPreviewLoading && (
-            <LoadingBlock label="正在从锁定清单核对范围…" />
+            <LoadingBlock label={l("正在从锁定清单核对范围…")} />
           )}
           {analysisPreviewError && (
             <div
@@ -4424,7 +4410,7 @@ export function RequirementMatrixWorkbench({
               tabIndex={-1}
             >
               <div>
-                <strong>分析范围需要重新核对</strong>
+                <strong>{l("分析范围需要重新核对")}</strong>
                 <p>{analysisPreviewError}</p>
               </div>
             </div>
@@ -4433,16 +4419,16 @@ export function RequirementMatrixWorkbench({
             <>
               <dl className="matrix-action-receipt">
                 <div>
-                  <dt>实际目标</dt>
+                  <dt>{l("实际目标")}</dt>
                   <dd>{actualAnalysisCount}</dd>
                 </div>
                 <div>
-                  <dt>范围</dt>
-                  <dd>全部需分析项</dd>
+                  <dt>{l("范围")}</dt>
+                  <dd>{l("全部需分析项")}</dd>
                 </div>
                 <div>
-                  <dt>分析方案</dt>
-                  <dd>{selectedAiProfile?.label || selectedAiProfileId || "默认方案"}</dd>
+                  <dt>{l("分析方案")}</dt>
+                  <dd>{selectedAiProfile?.label || selectedAiProfileId || l("默认方案")}</dd>
                 </div>
               </dl>
               {workflowError && (
@@ -4453,16 +4439,16 @@ export function RequirementMatrixWorkbench({
                   tabIndex={-1}
                 >
                   <div>
-                    <strong>分析任务没有创建</strong>
+                    <strong>{l("分析任务没有创建")}</strong>
                     <p>{workflowError}</p>
                   </div>
                 </div>
               )}
-              <InlineNotice tone="info" title="打开窗口不会启动分析">
-                当前服务端未回显精确范围能力，因此只提供安全的“全部分析”兼容流程；点击下方确认后才会创建任务。
+              <InlineNotice tone="info" title={l("打开窗口不会启动分析")}>
+                {l("当前服务端未回显精确范围能力，因此只提供安全的“全部分析”兼容流程；点击下方确认后才会创建任务。")}
               </InlineNotice>
-              <InlineNotice tone="warning" title="更新服务端后可使用精确范围">
-                服务端回显范围预览能力后，这里会显示“当前项、所选项、全部”三个动作和实际跳过原因。
+              <InlineNotice tone="warning" title={l("更新服务端后可使用精确范围")}>
+                {l("服务端回显范围预览能力后，这里会显示“当前项、所选项、全部”三个动作和实际跳过原因。")}
               </InlineNotice>
             </>
           )}
@@ -4470,18 +4456,18 @@ export function RequirementMatrixWorkbench({
             <>
               <dl className="matrix-action-receipt">
                 <div>
-                  <dt>实际目标</dt>
+                  <dt>{l("实际目标")}</dt>
                   <dd>{analysisScopePreview.target_count}</dd>
                 </div>
                 <div>
-                  <dt>跳过内容</dt>
+                  <dt>{l("跳过内容")}</dt>
                   <dd>{analysisScopePreview.skipped_count}</dd>
                 </div>
                 {analysisScopePreview.schema_version ===
                   "requirement-analysis-scope-preview/v2" &&
                   analysisScopePreview.scope === "FAILED_ONLY" && (
                     <div>
-                      <dt>原失败项</dt>
+                      <dt>{l("原失败项")}</dt>
                       <dd>{analysisScopePreview.source_failed_count}</dd>
                     </div>
                   )}
@@ -4489,7 +4475,7 @@ export function RequirementMatrixWorkbench({
                   "requirement-analysis-scope-preview/v2" &&
                   analysisScopePreview.already_current_count > 0 && (
                     <div>
-                      <dt>已是最新结果</dt>
+                      <dt>{l("已是最新结果")}</dt>
                       <dd>{analysisScopePreview.already_current_count}</dd>
                     </div>
                   )}
@@ -4498,18 +4484,18 @@ export function RequirementMatrixWorkbench({
                   analysisScopePreview.scope === "FAILED_ONLY" &&
                   analysisScopePreview.retry_skipped_count > 0 && (
                     <div>
-                      <dt>已不再适用</dt>
+                      <dt>{l("已不再适用")}</dt>
                       <dd>{analysisScopePreview.retry_skipped_count}</dd>
                     </div>
                   )}
                 <div>
-                  <dt>分析方案</dt>
-                  <dd>{selectedAiProfile?.label || selectedAiProfileId || "默认方案"}</dd>
+                  <dt>{l("分析方案")}</dt>
+                  <dd>{selectedAiProfile?.label || selectedAiProfileId || l("默认方案")}</dd>
                 </div>
               </dl>
               {analysisScopePreview.target_examples.length > 0 && (
-                <section className="matrix-analysis-preview-list" aria-label="分析目标示例">
-                  <strong>目标示例</strong>
+                <section className="matrix-analysis-preview-list" aria-label={l("分析目标示例")}>
+                  <strong>{l("目标示例")}</strong>
                   <ul>
                     {analysisScopePreview.target_examples.slice(0, 5).map((item) => (
                       <li key={item.node_id}>
@@ -4523,28 +4509,28 @@ export function RequirementMatrixWorkbench({
                 </section>
               )}
               {Object.keys(analysisScopePreview.skipped_reason_counts).length > 0 && (
-                <section className="matrix-analysis-preview-list" aria-label="跳过原因">
-                  <strong>跳过原因</strong>
+                <section className="matrix-analysis-preview-list" aria-label={l("跳过原因")}>
+                  <strong>{l("跳过原因")}</strong>
                   <ul>
                     {Object.entries(
                       analysisScopePreview.skipped_reason_counts,
                     ).map(([reason, count]) => (
                         <li key={reason}>
-                          {analysisSkipReasonLabel(reason)} · {count} 项
+                          {analysisSkipReasonLabel(reason, l)} · {count} 项
                         </li>
                     ))}
                   </ul>
                 </section>
               )}
               {analysisScopePreview.target_count === 0 && (
-                <InlineNotice tone="warning" title="当前范围没有可分析需求">
+                <InlineNotice tone="warning" title={l("当前范围没有可分析需求")}>
                   {analysisScopePreview.scope === "FAILED_ONLY"
-                    ? "这些失败项已不再需要重试，或已由其他任务生成最新结果。"
-                    : "请选择标记为“需分析”的需求叶节点，或改用“分析全部”。"}
+                    ? l("这些失败项已不再需要重试，或已由其他任务生成最新结果。")
+                    : l("请选择标记为“需分析”的需求叶节点，或改用“分析全部”。")}
                 </InlineNotice>
               )}
-              <InlineNotice tone="info" title="打开窗口不会启动分析">
-                只有点击下方确认按钮才会创建任务。
+              <InlineNotice tone="info" title={l("打开窗口不会启动分析")}>
+                {l("只有点击下方确认按钮才会创建任务。")}
               </InlineNotice>
               {analysisScopePreview.schema_version ===
               "requirement-analysis-scope-preview/v2" ? (
@@ -4552,17 +4538,17 @@ export function RequirementMatrixWorkbench({
                   tone="info"
                   title={
                     analysisScopePreview.scope === "FAILED_ONLY"
-                      ? "只重试仍失败的项目"
-                      : "成功结果会逐项保留"
+                      ? l("只重试仍失败的项目")
+                      : l("成功结果会逐项保留")
                   }
                 >
                   {analysisScopePreview.scope === "FAILED_ONLY"
-                    ? "已成功并发布的项目不会重复分析；本次只处理预览中的失败项。"
-                    : "每项成功后会独立发布；其他项目失败或停止，不会撤回已经发布的成功结果。"}
+                    ? l("已成功并发布的项目不会重复分析；本次只处理预览中的失败项。")
+                    : l("每项成功后会独立发布；其他项目失败或停止，不会撤回已经发布的成功结果。")}
                 </InlineNotice>
               ) : (
-                <InlineNotice tone="warning" title="本阶段按整批原子发布">
-                  只有本次范围全部完成后才统一发布；停止或失败时，本次已计算项仍记为已发布 0 项。
+                <InlineNotice tone="warning" title={l("本阶段按整批原子发布")}>
+                  {l("只有本次范围全部完成后才统一发布；停止或失败时，本次已计算项仍记为已发布 0 项。")}
                 </InlineNotice>
               )}
             </>
@@ -4575,7 +4561,7 @@ export function RequirementMatrixWorkbench({
             disabled={workflowPending === "analysis"}
             onClick={closeWorkflowDialog}
           >
-            取消
+            {l("取消")}
           </button>
           <button
             className="button primary"
@@ -4612,40 +4598,40 @@ export function RequirementMatrixWorkbench({
               size={15}
             />
             {workflowPending === "analysis"
-              ? "正在启动…"
+              ? l("正在启动…")
               : legacyAnalysisConfirmation
-                ? `开始分析全部 ${actualAnalysisCount} 项`
+                ? l("开始分析全部 {count} 项", undefined, { count: actualAnalysisCount })
                 : analysisRetryKind === "preview"
-                  ? "重新核对范围"
+                  ? l("重新核对范围")
                   : analysisRetryKind === "start"
-                    ? `重试启动 ${analysisScopePreview?.target_count ?? 0} 项`
+                    ? l("重试启动 {count} 项", undefined, { count: analysisScopePreview?.target_count ?? 0 })
                     : analysisScopeRequest?.scope === "FAILED_ONLY"
-                      ? `开始重试 ${analysisScopePreview?.target_count ?? 0} 项`
-                      : `开始分析 ${analysisScopePreview?.target_count ?? 0} 项`}
+                      ? l("开始重试 {count} 项", undefined, { count: analysisScopePreview?.target_count ?? 0 })
+                      : l("开始分析 {count} 项", undefined, { count: analysisScopePreview?.target_count ?? 0 })}
           </button>
         </footer>
       </Dialog>
 
       <Dialog
         open={workflowDialog === "stop"}
-        title="停止需求分析"
+        title={l("停止需求分析")}
         className="confirm-action-dialog matrix-workflow-dialog"
         busy={workflowPending === "stop"}
         onClose={closeWorkflowDialog}
       >
         <header>
           <div>
-            <p className="section-label">需求分析运行中</p>
+            <p className="section-label">{l("需求分析运行中")}</p>
             <h2>
               {recoverableExecutionStatusValid
-                ? "停止本次分析？"
-                : "停止本次整批分析？"}
+                ? l("停止本次分析？")
+                : l("停止本次整批分析？")}
             </h2>
           </div>
           <button
             className="icon-button"
             type="button"
-            aria-label="关闭停止分析确认"
+            aria-label={l("关闭停止分析确认")}
             disabled={workflowPending === "stop"}
             onClick={closeWorkflowDialog}
           >
@@ -4656,30 +4642,30 @@ export function RequirementMatrixWorkbench({
           <dl className="matrix-action-receipt">
             <div>
               <dt>
-                {recoverableExecutionStatusValid ? "已处理" : "本次已计算"}
+                {recoverableExecutionStatusValid ? l("已处理") : l("本次已计算")}
               </dt>
               <dd>{aiCompletedCount}</dd>
             </div>
             <div>
-              <dt>本次已发布</dt>
+              <dt>{l("本次已发布")}</dt>
               <dd>{aiPublishedCount}</dd>
             </div>
             <div>
-              <dt>当前运行</dt>
+              <dt>{l("当前运行")}</dt>
               <dd>{aiActiveCount}</dd>
             </div>
             <div>
-              <dt>尚未开始</dt>
+              <dt>{l("尚未开始")}</dt>
               <dd>{aiWaitingCount}</dd>
             </div>
           </dl>
           {recoverableExecutionStatusValid ? (
-            <InlineNotice tone="warning" title="已发布成功项会保留">
-              停止后，等待中的项目不会再启动；可取消的运行项会停止。已经成功并发布的结果不会回退，失败项仍可稍后单独重试。
+            <InlineNotice tone="warning" title={l("已发布成功项会保留")}>
+              {l("停止后，等待中的项目不会再启动；可取消的运行项会停止。已经成功并发布的结果不会回退，失败项仍可稍后单独重试。")}
             </InlineNotice>
           ) : (
-            <InlineNotice tone="warning" title="部分计算结果不会发布">
-              当前仍按整批原子发布。停止后会保留任务回执，但本次已经计算的部分不会写成已发布分析结论。
+            <InlineNotice tone="warning" title={l("部分计算结果不会发布")}>
+              {l("当前仍按整批原子发布。停止后会保留任务回执，但本次已经计算的部分不会写成已发布分析结论。")}
             </InlineNotice>
           )}
           {workflowDialog === "stop" && workflowError && (
@@ -4690,7 +4676,7 @@ export function RequirementMatrixWorkbench({
               tabIndex={-1}
             >
               <div>
-                <strong>停止请求没有提交</strong>
+                <strong>{l("停止请求没有提交")}</strong>
                 <p>{workflowError}</p>
               </div>
             </div>
@@ -4703,7 +4689,7 @@ export function RequirementMatrixWorkbench({
             disabled={workflowPending === "stop"}
             onClick={closeWorkflowDialog}
           >
-            继续运行
+            {l("继续运行")}
           </button>
           <button
             className="button danger"
@@ -4712,22 +4698,22 @@ export function RequirementMatrixWorkbench({
             onClick={() => void stopAnalysis()}
           >
             <Icon name="stop" size={15} />
-            {workflowPending === "stop" ? "正在提交…" : "确认停止分析"}
+            {workflowPending === "stop" ? l("正在提交…") : l("确认停止分析")}
           </button>
         </footer>
       </Dialog>
 
       {lens === "review" && batchOpen && (
-        <section className="matrix-batch-panel" aria-label="批量处理正式清单">
+        <section className="matrix-batch-panel" aria-label={l("批量处理正式清单")}>
           <div className="matrix-batch-heading">
             <div>
-              <strong>批量处理例外</strong>
-              <span>只处理叶节点；章节和表格容器继续保留完整层级。</span>
+              <strong>{l("批量处理例外")}</strong>
+              <span>{l("只处理叶节点；章节和表格容器继续保留完整层级。")}</span>
             </div>
             <button
               className="icon-button"
               type="button"
-              aria-label="关闭批量处理"
+              aria-label={l("关闭批量处理")}
               onClick={() => setBatchOpen(false)}
             >
               <Icon name="close" size={16} />
@@ -4735,7 +4721,7 @@ export function RequirementMatrixWorkbench({
           </div>
           <div className="matrix-batch-controls">
             <label>
-              <span>作用范围</span>
+              <span>{l("作用范围")}</span>
               <select
                 name="matrix-batch-scope"
                 value={batchScope}
@@ -4743,13 +4729,13 @@ export function RequirementMatrixWorkbench({
                   setBatchScope(event.target.value as BatchScope)
                 }
               >
-                <option value="branch">当前分支</option>
-                <option value="filter">当前筛选结果</option>
-                <option value="all">全部清单</option>
+                <option value="branch">{l("当前分支")}</option>
+                <option value="filter">{l("当前筛选结果")}</option>
+                <option value="all">{l("全部清单")}</option>
               </select>
             </label>
             <label>
-              <span>统一处理为</span>
+              <span>{l("统一处理为")}</span>
               <select
                 name="matrix-batch-disposition"
                 value={batchDisposition}
@@ -4761,19 +4747,19 @@ export function RequirementMatrixWorkbench({
               >
                 {dispositionOptions.map((option) => (
                   <option value={option.value} key={option.value}>
-                    {isCandidateReview ? ({ analysis: "仅需求", pending: "待核对", attention: "需关注" } as Record<string, string>)[option.value] || option.label : option.label}
+                    {isCandidateReview ? ({ analysis: l("仅需求"), pending: l("待核对"), attention: l("需关注") } as Record<string, string>)[option.value] || l(option.label) : l(option.label)}
                   </option>
                 ))}
               </select>
             </label>
             <label className="matrix-batch-reason">
-              <span>统一说明（可选）</span>
+              <span>{l("统一说明（可选）")}</span>
               <input
                 type="text"
                 name="matrix-batch-reason"
                 autoComplete="off"
                 value={batchReason}
-                placeholder="仅在需要解释本次批量决定时填写"
+                placeholder={l("仅在需要解释本次批量决定时填写")}
                 onChange={(event) => setBatchReason(event.target.value)}
               />
             </label>
@@ -4781,19 +4767,19 @@ export function RequirementMatrixWorkbench({
           <div className="matrix-batch-preview" role="status" aria-live="polite">
             <div>
               <strong>{batchCandidateNodes.length}</strong>
-              <span>项将改为“{dispositionLabel(batchDisposition)}”</span>
+              <span>项将改为“{dispositionLabel(batchDisposition, l)}”</span>
             </div>
             <p>
               {batchSkippedCount}{" "}
-              项保持不变或因容器/分析资格不适用而跳过。提交前不会修改清单。
+              {l("项保持不变或因容器/分析资格不适用而跳过。提交前不会修改清单。")}
             </p>
             <button
               className="button primary"
               type="button"
-              disabled={!batchCandidateNodes.length || batchState === "保存中…"}
+              disabled={!batchCandidateNodes.length || batchState === l("保存中…")}
               onClick={() => void applyBatchDisposition()}
             >
-              {batchState === "保存中…" ? "正在应用…" : "确认批量应用"}
+              {batchState === l("保存中…") ? l("正在应用…") : l("确认批量应用")}
             </button>
           </div>
         </section>
@@ -4808,7 +4794,7 @@ export function RequirementMatrixWorkbench({
               type="button"
               onClick={() => void undoBatchDisposition()}
             >
-              撤销本次批量处理
+              {l("撤销本次批量处理")}
             </button>
           )}
         </div>
@@ -4822,14 +4808,14 @@ export function RequirementMatrixWorkbench({
             ref={searchInputRef}
             type="search"
             name={`matrix-search-${lens}`}
-            aria-label="搜索需求矩阵"
+            aria-label={l("搜索需求矩阵")}
             autoComplete="off"
             value={query}
-            placeholder="搜索编号、正文、状态或结论（/）"
+            placeholder={l("搜索编号、正文、状态或结论（/）")}
             onChange={(event) => setQuery(event.target.value)}
           />
         </label>
-        <div className="matrix-filter-tabs" role="group" aria-label="矩阵主筛选">
+        <div className="matrix-filter-tabs" role="group" aria-label={l("矩阵主筛选")}>
           {primaryFilterOptions.map((option) => (
             <button
               type="button"
@@ -4838,19 +4824,19 @@ export function RequirementMatrixWorkbench({
               aria-pressed={filter === option.value}
               onClick={() => setFilter(option.value)}
             >
-              {isCandidateReview ? ({ analysis: "仅需求", pending: "待核对", attention: "需关注" } as Record<string, string>)[option.value] || option.label : option.label}
+              {isCandidateReview ? ({ analysis: l("仅需求"), pending: l("待核对"), attention: l("需关注") } as Record<string, string>)[option.value] || l(option.label) : l(option.label)}
             </button>
           ))}
         </div>
         <details className="matrix-more-filters">
           <summary>
             {filter === "tables"
-              ? "更多筛选 · 表格"
+              ? l("更多筛选 · 表格")
               : filter === "excluded"
-                ? "更多筛选 · 已排除"
-                : "更多筛选"}
+                ? l("更多筛选 · 已排除")
+                : l("更多筛选")}
           </summary>
-          <div role="group" aria-label="更多矩阵筛选">
+          <div role="group" aria-label={l("更多矩阵筛选")}>
             {availableSecondaryFilterOptions.map((option) => (
               <button
                 type="button"
@@ -4862,7 +4848,7 @@ export function RequirementMatrixWorkbench({
                   event.currentTarget.closest("details")?.removeAttribute("open");
                 }}
               >
-                {isCandidateReview ? ({ analysis: "仅需求", pending: "待核对", attention: "需关注" } as Record<string, string>)[option.value] || option.label : option.label}
+                {isCandidateReview ? ({ analysis: l("仅需求"), pending: l("待核对"), attention: l("需关注") } as Record<string, string>)[option.value] || l(option.label) : l(option.label)}
               </button>
             ))}
           </div>
@@ -4876,7 +4862,7 @@ export function RequirementMatrixWorkbench({
                 type="button"
                 onClick={() => setAnalysisSelectionList([])}
               >
-                清除
+                {l("清除")}
               </button>
             )}
           </div>
@@ -4886,7 +4872,7 @@ export function RequirementMatrixWorkbench({
           selectedNode &&
           !matrixAnalysisEligible(selectedNode) && (
           <span className="matrix-analysis-current-note" role="status">
-            当前内容不单独分析，请选择需求叶节点
+            {l("当前内容不单独分析，请选择需求叶节点")}
           </span>
         )}
         {lens === "analysis" &&
@@ -4895,7 +4881,7 @@ export function RequirementMatrixWorkbench({
           !aiRunning &&
           !aiProfileReady && (
             <span className="matrix-ai-readiness-note" role="status">
-              智能分析未配置，可继续人工处理与导出；需要 AI 建议时，请在右上角“管理员设置”完成连接。
+              {l("智能分析未配置，可继续人工处理与导出；需要 AI 建议时，请在右上角“管理员设置”完成连接。")}
             </span>
           )}
         {(query.trim() || filter !== "all" || category || topic) && (
@@ -4913,27 +4899,27 @@ export function RequirementMatrixWorkbench({
             AI 分析已完成；保存或撤销当前修改后刷新结果
           </span>
         )}
-        <div className="matrix-detail-switch" role="group" aria-label="详情视图">
+        <div className="matrix-detail-switch" role="group" aria-label={l("详情视图")}>
           <button
             type="button"
             className={detailPane === "source" ? "is-active" : ""}
             onClick={() => setDetailPane("source")}
           >
-            完整内容
+            {l("完整内容")}
           </button>
           <button
             type="button"
             className={detailPane === "pdf" ? "is-active" : ""}
             onClick={() => setDetailPane("pdf")}
           >
-            原 PDF
+            {l("原 PDF")}
           </button>
           <button
             type="button"
             className={detailPane === "inspector" ? "is-active" : ""}
             onClick={() => setDetailPane("inspector")}
           >
-            分析
+            {l("分析")}
           </button>
         </div>
       </div>
@@ -4947,7 +4933,7 @@ export function RequirementMatrixWorkbench({
           <section
             ref={setTreePaneElement}
             className="matrix-tree-pane matrix-review-tree-pane"
-            aria-label="确认需求结构树"
+            aria-label={l("确认需求结构树")}
           >
             <div className="tree-tools matrix-review-tree-tools">
               <label className="search-field">
@@ -4956,15 +4942,15 @@ export function RequirementMatrixWorkbench({
                   ref={searchInputRef}
                   type="search"
                   name="matrix-search-review"
-                  aria-label="搜索确认需求"
+                  aria-label={l("搜索确认需求")}
                   autoComplete="off"
                   value={query}
-                  placeholder="搜索编号、章节、条款或表格"
+                  placeholder={l("搜索编号、章节、条款或表格")}
                   onChange={(event) => setQuery(event.target.value)}
                 />
               </label>
               <div className="tree-tool-row">
-                <div className="tree-filter-chips" role="group" aria-label="确认需求筛选">
+                <div className="tree-filter-chips" role="group" aria-label={l("确认需求筛选")}>
                   {primaryFilterOptions.map((option) => (
                     <button
                       type="button"
@@ -4973,12 +4959,12 @@ export function RequirementMatrixWorkbench({
                       aria-pressed={filter === option.value}
                       onClick={() => setFilter(option.value)}
                     >
-                      {isCandidateReview ? ({ analysis: "仅需求", pending: "待核对", attention: "需关注" } as Record<string, string>)[option.value] || option.label : option.label}
+                      {isCandidateReview ? ({ analysis: l("仅需求"), pending: l("待核对"), attention: l("需关注") } as Record<string, string>)[option.value] || l(option.label) : l(option.label)}
                     </button>
                   ))}
                   <details className="matrix-review-more-filters">
-                    <summary>更多</summary>
-                    <div role="group" aria-label="更多确认需求筛选">
+                    <summary>{l("更多")}</summary>
+                    <div role="group" aria-label={l("更多确认需求筛选")}>
                       {availableSecondaryFilterOptions.map((option) => (
                         <button
                           type="button"
@@ -4992,7 +4978,7 @@ export function RequirementMatrixWorkbench({
                               ?.removeAttribute("open");
                           }}
                         >
-                          {isCandidateReview ? ({ analysis: "仅需求", pending: "待核对", attention: "需关注" } as Record<string, string>)[option.value] || option.label : option.label}
+                          {isCandidateReview ? ({ analysis: l("仅需求"), pending: l("待核对"), attention: l("需关注") } as Record<string, string>)[option.value] || l(option.label) : l(option.label)}
                         </button>
                       ))}
                     </div>
@@ -5000,24 +4986,24 @@ export function RequirementMatrixWorkbench({
                 </div>
                 <div className="tree-view-actions">
                   <details ref={treeExpandMenuRef} className="tree-expand-menu">
-                    <summary title="选择确认树展开范围">
-                      展开
+                    <summary title={l("选择确认树展开范围")}>
+                      {l("展开")}
                       <Icon name="chevron-down" size={14} />
                     </summary>
                     <div className="tree-expand-menu-popover">
                       <button type="button" onClick={() => expandToDepth(2)}>
-                        展开 2 层
+                        {l("展开 2 层")}
                       </button>
                       <button type="button" onClick={() => expandToDepth(3)}>
-                        展开 3 层
+                        {l("展开 3 层")}
                       </button>
                       <button type="button" onClick={expandAll}>
                         {query.trim() || filter !== "all" || category || topic
-                          ? "展开全部筛选结果"
-                          : "全部展开"}
+                          ? l("展开全部筛选结果")
+                          : l("全部展开")}
                       </button>
                       <button type="button" onClick={collapseToCurrentPath}>
-                        只保留当前路径
+                        {l("只保留当前路径")}
                       </button>
                     </div>
                   </details>
@@ -5025,18 +5011,18 @@ export function RequirementMatrixWorkbench({
                     type="button"
                     className="tree-view-action"
                     onClick={collapseAll}
-                    title="将确认树收起到根节点"
+                    title={l("将确认树收起到根节点")}
                   >
-                    全部收起
+                    {l("全部收起")}
                   </button>
                   <button
                     type="button"
                     className="tree-view-action is-locate"
                     onClick={revealCurrentNode}
                     disabled={!selectedId}
-                    title="重新展开并定位当前内容"
+                    title={l("重新展开并定位当前内容")}
                   >
-                    定位当前
+                    {l("定位当前")}
                   </button>
                 </div>
               </div>
@@ -5044,15 +5030,15 @@ export function RequirementMatrixWorkbench({
             <div className="tree-keyboard-hint">
               <span>{isCandidateReview
                 ? (category || topic || query.trim() || filter !== "all"
-                  ? `命中 ${matchCounts.matched} · 上级背景 ${matchCounts.retainedAncestors}`
-                  : `${rows.length} 项层级/条目`)
-                : `${rows.length} 项`}</span>
-              <span>↑↓ 选择 · ←→ 层级</span>
+                  ? l("命中 {matched} · 上级背景 {ancestors}", undefined, { matched: matchCounts.matched, ancestors: matchCounts.retainedAncestors })
+                  : l("{count} 项层级/条目", undefined, { count: rows.length }))
+                : l("{count} 项", undefined, { count: rows.length })}</span>
+              <span>{l("↑↓ 选择 · ←→ 层级")}</span>
             </div>
             <div
               className="matrix-treegrid-scroll matrix-review-tree-scroll"
               role="tree"
-              aria-label="确认需求层级树"
+              aria-label={l("确认需求层级树")}
               aria-setsize={rows.length}
               ref={treeScrollRef}
               onScroll={(event) => handleTreeScroll(event.currentTarget)}
@@ -5102,7 +5088,7 @@ export function RequirementMatrixWorkbench({
                             className="matrix-review-tree-expander"
                             type="button"
                             tabIndex={-1}
-                            aria-label={row.expanded ? "收起" : "展开"}
+                            aria-label={row.expanded ? l("收起") : l("展开")}
                             onClick={(event) => {
                               event.stopPropagation();
                               setExpanded(row.node.node_id, !row.expanded);
@@ -5131,7 +5117,7 @@ export function RequirementMatrixWorkbench({
                           <small>
                             {isCandidateReview
                               ? [String(row.node.candidate_review?.sourceId || ""), row.node.requirement_code,
-                                 row.node.source_title_role === "AGENT_ASSIGNED" ? "Agent 拟名/编号" : "",
+                                 row.node.source_title_role === "AGENT_ASSIGNED" ? l("Agent 拟名/编号") : "",
                                  classificationLabels(row.node).join("；") || String(row.node.candidate_review?.contentRole || matrixHierarchyLabel(row.node)),
                                  (row.node.topic_tags || []).map(tag => topicLabels[tag] || tag).join("、")].filter(Boolean).join(" · ")
                               : <>{matrixHierarchyLabel(row.node)} · {row.analysisStatus}</>}
@@ -5144,22 +5130,22 @@ export function RequirementMatrixWorkbench({
               ) : (
                 <EmptyState
                   icon="search"
-                  title="没有符合条件的内容"
-                  description="调整搜索词或筛选条件，父级路径会随匹配项一起保留。"
+                  title={l("没有符合条件的内容")}
+                  description={l("调整搜索词或筛选条件，父级路径会随匹配项一起保留。")}
                 />
               )}
             </div>
           </section>
 
           <div className="matrix-review-detail-bar">
-            <span>当前内容</span>
-            <div className="matrix-detail-switch" role="group" aria-label="确认详情视图">
+            <span>{l("当前内容")}</span>
+            <div className="matrix-detail-switch" role="group" aria-label={l("确认详情视图")}>
               <button
                 type="button"
                 className={detailPane === "source" ? "is-active" : ""}
                 onClick={() => setDetailPane("source")}
               >
-                完整内容
+                {l("完整内容")}
               </button>
               {compactReviewLayout && (
                 <button
@@ -5167,7 +5153,7 @@ export function RequirementMatrixWorkbench({
                   className={detailPane === "pdf" ? "is-active" : ""}
                   onClick={() => setDetailPane("pdf")}
                 >
-                  原 PDF
+                  {l("原 PDF")}
                 </button>
               )}
               <button
@@ -5175,14 +5161,14 @@ export function RequirementMatrixWorkbench({
                 className={detailPane === "inspector" ? "is-active" : ""}
                 onClick={() => setDetailPane("inspector")}
               >
-                {isCandidateReview ? "核对反馈" : "确认处置"}
+                {isCandidateReview ? l("核对反馈") : l("确认处置")}
               </button>
             </div>
           </div>
 
           <section
             className="matrix-review-center-pane"
-            aria-label="确认需求完整内容"
+            aria-label={l("确认需求完整内容")}
           >
             <div className="matrix-review-center-scroll">
               {detailPane === "inspector" ? inspectorSurface : sourceSurface}
@@ -5191,7 +5177,7 @@ export function RequirementMatrixWorkbench({
 
           <aside
             className="matrix-review-pdf-pane"
-            aria-label="确认需求原 PDF"
+            aria-label={l("确认需求原 PDF")}
           >
             {pdfSurface}
           </aside>
@@ -5201,7 +5187,7 @@ export function RequirementMatrixWorkbench({
         <section
           ref={setTreePaneElement}
           className="matrix-tree-pane"
-          aria-label="需求层级矩阵"
+          aria-label={l("需求层级矩阵")}
         >
           <div
               className={cx(
@@ -5209,19 +5195,19 @@ export function RequirementMatrixWorkbench({
                 compactMatrixColumns && "is-compact",
               )}
             role="treegrid"
-            aria-label="需求层级与分析状态"
+            aria-label={l("需求层级与分析状态")}
             aria-colcount={compactMatrixColumns ? 3 : 6}
             aria-rowcount={rows.length + 1}
           >
             <div className="matrix-treegrid-head" role="row">
-              <span role="columnheader">编号</span>
-              <span role="columnheader">内容</span>
-              <span role="columnheader">层级</span>
+              <span role="columnheader">{l("编号")}</span>
+              <span role="columnheader">{l("内容")}</span>
+              <span role="columnheader">{l("层级")}</span>
               {!compactMatrixColumns && (
                 <>
-                  <span role="columnheader">分析状态</span>
-                  <span role="columnheader">AI 结论</span>
-                  <span role="columnheader">人工修改</span>
+                  <span role="columnheader">{l("分析状态")}</span>
+                  <span role="columnheader">{l("AI 结论")}</span>
+                  <span role="columnheader">{l("人工修改")}</span>
                 </>
               )}
             </div>
@@ -5291,7 +5277,7 @@ export function RequirementMatrixWorkbench({
                             <button
                               type="button"
                               tabIndex={-1}
-                              aria-label={row.expanded ? "收起" : "展开"}
+                              aria-label={row.expanded ? l("收起") : l("展开")}
                               onClick={(event) => {
                                 event.stopPropagation();
                                 setExpanded(row.node.node_id, !row.expanded);
@@ -5313,7 +5299,7 @@ export function RequirementMatrixWorkbench({
                               <input
                                 className="matrix-analysis-checkbox"
                                 type="checkbox"
-                                aria-label={`选择分析 ${row.node.requirement_code || matrixNodeLabel(row.node)}`}
+                                aria-label={l("选择分析 {label}", undefined, { label: row.node.requirement_code || matrixNodeLabel(row.node) })}
                                   checked={analysisSelectionIds.has(
                                     row.node.node_id,
                                   )}
@@ -5366,8 +5352,8 @@ export function RequirementMatrixWorkbench({
               ) : (
                 <EmptyState
                   icon="search"
-                  title="没有符合条件的内容"
-                  description="调整搜索词或筛选条件，层级祖先会随匹配项一起保留。"
+                  title={l("没有符合条件的内容")}
+                  description={l("调整搜索词或筛选条件，层级祖先会随匹配项一起保留。")}
                 />
               )}
             </div>
@@ -5379,12 +5365,12 @@ export function RequirementMatrixWorkbench({
             "matrix-evidence-pane",
             detailPane === "pdf" ? "is-pdf" : "is-source",
           )}
-          aria-label={detailPane === "pdf" ? "原 PDF 证据" : "完整来源内容"}
+          aria-label={detailPane === "pdf" ? l("原 PDF 证据") : l("完整来源内容")}
         >
           {detailPane === "pdf" ? pdfSurface : sourceSurface}
         </section>
 
-        <aside className="matrix-inspector" aria-label="集中式检查器">
+        <aside className="matrix-inspector" aria-label={l("集中式检查器")}>
           {inspectorSurface}
         </aside>
       </div>

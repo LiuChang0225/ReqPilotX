@@ -90,7 +90,11 @@ it("keeps a source-only external task external and ends artifact loading honestl
   route = { ...route, checkpoint: "structure" };
   show();
   expect(await screen.findByText("尚无阶段成果")).toBeVisible();
-  expect(screen.getByRole("button", { name: "阅读原件" })).toBeVisible();
+  const source = screen.getByRole("link", { name: "阅读原件" });
+  expect(source).toHaveAttribute("href", expect.stringContaining("/pdf-viewer"));
+  expect(source).toHaveAttribute("href", expect.stringContaining(encodeURIComponent(`/api/projects/p/sor-documents/d/file`)));
+  expect(source).toHaveAttribute("target", "_blank");
+  expect(route.pluginSessionId).toBe(current.session_id);
   expect(screen.queryByLabelText("核对版本")).not.toBeInTheDocument();
   expect(screen.queryByText("native-controller")).not.toBeInTheDocument();
   expect(screen.queryByText("成果已保存")).not.toBeInTheDocument();

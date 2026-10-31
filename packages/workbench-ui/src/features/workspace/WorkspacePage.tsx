@@ -998,11 +998,7 @@ export function WorkspacePage() {
             {!applicationHost && route.task === "reading" && <Suspense fallback={<LoadingBlock label="正在打开原文阅读" />}><ReadingWorkspacePage embedded /></Suspense>}
             {route.task === "extraction" && (hostedLegacyTarget ? <LoadingBlock label={l("extraction.redirecting", "正在打开当前需求提取工作…")} /> : <RequirementTreePanel />)}
             {route.task === "analysis" && (
-              applicationHost
-                ? <SourceItemWorkspace task="analysis" fallback={<EmptyState icon="tree" title={l("analysis.noLedgerTitle", "先整理原文条目")}
-                    description={l("analysis.noLedgerDescription", "当前文档还没有可分析的原生工作账本。前往需求提取整理原文；已保存的阶段成果可在 Agent 协作中核对。")}
-                    action={<button type="button" className="button primary" onClick={() => update({ task: "extraction", mode: "organize", checkpoint: "structure", requirementSetId: "" })}>{l("sourceWorkspace.goToExtraction", "前往需求提取")}</button>} />} />
-                : <SourceItemWorkspace task="analysis" fallback={<RequirementMatrixWorkbench lens="analysis" />} />
+              <SourceItemWorkspace task="analysis" fallback={<RequirementMatrixWorkbench lens="analysis" />} />
             )}
             {!applicationHost && route.task === "knowledge" && <KnowledgeWorkspace />}
             {route.task === "export" && <SourceItemWorkspace task="export" fallback={<ExportsPanel />} />}

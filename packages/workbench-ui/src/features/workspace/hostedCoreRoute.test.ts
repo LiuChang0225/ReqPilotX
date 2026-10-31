@@ -13,9 +13,9 @@ it("routes a legacy knowledge link to project management without inventing a kno
   expect(hostedCoreRoute({ ...base, task: "knowledge" })).not.toHaveProperty("knowledgePage");
 });
 
-it("folds a legacy confirmed-set review into the current extraction list", () => {
-  expect(hostedCoreRoute({ ...base, task: "extraction", mode: "review", requirementSetId: "legacy" }))
-    .toMatchObject({ task: "extraction", mode: "organize", checkpoint: "list", requirementSetId: "" });
+it("leaves review and confirmed-set analysis routes untouched", () => {
+  expect(hostedCoreRoute({ ...base, task: "extraction", mode: "review", requirementSetId: "legacy" })).toBeNull();
+  expect(hostedCoreRoute({ ...base, task: "analysis", requirementSetId: "legacy" })).toBeNull();
 });
 
 it("leaves the four supported PAIR destinations untouched", () => {
