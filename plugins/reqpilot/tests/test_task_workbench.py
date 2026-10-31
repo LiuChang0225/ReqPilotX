@@ -71,6 +71,25 @@ class TaskWorkbenchTests(unittest.TestCase):
             'source_item_ids':[],'text':'An independently observed source question.'}]})
         return revision_tools.feedback_review(Namespace(review_dir=task/'review',input=path))
 
+    def test_first_binding_reuses_remote_work_after_lost_acknowledgement(self):
+        initialized=core.initialize_workspace(self.root/'lost-ack',self.backend.source,'Prepare a task',
+            project_key='p',document_key='lost-ack',project_id='p',document_id='d')
+        task=Path(initialized['task_root']); session_ids=[]
+        def lost_reply(url,payload=None):
+            result=self.request(url,payload)
+            if payload is not None:
+                session_ids.append(payload['session_id'])
+                if len(session_ids)==1: raise OSError('reply lost after server committed')
+            return result
+        args=Namespace(workspace=task,url='http://127.0.0.1:18080/workspace?projectId=p&documentId=d')
+        with patch.object(transport,'request',side_effect=lost_reply):
+            with self.assertRaises(OSError): transport.sync_workbench(args)
+            result=transport.sync_workbench(args)
+        self.assertEqual(len(session_ids),2)
+        self.assertEqual(session_ids[0],session_ids[1])
+        self.assertEqual(result['session_id'],session_ids[0])
+        self.assertEqual(core.workspace_status(task,refresh=False)['context']['work_id'],initialized['context']['work_id'])
+
     def test_same_content_cannot_hide_wrong_task_project_document_or_session(self):
         snapshot=self.attach_export(self.task);state=core.workspace_status(self.task,refresh=False)
         workbench.sync_current_review(self.task,state['revision']);state=core.workspace_status(self.task,refresh=False)
@@ -200,3 +219,38 @@ class TaskWorkbenchTests(unittest.TestCase):
         self.assertEqual(checked['remote_current_revision'],second['revision_id'])
         self.assertFalse(checked['workbench_is_current'])
         self.assertEqual(checked['workbench_url'],first['url'])
+
+    def test_delivery_read_uses_bound_task_and_same_version_without_changing_local_review(self):
+        from task_service import DeliveryReadRequest, TaskService
+        from reqpilotx_server.application.agent_workflow import plugin_workbench_delivery as delivery
+        self.attach_export(self.task)
+        workbench.sync_current_review(self.task,core.workspace_status(self.task,refresh=False)['revision'])
+        state=core.workspace_status(self.task,refresh=False);binding=transport.read(state['binding_file'])
+        root=workbench._api(binding)
+        view=delivery.preview_plugin_delivery_version('p','d',binding['session_id'],self.backend.sink())
+        request=DeliveryReadRequest(task_id=state['context']['work_id'],view='preview',result_revision=view['revision_id'])
+        before=(self.task/'review/workspace-manifest.json').read_bytes()
+        with patch.object(workbench,'request',return_value=view) as http:
+            result=workbench.read_workbench_delivery(state,request)
+        http.assert_called_once_with(root+'/versions/preview?revision='+view['revision_id'])
+        self.assertEqual(result['delivery']['snapshot'],view['snapshot'])
+        self.assertFalse(result['local_artifacts_changed'])
+        self.assertEqual((self.task/'review/workspace-manifest.json').read_bytes(),before)
+        service=TaskService(self.root/'working',Path(__file__).resolve().parents[1]/'scripts/reqpilot.py')
+        with patch.object(workbench,'request',return_value=view):
+            result=service.invoke('delivery_read',request.model_dump())
+        self.assertEqual(result['task_id'],state['context']['work_id'])
+        for altered in ({**view,'session_id':'plugin-'+'f'*32},{**view,'revision_id':'e'*64}):
+            with patch.object(workbench,'request',return_value=altered),self.assertRaises(ValueError):
+                workbench.read_workbench_delivery(state,request)
+        with self.assertRaises(ValueError):DeliveryReadRequest(task_id=request.task_id,view='version')
+        with self.assertRaises(ValueError):DeliveryReadRequest(task_id=request.task_id,view='versions',delivery_revision=1)
+
+    def test_delivery_read_rejects_wrong_local_binding_before_network(self):
+        from task_service import DeliveryReadRequest
+        state=core.workspace_status(self.task,refresh=False)
+        path=Path(state['binding_file']);binding=transport.read(path)
+        transport.save(path,{**binding,'work_id':'task-'+'e'*32})
+        with patch.object(workbench,'request') as http,self.assertRaisesRegex(ValueError,'task'):
+            workbench.read_workbench_delivery(state,DeliveryReadRequest(task_id=state['context']['work_id']))
+        http.assert_not_called()

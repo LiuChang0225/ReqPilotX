@@ -7,6 +7,9 @@ from copy import deepcopy
 import hashlib
 import json
 
+class SchemaPartError(ValueError):
+    """A caller selected a nonexistent schema location, not invalid evidence."""
+
 PURPOSES = {
     'open':'创建原件绑定任务，或凭 task_id 接续现有任务。', 'inspect':'读取当前任务版本、成果与待办。',
     'prepare':'保存原件捕获、逐页阅读材料或有界本地OCR；数字重读保留差异，表格保留单元格。', 'read':'读取原文、页图、条目、scope 与真实反馈。',
@@ -19,6 +22,7 @@ PURPOSES = {
     'check':'核对来源、当前工作版、已登记交付与工作台；不代替语义审阅。',
     'deliver':'程序导出当前版本并登记首次同版交付。', 'sync':'取回反馈，或显式补同步已保存的当前成果。',
     'recover':'恢复已有工件登记；不盲目重跑未知执行。',
+    'delivery_read':'只读取本任务绑定工作台的人工响应、交付预览、历史及同版快照；不创建用户意见或正式接受。',
 }
 NOTES = {
     'task_id':'使用 task_open 返回的持久 task_id；不猜测 latest 任务。',
@@ -50,7 +54,7 @@ NOTES = {
     'feedback_id':'必须引用真实已登记反馈；不编造 USER 意见。',
     'addressed_feedback_ids':'引用真实已登记反馈/自查发现；显式 self_review_finding 可由修订命令先登记再绑定。',
     'source_ranges':'引用 decomposition_packet 中实际 segment 和原文区间；程序解析引文与偏移。',
-    'source_number_ref':'原编号必须绑定实际正文、Map 标题或表格单元格中的原文位置。',
+    'source_number_ref':'原编号绑定实际来源。ITEM_SOURCE+segment_index选择本条目source中开头的准确编号；ITEM_HEADING+heading_ref来自本条目numbering读取。程序转精确坐标，不把数值推断为编号；内部编号仍用绝对范围与extent。',
 }
 COMMON_RULES = [
     '必填表示 JSON 字段必需；可省略不等于可以传 null。Map 中省略表示保留，空列表等显式值可能表示清空。',
@@ -69,7 +73,7 @@ def _pointer(schema, pointer):
     for token in pointer[2:].split('/'):
         token=token.replace('~1','/').replace('~0','~')
         try:value=value[int(token)] if isinstance(value,list) else value[token]
-        except (KeyError,ValueError,IndexError,TypeError) as exc:raise ValueError('Schema pointer does not exist: '+pointer) from exc
+        except (KeyError,ValueError,IndexError,TypeError) as exc:raise SchemaPartError('Schema pointer does not exist: '+pointer) from exc
     return value
 def _resolve(schema,node,seen=()):
     if not isinstance(node,dict):return node
@@ -292,6 +296,9 @@ def describe(action: str | None = None, *, context: dict | None = None, scope: d
     elif part=='fields':data={'fields':_fields(schema,schema),'extra_fields_allowed':schema.get('additionalProperties',True)}
     elif part=='constraints':data=_rules(action,facts)
     elif part=='examples':data={'examples':_template(action,schema,facts,actual_scope)}
+    elif part=='definitions':
+        data={'definitions':[{'name':name,'part':'#/$defs/'+name.replace('~','~0').replace('/','~1'),
+                             'type':_kind(schema,node)} for name,node in schema.get('$defs',{}).items()]}
     elif part.startswith('#'):
         node=_pointer(schema,part);resolved=_resolve(schema,node)
         data={'pointer':part,'type':_kind(schema,node),'description':resolved.get('description') if isinstance(resolved,dict) else None,
@@ -301,9 +308,9 @@ def describe(action: str | None = None, *, context: dict | None = None, scope: d
         references=_ref_links(schema)
         data={'purpose':PURPOSES.get(action,REQUESTS[action].__name__),'required_fields':schema.get('required',[]),
             'fields':_fields(schema,schema),'constraints':_rules(action,facts),'examples':_template(action,schema,facts,actual_scope),
-            'read_parts':['fields','schema','examples','constraints',*references],
+            'read_parts':['fields','schema','examples','constraints','definitions',*references],
             'definition_reads':[{'part':ref,'type':_kind(schema,_pointer(schema,ref))} for ref in references]}
-    else:raise ValueError('Unsupported describe part; use overview/fields/schema/examples/constraints or a local #/ JSON pointer')
+    else:raise SchemaPartError('Unsupported describe part; use overview/fields/schema/examples/constraints/definitions or a local #/ JSON pointer')
     return _bounded(action,part,data,facts,actual_scope,offset,max_chars,_sha(schema))
 
 

@@ -1,4 +1,5 @@
 import { lazy, Suspense, useEffect } from "react";
+import { AccountGate } from "../auth/AccountGate";
 import {
   ErrorBoundary, PreferencesProvider, HomePage, WorkspacePage,
   navigate, useBrowserLocation, LoadingBlock, loadCandidateReview, loadPdfViewer,
@@ -44,9 +45,11 @@ export function App() {
   return (
     <ErrorBoundary>
       <PreferencesProvider>
-        <Suspense fallback={<LoadingBlock label="正在装载前端模块" />}>
-          {page}
-        </Suspense>
+        <AccountGate>
+          <Suspense fallback={<LoadingBlock label="正在装载前端模块" />}>
+            {page}
+          </Suspense>
+        </AccountGate>
       </PreferencesProvider>
     </ErrorBoundary>
   );

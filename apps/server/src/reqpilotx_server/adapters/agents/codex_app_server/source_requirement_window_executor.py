@@ -153,6 +153,28 @@ class LocalCanonicalSourceRequirementWindowExecutor:
             return str(exc)
         return None
 
+    def _load_stage_kit(self):  # type: ignore[no-untyped-def]
+        kit = load_portable_agent_kit(self._kit_root)
+        profile = kit.runner_profile("app-server-product")
+        if (
+            profile.model_id != self.model_id
+            or profile.reasoning_effort != self.reasoning_effort
+        ):
+            raise LifecycleProbeError("CANONICAL_SOURCE_REQUIREMENT_PROFILE_DRIFTED")
+        return kit
+
+    @contextmanager
+    def _stage_runtime(self, *, task):  # type: ignore[no-untyped-def]
+        with self._runtime_state_factory(
+            codex_bin=self._codex_bin,
+            codex_home=self._codex_home,
+            repository_root=self._repository_root,
+        ) as runtime:
+            version = str(runtime.protocol.get("codex_version") or "").strip()
+            if not version:
+                raise LifecycleProbeError("CANONICAL_CODEX_VERSION_MISSING")
+            yield runtime, version
+
     def execute(
         self,
         task: SourceRequirementWindowTaskV1,
@@ -162,13 +184,7 @@ class LocalCanonicalSourceRequirementWindowExecutor:
         cancellation_requested: Callable[[], bool],
     ) -> SourceRequirementWindowExecutionV1:
         document_map, request, source = _validate_task(task)
-        kit = load_portable_agent_kit(self._kit_root)
-        profile = kit.runner_profile("app-server-product")
-        if (
-            profile.model_id != self.model_id
-            or profile.reasoning_effort != self.reasoning_effort
-        ):
-            raise LifecycleProbeError("CANONICAL_SOURCE_REQUIREMENT_PROFILE_DRIFTED")
+        kit = self._load_stage_kit()
         context_payload = _compact_document_context(document_map, request)
         context_payload["semantic_context"] = task.semantic_context or context_payload["semantic_context"]
         scope_payload = _compact_scope_evidence(request)
@@ -191,14 +207,7 @@ class LocalCanonicalSourceRequirementWindowExecutor:
             )
         )
         started = time.monotonic()
-        with self._runtime_state_factory(
-            codex_bin=self._codex_bin,
-            codex_home=self._codex_home,
-            repository_root=self._repository_root,
-        ) as runtime:
-            codex_version = str(runtime.protocol.get("codex_version") or "").strip()
-            if not codex_version:
-                raise LifecycleProbeError("CANONICAL_CODEX_VERSION_MISSING")
+        with self._stage_runtime(task=task) as (runtime, codex_version):
             if checkpoint is not None:
                 _validate_resume_checkpoint_identity(
                     checkpoint,
@@ -594,7 +603,7 @@ class LocalCanonicalSourceRequirementWindowExecutor:
         first_effort = (
             self.reasoning_effort
             if window.risk_signals
-            else "medium"
+            else ("medium" if self.reasoning_effort == "high" else self.reasoning_effort)
         )
         efforts: list[str] = []
         summaries: list[str] = []

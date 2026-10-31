@@ -7,6 +7,11 @@ const renderSpies = vi.hoisted(() => ({
   workspace: vi.fn(),
 }));
 
+// These cases cover workspace routing; account behavior has its own focused suite.
+vi.mock("../auth/AccountGate", () => ({
+  AccountGate: ({ children }: { children: ReactNode }) => children,
+}));
+
 vi.mock("@reqpilotx/workbench-ui/web", async (importOriginal) => ({
   ...await importOriginal<typeof import("@reqpilotx/workbench-ui/web")>(),
   WorkspacePage: () => {

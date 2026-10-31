@@ -1,5 +1,7 @@
+import { saasStorageKey } from "../../shared/api/saasSession";
+
 export type ViewedWork = { producer: "NATIVE" | "EXTERNAL_PLUGIN"; sessionId?: string; revisionId?: string };
-const key = (project: string, document: string, source: string) => `reqpilotx:viewed-work:v1:${project}:${document}:${source}`;
+const key = (project: string, document: string, source: string) => saasStorageKey(`reqpilotx:viewed-work:v1:${project}:${document}:${source}`);
 const revisionKey = (project: string, document: string, source: string, session: string) => `${key(project, document, source)}:session:${session}`;
 export function rememberViewedWork(project: string, document: string, source: string, value: ViewedWork) {
   if (!project || !document || !source) return;
@@ -26,7 +28,7 @@ export function readRememberedWorkRevision(project: string, document: string, so
 
 export type OrganizeCheckpoint = "diagnose" | "structure" | "list";
 const checkpointKey = (project: string, document: string, source: string, work: ViewedWork) =>
-  `reqpilotx:extraction-checkpoint:v1:${project}:${document}:${source}:${work.producer}:${work.sessionId || ""}:${work.revisionId || ""}`;
+  saasStorageKey(`reqpilotx:extraction-checkpoint:v1:${project}:${document}:${source}:${work.producer}:${work.sessionId || ""}:${work.revisionId || ""}`);
 
 /** A viewing preference is isolated from both the business source and the selected result version. */
 export function rememberExtractionCheckpoint(project: string, document: string, source: string, work: ViewedWork, checkpoint: OrganizeCheckpoint) {

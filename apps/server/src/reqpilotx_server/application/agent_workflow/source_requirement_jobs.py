@@ -499,7 +499,7 @@ class SourceItemNativeLoopRunReceiptV1(BaseModel):
     """Actual retained App Server thread, distinct from disposable JSON stages."""
     model_config = ConfigDict(extra="forbid", frozen=True)
     schema_version: Literal["source-item-native-loop-run-receipt/v1"] = "source-item-native-loop-run-receipt/v1"
-    transport_kind: Literal["CODEX_APP_SERVER_NATIVE_LOOP"] = "CODEX_APP_SERVER_NATIVE_LOOP"
+    transport_kind: Literal["CODEX_APP_SERVER_NATIVE_LOOP", "PROVIDER_TOOL_LOOP"] = "CODEX_APP_SERVER_NATIVE_LOOP"
     source_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     document_map_artifact_id: str
     document_map_artifact_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
@@ -516,17 +516,27 @@ class SourceItemNativeLoopRunReceiptV1(BaseModel):
     @model_validator(mode="after")
     def validate_runtime_evidence(self):
         receipt = self.runtime_receipt
-        if (receipt.get("adapter_id") != "reqpilotx-codex-native-loop"
-                or receipt.get("status") != "COMPLETED"
-                or receipt.get("terminal_snapshot_verified") is not True
-                or receipt.get("thread_retained") is not True
+        if (receipt.get("status") != "COMPLETED"
                 or receipt.get("thread_id") != self.runtime_thread_id
                 or receipt.get("turn_id") != self.runtime_turn_id
                 or (receipt.get("identity") or {}).get("model_id") != self.model_id
                 or receipt.get("is_human_accepted") is not False
                 or not any(tool.get("name") == "reqpilot_publish" and tool.get("success") is True
                            for tool in receipt.get("tools", []))):
-            raise ValueError("Native-loop publication requires its real completed tool-driven runtime receipt")
+            raise ValueError("Native-loop publication requires a completed, identity-bound publish receipt")
+        if self.transport_kind == "CODEX_APP_SERVER_NATIVE_LOOP":
+            if (receipt.get("adapter_id") != "reqpilotx-codex-native-loop"
+                    or receipt.get("terminal_snapshot_verified") is not True
+                    or receipt.get("thread_retained") is not True):
+                raise ValueError("Codex App Server loop requires a retained terminal snapshot")
+        elif (receipt.get("adapter_id") != "reqpilotx-provider-tool-loop"
+              or receipt.get("transport_kind") != "PROVIDER_TOOL_LOOP"
+              or receipt.get("local_state_persisted") is not True
+              or receipt.get("thread_retained") is not True
+              or not re.fullmatch(r"[0-9a-f]{64}", str(receipt.get("run_state_sha256") or ""))
+              or not str(receipt.get("run_state_reference") or "").strip()
+              or (receipt.get("identity") or {}).get("provider") not in {"azure", "aliyun"}):
+            raise ValueError("Provider loop requires an immutable local run-state receipt")
         return self
 
 
@@ -1196,20 +1206,71 @@ def run_durable_source_requirement_baseline(
             ),
         }
     )
-    execution = executor.execute(
-        task,
-        resume_checkpoint=(
-            None
-            if resume_checkpoint is None
-            else resume_checkpoint.model_dump(mode="json")
-        ),
-        checkpoint_sink=save_checkpoint,
-        cancellation_requested=context.cancellation_requested,
+    from reqpilotx_server.application.agent_workflow.source_requirement_joint import (
+        load_completed_table, save_completed_table, run_joint_tables,
     )
-    candidate, run_receipt = _validate_execution(
-        execution,
-        request=current["request"],
+    completed = load_completed_table(
+        current=current, progress=progress_state, container=container,
+        project_id=project_id, document_id=document_id, executor=executor,
     )
+    if completed is None:
+        execution = executor.execute(
+            task,
+            resume_checkpoint=(
+                None if resume_checkpoint is None
+                else resume_checkpoint.model_dump(mode="json")
+            ),
+            checkpoint_sink=save_checkpoint,
+            cancellation_requested=context.cancellation_requested,
+        )
+        candidate, run_receipt = _validate_execution(execution, request=current["request"])
+    else:
+        candidate, run_receipt = completed.candidate, completed.run_receipt
+    if checkpoint_progress.receipt is not None:
+        progress_state["source_requirement_window_checkpoint"] = checkpoint_progress.receipt.model_dump(mode="json")
+    # Complete all table scopes that compete for this node's direct text before
+    # assigning the remaining text or publishing any product revision.
+    joint_tables = ()
+    if any(record.owning_text_spans for record in candidate.records):
+        if not isinstance(current.get("source_requirement_base_bundle"), Mapping):
+            raise NonRetryableJobError(
+                error_code="source_requirement_mixed_product_baseline_required",
+                message="Mixed table/text scopes require a product baseline so both sources can be published atomically.",
+            )
+        save_completed_table(
+            current=current, candidate=candidate, run_receipt=run_receipt,
+            progress=progress_state, context=context, container=container,
+            project_id=project_id, document_id=document_id,
+        )
+        joint_tables = run_joint_tables(
+            current=current, candidate=candidate, container=container, context=context,
+            project_id=project_id, document_id=document_id, progress=progress_state,
+            timeout_seconds=task.timeout_seconds, max_concurrency=task.max_concurrency,
+        )
+    mixed_text = (
+        _run_table_owned_text_companion(
+            current=current,
+            candidate=candidate,
+            additional_tables=joint_tables,
+            container=container,
+            context=context,
+            project_id=project_id,
+            document_id=document_id,
+            progress_state={
+                **progress_state,
+                **({"source_requirement_window_checkpoint": checkpoint_progress.receipt.model_dump(mode="json")}
+                   if checkpoint_progress.receipt is not None else {}),
+            },
+            timeout_seconds=int(payload.get("timeout_seconds") or 1200),
+        )
+        if any(record.owning_text_spans for record in candidate.records)
+        else None
+    )
+    if context.cancellation_requested():
+        raise NonRetryableJobError(
+            error_code="source_requirement_baseline_cancelled_before_publication",
+            message="SourceItem processing was cancelled before publication.",
+        )
     artifact = _build_result_artifact(
         document_map=current["document_map"],
         request=current["request"],
@@ -1248,22 +1309,10 @@ def run_durable_source_requirement_baseline(
         final_progress["source_requirement_window_checkpoint"] = (
             final_checkpoint_receipt.model_dump(mode="json")
         )
-    context.heartbeat(progress=final_progress)
-    context.begin_publication()
-    stored = container.object_store.put(
-        key=object_key,
-        source=BytesIO(encoded),
-        expected_sha256=object_sha256,
-        media_type=SOURCE_REQUIREMENT_SCOPE_ARTIFACT_MEDIA_TYPE,
-    )
-    if (
-        stored.key != object_key
-        or stored.sha256 != object_sha256
-        or stored.size != len(encoded)
-        or stored.media_type != SOURCE_REQUIREMENT_SCOPE_ARTIFACT_MEDIA_TYPE
-    ):
-        raise RuntimeError("SourceItem result object-store receipt drifted.")
+    if mixed_text is not None and mixed_text[3] is not None:
+        final_progress["source_item_text_window_checkpoint"] = mixed_text[3]
     product_baseline_pointer: dict[str, Any] | None = None
+    product_baseline = None
     base_bundle = current.get("source_requirement_base_bundle")
     if isinstance(base_bundle, Mapping):
         predecessor = resolve_effective_source_requirement_bundle(
@@ -1283,12 +1332,32 @@ def run_durable_source_requirement_baseline(
                 previous_product_run_receipts=tuple(
                     predecessor.get("product_run_receipts", ())
                 ),
+                text_requests=mixed_text[0] if mixed_text is not None else (),
+                text_batch=mixed_text[1] if mixed_text is not None else None,
+                text_run_receipt=mixed_text[2] if mixed_text is not None else None,
+                additional_tables=joint_tables,
             )
         except SourceRequirementBaselineError as exc:
             raise NonRetryableJobError(
                 error_code="source_requirement_baseline_append_invalid",
                 message="The SourceItem scope could not be appended to the current baseline.",
             ) from exc
+    context.heartbeat(progress=final_progress)
+    context.begin_publication()
+    stored = container.object_store.put(
+        key=object_key,
+        source=BytesIO(encoded),
+        expected_sha256=object_sha256,
+        media_type=SOURCE_REQUIREMENT_SCOPE_ARTIFACT_MEDIA_TYPE,
+    )
+    if (
+        stored.key != object_key
+        or stored.sha256 != object_sha256
+        or stored.size != len(encoded)
+        or stored.media_type != SOURCE_REQUIREMENT_SCOPE_ARTIFACT_MEDIA_TYPE
+    ):
+        raise RuntimeError("SourceItem result object-store receipt drifted.")
+    if product_baseline is not None:
         product_encoded = json.dumps(
             product_baseline.model_dump(mode="json"),
             ensure_ascii=False,
@@ -1342,6 +1411,10 @@ def run_durable_source_requirement_baseline(
         "candidate_sha256": run_receipt.candidate_sha256,
         "record_count": len(candidate.records),
         "context_row_group_count": len(candidate.context_row_groups),
+        **({"joint_table_scope_ids": [scope_id] + [item.request.logical_table_scope_id for item in joint_tables]}
+           if joint_tables else {}),
+        **({"mixed_text_scope_ids": [item.scope_id for item in mixed_text[0]]}
+           if mixed_text is not None else {}),
         "executor_id": executor.adapter_id,
         "executor_version": executor.adapter_version,
         "transport_kind": executor.transport_kind,
@@ -2746,6 +2819,7 @@ def _validate_text_execution(
     *,
     document_map: DocumentMapArtifactV1,
     requests: tuple[SourceItemTextScopeRequestV1, ...],
+    execution_context: Mapping[str, object] | None = None,
 ) -> tuple[SourceItemTextBatchCandidateV1, NativeSourceItemTextRunReceiptV1]:
     try:
         batch = SourceItemTextBatchCandidateV1.model_validate(execution.batch)
@@ -2765,8 +2839,8 @@ def _validate_text_execution(
             error_code="source_item_text_executor_result_invalid",
             message="Direct-text SourceItem executor returned an invalid result.",
         ) from exc
-    request_set_sha256 = canonical_json_sha256(
-        [item.model_dump(mode="json") for item in requests]
+    request_set_sha256 = source_item_text_request_set_sha256(
+        requests, execution_context=execution_context
     )
     if (
         batch.source_sha256 != document_map.source_sha256
@@ -3386,6 +3460,153 @@ def publish_agent_source_item_revision(*, project_id: str, document_id: str, doc
     return result
 
 
+def _run_table_owned_text_companion(
+    *,
+    current: Mapping[str, Any],
+    candidate: SourceRequirementSliceCandidateV1,
+    container: Any,
+    context: JobExecutionContext,
+    project_id: str,
+    document_id: str,
+    progress_state: dict[str, Any],
+    timeout_seconds: int,
+    additional_tables: tuple[SourceRequirementScopeResultArtifactV1, ...] = (),
+) -> tuple[tuple[SourceItemTextScopeRequestV1, ...], SourceItemTextBatchCandidateV1, NativeSourceItemTextRunReceiptV1, dict[str, Any] | None]:
+    """Resolve one mixed node before any product baseline is published."""
+    table_request = current["request"]
+    document_map = current["document_map"]
+    node = next(item for item in document_map.nodes if item.node_id == table_request.node_id)
+    table_scopes = {
+        block.logical_table_scope_id for block in node.content_blocks
+        if block.logical_table_scope_id
+    }
+    executor = container.source_item_text_executor
+    if executor is None or executor.readiness_reason() is not None:
+        raise RuntimeError("Direct-text executor is unavailable for table-owned text.")
+    text_request = build_source_item_text_scope_request(document_map, node_id=node.node_id)
+    requests = (text_request,)
+    base_bundle = current.get("source_requirement_base_bundle")
+    covered_table_scopes: set[str] = set()
+    if isinstance(base_bundle, Mapping):
+        effective = resolve_effective_source_requirement_bundle(
+            project_id=project_id,
+            document_id=document_id,
+            base_bundle=base_bundle,
+            container=container,
+        )
+        covered_table_scopes = set(effective["baseline"].covered_scope_ids)
+        if text_request.scope_id in covered_table_scopes:
+            raise NonRetryableJobError(
+                error_code="source_requirement_mixed_text_already_covered",
+                message="The text scope was already published and cannot be silently reassigned.",
+            )
+    table_pairs = ((table_request, candidate),) + tuple(
+        (item.request, item.candidate) for item in additional_tables
+    )
+    planned = {request.logical_table_scope_id for request, _ in table_pairs}
+    if not table_scopes.issubset(planned | covered_table_scopes):
+        raise NonRetryableJobError(
+            error_code="source_requirement_mixed_joint_plan_incomplete",
+            message="All tables in a mixed node must be resolved before publishing its direct text.",
+        )
+    reserved = [
+        {
+            "logical_table_scope_id": request.logical_table_scope_id,
+            "record_key": record.record_key,
+            "text_span": span.model_dump(mode="json"),
+        }
+        for request, table_candidate in table_pairs
+        for record in table_candidate.records for span in record.owning_text_spans
+    ]
+    # Overlap is an unresolved ownership decision, never a reason to truncate or
+    # silently give the words to the first table that happened to finish.
+    for index, owner in enumerate(reserved):
+        span = owner["text_span"]
+        for other in reserved[:index]:
+            prior = other["text_span"]
+            if (span["content_id"] == prior["content_id"]
+                    and max(span["start_offset"], prior["start_offset"])
+                    < min(span["end_offset"], prior["end_offset"])):
+                raise NonRetryableJobError(
+                    error_code="source_requirement_mixed_joint_ownership_overlap",
+                    message="Multiple table records claimed the same direct text; revise their boundaries before publication.",
+                )
+    context_values = {
+        "schema_version": "source-item-text-table-ownership/v1",
+        "source_sha256": text_request.source_sha256,
+        "document_map_artifact_sha256": text_request.document_map_artifact_sha256,
+        "scope_id": text_request.scope_id,
+        "table_candidate_sha256": canonical_json_sha256(candidate.model_dump(mode="json")),
+        **({"additional_table_candidate_sha256s": [
+            canonical_json_sha256(item.candidate.model_dump(mode="json")) for item in additional_tables
+        ]} if additional_tables else {}),
+        "table_owned_spans": reserved,
+    }
+    execution_context = {
+        **context_values,
+        "context_sha256": canonical_json_sha256(context_values),
+    }
+    store = NativeSourceItemTextDurableCheckpointStore(
+        object_store=container.object_store,
+        project_id=project_id,
+        document_id=document_id,
+    )
+    checkpoint_progress = NativeSourceItemTextCheckpointProgress(
+        context=context, store=store, initial=progress_state,
+    )
+    try:
+        resume_checkpoint = checkpoint_progress.load()
+    except ValueError as exc:
+        raise NonRetryableJobError(
+            error_code="source_requirement_mixed_text_checkpoint_invalid",
+            message="The paired text checkpoint failed identity validation.",
+        ) from exc
+    if context.cancellation_requested():
+        raise NonRetryableJobError(
+            error_code="source_requirement_mixed_text_cancelled",
+            message="Paired text processing was cancelled before publication.",
+        )
+    context.heartbeat(progress={
+        **progress_state,
+        "stage": "RUNNING_TABLE_OWNED_TEXT",
+        "message": "正在核对表格记录与同段正文的成对归属。",
+        "scope_id": text_request.scope_id,
+    })
+    execution = executor.execute(
+        SourceItemTextTaskV1(
+            project_id=project_id,
+            document_id=document_id,
+            source_path=current["source_path"],
+            document_map=document_map.model_dump(mode="json"),
+            scope_requests=(text_request.model_dump(mode="json"),),
+            timeout_seconds=timeout_seconds,
+            max_concurrency=2,
+            execution_context=execution_context,
+            semantic_context=current.get("semantic_context"),
+        ),
+        cancellation_requested=context.cancellation_requested,
+        resume_checkpoint=None if resume_checkpoint is None else resume_checkpoint.model_dump(mode="json"),
+        checkpoint_sink=checkpoint_progress.save,
+    )
+    batch, receipt = _validate_text_execution(
+        execution,
+        document_map=document_map,
+        requests=requests,
+        execution_context=execution_context,
+    )
+    actual = [item.model_dump(mode="json") for item in batch.candidates[0].table_owned_spans]
+    if sorted(actual, key=canonical_json_sha256) != sorted(reserved, key=canonical_json_sha256):
+        raise NonRetryableJobError(
+            error_code="source_requirement_mixed_text_ownership_mismatch",
+            message="The paired text result did not preserve exact table ownership.",
+        )
+    return (
+        requests, batch, receipt,
+        checkpoint_progress.receipt.model_dump(mode="json")
+        if checkpoint_progress.receipt is not None else None,
+    )
+
+
 def _append_product_baseline_artifact(
     *,
     document_map: DocumentMapArtifactV1,
@@ -3398,7 +3619,17 @@ def _append_product_baseline_artifact(
         NativeSourceRequirementRunReceiptV1 | NativeSourceItemTextRunReceiptV1,
         ...,
     ],
+    text_requests: tuple[SourceItemTextScopeRequestV1, ...] = (),
+    text_batch: SourceItemTextBatchCandidateV1 | None = None,
+    text_run_receipt: NativeSourceItemTextRunReceiptV1 | None = None,
+    additional_tables: tuple[SourceRequirementScopeResultArtifactV1, ...] = (),
 ) -> SourceRequirementProductBaselineArtifactV1:
+    if bool(text_requests) != (text_batch is not None) or bool(text_requests) != (text_run_receipt is not None):
+        raise ValueError("paired text requests, candidate and receipt must travel together")
+    text_candidates = tuple(
+        {item.scope_id: item for item in text_batch.candidates}[request.scope_id]
+        for request in text_requests
+    ) if text_batch is not None else ()
     append_receipt: SourceRequirementBaselineAppendReceiptV1 | None = None
     growth_receipt: SourceRequirementBaselineGrowthReceiptV1 | None = None
     try:
@@ -3407,8 +3638,10 @@ def _append_product_baseline_artifact(
                 document_map=document_map,
                 previous_artifact=previous_artifact,
                 previous_validation_receipt=previous_validation_receipt,
-                requests=(request,),
-                candidates=(candidate,),
+                requests=(request,) + tuple(item.request for item in additional_tables),
+                candidates=(candidate,) + tuple(item.candidate for item in additional_tables),
+                text_requests=text_requests,
+                text_candidates=text_candidates,
             )
         )
     except SourceRequirementBaselineError as exc:
@@ -3419,8 +3652,10 @@ def _append_product_baseline_artifact(
                 document_map=document_map,
                 previous_artifact=previous_artifact,
                 previous_validation_receipt=previous_validation_receipt,
-                requests=(request,),
-                candidates=(candidate,),
+                requests=(request,) + tuple(item.request for item in additional_tables),
+                candidates=(candidate,) + tuple(item.candidate for item in additional_tables),
+                text_requests=text_requests,
+                text_candidates=text_candidates,
             )
         )
     values = {
@@ -3431,7 +3666,9 @@ def _append_product_baseline_artifact(
         "validation_receipt": validation_receipt,
         "append_receipt": append_receipt,
         "growth_receipt": growth_receipt,
-        "product_run_receipts": previous_product_run_receipts + (run_receipt,),
+        "product_run_receipts": previous_product_run_receipts + (run_receipt,)
+        + tuple(item.run_receipt for item in additional_tables)
+        + ((text_run_receipt,) if text_run_receipt is not None else ()),
     }
     draft = SourceRequirementProductBaselineArtifactV1.model_construct(
         **values,

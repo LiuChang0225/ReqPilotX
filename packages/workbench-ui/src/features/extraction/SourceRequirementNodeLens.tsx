@@ -1,5 +1,7 @@
 import { useEffect, useMemo, useRef, useState } from "react";
 import { ApiError, api, request, asRecord } from "../../shared/api/client";
+import { isSaasAccountMode } from "../../shared/api/saasSession";
+import { SAAS_KIT_UNAVAILABLE_MESSAGE } from "./saasAgentAvailability";
 import type {
   NativeStructureTablePreviewV1,
   SourceRequirementBaselineOutlineV1,
@@ -170,7 +172,7 @@ export function SourceItemLens({
   const draftKey = sourceFeedbackDraftKey(projectId, documentId, selectedSourceItemId, sourceReader?.revision_id || outline.baseline.artifact_sha256);
   const draft = useSourceFeedbackDraft(draftKey, sourceReader?.revision_number || outline.baseline.revision);
   const feedback = draft.text;
-  const sharedFeedback = Boolean(sourceReader && documentAgent?.producer === "EXTERNAL_PLUGIN");
+  const sharedFeedback = Boolean(sourceReader && documentAgent?.producer === "EXTERNAL_PLUGIN" || isSaasAccountMode() && documentAgent);
   const hasLegacyDraft = Boolean(feedback || draft.otherDrafts.length);
   const setFeedback = draft.update;
   const activeDraftKey = useRef(draftKey);
@@ -378,6 +380,13 @@ export function SourceItemLens({
 
   const submitFeedback = async () => {
     if (!selected || !feedback.trim() || submitting) return;
+    if (isSaasAccountMode()) {
+      if (documentAgent) {
+        documentAgent.show(feedback.trim(), "selected");
+        setFeedbackState("请在文档 Agent 协作中核对并发送，本条草稿保留。");
+      }
+      return;
+    }
     const submittedKey = draftKey;
     const submittedText = feedback;
     setSubmitting(true);
@@ -457,6 +466,7 @@ export function SourceItemLens({
   };
 
   const retryPendingRevision = async () => {
+    if (isSaasAccountMode()) return;
     if (!selected || applyingRevision || !detail) {
       return;
     }
@@ -554,6 +564,7 @@ export function SourceItemLens({
   };
   const openFeedback = () => {
     if (host.readOnly) { if (documentAgent?.collaborationAvailable) documentAgent.show("", "selected"); return; }
+    if (isSaasAccountMode() && documentAgent) { documentAgent.show(feedback.trim(), "selected"); return; }
     if (sharedFeedback && !hasLegacyDraft) { documentAgent!.show("", "selected"); return; }
     setFeedbackOpen(true);
     requestAnimationFrame(() => feedbackInputRef.current?.focus({ preventScroll: true }));
@@ -588,7 +599,8 @@ export function SourceItemLens({
           </section>
   ) : null;
   const analysisBlock = !parentOverview && reasoning && selected.requirementness === "REQUIREMENT" && <div ref={derivedRef} className="source-review-derived">
-            <SourceItemReasoningDetail workflow={reasoning} readOnly={Boolean(sourceReader)} sourceItemId={selected.source_record_id}
+            <SourceItemReasoningDetail workflow={reasoning} readOnly={host.readOnly || Boolean(sourceReader)}
+              engineerReadOnly={host.readOnly || Boolean(sourceReader && !sourceReader.responseCapability?.enabled)} sourceItemId={selected.source_record_id}
               requirementId={selected.requirement_display_id || selected.source_display_id} reviewMode={!responseMode}
               purpose={analysisMode ? "analysis" : "review"}
               showUnitPicker={!tableView} showUnitText={!selectedChild}
@@ -634,8 +646,8 @@ export function SourceItemLens({
           </section> : null}
 
           {parentOverview && <section className="source-parent-overview" aria-label="父条款与派生项"><p>完整父条款保留如下。{analysisChildren.length} 个派生项在表格中独立成行；选择派生行{analysisMode ? "查看对应证据与响应" : "核对内容、分类和派生依据"}。</p><SourceDispositionNote state={reasoning?.state || null} sourceItemId={selectedSourceItemId}/><div className="source-item-delivery-actions">
-            {!analysisMode && <button type="button" className="button secondary compact" disabled={Boolean(sourceReader) || reasoning?.busy} onClick={() => void reasoning?.run("decomposition", selectedSourceItemId)}>检查本条拆分</button>}
-            {analysisMode && <button type="button" className="button secondary compact" disabled={Boolean(sourceReader) || reasoning?.busy} onClick={() => void reasoning?.run("analysis", selectedSourceItemId)}>分析本条派生项</button>}
+            {!analysisMode && <button type="button" className="button secondary compact" disabled={isSaasAccountMode() || Boolean(sourceReader) || reasoning?.busy} title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined} onClick={() => void reasoning?.run("decomposition", selectedSourceItemId)}>检查本条拆分</button>}
+            {analysisMode && <button type="button" className="button secondary compact" disabled={isSaasAccountMode() || Boolean(sourceReader) || reasoning?.busy} title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined} onClick={() => void reasoning?.run("analysis", selectedSourceItemId)}>分析本条派生项</button>}
           </div></section>}
           {responseMode && analysisBlock}
           {responseMode ? <details className="analysis-original" open={originalOpen} onToggle={event => setOriginalOpen(event.currentTarget.open)}><summary>客户原文与图表 · 展开核对完整内容</summary>{originalBlock}</details> : originalBlock}
@@ -709,14 +721,15 @@ export function SourceItemLens({
               <div className="source-requirement-feedback-actions">
                 <span>{feedbackState}</span>
                 <button type="button" className="button secondary compact"
-                  disabled={Boolean(sourceReader) || applyingRevision || submitting || (Boolean(selected.logical_table_scope_id) && !capabilities?.table_classification_review.available)}
-                  title={selected.logical_table_scope_id ? capabilities?.table_classification_review.unavailable_reason || "仅复核分类，不修改表格行组或拆合边界" : undefined}
+                  disabled={isSaasAccountMode() || Boolean(sourceReader) || applyingRevision || submitting || (Boolean(selected.logical_table_scope_id) && !capabilities?.table_classification_review.available)}
+                  title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : selected.logical_table_scope_id ? capabilities?.table_classification_review.unavailable_reason || "仅复核分类，不修改表格行组或拆合边界" : undefined}
                   onClick={() => void retryPendingRevision()}>
                   {applyingRevision ? "Agent 正在接收…" : selected.logical_table_scope_id ? "交给 Agent 复核分类" : history.some(item => item.status !== "CONSUMED") ? "处理已保存反馈" : "让 Agent 复核本条"}</button>
                 {!sourceReader && outline.scope_revision?.can_undo && outline.scope_revision.affected_scope_ids.includes(selected.logical_table_scope_id || `text:${selected.node_id}`) &&
                   <button type="button" className="button secondary compact" disabled={applyingRevision || submitting} onClick={() => void undoLatestRevision()}>撤销上次局部修订</button>}
-                <button type="button" className="button primary compact" disabled={!feedback.trim() || submitting || applyingRevision || Boolean(sourceReader?.feedbackCapability && !sourceReader.feedbackCapability.enabled)} onClick={() => void submitFeedback()}>{submitting || applyingRevision ? "正在提交…" : sourceReader || selected.logical_table_scope_id ? "保存反馈" : "保存并交给 Agent"}</button>
+                <button type="button" className="button primary compact" disabled={isSaasAccountMode() && !documentAgent || !feedback.trim() || submitting || applyingRevision || Boolean(sourceReader?.feedbackCapability && !sourceReader.feedbackCapability.enabled)} title={isSaasAccountMode() && !documentAgent ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined} onClick={() => void submitFeedback()}>{submitting || applyingRevision ? "正在提交…" : isSaasAccountMode() ? "打开文档 Agent 协作" : sourceReader || selected.logical_table_scope_id ? "保存反馈" : "保存并交给 Agent"}</button>
               </div>
+              {isSaasAccountMode() && <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE} 本条草稿保留，意见须在文档 Agent 协作中核对并发送。</p>}
               {sourceReader?.feedbackCapability && !sourceReader.feedbackCapability.enabled && <p className="muted">{sourceReader.feedbackCapability.reason || "当前版本暂不可提交意见。"}</p>}
               {!sourceReader && selected.logical_table_scope_id && <p className="muted">表格反馈先保存，再交给Agent复核分类。行组、拆合或来源边界问题保留待处理，当前不自动改写边界。</p>}
               </>}

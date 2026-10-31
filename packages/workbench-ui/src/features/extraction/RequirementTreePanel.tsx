@@ -25,6 +25,8 @@ import {
   request,
 } from "../../shared/api/client";
 import { useScopedUiState } from "../../shared/hooks/useScopedUiState";
+import { isSaasAccountMode } from "../../shared/api/saasSession";
+import { SAAS_KIT_UNAVAILABLE_MESSAGE, useSaasNativeAgentAvailability } from "./saasAgentAvailability";
 import type {
   EntryClassificationPatchCommand,
   EntryClassificationResponse,
@@ -2075,6 +2077,7 @@ export function CompleteContent({
 }
 
 function RequirementTreeOrganizePanel() {
+  const agentAvailability = useSaasNativeAgentAvailability();
   const documentAgent = useDocumentAgent();
   const {
     route,
@@ -4408,7 +4411,7 @@ function RequirementTreeOrganizePanel() {
     CAPABILITY_IDS.pymupdf,
   );
   const codexBaselineReady = Boolean(
-    localRulesReady &&
+    !isSaasAccountMode() && localRulesReady &&
       processingProfile?.llm_provider === "codex" &&
       capabilityReady(runtimeCapabilities, CAPABILITY_IDS.codexAgent),
   );
@@ -5115,7 +5118,7 @@ function RequirementTreeOrganizePanel() {
   }, [parsingPageCount, pdfPage, setPdfPage, syncPdf]);
 
   const startExtraction = async () => {
-    if (sourceGraphBusy) return;
+    if (sourceGraphBusy || !agentAvailability.ready || isSaasAccountMode() && nativeStructureAdvancement.artifactId) return;
     const result = await runAction(
       "Agent 提取原文",
       () => startSourceDocumentGraph(route.projectId, route.documentId,
@@ -5146,6 +5149,7 @@ function RequirementTreeOrganizePanel() {
   };
 
   const rerunParsingWithCodexAgent = async () => {
+    if (isSaasAccountMode()) return;
     const started = await runAction(
       "Codex Agent 原文基线重新生成",
       () => api.startExtraction(route.projectId, route.documentId),
@@ -7275,6 +7279,7 @@ function RequirementTreeOrganizePanel() {
       </header>
 
       <div className="requirement-tree-status-stack">
+        {isSaasAccountMode() && (nativeStructureAdvancement.artifactId ? <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p> : agentAvailability.message && <p role="status">{agentAvailability.message} <button type="button" className="button ghost compact" onClick={agentAvailability.refresh}>刷新 Agent 配置</button></p>)}
         {(activeCheckpoint === "structure" || !sourceRequirementReady) && <SourceDocumentActions
           projectId={route.projectId} documentId={route.documentId}
           sourceSha256={String(selectedDocument.source_sha256 || sourcePages.source_sha256 || "")}
@@ -8104,7 +8109,7 @@ function RequirementTreeOrganizePanel() {
               <button
                 className="button ghost"
                 type="button"
-                disabled={Boolean(busyAction) || connectionMismatchRetryBlocked || sourceGraphBusy}
+                disabled={Boolean(busyAction) || connectionMismatchRetryBlocked || sourceGraphBusy || !agentAvailability.ready || Boolean(isSaasAccountMode() && nativeStructureAdvancement.artifactId)}
                 onClick={() => void startExtraction()}
               >
                 重新提取
@@ -8121,7 +8126,7 @@ function RequirementTreeOrganizePanel() {
             <button
               className="button primary"
               type="button"
-              disabled={Boolean(busyAction) || connectionMismatchRetryBlocked || sourceGraphBusy}
+              disabled={Boolean(busyAction) || connectionMismatchRetryBlocked || sourceGraphBusy || !agentAvailability.ready || Boolean(isSaasAccountMode() && nativeStructureAdvancement.artifactId)}
               onClick={() => void startExtraction()}
             >
               <Icon name="play" />
@@ -8138,7 +8143,7 @@ function RequirementTreeOrganizePanel() {
             <button
               className="button primary"
               type="button"
-              disabled={Boolean(busyAction) || connectionMismatchRetryBlocked || sourceGraphBusy}
+              disabled={Boolean(busyAction) || connectionMismatchRetryBlocked || sourceGraphBusy || !agentAvailability.ready || Boolean(isSaasAccountMode() && nativeStructureAdvancement.artifactId)}
               onClick={() => void startExtraction()}
             >
               重新提取
@@ -9238,7 +9243,7 @@ function RequirementTreeOrganizePanel() {
               启动 Agent 原文基线
             </button>
             {!codexBaselineReady && (
-              <small>当前 Codex Agent 或本地来源读取能力尚未就绪。</small>
+              <small>{isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : "当前 Codex Agent 或本地来源读取能力尚未就绪。"}</small>
             )}
           </section>
           <section>

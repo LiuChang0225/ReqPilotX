@@ -262,6 +262,7 @@ def project_source_requirement_outline(bundle, *, feedbacks=(), metadata=None):
                     has_structure_children=item.node_id in structure_parent_ids,
                 ),
                 "source_form": item.source_form.value,
+                "has_owned_text": bool(item.text_bindings),
                 **({"image_bindings": [binding.model_dump(mode="json") for binding in item.image_bindings]}
                    if item.image_bindings else {}),
                 "pages": list(item.pages),

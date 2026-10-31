@@ -185,6 +185,8 @@ class TaskItemViewsTests(ChangeFixture):
         bridge = TaskBridge(self.root, ENTRY, project_root=ROOT)
         with patch('task_bridge.subprocess.Popen') as start:
             for action, request in [('describe', {'action':'items'}),('read', {'view':'scope','part':'template'}),
+                    ('read', {'view':'item','part':'numbering'}),
+                    ('annotations', {'changes':{'annotation_updates':[{'source_item_id':'SRC-001','source_number':'1','source_number_ref':{'kind':'ITEM_SOURCE','segment_index':0},'reason':'Source check.'}]}}),
                     ('items', {'decisions':{'text_decisions':[{'scope_id':'text:s1','items':[{'label':'source'}]}]}}),
                     ('items', {'decisions':{'table_decisions':[{'logical_table_scope_id':'t','records':[{'label':'source'}]}]}}),
                     ('annotations', {}), ('decomposition', {}), ('images', {}), ('revise', {}),

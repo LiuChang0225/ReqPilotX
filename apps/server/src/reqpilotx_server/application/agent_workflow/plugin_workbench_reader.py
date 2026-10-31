@@ -19,7 +19,7 @@ def _inputs(project_id, document_id, session_id, revision):
     root, head = transport._load(project_id, document_id, session_id)
     directory, version = transport._version(root, head, revision)
     artifacts = {name: transport._artifact(directory, version, name)
-                 for name in version['files'] if name in transport.ARTIFACT_NAMES}
+                 for name in version['files'] if name in transport.ARTIFACT_NAMES or name == 'manual-decisions.json'}
     artifacts['matrix-snapshot.json'] = transport._artifact(directory, version, 'matrix-snapshot.json')
     mapping = core.DocumentMapArtifactV1.model_validate(artifacts['document-map.json'])
     baseline = core.SourceRequirementBaselineArtifactV1.model_validate(artifacts['source-requirement-baseline.json']) if version['baseline_sha256'] else None
@@ -166,6 +166,10 @@ def get_plugin_reader(project_id: str, document_id: str, session_id: str, revisi
         'non_requirement_count': len(baseline.records)-len(required), 'analysis_unit_count': unit_count,
         'assessed_unit_count': 0, 'pending_unit_count': unit_count, 'decomposition_job_id': None, 'analysis_job_id': None,
         'active_jobs': [], 'notices': [], 'decomposition': displayed_decomposition, 'assessments': None} if baseline else None
+    if reasoning is not None:
+        from .plugin_workbench_delivery import get_plugin_engineer_responses
+        reasoning['engineer_responses'] = get_plugin_engineer_responses(project_id, document_id, session_id, response,
+            revision=version['revision_id'])
     review = project_review_context(mapping, baseline, artifacts['table-previews.json'],
         project_id=project_id, document_id=document_id, visual_annotations=bundle['image_annotations'],
         decomposition=decomposition, feedbacks=source_feedback) if baseline else None

@@ -12,12 +12,13 @@ import hashlib
 import json
 import os
 import re
-import signal
 import subprocess
 import sys
 import time
 from pathlib import Path
 from urllib.parse import parse_qs, urlsplit
+
+from portable_process import isolation_kwargs, stop_timed_out_process
 
 
 def text_values(value):
@@ -187,14 +188,14 @@ def main() -> int:
     if args.workbench_url:
         environment['REQPILOT_WORKBENCH_URL']=args.workbench_url
     with (output / "events.jsonl").open("w", encoding="utf-8") as stdout, (output / "stderr.log").open("w", encoding="utf-8") as stderr:
-        process = subprocess.Popen(command, cwd=workspace, env=environment, stdin=subprocess.PIPE, text=True, stdout=stdout, stderr=stderr, start_new_session=True)
+        process = subprocess.Popen(command, cwd=workspace, env=environment, stdin=subprocess.PIPE,
+                                   text=True, stdout=stdout, stderr=stderr, **isolation_kwargs())
         try:
             process.communicate(prompt, timeout=args.timeout_seconds)
         except subprocess.TimeoutExpired:
             timed_out = True
-            for sig in (signal.SIGINT, signal.SIGTERM, signal.SIGKILL):
-                try: os.killpg(process.pid, sig)
-                except ProcessLookupError: break
+            for force, interrupt in ((False, True), (False, False), (True, False)):
+                stop_timed_out_process(process, force=force, interrupt=interrupt)
                 try:
                     process.wait(timeout=10)
                     break

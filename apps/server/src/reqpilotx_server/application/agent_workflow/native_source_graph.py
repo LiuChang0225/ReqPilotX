@@ -225,11 +225,24 @@ def _validate_native_source_graph_uncached(
         for item in value.get("producer_receipts", [])
         if item.get("success") is True
     }
+    codex_runtime = (
+        runtime.get("adapter_id") == "reqpilotx-codex-native-loop"
+        and runtime.get("terminal_snapshot_verified") is True
+        and runtime.get("thread_retained") is True
+    )
+    provider_runtime = (
+        runtime.get("adapter_id") == "reqpilotx-provider-tool-loop"
+        and runtime.get("transport_kind") == "PROVIDER_TOOL_LOOP"
+        and runtime.get("local_state_persisted") is True
+        and runtime.get("thread_retained") is True
+        and isinstance(runtime.get("run_state_sha256"), str)
+        and len(runtime["run_state_sha256"]) == 64
+        and bool(runtime.get("run_state_reference"))
+        and (runtime.get("identity") or {}).get("provider") in {"azure", "aliyun"}
+    )
     if (
-        runtime.get("adapter_id") != "reqpilotx-codex-native-loop"
+        not (codex_runtime or provider_runtime)
         or runtime.get("status") != "COMPLETED"
-        or runtime.get("terminal_snapshot_verified") is not True
-        or runtime.get("thread_retained") is not True
         or runtime.get("is_human_accepted") is not False
         or not runtime.get("thread_id")
         or not runtime.get("turn_id")
@@ -243,7 +256,7 @@ def _validate_native_source_graph_uncached(
         or value.get("human_acceptance") != "NOT_CLAIMED"
     ):
         raise ValueError(
-            "Initial graph requires actual native tools and a completed retained thread"
+            "Initial graph requires actual tools and a completed retained run"
         )
     capture = value["capture_receipt"]
     map_receipt = value["map_compilation_receipt"]
@@ -447,7 +460,11 @@ def native_source_graph_reference(value: Mapping[str, Any]) -> dict[str, Any]:
         activity=[],
         feedbacks=[],
         provenance={
-            "transport_kind": "CODEX_APP_SERVER_NATIVE_LOOP",
+            "transport_kind": (
+                "PROVIDER_TOOL_LOOP"
+                if value["runtime_receipt"].get("adapter_id") == "reqpilotx-provider-tool-loop"
+                else "CODEX_APP_SERVER_NATIVE_LOOP"
+            ),
             "thread_id": value["runtime_receipt"]["thread_id"],
             "turn_id": value["runtime_receipt"]["turn_id"],
             "native_source_graph_sha256": value["artifact_sha256"],

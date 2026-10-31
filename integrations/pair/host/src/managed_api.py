@@ -2,6 +2,10 @@
 import importlib.metadata
 import importlib.util
 import json
+import hashlib
+import hmac
+import re
+from urllib.parse import parse_qs
 import os
 from pathlib import Path
 import socket
@@ -28,13 +32,35 @@ def installation():
 
 def configure_environment():
     allowed = {"REQPILOT_DATABASE_URL", "REQPILOT_STORAGE_DIR", "REQPILOT_FRONTEND_DIR",
-               "REQPILOT_OBJECT_ROOT", "REQPILOT_SCRATCH_ROOT", "REQPILOT_MANAGED_INSTANCE"}
+               "REQPILOT_OBJECT_ROOT", "REQPILOT_SCRATCH_ROOT", "REQPILOT_MANAGED_INSTANCE",
+               "REQPILOT_MANAGED_OWNER", "REQPILOT_MANAGED_PROOF_KEY"}
     for key in list(os.environ):
         if key.startswith(("REQPILOT_", "REQPILOTX_", "OPENAI_", "AZURE_", "DASHSCOPE_", "ALIYUN_")) and key not in allowed:
             del os.environ[key]
     os.environ.update(REQPILOT_ENV="local", REQPILOT_PROCESS_ROLE="api",
                       REQPILOT_AGENT_RUNTIME="none", REQPILOT_OBJECT_STORE="local",
                       REQPILOT_ALLOWED_HOSTS="127.0.0.1,localhost")
+
+
+def managed_application(app, origin):
+    """Ephemeral proof authenticates the listener; no user credentials or mutation."""
+    async def serve(scope, receive, send):
+        if scope.get("type") == "http" and scope.get("path") == "/api/pair-managed-identity":
+            challenge = parse_qs(scope.get("query_string", b"").decode("ascii")).get("challenge", [""])[0]
+            if scope.get("method") != "GET" or not re.fullmatch(r"[a-f0-9]{64}", challenge):
+                await send({"type": "http.response.start", "status": 422, "headers": []})
+                await send({"type": "http.response.body", "body": b""})
+                return
+            owner, instance = os.environ["REQPILOT_MANAGED_OWNER"], os.environ["REQPILOT_MANAGED_INSTANCE"]
+            message = json.dumps([owner, instance, origin, challenge], separators=(",", ":")).encode()
+            proof = hmac.new(bytes.fromhex(os.environ["REQPILOT_MANAGED_PROOF_KEY"]), message, hashlib.sha256).hexdigest()
+            body = json.dumps({"ownerId": owner, "instanceId": instance, "challenge": challenge, "proof": proof}).encode()
+            await send({"type": "http.response.start", "status": 200,
+                        "headers": [(b"content-type", b"application/json"), (b"cache-control", b"no-store")]})
+            await send({"type": "http.response.body", "body": body})
+            return
+        await app(scope, receive, send)
+    return serve
 
 
 def main():
@@ -66,7 +92,9 @@ def main():
             os.chmod(descriptor, 0o600)
             json.dump({"instanceId": os.environ["REQPILOT_MANAGED_INSTANCE"], "pid": os.getpid(),
                        "origin": f"http://127.0.0.1:{listener.getsockname()[1]}"}, stream)
-        uvicorn.Server(uvicorn.Config("reqpilotx_server.main:app", log_level="warning")).run(sockets=[listener])
+        from reqpilotx_server.main import app
+        origin = f"http://127.0.0.1:{listener.getsockname()[1]}"
+        uvicorn.Server(uvicorn.Config(managed_application(app, origin), log_level="warning")).run(sockets=[listener])
 
 
 if __name__ == "__main__":

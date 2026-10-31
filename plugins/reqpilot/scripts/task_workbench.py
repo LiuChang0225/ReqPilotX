@@ -167,4 +167,32 @@ def sync_current_review(root: Path, expected_revision: str) -> dict:
             'still_current':unchanged,'source_and_model_not_recompiled':True,'local_artifact_preserved':True}
 
 
-__all__=['check_workbench','sync_current_review','workbench_link']
+def read_workbench_delivery(state, selection):
+    """Read only this task's saved remote binding, including immutable versions.
+
+    No latest-task fallback, opinion authoring, formal acceptance or local
+    import occurs. Existing local review artifacts keep their own provenance.
+    """
+    root, actual, binding = _bound_scope(state)
+    if binding is None:
+        return {'status':'NOT_BOUND', 'task_id':actual['context']['work_id'], 'revision':actual['revision']}
+    suffix = {'responses':'/engineer-responses', 'preview':'/versions/preview', 'versions':'/versions',
+              'version':'/versions/'+str(selection.delivery_revision)}[selection.view]
+    if selection.result_revision:
+        suffix += '?revision='+quote(selection.result_revision, safe='')
+    value = request(_api(binding)+suffix)
+    _validate_state(value, binding)
+    if selection.result_revision and value.get('revision_id') != selection.result_revision:
+        raise ValueError('WORKBENCH_VERSION_MISMATCH: response is not the selected result')
+    if selection.delivery_revision is not None and value.get('revision') != selection.delivery_revision:
+        raise ValueError('WORKBENCH_VERSION_MISMATCH: response is not the selected delivery')
+    if selection.view in {'preview','version'}:
+        _validate_snapshot(value['snapshot'],binding['source_sha256'])
+        if value.get('delivery_sha256') != value['snapshot']['delivery_sha256']:
+            raise ValueError('WORKBENCH_VERSION_MISMATCH: snapshot differs from the delivery')
+    _same_local_revision(root, actual['revision'])
+    return {'status':'READY', 'task_id':actual['context']['work_id'], 'revision':actual['revision'],
+        'view':selection.view, 'delivery':value, 'local_artifacts_changed':False, 'human_acceptance':'NOT_CLAIMED'}
+
+
+__all__=['check_workbench','sync_current_review','workbench_link','read_workbench_delivery']

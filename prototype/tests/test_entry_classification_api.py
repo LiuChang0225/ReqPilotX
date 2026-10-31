@@ -22,6 +22,8 @@ from fastapi.responses import JSONResponse
 from fastapi.testclient import TestClient
 
 from app import db
+from app.application import runtime
+from reqpilotx_server.adapters.persistence.sqlite_llm_requirement_reviews import SQLiteLlmRequirementReviewRepository
 from app.application.errors import ApplicationError
 from app.application.extraction import document_jobs
 from app.application.extraction import entry_classification as service
@@ -56,6 +58,13 @@ class EntryClassificationApiTests(unittest.TestCase):
         db.init_db()
 
     def setUp(self) -> None:
+        # This module must work independently of discovery import order.
+        # Bind the real isolated adapter rather than relying on another test
+        # module to initialize the process-wide review fixture implicitly.
+        review_factory = patch.object(runtime.RUNTIME_STATE, "test_llm_review_repository_factory",
+                                      lambda: SQLiteLlmRequirementReviewRepository(db.DB_PATH))
+        review_factory.start()
+        self.addCleanup(review_factory.stop)
         with document_jobs._LLM_EXTRACTION_JOB_LOCK:
             document_jobs._LLM_EXTRACTION_JOBS.clear()
         self.project = db.create_project("Classification API", "Customer")

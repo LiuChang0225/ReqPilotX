@@ -17,6 +17,40 @@ HAS_MCP=importlib.util.find_spec('mcp') is not None
 
 @unittest.skipUnless(HAS_MCP, 'Install the optional requirements-mcp.txt to run actual stdio tests')
 class McpTaskAdapterTests(unittest.TestCase):
+    def test_observed_context_rejects_external_change_and_ambiguous_task(self):
+        from mcp import Client, StdioServerParameters
+        from task_bridge import TaskBridge
+        from portable_fixtures import make_fixture
+        with TemporaryDirectory() as temporary:
+            root=Path(temporary);source,_,_=make_fixture(root/'fixture')
+            bridge=TaskBridge(root,SCRIPTS/'reqpilot.py',project_root=ROOT)
+            params=StdioServerParameters(command=sys.executable,args=[str(SCRIPTS/'mcp_server.py'),
+                '--project-root',str(ROOT),'--working-root',str(root)])
+            async def exercise():
+                async with Client(params) as client:
+                    async def call(name,args):
+                        result=await client.call_tool(name,args)
+                        self.assertFalse(result.is_error,result)
+                        return result.structured_content
+                    state=await call('task_open',{'mode':'create','source':str(source),'goal':'Context fixture','creation_key':'one'})
+                    task=state['task_id']
+                    # A different transport writes after this MCP connection's read.
+                    outside=bridge.invoke('prepare',{'task_id':task,'expected_revision':state['revision'],'command_id':'external'})
+                    self.assertEqual(outside['operation_state'],'COMMITTED',outside)
+                    rejected=await client.call_tool('source_prepare',{'mode':'pages','command_id':'stale'})
+                    self.assertTrue(rejected.is_error)
+                    self.assertIn('REVISION_CONFLICT',str(rejected))
+                    self.assertEqual(bridge.invoke('inspect',{'task_id':task})['revision'],outside['revision'])
+                    await call('task_inspect',{})
+                    refreshed=await call('source_prepare',{'mode':'pages','command_id':'after-read'})
+                    self.assertEqual(refreshed['operation_state'],'COMMITTED')
+                    await call('task_open',{'mode':'create','source':str(source),'goal':'Other task','creation_key':'two'})
+                    ambiguous=await client.call_tool('task_inspect',{})
+                    self.assertTrue(ambiguous.is_error)
+                    self.assertIn('TASK_CONTEXT_REQUIRED',str(ambiguous))
+                    self.assertEqual((await call('task_inspect',{'task_id':task}))['revision'],refreshed['revision'])
+            asyncio.run(exercise())
+
     def test_region_pixels_reuse_native_geometry_without_rebuilding_all_page_views(self):
         import base64,hashlib
         import pymupdf
@@ -177,8 +211,11 @@ class McpTaskAdapterTests(unittest.TestCase):
                 candidates=await call('read',packet['context_review']['read_candidates']['request'])
                 self.assertEqual(candidates['status'],'READ')
                 note=next(row for row in roster['items'] if row['requirementness']=='NON_REQUIREMENT')
+                numbering=await call('read',{'task_id':task,'view':'item','source_item_id':parent['source_display_id'],'part':'numbering'})
+                number_ref=numbering['data']['heading_sources'][0]['source_number_ref']
                 await write('annotations',changes={'annotation_updates':[{'source_item_id':parent['source_display_id'],
-                    'context_source_ids':[note['source_display_id']], 'reason':'Synthetic same-source link for transport verification.'}]})
+                    'source_number':'1','source_number_ref':number_ref,
+                    'context_source_ids':[note['source_display_id']], 'reason':'Synthetic original-number and same-source link transport verification.'}]})
                 with_context=await call('read',{'task_id':task,'view':'item','source_item_id':parent['source_display_id']})
                 linked=await call('read',with_context['context_review']['read_linked_context']['request'])
                 self.assertEqual(linked['data'][0]['source_item_id'],note['source_record_id'])
@@ -223,7 +260,9 @@ class McpTaskAdapterTests(unittest.TestCase):
                 control,_=await complete(cli,'typed-cli-control')
                 async with Client(params) as client:
                     async def mcp(action,request):
-                        response=await client.call_tool(names[action],request)
+                        # Same business result with transport metadata omitted.
+                        implicit={k:v for k,v in request.items() if k not in {'task_id','expected_revision'}}
+                        response=await client.call_tool(names[action],implicit)
                         self.assertFalse(response.is_error,response)
                         if action=='read' and request.get('view') in {'image','item_image'}:
                             images=[c for c in response.content if c.type=='image'];self.assertEqual(len(images),1)
@@ -246,7 +285,7 @@ class McpTaskAdapterTests(unittest.TestCase):
                 async with Client(params,mode='auto') as client:
                     listing=await client.list_tools()
                     tools={t.name:t for t in listing.tools}
-                    self.assertTrue({'task_describe','task_open','source_prepare','map_apply','items_apply','task_deliver','task_recover'} <= set(tools))
+                    self.assertTrue({'task_describe','task_open','source_prepare','map_apply','items_apply','task_deliver','task_recover','workbench_delivery_read'} <= set(tools))
                     description=await client.call_tool('task_describe',{'action':'items','part':'fields'})
                     self.assertFalse(description.is_error,description)
                     self.assertEqual(description.structured_content['status'],'DESCRIBED')
@@ -261,17 +300,24 @@ class McpTaskAdapterTests(unittest.TestCase):
                     task=created['task_id']
                     repeated=(await client.call_tool('task_open',{'request':req})).structured_content
                     self.assertEqual(repeated['task_id'],task)
-                    capture={'task_id':task,'expected_revision':created['revision'],'command_id':'capture-once'}
+                    capture={'command_id':'capture-once'}
                     saved=(await client.call_tool('source_prepare',{'request':capture})).structured_content
                     self.assertEqual(saved['operation_state'],'COMMITTED',saved)
                     old_revision=saved['revision']; operation=saved['operation_id']
+                    replay=(await client.call_tool('source_prepare',capture)).structured_content
+                    self.assertTrue(replay['replayed'],replay)
                 # A fresh server and a legacy client both recover the same business task.
                 async with Client(params,mode='legacy') as client:
+                    missing=await client.call_tool('source_prepare',{'mode':'pages'})
+                    self.assertTrue(missing.is_error)
                     state=(await client.call_tool('task_inspect',{'request':{'task_id':task}})).structured_content
                     self.assertEqual(state['revision'],old_revision)
                     replay=(await client.call_tool('source_prepare',{'request':capture})).structured_content
                     self.assertTrue(replay['replayed'],replay)
                     self.assertEqual(replay['operation_id'],operation)
+                    changed=await client.call_tool('source_prepare',{**capture,'mode':'pages'})
+                    self.assertTrue(changed.is_error)
+                    self.assertIn('COMMAND_ID_CONFLICT',str(changed))
                     bad=await client.call_tool('task_inspect',{'request':{'task_id':task,'guess_latest':True}})
                     self.assertTrue(bad.is_error)
                     nodes=mapping['nodes'];outline=[{'role':'DOCUMENT','ref':nodes[0]['title_source_ids'][0],'children':[
@@ -283,6 +329,18 @@ class McpTaskAdapterTests(unittest.TestCase):
                         'decisions':{'outline':outline,'source_dispositions':mapping['source_dispositions']}})
                     self.assertFalse(mapped.is_error,mapped)
                     self.assertEqual(mapped.structured_content['operation_state'],'COMMITTED')
+                    scope_error=await client.call_tool('source_read',{'view':'scope','part':'template'})
+                    self.assertTrue(scope_error.is_error)
+                    recover=scope_error.structured_content['next_action']
+                    scopes=await client.call_tool(recover['tool'],recover['request'])
+                    self.assertFalse(scopes.is_error,scopes)
+                    self.assertTrue(scopes.structured_content['scopes'])
+                    schema_error=await client.call_tool('task_describe',{'action':'items','part':'#/$defs/ItemInput','max_chars':24000})
+                    self.assertTrue(schema_error.is_error)
+                    recover=schema_error.structured_content['next_action']
+                    definitions=await client.call_tool(recover['tool'],recover['request'])
+                    self.assertFalse(definitions.is_error,definitions)
+                    self.assertIn('TextItemInput',{d['name'] for d in definitions.structured_content['data']['definitions']})
             asyncio.run(exercise())
 
     def test_actual_image_content_matches_verified_page_bytes(self):

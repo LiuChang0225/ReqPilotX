@@ -34,6 +34,8 @@ export REQPILOT_SCRATCH_ROOT='/absolute/private/path/reqpilotx-runtime'
 
 ## 启动
 
+项目创建/来源导入的源码候选使用增量迁移 `0038_entry_command_receipts.sql`。服务端应用迁移后再更新对应客户端；不对旧项目/文档推断或回填命令。保存结果不明时先按原命令查询/重放，禁止手工删除共享来源对象。失败上传及显式移除文档后的原始对象保留，后者仍移除文档绑定及派生缓存；持久删除栅栏/孤立对象 GC 尚未实现。接口与当前单 owner 边界见[入口命令合同](../architecture/project-source-entry-commands.md)。本轮只验证临时测试实例，未迁移业务数据库或部署。
+
 ### App Server 运行与指定任务恢复
 
 2026-09-10新增停止任务的二进制更新核验入口：`prototype/scripts/revalidate_native_task_runtime.py`。调用需提供当前仓库task-root、本机API、配置的codex-bin/codex-home及原因；先核对实际任务状态、来源和无未完成能力升级，再在任务/session锁内进行同线程只读检查。它只更新已验证的新binary pin并记录前后证据，保留历史回执/Map/确认，不重启模型、不清掉历史FAILED记录。运行/排队、前版或来源不匹配、模型/home变化、协议/PDF约束验证失败时拒绝修改。能力包变更仍走原有capability epoch，不能用重签身份绕过差异。
@@ -230,3 +232,27 @@ prototype/.venv/bin/python prototype/scripts/agent_workflow.py run-job --job-id 
 输入合同为`source-item-direct-revision/v1`：固定source/Map/前版SHA、明确classification decisions、预期候选SHA、可选已验证decomposition、同源visual_readings和base_annotations，以及真实`CODEX_APP_DIRECT`provenance（动作记录、时间、模型、用户授权范围）。导入重新编译与核对，不运行LLM。指定job只处理该任务；成功后主工作台读取新版本，旧版对象及前驱指针保留，未创建人工接受或符合性结论。原App Server路径继续要求真实运行与清理回执，不能混用两种身份。
 
 `source-item-visual-readings/v1`将图片解释关联到已有文字/表格SRC；校验source SHA、Map、原条目绑定、image anchor与版本。解释通过`record.visual_interpretation`和delivery的`node.source_item.visual_interpretation`提供，始终与客户原文分开，`related_images`/`figure_refs`保留原图。后续拆分与分析可读取direct工作版本中的同源派生，不把纯图片说明创建为新REQ。
+
+### 按实际 Agent 运行时读取就绪诊断
+
+`GET /api/runtime/agent-readiness` 根据已组合的
+`container.settings.agent_runtime_backend` 返回实际运行时、供应商和模型身份，
+不按项目历史 profile 或后来变化的 shell 环境猜测运行时。设置页使用此入口；
+原 `GET /api/runtime/codex-readiness` 保留 Codex 专用响应合同和认证／协议检查。
+
+`provider-tool-loop` 复用执行驱动的供应商配置解析器，显示 Azure／百炼 profile
+中实际选定的 chat deployment／model；不要求 Codex 登录、二进制或协议锁。
+此诊断不创建 SDK client、不发模型请求，`ready`／`configured` 只表示配置检查通过，
+`readiness_scope=configuration`、`authentication_verified=false` 明确表示尚未验证
+在线认证、模型权限、工具／视觉支持或服务可用性。缺 profile、供应商或已配置模型
+时返回 `PROVIDER_CONFIGURATION_UNAVAILABLE`；未选择或不支持的运行时分别返回
+`AGENT_RUNTIME_NOT_CONFIGURED`／`AGENT_RUNTIME_UNSUPPORTED`，不会退回 Codex。
+
+`GET /api/runtime/agent-workflow-readiness` 仍检查数据库、对象存储、当前 durable
+worker 与不可变来源 reader；Codex 模式保留 `codex_auth`／`protocol_lock` 检查。
+供应商模式的 worker 还必须覆盖实际自主任务 `agent.source-item.extract-loop` 与
+`agent.source-item.loop`，不能仅凭旧 D2/D3 job kinds 的可用槽位判定就绪。
+运行检查改为 `provider_configuration` 与 `customer_data_authorization`，后者要求
+`REQPILOT_AGENT_CUSTOMER_DATA_ENABLED=1`。供应商模式即使报告配置与基础运行就绪，
+仍返回 `readiness_scope=configuration_and_core`、`authentication_verified=false`，
+不构成在线供应商运行或每个业务入口均已支持该运行时的证明。

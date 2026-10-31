@@ -3,6 +3,8 @@ import { ApiError, request } from "../../shared/api/client";
 import { Icon } from "../../shared/ui/Icon";
 import { useDocumentAgent } from "../workspace/DocumentAgentContext";
 import { SourceItemAgentLoop, type AgentLoopTask } from "./SourceItemAgentLoop";
+import { isSaasAccountMode } from "../../shared/api/saasSession";
+import { SAAS_KIT_UNAVAILABLE_MESSAGE, useSaasNativeAgentAvailability } from "./saasAgentAvailability";
 
 export type SourceGraphJob = { job_id: string; status: string; kind?: string; error_message?: string;
   progress?: { message?: string }; result?: { status?: string; source_item_job_ids?: string[] } };
@@ -16,6 +18,7 @@ type Capture = { source_sha256: string; elapsed_seconds: number; cache_reused: b
   structure_proposal: { nodes: unknown[] } | null };
 
 export async function startSourceDocumentGraph(projectId: string, documentId: string, sourceSha256: string, mapArtifactId: string) {
+  if (mapArtifactId && isSaasAccountMode()) throw new Error(SAAS_KIT_UNAVAILABLE_MESSAGE);
   const root = `/api/projects/${encodeURIComponent(projectId)}/sor-documents/${encodeURIComponent(documentId)}/agent-structure`;
   if (!mapArtifactId) {
     const task = await request<AgentLoopTask>(`${root}/delivery/extraction-loop`, { method: "POST", body: JSON.stringify({
@@ -36,6 +39,8 @@ export function SourceDocumentActions({ projectId, documentId, sourceSha256, map
   externalJobs?: Job[]; ready?: boolean; onActivityChange?: (activity: SourceDocumentActivity) => void; collaborationRequest?: number;
 }) {
   const documentAgent = useDocumentAgent();
+  const availability = useSaasNativeAgentAvailability();
+  const kitUnavailable = Boolean(mapArtifactId && isSaasAccountMode());
   const root = `/api/projects/${encodeURIComponent(projectId)}/sor-documents/${encodeURIComponent(documentId)}`;
   const key = `${root}:${sourceSha256}`;
   const current = useRef(key); current.current = key;
@@ -117,6 +122,7 @@ export function SourceDocumentActions({ projectId, documentId, sourceSha256, map
   }, [active, jobs, root]);
 
   const start = async () => {
+    if (kitUnavailable || !availability.ready) return;
     if (pending || active || checking || statusUnavailable || !sourceSha256) return;
     if (!mapArtifactId) { setIntakeRequest(value => value + 1); return; }
     const started = key; setPending("agent"); setError("");
@@ -145,11 +151,12 @@ export function SourceDocumentActions({ projectId, documentId, sourceSha256, map
   };
   const actions = (
     <div className="source-item-delivery-actions">
-      <button className="button primary compact" disabled={!ready || !sourceSha256 || !!pending || active || checking || statusUnavailable} onClick={() => void start()}>
+      <button className="button primary compact" disabled={kitUnavailable || !availability.ready || !ready || !sourceSha256 || !!pending || active || checking || statusUnavailable} title={kitUnavailable ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined} onClick={() => void start()}>
         <Icon name="play" size={14} />{pending === "agent" || active ? "Agent 处理中…" : checking ? "正在同步任务…" : mapArtifactId ? "补全原文条目" : "Agent 提取与分析"}</button>
       <button className="button secondary compact" disabled={!sourceSha256 || !!pending} onClick={() => void fast()}>
         {pending === "fast" ? "正在读取…" : "快速读取 · 无 AI"}</button>
       <span role="status">{jobs.find(job => job.status === "RUNNING")?.progress?.message || notice}</span>
+      {kitUnavailable ? <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p> : availability.message && <p role="status">{availability.message} <button type="button" className="button ghost compact" onClick={availability.refresh}>刷新 Agent 配置</button></p>}
       {!mapArtifactId && <SourceItemAgentLoop projectId={projectId} documentId={documentId} sourceSha256={sourceSha256}
         baselineSha256="" selectedSourceItemId="" mode="extract" onUpdated={onUpdated} openRequest={collaborationRequest + intakeRequest} onTaskChange={receiveExtractionTask}
         initialGoal="完整阅读当前客户文档，先给出可核对结构，再提取原文条目和分类，按已定义粒度进行必要拆分，最终保存同版本Matrix草稿。" />}

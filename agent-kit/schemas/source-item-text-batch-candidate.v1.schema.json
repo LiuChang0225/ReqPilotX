@@ -50,6 +50,26 @@
       ],
       "type": "object"
     },
+    "SourceItemTableOwnedTextSpanV1": {
+      "additionalProperties": false,
+      "properties": {
+        "logical_table_scope_id": {
+          "type": "string"
+        },
+        "record_key": {
+          "type": "string"
+        },
+        "text_span": {
+          "$ref": "#/$defs/SourceItemTextSpanV1"
+        }
+      },
+      "required": [
+        "logical_table_scope_id",
+        "record_key",
+        "text_span"
+      ],
+      "type": "object"
+    },
     "SourceItemTextBoundaryCandidateV1": {
       "additionalProperties": false,
       "properties": {
@@ -160,6 +180,12 @@
             "$ref": "#/$defs/SourceItemStructureOnlySpanV1"
           },
           "type": "array"
+        },
+        "table_owned_spans": {
+          "items": {
+            "$ref": "#/$defs/SourceItemTableOwnedTextSpanV1"
+          },
+          "type": "array"
         }
       },
       "required": [
@@ -171,6 +197,7 @@
         "scope_id",
         "items",
         "structure_only_spans",
+        "table_owned_spans",
         "diagnostic_codes"
       ],
       "type": "object"

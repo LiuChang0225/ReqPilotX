@@ -225,10 +225,17 @@ class StructureOnlyInput(CanonicalReasons, core.SourceItemStructureOnlySpanV1):
     text_span: TextSelection
 
 
+class TableOwnedTextInput(InputModel):
+    logical_table_scope_id: Nonempty
+    record_key: LocalItemKey
+    text_span: TextSelection
+
+
 class TextDecisionInput(InputModel):
     scope_id: Annotated[StrictStr,Field(pattern=r'^text:[A-Za-z0-9][A-Za-z0-9._:-]{0,199}$')]
     items: tuple[TextItemInput,...] = Field(default=(),max_length=8192)
     structure_only_spans: tuple[StructureOnlyInput,...] = Field(default=(),max_length=4096)
+    table_owned_spans: tuple[TableOwnedTextInput,...] = Field(default=(),max_length=4096)
     diagnostic_codes: tuple[StrictStr,...] = Field(default=(),max_length=64)
 
 
@@ -254,6 +261,7 @@ class TableRecordInput(CanonicalReasons, core.SourceRequirementBoundaryCandidate
     record_key: LocalItemKey | None = Field(
         default=None,description='Omit or null for initial records: program derives a stable key from resolved table row ranges. Preserve existing keys in revisions.')
     row_groups: tuple[TableRowSelection,...] = Field(min_length=1,max_length=512)
+    owning_text_spans: tuple[TextSelection,...] = Field(default=(),max_length=4096)
 
     @model_validator(mode='before')
     @classmethod
@@ -396,6 +404,8 @@ def bind_item_decisions(value,document_map,scope_requests,*,covered_scope_ids=()
                     [(s['content_id'],s['start_offset'],s['end_offset']) for s in actual['text_spans']],'text')
         for actual,source in zip(payload['structure_only_spans'],item.structure_only_spans):
             actual['text_span']=_text_span(source.text_span,request).model_dump(mode='json')
+        for actual,source in zip(payload['table_owned_spans'],item.table_owned_spans):
+            actual['text_span']=_text_span(source.text_span,request).model_dump(mode='json')
         candidate=core.SourceItemTextSliceCandidateV1.model_validate({**payload,**envelope})
         _validate_scope(request,candidate,'TEXT',index)
         texts.append(payload)
@@ -411,6 +421,7 @@ def bind_item_decisions(value,document_map,scope_requests,*,covered_scope_ids=()
             return {'fragment_id':identifier,'row_start':selection.row_start,'row_end':selection.row_end}
         for actual,source in zip(payload['records'],item.records):
             actual['row_groups']=[resolve_rows(v) for v in source.row_groups]
+            actual['owning_text_spans']=[_text_span(span,request).model_dump(mode='json') for span in source.owning_text_spans]
             if source.record_key is None:
                 if not allow_generated_keys:raise ValueError('REVISION_RECORD_KEY_REQUIRED: preserve the existing record_key from the scope template')
                 actual['record_key']=_range_key(mapping.source_sha256,item.logical_table_scope_id,

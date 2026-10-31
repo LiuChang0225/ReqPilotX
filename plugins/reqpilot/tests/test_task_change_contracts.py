@@ -42,6 +42,54 @@ class ChangeFixture(unittest.TestCase):
 
 
 class TaskChangeContractsTests(ChangeFixture):
+    def test_compact_number_refs_bind_same_original_coordinates(self):
+        from task_change_reading import _facts
+        from app.application.agent_workflow.source_item_visual import compile_source_item_annotation_updates
+        heading=next(c for n in self.document_map.nodes if n.node_id=='s1' for c in n.source_content if c.is_title)
+        choices={'annotation_updates':[{'source_item_id':self.parent.source_display_id,'source_number':'1',
+            'source_number_ref':{'kind':'ITEM_HEADING','heading_ref':0},'reason':'Read the original owning heading.'}]}
+        compact=contract.bind_annotation_changes(choices,self.document_map,self.baseline,table_previews=self.tables)
+        exact=deepcopy(choices)
+        exact['annotation_updates'][0]['source_number_ref']={'kind':'MAP_HEADING','content_id':heading.content_id,'start_offset':0,'end_offset':1}
+        self.assertEqual(compact,contract.bind_annotation_changes(exact,self.document_map,self.baseline,table_previews=self.tables))
+        facts,_=_facts(self.table_item,self.document_map,self.baseline,self.tables)
+        # Test location equivalence only: the adapter does not declare a cell's
+        # engineering role or decide whether the Agent should number from it.
+        choice={'source_item_id':self.table_item.source_display_id,'source_numbers':[
+            {'value':facts[0]['text'],'source_number_ref':{'kind':'ITEM_SOURCE','segment_index':0}}],
+            'reason':'Synthetic locator equivalence, not number-role inference.'}
+        compact=contract.bind_annotation_changes({'annotation_updates':[choice]},self.document_map,self.baseline,table_previews=self.tables)
+        ref=compact['annotation_updates'][0]['source_numbers'][0]['source_number_ref']
+        self.assertEqual(ref,{'kind':'TABLE_CELL','fragment_id':facts[0]['source_ref']['table_id'],
+            'cell_id':facts[0]['source_ref']['cell_id'],'start_offset':0,'end_offset':len(facts[0]['text'])})
+        compiled=compile_source_item_annotation_updates(self.document_map,self.baseline,compact['annotation_updates'],table_previews=self.tables)
+        self.assertEqual(compiled['records'][self.table_item.source_record_id]['source_numbers'][0]['value'],facts[0]['text'])
+
+    def test_compact_number_refs_do_not_guess_ranges_or_replace_explicit_clear(self):
+        for value,ref in [('1',{'kind':'ITEM_SOURCE','segment_index':999}),
+                ('12',{'kind':'ITEM_SOURCE','segment_index':1}),
+                ('Resp',{'kind':'ITEM_SOURCE','segment_index':0}),
+                ('1',{'kind':'ITEM_HEADING','heading_ref':999})]:
+            with self.assertRaises(ValueError):
+                contract.bind_annotation_changes({'annotation_updates':[{'source_item_id':self.table_item.source_display_id,
+                    'source_number':value,'source_number_ref':ref,'reason':'Reject unsupported source claim.'}]},
+                    self.document_map,self.baseline,table_previews=self.tables)
+        clear=contract.bind_annotation_changes({'annotation_updates':[{'source_item_id':self.parent.source_display_id,
+            'source_number':'','reason':'Explicitly clear mistaken number.'}]},self.document_map,self.baseline,table_previews=self.tables)
+        self.assertEqual(clear['annotation_updates'][0]['source_number'],'')
+        self.assertNotIn('source_number_ref',clear['annotation_updates'][0])
+
+    def test_exact_heading_number_does_not_depend_on_inaccurate_map_label(self):
+        from app.application.agent_workflow.source_item_visual import _source_number_evidence
+        node=next(n for n in self.document_map.nodes if n.node_id=='s1')
+        heading=next(c for c in node.source_content if c.is_title)
+        mapping=self.document_map.model_copy(update={'nodes':tuple(
+            n.model_copy(update={'label':heading.text}) if n.node_id==node.node_id else n for n in self.document_map.nodes)})
+        ref={'kind':'MAP_HEADING','content_id':heading.content_id,'start_offset':0,'end_offset':1}
+        self.assertEqual(_source_number_evidence(mapping,self.baseline,self.parent.source_record_id,'1',ref,self.tables)['text'],'1')
+        with self.assertRaises(ValueError):
+            _source_number_evidence(mapping,self.baseline,self.parent.source_record_id,'2',ref,self.tables)
+
     def test_typed_and_explicit_ranges_compile_identical_children_and_retries_preserve_snn(self):
         request = self.decomposition_request()
         bound = contract.bind_decomposition_decisions(request, self.baseline, table_previews=self.tables, authorization_request='Split independent obligations where necessary.')

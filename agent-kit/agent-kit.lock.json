@@ -1,8 +1,8 @@
 {
   "schema_version": "reqpilotx-portable-agent-kit-lock/v1",
   "kit_id": "reqpilotx-document-extraction",
-  "kit_version": "0.15.2",
-  "bundle_sha256": "ca93f30d82f564ea7f1aac612f5a936bf222860c3480191f45e7f046e7c8fcf7",
+  "kit_version": "0.16.0",
+  "bundle_sha256": "b07f2285b26400fce3e119f48b25b804b94c66feabe349441a6a3bb72506ffb9",
   "files": [
     {
       "path": ".agents/skills/pdf/SKILL.md",
@@ -30,7 +30,7 @@
     },
     {
       "path": ".agents/skills/reqpilotx-parent-provision-recognition/SKILL.md",
-      "sha256": "56f04f69bb49e8bab0229e1d23f223fdf66a305933e04b4e63c508d2445049ab"
+      "sha256": "60053a21636870549929fc624c480bf7dd8742cdc6ddbc2345458c6a61647873"
     },
     {
       "path": ".agents/skills/reqpilotx-requirement-decomposition/SKILL.md",
@@ -94,7 +94,7 @@
     },
     {
       "path": "manifest.json",
-      "sha256": "567baa9b88285de61f984e06b2d3fcc60f3218616310cc592585eb412f2572b9"
+      "sha256": "0c55a8789231548e4d9db1fa70143d70cf7e938bcf1c169db836b005708151bf"
     },
     {
       "path": "policy/extraction-policy.v1.json",
@@ -150,15 +150,15 @@
     },
     {
       "path": "runtime/app-server-product.json",
-      "sha256": "8221f7cc178a2f3f767d61bc7772b1b18c40155de016a53402a098c8694e22e6"
+      "sha256": "afbd9ddea69e1f981a968d787db6e728c11c3d78ff66224173738aeabb308f6f"
     },
     {
       "path": "runtime/desktop-discovery.json",
-      "sha256": "6e42e3f272aa005a0d5624caaf02bb065bfe64f9e149132793338e43751ba6d6"
+      "sha256": "ba365408570039930e88e50141d93ab3a4e022ba4ce4bfb04e7861f15c0cc5d3"
     },
     {
       "path": "runtime/desktop-reference.json",
-      "sha256": "4df0278ff0856ce9f56917c8578905dc7bc9851090faa683a4f3b889c1f58ea0"
+      "sha256": "19afd7e2dcaf1aca15bb16b78e557668aedbefe1b944f571cc7c67adf62bc2e6"
     },
     {
       "path": "runtime/parity-policy.json",
@@ -338,11 +338,11 @@
     },
     {
       "path": "schemas/source-item-text-batch-candidate.v1.schema.json",
-      "sha256": "5d62a84fd375160e61ed6b5b0cf74ed1649d774e9d8d7977fa4047ec150adeaa"
+      "sha256": "782200f97ea82f0c13d9f3cc68d3ff27fe9ddc32d906980c55f00239c14fc25d"
     },
     {
       "path": "schemas/source-item-text-boundary-agent-candidate.v1.schema.json",
-      "sha256": "dc27909476b6fd2afd7097a354231022b67e92f52209b27359cd789620a4a08b"
+      "sha256": "c6fc42de9b4ef7bf34d612b88c84cd24a30d769dc5a25b6fd381dcd8829bf644"
     },
     {
       "path": "schemas/source-item-text-classification-window-candidate.v1.schema.json",
@@ -350,11 +350,11 @@
     },
     {
       "path": "schemas/source-item-text-slice-candidate.v1.schema.json",
-      "sha256": "509f38f6cace5530754dfad4d21a7554c4e513e9551f57634de7263055541cbb"
+      "sha256": "94b1646e9d485a9b0dfa32075e6a7672fc2e1e7ab98edd77d30463053d6514e0"
     },
     {
       "path": "schemas/source-requirement-boundary-agent-candidate.v1.schema.json",
-      "sha256": "469c579b705b6bafb2e9f458c415b35053eced9c177b3ab04c033ddeb057c2b6"
+      "sha256": "deb5b0b78ab3a516b821732805d10051ec095fd8f490b8ff272d2f9774c3876e"
     },
     {
       "path": "schemas/source-requirement-classification-window-candidate.v1.schema.json",
@@ -362,7 +362,7 @@
     },
     {
       "path": "schemas/source-requirement-slice-candidate.v1.schema.json",
-      "sha256": "9b6102cc739c151adb8fd4dabdf72077c203b4b5ae52c6208fb13f3bce911d06"
+      "sha256": "6d10139b39a1b88997927c79980d09f1e50fd3713428f1fcc5ee7cb8893c32df"
     },
     {
       "path": "scripts/canonical_json_sha256.py",

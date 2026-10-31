@@ -1,0 +1,131 @@
+name: reqpilotx-pilot
+
+x-app: &app
+  image: ${REQPILOT_APP_IMAGE:?Supply the verified immutable image ID from release.json}
+  pull_policy: never
+  restart: unless-stopped
+  init: true
+  read_only: true
+  user: "10001:10001"
+  cap_drop: [ALL]
+  security_opt: [no-new-privileges:true]
+  pids_limit: 96
+  cpus: "0.60"
+  env_file: ${REQPILOT_CONFIG_DIR:-/etc/reqpilotx}/application.env
+  environment: &app-env
+    REQPILOT_ENV: local
+    REQPILOT_LISTEN_HOST: 0.0.0.0
+    REQPILOT_SAAS_INVITE_CODE_FILE: /run/secrets/invitation_code
+    REQPILOT_SAAS_ENABLED: "1"
+    REQPILOT_DATABASE_HOST: db
+    REQPILOT_DATABASE_NAME: reqpilotx
+    REQPILOT_DATABASE_USER: reqpilotx
+    REQPILOT_STORAGE_DIR: /var/lib/reqpilotx
+    REQPILOT_OBJECT_STORE: local
+    REQPILOT_OBJECT_ROOT: /var/lib/reqpilotx
+    REQPILOT_SCRATCH_ROOT: /var/lib/reqpilotx/scratch
+    REQPILOT_FRONTEND_DIR: /opt/reqpilotx/frontend
+    REQPILOT_LOCAL_WORKER_COUNT: "1"
+    REQPILOT_AGENT_CUSTOMER_DATA_ENABLED: "0"
+    OMP_NUM_THREADS: "1"
+    OPENBLAS_NUM_THREADS: "1"
+    MALLOC_ARENA_MAX: "2"
+  volumes:
+    - ${REQPILOT_DATA_DIR:-/var/lib/reqpilotx}/application:/var/lib/reqpilotx
+  tmpfs:
+    - /tmp:size=32m,mode=1777,noexec,nosuid
+  secrets: [database_password, invitation_code]
+  networks: [database, outbound]
+  depends_on:
+    db:
+      condition: service_healthy
+  logging: &bounded-logs
+    driver: json-file
+    options: {max-size: "10m", max-file: "3"}
+
+services:
+  db:
+    image: ${REQPILOT_POSTGRES_IMAGE:?Supply a pinned official postgres image including sha256 digest}
+    pull_policy: never
+    restart: unless-stopped
+    mem_limit: 320m
+    cpus: "0.40"
+    pids_limit: 128
+    environment:
+      POSTGRES_DB: reqpilotx
+      POSTGRES_USER: reqpilotx
+      POSTGRES_PASSWORD_FILE: /run/secrets/database_password
+      POSTGRES_INITDB_ARGS: "--auth-host=scram-sha-256 --auth-local=trust"
+    command:
+      - postgres
+      - -c
+      - shared_buffers=64MB
+      - -c
+      - max_connections=32
+      - -c
+      - work_mem=2MB
+      - -c
+      - maintenance_work_mem=32MB
+      - -c
+      - statement_timeout=120000
+      - -c
+      - idle_in_transaction_session_timeout=60000
+    # There is deliberately no ports mapping, host networking or public DB listener.
+    volumes:
+      - ${REQPILOT_DATA_DIR:-/var/lib/reqpilotx}/postgres:/var/lib/postgresql/data
+    secrets: [database_password]
+    networks: [database]
+    healthcheck:
+      test: [CMD-SHELL, "pg_isready -U reqpilotx -d reqpilotx"]
+      interval: 10s
+      timeout: 5s
+      retries: 12
+    logging: *bounded-logs
+
+  api:
+    <<: *app
+    command: [api]
+    mem_limit: 512m
+    environment:
+      <<: *app-env
+      REQPILOT_PROCESS_ROLE: api
+    ports:
+      - "127.0.0.1:8000:8000"
+    healthcheck:
+      # Sanitized DB readiness only; account/isolation admission remains separate.
+      test: [CMD, python, -c, "import os,urllib.request,urllib.parse; host=urllib.parse.urlsplit(os.environ['REQPILOT_SAAS_ORIGIN']).netloc; r=urllib.request.urlopen(urllib.request.Request('http://127.0.0.1:8000/api/healthz',headers={'Host':host}),timeout=3); assert r.status==200"]
+      interval: 15s
+      timeout: 5s
+      retries: 6
+      start_period: 40s
+
+  worker:
+    <<: *app
+    command: [worker]
+    mem_limit: 512m
+    environment:
+      <<: *app-env
+      REQPILOT_PROCESS_ROLE: worker
+    stop_grace_period: 180s
+
+  migrate:
+    <<: *app
+    profiles: [maintenance]
+    command: [migrate]
+    restart: "no"
+    mem_limit: 384m
+    environment:
+      <<: *app-env
+      REQPILOT_PROCESS_ROLE: api
+
+networks:
+  database:
+    internal: true
+  outbound: {}
+
+secrets:
+  # File-source Compose secrets preserve host uid/gid/mode; configure those on the host.
+  database_password:
+    file: ${REQPILOT_CONFIG_DIR:-/etc/reqpilotx}/secrets/database_password
+  invitation_code:
+    file: ${REQPILOT_CONFIG_DIR:-/etc/reqpilotx}/secrets/invitation_code

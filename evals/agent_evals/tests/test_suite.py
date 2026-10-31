@@ -23,6 +23,26 @@ from evals.agent_evals.reporting import grade, review_template, automatic, table
 
 
 class SuiteTests(unittest.TestCase):
+    def test_prepared_map_case_is_initial_authoring_with_no_map_score(self):
+        # Exercise the supported private-registry hook with an invented case;
+        # customer-specific stage identities and requested clauses are not shipped.
+        import os
+        case, _ = selected_case('synthetic-scoped-extraction')
+        case = dict(case, case_id='synthetic-items-from-map',
+            preparation='STAGE_FIXTURE', fixture_key='synthetic-items-from-map',
+            fixture_sha256=digest({'synthetic': 'prepared-map'}),
+            oracle_sha256=digest({'synthetic': 'source-review'}),
+            rubric_ids=[r for r in case['rubric_ids'] if r != 'document_map'])
+        catalogue = self.root / 'operator-cases.json'
+        save(catalogue, {'schema_version':'1.0.0',
+            'suite_id':'reqpilotx-agent-evals-v1', 'cases':[case]})
+        with patch.dict(os.environ, {'REQPILOTX_AGENT_EVAL_CASES':str(catalogue)}):
+            loaded, rubrics = selected_case('synthetic-items-from-map')
+        self.assertEqual(loaded['preparation'], 'STAGE_FIXTURE')
+        self.assertEqual(loaded['scope'], 'SCOPED_EXTRACTION')
+        self.assertNotIn('document_map', {r['rubric_id'] for r in rubrics['rubrics']})
+        self.assertEqual(loaded['source_sha256'], case['source_sha256'])
+
     def test_unsupported_evidence_kind_is_review_not_proven_corruption(self):
         metrics={'saved_artifacts':{'unverified_tasks':[{'task':'t'}],'error_codes':['ARTIFACT_KIND_UNSUPPORTED']}}
         self.assertEqual(automatic('artifact_integrity',{}, {}, metrics, {'later_artifacts':[]})[0],'REVIEW')

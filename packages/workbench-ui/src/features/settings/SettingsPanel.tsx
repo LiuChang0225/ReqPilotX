@@ -1,5 +1,5 @@
 import { useCallback, useEffect, useRef, useState } from "react";
-import { api, asRecord } from "../../shared/api/client";
+import { api, asRecord, request } from "../../shared/api/client";
 import type {
   JsonRecord,
   ProjectProcessingProfile,
@@ -9,26 +9,44 @@ import type {
 import { InlineNotice, StatusBadge } from "../../shared/ui/Feedback";
 import { useWorkspace } from "../workspace/WorkspaceContext";
 
-interface CodexReadiness {
+interface AgentReadiness {
   ready: boolean;
+  configured: boolean;
   runtimeId: string;
+  providerId: string;
   modelName: string;
   reasonCode: string;
 }
 
-function normalizeCodexReadiness(value: unknown): CodexReadiness {
+function normalizeAgentReadiness(value: unknown): AgentReadiness {
   const record = asRecord(value);
+  const runtimeId = String(record.runtime_id || "none");
+  const configured = record.configured === true;
+  const supported = runtimeId === "codex-app-server" || (
+    runtimeId === "provider-tool-loop" && configured &&
+    record.readiness_scope === "configuration" && record.authentication_verified === false
+  );
   return {
-    ready: record.ready === true,
-    runtimeId: String(record.runtime_id || "codex-app-server"),
-    modelName: String(record.model_name || "gpt-5.6-sol"),
+    ready: record.ready === true && supported,
+    configured,
+    runtimeId,
+    providerId: String(record.provider_id || ""),
+    modelName: String(record.model_name || ""),
     reasonCode: String(record.reason_code || ""),
   };
 }
 
-function codexReadinessMessage(readiness: CodexReadiness | null, loading: boolean): string {
-  if (loading) return "正在核验 ChatGPT 登录和目标模型…";
-  if (!readiness) return "Codex 状态尚未取得，可刷新状态重试。";
+function agentReadinessMessage(readiness: AgentReadiness | null, loading: boolean): string {
+  if (loading) return "正在读取 Agent 运行配置…";
+  if (!readiness) return "Agent 状态尚未取得，可刷新状态重试。";
+  if (readiness.runtimeId === "provider-tool-loop") {
+    return readiness.ready
+      ? "供应商与目标模型配置已就绪；尚未核验在线认证、模型权限或服务可用性。此检查不会发送模型请求。"
+      : "供应商或目标模型配置不完整，请检查当前服务的 provider 配置后刷新状态。";
+  }
+  if (readiness.runtimeId !== "codex-app-server") {
+    return "当前服务未选择受支持的 Agent 运行时，请检查运行配置。";
+  }
   if (readiness.ready) {
     return "ChatGPT 登录与目标模型均已核验；AI 阅读会直接使用 Codex Agent。";
   }
@@ -126,9 +144,9 @@ export function SettingsPanel() {
     runAction,
     refreshProject,
   } = useWorkspace();
-  const [codexReadiness, setCodexReadiness] = useState<CodexReadiness | null>(null);
-  const [codexLoading, setCodexLoading] = useState(true);
-  const [codexError, setCodexError] = useState("");
+  const [agentReadiness, setAgentReadiness] = useState<AgentReadiness | null>(null);
+  const [agentLoading, setAgentLoading] = useState(true);
+  const [agentError, setAgentError] = useState("");
   const [workerFleet, setWorkerFleet] = useState<RuntimeWorkerFleetStatusV1 | null>(null);
   const [workerLoading, setWorkerLoading] = useState(true);
   const [workerError, setWorkerError] = useState("");
@@ -143,16 +161,16 @@ export function SettingsPanel() {
     return request;
   }, []);
 
-  const refreshCodex = useCallback(async () => {
-    setCodexLoading(true);
-    setCodexError("");
+  const refreshAgent = useCallback(async () => {
+    setAgentLoading(true);
+    setAgentError("");
     try {
-      setCodexReadiness(normalizeCodexReadiness(await api.codexReadiness()));
+      setAgentReadiness(normalizeAgentReadiness(await request<JsonRecord>("/api/runtime/agent-readiness")));
     } catch {
-      setCodexReadiness(null);
-      setCodexError("暂时无法读取 Codex 状态。请确认本地服务正在运行后重试。");
+      setAgentReadiness(null);
+      setAgentError("暂时无法读取 Agent 状态。请确认本地服务正在运行后重试。");
     } finally {
-      setCodexLoading(false);
+      setAgentLoading(false);
     }
   }, []);
 
@@ -172,15 +190,18 @@ export function SettingsPanel() {
   }, [readWorkerFleet]);
 
   useEffect(() => {
-    void Promise.all([refreshCodex(), refreshWorkers()]);
-  }, [refreshCodex, refreshWorkers]);
+    void Promise.all([refreshAgent(), refreshWorkers()]);
+  }, [refreshAgent, refreshWorkers]);
 
+  const providerRuntime = agentReadiness?.runtimeId === "provider-tool-loop";
+  const codexRuntime = agentReadiness?.runtimeId === "codex-app-server";
+  const runtimeLabel = providerRuntime ? "Provider Agent" : codexRuntime ? "Codex Agent" : "Agent";
   const automaticProfile = isAutomaticProfile(processingProfile);
   const captureOnly = processingProfile?.llm_provider === "none";
   const restoreAutomaticProfile = async () => {
     if (!selectedProject || !processingProfile) return;
     const saved = await runAction(
-      "恢复 Codex 自动方案",
+      "恢复 Agent 自动方案",
       () =>
         api.saveProjectProcessingProfile(selectedProject.id, {
           schema_version: "project-processing-profile-update/v1",
@@ -209,40 +230,43 @@ export function SettingsPanel() {
       <header className="page-command-header">
         <div>
           <p className="section-label">运行设置</p>
-          <h1>Codex Agent 与自动解析</h1>
+          <h1>{runtimeLabel} 与自动解析</h1>
           <p>
-            登录一次 Codex，AI 阅读、文档理解和结构修订由 Agent Skills 接管；不再为项目选择 Azure、Aliyun 或本地规则模型。
+            {codexRuntime
+              ? "登录一次 Codex，AI 阅读、文档理解和结构修订由 Agent Skills 接管。"
+              : "文档自主任务使用服务已选择的 Agent 运行时；供应商模式仅检查配置，不核验在线认证。"}
           </p>
         </div>
         <button
           className="button secondary"
           type="button"
-          disabled={codexLoading || workerLoading}
-          onClick={() => void Promise.all([refreshCodex(), refreshWorkers()])}
+          disabled={agentLoading || workerLoading}
+          onClick={() => void Promise.all([refreshAgent(), refreshWorkers()])}
         >
-          {codexLoading || workerLoading ? "正在核验" : "刷新状态"}
+          {agentLoading || workerLoading ? "正在核验" : "刷新状态"}
         </button>
       </header>
 
       <div className="connection-card-grid">
-        <article className="connection-card" aria-label="Codex Agent 运行状态">
+        <article className="connection-card" aria-label="Agent 运行状态">
           <header>
             <div>
               <p className="section-label">Agent Runtime</p>
-              <h2>Codex Agent</h2>
+              <h2>{runtimeLabel}</h2>
             </div>
             <StatusBadge
-              tone={codexLoading ? "warning" : codexReadiness?.ready ? "success" : "danger"}
+              tone={agentLoading || (providerRuntime && agentReadiness?.ready) ? "warning" : agentReadiness?.ready ? "success" : "danger"}
             >
-              {codexLoading ? "正在核验" : codexReadiness?.ready ? "已登录" : "需要处理"}
+              {agentLoading ? "正在核验" : agentReadiness?.ready ? providerRuntime ? "配置就绪" : "已登录" : "需要处理"}
             </StatusBadge>
           </header>
-          <p>{codexReadinessMessage(codexReadiness, codexLoading)}</p>
+          <p>{agentReadinessMessage(agentReadiness, agentLoading)}</p>
           <dl className="worker-fleet-checks">
-            <div><dt>运行时</dt><dd>{codexReadiness?.runtimeId || "codex-app-server"}</dd></div>
-            <div><dt>模型</dt><dd>{codexReadiness?.modelName || "gpt-5.6-sol"}</dd></div>
+            <div><dt>运行时</dt><dd>{agentReadiness?.runtimeId || "尚未取得"}</dd></div>
+            {providerRuntime ? <div><dt>供应商</dt><dd>{agentReadiness?.providerId || "尚未配置"}</dd></div> : null}
+            <div><dt>模型</dt><dd>{agentReadiness?.modelName || "尚未配置"}</dd></div>
           </dl>
-          {codexError ? <InlineNotice tone="danger">{codexError}</InlineNotice> : null}
+          {agentError ? <InlineNotice tone="danger">{agentError}</InlineNotice> : null}
         </article>
 
         <article className="connection-card" aria-label="Agent Skills 解析链">
@@ -250,7 +274,7 @@ export function SettingsPanel() {
             <div><p className="section-label">Agent Skills</p><h2>受控解析链</h2></div>
             <StatusBadge tone="success">自动</StatusBadge>
           </header>
-          <p>Codex 决定何时调用受控工具；来源身份、页码、表格单元格、需求边界和结构合法性仍由宿主校验。</p>
+          <p>Agent 决定何时调用受控工具；来源身份、页码、表格单元格、需求边界和结构合法性仍由宿主校验。</p>
           <ul className="capability-lines">
             <li><span><strong>AI 阅读</strong><small>reqpilotx-document-reading</small></span><StatusBadge tone="success">Skill</StatusBadge></li>
             <li><span><strong>PDF 理解</strong><small>reqpilotx-pdf-understanding</small></span><StatusBadge tone="success">Skill</StatusBadge></li>
@@ -267,7 +291,7 @@ export function SettingsPanel() {
               {!readiness ? "本地核心状态未取得" : readiness.runtime_ready ? "本地核心就绪" : "本地核心异常"}
             </StatusBadge>
           </header>
-          <p>PDF、DOCX、XLSX 先生成不可变 SourceIR，再交给 Codex Skills 理解。这个捕获层是证据工具，不是另一套“本地规则模型”。</p>
+          <p>PDF、DOCX、XLSX 先生成不可变 SourceIR，再交给 Agent 工具链理解。这个捕获层是证据工具，不是另一套“本地规则模型”。</p>
           <ul className="capability-lines">
             <li><span><strong>PDF</strong><small>原生文字、表格、图片与页坐标</small></span><StatusBadge tone="success">自动</StatusBadge></li>
             <li><span><strong>DOCX / XLSX</strong><small>段落、表格、单元格与顺序</small></span><StatusBadge tone="success">自动</StatusBadge></li>
@@ -301,8 +325,10 @@ export function SettingsPanel() {
           <div><p className="section-label">当前项目</p><h2>{selectedProject?.name || "尚未选择项目"}</h2></div>
           <StatusBadge tone={!selectedProject || !processingProfile || captureOnly ? "neutral" : automaticProfile ? "success" : "warning"}>{!selectedProject ? "尚未选择项目" : !processingProfile ? "方案尚未读取" : automaticProfile ? "自动方案" : captureOnly ? "仅原文捕获" : "旧自定义方案"}</StatusBadge>
         </header>
-        <p>自动方案固定为“确定性来源捕获 → Codex Agent Skills → 宿主校验 → 人工 Diff / Apply”，不保存项目级模型供应商选择。</p>
-        {!automaticProfile && processingProfile ? (
+        <p>{providerRuntime
+          ? "自主 Agent 任务使用上方供应商配置；当前项目的历史处理方案不改变运行时选择。单独阅读功能的可用性由对应入口判断。"
+          : "自动方案固定为“确定性来源捕获 → Agent Skills → 宿主校验 → 人工 Diff / Apply”，不保存项目级模型供应商选择。"}</p>
+        {codexRuntime && !automaticProfile && processingProfile ? (
           <footer>
             <small>{captureOnly ? "当前项目尚未启用 Agent 处理，可按需切换到自动方案。" : "该项目仍保留旧 provider 方案；恢复后只使用自动解析主路径。"}</small>
             <button className="button secondary" type="button" disabled={Boolean(busyAction) || !selectedProject} onClick={() => void restoreAutomaticProfile()}>{captureOnly ? "启用 Agent 自动方案" : "恢复自动方案"}</button>

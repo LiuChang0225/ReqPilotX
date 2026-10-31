@@ -176,6 +176,7 @@ def build_source_item_analysis_packet(
     decomposition=None,
     selected_unit_ids=None,
     image_annotations=None,
+    allow_empty=False,
 ):
     document_map = DocumentMapArtifactV1.model_validate(document_map)
     baseline = SourceRequirementBaselineArtifactV1.model_validate(baseline)
@@ -202,6 +203,8 @@ def build_source_item_analysis_packet(
     children_by_parent = (decomposition or {}).get("records", {})
     from reqpilotx.application.agent_workflow.source_item_figure_relations import table_source_figure_relations
     table_figures = table_source_figure_relations(document_map, baseline, table_previews)["records"]
+    from reqpilotx.application.agent_workflow.source_item_context import build_analysis_context_index, expand_analysis_customer_context
+    context_index = build_analysis_context_index(document_map, baseline, table_previews, image_annotations, table_figures)
     units = []
     for record in baseline.records:
         if record.requirementness is not Requirementness.REQUIREMENT:
@@ -239,6 +242,9 @@ def build_source_item_analysis_packet(
             "pages": list(record.pages),
             "visual_interpretation": deepcopy((image_annotations or {}).get("records", {}).get(record.source_record_id, {})),
         }
+        customer_context = expand_analysis_customer_context(record.source_record_id, context_index)
+        if customer_context is not None:
+            common["referenced_customer_context"] = customer_context
         children = children_by_parent.get(record.source_record_id)
         if children:
             for child in children:
@@ -294,7 +300,7 @@ def build_source_item_analysis_packet(
                 "Selected analysis units leave the current SourceItem/decomposition scope"
             )
         units = [unit for unit in units if unit["unit_id"] in selected]
-    if not units:
+    if not units and not allow_empty:
         raise SourceItemAnalysisError("No requirement analysis units are available")
     value = {
         "schema_version": "source-item-analysis-packet/v1",
@@ -639,12 +645,18 @@ def _unit_carry_semantics(unit, *, map_scope_translation=None, allow_map_identit
         if not annotations:
             value.pop('visual_interpretation', None)
     if allow_map_identity_change:
+        # Compare expanded original context, not the Map-derived digest wrapper.
+        referenced = value.get('referenced_customer_context')
+        if referenced:
+            referenced.pop('dependencies_sha256', None)
         for context in value.get('document_context', []):
             context.pop('node_id', None)
         def translate(item):
             if isinstance(item, dict):
                 for key, child in item.items():
-                    if key in {'logical_table_scope_id', 'table_scope_id', 'scope_id'} and isinstance(child, str):
+                    if key in {'node_id', 'owner_node_id'} and isinstance(child, str):
+                        item[key] = None
+                    elif key in {'logical_table_scope_id', 'table_scope_id', 'scope_id'} and isinstance(child, str):
                         item[key] = (map_scope_translation or {}).get(child, child)
                     else:
                         translate(child)

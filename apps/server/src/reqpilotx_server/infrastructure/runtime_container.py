@@ -211,7 +211,9 @@ def _build_agent_runtime(settings: RuntimeSettings) -> AgentRuntimePort | None:
 def _build_structure_handoff_executor(
     settings: RuntimeSettings,
 ) -> AgentStructureHandoffExecutorPort | None:
-    if settings.agent_runtime_backend is AgentRuntimeBackend.NONE:
+    if settings.agent_runtime_backend in {
+        AgentRuntimeBackend.NONE, AgentRuntimeBackend.PROVIDER_TOOL_LOOP,
+    }:
         return None
     if settings.codex_bin is None or settings.codex_home is None:
         raise ValueError("Codex App Server paths were not validated.")
@@ -229,6 +231,9 @@ def _build_structure_handoff_executor(
 def _build_source_requirement_window_executor(
     settings: RuntimeSettings,
 ) -> SourceRequirementWindowExecutorPort | None:
+    if settings.agent_runtime_backend is AgentRuntimeBackend.PROVIDER_TOOL_LOOP:
+        from reqpilotx_server.adapters.agents.provider_window_executors import build_provider_window_executor
+        return build_provider_window_executor(settings, text=False)
     if settings.agent_runtime_backend is AgentRuntimeBackend.NONE:
         return None
     if settings.codex_bin is None or settings.codex_home is None:
@@ -247,6 +252,9 @@ def _build_source_requirement_window_executor(
 def _build_source_item_text_executor(
     settings: RuntimeSettings,
 ) -> SourceItemTextExecutorPort | None:
+    if settings.agent_runtime_backend is AgentRuntimeBackend.PROVIDER_TOOL_LOOP:
+        from reqpilotx_server.adapters.agents.provider_window_executors import build_provider_window_executor
+        return build_provider_window_executor(settings, text=True)
     if settings.agent_runtime_backend is AgentRuntimeBackend.NONE:
         return None
     if settings.codex_bin is None or settings.codex_home is None:
@@ -269,7 +277,9 @@ def _build_agent_runtime_components(
     PreflightSemanticProviderPort | None,
     RequirementAtomizationProviderPort | None,
 ]:
-    if settings.agent_runtime_backend is AgentRuntimeBackend.NONE:
+    if settings.agent_runtime_backend in {
+        AgentRuntimeBackend.NONE, AgentRuntimeBackend.PROVIDER_TOOL_LOOP,
+    }:
         return None, None, None
     if settings.agent_runtime_backend is not AgentRuntimeBackend.CODEX_APP_SERVER:
         raise ValueError("Unsupported Agent Runtime backend.")

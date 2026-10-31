@@ -61,7 +61,7 @@ class D3ClassificationAttestationTests(unittest.TestCase):
     def test_canonical_kit_compiles_exact_d3_professional_policy_closure(self) -> None:
         closure = self.policy_closure
 
-        self.assertEqual(closure.kit_identity.kit_version, "0.15.2")
+        self.assertEqual(closure.kit_identity.kit_version, "0.16.0")
         self.assertEqual(
             closure.agent_id,
             "reqpilotx-requirement-baseline-curator",

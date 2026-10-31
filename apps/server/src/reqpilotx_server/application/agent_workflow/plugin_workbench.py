@@ -148,7 +148,9 @@ def _public(root,head):
     capabilities = {'save_feedback': capability(head.get('revision_id'), 'FEEDBACK_SAVED', '尚无可绑定的成果版本。' if not head.get('revision_id') else ''),
         'confirm_map': capability(map_sha and not confirmed and head['require_map_confirmation'], 'MAP_CONFIRMED',
                                  '当前没有待确认的结构版本。' if not map_sha or confirmed else ''),
-        'export_draft': capability(baseline, 'PROGRAM_EXPORT', '当前版本尚无原文条目。' if not baseline else '')}
+        'export_draft': capability(baseline, 'PROGRAM_EXPORT', '当前版本尚无原文条目。' if not baseline else ''),
+        'save_engineer_response': capability(baseline, 'USER_RESPONSE_SAVED', '当前版本尚无原文条目。' if not baseline else ''),
+        'save_delivery_version': capability(baseline, 'DELIVERY_VERSION_SAVED', '当前版本尚无原文条目。' if not baseline else '')}
     capabilities.update({name: dict(unavailable) for name in ('start', 'steer', 'interrupt', 'resume', 'open_external_task')})
     receipts = [{'feedback_id': f['feedback_id'], 'revision_id': f['expected_revision_id'],
                  'state': 'REVISION_REPORTED' if f['feedback_id'] in head.get('feedback_resolutions', {}) else 'SAVED',
@@ -246,11 +248,23 @@ def sync_plugin_draft(project_id: str,document_id: str,payload: PluginDraftUploa
             raise ApplicationError(status_code=409,detail='工作台已有新成果，请取回当前版本后再同步；旧成果保留。')
         if baseline and head['require_map_confirmation'] and head.get('confirmed_map_sha256')!=mapping.artifact_sha256:
             raise ApplicationError(status_code=409,detail='请先同步并在工作台确认这一版结构，再同步条目。')
+        # User opinions belong to this session, not to the external Agent upload.
+        # Carry them through the shared evidence/context validator under the same
+        # head lock so a concurrent human write cannot be silently overwritten.
+        from .plugin_workbench_delivery import carry_manual_responses
+        manual = carry_manual_responses(root, head, mapping, baseline, payload.artifacts)
+        saved_artifacts = dict(payload.artifacts)
+        if manual is not None:
+            saved_artifacts['manual-decisions.json'] = manual
+            snapshot = build_delivery_snapshot(mapping, baseline or core.create_empty_source_requirement_baseline(mapping)[0],
+                payload.artifacts['table-previews.json'], annotations=payload.artifacts.get('image-annotations.json'),
+                decomposition=payload.artifacts.get('source-item-decomposition.json'), analysis_policy=policy,
+                manual_decisions=manual)
         revision=core.canonical_json_sha256({**identity,'predecessor_revision_id':head.get('revision_id')})
         directory=root/'versions'/revision;directory.mkdir(parents=True,exist_ok=True,mode=0o700)
         # Replaying an interrupted write is safe because this directory is content-addressed.
         files={}
-        for name,value in {**payload.artifacts,'matrix-snapshot.json':snapshot}.items():
+        for name,value in {**saved_artifacts,'matrix-snapshot.json':snapshot}.items():
             _write_json(directory/name,value);files[name]=hashlib.sha256((directory/name).read_bytes()).hexdigest()
         stages=[{'stage':'MAP','artifact_sha256':mapping.artifact_sha256,'count':len(mapping.nodes)}]
         if baseline:stages.append({'stage':'ITEMS','artifact_sha256':baseline.artifact_sha256,'count':len(baseline.records)})

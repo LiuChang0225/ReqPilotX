@@ -73,7 +73,17 @@ class CellNumberReference(InputModel):
         return self
 
 
-NumberReference = TextNumberReference | CellNumberReference
+class ItemSourceNumberReference(InputModel):
+    kind: Literal['ITEM_SOURCE']
+    segment_index: Annotated[StrictInt, Field(ge=0)] = Field(description='Index in this current item read source list. The supplied number must be its exact leading text.')
+
+
+class ItemHeadingNumberReference(InputModel):
+    kind: Literal['ITEM_HEADING']
+    heading_ref: Annotated[StrictInt, Field(ge=0)] = Field(description='Index returned by this item numbering read; exact owning heading only.')
+
+
+NumberReference = TextNumberReference | CellNumberReference | ItemSourceNumberReference | ItemHeadingNumberReference
 ExtentReference = TextExtentReference | CellNumberReference
 
 
@@ -282,7 +292,7 @@ def _pair(document_map, baseline):
     return document_map, baseline
 
 
-def _resolved_changes(value, document_map, baseline):
+def _resolved_changes(value, document_map, baseline, table_previews=None):
     result = value.model_dump(mode='json', exclude_unset=True)
     for key in ('visual_readings', 'annotation_updates'):
         seen = set()
@@ -294,6 +304,14 @@ def _resolved_changes(value, document_map, baseline):
             seen.add(record.source_record_id)
             if key == 'annotation_updates' and 'context_source_ids' in change:
                 change['context_source_ids'] = [source_item_record(baseline, sid).source_record_id for sid in change['context_source_ids']]
+            if key == 'annotation_updates':
+                from task_numbering import resolve_number_reference
+                if change.get('source_number_ref'):
+                    change['source_number_ref'] = resolve_number_reference(document_map, baseline, record,
+                        table_previews, change['source_number'], change['source_number_ref'])
+                for entry in change.get('source_numbers', []):
+                    entry['source_number_ref'] = resolve_number_reference(document_map, baseline, record,
+                        table_previews, entry['value'], entry['source_number_ref'])
             if key == 'visual_readings':
                 owner = next(n for n in document_map.nodes if n.node_id == record.node_id)
                 anchors = {a.anchor_id for a in owner.source_anchors if a.anchor_kind in {'IMAGE', 'FIGURE'}}
@@ -305,7 +323,7 @@ def _resolved_changes(value, document_map, baseline):
 def bind_annotation_changes(value, document_map, baseline, *, table_previews=None):
     document_map, baseline = _pair(document_map, baseline)
     value = AnnotationChangesRequest.model_validate(value)
-    result = _resolved_changes(value, document_map, baseline)
+    result = _resolved_changes(value, document_map, baseline, table_previews)
     # Reuse source-number/location validation; no artifact is saved by this binder.
     from reqpilotx.application.agent_workflow.source_item_visual import compile_source_item_annotation_updates
     if result.get('annotation_updates'):
@@ -359,7 +377,7 @@ def bind_existing_item_changes(value, document_map, baseline, *, table_previews=
     from scope_tools import scope_template
     document_map, baseline = _pair(document_map, baseline)
     value = ExistingItemsChangeRequest.model_validate(value)
-    result = _resolved_changes(value, document_map, baseline)
+    result = _resolved_changes(value, document_map, baseline, table_previews)
     seen = set()
     for decision in result.get('decisions', []):
         sid = source_item_record(baseline, decision['source_record_id']).source_record_id

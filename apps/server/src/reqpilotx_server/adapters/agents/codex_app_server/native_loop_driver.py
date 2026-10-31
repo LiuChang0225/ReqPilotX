@@ -9,7 +9,6 @@ from __future__ import annotations
 
 from contextlib import contextmanager
 from dataclasses import dataclass, field
-import fcntl
 import hashlib
 import json
 import os
@@ -46,6 +45,10 @@ from reqpilotx_server.adapters.agents.codex_app_server.pdf_skill_canary import (
     _isolate_runtime_skills,
     _verify_skill_allowlist,
     _workspace_manifest,
+)
+from reqpilotx_server.infrastructure.storage_lock import (
+    StorageLockError,
+    acquire_file_lease,
 )
 
 ADAPTER_ID = "reqpilotx-codex-native-loop"
@@ -831,16 +834,12 @@ def _session_lock(root: Path) -> Iterator[None]:
     root.mkdir(parents=True, exist_ok=True, mode=0o700)
     if root.is_symlink():
         raise ValueError("Native-loop state cannot be a symlink")
-    with (root / "session.lock").open("a+") as lock:
-        os.chmod(lock.name, 0o600)
-        try:
-            fcntl.flock(lock, fcntl.LOCK_EX | fcntl.LOCK_NB)
-        except BlockingIOError as exc:
-            raise LifecycleProbeError("NATIVE_LOOP_SESSION_ALREADY_RUNNING") from exc
-        try:
-            yield
-        finally:
-            fcntl.flock(lock, fcntl.LOCK_UN)
+    try:
+        lease = acquire_file_lease(root / "session.lock", blocking=False)
+    except StorageLockError as exc:
+        raise LifecycleProbeError("NATIVE_LOOP_SESSION_ALREADY_RUNNING") from exc
+    with lease:
+        yield
 
 
 class LocalCodexAppServerNativeLoopDriver:

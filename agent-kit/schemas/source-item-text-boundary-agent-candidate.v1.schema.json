@@ -1,5 +1,25 @@
 {
   "$defs": {
+    "SourceItemTableOwnedTextSpanV1": {
+      "additionalProperties": false,
+      "properties": {
+        "logical_table_scope_id": {
+          "type": "string"
+        },
+        "record_key": {
+          "type": "string"
+        },
+        "text_span": {
+          "$ref": "#/$defs/SourceItemTextSpanV1"
+        }
+      },
+      "required": [
+        "logical_table_scope_id",
+        "record_key",
+        "text_span"
+      ],
+      "type": "object"
+    },
     "SourceItemTextBoundaryAgentRecordV1": {
       "additionalProperties": false,
       "properties": {
@@ -94,13 +114,20 @@
         "$ref": "#/$defs/SourceItemTextBoundaryAgentStructureOnlySpanV1"
       },
       "type": "array"
+    },
+    "table_owned_spans": {
+      "items": {
+        "$ref": "#/$defs/SourceItemTableOwnedTextSpanV1"
+      },
+      "type": "array"
     }
   },
   "required": [
     "schema_version",
     "scope_id",
     "records",
-    "structure_only_spans"
+    "structure_only_spans",
+    "table_owned_spans"
   ],
   "type": "object"
 }

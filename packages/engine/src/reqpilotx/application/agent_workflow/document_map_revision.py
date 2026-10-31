@@ -15,6 +15,7 @@ from typing import Any
 from types import SimpleNamespace
 
 from reqpilotx.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx.application.agent_workflow.source_path_labels import compose_source_path_segment
 
 
 class DocumentMapRevisionError(ValueError):
@@ -273,8 +274,10 @@ def _replay(document_map, baseline, previews):
             continue
         selected = [r for r in baseline.records if core._record_scope_id(r) == scope and not r.image_bindings]
         if scope.startswith("text:"):
+            mixed = [r for r in baseline.records if r.table_fragments and r.text_bindings
+                     and f"text:{r.node_id}" == scope]
             contexts = [c for c in baseline.text_context_dispositions if c.scope_id == scope]
-            content_ids = {b.content_id for r in selected for b in r.text_bindings} | {c.content_id for c in contexts}
+            content_ids = {b.content_id for r in (*selected, *mixed) for b in r.text_bindings} | {c.content_id for c in contexts}
             content_ids.update(c for r in selected for c in r.shared_source_content_ids)
             if not content_ids:
                 raise DocumentMapRevisionError(f"SOURCE_TEXT_SCOPE_WITHOUT_BINDINGS: {scope}")
@@ -286,6 +289,11 @@ def _replay(document_map, baseline, previews):
                 items=tuple(core.SourceItemTextBoundaryCandidateV1(item_key=r.source_record_id,
                     text_spans=tuple(core.SourceItemTextSpanV1(content_id=b.content_id, start_offset=b.start_offset, end_offset=b.end_offset) for b in r.text_bindings),
                     **{k: getattr(r, k) for k in judgment_fields}) for r in selected),
+                table_owned_spans=tuple(core.SourceItemTableOwnedTextSpanV1(
+                    logical_table_scope_id=r.logical_table_scope_id, record_key=r.source_record_id,
+                    text_span=core.SourceItemTextSpanV1(content_id=b.content_id,
+                        start_offset=b.start_offset, end_offset=b.end_offset))
+                    for r in mixed for b in r.text_bindings),
                 structure_only_spans=tuple(core.SourceItemStructureOnlySpanV1(
                     text_span=core.SourceItemTextSpanV1(content_id=c.content_id, start_offset=c.start_offset, end_offset=c.end_offset),
                     reason_codes=c.reason_codes) for c in contexts)))
@@ -297,6 +305,8 @@ def _replay(document_map, baseline, previews):
                 document_map_artifact_sha256=document_map.artifact_sha256, request_sha256=request.request_sha256, logical_table_scope_id=scope,
                 records=tuple(core.SourceRequirementBoundaryCandidateV1(record_key=r.source_record_id,
                     row_groups=tuple(core.SourceRequirementRowGroupV1(fragment_id=f.fragment_id, row_start=f.row_start, row_end=f.row_end) for f in r.table_fragments),
+                    owning_text_spans=tuple(core.SourceItemTextSpanV1(content_id=b.content_id,
+                        start_offset=b.start_offset, end_offset=b.end_offset) for b in r.text_bindings),
                     **{k: getattr(r, k) for k in judgment_fields}) for r in selected),
                 context_row_groups=tuple(core.SourceRequirementContextRowGroupV1(role=c.role,
                     row_group=core.SourceRequirementRowGroupV1(fragment_id=c.fragment_id, row_start=c.row_start, row_end=c.row_end),
@@ -521,12 +531,15 @@ def rebind_baseline_for_document_map_revision(previous_map, new_map, baseline, v
         if record.table_fragments:
             scope = scope_map[record.logical_table_scope_id]
             owner = new_table_owners[scope]
+            if record.text_bindings and _unique_owner(contents,
+                    [b.content_id for b in record.text_bindings], record.source_display_id) != owner:
+                raise DocumentMapRevisionError("SOURCE_MIXED_TEXT_TABLE_REOWNERSHIP_SPLIT; explicit boundary revision is required")
         else:
             scope = ""
             owner = _unique_owner(contents if record.text_bindings else images,
                 [b.content_id for b in record.text_bindings] or [b.anchor_id for b in record.image_bindings], record.source_display_id)
         node = new_nodes[owner]
-        ancestry = node.ancestor_path + (" ".join(filter(None, (node.label, node.title))),)
+        ancestry = node.ancestor_path + (compose_source_path_segment(node.label, node.title),)
         value = record.model_copy(update={"document_map_artifact_id": current.artifact_id,
             "document_map_artifact_sha256": current.artifact_sha256, "node_id": owner,
             "ancestor_path": ancestry, "logical_table_scope_id": scope})
@@ -549,11 +562,12 @@ def rebind_baseline_for_document_map_revision(previous_map, new_map, baseline, v
             raise DocumentMapRevisionError("SOURCE_TABLE_IMAGE_REOWNERSHIP_SPLIT; explicit boundary revision is required")
         relations.append(relation.model_copy(update={"node_id": owner, "logical_table_scope_id": table_record.logical_table_scope_id}))
     covered = {core._record_scope_id(r) for r in records} | {c.scope_id for c in text_contexts}
+    covered.update(f"text:{r.node_id}" for r in records if r.text_bindings)
     covered.update(c.logical_table_scope_id for c in contexts)
     covered.update(f"image:{r.node_id}" for r in relations)
     # Preserve title-only processed text scopes and refuse silently lost scopes.
     for scope in old.covered_scope_ids:
-        if scope.startswith("text:") and not any(core._record_scope_id(r) == scope for r in old.records) and not any(c.scope_id == scope for c in old.text_context_dispositions):
+        if scope.startswith("text:") and not any(r.text_bindings and f"text:{r.node_id}" == scope for r in old.records) and not any(c.scope_id == scope for c in old.text_context_dispositions):
             raise DocumentMapRevisionError(f"SOURCE_PROCESSED_SCOPE_CANNOT_BE_REBOUND: {scope}")
     values = old.model_dump(mode="python", exclude={"artifact_id", "artifact_sha256"})
     values.update(revision=old.revision + 1, document_map_artifact_id=current.artifact_id,

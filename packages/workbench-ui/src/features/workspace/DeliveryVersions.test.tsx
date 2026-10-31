@@ -34,3 +34,33 @@ it("never renders a previous document's download when the next document fails to
   expect(screen.queryByText(/还没有保存的交付版本/)).not.toBeInTheDocument();
   expect(screen.getByText("暂不可读取")).toBeVisible();
 });
+
+it("reuses the delivery surface with session-bound CAS and a host resource URL",async()=>{
+  const revision="a".repeat(64),root='/plugin-workbench/session/versions';
+  const send=vi.fn(async (url:string,options?:RequestInit)=>options?.method==='POST'?saved:url.includes('/preview')?{...preview,revision_id:revision,version:'opaque-cas'}:{versions:[]}) as unknown as typeof request;
+  render(<DeliveryVersions projectId="p" documentId="d" sourceSha256="s" baselineRevision={14}
+    transport={{root,request:send,revisionId:revision,writable:true}} resourceUrl={path=>'https://host.example'+path}/>);
+  await userEvent.setup().click(await screen.findByRole('button',{name:'保存草稿版本'}));
+  expect(await screen.findByRole('link',{name:'下载 Excel'})).toHaveAttribute('href','https://host.example'+root+'/1/export');
+  const call=vi.mocked(send).mock.calls.find(([,options])=>options?.method==='POST')!;
+  expect(JSON.parse(String(call[1]?.body))).toMatchObject({expected_revision_id:revision,expected_version:'opaque-cas',expected_response_revision:2,mode:'DRAFT',accept_snapshot:false});
+  expect(JSON.parse(String(call[1]?.body))).not.toHaveProperty('expected_business_basis_sha256');
+  expect(vi.mocked(send).mock.calls[0][0]).toContain('?revision='+revision);
+  expect(request).not.toHaveBeenCalled();
+});
+it("preserves history downloads but blocks all delivery mutations in a read-only host",async()=>{
+  const revision='a'.repeat(64),send=vi.fn(async(url:string)=>url.includes('/preview')?{...preview,revision_id:revision,version:'cas'}:{versions:[saved]}) as unknown as typeof request;
+  render(<DeliveryVersions projectId="p" documentId="d" sourceSha256="s" baselineRevision={14}
+    transport={{root:'/plugin/versions',request:send,revisionId:revision,writable:false,reason:'当前面板只读'}}/>);
+  expect(await screen.findByRole('link',{name:'下载 Excel'})).toBeInTheDocument();
+  expect(screen.getByRole('button',{name:'保存草稿版本'})).toBeDisabled();expect(screen.getByRole('checkbox')).toBeDisabled();
+  expect(screen.getByRole('button',{name:'确认并保存正式版'})).toBeDisabled();
+  expect(vi.mocked(send).mock.calls.every(([,init])=>!init?.method||init.method==='GET')).toBe(true);
+});
+it("rejects a delivery preview for a different pinned result",async()=>{
+  const send=vi.fn(async(url:string)=>url.includes('/preview')?{...preview,revision_id:'wrong',version:'cas'}:{versions:[]}) as unknown as typeof request;
+  render(<DeliveryVersions projectId="p" documentId="d" sourceSha256="s" baselineRevision={14}
+    transport={{root:'/plugin/versions',request:send,revisionId:'expected',writable:true}}/>);
+  expect(await screen.findByRole('alert')).toHaveTextContent('成果版本不一致');
+  expect(screen.queryByRole('button',{name:'保存草稿版本'})).not.toBeInTheDocument();
+});
