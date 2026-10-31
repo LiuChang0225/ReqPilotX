@@ -830,6 +830,9 @@ class TaskService:
         explicit = {'action': action, 'request': request.model_dump(mode='json', exclude={'command_id'}, exclude_unset=True)}
         command_id = request.command_id or 'task-api-' + digest(explicit)
         previous = core.lookup_operation_command(root, command_id, operation, explicit)
+        if (previous is None and action == 'items'
+                and state['current_working'].get('owner') == 'portable_review'):
+            raise ValueError('ITEMS_REVIEW_OWNED: new/uncovered source scopes cannot be added after a portable review owns the task; the existing review cannot adopt that candidate. Complete all initial items before review_prepare and use review_apply for existing scopes. Preserve the current review and its history; if it was opened prematurely, start a new task from the same original source.')
         input_path = None
         policy_path = None
         retention_path = root/'inputs'/'task-api'/(digest(explicit)+'.structure-binding.json')
