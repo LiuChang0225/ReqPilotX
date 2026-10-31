@@ -176,6 +176,64 @@ def fingerprint(root, directory, baseline, document_map):
             "files": {path.name: digest_file(path) for path in sorted(directory.iterdir()) if path.is_file() and path.suffix == ".json"}}
 
 
+def _scope_request_ids(directory):
+    path = directory / "scope-requests.json"
+    if not path.is_file():
+        return None
+    value = read(path)
+    if not isinstance(value, dict):
+        raise ValueError("Saved scope requests are invalid")
+    text = value.get("text_requests", [])
+    tables = value.get("table_requests", [])
+    if not isinstance(text, list) or not isinstance(tables, list):
+        raise ValueError("Saved scope requests are invalid")
+    ids = {item.get("scope_id") for item in text if isinstance(item, dict)}
+    ids.update(item.get("logical_table_scope_id") for item in tables if isinstance(item, dict))
+    if None in ids or not all(isinstance(item, str) and item for item in ids):
+        raise ValueError("Saved scope requests contain an invalid scope identity")
+    return ids
+
+
+def _coverage_receipt(directory, previous, baseline):
+    """Carry coverage metadata only with the baseline it actually describes.
+
+    Classification and scope revisions change the baseline SHA while leaving
+    the original coverage partition intact (or deliberately rebinding it).
+    Copying the old receipt verbatim makes the published bundle claim a
+    different baseline; recompute the canonical missing scopes from the same
+    scope requests/baseline already saved in this review.
+    """
+    path = directory / "item-compilation-receipt.json"
+    if not path.is_file():
+        return None
+    value = read(path)
+    if (not isinstance(value, dict)
+            or value.get("schema_version") != "reqpilot-item-compilation/v1"
+            or value.get("source_sha256") != previous.source_sha256
+            or value.get("baseline_artifact_id") != previous.artifact_id
+            or value.get("baseline_artifact_sha256") != previous.artifact_sha256
+            or not isinstance(value.get("unprocessed_scope_ids"), list)
+            or not all(isinstance(item, str) and item for item in value.get("unprocessed_scope_ids", []))):
+        raise ValueError("Item coverage receipt differs from its own source baseline; preserve the current review and recompile coverage")
+    if baseline.artifact_sha256 == previous.artifact_sha256:
+        return deepcopy(value)
+    scope_ids = _scope_request_ids(directory)
+    if scope_ids is None:
+        if set(baseline.covered_scope_ids) != set(previous.covered_scope_ids):
+            raise ValueError("Rebinding item coverage requires the saved scope requests; preserve the current review")
+        missing = sorted(value["unprocessed_scope_ids"])
+    else:
+        covered = set(baseline.covered_scope_ids)
+        # Preserve predecessor unprocessed identities that are not represented
+        # by this Map's text/table requests (for example a future scope kind),
+        # while dropping only scopes that are now actually covered.
+        missing = sorted((scope_ids | set(value["unprocessed_scope_ids"])) - covered)
+    return {**value, "source_sha256": baseline.source_sha256,
+            "baseline_artifact_id": baseline.artifact_id,
+            "baseline_artifact_sha256": baseline.artifact_sha256,
+            "unprocessed_scope_ids": missing}
+
+
 def current_bundle(root, head):
     directory = inside(root, head["current"]["version_path"])
     for name, digest in head["current"].get("files", {}).items():
@@ -470,6 +528,7 @@ def revise_review(args):
     carry["explicit_replacement_artifact_kinds"] = sorted(replacements)
     evidence_path = getattr(args, "knowledge_catalog", None) or directory / "knowledge-catalog.json"
     validate_state(document_map, baseline, tables, values, evidence_path)
+    coverage_receipt = None if map_rebind else _coverage_receipt(directory, previous, baseline)
     if map_rebind:
         recovery = map_rebind["receipt"].get("text_scope_recovery") or {}
         diff = {"schema_version": "reqpilot-revision-diff/v1", "transition_kind": "DOCUMENT_MAP_REVISION", "source_sha256": baseline.source_sha256,
@@ -493,7 +552,7 @@ def revise_review(args):
     if output is None or root not in output.parents:
         raise ValueError("Candidate output must be a new directory inside the review workspace")
     output = new_output(output)
-    for name in ("document-map.json", "table-previews.json", "scope-requests.json", "map-compilation-receipt.json", "item-compilation-receipt.json"):
+    for name in ("document-map.json", "table-previews.json", "scope-requests.json", "map-compilation-receipt.json"):
         if (directory / name).is_file() and not map_rebind:
             shutil.copyfile(directory / name, output / name)
     if map_rebind:
@@ -504,6 +563,8 @@ def revise_review(args):
         table_requests = [core.build_source_requirement_scope_request(document_map, preview).model_dump(mode="json") for preview in tables.values()]
         save(output, "scope-requests.json", {"text_requests": text_requests, "table_requests": table_requests})
     save(output, "source-requirement-baseline.json", baseline.model_dump(mode="json")); save(output, "validation-receipt.json", validation.model_dump(mode="json"))
+    if coverage_receipt is not None:
+        save(output, "item-compilation-receipt.json", coverage_receipt)
     for key, item in values.items():
         save(output, STATE_FILES[key], item)
     if 'manual_decisions' in replacements:

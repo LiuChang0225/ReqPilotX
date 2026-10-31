@@ -49,6 +49,11 @@ DEPENDENCIES = {
     "PIL": "Pillow",
     "jsonschema": "jsonschema",
     "pyxlsb": "pyxlsb",
+    # read_ruled_table is part of the advertised local table-OCR profile.
+    # Keep its pinned runtime available instead of relying on a caller's
+    # PYTHONPATH or an undeclared system-site package.
+    "cv2": "opencv-contrib-python",
+    "numpy": "numpy",
 }
 TRANSITIVE_DEPENDENCIES = {"lxml": "python-docx"}
 NAMESPACE_INITIALIZERS = frozenset()

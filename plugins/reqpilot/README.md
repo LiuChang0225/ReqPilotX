@@ -39,7 +39,7 @@ Business JSON remains an exact comparison. Excel comparison permits only `_ReqPi
 
 R1 deliberately retains the internal `app` namespace. Install `reqpilotx-engine` only in an isolated portable environment; do not place it beside the full server's `app` package. Moving the authoritative source to `src/reqpilotx` is a later migration slice.
 
-Install the built plugin's `requirements.txt` in a Python 3.11+ virtual environment, then run its `scripts/reqpilot.py doctor`. Move/copy the **whole built directory** to another machine; no source checkout is required for the portable path. The source plugin directory alone is not a complete release bundle. `build-receipt.json.engine_release.core_identity` must match the engine manifest used for the release.
+Install the built plugin's `requirements.txt` in a Python 3.11+ virtual environment, then run its `scripts/reqpilot.py doctor`. Move/copy the **whole built directory** to another machine; no source checkout is required for the portable path. The source plugin directory alone is not a complete release bundle. `build-receipt.json.engine_release.core_identity` must match the engine manifest used for the release. The advertised local ruled-table OCR profile now carries its pinned `numpy` and `opencv-contrib-python` runtime in the engine requirements instead of relying on a caller `PYTHONPATH` or an undeclared system-site package. `doctor.local_ocr` reports `table_profile_supported`, missing Python modules and the exact pins; missing table support remains an explicit reading gap, not an empty complete table.
 
 Prepare a new workspace with project-level discovery:
 

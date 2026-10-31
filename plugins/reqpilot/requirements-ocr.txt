@@ -1,2 +1,3 @@
+# Local ruled-table OCR runtime; also declared by the engine wheel so normal installs carry it.
 numpy==2.3.5
 opencv-contrib-python==4.10.0.84

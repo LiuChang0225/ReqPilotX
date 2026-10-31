@@ -112,6 +112,8 @@ class EngineDistributionTests(unittest.TestCase):
         self.assertFalse(any("/persistence/" in f"/{path}/" or "/infrastructure/" in f"/{path}/" for path in paths))
         self.assertFalse(any(path.startswith("reqpilotx_server/") for path in paths))
         self.assertEqual(set(NAMESPACE_INITIALIZERS), {member.runtime_relative for member in selection.members if member.namespace_initializer})
+        self.assertTrue({"numpy==2.3.5", "opencv-contrib-python==4.10.0.84"} <= set(selection.requirements))
+        self.assertFalse({"cv2", "numpy"} & set(selection.optional_or_unknown_imports))
 
     def test_staged_project_contains_manifest_and_no_maintained_source_copy(self):
         with committed_release_fixture() as repo, TemporaryDirectory() as temporary:

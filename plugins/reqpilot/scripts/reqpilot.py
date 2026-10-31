@@ -87,8 +87,15 @@ def doctor(args: argparse.Namespace) -> dict:
             "required_libreoffice_version": "26.2.4.2", "binary_version_validation": "NOT_RUN"},
     }
     tool_files = {"capture": (root / "reqpilotx/tools/fast_source_capture.py").is_file(), "delivery": (root / "reqpilotx/application/agent_workflow/source_item_delivery.py").is_file(), "decomposition": (root / "reqpilotx/application/agent_workflow/source_item_decomposition.py").is_file()}
-    local_ocr={'tesseract_available':shutil.which('tesseract') is not None,
-        'table_dependencies_available':all(importlib.util.find_spec(name) is not None for name in ('cv2','numpy')),
+    table_pins=[line.strip() for line in (PLUGIN_ROOT/'requirements-ocr.txt').read_text(encoding='utf-8').splitlines()
+        if line.strip() and not line.lstrip().startswith('#')]
+    table_missing=[name for name in ('cv2','numpy') if importlib.util.find_spec(name) is None]
+    tesseract_available=shutil.which('tesseract') is not None
+    local_ocr={'tesseract_available':tesseract_available,
+        'table_dependencies_available':not table_missing,
+        'missing_table_dependencies':table_missing,
+        'required_table_pins':table_pins,
+        'table_profile_supported':bool(tesseract_available and not table_missing),
         'optional_table_requirements':str(PLUGIN_ROOT/'requirements-ocr.txt'),
         'tessdata_override_configured':bool(os.environ.get('REQPILOT_TESSDATA_DIR')),
         'source_semantics_verified':False}
