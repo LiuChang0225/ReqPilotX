@@ -93,9 +93,10 @@ The React 18 test fixture is a module host, not the external Pair UI.
 `scripts/installed-smoke.mjs` uses real OS children implementing the subprocess
 handle interface, relocated host files, non-editable wheels, the matching built
 Web/shared-panel artifacts and an application-owned SQLite data root with no
-PostgreSQL executable on `PATH`. It verifies project/import command replay,
-source bytes, saved version snapshot/export, frontend, readiness, competing
-owner rejection and restart identity. It also exercises the actual managed
+PostgreSQL executable on `PATH`. It verifies ordinary local API startup before
+the managed migrate step (fresh root and unknown-DB refusal), project/import
+command replay, source bytes, saved version snapshot/export, frontend, readiness,
+competing owner rejection and restart identity. It also exercises the actual managed
 response/delivery POST allowlist: source-bound human opinions, exact command
 replay, stale-write rejection, explicit formal acceptance and unchanged frozen
 snapshot/Excel bytes after restart. An optional fifth argument selects a new

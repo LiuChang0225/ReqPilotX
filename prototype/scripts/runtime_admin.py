@@ -83,6 +83,20 @@ def main() -> int:
         # intentionally not offered as a boolean convenience flag.
         from app import db
 
+        if settings.is_sqlite:
+            print(
+                json.dumps(
+                    {
+                        "ok": False,
+                        "error": (
+                            "Historical publication recovery requires the "
+                            "PostgreSQL runtime."
+                        ),
+                    },
+                    ensure_ascii=False,
+                )
+            )
+            return 2
         container = None
         try:
             container = build_runtime_container(settings, apply_migrations=True)

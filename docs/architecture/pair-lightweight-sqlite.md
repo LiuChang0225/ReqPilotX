@@ -59,6 +59,12 @@ application-owned schema/data scripts and must not issue their own transaction
 control or non-transactional statements. PostgreSQL keeps its separate
 `resources/migrations/postgresql/` path and ledger.
 
+Ordinary local API startup runs this preflight/migration step before constructing
+the SQLite review/enrichment repositories (which create their own tables). The
+worker and PostgreSQL-only maintenance commands refuse SQLite before runtime
+construction, so no supported initialization path creates unledgered tables
+before the ownership check.
+
 Each connection enables foreign keys, WAL, a 30-second busy timeout and
 `BEGIN IMMEDIATE` for multi-writer business sections. Commits remain short;
 model or long-running parsing work is not held inside a write transaction.

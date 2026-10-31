@@ -406,6 +406,11 @@ def startup() -> None:
     try:
         if RUNTIME_SETTINGS.is_sqlite:
             acquire_runtime_storage_lease()
+            db.configure_runtime(RUNTIME_SETTINGS)
+            # SQLite repository constructors create their own tables. Validate
+            # the store and apply application migrations before any constructor
+            # or runtime-directory population.
+            db.init_db()
             ensure_runtime_directories(_runtime_directories(ai_config))
         RUNTIME_STATE.container = build_runtime_container(
             RUNTIME_SETTINGS,
@@ -416,8 +421,6 @@ def startup() -> None:
             RUNTIME_SETTINGS,
             postgres_database=RUNTIME_STATE.container.database,
         )
-        if RUNTIME_SETTINGS.is_sqlite:
-            db.init_db()
         RUNTIME_STATE.files = RuntimeObjectFiles(
             RUNTIME_STATE.container.object_store,
             RUNTIME_SETTINGS.scratch_root / "materialized",

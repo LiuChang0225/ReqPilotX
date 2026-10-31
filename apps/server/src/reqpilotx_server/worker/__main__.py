@@ -96,6 +96,8 @@ def main() -> int:
         raise SystemExit(
             "Set REQPILOT_PROCESS_ROLE=worker before starting the worker."
         )
+    if settings.is_sqlite:
+        raise SystemExit("The durable worker requires PostgreSQL.")
     container = build_runtime_container(settings)
     if container.jobs is None:
         raise SystemExit("The durable worker requires PostgreSQL.")

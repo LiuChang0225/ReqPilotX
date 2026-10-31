@@ -6,7 +6,7 @@ import { resolve, join } from 'node:path';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { createHash, randomUUID } from 'node:crypto';
-import { execFileSync } from 'node:child_process';
+import { execFileSync, spawnSync } from 'node:child_process';
 import { fileURLToPath } from 'node:url';
 import { ManagedRuntime } from '../host/src/managed-runtime.js';
 import { createHandler } from '../host/src/index.js';
@@ -30,6 +30,24 @@ proxy.listen(0,'127.0.0.1'); await once(proxy,'listening');
 const base=`http://127.0.0.1:${proxy.address().port}/reqpilotx/service`;
 const requests=[];
 const sha=value=>createHash('sha256').update(value).digest('hex');
+function localStartupEnv(root) {
+  const storage=join(root,'storage');
+  return { PATH:noPostgresBin, HOME:temporary, LANG:'C.UTF-8', TMPDIR:temporary,
+    REQPILOT_ENV:'local', REQPILOT_PROCESS_ROLE:'api', REQPILOT_DATABASE_BACKEND:'sqlite-local',
+    REQPILOT_AGENT_RUNTIME:'none', REQPILOT_STORAGE_DIR:storage,
+    REQPILOT_OBJECT_ROOT:storage, REQPILOT_SCRATCH_ROOT:join(root,'scratch'),
+    REQPILOT_FRONTEND_DIR:resolve(frontend), REQPILOT_ALLOWED_HOSTS:'127.0.0.1,localhost' };
+}
+function runOrdinaryLocalStartup(root) {
+  const script=`from reqpilotx_server import db
+from reqpilotx_server.application import runtime
+runtime.startup()
+with db.get_conn() as connection:
+    versions = [row['version'] for row in connection.execute("SELECT version FROM reqpilotx_local_schema_migrations ORDER BY version")]
+print('STARTUP_OK', db.__file__, ','.join(versions))
+runtime.shutdown()`;
+  return spawnSync(installedPython,['-I','-c',script],{cwd:root,env:localStartupEnv(root),encoding:'utf8',timeout:60000});
+}
 async function request(path,init={},direct=false) {
   const response=await fetch((direct?runtime.snapshot.serviceOrigin:base)+path,init);
   requests.push({path,status:response.status});
@@ -38,7 +56,34 @@ async function request(path,init={},direct=false) {
 }
 const json=async (path,init,direct)=>(await request(path,init,direct)).json();
 let receipt={status:'FAIL',scope:'synthetic installed Pair adapter; external Pair UI not tested'};
+let ordinaryStartup={};
 try {
+  const freshRoot=join(temporary,'ordinary-local-fresh');await mkdir(freshRoot,{recursive:true});
+  const freshResult=runOrdinaryLocalStartup(freshRoot);
+  assert.equal(freshResult.status,0,freshResult.stdout+freshResult.stderr);
+  assert.match(freshResult.stdout,/STARTUP_OK/);
+  assert.match(freshResult.stdout,/0001_lightweight_local_schema/);
+  ordinaryStartup.fresh_root_initialized=true;
+  const unknownRoot=join(temporary,'ordinary-local-unknown');await mkdir(join(unknownRoot,'storage'),{recursive:true});
+  const unknownDb=join(unknownRoot,'storage','app.db');
+  const createUnknown=spawnSync(installedPython,['-I','-c',`import sqlite3,sys
+connection=sqlite3.connect(sys.argv[1])
+try:
+    connection.execute("CREATE TABLE unrelated (id TEXT PRIMARY KEY, value TEXT)")
+    connection.execute("INSERT INTO unrelated VALUES ('one','keep')")
+    connection.commit()
+finally:
+    connection.close()`,unknownDb],{encoding:'utf8',timeout:30000});
+  assert.equal(createUnknown.status,0,createUnknown.stderr);
+  const unknownBefore=await readFile(unknownDb);
+  const unknownResult=runOrdinaryLocalStartup(unknownRoot);
+  assert.notEqual(unknownResult.status,0);
+  assert.match(unknownResult.stderr+unknownResult.stdout,/SQLiteStoreAdoptionError/);
+  const unknownAfter=await readFile(unknownDb);
+  assert.equal(sha(unknownAfter),sha(unknownBefore));
+  ordinaryStartup.unknown_db_refused=true;
+  ordinaryStartup.unknown_db_bytes_unchanged=true;
+  ordinaryStartup.unknown_db_sha256=sha(unknownBefore);
   for(const invalid of [{...config,python:undefined},{...config,python:join(temporary,'missing-python')},{...config,frontendRoot:join(temporary,'missing')}]) {
     const candidate=new ManagedRuntime(nativeSubprocess,invalid);await candidate.start();assert.equal(candidate.snapshot.status,'ERROR');await candidate.stop();
   }
@@ -130,6 +175,7 @@ try {
     feedback_survived_restart:true,
     restart_identity_preserved:true,frontend_served:true,missing_service_and_frontend_rejected:true,competing_owner_rejected:true,
     database_backend:'sqlite-local',postgres_executable_available:postgresExecutableAvailable,
+    ordinary_local_api_startup:ordinaryStartup,
     worker_started:false,model_called:false,external_pair_ui:'NOT_RUN',retained_output:retainedOutput?temporary:null,requests};
 } finally {
   await runtime.stop();await new Promise(ok=>proxy.close(ok));

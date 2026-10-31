@@ -13,6 +13,8 @@ import hashlib
 import os
 import shutil
 import sqlite3
+import subprocess
+import sys
 from contextlib import ExitStack
 from pathlib import Path
 import tempfile
@@ -181,6 +183,117 @@ class LightweightSqliteSettingsTests(unittest.TestCase):
             self.assertTrue(settings.is_sqlite)
             self.assertFalse(settings.is_local_sqlite)
             self.assertTrue(settings.is_test)
+
+
+class OrdinaryLocalApiStartupSubprocessTests(unittest.TestCase):
+    def setUp(self) -> None:
+        self.root = Path(
+            tempfile.mkdtemp(prefix="rx01-api-startup-")
+        )
+        self.addCleanup(shutil.rmtree, self.root, True)
+
+    def _environment(self) -> dict[str, str]:
+        repo = Path(__file__).resolve().parents[2]
+        environment = {
+            key: value
+            for key, value in os.environ.items()
+            if not key.startswith(("REQPILOT_", "REQPILOTX_"))
+        }
+        environment.update(
+            {
+                "REQPILOT_ENV": "local",
+                "REQPILOT_DATABASE_BACKEND": "sqlite-local",
+                "REQPILOT_STORAGE_DIR": str(self.root / "storage"),
+                "REQPILOT_OBJECT_ROOT": str(self.root / "storage"),
+                "REQPILOT_SCRATCH_ROOT": str(self.root / "scratch"),
+                "REQPILOT_FRONTEND_DIR": str(repo / "apps/web/dist"),
+                "REQPILOT_ALLOWED_HOSTS": "127.0.0.1,localhost",
+                "PYTHONPATH": os.pathsep.join(
+                    (
+                        str(repo / "apps/server/src"),
+                        str(repo / "packages/engine/src"),
+                        str(repo / "prototype"),
+                    )
+                ),
+            }
+        )
+        return environment
+
+    def _run(self) -> subprocess.CompletedProcess[str]:
+        script = """
+from reqpilotx_server import db
+from reqpilotx_server.application import runtime
+runtime.startup()
+print('STARTUP_OK', db.__file__)
+runtime.shutdown()
+"""
+        return subprocess.run(
+            [sys.executable, "-c", script],
+            cwd=self.root,
+            env=self._environment(),
+            capture_output=True,
+            text=True,
+            timeout=60,
+            check=False,
+        )
+
+    def test_ordinary_local_api_startup_initializes_fresh_root(self) -> None:
+        result = self._run()
+        self.assertEqual(result.returncode, 0, result.stdout + result.stderr)
+        self.assertIn("STARTUP_OK", result.stdout)
+        database = self.root / "storage" / "app.db"
+        self.assertTrue(database.is_file())
+        conn = sqlite3.connect(database)
+        try:
+            self.assertEqual(
+                conn.execute(
+                    "SELECT version FROM reqpilotx_local_schema_migrations"
+                ).fetchall(),
+                [("0001_lightweight_local_schema",)],
+            )
+            self.assertIsNotNone(
+                conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name='llm_requirement_review_sessions'"
+                ).fetchone()
+            )
+        finally:
+            conn.close()
+
+    def test_ordinary_local_api_startup_refuses_unknown_db_before_writes(self) -> None:
+        storage = self.root / "storage"
+        storage.mkdir(parents=True)
+        database = storage / "app.db"
+        conn = sqlite3.connect(database)
+        try:
+            conn.execute("CREATE TABLE unrelated (id TEXT PRIMARY KEY, value TEXT)")
+            conn.execute("INSERT INTO unrelated VALUES ('one', 'keep')")
+            conn.commit()
+        finally:
+            conn.close()
+        before = database.read_bytes()
+        result = self._run()
+        self.assertNotEqual(result.returncode, 0)
+        self.assertIn("SQLiteStoreAdoptionError", result.stderr + result.stdout)
+        self.assertEqual(database.read_bytes(), before)
+        conn = sqlite3.connect(database)
+        try:
+            self.assertEqual(
+                conn.execute("SELECT id, value FROM unrelated").fetchall(),
+                [("one", "keep")],
+            )
+            self.assertEqual(
+                str(conn.execute("PRAGMA journal_mode").fetchone()[0]).lower(),
+                "delete",
+            )
+            self.assertIsNone(
+                conn.execute(
+                    "SELECT name FROM sqlite_master WHERE type='table' "
+                    "AND name='reqpilotx_local_schema_migrations'"
+                ).fetchone()
+            )
+        finally:
+            conn.close()
 
 
 class LightweightSqlitePublicApiTests(unittest.TestCase):
