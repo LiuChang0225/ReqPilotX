@@ -653,9 +653,7 @@ export class KnowledgeBridge {
     await this.requireCurrent(commandId, 'analysis');
     const binding = await this.loadBinding(commandId);
     const consumed = await this.loadConsumption(commandId);
-    const batchIds = unitIds || normalized.map(item => item.unit_id).sort();
-    if (JSON.stringify(batchIds) !== JSON.stringify([...batchIds].sort()))
-      throw new KnowledgeError('INVALID_ANALYSIS', 422);
+    const batchIds = [...(unitIds || normalized.map(item => item.unit_id))].sort();
     if (normalized.some(item => !batchIds.includes(item.unit_id)))
       throw new KnowledgeError('INVALID_ANALYSIS', 422);
     const history = await this.loadAnalysisHistory(commandId, binding, record.prepared.task_id);
@@ -746,12 +744,11 @@ export class KnowledgeBridge {
       }
       const bytes = Buffer.from(value?.bytes || value || []);
       const actual = value?.document || {};
+      // Selected-source captures own extraction identity; the Wiki backend revision is independent.
       if (actual.sha256 !== scope.document.originalRevision
-        || sha(bytes) !== scope.document.originalRevision
-        || (actual.backendRevision !== undefined
-          && actual.backendRevision !== scope.document.extractionRevision)) {
+        || sha(bytes) !== scope.document.originalRevision) {
         throw new KnowledgeError('KNOWLEDGE_EVIDENCE_CHANGED', 409,
-          'Original bytes or extraction revision changed after the task was frozen');
+          'Original bytes changed after the task was frozen');
       }
       await verify();
       return { document: { ...actual, id: documentId, kbId: scope.kbId,

@@ -370,6 +370,13 @@ test('citation original requires frozen bytes and extraction versions without le
     const document = service.documents.get('project-doc');
     const good = await bridge.original('original-command', 'project-doc');
     assert.equal(good.document.sha256, document.sha256);
+    const readOriginal = service.original;
+    service.original = async id => {
+      const value = await readOriginal(id);
+      return { ...value, document: { ...value.document, backendRevision: digest('pdf-v1:wiki-submission') } };
+    };
+    assert.equal((await bridge.original('original-command', 'project-doc')).document.sha256, document.sha256);
+    service.original = readOriginal;
     service.documents.get('unselected-doc').backendRevision = '9'.repeat(64);
     assert.equal((await bridge.original('original-command', 'project-doc')).document.sha256, document.sha256);
     const originalText = document.pages[0].text;
@@ -399,5 +406,29 @@ test('topic citation uses only topicOriginal for the frozen version', async () =
     assert.equal(Buffer.from(value.bytes).toString(), 'topic original');
     assert.equal(service.calls.filter(item => item.op === 'topicOriginal').length, before + 1);
     assert.equal(service.calls.some(item => item.op === 'original'), false);
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('analysis accepts unit subsets in caller order and normalizes the submitted identity', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-knowledge-unit-order-'));
+  const service = fakeKnowledge();
+  const bridge = new KnowledgeBridge({ service, dataRoot: root, applicationId: service.applicationId });
+  try {
+    await bridge.prepareBinding({ commandId: 'ordered-command', projectId: 'p', mode: 'PROJECT_REFERENCES', projectDocumentIds: ['project-doc'] });
+    const taskRoot = join(root, 'task'); await mkdir(taskRoot, { recursive: true });
+    bridge.registerRecord({ commandId: 'ordered-command', python: '/installed/python', capabilityRoot: root,
+      prepared: { task_root: taskRoot, workspace: taskRoot, task_id: 'task-ordered' } });
+    let submitted;
+    bridge.runtime = { dataRoot: root, attestationKey: 'f'.repeat(64), async command(argv) {
+      submitted = JSON.parse(await readFile(argv[argv.indexOf('--input') + 1], 'utf8'));
+      return JSON.stringify({ status: 'WORKSPACE_OPERATION_SAVED', operation_state: 'COMMITTED' });
+    } };
+    const ids = ['u2', 'u1'];
+    await bridge.analysis('ordered-command', ids.map(unit_id => ({ unit_id, decision: 'PENDING_EVIDENCE',
+      reason: 'No product evidence was consumed.', evidence: [], clarification_question: '' })),
+    ids, 'workspace-revision-one', 'unordered-batch');
+    assert.deepEqual(submitted.unit_ids, ['u1', 'u2']);
+    assert.deepEqual(submitted.knowledge_attestation.unit_ids, ['u1', 'u2']);
+    assert.deepEqual(ids, ['u2', 'u1']);
   } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
 });
