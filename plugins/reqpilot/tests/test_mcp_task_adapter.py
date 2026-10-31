@@ -274,6 +274,45 @@ class McpTaskAdapterTests(unittest.TestCase):
                     self.assertEqual(control[key],candidate[key],key)
             asyncio.run(exercise())
 
+    def test_frozen_preparation_prompt_contains_the_bound_task_resume_identity(self):
+        import subprocess
+        from mcp import Client, StdioServerParameters
+        import build_bundle
+        from portable_fixtures import make_fixture
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            source, _, _ = make_fixture(root/'fixture')
+            bundle = root/'bundle'
+            build_bundle.build(ROOT, bundle)
+            receipt = json.loads((bundle/'build-receipt.json').read_text())
+            workspace = root/'workspace'
+            payload = {'workspace': str(workspace),
+                'expected_source_sha256': __import__('hashlib').sha256(source.read_bytes()).hexdigest(),
+                'bundle_sha256': receipt['bundle_sha256'], 'application_id': 'reqpilotx-test',
+                'request': {'mode':'create','source':str(source),'goal':'Frozen preparation resume proof.',
+                    'creation_key':'frozen-prepare-proof'}}
+            request_file = root/'prepare.json'; request_file.write_text(json.dumps(payload), encoding='utf-8')
+            completed = subprocess.run([sys.executable, str(bundle/'scripts/host_launch.py'), str(request_file)],
+                text=True, capture_output=True, check=False)
+            self.assertEqual(completed.returncode, 0, completed.stderr[-2000:])
+            prepared = json.loads(completed.stdout)
+            task_id = prepared['task_id']
+            self.assertIn('task_id=' + task_id, prepared['prompt'])
+            self.assertIn('request.md', prepared['prompt'])
+            request_md = (workspace/'request.md').read_text(encoding='utf-8')
+            self.assertIn(task_id, request_md)
+            self.assertIn('request.md', prepared['prompt'])
+            params = StdioServerParameters(command=sys.executable,
+                args=[str(workspace/'.reqpilot/scripts/mcp_server.py'), '--working-root', str(workspace),
+                      '--source-root', str(workspace)])
+            async def exercise():
+                async with Client(params) as client:
+                    resumed = await client.call_tool('task_open', {'mode':'resume','task_id':task_id})
+                    self.assertFalse(resumed.is_error, resumed)
+                    self.assertEqual(resumed.structured_content['status'], 'RESUMED')
+                    self.assertEqual(resumed.structured_content['task_id'], task_id)
+            asyncio.run(exercise())
+
     def test_actual_stdio_discovery_create_capture_replay_and_restart(self):
         from mcp import Client, StdioServerParameters
         from portable_fixtures import make_fixture

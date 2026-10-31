@@ -3,6 +3,7 @@ import { Icon } from "../../shared/ui/Icon";
 import { useDocumentWorkCatalog, type PluginWorkSummary } from "./documentWorkCatalog";
 import type { DocumentWorkSummary } from "./documentWorkSummary";
 import { useApplicationHost } from "../../host/ApplicationHost";
+import { useHostCopy } from "../../host/HostLocaleContext";
 
 type Props = { projectId: string; documentId: string; sourceSha256: string; selectedSession?: string; selectedTitle?: string;
   nativeSelected?: boolean; summary: DocumentWorkSummary | null; onSelect: (item: PluginWorkSummary | null) => void };

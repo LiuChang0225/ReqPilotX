@@ -3,8 +3,8 @@ from __future__ import annotations
 
 
 _TITLE_PREFIX_SEPARATORS = frozenset("、,，;；:：()（）[]【】-—–")
-_LEADING_TITLE_SEPARATORS = frozenset("、,，;；:：.．()（）[]【】-—–")
-_NUMBER_ONLY_SEPARATORS = frozenset("、,，;；:：.．()（）[]【】-—–")
+_NUMBER_BOUNDARY_SEPARATORS = frozenset("、,，;；:：.．-—–")
+_OPENING_DELIMITERS = frozenset("([{（［｛【")
 
 
 def _has_visible_label(value: str) -> bool:
@@ -38,10 +38,16 @@ def compose_source_path_segment(label: object, title: object) -> str:
         if first in ".．" and (len(remainder) == 1 or not remainder[1].isdigit()):
             return title_text
     first = title_text[0]
-    if first in _LEADING_TITLE_SEPARATORS:
-        # "1" + ". Scope" is the same visible heading as "1. Scope"; do not
-        # leave an orphan separator or duplicate a trailing separator.
-        if label_text[-1] in _NUMBER_ONLY_SEPARATORS:
+    if first in _OPENING_DELIMITERS:
+        # Parentheses/brackets are source title punctuation, not a number
+        # separator. Keep them and separate them from the number.
+        return f"{label_text} {title_text}"
+    if first in _NUMBER_BOUNDARY_SEPARATORS:
+        if first in {".", "．"} and len(title_text) > 1 and not title_text[1].isspace():
+            # ".NET" is title text, not the number's separator.
+            return f"{label_text} {title_text}"
+        if label_text[-1] == first:
             return label_text + title_text[1:]
+        # A distinct punctuation mark is source text; preserve both.
         return label_text + title_text
     return f"{label_text} {title_text}"

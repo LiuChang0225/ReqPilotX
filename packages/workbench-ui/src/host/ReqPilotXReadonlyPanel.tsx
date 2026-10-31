@@ -8,10 +8,11 @@ import type { PluginVersion } from "../features/workspace/documentWorkProvider";
 import { matchingExecution, matchingSession, sameWork, validWorkSelection, type ReadonlyWorkbenchHost, type ReadonlyWorkSelection } from "./readonlyHost";
 import type { WorkspaceRoute } from "../features/workspace/route";
 import { ErrorBoundary } from "../app/ErrorBoundary";
+import { HostLocaleProvider, type HostTranslate } from "./HostLocaleContext";
 
 export type ReqPilotXReadonlyPanelProps = {
   selection: ReadonlyWorkSelection; host: ReadonlyWorkbenchHost; documentName: string;
-  theme?: "light" | "dark"; active?: boolean;
+  theme?: "light" | "dark"; active?: boolean; t?: HostTranslate;
 };
 const emptySnapshot = () => null;
 const noSubscription = () => () => {};
@@ -21,9 +22,9 @@ export function ReqPilotXReadonlyPanel(props: ReqPilotXReadonlyPanelProps) {
   if (!validWorkSelection(props.selection)) return <section className="reqpilotx-panel-root workspace-app" data-theme={props.theme || "light"}>
     <p role="alert">工作链接不完整，请提供准确的来源、工作及成果版本。</p>
   </section>;
-  return <section className="reqpilotx-panel-root workspace-app" data-theme={props.theme || "light"} aria-label={props.host.feedbackWrites ? "ReqPilotX 核对与反馈" : "ReqPilotX 只读工作面板"}>
+  return <HostLocaleProvider t={props.t}><section className="reqpilotx-panel-root workspace-app" data-theme={props.theme || "light"} aria-label={props.host.feedbackWrites ? "ReqPilotX 核对与反馈" : "ReqPilotX 只读工作面板"}>
     <ErrorBoundary embedded key={`${props.host.id}:${props.host.client.id}:${props.selection.projectId}:${props.selection.documentId}:${props.selection.sourceSha256}:${props.selection.workRef}`}><ReadonlyPanel {...props} /></ErrorBoundary>
-  </section>;
+  </section></HostLocaleProvider>;
 }
 
 function ReadonlyPanel({ selection: initial, host, documentName, theme = "light", active = true }: ReqPilotXReadonlyPanelProps) {

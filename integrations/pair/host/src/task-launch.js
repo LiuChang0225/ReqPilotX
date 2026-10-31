@@ -484,7 +484,7 @@ export class TaskLauncher {
       // workspaces keep their path and identity so retries are unchanged.
       if (record.documentName && typeof services.workspaces.rename === 'function') {
         const title = ('ReqPilotX · ' + record.documentName + ' · ' + record.commandId.slice(0, 8)).slice(0, 180);
-        try { await services.workspaces.rename(record.workspaceId, title); } catch { /* Title is display-only; the task identity remains valid. */ }
+        await services.workspaces.rename({ workspaceId: record.workspaceId, title });
       }
       await this.save(record);
     }

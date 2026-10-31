@@ -9,9 +9,8 @@ import { useWorkbenchHost } from "./WorkbenchHostContext";
 import { DeliveryVersions } from "./DeliveryVersions";
 import { FixedWorkflowStatus } from "../../host/FixedWorkflowStatus";
 import { useApplicationHost } from "../../host/ApplicationHost";
+import { useHostCopy } from "../../host/HostLocaleContext";
 export type { PluginState } from "./documentWorkProvider";
-
-function applicationLabel(label?: string) { return label ? `${label} ` : "PAIR "; }
 
 type PluginWorkbenchProps = {
   provider: PluginWorkbenchProvider; projectId: string; documentId: string; sourceSha256: string; documentName: string;
@@ -25,7 +24,8 @@ export function PluginWorkbench(props: PluginWorkbenchProps) {
 export function PluginWorkbenchContent({ provider, projectId, documentId, sourceSha256, documentName, route, updateRoute }: PluginWorkbenchProps & Pick<WorkspaceContextValue, "route" | "updateRoute">) {
   const host = useWorkbenchHost();
   const applicationHost = useApplicationHost();
-  const taskNoun = applicationHost ? `${applicationLabel(applicationHost.label)}会话` : "外部任务";
+  const l = useHostCopy();
+  const taskNoun = applicationHost ? l("hosted.sessionNoun", "PAIR 会话") : "外部任务";
   const [page, setPage] = useState(1), [error, setError] = useState("");
   const { reader, state, version, current } = provider;
   useEffect(() => { setError(""); }, [provider.pinned, projectId, documentId]);

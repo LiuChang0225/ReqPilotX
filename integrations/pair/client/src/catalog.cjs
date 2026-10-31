@@ -51,9 +51,9 @@ function Application({ t, openSession }) {
   if (!config || config.status !== 'READY') return h('section', { className: 'reqpilotx-pair-open', role: config?.status === 'ERROR' ? 'alert' : 'status' },
     h('h1', null, 'ReqPilotX'), h('p', null, config?.message || t('loading')));
   if (config.mode !== 'managed') return h(Panel, { t });
-  return h(HostedApplication, { key: config.applicationId + ':' + config.serviceOrigin, config, openSession });
+  return h(HostedApplication, { key: config.applicationId + ':' + config.serviceOrigin, config, openSession, t });
 }
-function HostedApplication({ config, openSession }) {
+function HostedApplication({ config, openSession, t }) {
   const [installed, setInstalled] = React.useState(false);
   const readTheme = () => window.getComputedStyle(document.documentElement).colorScheme.includes('dark') ? 'dark' : 'light';
   const [theme, setTheme] = React.useState(readTheme);
@@ -76,6 +76,6 @@ function HostedApplication({ config, openSession }) {
       fetch: (input, init) => fetch(resources.resourceUrl(typeof input === 'string' ? input : input instanceof URL ? input.href : input.url), init) });
     setInstalled(true); return dispose;
   }, [config.applicationId, resources]);
-  return installed ? h(panelModule.exports.ReqPilotXApplication, { host, theme }) : h('p', { role: 'status' }, '正在打开 ReqPilotX 工作台…');
+  return installed ? h(panelModule.exports.ReqPilotXApplication, { host, theme, t }) : h('p', { role: 'status' }, '正在打开 ReqPilotX 工作台…');
 }
 module.exports = { ...(module.exports || {}), makePairWorkbenchHost: makeReadonlyHost };

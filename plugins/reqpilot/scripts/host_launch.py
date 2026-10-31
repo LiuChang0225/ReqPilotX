@@ -110,7 +110,7 @@ def prepare(payload):
             'preparation_identity': identity,
             'preparation_request': semantic,
             'supplementary_instructions_included': bool(str(notes).strip()),
-            'prompt': '先调用已挂载的 task_open（mode=resume，使用绑定 task_id），再按返回句柄执行固定工作流。不要先查看 CLI 帮助、运行时实现或编辑回执；阶段完成只以已保存工件和程序检查为准。',
+            'prompt': '先调用已挂载的 task_open（mode=resume，task_id=' + task_id + '），再按返回句柄执行固定工作流。首次恢复后可按需读取 request.md 中的用户补充说明；不要先查看 CLI 帮助、运行时实现或编辑回执；阶段完成只以已保存工件和程序检查为准。',
             'execution': 'NOT_STARTED', 'semantic_acceptance': 'NOT_CLAIMED',
             'tools': {'schema': 'reqpilot-host-tools/v1', 'mcp': {
                 'command': sys.executable,

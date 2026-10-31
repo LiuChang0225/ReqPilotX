@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, expect, it, vi } from "vitest";
 import { ApplicationHostContext, type ApplicationTaskReceipt, type WorkbenchApplicationHost } from "./ApplicationHost";
 import { HostedAgentPanel } from "./HostedAgentPanel";
+import { HostLocaleProvider } from "./HostLocaleContext";
 
 afterEach(() => { cleanup(); vi.useRealTimers(); });
 const receipt: ApplicationTaskReceipt = { commandId: "command-one", projectId: "p", documentId: "d", sourceSha256: "a".repeat(64),
@@ -195,4 +196,61 @@ it("shows an actionable unconfirmed workflow instead of a forged ready state", a
   show(value, receipt.workRef);
   expect(await screen.findByText(/固定流程状态未确认/)).toBeVisible();
   expect(screen.queryByText(/已保存成果满足/)).not.toBeInTheDocument();
+});
+
+
+it("rerenders English through the same bound t identity while retaining draft, scope and revision selection", async () => {
+  const value = host(); const accepted = vi.fn(); let language: "zh" | "en" = "zh";
+  const en: Record<string, string> = {
+    "intake.title": "Organize this customer document with the fixed workflow",
+    "intake.note": "{model}. Start once; optional notes cannot remove fixed stages or output checks.",
+    "intake.notesLabel": "Supplementary instructions (optional)",
+    "intake.notesPlaceholder": "Optional focus for this run.",
+    "intake.confirmMap": "Check the structure before items", "intake.start": "Start fixed workflow",
+    "intake.notStarted": "Not started",
+  };
+  const zh: Record<string, string> = {
+    "intake.title": "按固定流程整理当前客户文档", "intake.note": "{model}。用户只需开始一次；可选补充说明不会取消固定阶段或输出检查。",
+    "intake.notesLabel": "补充说明（可选）", "intake.notesPlaceholder": "本次可选关注点。",
+    "intake.confirmMap": "先核对结构，再继续整理条目", "intake.start": "开始固定流程", "intake.notStarted": "尚未开始",
+  };
+  const t = (key: string) => (language === "en" ? en : zh)[key] ?? key;
+  const element = () => <HostLocaleProvider t={t}><ApplicationHostContext.Provider value={value}>
+    <HostedAgentPanel projectId="p" documentId="d" sourceSha256={receipt.sourceSha256} revisionId="displayed-version"
+      selectedRevisionId="selected-version-one" initialGoal="Retained draft" onAccepted={accepted} onClose={() => {}} />
+  </ApplicationHostContext.Provider></HostLocaleProvider>;
+  const view = render(element());
+  const input = await screen.findByLabelText("补充说明（可选）");
+  fireEvent.change(input, { target: { value: "当前草稿必须保留" } });
+  const restores = vi.mocked(value.restoreTask).mock.calls.length;
+  language = "en";
+  view.rerender(element());
+  await waitFor(() => expect(screen.getByLabelText("Supplementary instructions (optional)")).toHaveValue("当前草稿必须保留"));
+  expect(screen.getByRole("button", { name: "Start fixed workflow" })).toBeVisible();
+  expect(screen.queryByText("开始固定流程")).not.toBeInTheDocument();
+  expect(vi.mocked(value.restoreTask).mock.calls.length).toBe(restores);
+  expect(vi.mocked(value.restoreTask).mock.calls[0][0]).toMatchObject({ projectId: "p", documentId: "d", sourceSha256: receipt.sourceSha256 });
+});
+
+it.each([
+  ["ACCEPTED", "Accepted"], ["RUNNING", "Processing"], ["WAITING", "Waiting"], ["SUCCEEDED", "This turn has ended"],
+  ["FAILED", "This turn did not complete"], ["INTERRUPTED", "Paused"], ["IDLE", "Idle"], ["UNKNOWN", "Status unconfirmed"],
+])("routes displayed execution state %s through the host language binding", async (status, label) => {
+  const value = host();
+  vi.mocked(value.restoreTask).mockResolvedValue({ ...receipt, status: "ACCEPTED", execution: { status }, controlCapabilities: {} });
+  const english: Record<string, string> = {
+    "execution.ACCEPTED": "Accepted", "execution.RUNNING": "Processing", "execution.WAITING": "Waiting",
+    "execution.SUCCEEDED": "This turn has ended", "execution.FAILED": "This turn did not complete",
+    "execution.INTERRUPTED": "Paused", "execution.IDLE": "Idle", "execution.UNKNOWN": "Status unconfirmed",
+    "session.heading": "PAIR session", "session.bound": "Original task linked · {status}",
+    "session.runAndBusiness": "Runtime: {status}; business results remain governed by the saved stages above.",
+    "control.openSession": "Open PAIR session",
+  };
+  const t = (key: string) => english[key] ?? key;
+  render(<HostLocaleProvider t={t}><ApplicationHostContext.Provider value={value}>
+    <HostedAgentPanel projectId="p" documentId="d" sourceSha256={receipt.sourceSha256} workRef={receipt.workRef}
+      initialGoal="Keep this goal" onAccepted={vi.fn()} onClose={() => {}} />
+  </ApplicationHostContext.Provider></HostLocaleProvider>);
+  expect((await screen.findAllByText(new RegExp(label))).length).toBeGreaterThan(0);
+  expect(screen.getByRole("button", { name: "Open PAIR session" })).toBeVisible();
 });

@@ -34,7 +34,14 @@ async function fixture(config = {}) {
   } };
   const services = { defaultModel: { currentSelection: () => ({ ...defaultModel }) },
     workspaces: { async create(value) { calls.workspace.push(value); return { workspace: { workspaceId: 'workspace-one' } }; },
-      async rename(id, title) { calls.workspaceTitle.push({ id, title }); return { workspace: { workspaceId: id, title } }; } },
+      async rename(request) {
+        if (!request || typeof request !== 'object' || Array.isArray(request)
+          || Object.keys(request).some(key => !['workspaceId', 'title'].includes(key))
+          || typeof request.workspaceId !== 'string' || typeof request.title !== 'string'
+          || !request.workspaceId || !request.title) throw new TypeError('workspaceController.rename expects one WorkspaceRenameRequest');
+        calls.workspaceTitle.push(request);
+        return { workspace: { workspaceId: request.workspaceId, title: request.title } };
+      } },
     sessions: { async create(value) { calls.create.push(value); return { sessionId: value.sessionId }; },
       async selectSessionModel(value) { calls.model.push(value); const { sessionId, ...selected } = value; return { selected }; },
       async prompt(value) { calls.prompt.push(value); return { accepted: true }; } } };
@@ -64,7 +71,7 @@ test('native tasks bind the configured model before admission and retain it acro
       assert.equal((await retry.inspect(commandId)).selectedAgentModel.reasoningEffort, 'xhigh');
       assert.ok(await retry.toolBinding(receipt.sessionId));
       assert.equal(f.calls.workspaceTitle.length, 1);
-      assert.equal(f.calls.workspaceTitle[0].id, 'workspace-one');
+      assert.equal(f.calls.workspaceTitle[0].workspaceId, 'workspace-one');
       assert.match(f.calls.workspaceTitle[0].title, /ReqPilotX · source\.pdf/);
       const record = JSON.parse(await readFile(join(f.root, 'task-launches', commandId + '.json'), 'utf8'));
       assert.equal(record.schema, 'reqpilot-pair-launch-record/v3');

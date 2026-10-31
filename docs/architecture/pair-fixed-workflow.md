@@ -21,8 +21,10 @@
 用户只需开始一次。补充说明保存在任务意图中，不能取消阶段或成果检查。任务启动后，
 固定流程简报要求先恢复已挂载的 typed MCP 任务（`task_open`，`mode=resume`，
 使用绑定 `task_id`），再按返回的 revision、selected、`next_action` 和读取句柄继续；
-不以 CLI `--help`、运行时实现检查或编辑回执作为业务步骤。公开操作无法恢复时保留
-工件并报告确切限制。
+不以 CLI `--help`、运行时实现检查或编辑回执作为业务步骤。发送给 PAIR 的实际
+启动 prompt 直接包含已准备任务的 `task_id`，首次 `task_open`（`mode=resume`）无需
+先搜索目录；首次恢复后可按需读取 `request.md` 中的用户补充说明。公开操作无法恢复时
+保留工件并报告确切限制。
 
 本地 SQLite 版本不运行旧的原生 durable loop queue。`extraction-loop/latest` 和
 `loop/latest` 在队列未装配时返回明确的 `NOT_STARTED` 与
@@ -71,8 +73,13 @@ CAS／幂等交付接口注册或复用一份 DRAFT（`acceptance=null`，不创
 历史任务没有工作流上下文时不生成该状态。`ready_to_review` 与 Pair 执行状态
 分开显示，仍不等于人工接受。PAIR 托管视图使用原生 Session/Workspace 状态，不再用
 “外部运行状态未报告”替代可读的会话状态；独立插件面板仍保留其外部运行语义。
-新任务的 PAIR Workspace 注册标题使用文档名生成可读标签，已有任务目录和 UUID
-标识不重命名。
+新任务的 PAIR Workspace 注册标题使用文档名生成可读标签，并调用实际的
+`workspaceController.rename({workspaceId,title})` 请求对象；已有任务目录和 UUID
+标识不重命名，重试沿用同一路径、Session 和任务身份。PAIR 托管视图中新引入的
+固定流程状态、流程说明、固定可选输入/预期成果说明、任务执行状态和任务控制文案
+通过槽位提供的原生 `t` 绑定读取宿主语言；未知自定义输入保持原文，独立 Web 默认
+保持中文。源标题组合只合并属于编号边界的重复分隔符，保留括号、
+方括号、`.NET` 等有意义的原文标点。
 
 相同检查内容保留已有回执身份，重复检查时间不会产生新成果版或重复 DRAFT。部分成果可以保存和下载，但未完成声明范围时不报告固定流程交接完成；交接还要求最终远端和本地版本均匹配。没有固定流程上下文的 portable 任务保留其原有来源与工作台内容验证。
 

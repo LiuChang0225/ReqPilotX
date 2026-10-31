@@ -3,9 +3,9 @@ import { AgentPanelFrame } from "../features/workspace/AgentPanelFrame";
 import type { DocumentAgentBinding } from "../features/workspace/DocumentAgentContext";
 import { useApplicationHost, type ApplicationTaskReceipt } from "./ApplicationHost";
 import { FixedWorkflowStatus, FixedWorkflowSummary } from "./FixedWorkflowStatus";
+import { useHostCopy } from "./HostLocaleContext";
 
 const executionLabels: Record<string, string> = { ACCEPTED: "已受理", RUNNING: "正在处理", WAITING: "等待中", SUCCEEDED: "本轮已结束", FAILED: "本轮未完成", INTERRUPTED: "已暂停", IDLE: "空闲" };
-const executionLabel = (receipt: ApplicationTaskReceipt) => executionLabels[receipt.execution?.status || receipt.status] || "状态尚未确认";
 
 /** Only host execution controls differ; saved business work continues in the shared external-work panel. */
 export function HostedAgentPanel({ projectId, documentId, documentName, sourceSha256, workRef, revisionId, selectedRevisionId, binding, initialGoal, onAccepted, onClose }: {
@@ -17,6 +17,13 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
   onAccepted: (receipt: ApplicationTaskReceipt) => void; onClose: () => void;
 }) {
   const host = useApplicationHost()!;
+  const l = useHostCopy();
+  const executionLabel = (receipt: ApplicationTaskReceipt) => {
+    const status = receipt.execution?.status || receipt.status;
+    return executionLabels[status]
+      ? l(`execution.${status}`, executionLabels[status])
+      : l("execution.UNKNOWN", "状态尚未确认");
+  };
   const scope = useMemo(() => ({ projectId, documentId, sourceSha256, ...(workRef ? { workRef } : {}) }), [projectId, documentId, sourceSha256, workRef]);
   const selection = useMemo(() => ({ host, scope, revisionId, selectedRevisionId }), [host, scope, revisionId, selectedRevisionId]);
   type Selection = typeof selection;
@@ -83,7 +90,7 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
       if (activeSelection.current === selection && pendingAction.current === operation) { pendingAction.current = null; setBusySelection(null); }
     }
   }
-  const setupMessage = host.taskSetup ? {
+  const setupFallbacks: Record<string, string> = {
     CAPABILITY_NOT_READY: "业务能力包尚未就绪：请检查配套安装和服务状态。",
     FIXED_WORKFLOW_UNAVAILABLE: "当前能力包不提供固定业务流程，请安装配套版本。",
     PAIR_DEFAULT_MODEL_UNAVAILABLE: "PAIR 尚未提供可用默认模型：请在 PAIR 设置 → 模型中选择模型和推理档位。",
@@ -91,33 +98,34 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
     PAIR_SESSION_MODEL_UNAVAILABLE: "PAIR 未能选择可用模型：请在 PAIR 设置 → 模型中选择可用模型和推理档位。",
     PAIR_SESSION_SERVICE_UNAVAILABLE: "PAIR 会话服务不可用，请检查宿主服务。",
     TASK_START_NOT_CONFIGURED: "PAIR 任务启动尚未配置：请确认能力包已安装并已选择默认模型。",
-  }[host.taskSetup] || host.taskSetup : "";
+  };
+  const setupMessage = host.taskSetup ? l(`hosted.setup.${host.taskSetup}`, setupFallbacks[host.taskSetup] || host.taskSetup) : "";
   const controls = <div className="agent-control-actions">
     {bound && <button type="button" className="button secondary compact" disabled={busy} onClick={() => {
       void host.openSession(bound.sessionId).catch(cause => { if (activeSelection.current === selection) setFailure({ selection, message: String(cause.message || cause) }); });
-    }}>打开 PAIR 会话</button>}
-    {bound?.controlCapabilities?.cancel && <button type="button" className="button secondary compact" disabled={busy} onClick={() => void run("cancel")}>停止本轮</button>}
-    {bound?.controlCapabilities?.continue && <button type="button" className="button secondary compact" disabled={busy} onClick={() => void run("continue")}>继续同一任务</button>}
-    {bound?.controlCapabilities?.reconnect && <button type="button" className="button secondary compact" disabled={busy} onClick={() => void run("reconnect")}>核对并重连原任务</button>}
+    }}>{l("control.openSession", "打开 PAIR 会话")}</button>}
+    {bound?.controlCapabilities?.cancel && <button type="button" className="button secondary compact" disabled={busy} onClick={() => void run("cancel")}>{l("control.stop", "停止本轮")}</button>}
+    {bound?.controlCapabilities?.continue && <button type="button" className="button secondary compact" disabled={busy} onClick={() => void run("continue")}>{l("control.continue", "继续同一任务")}</button>}
+    {bound?.controlCapabilities?.reconnect && <button type="button" className="button secondary compact" disabled={busy} onClick={() => void run("reconnect")}>{l("control.reconnect", "核对并重连原任务")}</button>}
     {error && <p className="agent-inline-notice is-error" role="alert">{error}</p>}
   </div>;
-  if (workRef) return <section aria-label="PAIR 会话连接" className="agent-inline-notice">
-    <strong>PAIR 会话</strong><p>{bound ? `已关联原任务 · ${executionLabel(bound)}` : "尚未开始；当前成果未关联此工作台保存的 PAIR 会话。"}</p>
-    {bound && <><FixedWorkflowStatus state={bound.workflowState} unconfirmed={bound.workflowUnconfirmed} /><p>运行状态：{executionLabel(bound)}；业务成果状态单独以上述已保存阶段为准。</p></>}
+  if (workRef) return <section aria-label={l("session.connectionAria", "PAIR 会话连接")} className="agent-inline-notice">
+    <strong>{l("session.heading", "PAIR 会话")}</strong><p>{bound ? l("session.bound", "已关联原任务 · {status}", { status: executionLabel(bound) }) : l("session.unbound", "尚未开始；当前成果未关联此工作台保存的 PAIR 会话。")}</p>
+    {bound && <><FixedWorkflowStatus state={bound.workflowState} unconfirmed={bound.workflowUnconfirmed} /><p>{l("session.runAndBusiness", "运行状态：{status}；业务成果状态单独以上述已保存阶段为准。", { status: executionLabel(bound) })}</p></>}
     {controls}
   </section>;
   return <AgentPanelFrame onClose={onClose} footer={controls}>
-    <section className="agent-dock-brief"><h3>按固定流程整理当前客户文档</h3><p>{host.modelLabel}。用户只需开始一次；可选补充说明不会取消固定阶段或输出检查。</p>
+    <section className="agent-dock-brief"><h3>{l("intake.title", "按固定流程整理当前客户文档")}</h3><p>{l("intake.note", "{model}。用户只需开始一次；可选补充说明不会取消固定阶段或输出检查。", { model: host.modelLabel })}</p>
       <FixedWorkflowSummary workflow={host.workflow} />
-      {!host.taskStartAvailable && <p role="status">{setupMessage || "当前宿主尚未配置本应用的任务启动能力；原件与已保存成果仍可核对。"}</p>}
-      {bound ? <><p role="status">已找到原任务：{executionLabel(bound)}</p><FixedWorkflowStatus state={bound.workflowState} unconfirmed={bound.workflowUnconfirmed} />
-          <p role="status">运行状态与业务成果分别核对；已保存阶段不代表人工接受。</p>
-          <button className="button secondary" type="button" disabled={busy} onClick={() => onAccepted(bound)}>回到原任务成果</button></>
-        : <><p role="status">{error ? "原任务状态暂时无法确认，请保留当前说明并重试。" : "尚未开始"}</p>
-          {documentName ? <p>当前客户文档：{documentName}</p> : null}
-          <label>补充说明（可选）<textarea aria-label="补充说明（可选）" value={goal} maxLength={12000} placeholder="例如：本次重点关注试验条件；不填写也会执行固定流程。" onChange={event => { edited.current = true; setGoal(event.target.value); }} disabled={busy} rows={5} /></label>
-          <label className="agent-confirm-option"><input type="checkbox" checked={requireMapConfirmation} disabled={busy} onChange={event => { edited.current = true; setRequireMapConfirmation(event.target.checked); }} />先核对结构，再继续整理条目</label>
-          <button type="button" className="button primary" disabled={busy || !host.taskStartAvailable} onClick={() => void run()}>{busy ? "正在确认原请求…" : "开始固定流程"}</button></>}
+      {!host.taskStartAvailable && <p role="status">{setupMessage || l("intake.noStart", "当前宿主尚未配置本应用的任务启动能力；原件与已保存成果仍可核对。")}</p>}
+      {bound ? <><p role="status">{l("intake.found", "已找到原任务：{status}", { status: executionLabel(bound) })}</p><FixedWorkflowStatus state={bound.workflowState} unconfirmed={bound.workflowUnconfirmed} />
+          <p role="status">{l("intake.runtimeAndBusiness", "运行状态与业务成果分别核对；已保存阶段不代表人工接受。")}</p>
+          <button className="button secondary" type="button" disabled={busy} onClick={() => onAccepted(bound)}>{l("intake.returnResult", "回到原任务成果")}</button></>
+        : <><p role="status">{error ? l("intake.statusNotConfirmed", "原任务状态暂时无法确认，请保留当前说明并重试。") : l("intake.notStarted", "尚未开始")}</p>
+          {documentName ? <p>{l("intake.currentDocument", "当前客户文档：{name}", { name: documentName })}</p> : null}
+          <label>{l("intake.notesLabel", "补充说明（可选）")}<textarea aria-label={l("intake.notesLabel", "补充说明（可选）")} value={goal} maxLength={12000} placeholder={l("intake.notesPlaceholder", "例如：本次重点关注试验条件；不填写也会执行固定流程。")} onChange={event => { edited.current = true; setGoal(event.target.value); }} disabled={busy} rows={5} /></label>
+          <label className="agent-confirm-option"><input type="checkbox" checked={requireMapConfirmation} disabled={busy} onChange={event => { edited.current = true; setRequireMapConfirmation(event.target.checked); }} />{l("intake.confirmMap", "先核对结构，再继续整理条目")}</label>
+          <button type="button" className="button primary" disabled={busy || !host.taskStartAvailable} onClick={() => void run()}>{busy ? l("intake.starting", "正在确认原请求…") : l("intake.start", "开始固定流程")}</button></>}
     </section>
   </AgentPanelFrame>;
 }

@@ -12,7 +12,7 @@
 
 构建external配置为`react`、`react-dom`、`react/jsx-runtime`、`react/jsx-dev-runtime`、`react-dom/client`；当前产物实际引用前三个。所有引用必须解析到宿主提供的同一React18.3.1／ReactDOM18.3.1实例，库不自带运行时。不要执行主应用的`main.tsx`或把整个`App`挂入宿主。
 
-公开组件为`ReqPilotXReadonlyPanel`，公开类型和帮助函数从`src/host/index.ts`导出。完整TypeScript合同以`readonlyHost.ts`和`ReqPilotXReadonlyPanelProps`为准。产物不自注册Pair面板，DSH Host／Client注册由集成包装负责。
+公开组件为`ReqPilotXReadonlyPanel`，公开类型和帮助函数从`src/host/index.ts`导出。完整TypeScript合同以`readonlyHost.ts`和`ReqPilotXReadonlyPanelProps`为准。产物不自注册Pair面板，DSH Host／Client注册由集成包装负责。宿主可把槽位提供的原生`t`通过可选`t`prop传入；固定流程状态、流程说明和任务控制等新文案使用该绑定，独立Web没有`t`时保持中文默认。
 
 ```tsx
 <ReqPilotXReadonlyPanel

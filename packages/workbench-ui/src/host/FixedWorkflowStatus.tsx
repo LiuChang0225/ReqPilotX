@@ -1,4 +1,5 @@
 import type { ApplicationWorkflowDescriptor, ApplicationWorkflowState } from "./ApplicationHost";
+import { useHostCopy } from "./HostLocaleContext";
 
 const statusLabels: Record<string, string> = {
   PENDING: "尚未保存", IN_PROGRESS: "处理中", SAVED: "已保存", SKIPPED: "按规则跳过",
@@ -17,43 +18,65 @@ const reasonLabels: Record<string, string> = {
   EVIDENCE_ANALYSIS_SKIPPED: "依据分析按声明跳过",
 };
 const evidenceLabels: Record<string, string> = {
-  TASK_CONTEXT: "任务与来源", DOCUMENT_MAP: "文档结构", SOURCE_ITEMS: "原文条目",
+  TASK_CONTEXT: "任务与来源", TASK_BINDING: "任务绑定", DOCUMENT_MAP: "文档结构", SOURCE_ITEMS: "原文条目",
   DECOMPOSITION: "明确派生", REVIEW_HEAD: "自查工作版", DELIVERY: "已保存交付",
   WORKFLOW_BRANCH: "声明分支", WORKFLOW_CHECK: "程序自查", DELIVERY_VERSION: "已保存交付版本",
 };
+const optionalInputKeys: Record<string, { label: string; reason: string }> = {
+  project_references: { label: "workflow.optional.project_references.label", reason: "workflow.optional.project_references.reason" },
+  team_knowledge: { label: "workflow.optional.team_knowledge.label", reason: "workflow.optional.team_knowledge.reason" },
+};
+const expectedOutputKeys: Record<string, string> = {
+  "可回查原文与顺序的文档结构": "workflow.expected.structure",
+  "保留完整父项的原文条目、分类及明确授权的必要派生": "workflow.expected.items",
+  "有内部依据时的引用分析；无内部依据时明确标记未执行": "workflow.expected.evidence",
+  "程序自查结果与当前可核对成果版本": "workflow.expected.check",
+};
 
 export function FixedWorkflowSummary({ workflow }: { workflow?: ApplicationWorkflowDescriptor | null }) {
-  if (!workflow) return <p className="agent-inline-notice" role="status">当前宿主尚未提供固定流程描述；不会用聊天目标替代阶段检查。</p>;
-  return <section className="fixed-workflow-intake" aria-label="固定业务流程">
-    <header><strong>{workflow.label || "客户需求整理固定流程"}</strong><span>版本 {workflow.version}</span></header>
+  const l = useHostCopy();
+  if (!workflow) return <p className="agent-inline-notice" role="status">{l("workflow.noDescriptor", "当前宿主尚未提供固定流程描述；不会用聊天目标替代阶段检查。")}</p>;
+  return <section className="fixed-workflow-intake" aria-label={l("workflow.intakeAria", "固定业务流程")}>
+    <header><strong>{l("workflow.defaultLabel", workflow.label || "客户需求整理固定流程")}</strong><span>{l("workflow.version", "版本 {version}", { version: workflow.version })}</span></header>
     <dl>
-      <div><dt>必需资料</dt><dd>{workflow.required_inputs?.map(item => item.label).join("、") || "客户需求文档"}</dd></div>
-      <div><dt>可选内部依据</dt><dd>{workflow.optional_inputs?.length
-        ? workflow.optional_inputs.map(item => `${item.label}：${item.available ? "可选择" : item.reason || "当前不可用"}`).join("；")
-        : "当前版本未接入项目参考或团队知识库。"}</dd></div>
-      <div><dt>预期成果</dt><dd>{workflow.expected_outputs?.join("；") || "结构、原文条目、分类、自查与可核对成果。"}</dd></div>
+      <div><dt>{l("workflow.required", "必需资料")}</dt><dd>{workflow.required_inputs?.map(item => item.id === "customer_source" ? l("workflow.customerSource", item.label) : item.label).join("、") || l("workflow.customerSource", "客户需求文档")}</dd></div>
+      <div><dt>{l("workflow.optional", "可选内部依据")}</dt><dd>{workflow.optional_inputs?.length
+        ? workflow.optional_inputs.map(item => {
+          const keys = optionalInputKeys[item.id];
+          const label = keys ? l(keys.label, item.label) : item.label;
+          const reason = item.available ? l("workflow.available", "可选择") : item.reason
+            ? keys ? l(keys.reason, item.reason) : item.reason
+            : l("workflow.unavailable", "当前不可用");
+          return `${label}：${reason}`;
+        }).join("；")
+        : l("workflow.noOptional", "当前版本未接入项目参考或团队知识库。")}</dd></div>
+      <div><dt>{l("workflow.expected", "预期成果")}</dt><dd>{workflow.expected_outputs?.map(text => {
+        const key = expectedOutputKeys[text];
+        return key ? l(key, text) : text;
+      }).join("；") || l("workflow.expectedFallback", "结构、原文条目、分类、自查与可核对成果。")}</dd></div>
     </dl>
-    <ol className="fixed-workflow-stage-list">{workflow.stages.map(stage => <li key={stage.id}>{stage.label}</li>)}</ol>
+    <ol className="fixed-workflow-stage-list">{workflow.stages.map(stage => <li key={stage.id}>{l(`workflow.stageLabel.${stage.id}`, stage.label)}</li>)}</ol>
   </section>;
 }
 
 export function FixedWorkflowStatus({ state, unconfirmed }: { state?: ApplicationWorkflowState | null;
   unconfirmed?: { reason: string; message?: string } | null }) {
+  const l = useHostCopy();
   if (!state) return <p className="agent-inline-notice" role="status">{unconfirmed
-    ? `固定流程状态未确认：${unconfirmed.message || unconfirmed.reason}。已保存成果仍保留，请重新读取任务后再核对。`
-    : "固定流程状态尚未保存；任务尚未开始或成果尚未同步。"}</p>;
-  if (state.verification === "UNCONFIRMED") return <section className="fixed-workflow-status" aria-label="固定流程成果">
-    <header><strong>业务成果阶段</strong><span>状态未确认</span></header>
-    <p role="status">固定流程状态未确认：{(state as ApplicationWorkflowState & { unconfirmed?: { reason?: string } }).unconfirmed?.reason || "派生状态与保存工件不一致"}。已保存成果仍保留，请重新读取任务后再核对。</p>
+    ? l("workflow.unconfirmed", "固定流程状态未确认：{reason}。已保存成果仍保留，请重新读取任务后再核对。", { reason: unconfirmed.message || unconfirmed.reason })
+    : l("workflow.noState", "固定流程状态尚未保存；任务尚未开始或成果尚未同步。")}</p>;
+  if (state.verification === "UNCONFIRMED") return <section className="fixed-workflow-status" aria-label={l("workflow.statusAria", "固定流程成果")}>
+    <header><strong>{l("workflow.statusHeading", "业务成果阶段")}</strong><span>{l("workflow.statusUnconfirmed", "状态未确认")}</span></header>
+    <p role="status">{l("workflow.unconfirmed", "固定流程状态未确认：{reason}。已保存成果仍保留，请重新读取任务后再核对。", { reason: (state as ApplicationWorkflowState & { unconfirmed?: { reason?: string } }).unconfirmed?.reason || l("workflow.unconfirmedReason", "派生状态与保存工件不一致") })}</p>
   </section>;
-  return <section className="fixed-workflow-status" aria-label="固定流程成果">
-    <header><strong>业务成果阶段</strong><span>流程 v{state.workflow.version}</span></header>
+  return <section className="fixed-workflow-status" aria-label={l("workflow.statusAria", "固定流程成果")}>
+    <header><strong>{l("workflow.statusHeading", "业务成果阶段")}</strong><span>{l("workflow.workflowVersion", "流程 v{version}", { version: state.workflow.version })}</span></header>
     <ol>{state.stages.map(stage => <li key={stage.id} data-status={stage.status}>
-      <span>{stage.label}</span><strong>{statusLabels[stage.status] || stage.status}</strong>
-      {stage.reason && <small>{reasonLabels[stage.reason] || stage.reason}</small>}
-      {stage.evidence?.length ? <small>{stage.evidence.map(item => evidenceLabels[item.kind] || item.kind).join("、")}</small> : null}
+      <span>{l(`workflow.stageLabel.${stage.id}`, stage.label)}</span><strong>{l(`workflow.stage.${stage.status}`, statusLabels[stage.status] || stage.status)}</strong>
+      {stage.reason && <small>{l(`workflow.reason.${stage.reason}`, reasonLabels[stage.reason] || stage.reason)}</small>}
+      {stage.evidence?.length ? <small>{stage.evidence.map(item => l(`workflow.evidence.${item.kind}`, evidenceLabels[item.kind] || item.kind)).join("、")}</small> : null}
     </li>)}</ol>
-    <p role="status">{state.ready_to_review ? "已保存成果满足当前可核对条件；人工接受仍未声称。" : `下一步：${state.next_stage ? state.stages.find(stage => stage.id === state.next_stage)?.label || state.next_stage : "继续处理未决项"}`}</p>
-    {state.open_items?.length ? <p className="agent-inline-notice">未决项：{state.open_items.map(item => reasonLabels[item] || item).join("；")}</p> : null}
+    <p role="status">{state.ready_to_review ? l("workflow.ready", "已保存成果满足当前可核对条件；人工接受仍未声称。") : `${l("workflow.next", "下一步：")}${state.next_stage ? l(`workflow.stageLabel.${state.next_stage}`, state.stages.find(stage => stage.id === state.next_stage)?.label || state.next_stage) : l("workflow.continueRemaining", "继续处理未决项")}`}</p>
+    {state.open_items?.length ? <p className="agent-inline-notice">{l("workflow.openItems", "未决项：")}{state.open_items.map(item => l(`workflow.reason.${item}`, reasonLabels[item] || item)).join("；")}</p> : null}
   </section>;
 }
