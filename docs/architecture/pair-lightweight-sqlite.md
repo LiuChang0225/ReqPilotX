@@ -117,12 +117,15 @@ route. See `reports/pair-lightweight/work/01-result.md` for the exact run.
 
 ## Not implemented here
 
-RX01 does not claim the fixed RX02 workflow, native Session continuation,
-project references, team knowledge, old PostgreSQL data migration, or complete
-Web acceptance. Deterministic parsing/OCR/job execution that still requires the
-PostgreSQL durable worker remains deferred and is surfaced as unavailable rather
-than reported as complete. The legacy `prototype/start.sh` worker pool remains a
-PostgreSQL development path and is not the Pair local activation path. Existing
-direct-file source identities are bound to the configured storage root, so
-relocating a populated root is not supported in RX01. The installed smoke uses
-synthetic material and no model.
+RX01 does not claim old PostgreSQL data migration or complete Web acceptance.
+The current branch adds the RX04/RX05 consumer path: Host task evidence bindings,
+PAIR project-reference uploads, team/live or retained-topic selection, task-scoped
+evidence tools, and typed saved analysis through the existing source-item owner.
+Those additions are source/scripted evidence here; real PAIR Go Max, browser and
+customer-document acceptance remain parent-owned. Deterministic parsing/OCR/job
+execution that still requires the PostgreSQL durable worker remains deferred and
+is surfaced as unavailable rather than reported as complete. The legacy
+`prototype/start.sh` worker pool remains a PostgreSQL development path and is not
+the Pair local activation path. Existing direct-file source identities are bound
+to the configured storage root, so relocating a populated root is not supported
+in RX01. The installed smoke uses synthetic material and no model.

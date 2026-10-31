@@ -18,7 +18,9 @@ def digest(value):
 
 
 def prepare(payload):
-    if set(payload) != {'workspace', 'expected_source_sha256', 'bundle_sha256', 'application_id', 'request'}:
+    allowed = {'workspace', 'expected_source_sha256', 'bundle_sha256', 'application_id', 'request',
+               'knowledge_evidence', 'evidence_mode', 'evidence_reason'}
+    if not {'workspace', 'expected_source_sha256', 'bundle_sha256', 'application_id', 'request'} <= set(payload) or set(payload) - allowed:
         raise ValueError('HOST_PREPARE_INVALID_FIELDS')
     reqpilot.load_runtime()
     from task_service import OpenRequest, TaskService
@@ -33,9 +35,20 @@ def prepare(payload):
     request_value = {**supplied, 'goal': goal}
     if supplied.get('workflow') is not None:
         raise ValueError('HOST_PREPARE_WORKFLOW_IS_SERVER_OWNED')
+    binding = payload.get('knowledge_evidence')
+    mode = payload.get('evidence_mode', 'NONE')
+    if binding is None:
+        if mode != 'NONE':
+            raise ValueError('HOST_EVIDENCE_BINDING_REQUIRED')
+    else:
+        from reqpilotx.application.agent_workflow import knowledge_binding
+        binding = knowledge_binding.validate_binding(binding)
+        if binding['mode'] != mode:
+            raise ValueError('HOST_EVIDENCE_MODE_CONFLICT')
+        request_value['knowledge_evidence'] = binding
     request_value['workflow'] = fixed_workflow.workflow_spec(
-        brief_sha256=fixed_workflow.brief_sha256(goal), evidence_mode='NONE',
-        evidence_reason='INTERNAL_EVIDENCE_NOT_WIRED')
+        brief_sha256=fixed_workflow.brief_sha256(goal), evidence_mode=mode,
+        evidence_reason=payload.get('evidence_reason') or ('NO_INTERNAL_EVIDENCE' if mode == 'NONE' else 'HOST_SELECTED_TASK_EVIDENCE'))
     request = OpenRequest.model_validate(request_value)
     if request.mode != 'create' or not request.source or not request.goal or not request.creation_key:
         raise ValueError('HOST_PREPARE_REQUIRES_CREATE')

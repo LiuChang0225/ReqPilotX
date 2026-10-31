@@ -3,6 +3,7 @@ import discovery from './application-discovery.cjs';
 import { installTaskMcp } from './task-mcp.js';
 import { TaskLauncher } from './task-launch.js';
 import { ManagedRuntime } from './managed-runtime.js';
+import { KnowledgeBridge, KnowledgeError } from './knowledge.js';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
 export const name = 'reqpilotx-readonly-host';
@@ -52,13 +53,73 @@ export function proxyTarget(requestUrl, origin) {
   return new URL(path + url.search, origin);
 }
 
+/** Business-facing knowledge routes. Original bytes and search stay owned by PAIR. */
+async function handleKnowledge(knowledge, url, req, res) {
+  const send = (status, value) => { res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(value === undefined ? undefined : JSON.stringify(value)); };
+  if (req.method === 'GET' && url.pathname === PREFIX + '/knowledge/inventory') {
+    const projectId = url.searchParams.get('projectId') || '';
+    if (!projectId) throw new KnowledgeError('INVALID_PROJECT', 422);
+    send(200, await knowledge.inventory(projectId)); return true;
+  }
+  const upload = /^\/reqpilotx\/knowledge\/projects\/([^/]+)\/references$/.exec(url.pathname);
+  if (upload && req.method === 'POST') {
+    const projectId = decodeURIComponent(upload[1]);
+    const name = String(url.searchParams.get('name') || '');
+    const kind = String(url.searchParams.get('kind') || 'REFERENCE');
+    const chunks = []; let size = 0;
+    for await (const chunk of req) { size += chunk.length; if (size > 128 * 1024 * 1024) throw new KnowledgeError('REFERENCE_TOO_LARGE', 413); chunks.push(chunk); }
+    send(201, await knowledge.uploadProjectReference(projectId, name, Buffer.concat(chunks), kind)); return true;
+  }
+  const retry = /^\/reqpilotx\/knowledge\/projects\/([^/]+)\/references\/([^/]+)\/retry$/.exec(url.pathname);
+  if (retry && req.method === 'POST') {
+    send(200, await knowledge.retryProjectReference(decodeURIComponent(retry[1]), decodeURIComponent(retry[2]))); return true;
+  }
+  const topics = /^\/reqpilotx\/knowledge\/team\/([^/]+)\/topics$/.exec(url.pathname);
+  if (topics && req.method === 'GET') {
+    send(200, { versions: await knowledge.teamTopics(decodeURIComponent(topics[1])) }); return true;
+  }
+  if (req.method === 'GET' && url.pathname === PREFIX + '/knowledge/team') {
+    send(200, { libraries: await knowledge.teamInventory() }); return true;
+  }
+  const task = /^\/reqpilotx\/knowledge\/tasks\/([^/]+)$/.exec(url.pathname);
+  if (task && req.method === 'GET') {
+    const commandId = decodeURIComponent(task[1]);
+    const binding = await knowledge.loadBinding(commandId);
+    send(200, { bindingSha256: binding.binding_sha256, mode: binding.mode,
+      status: await knowledge.checkBinding(commandId) }); return true;
+  }
+  const original = /^\/reqpilotx\/knowledge\/tasks\/([^/]+)\/documents\/([^/]+)$/.exec(url.pathname);
+  if (original && req.method === 'GET') {
+    const commandId = decodeURIComponent(original[1]);
+    const documentId = decodeURIComponent(original[2]);
+    const value = await knowledge.original(commandId, documentId, url.searchParams.get('version'));
+    const bytes = Buffer.from(value.bytes || value);
+    res.writeHead(200, { 'content-type': value.document?.mime || 'application/octet-stream',
+      'content-disposition': 'inline; filename="' + encodeURIComponent(value.document?.name || documentId) + '"',
+      'cache-control': 'no-store', 'x-content-type-options': 'nosniff' });
+    res.end(bytes); return true;
+  }
+  return false;
+}
+
 /** Authenticated resource broker with an explicit write policy; no Pair credentials go upstream. */
-export function createHandler(origin, reject, transport = fetch, runtimeSnapshot, taskLauncher) {
+export function createHandler(origin, reject, transport = fetch, runtimeSnapshot, taskLauncher, knowledge = null) {
   return async (req, res) => {
     const denied = reject(req);
     if (denied !== undefined) { res.writeHead(denied); res.end(); return; }
     const url = new URL(req.url, 'http://pair.invalid');
     const state = runtimeSnapshot ? runtimeSnapshot() : { serviceOrigin: origin, mode: 'readonly-connect', status: 'READY' };
+    if (knowledge && url.pathname.startsWith(PREFIX + '/knowledge/')) {
+      try {
+        const result = await handleKnowledge(knowledge, url, req, res);
+        if (result !== false) return;
+      } catch (error) {
+        const status = error instanceof KnowledgeError ? error.status : (error.status || 502);
+        res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(JSON.stringify({ error: error.code || 'KNOWLEDGE_REQUEST_FAILED', message: error.message }));
+        return;
+      }
+    }
     if (url.pathname === PREFIX + '/tasks' || url.pathname === PREFIX + '/tasks/start' || url.pathname.startsWith(PREFIX + '/tasks/')) {
       try {
         if (!taskLauncher) { res.writeHead(503); res.end(JSON.stringify({ error: 'TASK_LAUNCH_NOT_CONFIGURED' })); return; }
@@ -126,8 +187,17 @@ export function createHandler(origin, reject, transport = fetch, runtimeSnapshot
 export function apply(ctx, config = {}) {
   const connect = config.mode === 'connect' || (!config.mode && config.serviceOrigin);
   const runtime = connect ? null : new ManagedRuntime(ctx.subprocess, config);
-  const taskLauncher = runtime && config.capabilityRoot ? new TaskLauncher(runtime, config, () => ({ sessions: ctx.get('sessionController'), workspaces: ctx.get('workspaceController'), defaultModel: ctx.get('agentDefaultModel'), liveStatus: id => ctx.get('agents')?.get(id)?.status })) : null;
+  const knowledgeService = !connect && typeof ctx.get === 'function' ? ctx.get('knowledge') : undefined;
+  const applicationId = () => {
+    if (!runtime || !runtime.ownerId) return null;
+    try { return discovery.publicConfiguration({ ...runtime.snapshot, ownerId: runtime.ownerId }).applicationId; }
+    catch { return null; }
+  };
+  const knowledge = knowledgeService && runtime
+    ? new KnowledgeBridge({ service: knowledgeService, runtime, dataRoot: runtime.dataRoot, applicationId }) : null;
+  const taskLauncher = runtime && config.capabilityRoot ? new TaskLauncher(runtime, config, () => ({ sessions: ctx.get('sessionController'), workspaces: ctx.get('workspaceController'), defaultModel: ctx.get('agentDefaultModel'), liveStatus: id => ctx.get('agents')?.get(id)?.status }), fetch, knowledge) : null;
   if (taskLauncher && config.taskMcp === true) installTaskMcp(ctx, taskLauncher);
+  if (knowledge) ctx.effect(() => () => knowledge.close(), 'reqpilotx: knowledge evidence lifetime');
   const origin = connect ? serviceOrigin(config.serviceOrigin) : null;
   if (runtime) {
     if (typeof ctx.inject === 'function') ctx.inject(['pairSkillCenter'], scope => { registerPairApplication(scope, runtime); });

@@ -14,9 +14,14 @@
 文档起始页和任务面板显示：
 
 - 必需的客户需求文档；
-- 当前版本未接入的项目参考资料／团队知识库（如实不可用，RX04/05）；
+- 可选的 PAIR 项目参考资料（本项目专属库）与团队知识库／保留主题版本；
 - 固定流程预期成果和阶段顺序；
 - 可选的补充说明和“先核对结构”选项。
+
+PAIR 宿主存在 `ctx.knowledge` 时，项目参考上传走
+`importProjectReferenceSource`，不请求 Wiki；文件、解析状态和失败重试如实显示。
+项目库由稳定应用身份和项目 ID 通过 `ensure/getProjectReferenceLibrary` 获取并回读校验。
+团队库只出现在非 application-project 的所有者范围；UI 隐藏不代替 Host 校验。
 
 用户只需开始一次。补充说明保存在任务意图中，不能取消阶段或成果检查。
 
@@ -24,6 +29,22 @@
 `loop/latest` 在队列未装配时返回明确的 `NOT_STARTED` 与
 `UNAVAILABLE_LOCAL_RUNTIME`，因此空文档显示“尚未发起任务/尚无原文工作版”，
 而不是持续“任务状态暂未同步”。其它真实读取失败仍保留错误状态。
+
+## 任务证据绑定与工具
+
+启动任务前，Host 按用户明确选择生成冻结绑定：
+
+- 项目参考 caller 只选择该项目库及其明确文档；团队实时文档 caller 只选择该团队库及其明确文档；
+- 保留主题使用独立 caller，只选择该团队库和精确版本，不读取该库实时原文；
+- 组合场景把项目与主题放在两个独立 caller 中，同属一份任务 binding，不继承其他会话选择；
+- 绑定记录原文 SHA、解析版本、覆盖、物理页／逻辑段位置和 Wiki 状态，并写入任务上下文；任务创建键和指纹同时冻结选择，之后变化不会静默改绑。
+
+任务证据 MCP 工具（`reqpilot_knowledge`）只解析冻结绑定：
+`knowledge_evidence_search`、`knowledge_evidence_read`、`knowledge_topic_read` 返回带
+`fact_id`、原文引用、页码／逻辑段、覆盖和版本的摘录；每次调用由 Host 记录消费回执。
+`knowledge_analysis_save` 把这些实际消费的事实组成知识目录，调用既有
+source-item assessment 编译器保存非正式分析；没有消费事实或引用未被工具返回时拒绝。
+证据文本始终是数据，不是权限或指令；不可用、已变化或越界请求显式拒绝并保留原工作。
 
 ## 服务端固定流程
 
@@ -34,7 +55,8 @@
 1. `PREPARATION`：任务上下文、原件字节与能力包；
 2. `SOURCE_MAP`：已保存 Document Map；
 3. `ITEMS_CLASSIFICATION`：已保存条目、分类及明确范围的派生；
-4. `EVIDENCE_ANALYSIS`：有内部依据时的保存分析；声明无依据时 `SKIPPED`；
+4. `EVIDENCE_ANALYSIS`：有冻结内部依据时必须保存实际分析建议；无依据分支 `SKIPPED`。
+   仅有选择、导入或策略声明不算分析结果；建议进入原分析工作台和同版 Excel；
 5. `SELF_CHECK`：绑定当前来源、Map、条目、review 与交付的程序检查成功回执；
 6. `DELIVERABLE`：与当前条目同版的已保存交付。
 
@@ -91,6 +113,9 @@ SessionController/Workspace/MCP 完成一次 `task_open` 后结束。脚本文�
 
 - 真实 Go Max 任务、原生 PAIR 浏览器和真实客户文档由父任务验收；
 - RX03 的成果后原生会话解释／派生／修订本轮只保留既有 hooks；
-- RX04/05 的项目参考和团队知识仍不可用，工作台如实显示不可用；
+- RX04/05 消费端在本分支实现源码与脚本化验证；真实 PAIR Go Max、浏览器和客户语义验收仍由父任务执行。
+  保留主题 JSON 的具体字段按已交付 provider 合同解析；不同 PAIR 构建的字段差异仍需实际运行核对。
 - 冻结能力包准备另使用合成 HTTP 与脚本化 Session 控制器；真实 DSH 原生
-  Session 证明只覆盖 keyless 脚本路由。
+  Session 证明只覆盖 keyless 脚本路由。证据消费／版本变化的 keyless 原生 Session
+  场景见 `integrations/pair/scripts/dsh-knowledge-native-snapshot-probe.mjs`，仍待父任务在本机 PAIR
+  源码与真实构建上执行。

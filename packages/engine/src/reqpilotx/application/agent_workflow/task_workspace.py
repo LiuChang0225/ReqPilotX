@@ -19,6 +19,7 @@ from uuid import uuid4
 from reqpilotx.application.agent_workflow.artifact_kind_catalog import file_sha256, inside, read_json, validate_bundle
 from reqpilotx.application.agent_workflow.native_task_brief import build_task_brief
 from reqpilotx.application.agent_workflow.fixed_workflow import project_workflow, validate_workflow_spec
+from reqpilotx.application.agent_workflow import knowledge_binding
 from reqpilotx.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
 
 SCHEMA = 'reqpilot-task-workspace/v1'
@@ -123,6 +124,8 @@ def _read_context(root):
         raise ValueError('Task request facts are invalid')
     if request.get('workflow') is not None:
         validate_workflow_spec(request['workflow'])
+    if request.get('knowledge_evidence') is not None:
+        knowledge_binding.validate_binding(request['knowledge_evidence'])
     binding = value.get('binding_file')
     if not isinstance(binding, str) or not binding:
         raise ValueError('Task binding file reference is invalid')
@@ -251,12 +254,15 @@ def _resolve_ref(root, value):
 
 def initialize_workspace(working_root, source, goal, project_key=None, document_key=None,
                          project_id=None, document_id=None, require_map_confirmation=False, runtime_ref=None, creation_key=None,
-                         workflow=None):
+                         workflow=None, knowledge_evidence=None):
     if workflow is not None:
         validate_workflow_spec(workflow)
+    if knowledge_evidence is not None:
+        validate_bound_evidence(knowledge_evidence)
     arguments = dict(project_key=project_key, document_key=document_key, project_id=project_id, document_id=document_id,
                      require_map_confirmation=require_map_confirmation, runtime_ref=runtime_ref,
-                     **({'workflow': workflow} if workflow is not None else {}))
+                     **({'workflow': workflow} if workflow is not None else {}),
+                     **({'knowledge_evidence': knowledge_evidence} if knowledge_evidence is not None else {}))
     if creation_key is None:
         return _initialize_workspace(working_root, source, goal, **arguments)
     if not isinstance(creation_key, str) or not creation_key.strip() or len(creation_key) > 200:
@@ -310,9 +316,11 @@ def initialize_workspace(working_root, source, goal, project_key=None, document_
 
 def _initialize_workspace(working_root, source, goal, project_key=None, document_key=None,
                           project_id=None, document_id=None, require_map_confirmation=False, runtime_ref=None, _work_id=None,
-                          workflow=None):
+                          workflow=None, knowledge_evidence=None):
     if workflow is not None:
         validate_workflow_spec(workflow)
+    if knowledge_evidence is not None:
+        validate_bound_evidence(knowledge_evidence)
     source = Path(source).expanduser().resolve(strict=True)
     if not source.is_file() or not isinstance(goal, str) or not goal.strip():
         raise ValueError('Task initialization needs an actual original and exact user request')
@@ -353,7 +361,8 @@ def _initialize_workspace(working_root, source, goal, project_key=None, document
         context = _seal({'schema_version': SCHEMA, 'work_id': work_id, 'project_key': project_key, 'document_key': document_key,
             'project_id': project_id, 'document_id': document_id, 'source': {'path': source_relative, 'sha256': source_sha, 'display_name': source.name},
             'request': {'goal': goal, 'origin': 'USER_REQUEST', 'require_map_confirmation': require_map_confirmation,
-                        **({'workflow': workflow} if workflow is not None else {})},
+                        **({'workflow': workflow} if workflow is not None else {}),
+                        **({'knowledge_evidence': knowledge_evidence} if knowledge_evidence is not None else {})},
             'binding_file': f'runtime-data/workbench-bindings/{source_sha}.json', 'binding_portability': 'TASK_RELATIVE', 'runtime_ref': runtime_ref, 'created_at': _now()}, 'context_sha256')
         _atomic_json(root / 'task-context.json', context)
         _write_index(root, _empty_index(context))
@@ -850,6 +859,22 @@ def _map_compiler_navigation(root, context, index, selected):
         compiler_candidates=choices, path_role='CURRENT_OWNER_MAP')
 
 
+def validate_bound_evidence(value):
+    """Validate a detached Host binding and require a consistent workflow mode."""
+    binding = knowledge_binding.validate_binding(value)
+    return binding
+
+
+def _knowledge_status(root, binding):
+    path = root / 'knowledge-evidence-status.json'
+    if not path.is_file():
+        return None
+    value = knowledge_binding.validate_status(read_json(path), binding)
+    if value['task_id'] != _read_context(root)['work_id']:
+        raise ValueError('EVIDENCE_STATUS_INVALID: task differs')
+    return value
+
+
 def workspace_status(task_root, refresh=True):
     root, context = _resolve_task(task_root)
     index = _index(root, context)
@@ -906,8 +931,11 @@ def workspace_status(task_root, refresh=True):
         workflow_check = read_json(check_path)
         workflow_check['check_sha256'] = file_sha256(check_path)
         workflow_check['_path'] = str(check_path)
+    bound_evidence = knowledge_binding.binding_from_request(context.get('request'))
+    evidence_status = _knowledge_status(root, bound_evidence) if bound_evidence else None
     workflow = project_workflow(context=context, selected=selected, brief=brief, review=review,
-                                check=workflow_check, incomplete_operations=incomplete_operations)
+                                check=workflow_check, incomplete_operations=incomplete_operations,
+                                bound_evidence=bound_evidence, evidence_status=evidence_status)
     status = {'schema_version': 'reqpilot-workspace-status/v1', 'task_root': str(root), 'revision': _revision(context, index, review), 'context': context, 'index': index, 'selected': selected, 'brief': brief,
         'current_working': review or {'owner': 'task_workspace', 'generation': index['generation'], 'selected': selected},
         'binding_file': str(binding_path), 'workbench_url': binding.get('url') or binding.get('workbench_url') or (binding.get('base_url', '') + binding['workbench_path'] if binding.get('workbench_path') else None),
@@ -915,6 +943,8 @@ def workspace_status(task_root, refresh=True):
         'running_state': 'UNREPORTED', 'human_acceptance': 'NOT_CLAIMED', 'source_verification': 'BYTES_MATCH',
         **({'workflow': workflow} if workflow else {}),
         **({'workflow_check': workflow_check} if workflow_check else {}),
+        **({'knowledge_evidence': bound_evidence} if bound_evidence else {}),
+        **({'knowledge_evidence_status': evidence_status} if evidence_status else {}),
         'incomplete_operations': incomplete_operations}
     if workflow:
         path = root / 'workflow-status.json'
@@ -929,6 +959,9 @@ def workspace_status(task_root, refresh=True):
                  '## 程序核对的当前状态', '', brief['work_state_label'], '', '原件：`' + context['source']['path'] + '`',
                  '原件 SHA256：`' + context['source']['sha256'] + '`', '结构确认：' + brief['map_confirmation'],
                  '内部依据策略：' + brief['analysis_policy']['status'], '人工接受：未声称；程序保存不代表语义正确。', '']
+        if bound_evidence:
+            lines += ['## 内部依据', '', '模式：`' + bound_evidence['mode'] + '`；绑定：`' + bound_evidence['binding_sha256'] + '`',
+                      '证据工具只能读取该任务冻结的所选文档或保留主题版本；不可用时不得形成新的符合性结论。', '']
         if workflow:
             lines += ['## 固定工作流', '', '版本：`' + workflow['workflow']['version'] + '`；来源：`' + workflow['source_sha256'] + '`',
                       '阶段推进只认已保存工件；Agent 文字、会话空闲或完成声明不推进阶段。',

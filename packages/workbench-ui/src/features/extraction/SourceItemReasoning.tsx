@@ -7,6 +7,7 @@ import { SAAS_KIT_UNAVAILABLE_MESSAGE } from "./saasAgentAvailability";
 import { Icon } from "../../shared/ui/Icon";
 import { projectKnowledgeFileUrl, useAnalysisKnowledgeSelection } from "../knowledge/projectKnowledge";
 import { useWorkbenchHost } from "../workspace/WorkbenchHostContext";
+import { useApplicationHost } from "../../host/ApplicationHost";
 import { NativeEvidenceReview } from "../knowledge/NativeEvidenceReview";
 import { EngineerOpinion, ENGINEER_DECISION_LABELS, type EngineerChoice, type EngineerResponseView } from "./EngineerOpinion";
 
@@ -15,6 +16,9 @@ type Carry = { operation?: string; from_baseline_sha256?: string; retained_paren
 type InputReceipt = { operation?: string; baseline_sha256?: string; origin_input_receipt?: InputReceipt };
 type CarryNote = { text: string; origin?: string };
 type Citation = { fact_id: string; quote: string };
+type EvidenceFact = { document_name?: string; document_id: string; source_sha256: string; url?: string; kb_id?: string;
+  original_revision?: string; extraction_revision?: string; coverage?: string; location?: string;
+  applicability?: string; source_ref?: { location?: { page_number?: number; section?: string | null } } };
 type Decision = { decision: string; reason: string; clarification_question: string; evidence: Citation[] };
 type Child = SourceNumberFieldsV1 & { node_id?: string; singular_requirement_id?: string; requirement_display_id: string; text: string;
   source_excerpts?: { text: string; page?: number }[]; requirement_kinds?: SourceRequirementKindV1[] };
@@ -35,10 +39,7 @@ export type SourceItemDeliveryState = {
     review_scope?: { authorized_count: number; decided_count: number; remaining_count: number; complete: boolean };
     carry_forward?: Carry;
     identity_registry?: Record<string, Record<string, string>> } | null;
-  assessments: { records: Record<string, Decision>; carry_forward?: Carry; unit_input_receipts?: Record<string, InputReceipt>; evidence_catalog: Record<string, {
-    document_name?: string; document_id: string; source_sha256: string;
-    source_ref?: { location?: { page_number?: number } };
-  }> } | null;
+  assessments: { records: Record<string, Decision>; carry_forward?: Carry; unit_input_receipts?: Record<string, InputReceipt>; evidence_catalog: Record<string, EvidenceFact> } | null;
 };
 
 function agentRoot(projectId: string, documentId: string) {
@@ -176,6 +177,7 @@ export function useSourceItemReasoning(projectId: string, documentId: string, ba
   return { scopeKey: key, state, error, pending, job, run, exportMatrix, saveEngineerResponse, loadEngineerResponses, knowledgeSelection,
     sourceEvidenceScope: { projectId, documentId, sourceSha256: state?.source_sha256 || "", baselineSha256: baselineSha },
     knowledgeFileUrl: (documentId: string, sha: string) => { const url = projectKnowledgeFileUrl(projectId, documentId, sha); return url ? host.resourceUrl(url) : ""; },
+    citationUrl: (fact?: EvidenceFact) => fact?.url || "",
     refresh: () => { setError(""); setRefresh(value => value + 1); },
     busy: Boolean(pending || ["PENDING", "RUNNING"].includes(job?.status || "")) };
 }
@@ -183,14 +185,17 @@ export function useSourceItemReasoning(projectId: string, documentId: string, ba
 export type SourceItemReasoningController = ReturnType<typeof useSourceItemReasoning>;
 
 export function SourceItemDeliveryActions({ workflow, compact = false, exportOnly = false }: { workflow: SourceItemReasoningController; compact?: boolean; exportOnly?: boolean }) {
+  const applicationHost = useApplicationHost();
+  const pairEvidence = applicationHost?.knowledge?.available === true;
   return <div className="source-item-delivery-actions">
-    {!exportOnly && (compact ? <details className="source-review-more-actions"><summary>分析操作</summary><div>
+    {!exportOnly && !pairEvidence && (compact ? <details className="source-review-more-actions"><summary>分析操作</summary><div>
       <p>使用已提供的资料分析；缺少证据的内容保持待补充。</p>
       <button className="button secondary compact" disabled={isSaasAccountMode() || !workflow.state || workflow.busy} title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined} onClick={() => void workflow.run("analysis")}>分析全部需求</button>
       {isSaasAccountMode() && <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p>}
     </div></details> : <button className="button secondary compact" disabled={isSaasAccountMode() || !workflow.state || workflow.busy}
       title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined}
       onClick={() => void workflow.run("analysis")}>分析全部需求</button>)}
+    {!exportOnly && pairEvidence && <p className="muted">符合性分析由本次 PAIR 会话通过冻结的内部依据保存；这里只核对已保存建议与引用。</p>}
     {!exportOnly && !compact && isSaasAccountMode() && <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p>}
     <button className="button secondary compact" disabled={!workflow.state || workflow.pending === "export"}
       onClick={() => void workflow.exportMatrix()}><Icon name="download" size={14} />
@@ -249,6 +254,8 @@ export function SourceItemReasoningDetail({ workflow, sourceItemId, requirementI
   const state = workflow.state;
   const [selectedUnit, setSelectedUnit] = useState("");
   const host = useWorkbenchHost();
+  const applicationHost = useApplicationHost();
+  const pairEvidence = applicationHost?.knowledge?.available === true;
   const [evidenceUnit, setEvidenceUnit] = useState<{ id: string; label: string } | null>(null);
   useEffect(() => { setEvidenceUnit(null); }, [workflow.scopeKey, sourceItemId, selectedUnitId]);
   const children = state?.decomposition?.records[sourceItemId] || [];
@@ -304,11 +311,11 @@ export function SourceItemReasoningDetail({ workflow, sourceItemId, requirementI
           <p key={index}>{part.text}{part.page ? <button type="button" onClick={() => onPageChange(part.page!)}>P{part.page}</button> : null}</p>)}</details> : null}
         {!reviewMode && purpose !== "review" && <EngineerOpinion unitId={unit.unitId} view={state?.engineer_responses} onSave={workflow.saveEngineerResponse} onLoad={workflow.loadEngineerResponses} readOnly={engineerReadOnly}
           defaultExpanded draftScope={workflow.scopeKey} suggestion={decision} />}
-        {!reviewMode && purpose !== "review" && host.nativeEvidence === true && !host.readOnly && !readOnly && workflow.sourceEvidenceScope?.projectId && <button type="button" className="button secondary compact native-evidence-review-trigger" disabled={!state || workflow.busy} onClick={() => setEvidenceUnit({ id: unit.unitId, label: unit.requirement_display_id })}>核对证据并准备评审草稿</button>}
+        {!reviewMode && purpose !== "review" && !pairEvidence && host.nativeEvidence === true && !host.readOnly && !readOnly && workflow.sourceEvidenceScope?.projectId && <button type="button" className="button secondary compact native-evidence-review-trigger" disabled={!state || workflow.busy} onClick={() => setEvidenceUnit({ id: unit.unitId, label: unit.requirement_display_id })}>核对证据并准备评审草稿</button>}
         {decision && <div className="analysis-suggestion"><strong>{engineer?.state === "CURRENT" ? "AI分析建议（保留）" : "Agent 分析建议"}</strong><details className="analysis-rationale" open={reviewMode}><summary>判断依据</summary><p>{decision.reason}</p></details>{decision.clarification_question && <p><strong>待补充：</strong>{decision.clarification_question}</p>}
           {decision.evidence.map((citation, index) => {
             const fact = state?.assessments?.evidence_catalog[citation.fact_id];
-            const sourceUrl = fact && workflow.knowledgeFileUrl?.(fact.document_id, fact.source_sha256);
+            const sourceUrl = fact?.url ? workflow.citationUrl?.(fact) : fact && workflow.knowledgeFileUrl?.(fact.document_id, fact.source_sha256);
             return <blockquote key={`${citation.fact_id}:${index}`}><p>{citation.quote}</p><cite>
               {sourceUrl ? <a href={`${sourceUrl}${fact?.source_ref?.location?.page_number ? `#page=${fact.source_ref.location.page_number}` : ""}`} target="_blank" rel="noreferrer">{fact?.document_name || "打开引用原件"}{fact?.source_ref?.location?.page_number ? ` · P${fact.source_ref.location.page_number}` : ""}</a> : <>{fact?.document_name || fact?.document_id || "内部资料"}{fact?.source_ref?.location?.page_number ? ` · P${fact.source_ref.location.page_number}` : ""}</>}
             </cite></blockquote>;

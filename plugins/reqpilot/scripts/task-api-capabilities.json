@@ -18,7 +18,9 @@
     "annotations",
     "decomposition",
     "revise",
-    "delivery_read"
+    "delivery_read",
+    "analysis",
+    "evidence_status"
   ],
   "read_views": [
     "source",

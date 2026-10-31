@@ -1,0 +1,15 @@
+.knowledge-evidence-picker { display: grid; gap: 10px; padding: 10px 0; border-top: 1px solid var(--border, #d9d4ca); }
+.knowledge-evidence-picker > header, .knowledge-evidence-upload, .knowledge-evidence-mode, .knowledge-evidence-status { display: flex; align-items: center; gap: 8px; flex-wrap: wrap; justify-content: space-between; }
+.knowledge-evidence-picker h4 { margin: 6px 0 4px; font-size: 13px; }
+.knowledge-evidence-picker small, .knowledge-evidence-note, .knowledge-evidence-summary { color: var(--muted, #6f7a73); font-size: 12px; }
+.knowledge-evidence-picker ul { list-style: none; margin: 0; padding: 0; display: grid; gap: 4px; }
+.knowledge-evidence-picker li label { display: flex; gap: 7px; align-items: flex-start; }
+.knowledge-evidence-picker li span { display: grid; gap: 1px; min-width: 0; }
+.knowledge-evidence-picker li strong { overflow-wrap: anywhere; font-size: 12px; }
+.knowledge-evidence-error { color: var(--danger, #a3352b); margin: 0; }
+.knowledge-evidence-unavailable { margin: 0; color: var(--muted, #6f7a73); }
+.knowledge-evidence-summary { margin: 0; }
+.knowledge-evidence-authority { font-size: 12px; display: flex; gap: 6px; align-items: flex-start; }
+.knowledge-evidence-team select, .knowledge-evidence-upload select { max-width: 100%; }
+.pair-knowledge-workspace { padding: 16px; }
+.pair-knowledge-workspace > header { margin-bottom: 8px; }

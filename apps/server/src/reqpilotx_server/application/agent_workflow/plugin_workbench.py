@@ -25,6 +25,8 @@ from reqpilotx_server.application.errors import ApplicationError
 from reqpilotx_server.application.source_runtime import resolve_source_record_path
 from reqpilotx_server.application.transport import BinaryArtifact, ResponseSink
 from reqpilotx.application.agent_workflow import fixed_workflow as workflow_contract
+from reqpilotx.application.agent_workflow import source_item_analysis as analysis_core
+from reqpilotx.application.agent_workflow import pair_evidence
 
 SHA = r'^[0-9a-f]{64}$'
 SESSION = r'^plugin-[0-9a-f]{32}$'
@@ -32,6 +34,8 @@ ARTIFACT_NAMES = {
     'document-map.json', 'source-requirement-baseline.json', 'validation-receipt.json',
     'table-previews.json', 'item-compilation-receipt.json', 'workflow-check.json',
     'image-annotations.json', 'source-item-decomposition.json', 'analysis-policy.json',
+    'source-item-assessments.json', 'analysis-packet.json', 'knowledge-catalog.json',
+    'evidence-registration.json',
 }
 
 
@@ -146,6 +150,7 @@ def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root
     remaining = decomposition.get('review_scope', {}).get('remaining_source_item_ids', [])
     remaining = len(remaining) if isinstance(remaining, list) else 1
     policy = artifacts.get('analysis-policy.json') or {}
+    assessments = artifacts.get('source-item-assessments.json') or {}
     mode = spec['evidence']['mode']
     open_items = []
     blocking = []
@@ -188,7 +193,9 @@ def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root
     elif mode == 'NONE':
         evidence_status, evidence_reason = 'SKIPPED', 'NO_INTERNAL_EVIDENCE'
         open_items.append('EVIDENCE_ANALYSIS_SKIPPED')
-    elif policy.get('status') == 'SKIPPED':
+    elif assessments and assessments.get('baseline_sha256') == baseline.artifact_sha256:
+        evidence_status, evidence_reason = 'SAVED', None
+    elif policy.get('status') == 'SKIPPED' and mode == 'NONE':
         evidence_status, evidence_reason = 'SKIPPED', policy.get('reason') or 'USER_SKIPPED'
         open_items.append('EVIDENCE_ANALYSIS_SKIPPED')
     else:
@@ -309,7 +316,10 @@ def _current_fixed_workflow(root, head):
                     raise ValueError('Source items differ from this Map/source')
             artifacts = {name: _artifact(directory, version, name) for name in
                          ('source-item-decomposition.json', 'analysis-policy.json',
-                          'item-compilation-receipt.json', 'workflow-check.json') if name in version['files']}
+                          'item-compilation-receipt.json', 'workflow-check.json',
+                          'source-item-assessments.json', 'analysis-packet.json',
+                          'knowledge-catalog.json', 'evidence-registration.json')
+                         if name in version['files']}
         else:
             mapping = None; baseline = None; artifacts = {}
         payload = {'schema': workflow_contract.STATE_SCHEMA, 'source_sha256': head['source_sha256'],
@@ -400,8 +410,27 @@ def _compile_view(artifacts, source_sha):
     elif set(artifacts)-{'document-map.json','table-previews.json'}:
         raise ValueError('Annotations and review state require their actual source baseline')
     view_baseline=baseline or core.create_empty_source_requirement_baseline(mapping)[0]
+    assessment_values = (artifacts.get('source-item-assessments.json'),
+        artifacts.get('analysis-packet.json'), artifacts.get('knowledge-catalog.json'),
+        artifacts.get('evidence-registration.json'))
+    if any(value is not None for value in assessment_values):
+        if not all(value is not None for value in assessment_values) or baseline is None:
+            raise ValueError('Saved analysis requires its assessments, packet, knowledge catalog and evidence registration')
+        catalog = pair_evidence.validate_pair_registration(assessment_values[3], assessment_values[2])
+        packet = assessment_values[1]
+        expected = analysis_core.build_source_item_analysis_packet(mapping, baseline,
+            artifacts['table-previews.json'], catalog,
+            decomposition=artifacts.get('source-item-decomposition.json'),
+            image_annotations=artifacts.get('image-annotations.json'),
+            selected_unit_ids=packet.get('selected_unit_ids'))
+        if packet != expected:
+            raise ValueError('Analysis packet differs from the actual source, Map, items, derivation or selected evidence')
+        analysis_core.validate_source_item_assessments(packet, assessment_values[0])
+        if assessment_values[0].get('baseline_sha256') != baseline.artifact_sha256:
+            raise ValueError('Saved analysis belongs to another source baseline')
     snapshot=build_delivery_snapshot(mapping,view_baseline,artifacts['table-previews.json'],
         annotations=artifacts.get('image-annotations.json'),decomposition=artifacts.get('source-item-decomposition.json'),
+        assessments=artifacts.get('source-item-assessments.json'),
         analysis_policy=artifacts.get('analysis-policy.json'))
     return mapping,baseline,snapshot,artifacts.get('analysis-policy.json')
 
@@ -468,8 +497,9 @@ def sync_plugin_draft(project_id: str,document_id: str,payload: PluginDraftUploa
             saved_artifacts['manual-decisions.json'] = manual
             snapshot = build_delivery_snapshot(mapping, baseline or core.create_empty_source_requirement_baseline(mapping)[0],
                 payload.artifacts['table-previews.json'], annotations=payload.artifacts.get('image-annotations.json'),
-                decomposition=payload.artifacts.get('source-item-decomposition.json'), analysis_policy=policy,
-                manual_decisions=manual)
+                decomposition=payload.artifacts.get('source-item-decomposition.json'),
+                assessments=payload.artifacts.get('source-item-assessments.json'),
+                analysis_policy=policy, manual_decisions=manual)
         revision=core.canonical_json_sha256({**identity,'predecessor_revision_id':head.get('revision_id')})
         directory=root/'versions'/revision;directory.mkdir(parents=True,exist_ok=True,mode=0o700)
         # Replaying an interrupted write is safe because this directory is content-addressed.

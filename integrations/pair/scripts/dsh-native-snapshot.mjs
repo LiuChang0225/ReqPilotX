@@ -11,6 +11,8 @@ import { fileURLToPath, pathToFileURL } from 'node:url';
 
 const [pairArg, pythonArg, bundleArg, outArg, dshCliArg] = process.argv.slice(2);
 if (!outArg) throw Error('Usage: dsh-native-snapshot.mjs <pair-source-root> <python> <frozen-bundle> <new-output> [dsh-cli]');
+const scenario = process.env.REQPILOT_NATIVE_SCENARIO || 'source';
+if (!['source', 'knowledge-evidence'].includes(scenario)) throw Error('Unknown REQPILOT_NATIVE_SCENARIO: ' + scenario);
 const pair = resolve(pairArg), python = resolve(pythonArg), bundle = resolve(bundleArg), output = resolve(outArg);
 await mkdir(output, { recursive: false, mode: 0o700 });
 const home = join(output, 'harness-home'), dataRoot = join(output, 'owned');
@@ -34,14 +36,29 @@ const mock = createServer(async (req, res) => {
   res.writeHead(200, { 'content-type': 'text/event-stream', 'cache-control': 'no-cache', connection: 'keep-alive' });
   const chunk = extra => ({ id: 'chatcmpl-reqpilot-probe', object: 'chat.completion.chunk', created: 1, model: 'noop', ...extra });
   const send = value => res.write('data: ' + JSON.stringify(value) + '\n\n');
-  if (attempt === 1) {
+  if (scenario === 'knowledge-evidence' && attempt === 1) {
+    send(chunk({ choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{
+      index: 0, id: 'call_reqpilot_task_open', type: 'function',
+      function: { name: 'mcp__reqpilot__task_open', arguments: JSON.stringify({ mode: 'resume', task_id: taskId }) } }] },
+      finish_reason: null }] }));
+    send(chunk({ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }));
+  } else if (scenario === 'knowledge-evidence' && attempt <= 3) {
+    send(chunk({ choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{
+      index: 0, id: 'call_reqpilot_evidence_search_' + attempt, type: 'function',
+      function: { name: 'mcp__reqpilot_knowledge__knowledge_evidence_search',
+        arguments: JSON.stringify({ query: 'standby', limit: 5 }) } }] },
+      finish_reason: null }] }));
+    send(chunk({ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }));
+  } else if (attempt === 1) {
     send(chunk({ choices: [{ index: 0, delta: { role: 'assistant', tool_calls: [{
       index: 0, id: 'call_reqpilot_task_open', type: 'function',
       function: { name: 'mcp__reqpilot__task_open', arguments: JSON.stringify({ mode: 'resume', task_id: taskId }) } }] },
       finish_reason: null }] }));
     send(chunk({ choices: [{ index: 0, delta: {}, finish_reason: 'tool_calls' }] }));
   } else {
-    send(chunk({ choices: [{ index: 0, delta: { role: 'assistant', content: 'PROBE_ONLY: tool result received; no business artifacts were saved by this message.' }, finish_reason: null }] }));
+    send(chunk({ choices: [{ index: 0, delta: { role: 'assistant', content: scenario === 'knowledge-evidence'
+      ? 'EVIDENCE_SCENARIO_DONE: selected evidence was read and a changed version was refused.'
+      : 'PROBE_ONLY: tool result received; no business artifacts were saved by this message.' }, finish_reason: null }] }));
     send(chunk({ choices: [{ index: 0, delta: {}, finish_reason: 'stop' }] }));
     send(chunk({ choices: [], usage: { prompt_tokens: 1, completion_tokens: 1, total_tokens: 2 } }));
   }
@@ -65,8 +82,9 @@ await writeFile(directoryFile, JSON.stringify(directory, null, 2) + '\n', { mode
 const patch = join(output, 'probe.patch.json');
 await writeFile(patch, JSON.stringify([
   { id: 'session-title-llm', disabled: true },
-  { insert: [{ id: 'reqpilot-native-snapshot-probe',
-    name: fileURLToPath(new URL('./dsh-native-snapshot-probe.mjs', import.meta.url)) }] },
+  { insert: [{ id: scenario === 'knowledge-evidence' ? 'reqpilot-knowledge-native-probe' : 'reqpilot-native-snapshot-probe',
+    name: fileURLToPath(new URL(scenario === 'knowledge-evidence'
+      ? './dsh-knowledge-native-snapshot-probe.mjs' : './dsh-native-snapshot-probe.mjs', import.meta.url)) }] },
 ], null, 2));
 const guard = join(output, 'network-guard.mjs');
 await writeFile(guard, `import {appendFileSync} from 'node:fs';\nconst original=globalThis.fetch;globalThis.fetch=(input,...args)=>{const url=new URL(typeof input==='string'||input instanceof URL?input:input.url);if(!['127.0.0.1','localhost','[::1]'].includes(url.hostname)){appendFileSync(${JSON.stringify(join(output,'blocked-network.jsonl'))},JSON.stringify({hostname:url.hostname})+'\\n');throw Error('NONLOCAL_NETWORK_BLOCKED_BY_PROBE');}return original(input,...args);};\n`);
@@ -100,6 +118,7 @@ Object.assign(env, {
   REQPILOT_SCRIPTED_API_KEY: 'reqpilot-synthetic-not-a-secret',
   REQPILOT_NATIVE_OUTPUT: output, REQPILOT_NATIVE_PYTHON: python,
   REQPILOT_NATIVE_CAPABILITY: bundle, REQPILOT_NATIVE_COMMAND: commandId,
+  REQPILOT_NATIVE_SCENARIO: scenario,
 });
 const argv = dshCliArg
   ? [resolve(dshCliArg), '--profile', 'pair', '--patch', patch, '--no-open', '--port', '0']
@@ -126,6 +145,7 @@ Object.assign(receipt, {
   pair_source_root: pair, launcher: dshCliArg ? resolve(dshCliArg) : 'SOURCE_TSX',
   native_system_addon: nativeSystem,
   profile: 'pair', dsh_home: home, isolated_profile: true, user_profile_modified: false,
+  scenario,
   policy_file: policyFile, policy_revision: policy.revision, policy_route: policy.routes[0],
   directory_file: directoryFile, mock_openai_attempts: mockRequests.length,
   mock_requests: mockRequests, nonlocal_fetch_attempts: 0,

@@ -61,6 +61,7 @@ import { SourceLedgerTable, derivedTableRowId } from "./SourceLedgerTable";
 import type { SourcePreviewReader } from "./SourceRecordPreview";
 import { useDocumentAgent } from "../workspace/DocumentAgentContext";
 import { useWorkbenchHost } from "../workspace/WorkbenchHostContext";
+import { useApplicationHost } from "../../host/ApplicationHost";
 import { ProjectKnowledgePanel } from "../knowledge/ProjectKnowledgePanel";
 import { createPortal } from "react-dom";
 import { SourceReviewToolbar } from "./SourceReviewToolbar";
@@ -1810,6 +1811,8 @@ export function NativeStructureReferenceDock({
   const deferredReviewQuery = useDeferredValue(reviewQuery);
   const [reviewView, setReviewView] = useState<ReviewFilter>("ALL");
   const [analysisQueue, setAnalysisQueue] = useState<AnalysisQueue>("ALL");
+  const applicationHost = useApplicationHost();
+  const pairEvidence = applicationHost?.knowledge?.available === true;
   const [reviewCategory, setReviewCategory] = useState("");
   const [reviewTopic, setReviewTopic] = useState("");
   const [reviewMore, setReviewMore] = useState(false);
@@ -4769,10 +4772,13 @@ export function NativeStructureReferenceDock({
         ) : null}
       </header>
 
-      {!sourceReader && purpose === "analysis" && <details className="analysis-knowledge-scope">
+      {!sourceReader && purpose === "analysis" && (pairEvidence ? <details className="analysis-knowledge-scope">
+        <summary>任务内部依据 <span>由启动时冻结</span></summary>
+        <p>本任务只分析启动时明确选择的 PAIR 项目参考或团队知识。每次检索/读取与保存引用都记录在任务分析中；未选择时符合性分析明确跳过，不搜索全部知识库。</p>
+      </details> : <details className="analysis-knowledge-scope">
         <summary>下次分析依据 <span>{sourceItemReasoning.knowledgeSelection.ids === null ? "项目默认资料" : `已选 ${sourceItemReasoning.knowledgeSelection.ids.length} 份资料`}</span></summary>
         <ProjectKnowledgePanel projectId={projectId} selection={{ ids: sourceItemReasoning.knowledgeSelection.ids, onChange: sourceItemReasoning.knowledgeSelection.setIds, durable: sourceItemReasoning.knowledgeSelection.durable, disabled: sourceItemReasoning.busy }} />
-      </details>}
+      </details>)}
       {purpose === "analysis" && <section className="response-queue-bar" aria-label="响应工作队列">
         <div><strong>响应工作队列</strong><span>按实际分析单元计数 · 保留完整原文关系</span></div>
         <div className="response-queue-filters">{ANALYSIS_QUEUES.map(([value, label]) => <button key={value} type="button" disabled={!sourceItemReasoning.state} aria-pressed={analysisQueue === value} onClick={() => setAnalysisQueue(value)}>{label}<span>{sourceItemReasoning.state ? responseUnits.filter(unit => inAnalysisQueue(unit, value)).length : "…"}</span></button>)}</div>

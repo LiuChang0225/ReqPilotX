@@ -236,6 +236,60 @@ class PluginWorkbenchTests(unittest.TestCase):
             expected_delivery_sha256=preview['delivery_sha256']), self.sink())
         return state, saved
 
+
+    def test_saved_pair_assessments_surface_in_workbench_reader_and_snapshot(self):
+        from app.application.agent_workflow import source_item_analysis as analysis
+        from app.application.agent_workflow import pair_evidence
+        baseline = self.artifacts['source-requirement-baseline.json']
+        unit = next(record for record in baseline['records'] if record['requirementness'] == 'REQUIREMENT')
+        text = 'SYNTHETIC INTERNAL EVIDENCE: measured response was 28 ms at 12 V and 23 C.'
+        fact_id = 'pair-fact-' + '1'*32
+        fact = {'fact_id': fact_id, 'document_id': 'internal-1', 'kb_id': 'kb-project',
+            'project_id': 'p', 'source_sha256': 'f'*64, 'role': 'PROJECT_EVIDENCE', 'text': text,
+            'text_sha256': hashlib.sha256(text.encode()).hexdigest(),
+            'source_ref': {'kind': 'logical-section', 'location': {'page_number': None, 'section': 1}},
+            'document_name': 'internal.txt', 'document_version': 'v1', 'authority': 'INTERNAL_CONTROLLED',
+            'claim_role': 'PROJECT_RECORD', 'applicability': 'APPLICABLE', 'eligible': True,
+            'authority_verified': True, 'capture_mode': 'PAIR_SELECTED_EVIDENCE',
+            'origin': 'PAIR_SELECTED_SOURCE', 'original_revision': 'f'*64,
+            'extraction_revision': 'e'*64, 'coverage': 'complete', 'location': 'logical-section',
+            'url': '/reqpilotx/knowledge/tasks/x/documents/internal-1'}
+        document = {'id': 'internal-1', 'kb_id': 'kb-project', 'project_id': 'p', 'file_name': 'internal.txt',
+            'source_sha256': 'f'*64, 'doc_version': 'v1', 'status': 'ACTIVE', 'authority': 'INTERNAL_CONTROLLED',
+            'claim_role': 'PROJECT_RECORD', 'applicability': 'APPLICABLE', 'eligible': True}
+        catalog = {'schema_version': 'project-knowledge-facts/v1', 'project_id': 'p', 'knowledge_base_version': 1,
+            'evidence_catalog': {fact_id: fact}, 'documents': [document], 'gaps': [], 'selection': 'EXPLICIT_TASK_EVIDENCE'}
+        catalog['catalog_sha256'] = api.core.canonical_json_sha256(catalog)
+        registration = {'schema_version': pair_evidence.PAIR_EVIDENCE_SCHEMA, 'binding_sha256': 'a'*64,
+            'mode': 'PROJECT_REFERENCES', 'application_id': 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc',
+            'project_id': 'p', 'catalog_sha256': catalog['catalog_sha256'], 'documents': [document], 'facts': [fact],
+            'receipts': [{'tool': 'search', 'request_sha256': 'b'*64, 'returned_at': '2026-10-31T00:00:00Z',
+                'fact_ids': [fact_id]}], 'authority': 'HOST_SELECTED_EVIDENCE_NOT_HUMAN_ACCEPTANCE',
+            'human_acceptance': 'NOT_CLAIMED'}
+        registration['registration_sha256'] = api.core.canonical_json_sha256(registration)
+        packet = analysis.build_source_item_analysis_packet(
+            api.core.DocumentMapArtifactV1.model_validate(self.artifacts['document-map.json']),
+            api.core.SourceRequirementBaselineArtifactV1.model_validate(baseline),
+            self.artifacts['table-previews.json'], catalog, selected_unit_ids=[unit['source_record_id']])
+        assessment = analysis.compile_source_item_assessments(packet, {'decisions': [{
+            'unit_id': unit['source_record_id'], 'decision': 'COMPLIANT',
+            'reason': 'Applicability: 12 V / 23 C. The selected internal result matches the source condition.',
+            'evidence': [{'fact_id': fact_id, 'quote': text}], 'clarification_question': ''}]})
+        artifacts = {**self.artifacts, 'source-item-assessments.json': assessment,
+            'analysis-packet.json': packet, 'knowledge-catalog.json': catalog,
+            'evidence-registration.json': registration}
+        state = self.sync(artifacts, require_map_confirmation=False)
+        from app.application.agent_workflow import plugin_workbench_reader as reader
+        view = reader.get_plugin_reader('p', 'd', self.session, state['revision_id'], self.sink())
+        self.assertEqual(view['reasoning']['assessed_unit_count'], 1)
+        self.assertEqual(view['reasoning']['assessments']['records'][unit['source_record_id']]['decision'], 'COMPLIANT')
+        directory = api._root('p', 'd', self.session) / 'versions' / state['revision_id']
+        snapshot = json.loads((directory / 'matrix-snapshot.json').read_text())
+        row = next(node for node in snapshot['nodes']
+            if (node.get('source_item') or {}).get('source_item_id') == unit['source_record_id'])
+        self.assertEqual(row['ai_assessment']['decision'], 'COMPLIANT')
+        self.assertIn(fact_id, row['ai_assessment']['analysis_basis'])
+
     def test_public_cross_consumer_full_partial_check_and_delivery(self):
         full_check, full_artifacts = self.real_task_workflow()
         self.assertTrue(full_check['ready_to_review'], full_check)

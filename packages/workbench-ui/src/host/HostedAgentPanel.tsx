@@ -3,6 +3,8 @@ import { AgentPanelFrame } from "../features/workspace/AgentPanelFrame";
 import type { DocumentAgentBinding } from "../features/workspace/DocumentAgentContext";
 import { useApplicationHost, type ApplicationTaskReceipt } from "./ApplicationHost";
 import { FixedWorkflowStatus, FixedWorkflowSummary } from "./FixedWorkflowStatus";
+import { KnowledgeEvidencePicker } from "./KnowledgeEvidencePicker";
+import type { ApplicationKnowledgeSelection } from "./ApplicationHost";
 
 const executionLabels: Record<string, string> = { ACCEPTED: "已受理", RUNNING: "正在处理", WAITING: "等待中", SUCCEEDED: "本轮已结束", FAILED: "本轮未完成", INTERRUPTED: "已暂停", IDLE: "空闲" };
 const executionLabel = (receipt: ApplicationTaskReceipt) => executionLabels[receipt.execution?.status || receipt.status] || "状态尚未确认";
@@ -22,6 +24,8 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
   type Selection = typeof selection;
   const [goal, setGoal] = useState(initialGoal || "");
   const [requireMapConfirmation, setRequireMapConfirmation] = useState(false);
+  const [knowledge, setKnowledge] = useState<ApplicationKnowledgeSelection | null>(null);
+  useEffect(() => { setKnowledge(null); }, [projectId, documentId, sourceSha256]);
   const [result, setResult] = useState<{ selection: Selection; receipt: ApplicationTaskReceipt | null } | null>(null);
   const [busySelection, setBusySelection] = useState<Selection | null>(null);
   const [failure, setFailure] = useState<{ selection: Selection; message: string } | null>(null);
@@ -53,7 +57,8 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
           const value = await host.restoreTask(scope, { signal: request.controller.signal });
           if (current() && observedRevision === operationRevision.current) {
             setResult({ selection, receipt: value }); const draft = host.taskDraft(scope);
-            if (!edited.current && draft) { setGoal(draft.goal); setRequireMapConfirmation(draft.requireMapConfirmation); }
+            if (!edited.current && draft) { setGoal(draft.goal); setRequireMapConfirmation(draft.requireMapConfirmation);
+              if (draft.knowledge) setKnowledge(draft.knowledge); }
           }
         } catch (cause) {
           if (current() && observedRevision === operationRevision.current) setFailure({ selection, message: cause instanceof Error ? cause.message : "原任务状态暂不可读取，请重试。" });
@@ -72,7 +77,7 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
     if (observation.current?.selection === selection) observation.current.controller.abort();
     setBusySelection(selection); setFailure(null);
     try {
-      const next = action && bound ? await host.controlTask(bound, action) : await host.startTask({ ...scope, goal: goal.trim(), requireMapConfirmation });
+      const next = action && bound ? await host.controlTask(bound, action) : await host.startTask({ ...scope, goal: goal.trim(), requireMapConfirmation, knowledge });
       if (activeSelection.current === selection && pendingAction.current === operation) {
         setResult({ selection, receipt: next });
         if (!action) onAccepted(next);
@@ -106,7 +111,8 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
   </div>;
   if (workRef) return <section aria-label="PAIR 会话连接" className="agent-inline-notice">
     <strong>PAIR 会话</strong><p>{bound ? `已关联原任务 · ${executionLabel(bound)}` : "尚未开始；当前成果未关联此工作台保存的 PAIR 会话。"}</p>
-    {bound && <><FixedWorkflowStatus state={bound.workflowState} unconfirmed={bound.workflowUnconfirmed} /><p>运行状态：{executionLabel(bound)}；业务成果状态单独以上述已保存阶段为准。</p></>}
+    {bound && <><FixedWorkflowStatus state={bound.workflowState} unconfirmed={bound.workflowUnconfirmed} /><p>运行状态：{executionLabel(bound)}；业务成果状态单独以上述已保存阶段为准。</p>
+      {bound.knowledgeEvidence && <p className={bound.knowledgeEvidence.status === "CURRENT" ? "" : "agent-inline-notice"} role="status">内部依据：{bound.knowledgeEvidence.mode} · {bound.knowledgeEvidence.status === "CURRENT" ? "冻结版本可读取" : bound.knowledgeEvidence.message || "冻结版本未确认"}；已保存分析建议按原引用保留。</p>}</>}
     {controls}
   </section>;
   return <AgentPanelFrame onClose={onClose} footer={controls}>
@@ -114,10 +120,12 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
       <FixedWorkflowSummary workflow={host.workflow} />
       {!host.taskStartAvailable && <p role="status">{setupMessage || "当前宿主尚未配置本应用的任务启动能力；原件与已保存成果仍可核对。"}</p>}
       {bound ? <><p role="status">已找到原任务：{executionLabel(bound)}</p><FixedWorkflowStatus state={bound.workflowState} unconfirmed={bound.workflowUnconfirmed} />
+          {bound.knowledgeEvidence && <p className={bound.knowledgeEvidence.status === "CURRENT" ? "" : "agent-inline-notice"} role="status">内部依据：{bound.knowledgeEvidence.mode} · {bound.knowledgeEvidence.status === "CURRENT" ? "冻结版本可读取" : bound.knowledgeEvidence.message || "冻结版本未确认"}</p>}
           <p role="status">运行状态与业务成果分别核对；已保存阶段不代表人工接受。</p>
           <button className="button secondary" type="button" disabled={busy} onClick={() => onAccepted(bound)}>回到原任务成果</button></>
         : <><p role="status">{error ? "原任务状态暂时无法确认，请保留当前说明并重试。" : "尚未开始"}</p>
           {documentName ? <p>当前客户文档：{documentName}</p> : null}
+          <KnowledgeEvidencePicker key={projectId} projectId={projectId} initial={knowledge} onChange={setKnowledge} disabled={busy} />
           <label>补充说明（可选）<textarea aria-label="补充说明（可选）" value={goal} maxLength={12000} placeholder="例如：本次重点关注试验条件；不填写也会执行固定流程。" onChange={event => { edited.current = true; setGoal(event.target.value); }} disabled={busy} rows={5} /></label>
           <label className="agent-confirm-option"><input type="checkbox" checked={requireMapConfirmation} disabled={busy} onChange={event => { edited.current = true; setRequireMapConfirmation(event.target.checked); }} />先核对结构，再继续整理条目</label>
           <button type="button" className="button primary" disabled={busy || !host.taskStartAvailable} onClick={() => void run()}>{busy ? "正在确认原请求…" : "开始固定流程"}</button></>}

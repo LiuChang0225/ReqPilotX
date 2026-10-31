@@ -112,7 +112,8 @@ def initialize(args, entrypoint):
     state = initialize_workspace(args.working_root,args.source,args.goal,
         project_key=args.project_key,document_key=args.document_key,project_id=project,document_id=document,
         require_map_confirmation=confirmation if confirmation is not None else False,runtime_ref=runtime_reference(entrypoint,args.project_root),
-        creation_key=getattr(args,'creation_key',None),workflow=getattr(args,'workflow',None))
+        creation_key=getattr(args,'creation_key',None),workflow=getattr(args,'workflow',None),
+        knowledge_evidence=getattr(args,'knowledge_evidence',None))
     result = {'status':'WORKSPACE_INITIALIZED',**state}
     if url and state.get('creation_replayed'):
         result['workbench_sync']={'status':'NOT_REEXECUTED','url':state.get('workbench_url'),'local_artifact_preserved':True,

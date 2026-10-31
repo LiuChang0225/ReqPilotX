@@ -59,6 +59,7 @@ class OpenRequest(Request):
     workbench_url: str | None = None
     require_map_confirmation: bool = False
     workflow: dict | None = None
+    knowledge_evidence: dict | None = None
 
 
 class TaskRequest(Request):
@@ -220,8 +221,56 @@ class ItemsRequest(WriteRequest):
 
 
 class ReviewRequest(WriteRequest):
-    analysis_policy: Literal['preserve', 'skip_no_internal_evidence'] = Field(default='preserve',
+    analysis_policy: Literal['preserve', 'skip_no_internal_evidence', 'available'] = Field(default='preserve',
         description='Preserve the current policy, or explicitly record the authorized source-only scope. This is not inferred from failed retrieval. Existing reviews update through an immutable policy revision.')
+    assessments: str | None = Field(default=None, description='Sealed source-item assessments bound to analysis_packet and knowledge_catalog.')
+    analysis_packet: str | None = Field(default=None, description='The exact sealed analysis packet for assessments.')
+    knowledge_catalog: str | None = Field(default=None, description='The registered knowledge catalog used by the analysis packet.')
+
+    @model_validator(mode='after')
+    def complete_analysis_inputs(self):
+        supplied = (self.assessments is not None, self.analysis_packet is not None, self.knowledge_catalog is not None)
+        if any(supplied) and not all(supplied):
+            raise ValueError('Assessment review requires assessments, analysis_packet and knowledge_catalog together')
+        if supplied[0] and self.analysis_policy != 'available':
+            raise ValueError('Assessment review requires an AVAILABLE analysis policy')
+        return self
+
+
+class AnalysisCitation(Request):
+    fact_id: str = Field(min_length=1)
+    quote: str = Field(min_length=1)
+
+
+class AnalysisDecision(Request):
+    unit_id: str = Field(min_length=1)
+    decision: Literal['COMPLIANT', 'PARTIALLY_COMPLIANT', 'NON_COMPLIANT', 'PENDING_EVIDENCE', 'NEEDS_CLARIFICATION', 'NOT_APPLICABLE']
+    reason: str = Field(min_length=1)
+    evidence: list[AnalysisCitation] = Field(default_factory=list)
+    clarification_question: str = ''
+
+    @field_validator('evidence', mode='before')
+    @classmethod
+    def json_encoded_evidence(cls, value):
+        return decoded_json_container(value, list)
+
+
+class AnalysisRequest(WriteRequest):
+    decisions: list[AnalysisDecision] = Field(min_length=1)
+    unit_ids: list[str] | None = Field(default=None, description='Actual analysis unit IDs returned by the current source item/decomposition read. Omit to assess every current unit.')
+    knowledge_catalog: str | None = Field(default=None, description='Host-written frozen catalog inside this task; omitted uses inputs/knowledge/knowledge-catalog.json.')
+
+    @field_validator('decisions', 'unit_ids', mode='before')
+    @classmethod
+    def json_encoded_containers(cls, value):
+        return decoded_json_container(value, list) if isinstance(value, str) else value
+
+
+class EvidenceStatusRequest(Request):
+    task_id: str
+    state: Literal['CURRENT', 'UNAVAILABLE', 'CHANGED', 'INVALID']
+    message: str = ''
+    binding_sha256: str = Field(pattern=r'^[0-9a-f]{64}$')
 
 
 class SelfReviewFinding(Request):
@@ -299,6 +348,8 @@ REQUESTS = {
     'revise':ExistingItemsRequest,'images':ImagesRequest,
     'visual_revise':VisualRevisionRequest,
     'delivery_read':DeliveryReadRequest,
+    'analysis':AnalysisRequest,
+    'evidence_status':EvidenceStatusRequest,
 }
 OPERATIONS = {'map': 'compile-map', 'items': 'compile-items', 'review': 'review-open', 'deliver': 'deliver',
     'images':'compile-images','annotations':'compile-annotations','decomposition':'compile-decomposition',
@@ -355,10 +406,15 @@ def task_summary(state):
         'workbench_url': link['url'], 'workbench_link': link, 'brief': state['brief'],
         'selected': state['selected'], 'human_acceptance': 'NOT_CLAIMED',
         **({'workflow': state['workflow']} if state.get('workflow') else {}),
+        **({'knowledge_evidence': {'mode': state['knowledge_evidence']['mode'],
+            'binding_sha256': state['knowledge_evidence']['binding_sha256'],
+            'status': (state.get('knowledge_evidence_status') or {}).get('state', 'UNCHECKED'),
+            **( {'message': state['knowledge_evidence_status']['message']} if state.get('knowledge_evidence_status') else {})}}
+           if state.get('knowledge_evidence') else {}),
         'pending_decomposition': decomposition_attention(state),
-        'capabilities': {'contract_version': CONTRACT_VERSION, 'actions': list(REQUESTS),
+        'capabilities': {'contract_version': CONTRACT_VERSION, 'actions': [action for action in REQUESTS if action != 'evidence_status'],
             'map_items_semantics': 'EXISTING_COMPILERS', 'existing_item_revision': 'TYPED_REVIEW_APPLY',
-            'assessment_and_engineer_opinion_transport': 'UNSUPPORTED',
+            'assessment_and_engineer_opinion_transport': 'TYPED_AGENT_ANALYSIS; ENGINEER_OPINION_SEPARATE_BOUND_WORKBENCH',
             'saved_human_response_and_delivery_read': 'BOUND_WORKBENCH_READ_ONLY'},
     }
     # The complete brief is an artifact. Keep role, goal and continuation information,
@@ -435,6 +491,10 @@ class TaskService:
         if action == 'delivery_read':
             from task_workbench import read_workbench_delivery
             return read_workbench_delivery(state, request)
+        if action == 'evidence_status':
+            return self.evidence_status(root, state, request)
+        if action == 'analysis':
+            return self.analysis(root, state, request)
         if action in {'annotations','decomposition','revise','images'}:
             from task_changes import execute_change
             return execute_change(self,root,state,action,request)
@@ -447,6 +507,154 @@ class TaskService:
             if action=='items' and str(exc).startswith(('Unknown selected text scope:', 'Unknown selected table scope:')):
                 return self.unknown_scope(state,request.task_id,str(exc))
             raise
+
+    def evidence_status(self, root, state, request):
+        """Record Host-verified availability of the frozen task evidence binding."""
+        binding = (state['context'].get('request') or {}).get('knowledge_evidence')
+        if not binding:
+            raise ValueError('EVIDENCE_BINDING_MISSING: this task has no selected internal evidence')
+        if request.binding_sha256 != binding['binding_sha256']:
+            raise ValueError('EVIDENCE_STATUS_BINDING_MISMATCH: refresh the task binding')
+        from reqpilotx.application.agent_workflow import knowledge_binding
+        value = knowledge_binding.validate_status({
+            'schema_version': knowledge_binding.STATUS_SCHEMA,
+            'binding_sha256': request.binding_sha256, 'task_id': request.task_id,
+            'state': request.state, 'message': request.message,
+            'checked_at': __import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),
+        }, binding)
+        from reqpilotx.application.agent_workflow.task_workspace import _atomic_json
+        _atomic_json(root / 'knowledge-evidence-status.json', value)
+        return {'status': 'EVIDENCE_STATUS_SAVED', **task_summary(self.state(request.task_id)[1])}
+
+    def _analysis_path(self, root, value, default):
+        from reqpilotx.application.agent_workflow.task_workspace import inside
+        if value is None:
+            return default
+        path = Path(value).expanduser()
+        path = path.resolve() if path.is_absolute() else inside(root, path)
+        if not path.is_relative_to(root.resolve()):
+            raise ValueError('ANALYSIS_INPUT_OUTSIDE_TASK: the frozen catalog must belong to this task')
+        return path
+
+    def analysis(self, root, state, request):
+        """Save Agent analysis through the existing source-item assessment owner.
+
+        The caller supplies only judgments. The Host/Task binding supplies the
+        exact selected-source catalog, and the existing compiler validates every
+        citation and binds the resulting artifact to the current Map/items.
+        """
+        from reqpilotx.application.agent_workflow import source_item_analysis as analysis_core
+        from reqpilotx.application.agent_workflow import source_requirement_baseline as source_core
+        from artifact_tools import read
+        from evidence_tools import verify_catalog
+        from reqpilotx.application.agent_workflow.artifact_kind_catalog import file_sha256 as digest_file
+        import revision_tools as review_module
+        selected = state['selected']
+        if not selected.get('ITEMS'):
+            raise ValueError('ITEMS_REQUIRED: save the current source items before analysis')
+        baseline_dir = Path(selected['ITEMS']['output_dir'])
+        map_dir = Path(selected['MAP']['output_dir'])
+        document_map = source_core.DocumentMapArtifactV1.model_validate(read(map_dir / 'document-map.json'))
+        baseline = source_core.SourceRequirementBaselineArtifactV1.model_validate(read(baseline_dir / 'source-requirement-baseline.json'))
+        if baseline.document_map_artifact_sha256 != document_map.artifact_sha256:
+            raise ValueError('ITEMS_REQUIRED: the saved Map and source items differ')
+        tables = read(map_dir / 'table-previews.json')
+        catalog_path = self._analysis_path(root, request.knowledge_catalog, root / 'inputs/knowledge/knowledge-catalog.json')
+        if not catalog_path.is_file():
+            raise ValueError('KNOWLEDGE_CATALOG_REQUIRED: read selected evidence through the task tools before analysis')
+        catalog = verify_catalog(catalog_path)
+        bound = (state['context'].get('request') or {}).get('knowledge_evidence')
+        if not bound:
+            raise ValueError('EVIDENCE_BINDING_MISSING: this task was not started with selected internal evidence')
+        registration = read(catalog_path.with_name('evidence-registration.json'))
+        if (registration.get('binding_sha256') != bound['binding_sha256']
+                or registration.get('mode') != bound['mode']):
+            raise ValueError('EVIDENCE_BINDING_MISMATCH: the catalog belongs to another task evidence binding')
+        unit_ids = request.unit_ids
+        if unit_ids is not None and (not unit_ids or len(unit_ids) != len(set(unit_ids))):
+            raise ValueError('INVALID_DECISION: analysis unit_ids must be unique and nonempty')
+        packet = analysis_core.build_source_item_analysis_packet(
+            document_map, baseline, tables, catalog, selected_unit_ids=unit_ids)
+        candidate = {'decisions': [item.model_dump(mode='json') for item in request.decisions]}
+        previous_assessments = previous_packet = None
+        reviewed = state['current_working'].get('owner') == 'portable_review'
+        review_root = root / 'review'
+        if reviewed:
+            head = review_module.load_head(review_root)
+            current_dir, _ = review_module.current_bundle(review_root, head)
+            values = review_module.state(current_dir)
+            previous_assessments = values.get('assessments')
+            previous_packet = values.get('analysis_packet')
+            if previous_assessments and previous_packet and previous_packet.get('packet_sha256') == packet['packet_sha256']:
+                expected = analysis_core.compile_source_item_assessments(packet, candidate)
+                selected_ids = set(packet.get('selected_unit_ids', [unit['unit_id'] for unit in packet['units']]))
+                if all(previous_assessments.get('records', {}).get(unit_id) == expected['records'].get(unit_id)
+                        for unit_id in selected_ids):
+                    return {'status': 'ANALYSIS_ALREADY_SAVED', **task_summary(state),
+                        'analysis': {'artifact_sha256': previous_assessments['artifact_sha256'],
+                                     'packet_sha256': packet['packet_sha256'],
+                                     'assessed_unit_count': len(previous_assessments.get('records', {})),
+                                     'human_acceptance': 'NOT_CLAIMED'}}
+        artifact = analysis_core.compile_source_item_assessments(
+            packet, candidate, previous=previous_assessments,
+            input_packet_ref={'task_id': request.task_id, 'source': 'TASK_EVIDENCE_RUNTIME_BINDING'})
+        analysis_core.validate_source_item_assessments(packet, artifact)
+        directory = root / 'inputs' / 'analysis' / artifact['artifact_sha256'][:32]
+        directory.mkdir(parents=True, exist_ok=True, mode=0o700)
+        def freeze(name, value):
+            path = directory / name
+            data = canonical(value) + '\n'
+            if path.is_file():
+                if path.read_text(encoding='utf-8') != data:
+                    raise ValueError('IMMUTABLE_INPUT_CHANGED: saved analysis input differs')
+            else:
+                path.write_text(data, encoding='utf-8')
+                path.chmod(0o400)
+            return path
+        catalog_file = freeze('knowledge-catalog.json', catalog)
+        registration_path = catalog_path.with_name('evidence-registration.json')
+        if not registration_path.is_file():
+            raise ValueError('KNOWLEDGE_CATALOG_REQUIRED: the selected evidence registration is missing')
+        freeze('evidence-registration.json', read(registration_path))
+        packet_file = freeze('analysis-packet.json', packet)
+        assessments_file = freeze('source-item-assessments.json', artifact)
+        policy_file = freeze('analysis-policy.json', {
+            'source_sha256': baseline.source_sha256, 'status': 'AVAILABLE', 'reason': ''})
+        explicit = {'action': 'analysis', 'request': request.model_dump(
+            mode='json', exclude={'command_id'}, exclude_unset=True)}
+        command = (request.command_id or 'task-analysis-' + digest(explicit))
+        if reviewed:
+            from task_review import apply_review
+            result = apply_review(root, expected_revision=request.expected_revision,
+                command_id=command + '-revision',
+                revision={'schema_version': 'reqpilot-review-revision/v1',
+                          'expected_review_sha256': head['review_sha256'],
+                          'expected_baseline_sha256': baseline.artifact_sha256},
+                replacements={'assessments': assessments_file, 'analysis_packet': packet_file,
+                              'knowledge_catalog': catalog_file, 'analysis_policy': policy_file},
+                request_payload={'analysis_request': explicit,
+                    'replacements': {key: digest_file(path) for key, path in {
+                        'assessments': assessments_file, 'analysis_packet': packet_file,
+                        'knowledge_catalog': catalog_file, 'analysis_policy': policy_file}.items()}})
+            summary = task_summary(self.state(request.task_id)[1])
+            return {**result, **summary, 'analysis': {
+                'artifact_sha256': artifact['artifact_sha256'],
+                'packet_sha256': packet['packet_sha256'],
+                'assessed_unit_count': len(artifact.get('records', {})),
+                'human_acceptance': 'NOT_CLAIMED'}}
+        from task_review_policy import prepare_review
+        review_request = ReviewRequest(task_id=request.task_id,
+            expected_revision=request.expected_revision,
+            command_id=command + '-open', analysis_policy='available',
+            assessments=str(assessments_file), analysis_packet=str(packet_file),
+            knowledge_catalog=str(catalog_file))
+        result = prepare_review(self, root, state, review_request)
+        summary = task_summary(self.state(request.task_id)[1])
+        return {**result, **summary, 'analysis': {
+            'artifact_sha256': artifact['artifact_sha256'],
+            'packet_sha256': packet['packet_sha256'],
+            'assessed_unit_count': len(artifact.get('records', {})),
+            'human_acceptance': 'NOT_CLAIMED'}}
 
     @staticmethod
     def scope_link(state,task_id):
@@ -520,7 +728,7 @@ class TaskService:
             project_id=None, document_id=None, workbench_url=request.workbench_url,
             require_map_confirmation=request.require_map_confirmation, no_map_confirmation=None,
             binding_file=None, open=False, project_root=self.project_root, full=False,
-            workflow=request.workflow)
+            workflow=request.workflow, knowledge_evidence=request.knowledge_evidence)
         value = initialize(args, self.entrypoint)
         response = {'status': value['status'], **task_summary(value)}
         for key in ('replayed', 'workbench_sync'):
@@ -599,8 +807,10 @@ class TaskService:
                     retention_path.chmod(0o400)
                 except FileExistsError:
                     if retention_path.read_text()!=binding_data:raise ValueError('IMMUTABLE_INPUT_CHANGED: structure binding')
-        if previous is None and action == 'review' and request.analysis_policy == 'skip_no_internal_evidence':
-            policy = {'source_sha256':state['context']['source']['sha256'], 'status':'SKIPPED', 'reason':'NO_INTERNAL_EVIDENCE'}
+        if previous is None and action == 'review' and request.analysis_policy in {'skip_no_internal_evidence', 'available'}:
+            policy = ({'source_sha256':state['context']['source']['sha256'], 'status':'SKIPPED', 'reason':'NO_INTERNAL_EVIDENCE'}
+                if request.analysis_policy == 'skip_no_internal_evidence' else
+                {'schema_version':'reqpilot-analysis-policy/v1','source_sha256':state['context']['source']['sha256'],'status':'AVAILABLE','reason':''})
             directory = root/'inputs'/'task-api'; directory.mkdir(parents=True,exist_ok=True,mode=0o700)
             policy_path = directory/(digest(policy)+'.json'); data=canonical(policy)+'\n'
             try:
@@ -608,10 +818,15 @@ class TaskService:
                 policy_path.chmod(0o400)
             except FileExistsError:
                 if policy_path.read_text()!=data: raise ValueError('IMMUTABLE_INPUT_CHANGED')
+        analysis_paths = {}
+        if action == 'review' and request.assessments:
+            analysis_paths = {'assessments': self._analysis_path(root, request.assessments, None),
+                'analysis_packet': self._analysis_path(root, request.analysis_packet, None),
+                'knowledge_catalog': self._analysis_path(root, request.knowledge_catalog, None)}
         args = Namespace(operation=operation, workspace=root, binding_file=None, input=input_path,
             analysis_policy=policy_path,
             expected_revision=request.expected_revision, command_id=command_id, request_payload=explicit,
-            full=False, project_root=self.project_root)
+            full=False, project_root=self.project_root, **analysis_paths)
         value = run(args, self.entrypoint)
         try:
             current = core.workspace_status(root, refresh=False)

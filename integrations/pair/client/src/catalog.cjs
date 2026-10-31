@@ -7,6 +7,29 @@ Object.assign(copy.zh, { reconnectTask: '核对并重新连接原任务', reconn
 Object.assign(copy.en, { reconnectTask: 'Verify and reconnect this task', reconnectAccepted: 'Verified and reconnected the original task. You can continue this session.', stopTurn: 'Stop current turn', continueTask: 'Continue this task', controlBusy: 'Submitting control request…', stopAccepted: 'Asked Pair to stop this turn; review the saved result.', continueAccepted: 'Submitted to the original Pair session; verify continuation and saved work.' });
 const pairWorkOperations = Object.freeze({ save_feedback: 'results.feedback', confirm_map: 'results.confirm_map',
   save_engineer_response: 'results.engineer_responses', save_delivery_version: 'results.save_version' });
+function knowledgeRequest(path, init) {
+  return fetch(PREFIX + '/knowledge' + path, { cache: 'no-store', ...(init || {}) }).then(async response => {
+    const value = await response.json().catch(() => ({}));
+    if (!response.ok) throw Error(value.message || value.error || '知识请求未完成');
+    return value;
+  });
+}
+function makeKnowledgeHost(config) {
+  if (config?.knowledge?.schema !== 'reqpilot-knowledge-host/v1' || config.knowledge.available !== true) return null;
+  return {
+    available: true,
+    inventory: projectId => knowledgeRequest('/inventory?' + new URLSearchParams({ projectId }).toString()),
+    uploadReference: async (projectId, file, kind) => {
+      const query = new URLSearchParams({ name: file.name, kind });
+      return knowledgeRequest('/projects/' + encodeURIComponent(projectId) + '/references?' + query.toString(),
+        { method: 'POST', headers: { 'content-type': file.type || 'application/octet-stream' }, body: file });
+    },
+    retryReference: (projectId, documentId) => knowledgeRequest('/projects/' + encodeURIComponent(projectId)
+      + '/references/' + encodeURIComponent(documentId) + '/retry', { method: 'POST' }),
+    teamTopics: async kbId => (await knowledgeRequest('/team/' + encodeURIComponent(kbId) + '/topics')).versions || [],
+    teamLibraries: async () => (await knowledgeRequest('/team')).libraries || [],
+  };
+}
 function makeReadonlyHost(origin, onSelectionChange, applicationId, writes = false) {
   const identity = connectionIdentity(applicationId, origin);
   // Legacy true grants its original two operations; newer writes require explicit discovery.
@@ -69,6 +92,7 @@ function HostedApplication({ config, openSession }) {
     id: config.applicationId, label: 'PAIR', modelLabel: config.taskModel ? [config.taskModel.model, config.taskModel.reasoningEffort].filter(Boolean).join(' / ') : '尚未读取到 PAIR 默认模型', captureAvailable: config.capabilities['documents.capture'] === true,
     taskStartAvailable: config.capabilities['agent.start'] === true && Boolean(config.workflow) && config.taskStart?.ready !== false,
     workflow: config.workflow || null, taskSetup: config.taskStart?.reason || (config.workflow ? null : 'FIXED_WORKFLOW_UNAVAILABLE'),
+    knowledge: makeKnowledgeHost(config),
     ...createPairTaskController(config, openSession),
   }), [config, resources, openSession]);
   React.useLayoutEffect(() => {

@@ -22,6 +22,7 @@ ARTIFACT_KINDS = {
     'SOURCE_FINDINGS': {'filename': 'source-findings.json', 'dependencies': ['document-map.json'], 'validator': 'source-findings/v1 lineage', 'display_role': 'source_review_notices'},
     'ANNOTATIONS': {'filename': 'image-annotations.json', 'dependencies': ['source-requirement-baseline.json'], 'validator': 'build_delivery_snapshot', 'display_role': 'original_number_topics_and_visual_reading'},
     'DECOMPOSITION': {'filename': 'source-item-decomposition.json', 'dependencies': ['source-requirement-baseline.json'], 'validator': 'build_delivery_snapshot', 'display_role': 'derived_requirements'},
+    'ASSESSMENTS': {'filename': 'source-item-assessments.json', 'dependencies': ['source-requirement-baseline.json', 'analysis-packet.json', 'knowledge-catalog.json'], 'validator': 'source-item assessment packet/catalog lineage', 'display_role': 'evidence_grounded_analysis'},
     'DELIVERY': {'filename': 'matrix-snapshot.json', 'dependencies': ['matrix.xlsx'], 'validator': 'snapshot + workbook metadata', 'display_role': 'same_version_delivery'},
 }
 OPERATION_KINDS = {

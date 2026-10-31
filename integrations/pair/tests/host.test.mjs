@@ -124,3 +124,22 @@ test('Host discovery contribution registers through the supplied fiber and dispo
 test('raw DSH without pairSkillCenter keeps the Host contribution silent', () => {
   assert.equal(registerPairApplication({ effect() { throw Error('must not register'); } }, { snapshot: { status: 'READY' } }), null);
 });
+
+test('knowledge business routes expose project references and frozen task status without a generic service proxy', async () => {
+  const calls = [];
+  const knowledge = {
+    async inventory(projectId) { calls.push(['inventory', projectId]); return { available: true, projectDocuments: [], teamLibraries: [] }; },
+    async uploadProjectReference(projectId, name, bytes, kind) { calls.push(['upload', projectId, name, kind, bytes.toString()]); return { document: { id: 'doc' } }; },
+    async loadBinding(commandId) { calls.push(['binding', commandId]); return { binding_sha256: 'a'.repeat(64), mode: 'PROJECT_REFERENCES' }; },
+    async checkBinding(commandId) { calls.push(['check', commandId]); return { state: 'CURRENT', message: '' }; },
+  };
+  const proxy = await serve(createHandler(null, () => undefined, fetch, () => ({ mode: 'managed', status: 'READY' }), null, knowledge));
+  try {
+    assert.equal((await (await fetch(proxy.url + '/reqpilotx/knowledge/inventory?projectId=p')).json()).available, true);
+    const upload = await fetch(proxy.url + '/reqpilotx/knowledge/projects/p/references?name=ref.txt&kind=REFERENCE', { method: 'POST', body: 'original' });
+    assert.equal(upload.status, 201);
+    const task = await (await fetch(proxy.url + '/reqpilotx/knowledge/tasks/command-one')).json();
+    assert.equal(task.bindingSha256, 'a'.repeat(64));
+    assert.deepEqual(calls, [['inventory', 'p'], ['upload', 'p', 'ref.txt', 'REFERENCE', 'original'], ['binding', 'command-one'], ['check', 'command-one']]);
+  } finally { await proxy.close(); }
+});

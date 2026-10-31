@@ -161,11 +161,18 @@ def get_plugin_reader(project_id: str, document_id: str, session_id: str, revisi
                 child.update(metadata['derived_numbers'].get(child['singular_requirement_id'], {}))
     required = [r for r in baseline.records if r.requirementness.value == 'REQUIREMENT'] if baseline else []
     unit_count = sum(len((decomposition or {}).get('records', {}).get(r.source_record_id) or [r]) for r in required)
+    assessments = artifacts.get('source-item-assessments.json')
+    assessed = len((assessments or {}).get('records', {}))
+    pending = sum(item.get('decision') in {'PENDING_EVIDENCE', 'NEEDS_CLARIFICATION'}
+        for item in (assessments or {}).get('records', {}).values())
     reasoning = {'source_sha256': mapping.source_sha256, 'baseline_sha256': baseline.artifact_sha256,
         'baseline_revision': baseline.revision, 'source_item_count': len(baseline.records), 'requirement_count': len(required),
         'non_requirement_count': len(baseline.records)-len(required), 'analysis_unit_count': unit_count,
-        'assessed_unit_count': 0, 'pending_unit_count': unit_count, 'decomposition_job_id': None, 'analysis_job_id': None,
-        'active_jobs': [], 'notices': [], 'decomposition': displayed_decomposition, 'assessments': None} if baseline else None
+        'assessed_unit_count': assessed, 'pending_unit_count': pending,
+        'unassessed_unit_count': (assessments or {}).get('unassessed_unit_count', unit_count - assessed),
+        'decomposition_job_id': None, 'analysis_job_id': None,
+        'active_jobs': [], 'notices': [], 'decomposition': displayed_decomposition,
+        'assessments': assessments} if baseline else None
     if reasoning is not None:
         from .plugin_workbench_delivery import get_plugin_engineer_responses
         reasoning['engineer_responses'] = get_plugin_engineer_responses(project_id, document_id, session_id, response,

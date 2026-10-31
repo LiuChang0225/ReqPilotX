@@ -7,4 +7,4 @@ export { requestWithTransport } from '../shared/api/client';
 export { hostUiContract } from './contract';
 export { ReqPilotXApplication, createApplicationNavigation } from './ReqPilotXApplication';
 export { installApplicationTransport } from './applicationTransport';
-export type { WorkbenchApplicationHost, ApplicationTaskReceipt } from './ApplicationHost';
+export type { WorkbenchApplicationHost, ApplicationTaskReceipt, ApplicationKnowledgeHost, ApplicationKnowledgeInventory, ApplicationKnowledgeSelection, ApplicationKnowledgeDocument, ApplicationKnowledgeTopic } from './ApplicationHost';

@@ -9,9 +9,11 @@ from __future__ import annotations
 from datetime import date
 import hashlib
 from pathlib import Path
+import re
 import shutil
 
 from reqpilotx.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
+from reqpilotx.application.agent_workflow.source_item_analysis import ROLES
 from reqpilotx.application.agent_workflow.source_item_analysis import validate_knowledge_catalog
 from reqpilotx.application.knowledge_evidence_capture import capture_knowledge_facts
 from artifact_tools import read, save, required, new_output
@@ -71,6 +73,87 @@ def register(args):
         "fact_count": len(catalog["evidence_catalog"]), "human_acceptance": "NOT_CLAIMED"}
 
 
+
+PAIR_EVIDENCE_SCHEMA = 'reqpilot-pair-evidence-registration/v1'
+PAIR_FACT_ORIGINS = {'PAIR_SELECTED_SOURCE', 'PAIR_RETAINED_TOPIC'}
+
+
+def _pair_registration_sha(value):
+    return canonical_json_sha256({key: item for key, item in value.items() if key != 'registration_sha256'})
+
+
+def validate_pair_registration(registration, catalog):
+    """Verify Host-selected PAIR evidence without reading provider storage.
+
+    PAIR owns the originals and extraction records. This checks the frozen
+    registration against the catalog and every consumed tool receipt; it never
+    claims an independent human acceptance or a fresh provider read.
+    """
+    allowed = {'schema_version', 'binding_sha256', 'mode', 'application_id',
+               'project_id', 'catalog_sha256', 'documents', 'facts',
+               'receipts', 'authority', 'human_acceptance', 'registration_sha256'}
+    if not isinstance(registration, dict) or set(registration) != allowed:
+        raise ValueError('PAIR evidence registration has unknown or missing fields')
+    if registration.get('schema_version') != PAIR_EVIDENCE_SCHEMA:
+        raise ValueError('PAIR evidence registration schema is unsupported')
+    if registration.get('registration_sha256') != _pair_registration_sha(registration):
+        raise ValueError('PAIR evidence registration integrity changed')
+    if (registration.get('catalog_sha256') != catalog.get('catalog_sha256')
+            or registration.get('documents') != catalog.get('documents', [])):
+        raise ValueError('PAIR evidence registration and catalog documents differ')
+    facts = catalog.get('evidence_catalog')
+    if not isinstance(facts, dict):
+        raise ValueError('PAIR evidence catalog has no fact map')
+    ordered = [facts[key] for key in sorted(facts)]
+    if registration.get('facts') != ordered:
+        raise ValueError('PAIR evidence registration facts differ from the catalog')
+    for fact_id, fact in facts.items():
+        text = fact.get('text')
+        if (not isinstance(fact, dict) or fact.get('fact_id') != fact_id
+                or fact.get('role') not in ROLES
+                or fact.get('origin') not in PAIR_FACT_ORIGINS
+                or not str(fact.get('kb_id') or '').strip()
+                or not str(fact.get('document_id') or '').strip()
+                or re.fullmatch(r'[0-9a-f]{64}', str(fact.get('source_sha256') or '')) is None
+                or not isinstance(text, str)
+                or not text.strip()
+                or hashlib.sha256(text.encode()).hexdigest() != fact.get('text_sha256')
+                or type(fact.get('eligible')) is not bool
+                or type(fact.get('authority_verified')) is not bool
+                or not fact.get('source_ref')
+                or not str(fact.get('url') or '').startswith('/reqpilotx/knowledge/')):
+            raise ValueError('A PAIR evidence fact failed source/citation integrity validation')
+    receipts = registration.get('receipts')
+    if not isinstance(receipts, list) or not receipts:
+        raise ValueError('PAIR evidence registration has no consumed tool receipts')
+    consumed = []
+    for receipt in receipts:
+        if (not isinstance(receipt, dict)
+                or set(receipt) != {'tool', 'request_sha256', 'returned_at', 'fact_ids'}
+                or receipt.get('tool') not in {'search', 'read', 'topic_read'}
+                or re.fullmatch(r'[0-9a-f]{64}', str(receipt.get('request_sha256') or '')) is None
+                or not str(receipt.get('returned_at') or '').strip()
+                or not isinstance(receipt.get('fact_ids'), list)
+                or any(not isinstance(item, str) for item in receipt['fact_ids'])):
+            raise ValueError('A PAIR evidence consumption receipt is invalid')
+        consumed.extend(receipt['fact_ids'])
+    if set(consumed) != set(facts):
+        raise ValueError('PAIR evidence catalog contains facts that were not consumed by a logged task tool')
+    if registration.get('authority') != 'HOST_SELECTED_EVIDENCE_NOT_HUMAN_ACCEPTANCE':
+        raise ValueError('PAIR evidence authority boundary changed')
+    if registration.get('human_acceptance') != 'NOT_CLAIMED':
+        raise ValueError('PAIR evidence registration cannot claim human acceptance')
+    return catalog
+
+
+def verify_pair_catalog(path):
+    catalog = validate_knowledge_catalog(read(path))
+    registration_path = path.parent / 'evidence-registration.json'
+    if not registration_path.is_file():
+        raise ValueError('PAIR evidence catalog requires its frozen Host registration')
+    registration = read(registration_path)
+    return validate_pair_registration(registration, catalog)
+
 def verify_catalog(path):
     catalog = validate_knowledge_catalog(read(path))
     if not catalog["evidence_catalog"] and not catalog.get("documents"):
@@ -79,6 +162,8 @@ def verify_catalog(path):
     if not registration_path.is_file():
         raise ValueError("A nonempty knowledge catalog requires evidence-registration.json and actual registered source files; a self-signed catalog is not evidence")
     registration = read(registration_path)
+    if registration.get('schema_version') == PAIR_EVIDENCE_SCHEMA:
+        return validate_pair_registration(registration, catalog)
     if registration.get("schema_version") != "reqpilot-evidence-registration/v1" or registration.get("registration_sha256") != canonical_json_sha256({k: v for k, v in registration.items() if k != "registration_sha256"}):
         raise ValueError("Evidence registration integrity changed")
     recaptured = _capture_catalog(registration, path.parent)
@@ -94,6 +179,8 @@ def copy_registration(catalog_path, output):
         return
     registration = read(registration_path)
     save(output, "evidence-registration.json", registration)
+    if registration.get('schema_version') == PAIR_EVIDENCE_SCHEMA:
+        return
     for item in registration["documents"]:
         source = _source(catalog_path.parent, item["source_path"])
         target = output / item["source_path"]
