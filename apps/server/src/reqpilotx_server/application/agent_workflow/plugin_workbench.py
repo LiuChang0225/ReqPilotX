@@ -24,6 +24,7 @@ from reqpilotx_server.application.agent_workflow.source_item_delivery import bui
 from reqpilotx_server.application.errors import ApplicationError
 from reqpilotx_server.application.source_runtime import resolve_source_record_path
 from reqpilotx_server.application.transport import BinaryArtifact, ResponseSink
+from reqpilotx.application.agent_workflow import fixed_workflow as workflow_contract
 
 SHA = r'^[0-9a-f]{64}$'
 SESSION = r'^plugin-[0-9a-f]{32}$'
@@ -44,6 +45,7 @@ class PluginDraftUpload(BaseModel):
     require_map_confirmation: bool = False
     goal: str = Field(default='', max_length=12000)
     feedback_resolutions: dict[str, str] = Field(default_factory=dict)
+    fixed_workflow: dict[str, Any] | None = None
 
 
 class PluginFeedback(BaseModel):
@@ -78,6 +80,143 @@ def _root(project_id, document_id, session_id):
     scope = core.canonical_json_sha256({'project_id':project_id, 'document_id':document_id})
     return _container().settings.object_root / 'runtime/plugin-workbench' / scope / session_id
 
+
+def _saved_delivery(root, head, baseline):
+    """Return only a retained delivery receipt for the current basis, or None."""
+    if baseline is None:
+        return None
+    for entry in reversed(head.get('delivery_versions') or []):
+        revision = entry.get('revision')
+        path = root / 'deliveries' / f'{revision}.json'
+        if not path.is_file():
+            raise ApplicationError(status_code=409, detail='已登记的交付版本内容缺失，请保留现场并核对。')
+        value = _read(path)
+        if core.canonical_json_sha256(value) != entry.get('artifact_sha256'):
+            raise ApplicationError(status_code=409, detail='已登记的交付版本内容发生变化，请保留现场并核对。')
+        if value.get('revision_id') != head.get('revision_id'):
+            continue
+        if value.get('source_sha256') != head.get('source_sha256'):
+            continue
+        snapshot = value.get('snapshot') or {}
+        if (snapshot.get('source_item_baseline') or {}).get('artifact_sha256') != baseline.artifact_sha256:
+            continue
+        return value
+    return None
+
+
+def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root, head):
+    """Derive stage status from validated uploads and retained delivery receipts.
+
+    Sender-provided stage status and ready_to_review are deliberately ignored.
+    """
+    if value is None:
+        return None
+    if not isinstance(value, dict) or value.get('schema') != workflow_contract.STATE_SCHEMA:
+        raise ApplicationError(status_code=422, detail='固定工作流回执格式不受支持。')
+    inner = value.get('workflow') or {}
+    try:
+        spec = workflow_contract.workflow_spec(
+            brief_sha256=inner.get('brief_sha256'),
+            evidence_mode=inner.get('evidence_mode', 'NONE'),
+            evidence_reason='BOUND_BY_TASK')
+        if inner.get('id') != spec['id'] or inner.get('version') != spec['version']:
+            raise ValueError('UNSUPPORTED_WORKFLOW_VERSION')
+        if inner.get('definition_sha256') != spec['definition_sha256']:
+            raise ValueError('WORKFLOW_DEFINITION_CHANGED')
+    except ValueError as exc:
+        raise ApplicationError(status_code=422, detail='固定工作流版本或定义不兼容：' + str(exc)) from exc
+    if value.get('source_sha256') != source_sha:
+        raise ApplicationError(status_code=409, detail='固定工作流回执属于另一份原件。')
+
+    delivery = _saved_delivery(root, head, baseline)
+    confirmed = bool(mapping and head.get('confirmed_map_sha256') == mapping.artifact_sha256)
+    confirmation_required = bool(mapping and head.get('require_map_confirmation') and not confirmed)
+    decomposition = artifacts.get('source-item-decomposition.json') or {}
+    remaining = decomposition.get('review_scope', {}).get('remaining_source_item_ids', [])
+    remaining = len(remaining) if isinstance(remaining, list) else 1
+    policy = artifacts.get('analysis-policy.json') or {}
+    mode = spec['evidence']['mode']
+    open_items = []
+    blocking = []
+
+    stages = [{'id': 'PREPARATION', 'label': '资料准备', 'status': 'SAVED',
+               'evidence': [{'kind': 'TASK_BINDING', 'source_sha256': source_sha}]}]
+
+    if mapping:
+        stages.append({'id': 'SOURCE_MAP', 'label': '来源与结构', 'status': 'SAVED',
+                       'evidence': [{'kind': 'DOCUMENT_MAP', 'source_sha256': source_sha,
+                                     'artifact_sha256': mapping.artifact_sha256, 'count': len(mapping.nodes)}]})
+    else:
+        stages.append({'id': 'SOURCE_MAP', 'label': '来源与结构', 'status': 'PENDING'})
+
+    if not mapping:
+        item_status, item_reason = 'BLOCKED', 'SOURCE_MAP_REQUIRED'; blocking.append('SOURCE_MAP_REQUIRED')
+    elif baseline is None:
+        item_status, item_reason = 'PENDING', 'ITEMS_NOT_SAVED'
+    elif remaining:
+        item_status, item_reason = 'IN_PROGRESS', 'SCOPED_DERIVATION_REMAINING'; open_items.append('SCOPED_DERIVATION_REMAINING')
+    elif confirmation_required:
+        item_status, item_reason = 'IN_PROGRESS', 'MAP_CONFIRMATION_REQUIRED'; open_items.append('MAP_CONFIRMATION_REQUIRED'); blocking.append('MAP_CONFIRMATION_REQUIRED')
+    else:
+        item_status, item_reason = 'SAVED', None
+    item_evidence = ([{'kind': 'SOURCE_ITEMS', 'source_sha256': source_sha,
+                       'artifact_sha256': baseline.artifact_sha256, 'count': len(baseline.records),
+                       'map_sha256': mapping.artifact_sha256}]
+                     if mapping and baseline is not None else None)
+    if decomposition:
+        item_evidence = [*(item_evidence or []), {'kind': 'DECOMPOSITION', 'source_sha256': source_sha,
+                          'artifact_sha256': decomposition.get('artifact_sha256'), 'remaining': remaining}]
+    stages.append({'id': 'ITEMS_CLASSIFICATION', 'label': '条目、分类与明确派生', 'status': item_status,
+                   **({'evidence': item_evidence} if item_evidence else {}),
+                   **({'reason': item_reason} if item_reason else {})})
+
+    if mapping is None or baseline is None:
+        evidence_status, evidence_reason = 'BLOCKED', 'ITEMS_REQUIRED'; blocking.append('ITEMS_REQUIRED')
+    elif mode == 'NONE':
+        evidence_status, evidence_reason = 'SKIPPED', 'NO_INTERNAL_EVIDENCE'
+        open_items.append('EVIDENCE_ANALYSIS_SKIPPED')
+    elif policy.get('status') == 'SKIPPED':
+        evidence_status, evidence_reason = 'SKIPPED', policy.get('reason') or 'USER_SKIPPED'
+        open_items.append('EVIDENCE_ANALYSIS_SKIPPED')
+    else:
+        evidence_status, evidence_reason = 'PENDING', 'INTERNAL_EVIDENCE_ANALYSIS_REQUIRED'
+        open_items.append('INTERNAL_EVIDENCE_ANALYSIS_REQUIRED')
+    stages.append({'id': 'EVIDENCE_ANALYSIS', 'label': '依据分析', 'status': evidence_status,
+                   **({'reason': evidence_reason} if evidence_reason else {})})
+
+    if baseline is None:
+        check_status, check_reason = 'BLOCKED', 'ITEMS_REQUIRED'
+        delivery_status, delivery_reason = 'BLOCKED', 'ITEMS_REQUIRED'
+    elif delivery is not None:
+        check_status, check_reason = 'SAVED', None
+        delivery_status, delivery_reason = 'SAVED', None
+    else:
+        check_status, check_reason = 'PENDING', 'SELF_CHECK_NOT_SAVED'
+        delivery_status, delivery_reason = 'PENDING', 'DELIVERABLE_NOT_SAVED'
+    check_evidence = [{'kind': 'DELIVERY_VERSION', 'source_sha256': source_sha,
+                       'artifact_sha256': delivery.get('delivery_sha256')}] if delivery is not None else None
+    delivery_evidence = [{'kind': 'DELIVERY_VERSION', 'source_sha256': source_sha,
+                          'artifact_sha256': delivery.get('delivery_sha256')}] if delivery is not None else None
+    stages.append({'id': 'SELF_CHECK', 'label': '自查与修正', 'status': check_status,
+                   **({'evidence': check_evidence} if check_evidence else {}),
+                   **({'reason': check_reason} if check_reason else {})})
+    stages.append({'id': 'DELIVERABLE', 'label': '可核对成果', 'status': delivery_status,
+                   **({'evidence': delivery_evidence} if delivery_evidence else {}),
+                   **({'reason': delivery_reason} if delivery_reason else {})})
+
+    ready = delivery is not None and not blocking and all(
+        stage['status'] in {'SAVED', 'SKIPPED'} for stage in stages)
+    next_stage = next((stage['id'] for stage in stages
+                       if stage['status'] in {'PENDING', 'IN_PROGRESS', 'BLOCKED'}), None)
+    return {
+        'schema': workflow_contract.STATE_SCHEMA,
+        'workflow': {'id': spec['id'], 'version': spec['version'],
+                     'definition_sha256': spec['definition_sha256'],
+                     'brief_sha256': spec['brief_sha256'], 'evidence_mode': mode},
+        'source_sha256': source_sha, 'stages': stages, 'next_stage': next_stage,
+        'ready_to_review': ready, 'verification': 'SAVED_ARTIFACTS_AND_DELIVERY_RECEIPTS',
+        'open_items': sorted(set(open_items)), 'human_acceptance': 'NOT_CLAIMED',
+    }
 
 def _remember_latest(root,head):
     _write_json(root.parent/'latest.json',{'session_id':head['session_id'],'source_sha256':head['source_sha256']})
@@ -132,6 +271,40 @@ def _cached_with_stat(path,digest,mtime,size):
     return json.loads(raw)
 
 
+
+def _current_fixed_workflow(root, head):
+    stored = head.get('fixed_workflow')
+    if not stored:
+        return None
+    try:
+        if head.get('revision_id'):
+            directory, version = _version(root, head)
+            names = {name: _artifact(directory, version, name) for name in
+                     ('document-map.json', 'table-previews.json') if name in version['files']}
+            mapping = core.DocumentMapArtifactV1.model_validate(names['document-map.json']) if 'document-map.json' in names else None
+            if mapping is None or mapping.source_sha256 != head['source_sha256']:
+                raise ValueError('Map source differs from this task')
+            baseline = None
+            if version.get('baseline_sha256'):
+                baseline = core.SourceRequirementBaselineArtifactV1.model_validate(
+                    _artifact(directory, version, 'source-requirement-baseline.json'))
+                if baseline.source_sha256 != head['source_sha256'] or baseline.document_map_artifact_sha256 != mapping.artifact_sha256:
+                    raise ValueError('Source items differ from this Map/source')
+            artifacts = {name: _artifact(directory, version, name) for name in
+                         ('source-item-decomposition.json', 'analysis-policy.json') if name in version['files']}
+        else:
+            mapping = None; baseline = None; artifacts = {}
+        payload = {'schema': workflow_contract.STATE_SCHEMA, 'source_sha256': head['source_sha256'],
+                   'workflow': stored.get('workflow') or {}}
+        return _derive_fixed_workflow(payload, head['source_sha256'], mapping, baseline, artifacts, root, head)
+    except (ApplicationError, ValueError, KeyError, TypeError, OSError) as exc:
+        detail = exc.detail if isinstance(exc, ApplicationError) and isinstance(exc.detail, str) else str(exc)
+        return {'schema': workflow_contract.STATE_SCHEMA,
+                'workflow': stored.get('workflow') or {}, 'source_sha256': head.get('source_sha256'),
+                'stages': [], 'next_stage': None, 'ready_to_review': False,
+                'verification': 'UNCONFIRMED', 'open_items': ['WORKFLOW_STATE_UNCONFIRMED'],
+                'unconfirmed': {'reason': detail}, 'human_acceptance': 'NOT_CLAIMED'}
+
 def _public(root,head):
     stages=[];baseline=None;policy=None
     if head.get('revision_id'):
@@ -159,6 +332,7 @@ def _public(root,head):
                 for f in head['feedback']]
     return {'schema_version':'reqpilot-plugin-workbench/v1','session_id':head['session_id'],
         'work_ref': head['session_id'], 'producer_ref': {'kind': 'EXTERNAL_PLUGIN', 'id': head['session_id']},
+        **({'fixed_workflow':_current_fixed_workflow(root,head)} if head.get('fixed_workflow') else {}),
         'task_ref': None, 'goal': head.get('goal') or None,
         'execution': {'status': 'UNREPORTED', 'source': 'EXTERNAL_PLUGIN', 'last_reported_at': None},
         'last_synced_at': head['versions'][-1]['created_at'] if head['versions'] else head.get('updated_at'),
@@ -235,14 +409,21 @@ def sync_plugin_draft(project_id: str,document_id: str,payload: PluginDraftUploa
             head={'project_id':project_id,'document_id':document_id,'session_id':payload.session_id,
                 'source_sha256':payload.expected_source_sha256,'require_map_confirmation':payload.require_map_confirmation,
                 'revision_id':None,'versions':[],'feedback':[],'commands':{},'goal':payload.goal,'updated_at':_now()}
-        if not mapping:
-            _write_json(root/'head.json',head);_remember_latest(root,head);return _public(root,head)
         if set(payload.feedback_resolutions)-{f['feedback_id'] for f in head['feedback']} or any(not reason.strip() or len(reason)>8000 for reason in payload.feedback_resolutions.values()):
             raise ApplicationError(status_code=422,detail='反馈处理结果必须引用本任务的真实意见，并说明如何处理。')
         identity={'source_sha256':payload.expected_source_sha256,'artifacts':payload.artifacts,'local_review_sha256':payload.local_review_sha256,
             'feedback_resolutions':payload.feedback_resolutions}
         content_digest=core.canonical_json_sha256(identity)
+        workflow_head = head if content_digest == head.get('content_digest') else {**head, 'revision_id': None}
+        fixed_workflow = _derive_fixed_workflow(payload.fixed_workflow, payload.expected_source_sha256,
+            mapping, baseline, payload.artifacts, root, workflow_head)
+        if fixed_workflow is not None:
+            head['fixed_workflow']=fixed_workflow
+        if not mapping:
+            _write_json(root/'head.json',head);_remember_latest(root,head);return _public(root,head)
         if content_digest==head.get('content_digest'):
+            if fixed_workflow is not None and head.get('fixed_workflow')!=fixed_workflow:
+                head['fixed_workflow']=fixed_workflow;head['updated_at']=_now();_write_json(root/'head.json',head)
             _remember_latest(root,head);return _public(root,head)
         if payload.expected_revision_id!=head.get('revision_id'):
             raise ApplicationError(status_code=409,detail='工作台已有新成果，请取回当前版本后再同步；旧成果保留。')
@@ -270,7 +451,8 @@ def sync_plugin_draft(project_id: str,document_id: str,payload: PluginDraftUploa
         if baseline:stages.append({'stage':'ITEMS','artifact_sha256':baseline.artifact_sha256,'count':len(baseline.records)})
         version={'revision_id':revision,'source_sha256':payload.expected_source_sha256,'predecessor_revision_id':head.get('revision_id'),
             'local_review_sha256':payload.local_review_sha256,'stages':stages,'baseline_sha256':baseline.artifact_sha256 if baseline else None,
-            'snapshot_sha256':snapshot['delivery_sha256'],'analysis_policy':policy,'files':files,'created_at':_now()}
+            'snapshot_sha256':snapshot['delivery_sha256'],'analysis_policy':policy,'files':files,'created_at':_now(),
+            **({'fixed_workflow':fixed_workflow} if fixed_workflow else {})}
         _write_json(directory/'version.json',version)
         head['revision_id']=revision;head['content_digest']=content_digest;head['versions'].append({'revision_id':revision,'number':len(head['versions'])+1,'stages':stages,'created_at':version['created_at']})
         resolutions=head.setdefault('feedback_resolutions',{})
@@ -295,7 +477,9 @@ def get_latest_plugin_workbench(project_id: str,document_id: str,response: Respo
     latest=_read(pointer)
     if latest['source_sha256']!=_document_source_sha256(document):return None
     root,head=_load(project_id,document_id,latest['session_id']);state=_public(root,head)
-    return {key:state[key] for key in ('session_id','source_sha256','revision_id','revision_number','stages','workbench_path','updated_at','map_confirmation_required')}
+    summary={key:state[key] for key in ('session_id','source_sha256','revision_id','revision_number','stages','workbench_path','updated_at','map_confirmation_required')}
+    if state.get('fixed_workflow'):summary['fixed_workflow']=state['fixed_workflow']
+    return summary
 
 
 def list_plugin_workbench_sessions(project_id: str, document_id: str, response: ResponseSink):
@@ -333,6 +517,7 @@ def list_plugin_workbench_sessions(project_id: str, document_id: str, response: 
                 continue
             state = _public(directory, head)
             summary = {key: state[key] for key in keys}
+            if state.get('fixed_workflow'):summary['fixed_workflow']=state['fixed_workflow']
             summary.update(availability='AVAILABLE' if head.get('revision_id') else 'NO_ARTIFACTS',
                 title=head.get('goal') or '外部任务 ' + directory.name[-8:],
                 title_origin='USER_GOAL' if head.get('goal') else 'GENERATED_IDENTIFIER')

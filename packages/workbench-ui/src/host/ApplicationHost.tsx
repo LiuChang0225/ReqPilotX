@@ -1,9 +1,39 @@
 import { createContext, useContext } from "react";
 import type { WorkbenchPresentation } from "../features/workspace/WorkbenchHostContext";
 
+export interface ApplicationWorkflowDescriptor {
+  schema: "reqpilot-fixed-workflow/v1"; id: string; version: string; definition_sha256?: string; label?: string;
+  stages: { id: string; order: number; label: string; required: boolean }[];
+  required_inputs?: { id: string; label: string; required: boolean }[];
+  optional_inputs?: { id: string; label: string; available: boolean; reason?: string }[];
+  expected_outputs?: string[];
+  branches?: Record<string, string>;
+}
+export interface ApplicationWorkflowStageState {
+  id: string; label: string;
+  status: "PENDING" | "IN_PROGRESS" | "SAVED" | "SKIPPED" | "WAITING" | "BLOCKED";
+  reason?: string; branch?: string;
+  evidence?: { kind: string; source_sha256?: string; artifact_sha256?: string; count?: number; path?: string }[];
+}
+export interface ApplicationWorkflowState {
+  schema: "reqpilot-fixed-workflow-state/v1";
+  workflow: { id: string; version: string; definition_sha256?: string; brief_sha256?: string; evidence_mode?: string };
+  source_sha256: string;
+  stages: ApplicationWorkflowStageState[];
+  next_stage?: string | null;
+  ready_to_review: boolean;
+  verification: "SAVED_ARTIFACTS_ONLY" | string;
+  open_items: string[];
+  human_acceptance: "NOT_CLAIMED" | string;
+}
 export interface ApplicationTaskReceipt {
-  commandId: string; projectId: string; documentId: string; sourceSha256: string;
+  schema?: string; commandId: string; projectId: string; documentId: string; sourceSha256: string;
   sessionId: string; workRef: string; status: string;
+  modelSelection?: { provider: string; model: string; reasoningEffort?: string };
+  selectedAgentModel?: { provider: string; model: string; reasoningEffort?: string };
+  workflow?: ApplicationWorkflowDescriptor | { id: string; version: string; schema: string; definition_sha256: string };
+  workflowState?: ApplicationWorkflowState | null;
+  workflowUnconfirmed?: { reason: string; message?: string } | null;
   controlCapabilities?: { cancel?: boolean; continue?: boolean; reconnect?: boolean };
   execution?: { status: string; activity?: string };
 }
@@ -15,6 +45,8 @@ export interface WorkbenchApplicationHost extends Pick<WorkbenchPresentation, "r
   modelLabel: string;
   captureAvailable: boolean;
   taskStartAvailable: boolean;
+  workflow?: ApplicationWorkflowDescriptor | null;
+  taskSetup?: string | null;
   startTask(input: { projectId: string; documentId: string; sourceSha256: string; goal: string; requireMapConfirmation?: boolean }): Promise<ApplicationTaskReceipt>;
   /** Cancelling an observation discards its pending read without cancelling the durable task. */
   restoreTask(input: { projectId: string; documentId: string; sourceSha256: string; workRef?: string }, options?: { signal?: AbortSignal }): Promise<ApplicationTaskReceipt | null>;

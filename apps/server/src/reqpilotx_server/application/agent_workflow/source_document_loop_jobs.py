@@ -532,6 +532,9 @@ def get_latest_source_document_loop(
     response.headers.update(_no_store_headers())
     _require_project_document(project_id, document_id)
     container = _container()
+    if container.jobs is None:
+        return {"schema_version": SCHEMA, "task_id": None, "job_status": "NOT_STARTED",
+                "job_availability": "UNAVAILABLE_LOCAL_RUNTIME"}
     job = container.jobs.get_latest(
         kind=EXTRACTION_JOB_KIND,
         aggregate_type="sor-document",

@@ -87,3 +87,18 @@ test('Client requires every human-operation flag and embeds the same exact-path 
     assert.equal(discovery.resultWriteOperation('POST', root + '/' + suffix + '?revision=older'), null);
   }
 });
+
+test('fixed workflow discovery is versioned and exposes actionable setup state', () => {
+  const workflow = { schema: 'reqpilot-fixed-workflow/v1', id: 'reqpilot-fixed-workflow', version: '1.0.0',
+    definition_sha256: 'd'.repeat(64), label: 'Fixed workflow',
+    stages: [{ id: 'PREPARATION', order: 1, label: '资料准备', required: true }],
+    required_inputs: [{ id: 'customer_source', label: '客户需求文档', required: true }],
+    optional_inputs: [{ id: 'project_references', label: '项目参考资料', available: false, reason: 'not wired' }],
+    expected_outputs: ['structure'], branches: { no_internal_evidence: 'SKIP_EVIDENCE_ANALYSIS' } };
+  const value = discovery.publicConfiguration({ ...ready, taskWorkflow: workflow, taskLaunchReady: false,
+    taskStartIssue: 'PAIR_DEFAULT_MODEL_UNAVAILABLE', taskModel: { provider: 'opencode-go', model: 'deepseek-v4.1-flash', reasoningEffort: 'max' } });
+  assert.equal(value.workflow.version, '1.0.0'); assert.equal(value.workflow.id, 'reqpilot-fixed-workflow');
+  assert.equal(value.taskStart.ready, false); assert.equal(value.taskStart.reason, 'PAIR_DEFAULT_MODEL_UNAVAILABLE');
+  assert.equal(value.taskModel.model, 'deepseek-v4.1-flash'); assert.equal(value.capabilities['agent.start'], false);
+  assert.throws(() => discovery.assertCompatibleConfiguration({ ...value, workflow: { ...value.workflow, schema: 'future/v2' } }), /WORKFLOW_INCOMPATIBLE/);
+});

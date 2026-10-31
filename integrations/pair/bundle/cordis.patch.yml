@@ -10,9 +10,8 @@
         taskMcp: true
         capabilityRoot: !!js process.env.REQPILOT_PAIR_CAPABILITY_ROOT
         agentPreset: !!js process.env.REQPILOT_PAIR_AGENT_PRESET || 'standard'
-        agentModel:
-          provider: openai-codex
-          model: gpt-6.1-sol
-          reasoningEffort: xhigh
+        # New tasks use the selected PAIR default model/effort. Set agentModel
+        # only as an explicit deployment override; the exact selection is frozen
+        # in the launch receipt before dispatch.
     - id: reqpilotx-client
       name: '@reqpilotx/dsh-pair-client'

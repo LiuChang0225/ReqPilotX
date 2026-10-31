@@ -463,6 +463,16 @@ def get_latest_source_item_loop(
     response.headers.update(_no_store_headers())
     _require_project_document(project_id, document_id)
     container = _container()
+    if container.jobs is None:
+        # The lightweight local application does not run the legacy durable
+        # native-loop queue. This is a declared unavailable capability, not a
+        # transient read failure and not a completed task.
+        return {
+            "schema_version": TASK_SCHEMA,
+            "task_id": None,
+            "job_status": "NOT_STARTED",
+            "job_availability": "UNAVAILABLE_LOCAL_RUNTIME",
+        }
     candidates = [
         container.jobs.get_latest(
             kind=kind, aggregate_type="sor-document", aggregate_id=document_id

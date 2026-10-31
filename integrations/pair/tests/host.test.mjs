@@ -2,7 +2,8 @@ import test from 'node:test';
 import assert from 'node:assert/strict';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
-import { createHandler, serviceOrigin, proxyTarget, apply } from '../host/src/index.js';
+import { readFile } from 'node:fs/promises';
+import { createHandler, serviceOrigin, proxyTarget, apply, applicationMetadata, applicationReadStatus, registerPairApplication } from '../host/src/index.js';
 
 async function serve(handler) {
   const server = createServer(handler); server.listen(0, '127.0.0.1'); await once(server, 'listening');
@@ -89,4 +90,37 @@ test('task launch and control routes retain authentication and exact command bin
     assert.equal(commands.length, 2);
     assert.equal((await fetch(proxy.url + '/reqpilotx/tasks/start', { method: 'POST', headers: { cookie: 'pair=ok' }, body: 'invalid' })).status, 422);
   } finally { await proxy.close(); }
+});
+
+
+test('Host discovery contribution registers through the supplied fiber and disposes with it', async () => {
+  const runtime = { snapshot: { status: 'STARTING' } };
+  const registrations = [], disposals = [];
+  const center = { registerApplication(metadata, readStatus) {
+    registrations.push({ metadata, readStatus }); return () => disposals.push('center');
+  } };
+  const effectDisposers = [];
+  const scope = {
+    get(name) { return name === 'pairSkillCenter' ? center : undefined; },
+    effect(fn) { const dispose = fn(); effectDisposers.push(dispose); return dispose; },
+  };
+  const metadata = registerPairApplication(scope, runtime);
+  assert.equal(metadata, applicationMetadata);
+  assert.equal(registrations.length, 1);
+  assert.equal(registrations[0].metadata.id, 'reqpilotx');
+  assert.equal(registrations[0].metadata.domain, 'GEN');
+  assert.equal(registrations[0].metadata.stage, 'requirement-analysis');
+  assert.equal(registrations[0].metadata.panelId, 'reqpilotx');
+  assert.equal(registrations[0].metadata.version, JSON.parse(await readFile(new URL('../client/package.json', import.meta.url), 'utf8')).version);
+  assert.deepEqual(registrations[0].metadata.authors, []);
+  assert.equal(registrations[0].readStatus(), 'starting');
+  runtime.snapshot.status = 'READY'; assert.equal(registrations[0].readStatus(), 'ready');
+  runtime.snapshot.status = 'STOPPED'; assert.equal(registrations[0].readStatus(), 'unavailable');
+  assert.equal(applicationReadStatus({ snapshot: { status: 'ERROR' } }), 'unavailable');
+  for (const dispose of effectDisposers.reverse()) if (typeof dispose === 'function') dispose();
+  assert.deepEqual(disposals, ['center']);
+});
+
+test('raw DSH without pairSkillCenter keeps the Host contribution silent', () => {
+  assert.equal(registerPairApplication({ effect() { throw Error('must not register'); } }, { snapshot: { status: 'READY' } }), null);
 });

@@ -7,7 +7,7 @@ consume the generated `dist-panel` CJS/ES/CSS and `host-contract.json`.
 From the repository root: `npm ci`, `npm test`, `npm run typecheck`,
 `npm run build:panel`, `npm run test:css`. The root lock pins the same dependencies
 as the former frontend. React is external in Panel builds and supplied by the host.
-Contract `reqpilot-host-ui/v1` remains major 1 / minor 2.
+Contract `reqpilot-host-ui/v1` remains major 1 / minor 3; the additive minor adds the optional fixed-workflow intake/status host fields.
 
 ## Complete embedded application
 
@@ -18,6 +18,8 @@ The adapter installs `installApplicationTransport({ id, resourceUrl, fetch })` b
 Embedded navigation and preferences are scoped to the panel. The parent URL, document title and global theme/language remain with the host. The current shared business UI is Chinese; the embedding wrapper does not claim an English translation. A ResizeObserver supplies the available panel width to the incumbent responsive navigation. The full application keeps the WorkspaceShell grid; legacy saved-panel flex rules exclude its marker.
 
 The host supplies task start, exact-work restoration, control and Session opening through `WorkbenchApplicationHost`. `HostedAgentPanel` owns only these host controls. Business feedback, original-source linkage, human opinions, versions and exports continue through the existing workbench components and API. Host configuration is shown without a second model/provider editor. Unsupported source removal and knowledge import remain explicitly disabled; program capture requires a declared capability.
+
+A host may additionally supply `workflow` (the server-owned fixed process description) and `taskSetup` (an actionable missing-model/capability state). The task panel then explains required source, unavailable optional evidence and expected outputs, and starts without an authored goal. Receipts may carry `workflowState`, a program projection from saved artifacts; the panel and `PluginWorkbench` keep it separate from execution status and never treat it as human acceptance. A null restore is rendered as Not started rather than a persistent status failure.
 
 Pending observations and controls belong to one committed host/work/revision selection. The route's selected revision invalidates them before its reader has finished loading; returning to the same work does not reactivate an older observation. Restoration accepts an optional `AbortSignal`, which discards stale reads and prevents them from replacing newer durable intentions. This does not cancel an admitted task. Control acknowledgements update execution state while preserving the current work and inspected version; only explicit task start or return navigates to another work. An observation begun before a control cannot replace that control's newer receipt.
 

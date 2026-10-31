@@ -52,6 +52,8 @@ it("updates a mounted READY application's capabilities and controller without re
   expect(fetcher.mock.calls.filter(([path]) => path.startsWith("/reqpilotx/tasks?"))).toHaveLength(0);
 
   configuration = discovery.publicConfiguration({ ...base, taskLaunchReady: true, taskLookupAvailable: true, workbenchCapture: true,
+    taskWorkflow: { schema: "reqpilot-fixed-workflow/v1", id: "reqpilot-fixed-workflow", version: "1.0.0",
+      definition_sha256: "d".repeat(64), label: "Fixed workflow", stages: [{ id: "PREPARATION", order: 1, label: "资料准备", required: true }] },
     taskModel: { provider: "test", model: "ready-model", reasoningEffort: "xhigh" } });
   await act(async () => { await vi.advanceTimersByTimeAsync(2000); });
   expect(screen.getByRole("button", { name: "Start" })).toBeEnabled();

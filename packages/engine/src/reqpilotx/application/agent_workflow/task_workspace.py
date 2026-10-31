@@ -18,6 +18,7 @@ from uuid import uuid4
 
 from reqpilotx.application.agent_workflow.artifact_kind_catalog import file_sha256, inside, read_json, validate_bundle
 from reqpilotx.application.agent_workflow.native_task_brief import build_task_brief
+from reqpilotx.application.agent_workflow.fixed_workflow import project_workflow, validate_workflow_spec
 from reqpilotx.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
 
 SCHEMA = 'reqpilot-task-workspace/v1'
@@ -120,6 +121,8 @@ def _read_context(root):
     request = value.get('request') or {}
     if not isinstance(request.get('goal'), str) or not request['goal'].strip() or request.get('origin') != 'USER_REQUEST' or type(request.get('require_map_confirmation')) is not bool:
         raise ValueError('Task request facts are invalid')
+    if request.get('workflow') is not None:
+        validate_workflow_spec(request['workflow'])
     binding = value.get('binding_file')
     if not isinstance(binding, str) or not binding:
         raise ValueError('Task binding file reference is invalid')
@@ -247,9 +250,13 @@ def _resolve_ref(root, value):
 
 
 def initialize_workspace(working_root, source, goal, project_key=None, document_key=None,
-                         project_id=None, document_id=None, require_map_confirmation=False, runtime_ref=None, creation_key=None):
+                         project_id=None, document_id=None, require_map_confirmation=False, runtime_ref=None, creation_key=None,
+                         workflow=None):
+    if workflow is not None:
+        validate_workflow_spec(workflow)
     arguments = dict(project_key=project_key, document_key=document_key, project_id=project_id, document_id=document_id,
-                     require_map_confirmation=require_map_confirmation, runtime_ref=runtime_ref)
+                     require_map_confirmation=require_map_confirmation, runtime_ref=runtime_ref,
+                     **({'workflow': workflow} if workflow is not None else {}))
     if creation_key is None:
         return _initialize_workspace(working_root, source, goal, **arguments)
     if not isinstance(creation_key, str) or not creation_key.strip() or len(creation_key) > 200:
@@ -302,7 +309,10 @@ def initialize_workspace(working_root, source, goal, project_key=None, document_
 
 
 def _initialize_workspace(working_root, source, goal, project_key=None, document_key=None,
-                          project_id=None, document_id=None, require_map_confirmation=False, runtime_ref=None, _work_id=None):
+                          project_id=None, document_id=None, require_map_confirmation=False, runtime_ref=None, _work_id=None,
+                          workflow=None):
+    if workflow is not None:
+        validate_workflow_spec(workflow)
     source = Path(source).expanduser().resolve(strict=True)
     if not source.is_file() or not isinstance(goal, str) or not goal.strip():
         raise ValueError('Task initialization needs an actual original and exact user request')
@@ -342,7 +352,8 @@ def _initialize_workspace(working_root, source, goal, project_key=None, document
         (root / source_relative).chmod(0o400)
         context = _seal({'schema_version': SCHEMA, 'work_id': work_id, 'project_key': project_key, 'document_key': document_key,
             'project_id': project_id, 'document_id': document_id, 'source': {'path': source_relative, 'sha256': source_sha, 'display_name': source.name},
-            'request': {'goal': goal, 'origin': 'USER_REQUEST', 'require_map_confirmation': require_map_confirmation},
+            'request': {'goal': goal, 'origin': 'USER_REQUEST', 'require_map_confirmation': require_map_confirmation,
+                        **({'workflow': workflow} if workflow is not None else {})},
             'binding_file': f'runtime-data/workbench-bindings/{source_sha}.json', 'binding_portability': 'TASK_RELATIVE', 'runtime_ref': runtime_ref, 'created_at': _now()}, 'context_sha256')
         _atomic_json(root / 'task-context.json', context)
         _write_index(root, _empty_index(context))
@@ -879,20 +890,47 @@ def workspace_status(task_root, refresh=True):
         policy_path = Path(selected['ITEMS']['path']).parent / 'analysis-policy.json'
         if policy_path.is_file() and (not review or 'analysis-policy.json' in review['files']):
             analysis_policy = read_json(policy_path)
+    workflow_spec = (context.get('request') or {}).get('workflow') or {}
+    if analysis_policy is None and (workflow_spec.get('evidence') or {}).get('mode') == 'NONE':
+        # A fixed workflow declaration can say that no internal evidence is
+        # available. This is a declared branch, not a model or user claim.
+        analysis_policy = {'status': 'SKIPPED', 'reason': 'NO_INTERNAL_EVIDENCE',
+                           'origin': 'FIXED_WORKFLOW_DECLARATION'}
     brief = build_task_brief(goal=context['request']['goal'], origin=context['request']['origin'], source={**context['source'], 'path': str(inside(root, context['source']['path']))},
         stages=selected, review=review, require_map_confirmation=context['request']['require_map_confirmation'], confirmed_map_sha256=confirmed,
         project_id=context.get('project_id'), document_id=context.get('document_id'), analysis_policy=analysis_policy)
+    incomplete_operations = [read_json(p) for p in sorted((root / 'operations').glob('op-*.json')) if read_json(p).get('state') in {'STARTED', 'FAILED', 'BLOCKED', 'SAVED_PENDING_RECOVERY'}]
+    workflow = project_workflow(context=context, selected=selected, brief=brief, review=review,
+                                incomplete_operations=incomplete_operations)
     status = {'schema_version': 'reqpilot-workspace-status/v1', 'task_root': str(root), 'revision': _revision(context, index, review), 'context': context, 'index': index, 'selected': selected, 'brief': brief,
         'current_working': review or {'owner': 'task_workspace', 'generation': index['generation'], 'selected': selected},
         'binding_file': str(binding_path), 'workbench_url': binding.get('url') or binding.get('workbench_url') or (binding.get('base_url', '') + binding['workbench_path'] if binding.get('workbench_path') else None),
         'candidates': deepcopy(index['candidates']), 'committed_operations': deepcopy(index['committed']),
         'running_state': 'UNREPORTED', 'human_acceptance': 'NOT_CLAIMED', 'source_verification': 'BYTES_MATCH',
-        'incomplete_operations': [read_json(p) for p in sorted((root / 'operations').glob('op-*.json')) if read_json(p).get('state') in {'STARTED', 'FAILED', 'BLOCKED', 'SAVED_PENDING_RECOVERY'}]}
+        **({'workflow': workflow} if workflow else {}),
+        'incomplete_operations': incomplete_operations}
+    if workflow:
+        path = root / 'workflow-status.json'
+        try:
+            existing = read_json(path) if path.is_file() else None
+        except (OSError, ValueError):
+            existing = None
+        if existing != workflow:
+            _atomic_json(path, workflow)
     if refresh:
         lines = ['# ReqPilotX 文档任务', '', '## 本轮委托', '', context['request']['goal'], '', '来源：USER_REQUEST', '',
                  '## 程序核对的当前状态', '', brief['work_state_label'], '', '原件：`' + context['source']['path'] + '`',
                  '原件 SHA256：`' + context['source']['sha256'] + '`', '结构确认：' + brief['map_confirmation'],
-                 '内部依据策略：' + brief['analysis_policy']['status'], '人工接受：未声称；程序保存不代表语义正确。', '', '## 可接续工件', '']
+                 '内部依据策略：' + brief['analysis_policy']['status'], '人工接受：未声称；程序保存不代表语义正确。', '']
+        if workflow:
+            lines += ['## 固定工作流', '', '版本：`' + workflow['workflow']['version'] + '`；来源：`' + workflow['source_sha256'] + '`',
+                      '阶段推进只认已保存工件；Agent 文字、会话空闲或完成声明不推进阶段。',
+                      '当前阶段：' + str(workflow.get('next_stage') or '已保存可核对成果'),
+                      '可核对：' + ('是' if workflow.get('ready_to_review') else '尚未满足已保存成果条件'),
+                      '未决项：' + (', '.join(workflow.get('open_items') or []) or '无程序记录的未决项'), '']
+            lines += ['- ' + stage['label'] + '：' + stage['status'] + (('（' + stage['reason'] + '）') if stage.get('reason') else '') for stage in workflow['stages']]
+            lines += ['']
+        lines += ['## 可接续工件', '']
         lines += ['- ' + key + '：`' + _relative_or_absolute(root, value['path']) + '`' for key, value in selected.items()] or ['尚无已提交工件；从原件开始。']
         if selected.get('MAP'):
             lines += ['', 'Map编制包：' + str(selected['MAP'].get('compiler_output_dir') or selected['MAP']['compiler_bundle_availability']) + '；可读Map快照与完整重编依赖分别列出。']

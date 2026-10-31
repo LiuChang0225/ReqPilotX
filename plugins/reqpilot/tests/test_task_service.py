@@ -12,6 +12,7 @@ ENTRY = ROOT/'plugins/reqpilot/scripts/reqpilot.py'
 sys.path[:0] = [str(ENTRY.parent), str(ROOT/'prototype')]
 from test_portable import make_fixture, item_decisions
 from task_service import TaskService
+from reqpilotx.application.agent_workflow import fixed_workflow as workflow
 
 
 class TypedTaskTests(unittest.TestCase):
@@ -153,7 +154,9 @@ class TypedTaskTests(unittest.TestCase):
             root = Path(temporary)
             source, capture, mapping = make_fixture(root/'fixture')
             service = TaskService(root, ENTRY, ROOT)
-            create = {'mode':'create','source':str(source),'goal':'按原序整理合成原件。','creation_key':'create-case'}
+            create = {'mode':'create','source':str(source),'goal':'按原序整理合成原件。','creation_key':'create-case',
+                'workflow': workflow.workflow_spec(brief_sha256=workflow.brief_sha256('按原序整理合成原件。'),
+                    evidence_mode='NONE')}
             opened = service.invoke('open', create)
             self.assertEqual(service.invoke('open', create)['task_id'], opened['task_id'])
             task = opened['task_id']; initial = opened['revision']
@@ -186,6 +189,8 @@ class TypedTaskTests(unittest.TestCase):
             request = {'task_id':task,'expected_revision':state['revision'],'command_id':'items-once','decisions':decisions}
             items = service.invoke('items', request)
             self.assertEqual(items['operation_state'], 'COMMITTED', items)
+            self.assertFalse(items['workflow']['ready_to_review'])
+            self.assertEqual(items['workflow']['stages'][1]['status'], 'SAVED')
             replay = service.invoke('items', request)
             self.assertTrue(replay['replayed']); self.assertEqual(replay['operation_id'], items['operation_id'])
             self.assertEqual(replay['revision'], items['revision'])
@@ -200,6 +205,15 @@ class TypedTaskTests(unittest.TestCase):
             repeated=service.invoke('deliver',{'task_id':task,'expected_revision':delivery['base_revision'],'command_id':'deliver-once'})
             self.assertTrue(repeated['local_delivery_ready'],repeated)
             self.assertEqual(repeated['operation_id'],delivery['operation_id'])
+            self.assertTrue(repeated['workflow']['ready_to_review'], repeated['workflow'])
+            by_id={stage['id']:stage for stage in repeated['workflow']['stages']}
+            self.assertEqual(by_id['SOURCE_MAP']['status'],'SAVED')
+            self.assertEqual(by_id['ITEMS_CLASSIFICATION']['status'],'SAVED')
+            self.assertEqual(by_id['EVIDENCE_ANALYSIS']['status'],'SKIPPED')
+            self.assertEqual(by_id['SELF_CHECK']['status'],'SAVED')
+            self.assertEqual(by_id['DELIVERABLE']['status'],'SAVED')
+            checked=service.invoke('check',{'task_id':task})
+            self.assertTrue(checked['ready_to_review'])
             review_root,current=service.state(task)
             with patch('revision_tools.verify_review',return_value={'status':'REVIEW_VERIFIED','review_sha256':'newer-head','delivery':{'path':'another-delivery'}}), patch.object(service,'workbench_check') as host_check:
                 changed=service.check(review_root,current)

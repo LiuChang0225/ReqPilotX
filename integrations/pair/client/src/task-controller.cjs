@@ -1,6 +1,16 @@
 /** Durable task identities are shared by the complete workbench and Pair's existing task API. */
 function acceptedTaskReceipt(value, applicationId, input) {
-  return Boolean(value?.schema === 'reqpilot-pair-launch/v1' && value.status === 'ACCEPTED' && value.applicationId === applicationId
+  const workflow = value?.schema === 'reqpilot-pair-launch/v2'
+    ? value.workflow?.schema === 'reqpilot-fixed-workflow/v1' && value.workflow.id === 'reqpilot-fixed-workflow'
+      && typeof value.workflow.version === 'string'
+      && ((value.workflowState?.schema === 'reqpilot-fixed-workflow-state/v1'
+        && value.workflowState.source_sha256 === input.sourceSha256
+        && value.workflowState.workflow?.version === value.workflow.version
+        && value.workflowState.human_acceptance === 'NOT_CLAIMED')
+        || (value.workflowState === null && typeof value.workflowUnconfirmed?.reason === 'string'
+          && value.workflowUnconfirmed.reason.length > 0))
+    : value?.schema === 'reqpilot-pair-launch/v1';
+  return Boolean(workflow && value.status === 'ACCEPTED' && value.applicationId === applicationId
     && ['commandId', 'projectId', 'documentId', 'sourceSha256'].every(key => value[key] === input[key])
     && typeof value.sessionId === 'string' && value.sessionId && typeof value.workspaceId === 'string' && value.workspaceId
     && /^plugin-[a-f0-9]{32}$/.test(value.workRef || ''));
@@ -11,7 +21,7 @@ function createPairTaskController(config, openSession, transport = fetch) {
   const read = key => { const value = localStorage.getItem(key); return value ? JSON.parse(value) : null; };
   const write = (key, value) => localStorage.setItem(key, JSON.stringify(value));
   const validIntent = (prior, input) => Boolean(prior && ['projectId', 'documentId', 'sourceSha256'].every(key => prior[key] === input[key])
-    && /^[a-f0-9-]{36}$/.test(prior.commandId || '') && typeof prior.goal === 'string' && prior.goal.trim());
+    && /^[a-f0-9-]{36}$/.test(prior.commandId || '') && typeof prior.goal === 'string');
   const readIntent = input => {
     let prior;
     try { prior = read(scopeKey(input)); }

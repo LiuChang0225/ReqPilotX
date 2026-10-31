@@ -18,6 +18,7 @@ sys.path[:0]=[str(ROOT/'plugins/reqpilot/scripts'),str(ROOT/'plugins/reqpilot/te
 from test_portable import make_fixture,item_decisions,write
 import artifact_tools
 from app.application.agent_workflow import plugin_workbench as api
+from app.application.agent_workflow import fixed_workflow as workflow
 from app.application.errors import ApplicationError
 
 class PluginWorkbenchTests(unittest.TestCase):
@@ -143,7 +144,7 @@ class PluginWorkbenchTests(unittest.TestCase):
         baseline=self.root/'baseline';artifact_tools.compile_items(Namespace(map_dir=mapping,input=self.root/'items-input.json',baseline_dir=None,output_dir=baseline))
         self.artifacts={n:json.loads((baseline/n).read_text()) for n in ('document-map.json','table-previews.json','source-requirement-baseline.json','validation-receipt.json')}
         self.sha=hashlib.sha256(self.source.read_bytes()).hexdigest();self.session='plugin-'+'a'*32
-        self.document={'source_sha256':self.sha,'file_name':self.source.name}
+        self.document={'source_sha256':self.sha,'file_name':self.source.name};self.api=api
         self.patches=[patch.object(api,'_container',return_value=SimpleNamespace(settings=SimpleNamespace(object_root=self.root/'objects'))),
             patch.object(api,'_require_project_document',return_value=self.document),patch.object(api,'resolve_source_record_path',return_value=self.source)]
         for p in self.patches:p.start()
@@ -163,6 +164,123 @@ class PluginWorkbenchTests(unittest.TestCase):
     def feedback(self,state,**overrides):
         fields={'command_id':'feedback','expected_source_sha256':self.sha,'expected_revision_id':state['revision_id'],'source_item_ids':[],'text':'请核对这段内容的上级条件。'};fields.update(overrides)
         return api.post_plugin_feedback('p','d',self.session,api.PluginFeedback(**fields),self.sink())
+    def workflow_state(self, artifacts, *, source=None, map_sha=None, items_sha=None):
+        spec = workflow.workflow_spec(brief_sha256='f'*64, evidence_mode='NONE')
+        mapping = artifacts.get('document-map.json')
+        baseline = artifacts.get('source-requirement-baseline.json')
+        stages = [
+            {'id': 'PREPARATION', 'label': '资料准备', 'status': 'SAVED',
+             'evidence': [{'kind': 'TASK_CONTEXT', 'source_sha256': source or self.sha}]},
+            {'id': 'SOURCE_MAP', 'label': '来源与结构', 'status': 'SAVED' if mapping else 'PENDING'},
+            {'id': 'ITEMS_CLASSIFICATION', 'label': '条目、分类与明确派生', 'status': 'SAVED' if baseline else 'PENDING'},
+            {'id': 'EVIDENCE_ANALYSIS', 'label': '依据分析', 'status': 'SKIPPED', 'reason': 'NO_INTERNAL_EVIDENCE'},
+            {'id': 'SELF_CHECK', 'label': '自查与修正', 'status': 'PENDING'},
+            {'id': 'DELIVERABLE', 'label': '可核对成果', 'status': 'PENDING'},
+        ]
+        if mapping:
+            stages[1]['evidence'] = [{'kind': 'DOCUMENT_MAP', 'source_sha256': source or self.sha,
+                                      'artifact_sha256': map_sha or mapping['artifact_sha256']}]
+        if baseline:
+            stages[2]['evidence'] = [{'kind': 'SOURCE_ITEMS', 'source_sha256': source or self.sha,
+                                      'artifact_sha256': items_sha or baseline['artifact_sha256'],
+                                      'map_sha256': mapping['artifact_sha256']}]
+        return {'schema': workflow.STATE_SCHEMA,
+                'workflow': {**spec, 'schema': workflow.WORKFLOW_SCHEMA, 'evidence_mode': 'NONE'},
+                'source_sha256': source or self.sha, 'stages': stages, 'next_stage': 'SELF_CHECK',
+                'ready_to_review': False, 'verification': 'SAVED_ARTIFACTS_ONLY',
+                'open_items': [], 'human_acceptance': 'NOT_CLAIMED'}
+
+    def test_fixed_workflow_claims_are_derived_from_uploaded_artifacts(self):
+        claim = self.workflow_state(self.artifacts)
+        claim['ready_to_review'] = True
+        claim['stages'] = [{**stage, 'status': 'SAVED', 'evidence': []} for stage in claim['stages']]
+        empty = self.sync(fixed_workflow=claim, require_map_confirmation=False)
+        self.assertFalse(empty['fixed_workflow']['ready_to_review'])
+        self.assertEqual([stage['status'] for stage in empty['fixed_workflow']['stages']],
+                         ['SAVED', 'PENDING', 'BLOCKED', 'BLOCKED', 'BLOCKED', 'BLOCKED'])
+        self.assertEqual(empty['fixed_workflow']['source_sha256'], self.sha)
+        mapped = self.sync(self.mapping(), fixed_workflow=claim, require_map_confirmation=False)
+        self.assertFalse(mapped['fixed_workflow']['ready_to_review'])
+        self.assertEqual([stage['status'] for stage in mapped['fixed_workflow']['stages']],
+                         ['SAVED', 'SAVED', 'PENDING', 'BLOCKED', 'BLOCKED', 'BLOCKED'])
+        self.assertEqual(mapped['fixed_workflow']['stages'][1]['evidence'][0]['artifact_sha256'],
+                         self.mapping()['document-map.json']['artifact_sha256'])
+        items = self.sync(self.artifacts, mapped['revision_id'], fixed_workflow=claim, require_map_confirmation=False)
+        self.assertFalse(items['fixed_workflow']['ready_to_review'])
+        by_id = {stage['id']: stage for stage in items['fixed_workflow']['stages']}
+        self.assertEqual(by_id['ITEMS_CLASSIFICATION']['status'], 'SAVED')
+        self.assertEqual(by_id['EVIDENCE_ANALYSIS']['status'], 'SKIPPED')
+        self.assertNotEqual(by_id['EVIDENCE_ANALYSIS']['status'], 'SAVED')
+        self.assertEqual(by_id['SELF_CHECK']['status'], 'PENDING')
+        self.assertEqual(by_id['DELIVERABLE']['status'], 'PENDING')
+
+    def test_fixed_workflow_derivation_ignores_sender_stage_status(self):
+        claim = self.workflow_state({})
+        claim['ready_to_review'] = True
+        claim['stages'] = [{**stage, 'status': 'SAVED', 'evidence': []} for stage in claim['stages']]
+        head = {'source_sha256': self.sha, 'revision_id': None, 'delivery_versions': [],
+                'require_map_confirmation': False}
+        derived = api._derive_fixed_workflow(claim, self.sha, None, None, {}, self.root, head)
+        self.assertFalse(derived['ready_to_review'])
+        self.assertEqual([stage['status'] for stage in derived['stages']],
+                         ['SAVED', 'PENDING', 'BLOCKED', 'BLOCKED', 'BLOCKED', 'BLOCKED'])
+        self.assertTrue(all(stage.get('evidence', []) != [] or stage['status'] != 'SAVED'
+                            for stage in derived['stages']))
+
+    def test_fixed_workflow_rejects_wrong_source_or_unknown_definition(self):
+        claim = self.workflow_state(self.mapping())
+        with self.assertRaises(ApplicationError) as wrong_source:
+            self.sync(self.mapping(), fixed_workflow=self.workflow_state(self.mapping(), source='0'*64),
+                      require_map_confirmation=False)
+        self.assertEqual(wrong_source.exception.status_code, 409)
+        with self.assertRaises(ApplicationError) as incompatible:
+            self.sync(self.mapping(), fixed_workflow={**claim, 'schema': 'reqpilot-fixed-workflow-state/v999'},
+                      require_map_confirmation=False)
+        self.assertEqual(incompatible.exception.status_code, 422)
+
+    def test_fixed_workflow_complete_delivery_receipt_allows_ready_and_then_goes_stale(self):
+        claim = self.workflow_state(self.artifacts)
+        state = self.sync(self.artifacts, fixed_workflow=claim, require_map_confirmation=False)
+        self.assertFalse(state['fixed_workflow']['ready_to_review'])
+        from reqpilotx_server.application.agent_workflow import plugin_workbench_delivery as delivery
+        view = delivery.preview_plugin_delivery_version('p','d',self.session,self.sink())
+        payload = delivery.PluginDeliveryVersion(command_id='fixed-delivery', expected_source_sha256=self.sha,
+            expected_revision_id=view['revision_id'], expected_version=view['version'],
+            expected_response_revision=view['response_revision'], expected_delivery_sha256=view['delivery_sha256'])
+        delivery.save_plugin_delivery_version('p','d',self.session,payload,self.sink())
+        completed = self.api.get_plugin_workbench('p','d',self.session,self.sink())['fixed_workflow']
+        self.assertTrue(completed['ready_to_review'])
+        by_id = {stage['id']: stage for stage in completed['stages']}
+        self.assertEqual(by_id['SELF_CHECK']['status'], 'SAVED')
+        self.assertEqual(by_id['DELIVERABLE']['status'], 'SAVED')
+        self.assertEqual(by_id['DELIVERABLE']['evidence'][0]['kind'], 'DELIVERY_VERSION')
+        changed = self.sync(self.changed_map('Changed basis'), state['revision_id'], fixed_workflow=claim,
+                            require_map_confirmation=False)
+        stale = changed['fixed_workflow']
+        self.assertFalse(stale['ready_to_review'])
+        by_id = {stage['id']: stage for stage in stale['stages']}
+        self.assertIn(by_id['SELF_CHECK']['status'], {'PENDING', 'BLOCKED'})
+        self.assertIn(by_id['DELIVERABLE']['status'], {'PENDING', 'BLOCKED'})
+        self.assertNotEqual(by_id['SELF_CHECK']['status'], 'SAVED')
+        self.assertNotEqual(by_id['DELIVERABLE']['status'], 'SAVED')
+
+    def test_fixed_workflow_corrupt_delivery_receipt_is_unconfirmed_not_ready(self):
+        claim = self.workflow_state(self.artifacts)
+        state = self.sync(self.artifacts, fixed_workflow=claim, require_map_confirmation=False)
+        from reqpilotx_server.application.agent_workflow import plugin_workbench_delivery as delivery
+        view = delivery.preview_plugin_delivery_version('p','d',self.session,self.sink())
+        delivery.save_plugin_delivery_version('p','d',self.session,delivery.PluginDeliveryVersion(
+            command_id='fixed-delivery-corrupt', expected_source_sha256=self.sha,
+            expected_revision_id=view['revision_id'], expected_version=view['version'],
+            expected_response_revision=view['response_revision'], expected_delivery_sha256=view['delivery_sha256']), self.sink())
+        root = self.api._root('p','d',self.session)
+        (root/'deliveries'/'1.json').write_text('{broken')
+        public = self.api.get_plugin_workbench('p','d',self.session,self.sink())['fixed_workflow']
+        self.assertFalse(public['ready_to_review'])
+        self.assertEqual(public['verification'], 'UNCONFIRMED')
+        self.assertEqual(public['stages'], [])
+        self.assertIn('unconfirmed', public)
+
     def test_map_confirmation_then_items_uses_real_shared_snapshot_and_excel(self):
         initial=self.sync();self.assertEqual(initial['stages'],[]);self.assertEqual(initial['model_dispatch'],'NOT_PERFORMED')
         mapping=self.sync(self.mapping());self.assertTrue(mapping['map_confirmation_required'])

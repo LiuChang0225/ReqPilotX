@@ -6,18 +6,42 @@ import { tmpdir } from 'node:os';
 import { createHash } from 'node:crypto';
 import { TaskLauncher } from '../host/src/task-launch.js';
 const commandId = '12345678-1234-4234-8234-123456789abc';
+const defaultModel = { provider: 'opencode-go', model: 'deepseek-v4.1-flash', reasoningEffort: 'max' };
+const workflow = { schema: 'reqpilot-fixed-workflow/v1', id: 'reqpilot-fixed-workflow', version: '1.0.0',
+  definition_sha256: 'd'.repeat(64), label: 'Fixed workflow', stages: [] };
+const workflowSpec = { schema: workflow.schema, id: workflow.id, version: workflow.version,
+  definition_sha256: workflow.definition_sha256, evidence: { mode: 'NONE', reason: 'INTERNAL_EVIDENCE_NOT_WIRED' } };
+const workflowState = hash => ({ schema: 'reqpilot-fixed-workflow-state/v1',
+  workflow: { id: workflow.id, version: workflow.version, definition_sha256: workflow.definition_sha256,
+    brief_sha256: 'f'.repeat(64), evidence_mode: 'NONE' }, source_sha256: hash,
+  stages: [{ id: 'PREPARATION', label: '资料准备', status: 'SAVED' }], next_stage: 'SOURCE_MAP',
+  ready_to_review: false, verification: 'SAVED_ARTIFACTS_ONLY', open_items: [], human_acceptance: 'NOT_CLAIMED' });
+const taskWorkflowState = hash => ({ ...workflowState(hash), stages: [
+  { id: 'PREPARATION', label: '资料准备', status: 'SAVED', evidence: [{ kind: 'TASK_CONTEXT', source_sha256: hash }] },
+  { id: 'SOURCE_MAP', label: '来源与结构', status: 'PENDING' },
+  { id: 'ITEMS_CLASSIFICATION', label: '条目、分类与明确派生', status: 'BLOCKED', reason: 'SOURCE_MAP_REQUIRED' },
+  { id: 'EVIDENCE_ANALYSIS', label: '依据分析', status: 'BLOCKED', reason: 'ITEMS_REQUIRED' },
+  { id: 'SELF_CHECK', label: '自查与修正', status: 'BLOCKED', reason: 'ITEMS_REQUIRED' },
+  { id: 'DELIVERABLE', label: '可核对成果', status: 'BLOCKED', reason: 'ITEMS_REQUIRED' } ] });
 async function fixture(config = {}) {
   const root = await mkdtemp(join(tmpdir(), 'reqpilot-launch-')); const source = Buffer.from('original'); const hash = createHash('sha256').update(source).digest('hex');
   const calls = { prepare: 0, create: [], prompt: [], workspace: [], model: [] };
+  let taskWorkflow = taskWorkflowState(hash);
   const runtime = { dataRoot: root, python: '/installed/python', ownerId: commandId, snapshot: { status: 'READY', mode: 'managed', serviceOrigin: 'http://127.0.0.1:1234' }, async command(args) {
+    if (args.some(value => value.endsWith('task-workflow.py'))) return JSON.stringify({ status: 'READY', task_id: 'task-one', workflow: taskWorkflow });
     calls.prepare++; const input = JSON.parse(await readFile(args[2], 'utf8')); await mkdir(input.workspace, { recursive: true });
-    return JSON.stringify({ schema: 'reqpilot-host-launch/v1', workspace: input.workspace, task_id: 'task-one', work_ref: 'plugin-' + 'a'.repeat(32), source_sha256: hash, bundle_sha256: 'b'.repeat(64), prompt: 'Read request.md', tools: { schema: 'reqpilot-host-tools/v1', mcp: { command: runtime.python, args: [join(input.workspace, '.reqpilot/scripts/mcp_server.py'), '--working-root', input.workspace, '--source-root', input.workspace], cwd: input.workspace } } });
+    return JSON.stringify({ schema: 'reqpilot-host-launch/v1', workspace: input.workspace, task_id: 'task-one', work_ref: 'plugin-' + 'a'.repeat(32), source_sha256: hash, bundle_sha256: 'b'.repeat(64), prompt: 'Read request.md', workflow: workflowState(hash), tools: { schema: 'reqpilot-host-tools/v1', mcp: { command: runtime.python, args: [join(input.workspace, '.reqpilot/scripts/mcp_server.py'), '--working-root', input.workspace, '--source-root', input.workspace], cwd: input.workspace } } });
   } };
-  const services = { workspaces: { async create(value) { calls.workspace.push(value); return { workspace: { workspaceId: 'workspace-one' } }; } }, sessions: { async create(value) { calls.create.push(value); return { sessionId: value.sessionId }; }, async prompt(value) { calls.prompt.push(value); return { accepted: true }; } } };
+  const services = { defaultModel: { currentSelection: () => ({ ...defaultModel }) },
+    workspaces: { async create(value) { calls.workspace.push(value); return { workspace: { workspaceId: 'workspace-one' } }; } },
+    sessions: { async create(value) { calls.create.push(value); return { sessionId: value.sessionId }; },
+      async selectSessionModel(value) { calls.model.push(value); const { sessionId, ...selected } = value; return { selected }; },
+      async prompt(value) { calls.prompt.push(value); return { accepted: true }; } } };
   const transport = async url => url.endsWith('/file') ? new Response(source) : new Response(JSON.stringify([{ id: 'd', file_name: 'source.pdf', source_sha256: hash }]));
   const launcher = new TaskLauncher(runtime, config, () => services, transport); launcher.ready = true; launcher.capabilityRoot = root; launcher.bundleSha = 'b'.repeat(64);
+  launcher.workflow = workflowSpec; launcher.workflowDescriptor = workflow;
   const input = { commandId, projectId: 'p', documentId: 'd', sourceSha256: hash, goal: 'User goal' };
-  return { root, calls, runtime, services, launcher, input, async close() { await launcher.close(); await rm(root, { recursive: true, force: true }); } };
+  return { root, calls, runtime, services, launcher, input, get workflowState() { return taskWorkflow; }, set workflowState(value) { taskWorkflow = value; }, async close() { await launcher.close(); await rm(root, { recursive: true, force: true }); } };
 }
 const codexModel = { provider: 'openai-codex', model: 'gpt-6.1-sol', reasoningEffort: 'xhigh' };
 test('native tasks bind the configured model before admission and retain it across acknowledgement retries', async () => {
@@ -39,12 +63,17 @@ test('native tasks bind the configured model before admission and retain it acro
       assert.equal((await retry.inspect(commandId)).selectedAgentModel.reasoningEffort, 'xhigh');
       assert.ok(await retry.toolBinding(receipt.sessionId));
       const record = JSON.parse(await readFile(join(f.root, 'task-launches', commandId + '.json'), 'utf8'));
-      assert.equal(record.schema, 'reqpilot-pair-launch-record/v2');
+      assert.equal(record.schema, 'reqpilot-pair-launch-record/v3');
+      assert.deepEqual(record.modelSelection, codexModel);
+      assert.deepEqual(record.selectedAgentModel, codexModel);
+      assert.equal(receipt.schema, 'reqpilot-pair-launch/v2');
+      assert.equal(receipt.workflowState.schema, 'reqpilot-fixed-workflow-state/v1');
     } finally { await retry.close(); }
   } finally { await f.close(); }
 });
 test('a host without Session-only model selection refuses dispatch before business preparation', async () => {
   const f = await fixture({ agentModel: codexModel }); try {
+    delete f.services.sessions.selectSessionModel;
     await assert.rejects(f.launcher.start(f.input), /PAIR_SESSION_MODEL_SELECTION_UNSUPPORTED/);
     assert.equal(f.calls.prepare, 0); assert.equal(f.calls.create.length, 0); assert.equal(f.calls.prompt.length, 0);
   } finally { await f.close(); }
@@ -78,7 +107,7 @@ test('a corrupted model-bound receipt cannot submit a prompt on retry', async ()
 test('refused or silently downgraded model selections never dispatch a prompt', async () => {
   const f = await fixture({ agentModel: codexModel }); try {
     f.services.sessions.selectSessionModel = async () => { throw Error('model unavailable'); };
-    await assert.rejects(f.launcher.start(f.input), /model unavailable/);
+    await assert.rejects(f.launcher.start(f.input), /PAIR_SESSION_MODEL_UNAVAILABLE/);
     f.services.sessions.selectSessionModel = async () => ({ selected: { ...codexModel, reasoningEffort: 'high' } });
     await assert.rejects(f.launcher.start(f.input), /PAIR_TASK_MODEL_NOT_CONFIRMED/);
     assert.equal(f.calls.prompt.length, 0);
@@ -86,17 +115,28 @@ test('refused or silently downgraded model selections never dispatch a prompt', 
     assert.equal((await f.launcher.start(f.input)).status, 'ACCEPTED');
   } finally { await f.close(); }
 });
-test('legacy receipts keep their original default-model policy after configuration changes', async () => {
+test('legacy v1 receipts keep their original default-model policy after configuration changes', async () => {
   const f = await fixture(); try {
+    const fingerprint = createHash('sha256').update(JSON.stringify([f.input.projectId, f.input.documentId, f.input.sourceSha256, f.input.goal, false])).digest('hex');
+    const applicationId = 'reqpilotx-pair:' + commandId;
+    await mkdir(join(f.root, 'task-launches'), { recursive: true });
+    await writeFile(join(f.root, 'task-launches', commandId + '.json'), JSON.stringify({
+      schema: 'reqpilot-pair-launch-record/v1', commandId, projectId: 'p', documentId: 'd', sourceSha256: f.input.sourceSha256,
+      goal: f.input.goal, requireMapConfirmation: false, fingerprint, applicationId,
+      serviceOrigin: 'http://127.0.0.1:1234', serviceInstanceId: null, sessionId: 'session-legacy',
+      requestId: 'reqpilotx-' + commandId, phase: 'RECORDED', bundleSha: 'b'.repeat(64), capabilityRoot: f.root,
+      python: '/installed/python', workspaceRelative: 'task-workspaces/' + commandId,
+      agentPreset: 'standard', toolTransport: 'CLI' }));
     f.services.sessions.prompt = async () => { throw Error('ack lost'); };
     await assert.rejects(f.launcher.start(f.input), /ack lost/);
     await f.launcher.close();
     f.services.sessions.prompt = async () => ({ accepted: true });
     const retry = new TaskLauncher(f.runtime, { agentModel: codexModel }, () => f.services, f.launcher.transport);
-    retry.ready = true;
+    retry.ready = true; retry.capabilityRoot = f.root; retry.bundleSha = 'b'.repeat(64);
     try {
       const result = await retry.start(f.input); assert.equal(result.status, 'ACCEPTED');
-      assert.equal(result.agentModel, undefined);
+      assert.equal(result.agentModel, undefined); assert.equal(result.modelSelection, undefined);
+      assert.equal(f.calls.model.length, 0);
     } finally { await retry.close(); }
   } finally { await f.close(); }
 });
@@ -244,5 +284,101 @@ test('continuation reuses its request identity and repairs lost acknowledgement 
     assert.equal(f.calls.prompt.length, 2); // Initial prompt and one continuation, never a duplicate.
     const record = JSON.parse(await readFile(join(f.root, 'task-launches', commandId + '.json'), 'utf8'));
     assert.equal(record.controls[controlId].acceptanceEvidence.seq, 18);
+  } finally { await f.close(); }
+});
+
+test('new tasks use the selected PAIR default model and freeze it before dispatch', async () => {
+  const f = await fixture(); try {
+    let seenRecord;
+    f.services.sessions.selectSessionModel = async value => {
+      f.calls.model.push(value);
+      const record = JSON.parse(await readFile(join(f.root, 'task-launches', commandId + '.json'), 'utf8'));
+      assert.equal(f.calls.prompt.length, 0); assert.deepEqual(record.modelSelection, defaultModel);
+      assert.equal(record.selectedAgentModel, undefined);
+      seenRecord = record; const { sessionId, ...selected } = value; return { selected };
+    };
+    const receipt = await f.launcher.start(f.input);
+    assert.equal(receipt.status, 'ACCEPTED'); assert.equal(receipt.schema, 'reqpilot-pair-launch/v2');
+    assert.deepEqual(receipt.modelSelection, defaultModel); assert.deepEqual(receipt.selectedAgentModel, defaultModel);
+    assert.equal(seenRecord.schema, 'reqpilot-pair-launch-record/v3');
+    assert.equal(seenRecord.workflow.id, 'reqpilot-fixed-workflow');
+    assert.equal(f.calls.model.length, 1); assert.deepEqual(f.calls.model[0], { sessionId: receipt.sessionId, ...defaultModel });
+    assert.equal(f.calls.prompt.length, 1);
+  } finally { await f.close(); }
+});
+
+test('missing selected default model gives an actionable setup state before preparation', async () => {
+  const f = await fixture(); try {
+    f.services.defaultModel.currentSelection = () => null;
+    await assert.rejects(f.launcher.start(f.input), /PAIR_DEFAULT_MODEL_UNAVAILABLE/);
+    assert.equal(f.launcher.startAvailable(), false); assert.equal(f.launcher.startIssue(), 'PAIR_DEFAULT_MODEL_UNAVAILABLE');
+    assert.equal(f.calls.prepare, 0); assert.equal(f.calls.create.length, 0); assert.equal(f.calls.prompt.length, 0);
+  } finally { await f.close(); }
+});
+
+test('inspect rederives workflow from the task read API, not a writable cache', async () => {
+  const f = await fixture(); try {
+    await f.launcher.start(f.input);
+    const workspace = join(f.root, 'task-workspaces', commandId);
+    await mkdir(workspace, { recursive: true });
+    const forged = { ...taskWorkflowState(f.input.sourceSha256), ready_to_review: true,
+      stages: taskWorkflowState(f.input.sourceSha256).stages.map(stage => ({ ...stage, status: 'SAVED', evidence: [{ kind: 'FORGED', source_sha256: f.input.sourceSha256 }] })) };
+    await writeFile(join(workspace, 'workflow-status.json'), JSON.stringify(forged));
+    const base = taskWorkflowState(f.input.sourceSha256);
+    f.workflowState = { ...base, next_stage: 'ITEMS_CLASSIFICATION',
+      stages: base.stages.map(stage => stage.id === 'SOURCE_MAP'
+        ? { ...stage, status: 'SAVED', evidence: [{ kind: 'DOCUMENT_MAP', source_sha256: f.input.sourceSha256 }] } : stage) };
+    const observed = await f.launcher.inspect(commandId);
+    assert.equal(observed.workflowState.next_stage, 'ITEMS_CLASSIFICATION');
+    assert.equal(observed.workflowState.ready_to_review, false);
+    assert.equal(observed.workflowState.stages[1].status, 'SAVED');
+  } finally { await f.close(); }
+});
+
+test('forged all-saved, inconsistent readiness, stale basis and malformed read state stay unconfirmed', async () => {
+  const f = await fixture(); try {
+    await f.launcher.start(f.input);
+    const base = taskWorkflowState(f.input.sourceSha256);
+    const cases = [
+      { ...base, ready_to_review: true, stages: base.stages.map(stage => ({ ...stage, status: 'SAVED' })) },
+      { ...base, ready_to_review: true, stages: base.stages.map(stage => ({ ...stage, status: 'STALLED' })) },
+      { ...base, source_sha256: 'e'.repeat(64) },
+      { ...base, workflow: { ...base.workflow, brief_sha256: '0'.repeat(64) } },
+      { ...base, stages: base.stages.slice(0, 2) },
+      { ...base, stages: base.stages.map(stage => stage.id === 'EVIDENCE_ANALYSIS'
+        ? { ...stage, status: 'SAVED', evidence: [{ kind: 'FORGED', source_sha256: f.input.sourceSha256 }] } : stage) },
+      { ...base, ready_to_review: true, open_items: ['ITEMS_REQUIRED'],
+        stages: base.stages.map(stage => ({ ...stage, status: 'SAVED', evidence: [{ kind: 'FORGED', source_sha256: f.input.sourceSha256 }] })) },
+    ];
+    for (const value of cases) {
+      f.workflowState = value;
+      const observed = await f.launcher.inspect(commandId);
+      assert.equal(observed.workflowState, null);
+      assert.equal(typeof observed.workflowUnconfirmed.reason, 'string');
+      assert.equal(observed.workflowUnconfirmed.reason.length > 0, true);
+    }
+    f.workflowState = base;
+    const restored = await f.launcher.inspect(commandId);
+    assert.equal(restored.workflowUnconfirmed, undefined);
+    assert.equal(restored.workflowState.stages[1].status, 'PENDING');
+  } finally { await f.close(); }
+});
+
+test('legacy v1 receipts remain readable without a fixed workflow projection', async () => {
+  const f = await fixture(); try {
+    const fingerprint = createHash('sha256').update(JSON.stringify([f.input.projectId, f.input.documentId, f.input.sourceSha256, f.input.goal, false])).digest('hex');
+    await mkdir(join(f.root, 'task-launches'), { recursive: true });
+    await writeFile(join(f.root, 'task-launches', commandId + '.json'), JSON.stringify({
+      schema: 'reqpilot-pair-launch-record/v1', commandId, projectId: 'p', documentId: 'd', sourceSha256: f.input.sourceSha256,
+      goal: f.input.goal, requireMapConfirmation: false, fingerprint, applicationId: 'reqpilotx-pair:' + commandId,
+      serviceOrigin: 'http://127.0.0.1:1234', serviceInstanceId: null, sessionId: 'session-legacy',
+      requestId: 'reqpilotx-' + commandId, phase: 'ACCEPTED', bundleSha: 'b'.repeat(64), capabilityRoot: f.root,
+      python: '/installed/python', workspaceRelative: 'task-workspaces/' + commandId,
+      agentPreset: 'standard', toolTransport: 'CLI', prepared: { task_id: 'task-one', work_ref: 'plugin-' + 'a'.repeat(32),
+        workspace: join(f.root, 'task-workspaces', commandId), tools: { schema: 'reqpilot-host-tools/v1', mcp: {} } } }));
+    const observed = await f.launcher.inspect(commandId);
+    assert.equal(observed.schema, 'reqpilot-pair-launch/v1');
+    assert.equal(observed.workflowState, undefined);
+    assert.equal(observed.workflowUnconfirmed, undefined);
   } finally { await f.close(); }
 });

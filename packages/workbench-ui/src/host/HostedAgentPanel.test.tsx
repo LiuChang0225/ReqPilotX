@@ -22,11 +22,11 @@ it("retains the entered goal after an uncertain start and opens only the acknowl
   const value = host();
   vi.mocked(value.startTask).mockRejectedValueOnce(new Error("acknowledgement unavailable"));
   const accepted = show(value);
-  fireEvent.click(screen.getByRole("button", { name: "交给 PAIR Agent" }));
+  fireEvent.click(screen.getByRole("button", { name: "开始固定流程" }));
   expect(await screen.findByRole("alert")).toHaveTextContent("acknowledgement unavailable");
-  expect(screen.getByLabelText("PAIR 任务目标")).toHaveValue("Keep the current document scope");
+  expect(screen.getByLabelText("补充说明（可选）")).toHaveValue("Keep the current document scope");
   expect(accepted).not.toHaveBeenCalled();
-  fireEvent.click(screen.getByRole("button", { name: "交给 PAIR Agent" }));
+  fireEvent.click(screen.getByRole("button", { name: "开始固定流程" }));
   await waitFor(() => expect(accepted).toHaveBeenCalledWith(receipt));
   expect(vi.mocked(value.startTask).mock.calls[0]).toEqual(vi.mocked(value.startTask).mock.calls[1]);
 });
@@ -46,7 +46,7 @@ it("adopts confirmed reconnect capabilities and opens the exact persisted Pair S
 it("restores a pending task's original goal without submitting it", async () => {
   const value = host(); value.taskDraft = () => ({ goal: "Original durable task goal", requireMapConfirmation: true });
   show(value);
-  await waitFor(() => expect(screen.getByLabelText("PAIR 任务目标")).toHaveValue("Original durable task goal"));
+  await waitFor(() => expect(screen.getByLabelText("补充说明（可选）")).toHaveValue("Original durable task goal"));
   expect(screen.getByLabelText("先核对结构，再继续整理条目")).toBeChecked();
   expect(value.startTask).not.toHaveBeenCalled();
 });
@@ -140,7 +140,7 @@ it("does not navigate to a newly accepted task after the user selects a differen
   vi.mocked(value.startTask).mockReturnValue(pending.promise);
   vi.mocked(value.restoreTask).mockImplementation(async input => input.workRef ? other : null);
   const view = render(panel(value, accepted)); await act(async () => {});
-  fireEvent.click(screen.getByRole("button", { name: "交给 PAIR Agent" }));
+  fireEvent.click(screen.getByRole("button", { name: "开始固定流程" }));
   view.rerender(panel(value, accepted, other.workRef)); await act(async () => {});
   await act(async () => { pending.resolve(receipt); });
   expect(accepted).not.toHaveBeenCalled();
@@ -160,4 +160,39 @@ it("does not overwrite a control acknowledgement with an older restore in the sa
   expect(screen.getByRole("button", { name: "停止本轮" })).toBeVisible();
   expect(accepted).not.toHaveBeenCalled();
   expect(vi.getTimerCount()).toBe(1);
+});
+
+it("shows Not started without an execution error when no task exists", async () => {
+  const value = host();
+  show(value);
+  expect(await screen.findByText("尚未开始")).toBeVisible();
+  expect(screen.queryByRole("alert")).not.toBeInTheDocument();
+  expect(screen.getByRole("button", { name: "开始固定流程" })).toBeEnabled();
+});
+
+it("shows saved business stages separately from execution until review", async () => {
+  const value = host();
+  vi.mocked(value.restoreTask).mockResolvedValue({ ...receipt, status: "ACCEPTED", execution: { status: "RUNNING" },
+    workflowState: { schema: "reqpilot-fixed-workflow-state/v1",
+      workflow: { id: "reqpilot-fixed-workflow", version: "1.0.0" }, source_sha256: receipt.sourceSha256,
+      stages: [
+        { id: "PREPARATION", label: "资料准备", status: "SAVED" },
+        { id: "SOURCE_MAP", label: "来源与结构", status: "SAVED" },
+        { id: "ITEMS_CLASSIFICATION", label: "条目、分类与明确派生", status: "BLOCKED", reason: "ITEMS_NOT_SAVED" },
+      ], next_stage: "ITEMS_CLASSIFICATION", ready_to_review: false, verification: "SAVED_ARTIFACTS_ONLY",
+      open_items: [], human_acceptance: "NOT_CLAIMED" } });
+  show(value, receipt.workRef);
+  expect(await screen.findByRole("region", { name: "固定流程成果" })).toHaveTextContent("来源与结构");
+  expect(screen.getByText("等待前置阶段")).toBeVisible();
+  expect(screen.getByText(/运行状态：正在处理/)).toBeVisible();
+  expect(screen.queryByText(/已保存成果满足/)).not.toBeInTheDocument();
+});
+
+it("shows an actionable unconfirmed workflow instead of a forged ready state", async () => {
+  const value = host();
+  vi.mocked(value.restoreTask).mockResolvedValue({ ...receipt, status: "ACCEPTED", workflowState: null,
+    workflowUnconfirmed: { reason: "TASK_WORKFLOW_UNCONFIRMED", message: "workflow state failed source/stage/evidence validation" } });
+  show(value, receipt.workRef);
+  expect(await screen.findByText(/固定流程状态未确认/)).toBeVisible();
+  expect(screen.queryByText(/已保存成果满足/)).not.toBeInTheDocument();
 });

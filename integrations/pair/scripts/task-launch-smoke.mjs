@@ -37,8 +37,10 @@ const runtime = { dataRoot: join(output, 'owned'), python, ownerId: randomUUID()
   return h.collected.stdout.readFrom(0).text;
 } };
 const acceptedIds = new Set(), sessionIds = new Set(); let promptAttempts = 0;
-const services = { workspaces: { async create() { return { workspace: { workspaceId: 'workspace-smoke' } }; } }, sessions: {
+const services = { defaultModel: { currentSelection: () => ({ provider: 'opencode-go', model: 'deepseek-v4.1-flash', reasoningEffort: 'max' }) },
+  workspaces: { async create() { return { workspace: { workspaceId: 'workspace-smoke' } }; } }, sessions: {
   async create(value) { sessionIds.add(value.sessionId); return { sessionId: value.sessionId }; },
+  async selectSessionModel({ sessionId, ...selected }) { return { selected }; },
   async prompt(value) { promptAttempts++; acceptedIds.add(value.requestId); if (promptAttempts === 1) throw Error('mock DSH acknowledgement lost'); return { accepted: true }; },
 } };
 const launcher = new TaskLauncher(runtime, { capabilityRoot }, () => services);

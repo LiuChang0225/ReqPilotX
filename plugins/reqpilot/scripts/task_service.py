@@ -58,6 +58,7 @@ class OpenRequest(Request):
     document_key: str | None = None
     workbench_url: str | None = None
     require_map_confirmation: bool = False
+    workflow: dict | None = None
 
 
 class TaskRequest(Request):
@@ -353,6 +354,7 @@ def task_summary(state):
         'runtime': context.get('runtime_ref'), 'current_owner': state['current_working']['owner'],
         'workbench_url': link['url'], 'workbench_link': link, 'brief': state['brief'],
         'selected': state['selected'], 'human_acceptance': 'NOT_CLAIMED',
+        **({'workflow': state['workflow']} if state.get('workflow') else {}),
         'pending_decomposition': decomposition_attention(state),
         'capabilities': {'contract_version': CONTRACT_VERSION, 'actions': list(REQUESTS),
             'map_items_semantics': 'EXISTING_COMPILERS', 'existing_item_revision': 'TYPED_REVIEW_APPLY',
@@ -517,7 +519,8 @@ class TaskService:
             creation_key=request.creation_key, project_key=request.project_key, document_key=request.document_key,
             project_id=None, document_id=None, workbench_url=request.workbench_url,
             require_map_confirmation=request.require_map_confirmation, no_map_confirmation=None,
-            binding_file=None, open=False, project_root=self.project_root, full=False)
+            binding_file=None, open=False, project_root=self.project_root, full=False,
+            workflow=request.workflow)
         value = initialize(args, self.entrypoint)
         response = {'status': value['status'], **task_summary(value)}
         for key in ('replayed', 'workbench_sync'):
@@ -781,6 +784,8 @@ class TaskService:
     def check(self, root, state):
         result = {'status':'CHECKED', 'task_id':state['context']['work_id'], 'revision':state['revision'],
             'source_verification':state['source_verification'], 'semantic_review':'NOT_CLAIMED',
+            **({'workflow': state['workflow']} if state.get('workflow') else {}),
+            'ready_to_review': bool((state.get('workflow') or {}).get('ready_to_review')),
             'review_verified':False, 'current_delivery_registered':False,
             'remaining':state['brief'], 'incomplete_operations':state['incomplete_operations'][:10],
             'pending_decomposition':decomposition_attention(state)}

@@ -8,6 +8,30 @@ import { pipeline } from 'node:stream/promises';
 export const name = 'reqpilotx-readonly-host';
 export const inject = ['webServer', 'connection', 'subprocess'];
 export const PREFIX = '/reqpilotx';
+export const APPLICATION_VERSION = '0.1.0';
+export const applicationMetadata = Object.freeze({
+  id: 'reqpilotx',
+  name: { en: 'ReqPilotX', zh: 'ReqPilotX' },
+  description: {
+    en: 'Evidence-driven customer requirement intake, source structure, requirement items, self-check and reviewed delivery.',
+    zh: '面向客户文档的证据驱动需求整理、原文结构、需求条目、自查与可核对交付。',
+  },
+  domain: 'GEN', stage: 'requirement-analysis', version: APPLICATION_VERSION,
+  owner: 'PAIR Team', integrationAuthor: 'PAIR Team', authors: [], panelId: 'reqpilotx',
+});
+/** Availability only, never model or business acceptance. */
+export function applicationReadStatus(runtime) {
+  const status = runtime?.snapshot?.status;
+  return status === 'READY' ? 'ready' : status === 'ERROR' || status === 'STOPPED' ? 'unavailable' : 'starting';
+}
+/** Optional Host discovery consumer; a raw DSH without the service keeps its own sidebar. */
+export function registerPairApplication(ctx, runtime) {
+  const center = typeof ctx.get === 'function' ? ctx.get('pairSkillCenter') : ctx.pairSkillCenter;
+  if (!center || typeof center.registerApplication !== 'function') return null;
+  ctx.effect(() => center.registerApplication(applicationMetadata, () => applicationReadStatus(runtime)),
+    'reqpilotx: application discovery');
+  return applicationMetadata;
+}
 
 /** Validate the explicit service origin; credentials and path routing are not accepted. */
 export function serviceOrigin(value) {
@@ -102,17 +126,23 @@ export function createHandler(origin, reject, transport = fetch, runtimeSnapshot
 export function apply(ctx, config = {}) {
   const connect = config.mode === 'connect' || (!config.mode && config.serviceOrigin);
   const runtime = connect ? null : new ManagedRuntime(ctx.subprocess, config);
-  const taskLauncher = runtime && config.capabilityRoot ? new TaskLauncher(runtime, config, () => ({ sessions: ctx.get('sessionController'), workspaces: ctx.get('workspaceController'), liveStatus: id => ctx.get('agents')?.get(id)?.status })) : null;
+  const taskLauncher = runtime && config.capabilityRoot ? new TaskLauncher(runtime, config, () => ({ sessions: ctx.get('sessionController'), workspaces: ctx.get('workspaceController'), defaultModel: ctx.get('agentDefaultModel'), liveStatus: id => ctx.get('agents')?.get(id)?.status })) : null;
   if (taskLauncher && config.taskMcp === true) installTaskMcp(ctx, taskLauncher);
   const origin = connect ? serviceOrigin(config.serviceOrigin) : null;
-  if (runtime) ctx.effect(() => () => runtime.stop(), 'reqpilotx: managed runtime');
+  if (runtime) {
+    if (typeof ctx.inject === 'function') ctx.inject(['pairSkillCenter'], scope => { registerPairApplication(scope, runtime); });
+    else registerPairApplication(ctx, runtime);
+    ctx.effect(() => () => runtime.stop(), 'reqpilotx: managed runtime');
+  }
   if (taskLauncher) ctx.effect(() => () => taskLauncher.close(), 'reqpilotx: task launch lifetime');
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: PREFIX,
     handler: createHandler(origin, req => ctx.connection.requestRejection(req), fetch, runtime ? () => ({ ...runtime.snapshot, ownerId: runtime.ownerId,
       workbenchCapture: config.workbenchCapture === true,
-      taskModel: config.agentModel,
+      taskModel: taskLauncher?.currentModel() || config.agentModel,
+      taskWorkflow: taskLauncher?.workflowDescriptor,
+      taskStartIssue: taskLauncher?.startIssue() || null,
       taskLookupAvailable: Boolean(taskLauncher),
-      taskLaunchReady: taskLauncher?.available() === true, taskCancelReady: taskLauncher?.canCancel() === true,
+      taskLaunchReady: taskLauncher?.startAvailable() === true, taskCancelReady: taskLauncher?.canCancel() === true,
       taskContinueReady: taskLauncher?.canContinue() === true, taskReconnectReady: taskLauncher?.canReconnect() === true }) : undefined, taskLauncher),
   }), 'reqpilotx: application route');
   if (runtime) void runtime.start().then(async () => { if (runtime.snapshot.status === 'READY') await taskLauncher?.initialize(); }).catch(() => { if (taskLauncher) taskLauncher.ready = false; });

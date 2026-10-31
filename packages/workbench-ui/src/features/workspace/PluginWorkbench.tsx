@@ -7,6 +7,7 @@ import type { PluginWorkbenchProvider } from "./usePluginWorkbench";
 import type { WorkspaceContextValue } from "./WorkspaceContext";
 import { useWorkbenchHost } from "./WorkbenchHostContext";
 import { DeliveryVersions } from "./DeliveryVersions";
+import { FixedWorkflowStatus } from "../../host/FixedWorkflowStatus";
 export type { PluginState } from "./documentWorkProvider";
 
 type PluginWorkbenchProps = {
@@ -45,6 +46,7 @@ export function PluginWorkbenchContent({ provider, projectId, documentId, source
       {route.task === "extraction" && <RequirementTreeStageRail value={itemsMode ? "list" : "structure"} reviewAvailable={false} workingLedger itemsAvailable={hasItems} onChange={checkpoint => updateRoute({ task:"extraction",mode:"organize",checkpoint })}/>}
     </header>}
     {error && <p role="alert">{error}</p>}
+    {state?.fixed_workflow && <FixedWorkflowStatus state={state.fixed_workflow} />}
     {!host.readOnly && current && state?.map_confirmation_required && route.task === "extraction" && !itemsMode && <section className="stage-approval-card" aria-label="确认文档结构"><div><strong>核对这一版结构后继续</strong><p>确认会保存到当前版本；由原外部任务取回后继续整理条目。</p></div><button className="button primary compact" disabled={!reader || provider.pending || !provider.capability("confirm_map").enabled} onClick={() => void confirm()}>确认此结构</button></section>}
     {route.task === "analysis" && <p className="agent-policy-note">{reader?.analysis_policy?.status === "SKIPPED" ? "符合性分析未执行：未提供内部依据或本次选择跳过。" : "当前显示外部已保存成果。"} {host.readOnly ? "当前面板只读，可核对来源与已保存建议。" : provider.capability("save_engineer_response").enabled ? "工程师响应保存为新的成果版本，来源与 Agent 建议继续保留。" : provider.capability("save_engineer_response").reason || "当前版本只读，可核对来源与已保存意见。"}</p>}
     {state && !state.revision_id && <div className="source-only-work"><p>当前任务已绑定这份原件，尚未保存结构或条目。可先阅读原件，后续成果会保留在这个任务中。</p>{host.readOnly ? <a className="button secondary" href={sourceUrl} target="_blank" rel="noreferrer">阅读原件</a> : <button type="button" className="button secondary" onClick={() => updateRoute({ task: "reading" })}>阅读原件</button>}</div>}

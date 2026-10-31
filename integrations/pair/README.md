@@ -19,8 +19,50 @@ Source removal, knowledge-file import and backend-native Agent execution are not
 - Installable Cordis bundle with separate Host and Client leaves. The R4 adapter is independently tested; no external Pair profile is modified by its verification.
 - On activation, the Host checks the non-editable Python installation, acquires its own data-directory lease, applies the application-owned SQLite migrations and starts the shared Python API on an OS-assigned loopback port. It does not probe or start PostgreSQL and needs no PostgreSQL binary or driver. No worker or model process is launched.
 - Native Pair project creation, project selection, PDF upload and original-page viewing. Reads/creates use the existing ReqPilotX API and storage; no second project/document ledger.
-- Existing saved works are listed under the selected document and open the same shared workbench. Managed Pair enables source-bound feedback, Map confirmation, engineer opinions and immutable delivery saves through the application's persisted plugin-workbench API; connect mode remains readonly. Pair automatically provides internal addresses and scope. A bound task may stop its live Pair turn or submit an explicit continuation to the same Session. Business completion, endpoint reconnection and push Agent events remain pending.
+- Existing saved works are listed under the selected document and open the same shared workbench. Managed Pair enables source-bound feedback, Map confirmation, engineer opinions and immutable delivery saves through the application's persisted plugin-workbench API; connect mode remains readonly. Pair automatically provides internal addresses and scope. A bound task may stop its live Pair turn or submit an explicit continuation to the same Session. Endpoint reconnection and push Agent events remain pending.
 - Disable/stop terminates only owned DSH subprocess handles. Data remains. Restart reuses the same SQLite data root and project/document identities. Unknown nonempty directories, competing live owners, unversioned/unknown SQLite files and historical PostgreSQL data roots are rejected, not adopted.
+
+## Guided intake and fixed workflow (RX02)
+
+The Requirement workbench now explains the required customer source, unavailable
+project-reference/team-knowledge inputs, expected outputs and the fixed stage
+order before the user starts. The user clicks Start once; no authored goal is
+required. Optional supplementary instructions are retained as notes but cannot
+remove the Map, items, self-check or delivery prerequisites. The existing
+"check structure before items" option remains the declared confirmation branch.
+
+The server-owned brief (`reqpilot-fixed-workflow v1.0.0`) is prepared by the
+frozen capability package, not by browser text. The six declared stages are
+preparation, source/Map, items/classification with explicitly scoped derivation,
+evidence analysis, self-check/correction and saved deliverable. Completion is
+projected only from saved task artifacts and receipts; model prose, idle
+sessions and exports do not advance a stage. With no internal evidence, the
+declared branch marks evidence analysis skipped. Task state is rederived through the pinned task read API. Host inspect validates
+task/source/workflow/brief identity, stage order, SAVED evidence and readiness;
+the task's `workflow-status.json` is only a derived cache and is not trusted.
+Corrupt or foreign cache/read state is shown as unconfirmed while saved work is
+retained. The workbench registration boundary likewise ignores sender-supplied
+stage status/readiness and derives from uploaded artifacts plus retained
+delivery-version receipts. Historical tasks without a fixed-workflow context
+keep their existing brief and do not acquire a synthetic stage record.
+
+New tasks use the currently selected PAIR default model and effort. The exact
+selection is frozen as `modelSelection` in launch record v3 before preparation
+and confirmed through `sessionController.selectSessionModel` before the first
+prompt. An explicit `agentModel` deployment configuration remains an override.
+Missing model selection or Session model capability reports an actionable setup
+state and never starts a second runtime. The bundle no longer pins a Codex
+model. Receipt schema `reqpilot-pair-launch/v2` identifies v3 records with a
+source-bound workflow state; v1/v2 histories retain their original meaning.
+New Clients reject v2 receipts without a valid workflow projection, and new
+Hosts reject unknown workflow/receipt versions without rewriting prior records.
+
+The Host adapter registers `reqpilotx` through the optional
+`ctx.pairSkillCenter.registerApplication` discovery seam with Requirement-stage
+metadata and a `readStatus` snapshot of the actual managed runtime status.
+Registration runs in a Cordis effect scoped to the Host fiber; a raw DSH
+deployment without skill-center still mounts the Client sidebar and main panel.
+This is discovery availability, not model readiness or business acceptance.
 
 ## Code and ownership
 
@@ -142,6 +184,27 @@ its own real process test; neither test establishes external Pair UI acceptance.
 `handoff_ready` means a program artifact is ready for handoff, not source completeness or semantic verification. Host `SUCCEEDED`/`COMPLETED` remains a run-terminal observation. The shared panel already labels it as the external turn ending; no runtime observation means unreported.
 
 The pending real event adapter must project actual step starts, waiting duration, retries, attempt failures and terminal errors from public host events. Keep model/provider/client attribution unknown unless transport evidence separates them. A successful export or a large item count cannot promote a source-grounded FAIL to completeness PASS. Existing SourceVisual/locator contracts remain authoritative; no Pair-specific coordinate or business model is introduced.
+
+## RX02 verification entry points
+
+```sh
+node integrations/pair/scripts/host-discovery-smoke.mjs \
+  "/absolute/PAIR/source" reports/pair-lightweight/work/02-host-discovery
+
+node integrations/pair/scripts/dsh-native-snapshot.mjs \
+  "/absolute/PAIR/source" <installed-python> <frozen-bundle> \
+  reports/pair-lightweight/work/02-native-session-final
+```
+
+The first uses the real Cordis service/fiber from the PAIR source checkout for
+Host registration/disposal and runtime-status changes. The second boots the
+source-supported `pair` profile in an isolated `DSH_HOME`, approves only one
+loopback OpenAI-compatible route, and records a real Workspace/Session/MCP turn
+whose scripted `task_open` call ends without saving business artifacts. It is
+keyless/scripted, not a provider-model or business-acceptance run. The source
+checkout currently lacks its prebuilt native system addon, so the runner copies
+the matching installed prebuilt into the private output and records that exact
+dependency; production policy and profiles are untouched.
 
 ## Application discovery contract
 

@@ -271,9 +271,14 @@ def sync_workbench(args):
         # Refresh confirmations/feedback, but never silently adopt a newer source revision for a writer.
         if state and state['revision_id']!=binding['revision_id']:
             raise ValueError('The workbench has another revision. Run workbench-pull, inspect it and decide how to continue.')
+        fixed_workflow=None
+        if task:
+            from reqpilotx.application.agent_workflow.task_workspace import workspace_status
+            fixed_workflow=workspace_status(task[0],refresh=False).get('workflow')
         if state is None:
             state=request(api,{'session_id':binding['session_id'],'expected_source_sha256':sha,
-                'require_map_confirmation':binding['require_map_confirmation'],'goal':getattr(args,'goal','') or ''})
+                'require_map_confirmation':binding['require_map_confirmation'],'goal':getattr(args,'goal','') or '',
+                **({'fixed_workflow':fixed_workflow} if fixed_workflow else {})})
             _validate_state(state,binding)
             save(path,binding)
         _remember_task_binding(task,path,binding)
@@ -292,7 +297,8 @@ def sync_workbench(args):
                     if item:resolutions[remote_id]=item['resolution_reason']
             state=request(api,{'session_id':binding['session_id'],'expected_source_sha256':sha,
                 'expected_revision_id':binding['revision_id'],'require_map_confirmation':binding['require_map_confirmation'],
-                'artifacts':artifacts,'local_review_sha256':review_sha,'feedback_resolutions':resolutions})
+                'artifacts':artifacts,'local_review_sha256':review_sha,'feedback_resolutions':resolutions,
+                **({'fixed_workflow':fixed_workflow} if fixed_workflow else {})})
             _validate_state(state,binding)
         url=_remember_result_url(binding,state)
         if artifacts:

@@ -22,7 +22,21 @@ def prepare(payload):
         raise ValueError('HOST_PREPARE_INVALID_FIELDS')
     reqpilot.load_runtime()
     from task_service import OpenRequest, TaskService
-    request = OpenRequest.model_validate(payload['request'])
+    from reqpilotx.application.agent_workflow import fixed_workflow
+    supplied = payload['request']
+    if not isinstance(supplied, dict):
+        raise ValueError('HOST_PREPARE_INVALID_REQUEST')
+    if 'goal' in supplied and 'supplementary_instructions' in supplied:
+        raise ValueError('HOST_PREPARE_AMBIGUOUS_INSTRUCTIONS')
+    notes = supplied.pop('supplementary_instructions', supplied.pop('goal', ''))
+    goal = fixed_workflow.compose_goal(notes)
+    request_value = {**supplied, 'goal': goal}
+    if supplied.get('workflow') is not None:
+        raise ValueError('HOST_PREPARE_WORKFLOW_IS_SERVER_OWNED')
+    request_value['workflow'] = fixed_workflow.workflow_spec(
+        brief_sha256=fixed_workflow.brief_sha256(goal), evidence_mode='NONE',
+        evidence_reason='INTERNAL_EVIDENCE_NOT_WIRED')
+    request = OpenRequest.model_validate(request_value)
     if request.mode != 'create' or not request.source or not request.goal or not request.creation_key:
         raise ValueError('HOST_PREPARE_REQUIRES_CREATE')
     source = Path(request.source).resolve(strict=True)
@@ -90,7 +104,10 @@ def prepare(payload):
     return {'schema': 'reqpilot-host-launch/v1', 'workspace': str(workspace), 'task_id': task_id,
             'task_root': str(task_root), 'source_sha256': sha, 'bundle_sha256': payload['bundle_sha256'],
             'work_ref': result['workbench_link'].get('session_id'), 'revision': result['revision'],
-            'prompt': '请执行 request.md 中的本轮委托，沿用其中已准备的任务。',
+            'workflow': result.get('workflow'),
+            'workflow_version': fixed_workflow.WORKFLOW_VERSION,
+            'supplementary_instructions_included': bool(str(notes).strip()),
+            'prompt': '请按 request.md 执行固定工作流。阶段完成只以已保存工件和程序检查为准，不用文字声称或会话空闲代替。',
             'execution': 'NOT_STARTED', 'semantic_acceptance': 'NOT_CLAIMED',
             'tools': {'schema': 'reqpilot-host-tools/v1', 'mcp': {
                 'command': sys.executable,
@@ -100,7 +117,11 @@ def prepare(payload):
 
 if __name__ == '__main__':
     if sys.argv[1:] == ['--describe']:
-        print(json.dumps({'schema': 'reqpilot-host-launch/v1', 'tools_schema': 'reqpilot-host-tools/v1'}))
+        reqpilot.load_runtime()
+        from reqpilotx.application.agent_workflow import fixed_workflow
+        print(json.dumps({'schema': 'reqpilot-host-launch/v1', 'tools_schema': 'reqpilot-host-tools/v1',
+                          'workflow_schema': fixed_workflow.WORKFLOW_SCHEMA,
+                          'workflow': fixed_workflow.public_descriptor()}, ensure_ascii=False))
         raise SystemExit(0)
     try:
         value = prepare(json.loads(Path(sys.argv[1]).read_text(encoding='utf-8')))

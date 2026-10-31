@@ -1,4 +1,5 @@
 import type { SourceStage } from "../extraction/SourceDocumentStageResults";
+import type { ApplicationWorkflowState } from "../../host/ApplicationHost";
 
 export type WorkAction = "save_feedback" | "confirm_map" | "save_engineer_response" | "save_delivery_version" | "export_draft" | "start" | "steer" | "interrupt" | "resume" | "open_external_task";
 export type WorkCapability = { supported: boolean; enabled: boolean; reason?: string; reason_code?: string; effect?: string };
@@ -14,6 +15,7 @@ export type PluginState = {
   capabilities?: Partial<Record<WorkAction, WorkCapability>>;
   feedback_receipts?: Array<{ feedback_id: string; state?: string; status?: string; retrieval_state?: string; retrieved_at?: string | null }>;
   analysis_policy?: { status: string; reason: string } | null;
+  fixed_workflow?: ApplicationWorkflowState | null;
 };
 export function pluginCapability(state: PluginState | null, action: WorkAction, current = true): WorkCapability {
   const capability = state?.capabilities?.[action];

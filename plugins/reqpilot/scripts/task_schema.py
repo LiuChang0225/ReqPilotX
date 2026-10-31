@@ -60,6 +60,7 @@ COMMON_RULES = [
     '必填表示 JSON 字段必需；可省略不等于可以传 null。Map 中省略表示保留，空列表等显式值可能表示清空。',
     '字段、枚举、嵌套类型来自同一个 REQUESTS.model_json_schema；下列业务条件还由现有 validator/compiler 验证。',
     '请求骨架中的 null 是明确待填位置，不是假造的原件 ID 或判断；不要把未填骨架直接提交。',
+    '固定工作流阶段以已保存工件为准；Agent 文字、会话空闲或完成声明不推进阶段，补充说明也不能取消 Map/条目/交付前置检查。',
 ]
 
 
@@ -137,6 +138,9 @@ def _facts(context,scope):
     facts={key:value for key,value in {'task_id':task,'revision':context.get('revision'),'current_owner':owner}.items() if value is not None}
     if context.get('selected') is not None:facts['available_stages']=list(context['selected'])
     elif context.get('available_stages') is not None:facts['available_stages']=context['available_stages']
+    workflow=context.get('workflow')
+    if isinstance(workflow,dict):
+        facts['fixed_workflow']={key:workflow.get(key) for key in ('workflow','next_stage','ready_to_review','open_items') if key in workflow}
     actual_scope={key:value for key,value in (scope or {}).items() if key in {'scope_id','scope_kind','logical_table_scope_id','source_item_id','node_id','page','content_ref'}}
     return facts,actual_scope
 

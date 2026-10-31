@@ -51,3 +51,29 @@
   .document-intake-preview { min-height: 500px; }
 }
 @media (prefers-reduced-motion: reduce) { .document-intake .is-spinning { animation: none; } }
+.document-intake-fixed { margin: 18px 0; padding: 16px; border: 1px solid var(--line); border-radius: var(--radius); background: var(--canvas); }
+.document-intake-fixed > header { display: flex; align-items: baseline; gap: 8px; }
+.document-intake-fixed h3 { margin: 0; font-size: 14px; }
+.document-intake-fixed > header > span { margin-left: auto; color: var(--ink-soft); font-size: 11px; }
+.document-intake-fixed dl { display: grid; gap: 8px; margin: 14px 0; }
+.document-intake-fixed dl > div { display: grid; grid-template-columns: 96px minmax(0, 1fr); gap: 10px; font-size: 12px; line-height: 1.7; }
+.document-intake-fixed dt { color: var(--ink-soft); }
+.document-intake-fixed dd { margin: 0; overflow-wrap: anywhere; }
+.document-intake-fixed > p { margin: 0; color: var(--ink-soft); font-size: 12px; line-height: 1.7; }
+.fixed-workflow-intake, .fixed-workflow-status { display: grid; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: var(--radius-sm); background: var(--canvas); font-size: 12px; line-height: 1.65; }
+.fixed-workflow-intake > header, .fixed-workflow-status > header { display: flex; align-items: baseline; gap: 8px; }
+.fixed-workflow-intake > header > span, .fixed-workflow-status > header > span { margin-left: auto; color: var(--ink-soft); font-size: 11px; }
+.fixed-workflow-intake dl { display: grid; gap: 6px; margin: 0; }
+.fixed-workflow-intake dl > div { display: grid; grid-template-columns: 88px minmax(0, 1fr); gap: 8px; }
+.fixed-workflow-intake dt { color: var(--ink-soft); }
+.fixed-workflow-intake dd { margin: 0; overflow-wrap: anywhere; }
+.fixed-workflow-intake ol, .fixed-workflow-status ol { display: flex; flex-wrap: wrap; gap: 6px; margin: 0; padding: 0; list-style: none; }
+.fixed-workflow-intake li { padding: 3px 8px; border: 1px solid var(--line); border-radius: 999px; color: var(--ink-soft); }
+.fixed-workflow-status ol { display: grid; gap: 5px; }
+.fixed-workflow-status li { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 2px 8px; padding: 6px 8px; border-left: 3px solid var(--line-strong); background: var(--paper); }
+.fixed-workflow-status li[data-status="SAVED"] { border-left-color: var(--success, #2f7d4a); }
+.fixed-workflow-status li[data-status="SKIPPED"] { border-left-color: var(--warning); }
+.fixed-workflow-status li[data-status="IN_PROGRESS"] { border-left-color: var(--brand); }
+.fixed-workflow-status li[data-status="BLOCKED"] { border-left-color: var(--danger, #b42318); }
+.fixed-workflow-status li small { grid-column: 1 / -1; color: var(--ink-soft); }
+.fixed-workflow-status > p { margin: 0; color: var(--ink-soft); }

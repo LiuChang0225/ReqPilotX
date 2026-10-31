@@ -44,6 +44,24 @@
 
 若未提供业务成果事件订阅，active面板每5秒同步已保存状态；`active=false`停用该轮询。事件订阅在卸载时清理。只读模式隐藏编辑／确认入口，保留可读取的历史信息和服务声明可用的导出。
 
+## 固定流程与宿主状态
+
+`WorkbenchApplicationHost` 可选提供 `workflow`（服务端声明的固定流程）和
+`taskSetup`（启动缺项）。`HostedAgentPanel` 用它们展示必需客户文档、当前
+不可用的可选内部依据、预期成果和阶段顺序。开始按钮不要求用户编写目标；
+补充说明是可选文本，不能取消 Map、条目、自查或交付前置条件。
+
+`ApplicationTaskReceipt.workflowState` 是任务程序根据已保存工件生成的阶段
+投影（`reqpilot-fixed-workflow-state/v1`）。组件把它与 `execution` 运行状态
+分开展示：`SAVED`/`SKIPPED` 是业务成果状态，`RUNNING`/`SUCCEEDED` 仍是宿主
+执行观察，`ready_to_review` 也不是人工接受。没有任务时显示“尚未开始”，
+不把读取结果为 `null` 的服务轮询显示成持续状态错误。共享 `PluginWorkbench`
+在同一页面显示同一投影；历史外部成果没有该字段时保持原界面。
+
+`WorkbenchApplicationHost.startTask` 仍可传空 `goal`；宿主必须把空值视为
+“仅固定流程”，并自行注入服务端 brief。非固定流程的旧宿主不会被新界面
+静默当成兼容；宿主应提供 `taskSetup` 说明缺失能力或模型设置。
+
 ## 验证与限制
 
 `panel-preview.html`及`vite.panel-preview.config.ts`是开发期宿主兼容验证页，不是Pair产品界面。它加载真正构建的库，React18fixture与临时类型检查配置放在忽略提交的`prototype/runtime-data/ui-pair-panel-20260914/`。主Web应用保留React19依赖。

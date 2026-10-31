@@ -2,6 +2,7 @@ import { act, cleanup, fireEvent, render, screen, waitFor } from "@testing-libra
 import { afterEach, beforeEach, expect, it, vi } from "vitest";
 import { DocumentAgentContext, type DocumentAgentContextValue } from "./DocumentAgentContext";
 import { DocumentTaskHome } from "./DocumentTaskHome";
+import { ApplicationHostContext, type WorkbenchApplicationHost } from "../../host/ApplicationHost";
 
 const harness = vi.hoisted(() => ({
   source: "a".repeat(64), documentId: "d", entry: "quick" as "quick" | "agent",
@@ -122,6 +123,28 @@ it.each(["FAILED", "CANCELLED", "SUCCEEDED"])("preserves task access without sta
 it("continues to display real progress for an active task", () => {
   mount({ task_id: "t", job_id: "j", job_status: "RUNNING", can_steer: true, can_resume: false, can_interrupt: true, progress: { message: "正在查阅第 4 页" } });
   expect(screen.getByRole("status")).toHaveTextContent("正在查阅第 4 页");
+});
+
+it("shows the fixed intake and starts it without an authored prompt", async () => {
+  const show = vi.fn();
+  const host = { id: "host", label: "PAIR", modelLabel: "opencode-go / deepseek-v4.1-flash / max",
+    captureAvailable: false, taskStartAvailable: true,
+    workflow: { schema: "reqpilot-fixed-workflow/v1", id: "reqpilot-fixed-workflow", version: "1.0.0",
+      stages: [{ id: "PREPARATION", order: 1, label: "资料准备", required: true }],
+      required_inputs: [{ id: "customer_source", label: "客户需求文档", required: true }],
+      optional_inputs: [{ id: "project_references", label: "项目参考资料", available: false, reason: "当前版本尚未接入项目参考资料（RX04）。" }],
+      expected_outputs: ["可回查原文与顺序的文档结构"] },
+    resourceUrl: (path: string) => path, pdfViewerUrl: (source: string) => source,
+    startTask: vi.fn(), restoreTask: vi.fn(async () => null), taskDraft: () => undefined,
+    controlTask: vi.fn(), openSession: vi.fn(async () => {}) } as WorkbenchApplicationHost;
+  const value = { bind: vi.fn(), task: null, show, openStage: vi.fn(), historyHost: null };
+  render(<ApplicationHostContext.Provider value={host}><DocumentAgentContext.Provider value={value}>
+    <DocumentTaskHome fileName="source.pdf" sourceFileUrl="/api/source.pdf" />
+  </DocumentAgentContext.Provider></ApplicationHostContext.Provider>);
+  expect(screen.getByRole("region", { name: "固定业务流程说明" })).toHaveTextContent("客户需求文档：source.pdf");
+  expect(screen.getByText(/当前版本尚未接入项目参考资料/)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "打开固定流程任务" }));
+  expect(show).toHaveBeenCalledWith(undefined, "document");
 });
 
 it("reveals large candidate sets in bounded batches", async () => {

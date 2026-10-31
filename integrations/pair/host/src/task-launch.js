@@ -8,23 +8,81 @@ import { executionObservation } from './execution-observation.js';
 const sha = value => createHash('sha256').update(value).digest('hex');
 const ID = /^[a-zA-Z0-9_-]{1,100}$/;
 const COMMAND = /^[a-f0-9-]{36}$/;
-export class TaskLaunchError extends Error { constructor(code, status = 409) { super(code); this.status = status; } }
+export class TaskLaunchError extends Error { constructor(code, status = 409, detail) { super(detail ? code + ': ' + detail : code); this.status = status; } }
+const WORKFLOW_SCHEMA = 'reqpilot-fixed-workflow/v1';
+const WORKFLOW_STATE_SCHEMA = 'reqpilot-fixed-workflow-state/v1';
+const EVIDENCE_MODES = ['NONE', 'PROJECT_REFERENCES', 'TEAM_KNOWLEDGE', 'COMBINED'];
 const validModel = value => value !== null && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).every(key => ['provider', 'model', 'reasoningEffort'].includes(key))
   && ['provider', 'model'].every(key => typeof value[key] === 'string' && value[key].trim())
   && (value.reasoningEffort === undefined || (typeof value.reasoningEffort === 'string' && value.reasoningEffort.trim()));
+const selectedModel = value => validModel(value) ? { provider: value.provider, model: value.model,
+  ...(value.reasoningEffort === undefined ? {} : { reasoningEffort: value.reasoningEffort }) } : null;
 const sameModel = (a, b) => a?.provider === b?.provider && a?.model === b?.model && a?.reasoningEffort === b?.reasoningEffort;
+const validWorkflow = value => value?.schema === WORKFLOW_SCHEMA && value?.id === 'reqpilot-fixed-workflow'
+  && typeof value.version === 'string' && /^[a-f0-9]{64}$/.test(value.definition_sha256 || '')
+  && (value.brief_sha256 === undefined || /^[a-f0-9]{64}$/.test(value.brief_sha256 || ''))
+  && (value.evidence === undefined || (EVIDENCE_MODES.includes(value.evidence?.mode) && typeof value.evidence?.reason === 'string'));
+const validWorkflowState = value => value?.schema === WORKFLOW_STATE_SCHEMA
+  && validWorkflow({ ...(value.workflow || {}), schema: WORKFLOW_SCHEMA,
+    brief_sha256: value.workflow?.brief_sha256, evidence: { mode: value.workflow?.evidence_mode, reason: 'PROJECTION' } })
+  && /^[a-f0-9]{64}$/.test(value.workflow?.brief_sha256 || '')
+  && /^[a-f0-9]{64}$/.test(value.source_sha256 || '') && Array.isArray(value.stages)
+  && value.human_acceptance === 'NOT_CLAIMED' && value.verification === 'SAVED_ARTIFACTS_ONLY';
+const WORKFLOW_STAGES = ['PREPARATION', 'SOURCE_MAP', 'ITEMS_CLASSIFICATION', 'EVIDENCE_ANALYSIS', 'SELF_CHECK', 'DELIVERABLE'];
+const WORKFLOW_STATUSES = ['PENDING', 'IN_PROGRESS', 'SAVED', 'SKIPPED', 'WAITING', 'BLOCKED'];
+const validWorkflowProjection = (value, record) => {
+  if (value?.schema !== WORKFLOW_STATE_SCHEMA || value.source_sha256 !== record.sourceSha256
+    || value.workflow?.id !== record.workflow?.id || value.workflow?.version !== record.workflow?.version
+    || value.workflow?.definition_sha256 !== record.workflow?.definition_sha256
+    || (record.workflow?.brief_sha256 && value.workflow?.brief_sha256 !== record.workflow.brief_sha256)
+    || value.human_acceptance !== 'NOT_CLAIMED' || value.verification !== 'SAVED_ARTIFACTS_ONLY'
+    || typeof value.ready_to_review !== 'boolean' || !Array.isArray(value.open_items)) return false;
+  if (!Array.isArray(value.stages) || value.stages.length !== WORKFLOW_STAGES.length
+    || value.stages.some((stage, index) => stage?.id !== WORKFLOW_STAGES[index]
+      || !WORKFLOW_STATUSES.includes(stage.status)
+      || (stage.status === 'SAVED' && (!Array.isArray(stage.evidence) || stage.evidence.length === 0
+        || stage.evidence.some(item => item?.source_sha256 !== record.sourceSha256))))) return false;
+  if (record.workflow?.evidence?.mode === 'NONE'
+    && value.stages.find(stage => stage.id === 'EVIDENCE_ANALYSIS')?.status === 'SAVED') return false;
+  const blocking = (value.open_items || []).filter(item => ['SOURCE_MAP_REQUIRED', 'ITEMS_REQUIRED', 'MAP_CONFIRMATION_REQUIRED',
+    'SELF_CHECK_REQUIRED', 'WORKFLOW_EVIDENCE_CONFLICT', 'INCOMPLETE_OPERATION'].includes(item));
+  if (value.ready_to_review && (blocking.length || value.stages[value.stages.length - 1].status !== 'SAVED'
+    || value.stages.some(stage => !['SAVED', 'SKIPPED'].includes(stage.status)))) return false;
+  return true;
+};
 const supportedRecord = record => record?.schema === 'reqpilot-pair-launch-record/v1'
   || (record?.schema === 'reqpilot-pair-launch-record/v2' && validModel(record.agentModel)
     && (record.selectedAgentModel === undefined || (validModel(record.selectedAgentModel) && sameModel(record.agentModel, record.selectedAgentModel)))
-    && (!['START_REQUESTED', 'ACCEPTED'].includes(record.phase) || sameModel(record.agentModel, record.selectedAgentModel)));
+    && (!['START_REQUESTED', 'ACCEPTED'].includes(record.phase) || sameModel(record.agentModel, record.selectedAgentModel)))
+  || (record?.schema === 'reqpilot-pair-launch-record/v3' && validWorkflow(record.workflow)
+    && validModel(record.modelSelection)
+    && (record.agentModel === undefined || (validModel(record.agentModel) && sameModel(record.agentModel, record.modelSelection)))
+    && (record.selectedAgentModel === undefined || (validModel(record.selectedAgentModel) && sameModel(record.selectedAgentModel, record.modelSelection)))
+    && (!['START_REQUESTED', 'ACCEPTED'].includes(record.phase) || sameModel(record.modelSelection, record.selectedAgentModel))
+    && typeof record.goal === 'string');
 export class TaskLauncher {
   constructor(runtime, config, getServices, transport = fetch) {
     if (config.agentModel !== undefined && !validModel(config.agentModel)) throw new TaskLaunchError('INVALID_AGENT_MODEL', 422);
     this.agentModel = config.agentModel === undefined ? undefined : { ...config.agentModel };
     this.runtime = runtime; this.config = config; this.getServices = getServices; this.transport = transport;
     this.ready = false; this.closing = false; this.inflight = new Map(); this.controlInflight = new Map(); this.root = join(runtime.dataRoot, 'task-launches');
+    this.workflow = null; this.workflowDescriptor = null;
   }
+  currentModel() {
+    if (this.agentModel) return selectedModel(this.agentModel);
+    try { return selectedModel(this.getServices()?.defaultModel?.currentSelection?.()); } catch { return null; }
+  }
+  startIssue() {
+    if (this.closing || !this.ready || this.runtime.snapshot.status !== 'READY') return 'CAPABILITY_NOT_READY';
+    if (!this.workflow) return 'FIXED_WORKFLOW_UNAVAILABLE';
+    let services;
+    try { services = this.services(); } catch { return 'PAIR_SESSION_SERVICE_UNAVAILABLE'; }
+    if (typeof services.sessions.selectSessionModel !== 'function') return 'PAIR_SESSION_MODEL_SELECTION_UNSUPPORTED';
+    if (!this.currentModel()) return 'PAIR_DEFAULT_MODEL_UNAVAILABLE';
+    return null;
+  }
+  startAvailable() { return this.startIssue() === null; }
   services() {
     const services = this.getServices();
     if (!services?.sessions?.create || !services.sessions.prompt || !services.workspaces?.create) throw new TaskLaunchError('PAIR_SESSION_SERVICE_UNAVAILABLE', 503);
@@ -43,10 +101,15 @@ export class TaskLauncher {
     await stat(join(this.capabilityRoot, 'scripts/host_launch.py'));
     const receipt = JSON.parse(await readFile(join(this.capabilityRoot, 'build-receipt.json'), 'utf8'));
     if (!/^[a-f0-9]{64}$/.test(receipt.bundle_sha256)) throw new TaskLaunchError('INVALID_CAPABILITY_RECEIPT');
+    const protocol = JSON.parse(await this.runtime.command([this.runtime.python, join(this.capabilityRoot, 'scripts/host_launch.py'), '--describe'], { PYTHONPATH: undefined, PYTHONHOME: undefined }));
+    if (protocol.tools_schema !== 'reqpilot-host-tools/v1') throw new TaskLaunchError('CAPABILITY_MCP_PROTOCOL_UNSUPPORTED');
+    if (protocol.workflow?.schema === WORKFLOW_SCHEMA && protocol.workflow.id === 'reqpilot-fixed-workflow') {
+      this.workflowDescriptor = protocol.workflow;
+      this.workflow = { schema: protocol.workflow.schema, id: protocol.workflow.id, version: protocol.workflow.version,
+        definition_sha256: protocol.workflow.definition_sha256, evidence: { mode: 'NONE', reason: 'INTERNAL_EVIDENCE_NOT_WIRED' } };
+    } else { this.workflow = null; this.workflowDescriptor = null; }
     if (this.config.taskMcp === true) {
       await stat(join(this.capabilityRoot, 'scripts/mcp_server.py'));
-      const protocol = JSON.parse(await this.runtime.command([this.runtime.python, join(this.capabilityRoot, 'scripts/host_launch.py'), '--describe'], { PYTHONPATH: undefined, PYTHONHOME: undefined }));
-      if (protocol.tools_schema !== 'reqpilot-host-tools/v1') throw new TaskLaunchError('CAPABILITY_MCP_PROTOCOL_UNSUPPORTED');
       await this.runtime.command([this.runtime.python, '-c', 'from mcp.server import MCPServer; from mcp.types import CallToolResult'], { PYTHONPATH: undefined, PYTHONHOME: undefined });
     }
     const checked = JSON.parse(await this.runtime.command([this.runtime.python, join(this.capabilityRoot, 'scripts/reqpilot.py'), 'doctor'], { PYTHONPATH: undefined, PYTHONHOME: undefined }));
@@ -59,12 +122,17 @@ export class TaskLauncher {
     await writeFile(temporary, JSON.stringify(record, null, 2) + '\n', { mode: 0o600 }); await rename(temporary, file);
   }
   public(record) {
-    return { schema: 'reqpilot-pair-launch/v1', commandId: record.commandId, applicationId: record.applicationId,
+    return { schema: record.schema === 'reqpilot-pair-launch-record/v3' ? 'reqpilot-pair-launch/v2' : 'reqpilot-pair-launch/v1',
+      commandId: record.commandId, applicationId: record.applicationId,
       projectId: record.projectId, documentId: record.documentId, sourceSha256: record.sourceSha256,
       taskId: record.prepared?.task_id, workRef: record.prepared?.work_ref,
       sessionId: record.sessionId, workspaceId: record.workspaceId,
       capabilityVersion: record.bundleSha, status: record.phase, semanticAcceptance: 'NOT_CLAIMED',
       ...(record.schema === 'reqpilot-pair-launch-record/v2' ? { agentModel: record.agentModel, selectedAgentModel: record.selectedAgentModel } : {}),
+      ...(record.schema === 'reqpilot-pair-launch-record/v3' ? { agentModel: record.agentModel, modelSelection: record.modelSelection,
+        selectedAgentModel: record.selectedAgentModel, workflow: record.workflow,
+        workflowState: record.prepared?.workflow || null,
+        ...(record.workflowReadError ? { workflowUnconfirmed: record.workflowReadError } : {}) } : {}),
       controlCapabilities: { reconnect: record.phase === 'ACCEPTED' && record.toolTransport === 'MCP'
           && !this.endpointCurrent(record) && this.canReconnect(), cancel: record.phase === 'ACCEPTED' && this.canCancel(),
         continue: record.phase === 'ACCEPTED' && record.toolTransport === 'MCP'
@@ -79,6 +147,11 @@ export class TaskLauncher {
     const record = JSON.parse(await readFile(join(this.root, commandId + '.json'), 'utf8'));
     if (!supportedRecord(record)) throw new TaskLaunchError('UNSUPPORTED_LAUNCH_RECORD');
     const result = this.public(record);
+    if (record.schema === 'reqpilot-pair-launch-record/v3') {
+      const live = await this.readWorkflow(record);
+      if (live.state) { result.workflowState = live.state; delete result.workflowUnconfirmed; }
+      else { result.workflowState = null; result.workflowUnconfirmed = live.error; }
+    }
     const services = this.services();
     if (record.phase === 'ACCEPTED' && typeof services.sessions.inspect === 'function') {
       try {
@@ -88,6 +161,31 @@ export class TaskLauncher {
     }
     return result;
   }
+  async readWorkflow(record) {
+    if (record.schema !== 'reqpilot-pair-launch-record/v3' || !record.prepared?.task_id) return { error: { reason: 'TASK_NOT_PREPARED' } };
+    const workspace = record.prepared.workspace;
+    try {
+      await mkdir(this.root, { recursive: true, mode: 0o700 });
+      const file = join(this.root, record.commandId + '-workflow-read.json');
+      await writeFile(file, JSON.stringify({ task_id: record.prepared.task_id }), { mode: 0o600 });
+      const stdout = await this.runtime.command([record.python, '-I', fileURLToPath(new URL('./task-workflow.py', import.meta.url)),
+        file, workspace],
+        { PYTHONPATH: undefined, PYTHONHOME: undefined, REQPILOT_DEVELOPMENT_ROOT: undefined },
+        { signal: AbortSignal.timeout(60000) });
+      const value = JSON.parse(stdout);
+      if (value?.status !== 'READY' || value.task_id !== record.prepared.task_id || !value.workflow) {
+        throw new TaskLaunchError('TASK_WORKFLOW_UNCONFIRMED', 409, 'read API did not return the bound task workflow');
+      }
+      if (!validWorkflowProjection(value.workflow, record)) {
+        throw new TaskLaunchError('TASK_WORKFLOW_UNCONFIRMED', 409, 'workflow state failed source/stage/evidence validation');
+      }
+      return { state: value.workflow };
+    } catch (error) {
+      const reason = error instanceof TaskLaunchError ? error.message : 'TASK_WORKFLOW_READ_FAILED';
+      return { error: { reason, message: 'Saved work is retained; re-read the task before accepting any stage state.' } };
+    }
+  }
+
   /** Recover exact document/work bindings independently of a browser origin's local storage. */
   async list(input) {
     if (!input || !ID.test(input.projectId || '') || !ID.test(input.documentId || '')
@@ -108,14 +206,20 @@ export class TaskLauncher {
     return { tasks: matches };
   }
   start(input) {
-    const allowed = ['commandId', 'projectId', 'documentId', 'sourceSha256', 'goal', 'requireMapConfirmation'];
+    const allowed = ['commandId', 'projectId', 'documentId', 'sourceSha256', 'goal', 'notes', 'requireMapConfirmation'];
     if (!input || Object.keys(input).some(k => !allowed.includes(k)) || !COMMAND.test(input.commandId || '')
-      || !/^[a-f0-9]{64}$/.test(input.sourceSha256 || '') || !ID.test(input.projectId || '') || !ID.test(input.documentId || '') || typeof input.goal !== 'string'
-      || !input.goal.trim() || input.goal.length > 12000 || (input.requireMapConfirmation !== undefined && typeof input.requireMapConfirmation !== 'boolean')) throw new TaskLaunchError('INVALID_TASK_REQUEST', 422);
-    const fingerprint = sha(JSON.stringify([input.projectId, input.documentId, input.sourceSha256, input.goal, input.requireMapConfirmation || false]));
+      || !/^[a-f0-9]{64}$/.test(input.sourceSha256 || '') || !ID.test(input.projectId || '') || !ID.test(input.documentId || '')
+      || (input.requireMapConfirmation !== undefined && typeof input.requireMapConfirmation !== 'boolean')
+      || (input.goal !== undefined && typeof input.goal !== 'string') || (input.notes !== undefined && typeof input.notes !== 'string')
+      || (input.goal !== undefined && input.notes !== undefined && input.goal !== input.notes)) throw new TaskLaunchError('INVALID_TASK_REQUEST', 422);
+    const goal = input.notes !== undefined ? input.notes : input.goal ?? '';
+    if (goal.length > 12000) throw new TaskLaunchError('INVALID_TASK_REQUEST', 422);
+    const request = { commandId: input.commandId, projectId: input.projectId, documentId: input.documentId,
+      sourceSha256: input.sourceSha256, goal, requireMapConfirmation: input.requireMapConfirmation };
+    const fingerprint = sha(JSON.stringify([request.projectId, request.documentId, request.sourceSha256, goal, request.requireMapConfirmation || false]));
     const running = this.inflight.get(input.commandId);
     if (running) { if (running.fingerprint !== fingerprint) throw new TaskLaunchError('COMMAND_CONFLICT'); return running.promise; }
-    const promise = this.run(input, fingerprint).finally(() => this.inflight.delete(input.commandId));
+    const promise = this.run(request, fingerprint).finally(() => this.inflight.delete(input.commandId));
     this.inflight.set(input.commandId, { fingerprint, promise }); return promise;
   }
   /** Control only an exact persisted Pair task, never an arbitrary Session ID supplied by the browser. */
@@ -306,7 +410,11 @@ export class TaskLauncher {
       if (record.phase === 'ACCEPTED' || await this.recoverAcceptance(record)) return this.public(record);
       if (!this.endpointCurrent(record)) throw new TaskLaunchError('TASK_ENDPOINT_RECONNECT_REQUIRED');
     } else {
-      record = { schema: this.agentModel === undefined ? 'reqpilot-pair-launch-record/v1' : 'reqpilot-pair-launch-record/v2',
+      const issue = this.startIssue();
+      if (issue) throw new TaskLaunchError(issue, 503);
+      const target = this.currentModel();
+      if (!target) throw new TaskLaunchError('PAIR_DEFAULT_MODEL_UNAVAILABLE', 503);
+      record = { schema: 'reqpilot-pair-launch-record/v3', workflow: this.workflow, modelSelection: target,
         ...(this.agentModel === undefined ? {} : { agentModel: { ...this.agentModel } }),
         agentPreset: this.config.agentPreset || 'standard', toolTransport: this.config.taskMcp === true ? 'MCP' : 'CLI', ...input, fingerprint, applicationId, serviceOrigin: origin, serviceInstanceId: this.runtime.snapshot.instanceId || null, commandId: input.commandId,
         sessionId: 'session-' + randomUUID(), requestId: 'reqpilotx-' + input.commandId, phase: 'RECORDED',
@@ -314,7 +422,7 @@ export class TaskLauncher {
         workspaceRelative: 'task-workspaces/' + input.commandId };
       await this.save(record);
     }
-    if (record.schema === 'reqpilot-pair-launch-record/v2' && !record.selectedAgentModel
+    if ((record.schema === 'reqpilot-pair-launch-record/v3' || record.schema === 'reqpilot-pair-launch-record/v2') && !record.selectedAgentModel
       && typeof this.services().sessions.selectSessionModel !== 'function') throw new TaskLaunchError('PAIR_SESSION_MODEL_SELECTION_UNSUPPORTED', 503);
     const workspace = resolve(this.runtime.dataRoot, record.workspaceRelative);
     if (!record.prepared) {
@@ -336,12 +444,22 @@ export class TaskLauncher {
       const workbench = new URL('/workspace', origin); workbench.searchParams.set('projectId', input.projectId); workbench.searchParams.set('documentId', input.documentId);
       await writeFile(file, JSON.stringify({ workspace, expected_source_sha256: record.sourceSha256,
         bundle_sha256: record.bundleSha, application_id: applicationId,
-        request: { mode: 'create', source, goal: input.goal, creation_key: input.commandId,
+        request: { mode: 'create', source, supplementary_instructions: input.goal, creation_key: input.commandId,
           project_key: 'project-' + input.projectId, document_key: 'document-' + input.documentId,
           workbench_url: workbench.href, require_map_confirmation: input.requireMapConfirmation || false } }), { mode: 0o600 });
       const result = JSON.parse(await this.runtime.command([record.python, helper, file], { PYTHONPATH: undefined, PYTHONHOME: undefined, REQPILOT_DEVELOPMENT_ROOT: undefined }));
       if (result.schema !== 'reqpilot-host-launch/v1' || result.source_sha256 !== record.sourceSha256 || result.bundle_sha256 !== record.bundleSha
         || typeof result.task_id !== 'string' || !result.task_id || typeof result.prompt !== 'string' || !result.prompt.trim() || resolve(result.workspace) !== workspace || !/^plugin-[a-f0-9]{32}$/.test(result.work_ref || '')) throw new TaskLaunchError('PREPARATION_NOT_CONFIRMED');
+      if (record.schema === 'reqpilot-pair-launch-record/v3') {
+        const workflowState = result.workflow;
+        if (!validWorkflowState(workflowState) || workflowState.source_sha256 !== record.sourceSha256
+          || workflowState.workflow?.id !== record.workflow.id || workflowState.workflow?.version !== record.workflow.version
+          || workflowState.workflow?.definition_sha256 !== record.workflow.definition_sha256
+          || workflowState.human_acceptance !== 'NOT_CLAIMED')
+          throw new TaskLaunchError('FIXED_WORKFLOW_NOT_CONFIRMED');
+        record.workflow = { ...record.workflow, brief_sha256: workflowState.workflow.brief_sha256,
+          evidence: { mode: workflowState.workflow.evidence_mode, reason: 'SERVER_OWNED_BRIEF' } };
+      }
       record.prepared = result; record.phase = 'TASK_PREPARED'; await this.save(record);
     }
     this.assertActive(record);
@@ -359,13 +477,27 @@ export class TaskLauncher {
       this.assertActive(record);
       const result = await services.sessions.selectSessionModel({ sessionId: record.sessionId, ...record.agentModel });
       if (!validModel(result?.selected) || !sameModel(result.selected, record.agentModel)) throw new TaskLaunchError('PAIR_TASK_MODEL_NOT_CONFIRMED');
-      record.selectedAgentModel = { ...result.selected }; await this.save(record);
+      record.selectedAgentModel = selectedModel(result.selected); await this.save(record);
+    }
+    if (record.schema === 'reqpilot-pair-launch-record/v3' && !record.selectedAgentModel) {
+      this.assertActive(record);
+      let selected;
+      try { selected = await services.sessions.selectSessionModel({ sessionId: record.sessionId, ...record.modelSelection }); }
+      catch (error) { throw new TaskLaunchError('PAIR_SESSION_MODEL_UNAVAILABLE', 503, error?.message); }
+      if (!validModel(selected?.selected) || !sameModel(selected.selected, record.modelSelection)) throw new TaskLaunchError('PAIR_TASK_MODEL_NOT_CONFIRMED');
+      record.selectedAgentModel = selectedModel(selected.selected); await this.save(record);
     }
     record.phase = 'START_REQUESTED'; await this.save(record);
     this.assertActive(record);
+    const workflowNote = record.schema === 'reqpilot-pair-launch-record/v3'
+      ? `\n固定工作流版本：${record.workflow.version}。阶段完成只以已保存工件和程序检查为准；补充说明不能取消 Map、条目或交付前置检查。` : '';
     const accepted = await services.sessions.prompt({ sessionId: record.sessionId, requestId: record.requestId,
-      mode: 'queue', content: [{ type: 'text', text: record.prepared.prompt + '\n宿主展示入口是 Pair 的 ReqPilotX 应用面板；业务URL是工具传输地址，不要求用户搬运链接。' }] }, new AbortController().signal);
+      mode: 'queue', content: [{ type: 'text', text: record.prepared.prompt + workflowNote + '\n宿主展示入口是 Pair 的 ReqPilotX 应用面板；业务URL是工具传输地址，不要求用户搬运链接。' }] }, new AbortController().signal);
     if (accepted.accepted !== true) throw new TaskLaunchError('PAIR_START_NOT_CONFIRMED');
-    record.phase = 'ACCEPTED'; await this.save(record); return this.public(record);
+    record.phase = 'ACCEPTED';
+    const live = await this.readWorkflow(record);
+    if (live.state) { record.prepared.workflow = live.state; delete record.workflowReadError; }
+    else { record.prepared.workflow = null; record.workflowReadError = live.error; }
+    await this.save(record); return this.public(record);
   }
 }

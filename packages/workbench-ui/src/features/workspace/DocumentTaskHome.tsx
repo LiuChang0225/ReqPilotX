@@ -80,7 +80,7 @@ function DocumentIntake({ fileName, sourceFileUrl, projectId, documentId, source
     : task?.job_status === "CANCELLED" || task?.runtime_status === "INTERRUPTED" ? "任务已暂停，已有处理记录和成果仍保留。"
     : task?.map_confirmation_required ? "结构草案已保存，可查看任务并核对结构。"
     : "已有任务和处理记录可继续查看，也可补充修改意见。";
-  const agentReady = Boolean(agent && agent.collaborationAvailable !== false && availability.ready);
+  const agentReady = Boolean(agent && agent.collaborationAvailable !== false && (applicationHost?.taskStartAvailable || availability.ready));
   const fast = async () => {
     if (inFlight.current || !projectId || !documentId || !sourceSha256) return;
     const controller = new AbortController();
@@ -142,12 +142,23 @@ function DocumentIntake({ fileName, sourceFileUrl, projectId, documentId, source
           {filtered.length > limit && <button type="button" className="button secondary compact" onClick={() => setLimit(value => value + 50)}>再显示 50 个候选</button>}
         </> : <p className="document-intake-note">本次没有生成结构候选。可先核对原件与来源问题，再选择 Agent 整理。</p>}
       </section>}
+      {applicationHost ? <section className="document-intake-fixed" aria-label="固定业务流程说明">
+        <header><Icon name="spark" size={16} /><h3>{applicationHost.workflow?.label || "客户需求整理固定流程"}</h3>{applicationHost.workflow ? <span>v{applicationHost.workflow.version}</span> : null}</header>
+        <dl>
+          <div><dt>必需资料</dt><dd>客户需求文档：{fileName}</dd></div>
+          <div><dt>可选内部依据</dt><dd>{applicationHost.workflow?.optional_inputs?.length
+            ? applicationHost.workflow.optional_inputs.map(item => `${item.label}：${item.available ? "可选择" : item.reason || "当前不可用"}`).join("；")
+            : "当前版本尚未接入项目参考或团队知识库；不会据此虚构符合性结论。"}</dd></div>
+          <div><dt>预期成果</dt><dd>{applicationHost.workflow?.expected_outputs?.join("；") || "文档结构、原文条目与分类、自查和可核对成果；无内部依据时明确标记符合性分析未执行。"}</dd></div>
+        </dl>
+        <p>点击开始一次即可，无需编写启动提示词；补充说明是可选输入，不能取消阶段和成果检查。</p>
+      </section> : null}
       <details className="document-intake-agent" open={agentSelected || Boolean(task?.task_id)}>
-        <summary><Icon name="spark" size={16} /><span>{task?.task_id ? "已有 Agent 任务" : "需要语义判断？使用 Agent 整理"}</span><Icon name="chevron-down" size={15} /></summary>
-        {task?.task_id ? <><h3>{agentTaskLabel(task)}</h3><p role="status">{description}</p></> : <p>结合原文理解条目边界、需求类别及关联条件，并自查修订。你可以先核对任务目标。</p>}
-        {task?.task_id || agentReady ? <button type="button" className="button secondary" onClick={() => agent?.show(task?.task_id ? undefined : AGENT_GOAL, "document")}>
-          <Icon name="spark" size={15} />{task?.task_id ? "查看任务与补充意见" : "使用 Agent 整理"}
-        </button> : <div className="document-intake-agent-unavailable"><p>{availability.message || "Agent 当前不可用，配置完成后可继续。"}</p><a className="button secondary" href="/workspace?task=projects&settings=agent"><Icon name="settings" size={15} />配置 Agent</a></div>}
+        <summary><Icon name="spark" size={16} /><span>{task?.task_id ? "已有 Agent 任务" : applicationHost ? "按固定业务流程整理" : "需要语义判断？使用 Agent 整理"}</span><Icon name="chevron-down" size={15} /></summary>
+        {task?.task_id ? <><h3>{agentTaskLabel(task)}</h3><p role="status">{description}</p></> : <p>{applicationHost ? "由 PAIR 执行固定流程，实际阶段以已保存成果为准；尚未开始。" : "结合原文理解条目边界、需求类别及关联条件，并自查修订。你可以先核对任务目标。"}</p>}
+        {task?.task_id || agentReady ? <button type="button" className="button secondary" onClick={() => agent?.show(task?.task_id ? undefined : applicationHost ? undefined : AGENT_GOAL, "document")}>
+          <Icon name="spark" size={15} />{task?.task_id ? "查看任务与补充意见" : applicationHost ? "打开固定流程任务" : "使用 Agent 整理"}
+        </button> : <div className="document-intake-agent-unavailable"><p>{applicationHost?.taskSetup ? "PAIR 任务启动尚未就绪：请检查能力包与默认模型设置。" : availability.message || "Agent 当前不可用，配置完成后可继续。"}</p>{applicationHost ? null : <a className="button secondary" href="/workspace?task=projects&settings=agent"><Icon name="settings" size={15} />配置 Agent</a>}</div>}
       </details>
     </div>
     <section className="document-intake-preview" aria-label="原件预览"><header><Icon name="document" size={15} /><strong title={fileName}>{fileName}</strong><a href={presentation.resourceUrl(sourceFileUrl)} target="_blank" rel="noreferrer"><Icon name="external" size={14} />打开原文件</a></header>
