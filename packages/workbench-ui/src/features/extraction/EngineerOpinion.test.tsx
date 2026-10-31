@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { EngineerOpinion, type EngineerResponseView } from "./EngineerOpinion";
 import { SourceItemReasoningDetail, type SourceItemDeliveryState } from "./SourceItemReasoning";
+import { HostLocaleProvider } from "../../host/HostLocaleContext";
 afterEach(() => { cleanup(); localStorage.clear(); });
 function view(): EngineerResponseView { return { available:true,response_revision:0,response_sha256:"",history:[],records:{},
   units:{u:{unit_id:"u",source_item_id:"src",requirement_display_id:"REQ-0001-S01",unit_context_sha256:"a".repeat(64)}} }; }
@@ -90,4 +91,17 @@ it("keeps saved reasons, conditions, evidence requests and history readable with
   render(<EngineerOpinion unitId='u' view={opinions} onSave={vi.fn()} readOnly/>);
   expect(screen.getByText(/已保存理由/)).toBeVisible();expect(screen.getAllByText('适用条件：限定方案')[0]).toBeVisible();expect(screen.getAllByText('证据请求：需要正式图纸')[0]).toBeVisible();
   expect(screen.getByText('历史工程师意见 · 1 条')).toBeInTheDocument();expect(screen.queryByRole('textbox')).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'保存为本版工作意见'})).not.toBeInTheDocument();
+});
+
+it("localizes the engineer feedback form and decision labels through the host locale", async () => {
+  render(<HostLocaleProvider t={key => key === "workbench.locale" ? "en" : key}>
+    <EngineerOpinion unitId="u" view={view()} onSave={vi.fn()} defaultExpanded />
+  </HostLocaleProvider>);
+  expect(screen.getByRole("region", { name: "Engineer opinion" })).toBeVisible();
+  expect(screen.getByText("Record engineer opinion")).toBeVisible();
+  expect(screen.getByLabelText("Engineer decision")).toBeVisible();
+  expect(screen.getByRole("option", { name: "Pending internal evidence" })).toBeVisible();
+  expect(screen.getByLabelText("Reason")).toBeVisible();
+  expect(screen.getByRole("button", { name: "Save as this version's engineer opinion" })).toBeVisible();
+  expect(screen.queryByText("记录工程师工作意见")).not.toBeInTheDocument();
 });

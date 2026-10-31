@@ -3,6 +3,7 @@ import { afterEach, describe, expect, it, vi } from "vitest";
 import { SourceItemWorkspace } from "./SourceItemWorkspace";
 import { WorkspaceProvider, type WorkspaceContextValue } from "./WorkspaceContext";
 import * as client from "../../shared/api/client";
+import { HostLocaleProvider } from "../../host/HostLocaleContext";
 
 vi.mock("../extraction/NativeStructureReferenceDock", () => ({ NativeStructureReferenceDock: (props: { purpose: string; sourceSha256: string }) => <div data-testid="native-ledger">{props.purpose}:{props.sourceSha256}</div> }));
 const state = { baseline_sha256: "baseline", baseline_revision: 27, source_sha256: "source", source_item_count: 449,
@@ -68,4 +69,23 @@ it("gives an ungenerated ledger a recovery path without hiding other conflicts",
   fireEvent.click(screen.getByRole("button",{name:"同步已有成果"}));
   expect(await screen.findByText("工作版版本冲突")).toBeVisible();
   expect(screen.queryByRole("heading",{name:"先整理原文条目"})).not.toBeInTheDocument();
+});
+
+it("renders the native same-version export in English", async () => {
+  vi.spyOn(client, "request").mockImplementation(async path => {
+    if (path.endsWith("/delivery/state")) return state;
+    if (path.endsWith("/delivery/versions/preview")) return {
+      source_sha256: state.source_sha256, baseline_revision: state.baseline_revision,
+      delivery_sha256: "delivery-27", business_basis_sha256: "basis-27", response_revision: 1,
+      readiness: { can_lock: false, blockers: [], analysis_target_count: state.analysis_unit_count,
+        effective_conclusion_count: 0, ai_default_count: 0, human_count: 0 },
+    };
+    if (path.endsWith("/delivery/versions")) return { versions: [] };
+    throw new Error(`Unexpected export request: ${path}`);
+  });
+  const view = render(<HostLocaleProvider t={key => key === "workbench.locale" ? "en" : key}><WorkspaceProvider value={context()}><SourceItemWorkspace task="export" fallback={<div>legacy empty</div>} /></WorkspaceProvider></HostLocaleProvider>);
+  expect(await screen.findByRole("heading", { name: "Export the current work version" })).toBeVisible();
+  expect(screen.getByRole("button", { name: "Export Matrix draft" })).toBeEnabled();
+  expect(screen.getByRole("heading", { name: "Save delivery version" })).toBeVisible();
+  expect(view.container.textContent || "").not.toMatch(/[\u4e00-\u9fff]/);
 });

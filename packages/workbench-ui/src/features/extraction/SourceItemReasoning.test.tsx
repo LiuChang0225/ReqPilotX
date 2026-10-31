@@ -147,3 +147,12 @@ it("preserves no-model and no-human-acceptance facts after canonical draft refre
   render(<SourceItemReasoningStatus workflow={workflow} />);
   expect(screen.getByRole("status")).toHaveTextContent("语义比较未执行（NOT_PERFORMED） · 实时检索未运行（NOT_RUN） · 人工接受未声明（NOT_CLAIMED）");
 });
+
+it("keeps logical-section citation locators when the source has no physical page", () => {
+  const value = state();
+  value.assessments!.records[sid] = { decision: "PENDING_EVIDENCE", reason: "引用不代表符合", clarification_question: "", evidence: [{ fact_id: "f", quote: "来源摘录" }] };
+  value.assessments!.evidence_catalog.f = { document_id: "k", document_name: "记录.pdf", source_sha256: "a".repeat(64), source_ref: { location: { page_number: null, section: 4 } } };
+  function Detail() { const workflow = useSourceItemReasoning("p", "d", value.baseline_sha256, value); return <SourceItemReasoningDetail workflow={workflow} sourceItemId={sid} requirementId="REQ-0001" onPageChange={vi.fn()} reviewMode />; }
+  render(<Detail />);
+  expect(screen.getByRole("link", { name: "记录.pdf · 逻辑段 4" }).getAttribute("href")).not.toContain("#page=");
+});

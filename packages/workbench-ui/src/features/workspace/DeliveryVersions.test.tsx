@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { afterEach, expect, it, vi } from "vitest";
 import { request } from "../../shared/api/client";
 import { DeliveryVersions } from "./DeliveryVersions";
+import { HostLocaleProvider } from "../../host/HostLocaleContext";
 vi.mock("../../shared/api/client", async original => ({ ...await original<object>(), request: vi.fn() }));
 afterEach(()=>{cleanup();vi.resetAllMocks();localStorage.clear();});
 const ready={can_lock:true,blockers:[],analysis_target_count:2,effective_conclusion_count:2,ai_default_count:1,human_count:1};
@@ -63,4 +64,13 @@ it("rejects a delivery preview for a different pinned result",async()=>{
     transport={{root:'/plugin/versions',request:send,revisionId:'expected',writable:true}}/>);
   expect(await screen.findByRole('alert')).toHaveTextContent('成果版本不一致');
   expect(screen.queryByRole('button',{name:'保存草稿版本'})).not.toBeInTheDocument();
+});
+
+it("localizes the same-version delivery surface and keeps the immutable download",async()=>{
+  vi.mocked(request).mockImplementation(async (url,options)=>options?.method==="POST"?saved:url.endsWith("preview")?preview:{versions:[saved]} as never);
+  render(<HostLocaleProvider t={key=>key==="workbench.locale"?"en":key}><DeliveryVersions projectId="p" documentId="d" sourceSha256="s" baselineRevision={14}/></HostLocaleProvider>);
+  expect(await screen.findByRole("heading",{name:"Save delivery version"})).toBeVisible();
+  expect(screen.getByRole("button",{name:"Save draft version"})).toBeVisible();
+  expect(screen.getByText("Formal · Locked")).toBeVisible();
+  expect(screen.getByRole("link",{name:"Download Excel"})).toHaveAttribute("href",expect.stringContaining("/versions/1/export"));
 });

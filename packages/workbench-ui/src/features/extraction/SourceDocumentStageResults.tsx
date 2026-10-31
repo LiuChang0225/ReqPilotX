@@ -3,15 +3,17 @@ import { request } from "../../shared/api/client";
 import { Icon } from "../../shared/ui/Icon";
 import { sourcePageLabel } from "./sourcePageLabel";
 import { retainedCommand, settleCommand } from "./agentTaskTransport";
+import { useUiCopy, useUiLocale } from "../../host/HostLocaleContext";
+import { pdfViewerHref } from "../pdf/pdfViewerUrl";
 
 export type SourceStage = { stage: "MAP" | "ITEMS"; artifact_sha256: string; count: number };
 export type StageRow = { node_id?: string; parent_id?: string | null; source_record_id?: string; title?: string; label?: string; kind?: string;
   source_display_id?: string; requirement_display_id?: string; requirementness?: string; requirement_kinds?: string[];
   ancestor_path?: string[]; pages?: number[]; source_form?: string; logical_table_scope_id?: string; source_content?: { text: string; page?: number }[]; text_bindings?: { text: string; page?: number }[]; source_text?: string };
 type Preview = { artifact_sha256: string; source_sha256: string; rows: StageRow[]; total: number; next_offset: number | null };
-function rowLabel(row: StageRow) {
+function rowLabel(row: StageRow, fallback: string) {
   const label = row.source_display_id || row.label || "";
-  const title = row.title || row.label || "原文内容";
+  const title = row.title || row.label || fallback;
   return label === title ? title : `${label} ${title}`.trim();
 }
 
@@ -22,6 +24,8 @@ export function SourceDocumentStageResults({ root, taskId, sourceSha256, stages,
   revisionId?: string; onSelectionChange?: (row: StageRow | null) => void;
   confirmationDescription?: string; confirmationLabel?: string;
 }) {
+  const l = useUiCopy();
+  const locale = useUiLocale();
   const [selected, setSelected] = useState<SourceStage | null>(null);
   const [preview, setPreview] = useState<Preview | null>(null);
   const [error, setError] = useState("");
@@ -41,7 +45,7 @@ export function SourceDocumentStageResults({ root, taskId, sourceSha256, stages,
     void request<Preview>(`${root}/${encodeURIComponent(taskId)}/stages/${selected.stage}${revisionId ? `?revision=${revisionId}` : ""}`, { signal: controller.signal })
       .then(value => {
         if (controller.signal.aborted) return;
-        if (value.artifact_sha256 !== selected.artifact_sha256 || value.source_sha256 !== sourceSha256) throw new Error("阶段已更新，请重新同步后打开。");
+        if (value.artifact_sha256 !== selected.artifact_sha256 || value.source_sha256 !== sourceSha256) throw new Error(l("stage.updatedResync", "阶段已更新，请重新同步后打开。"));
         setPreview(value);
       }).catch(cause => { if (!controller.signal.aborted) setError(cause.message); })
       .finally(() => { if (!controller.signal.aborted) setPending(false); });
@@ -54,9 +58,9 @@ export function SourceDocumentStageResults({ root, taskId, sourceSha256, stages,
     try {
       const next = await request<Preview>(`${root}/${encodeURIComponent(taskId)}/stages/${selected.stage}?offset=${preview.next_offset}${revisionId ? `&revision=${revisionId}` : ""}`);
       if (selectedIdentity.current !== current) return;
-      if (next.artifact_sha256 !== preview.artifact_sha256 || next.source_sha256 !== sourceSha256) throw new Error("阶段已更新，请重新打开。");
+      if (next.artifact_sha256 !== preview.artifact_sha256 || next.source_sha256 !== sourceSha256) throw new Error(l("stage.updatedReopen", "阶段已更新，请重新打开。"));
       setPreview({ ...next, rows: [...preview.rows, ...next.rows] });
-    } catch (cause) { if (selectedIdentity.current === current) setError(cause instanceof Error ? cause.message : "暂时无法读取。"); }
+    } catch (cause) { if (selectedIdentity.current === current) setError(cause instanceof Error ? cause.message : l("stage.readFailed", "暂时无法读取。")); }
     finally { if (selectedIdentity.current === current) setPending(false); }
   };
   const confirm = async () => {
@@ -73,7 +77,7 @@ export function SourceDocumentStageResults({ root, taskId, sourceSha256, stages,
       }) });
       settleCommand(storageKey, commandId);
       if (identity.current === current) onConfirmed(value);
-    } catch (cause) { settleCommand(storageKey, commandId, cause); if (identity.current === current) setError(cause instanceof Error ? cause.message : "确认未保存。"); }
+    } catch (cause) { settleCommand(storageKey, commandId, cause); if (identity.current === current) setError(cause instanceof Error ? cause.message : l("stage.confirmFailed", "确认未保存。")); }
     finally { if (identity.current === current) setPending(false); }
   };
   const stageRowsById = new Map((preview?.rows || []).map(row => [row.node_id, row]));
@@ -85,52 +89,53 @@ export function SourceDocumentStageResults({ root, taskId, sourceSha256, stages,
     return depth;
   };
   if (!stages.length) return null;
-  return <section className="agent-stage-results" aria-label="阶段成果">
-    <strong>已可核对的成果</strong>
+  const requirementKind = (kind: string) => ({ FUNCTIONAL: "stage.kind.functional", QUALITY: "stage.kind.quality", CONSTRAINT: "stage.kind.constraint", PROJECT: "stage.kind.project", PROCESS: "stage.kind.process" }[kind]);
+  return <section className="agent-stage-results" aria-label={l("stage.resultsAria", "阶段成果")}>
+    <strong>{l("stage.reviewable", "已可核对的成果")}</strong>
     <div className="agent-stage-result-list">{stages.map(stage => <button key={stage.stage} type="button" className="agent-stage-result"
       aria-pressed={selected?.stage === stage.stage} onClick={() => setSelected(stage)}>
       <Icon name={stage.stage === "MAP" ? "tree" : "requirement"} size={17} />
-      <span>{stage.stage === "MAP" ? "查看文档结构" : "查看条目与分类"}<small>已保存 · 可核对</small></span>
-      <em>{stage.count} 项</em><Icon name="chevron" size={14} /></button>)}</div>
-    {confirmationRequired && <p role="status">文档结构已形成，确认后继续提取条目；可先补充结构修改意见。</p>}
+      <span>{stage.stage === "MAP" ? l("stage.viewStructure", "查看文档结构") : l("stage.viewItems", "查看条目与分类")}<small>{l("stage.savedReviewable", "已保存 · 可核对")}</small></span>
+      <em>{l("sourceWorkspace.itemCount", "{count} 项", { count: stage.count })}</em><Icon name="chevron" size={14} /></button>)}</div>
+    {confirmationRequired && <p role="status">{l("stage.mapConfirmationHint", "文档结构已形成，确认后继续提取条目；可先补充结构修改意见。")}</p>}
     {error && <p role="alert">{error}</p>}
     {workspace && preview ? <>
-      {confirmationRequired && selected?.stage === "MAP" && <section className="stage-approval-card" aria-label="确认文档结构">
-        <Icon name="requirement" size={19} /><div><strong>这一版结构是否可以继续？</strong><p>{confirmationDescription || "核对下面的结构与原页。确认后继续提取原文条目；有问题可在 Agent 协作中补充修改意见。"}</p></div>
-        <button type="button" className="button primary" disabled={pending} onClick={() => void confirm()}>{confirmationLabel || "确认此结构并继续"}</button>
+      {confirmationRequired && selected?.stage === "MAP" && <section className="stage-approval-card" aria-label={l("stage.confirmStructureAria", "确认文档结构")}>
+        <Icon name="requirement" size={19} /><div><strong>{l("stage.canContinue", "这一版结构是否可以继续？")}</strong><p>{confirmationDescription || l("stage.confirmStructureHint", "核对下面的结构与原页。确认后继续提取原文条目；有问题可在 Agent 协作中补充修改意见。")}</p></div>
+        <button type="button" className="button primary" disabled={pending} onClick={() => void confirm()}>{confirmationLabel || l("stage.confirmAndContinue", "确认此结构并继续")}</button>
       </section>}
-      <p className="stage-scope-note">阶段草稿 · 已显示 {preview.rows.length} / {preview.total} 项 · 内容可核对，不代表全文或人工响应已完成</p>
+      <p className="stage-scope-note">{l("stage.scopeNote", "阶段草稿 · 已显示 {shown} / {total} 项 · 内容可核对，不代表全文或人工响应已完成", { shown: preview.rows.length, total: preview.total })}</p>
       <div className="stage-review-layout">
-        <div className={`stage-records${selected?.stage === "ITEMS" ? " is-items" : ""}`} aria-label={selected?.stage === "MAP" ? "阶段文档结构" : "阶段原文条目"}>
-          <table><thead><tr><th>原文结构与内容</th>{selected?.stage === "ITEMS" && <th>判定 / 类别</th>}<th>来源</th></tr></thead><tbody>{preview.rows.map((row, index) => {
+        <div className={`stage-records${selected?.stage === "ITEMS" ? " is-items" : ""}`} aria-label={selected?.stage === "MAP" ? l("stage.structureAria", "阶段文档结构") : l("stage.itemsAria", "阶段原文条目")}>
+          <table><thead><tr><th>{l("stage.sourceStructure", "原文结构与内容")}</th>{selected?.stage === "ITEMS" && <th>{l("stage.judgmentCategory", "判定 / 类别")}</th>}<th>{l("library.sourceInfo", "来源")}</th></tr></thead><tbody>{preview.rows.map((row, index) => {
             const pages = row.pages?.length ? row.pages : [...new Set([...(row.source_content || []), ...(row.text_bindings || [])].map(c => c.page).filter((page): page is number => Boolean(page)))];
             return <tr key={row.source_record_id || row.node_id || index} className={selectedRow === index ? "is-selected" : ""}><td>
               <button type="button" style={{ paddingLeft: `${10 + Math.min(depthFor(row), 6) * 12}px` }} onClick={() => { setSelectedRow(index); if (pages[0]) setSourcePage(pages[0]); }}>
-                <Icon name={row.kind?.includes("TABLE") ? "matrix" : "document"} size={14} /><span>{rowLabel(row)}</span>
-              </button></td>{selected?.stage === "ITEMS" && <td className="stage-item-classification"><strong>{row.requirement_display_id || row.source_display_id}</strong><span>{row.requirementness === "REQUIREMENT" ? "需求" : row.requirementness === "NON_REQUIREMENT" ? "非需求" : "待判定"}</span><small>{row.requirement_kinds?.map(kind => ({ FUNCTIONAL: "功能", QUALITY: "质量", CONSTRAINT: "约束", PROJECT: "项目", PROCESS: "过程" }[kind] || kind)).join(" / ")}</small></td>}<td>{sourcePageLabel(pages)}</td></tr>;
+                <Icon name={row.kind?.includes("TABLE") ? "matrix" : "document"} size={14} /><span>{rowLabel(row, l("stage.sourceContent", "原文内容"))}</span>
+              </button></td>{selected?.stage === "ITEMS" && <td className="stage-item-classification"><strong>{row.requirement_display_id || row.source_display_id}</strong><span>{row.requirementness === "REQUIREMENT" ? l("stage.requirement", "需求") : row.requirementness === "NON_REQUIREMENT" ? l("stage.nonRequirement", "非需求") : l("stage.pendingJudgment", "待判定")}</span><small>{row.requirement_kinds?.map(kind => requirementKind(kind) ? l(requirementKind(kind)!, kind) : kind).join(" / ")}</small></td>}<td>{sourcePageLabel(pages)}</td></tr>;
           })}</tbody></table>
-          {preview.next_offset !== null && <button type="button" className="button ghost compact" disabled={pending} onClick={() => void more()}>显示更多</button>}
+          {preview.next_offset !== null && <button type="button" className="button ghost compact" disabled={pending} onClick={() => void more()}>{l("stage.showMore", "显示更多")}</button>}
         </div>
         <div className="stage-source-detail">
-          <div className="stage-original-copy"><strong>{preview.rows[selectedRow]?.title || preview.rows[selectedRow]?.label || "原文内容"}</strong>
-            <p>{Boolean(preview.rows[selectedRow]?.logical_table_scope_id || preview.rows[selectedRow]?.source_form?.startsWith("TABLE")) ? "表格请对照原页核对表头、共享单元格与完整内容。" : preview.rows[selectedRow]?.source_text || [...(preview.rows[selectedRow]?.source_content || []), ...(preview.rows[selectedRow]?.text_bindings || [])].map(c => c.text).join("\n")}</p>
+          <div className="stage-original-copy"><strong>{preview.rows[selectedRow]?.title || preview.rows[selectedRow]?.label || l("stage.sourceContent", "原文内容")}</strong>
+            <p>{Boolean(preview.rows[selectedRow]?.logical_table_scope_id || preview.rows[selectedRow]?.source_form?.startsWith("TABLE")) ? l("stage.tableHint", "表格请对照原页核对表头、共享单元格与完整内容。") : preview.rows[selectedRow]?.source_text || [...(preview.rows[selectedRow]?.source_content || []), ...(preview.rows[selectedRow]?.text_bindings || [])].map(c => c.text).join("\n")}</p>
           </div>
-          {sourceFileUrl && <iframe title="阶段原文 PDF 对照" src={`/pdf-viewer?embedded=1&fit=page&pdf=${encodeURIComponent(sourceFileUrl)}&page=${sourcePage}`} />}
+          {sourceFileUrl && <iframe title={l("stage.pdfCompare", "阶段原文 PDF 对照")} src={pdfViewerHref({ sourceUrl: sourceFileUrl, page: sourcePage, locale, embedded: true, fit: "page" })} />}
         </div>
       </div>
-    </> : preview && <div aria-label={selected?.stage === "MAP" ? "阶段文档结构" : "阶段原文条目"}>
-      <p>草稿 · 已显示 {preview.rows.length} / {preview.total} 项</p>
+    </> : preview && <div aria-label={selected?.stage === "MAP" ? l("stage.structureAria", "阶段文档结构") : l("stage.itemsAria", "阶段原文条目")}>
+      <p>{l("stage.draftShown", "草稿 · 已显示 {shown} / {total} 项", { shown: preview.rows.length, total: preview.total })}</p>
       {preview.rows.map((row, index) => <details key={row.source_record_id || row.node_id || index}
         style={{ marginInlineStart: `${Math.min(depthFor(row), 6) * 12}px` }}>
-        <summary>{rowLabel(row)}
+        <summary>{rowLabel(row, l("stage.sourceContent", "原文内容"))}
           {row.requirement_display_id ? ` · ${row.requirement_display_id}` : ""}</summary>
-        <p>{row.ancestor_path?.join(" / ")}{row.pages?.length ? ` · P${row.pages.join("、")}` : ""}</p>
-        {row.requirementness && <p>{row.requirementness === "REQUIREMENT" ? "需求" : "非需求"} · {row.requirement_kinds?.map(kind => ({ FUNCTIONAL: "功能", QUALITY: "质量", CONSTRAINT: "约束", PROJECT: "项目", PROCESS: "过程" }[kind] || kind)).join(" / ")}</p>}
+        <p>{row.ancestor_path?.join(" / ")}{row.pages?.length ? ` · P${row.pages.join(l("document.pageSeparator", "、"))}` : ""}</p>
+        {row.requirementness && <p>{row.requirementness === "REQUIREMENT" ? l("stage.requirement", "需求") : l("stage.nonRequirement", "非需求")} · {row.requirement_kinds?.map(kind => requirementKind(kind) ? l(requirementKind(kind)!, kind) : kind).join(" / ")}</p>}
         <div style={{ whiteSpace: "pre-wrap" }}>{row.source_text || [...(row.source_content || []), ...(row.text_bindings || [])].map(c => c.text).join("\n")}</div>
       </details>)}
-      {preview.next_offset !== null && <button type="button" className="button ghost compact" disabled={pending} onClick={() => void more()}>显示更多</button>}
-      {selected?.stage === "MAP" && confirmationRequired && <button type="button" className="button primary compact" disabled={pending} onClick={() => void confirm()}>确认此结构并继续</button>}
+      {preview.next_offset !== null && <button type="button" className="button ghost compact" disabled={pending} onClick={() => void more()}>{l("stage.showMore", "显示更多")}</button>}
+      {selected?.stage === "MAP" && confirmationRequired && <button type="button" className="button primary compact" disabled={pending} onClick={() => void confirm()}>{l("stage.confirmAndContinue", "确认此结构并继续")}</button>}
     </div>}
-    {pending && <p role="status">正在同步阶段成果…</p>}
+    {pending && <p role="status">{l("stage.syncing", "正在同步阶段成果…")}</p>}
   </section>;
 }

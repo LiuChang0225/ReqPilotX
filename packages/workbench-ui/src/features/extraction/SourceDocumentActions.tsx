@@ -5,6 +5,7 @@ import { useDocumentAgent } from "../workspace/DocumentAgentContext";
 import { SourceItemAgentLoop, type AgentLoopTask } from "./SourceItemAgentLoop";
 import { isSaasAccountMode } from "../../shared/api/saasSession";
 import { SAAS_KIT_UNAVAILABLE_MESSAGE, useSaasNativeAgentAvailability } from "./saasAgentAvailability";
+import { useUiCopy } from "../../host/HostLocaleContext";
 
 export type SourceGraphJob = { job_id: string; status: string; kind?: string; error_message?: string;
   progress?: { message?: string }; result?: { status?: string; source_item_job_ids?: string[] } };
@@ -38,6 +39,7 @@ export function SourceDocumentActions({ projectId, documentId, sourceSha256, map
   projectId: string; documentId: string; sourceSha256: string; mapArtifactId: string; onUpdated: () => void;
   externalJobs?: Job[]; ready?: boolean; onActivityChange?: (activity: SourceDocumentActivity) => void; collaborationRequest?: number;
 }) {
+  const l = useUiCopy();
   const documentAgent = useDocumentAgent();
   const availability = useSaasNativeAgentAvailability();
   const kitUnavailable = Boolean(mapArtifactId && isSaasAccountMode());
@@ -113,7 +115,7 @@ export function SourceDocumentActions({ projectId, documentId, sourceSha256, map
         setJobs(next);
         if (completed.length) update.current();
         if (!next.some(job => ["PENDING", "RUNNING", "CANCEL_REQUESTED"].includes(job.status))) {
-          setNotice(next.some(job => job.status !== "SUCCEEDED") ? "本次仍有未完成的范围，已完成结果保留。" : "本次任务已结束，可在原文结构与原文需求清单中核对结果。");
+          setNotice(next.some(job => job.status !== "SUCCEEDED") ? l("sourceActions.partial", "本次仍有未完成的范围，已完成结果保留。") : l("sourceActions.finished", "本次任务已结束，可在原文结构与原文需求清单中核对结果。"));
           update.current();
         }
       }).catch(cause => { if (!controller.signal.aborted) setError(`任务状态暂时无法读取：${cause.message}`); });
@@ -130,9 +132,9 @@ export function SourceDocumentActions({ projectId, documentId, sourceSha256, map
       const result = await startSourceDocumentGraph(projectId, documentId, sourceSha256, mapArtifactId);
       if (current.current !== started) return;
       setJobs(result.jobs || [result]);
-      setNotice(result.jobs?.length === 0 ? "当前原文范围已经处理，可继续核对或分析。" : "任务已保存，Agent 将继续处理当前文档。关闭页面后任务仍可接续。");
+      setNotice(result.jobs?.length === 0 ? l("sourceActions.alreadyProcessed", "当前原文范围已经处理，可继续核对或分析。") : l("sourceActions.taskSaved", "任务已保存，Agent 将继续处理当前文档。关闭页面后任务仍可接续。"));
       update.current();
-    } catch (cause) { if (current.current === started) setError(cause instanceof Error ? cause.message : "任务未能启动。"); }
+    } catch (cause) { if (current.current === started) setError(cause instanceof Error ? cause.message : l("sourceActions.startFailed", "任务未能启动。")); }
     finally { if (current.current === started) setPending(""); }
   };
   const fast = async () => {
@@ -140,7 +142,7 @@ export function SourceDocumentActions({ projectId, documentId, sourceSha256, map
     try {
       const value = await request<Capture>(`${root}/source-capture/fast`, { method: "POST", body: JSON.stringify({ expected_source_sha256: sourceSha256 }) });
       if (current.current === started && value.source_sha256 === sourceSha256) setCapture(value);
-    } catch (cause) { if (current.current === started) setError(cause instanceof Error ? cause.message : "原文读取未完成。"); }
+    } catch (cause) { if (current.current === started) setError(cause instanceof Error ? cause.message : l("sourceActions.captureFailed", "原文读取未完成。")); }
     finally { if (current.current === started) setPending(""); }
   };
   const downloadCapture = () => {
@@ -152,25 +154,25 @@ export function SourceDocumentActions({ projectId, documentId, sourceSha256, map
   const actions = (
     <div className="source-item-delivery-actions">
       <button className="button primary compact" disabled={kitUnavailable || !availability.ready || !ready || !sourceSha256 || !!pending || active || checking || statusUnavailable} title={kitUnavailable ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined} onClick={() => void start()}>
-        <Icon name="play" size={14} />{pending === "agent" || active ? "Agent 处理中…" : checking ? "正在同步任务…" : mapArtifactId ? "补全原文条目" : "Agent 提取与分析"}</button>
+        <Icon name="play" size={14} />{pending === "agent" || active ? l("sourceActions.agentProcessing", "Agent 处理中…") : checking ? l("work.syncingTask", "正在同步任务…") : mapArtifactId ? l("sourceActions.completeItems", "补全原文条目") : l("sourceActions.extractAnalyze", "Agent 提取与分析")}</button>
       <button className="button secondary compact" disabled={!sourceSha256 || !!pending} onClick={() => void fast()}>
-        {pending === "fast" ? "正在读取…" : "快速读取 · 无 AI"}</button>
+        {pending === "fast" ? l("sourceActions.reading", "正在读取…") : l("sourceActions.quickRead", "快速读取 · 无 AI")}</button>
       <span role="status">{jobs.find(job => job.status === "RUNNING")?.progress?.message || notice}</span>
-      {kitUnavailable ? <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p> : availability.message && <p role="status">{availability.message} <button type="button" className="button ghost compact" onClick={availability.refresh}>刷新 Agent 配置</button></p>}
+      {kitUnavailable ? <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p> : availability.message && <p role="status">{availability.message} <button type="button" className="button ghost compact" onClick={availability.refresh}>{l("sourceActions.refreshAgent", "刷新 Agent 配置")}</button></p>}
       {!mapArtifactId && <SourceItemAgentLoop projectId={projectId} documentId={documentId} sourceSha256={sourceSha256}
         baselineSha256="" selectedSourceItemId="" mode="extract" onUpdated={onUpdated} openRequest={collaborationRequest + intakeRequest} onTaskChange={receiveExtractionTask}
-        initialGoal="完整阅读当前客户文档，先给出可核对结构，再提取原文条目和分类，按已定义粒度进行必要拆分，最终保存同版本Matrix草稿。" />}
+        initialGoal={l("sourceActions.defaultGoal", "完整阅读当前客户文档，先给出可核对结构，再提取原文条目和分类，按已定义粒度进行必要拆分，最终保存同版本Matrix草稿。")} />}
     </div>
   );
-  return <section className="source-document-actions" aria-label="原文处理方式">
-    {documentAgent ? <details className="document-tools"><summary>文档工具</summary>{actions}</details> : actions}
+  return <section className="source-document-actions" aria-label={l("sourceActions.aria", "原文处理方式")}>
+    {documentAgent ? <details className="document-tools"><summary>{l("sourceActions.documentTools", "文档工具")}</summary>{actions}</details> : actions}
     {error && <p role="alert">{error}</p>}
-    {statusUnavailable && <p role="alert">任务状态暂时无法读取，请重新同步后再发起任务。 <button type="button" className="button ghost compact" onClick={() => setRetry(value => value + 1)}>重新同步任务</button></p>}
-    {capture && <details open><summary>快速读取结果 · {capture.page_facts.length ? `${capture.page_facts.length} 页 · ` : ""}{capture.elapsed_seconds.toFixed(2)} 秒{capture.cache_reused ? " · 复用已存原文" : ""}</summary>
-      <p>文字、表格和图像已保留。结构是算法候选，尚未判断需求属性；当前原文基线保持不变。</p>
-      <p>表格 {capture.capture_counts.table || 0} · 图像 {(capture.capture_counts.image || 0) + (capture.capture_counts.figure || 0)} · 结构候选 {capture.structure_proposal?.nodes.length || 0}</p>
-      {capture.gaps.map(gap => <p key={gap.code}>{gap.pages?.length ? `P${gap.pages.join("、")}：` : ""}{gap.message}</p>)}
-      <button className="button ghost compact" onClick={downloadCapture}>下载捕获详情</button>
+    {statusUnavailable && <p role="alert">{l("sourceActions.statusUnavailable", "任务状态暂时无法读取，请重新同步后再发起任务。")} <button type="button" className="button ghost compact" onClick={() => setRetry(value => value + 1)}>{l("sourceActions.resyncTask", "重新同步任务")}</button></p>}
+    {capture && <details open><summary>{l("sourceActions.captureSummary", "快速读取结果{details}", { details: `${capture.page_facts.length ? l("sourceActions.capturePages", " · {count} 页", { count: capture.page_facts.length }) : ""}${l("sourceActions.captureSeconds", " · {seconds} 秒", { seconds: capture.elapsed_seconds.toFixed(2) })}${capture.cache_reused ? l("sourceActions.captureReused", " · 复用已存原文") : ""}` })}</summary>
+      <p>{l("sourceActions.captureKept", "文字、表格和图像已保留。结构是算法候选，尚未判断需求属性；当前原文基线保持不变。")}</p>
+      <p>{l("sourceActions.captureCounts", "表格 {tables} · 图像 {images} · 结构候选 {candidates}", { tables: capture.capture_counts.table || 0, images: (capture.capture_counts.image || 0) + (capture.capture_counts.figure || 0), candidates: capture.structure_proposal?.nodes.length || 0 })}</p>
+      {capture.gaps.map(gap => <p key={gap.code}>{gap.pages?.length ? l("sourceActions.gapPages", "P{pages}：", { pages: gap.pages.join(l("document.pageSeparator", "、")) }) : ""}{gap.message}</p>)}
+      <button className="button ghost compact" onClick={downloadCapture}>{l("sourceActions.downloadCapture", "下载捕获详情")}</button>
     </details>}
   </section>;
 }

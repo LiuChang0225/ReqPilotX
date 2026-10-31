@@ -71,6 +71,8 @@ import { filterSourceItemLedger, sourceReviewCounts, useSourceItemReviewContext,
 
 import type { SourceWorkbenchReader } from "./SourceWorkbenchReader";
 import { clearSourceFeedbackDraft, sourceFeedbackDraftKey, useSourceFeedbackDraft } from "./sourceItemDrafts";
+import { useUiCopy, useUiLocale } from "../../host/HostLocaleContext";
+import { pdfViewerHref, withPdfLocale } from "../pdf/pdfViewerUrl";
 
 interface NativeStructureReferenceDockProps {
   sourceReader?: SourceWorkbenchReader;
@@ -232,8 +234,8 @@ function commandId(prefix = "native-structure-feedback"): string {
   return `${prefix}:${suffix}`;
 }
 
-function pageLabel(pages: readonly number[]): string {
-  if (!pages.length) return "未绑定页面";
+function pageLabel(pages: readonly number[], l?: (key: string, fallback?: string) => string): string {
+  if (!pages.length) return l ? l("未绑定页面") : "未绑定页面";
   const ranges: string[] = [];
   let start = pages[0];
   let previous = pages[0];
@@ -247,38 +249,39 @@ function pageLabel(pages: readonly number[]): string {
     previous = page;
   }
   ranges.push(start === previous ? `P${start}` : `P${start}–P${previous}`);
-  return ranges.join("、");
+  return ranges.join(l ? l("、", "、") : "、");
 }
 
-function nodeTitle(node: NativeStructureTreeNodeV1): string {
-  return sourceHeadingLabel(node.label, node.title) || "未命名结构节点";
+function nodeTitle(node: NativeStructureTreeNodeV1, l?: (key: string, fallback?: string) => string): string {
+  return sourceHeadingLabel(node.label, node.title) || (l ? l("未命名结构节点") : "未命名结构节点");
 }
 
-function nodeKindLabel(node: NativeStructureTreeNodeV1): string {
-  if (node.kind === "DOCUMENT_ROOT") return "主文档";
-  if (node.kind === "DOCUMENT_UNIT") return "补充文档";
-  if (node.kind === "FRONT_MATTER") return "文档前置内容";
-  if (node.kind === "SECTION" || node.kind === "CHAPTER") return "章节";
-  return "原文条目";
+function nodeKindLabel(node: NativeStructureTreeNodeV1, l?: (key: string, fallback?: string) => string): string {
+  const text = (key: string) => l ? l(key) : key;
+  if (node.kind === "DOCUMENT_ROOT") return text("主文档");
+  if (node.kind === "DOCUMENT_UNIT") return text("补充文档");
+  if (node.kind === "FRONT_MATTER") return text("文档前置内容");
+  if (node.kind === "SECTION" || node.kind === "CHAPTER") return text("章节");
+  return text("原文条目");
 }
 
-function titleAuthorityLabel(node: NativeStructureTreeNodeV1): string {
-  if (node.title_authority === "AGENT_SURVEY_LABEL") return "Agent 全文概览命名";
-  if (node.title_authority === "DERIVED_FROM_VISIBLE_TABLE_ROLE") {
-    return "Agent 根据表格用途命名";
-  }
-  if (node.title_authority === "VISIBLE_LABEL_ONLY") return "原文仅有编号";
-  return "原文可见";
+function titleAuthorityLabel(node: NativeStructureTreeNodeV1, l?: (key: string, fallback?: string) => string): string {
+  const text = (key: string) => l ? l(key) : key;
+  if (node.title_authority === "AGENT_SURVEY_LABEL") return text("Agent 全文概览命名");
+  if (node.title_authority === "DERIVED_FROM_VISIBLE_TABLE_ROLE") return text("Agent 根据表格用途命名");
+  if (node.title_authority === "VISIBLE_LABEL_ONLY") return text("原文仅有编号");
+  return text("原文可见");
 }
 
-function feedbackStatusLabel(feedback: NativeStructureFeedbackV1): string {
-  if (feedback.status === "ACKNOWLEDGED") return "Agent 已读取";
-  if (feedback.status === "CONSUMED") return "已用于新草案";
-  if (feedback.status === "REJECTED") return "未用于当前草案";
-  return "已保存，等待 Agent 读取";
+function feedbackStatusLabel(feedback: NativeStructureFeedbackV1, l?: (key: string, fallback?: string) => string): string {
+  const text = (key: string) => l ? l(key) : key;
+  if (feedback.status === "ACKNOWLEDGED") return text("Agent 已读取");
+  if (feedback.status === "CONSUMED") return text("已用于新草案");
+  if (feedback.status === "REJECTED") return text("未用于当前草案");
+  return text("已保存，等待 Agent 读取");
 }
 
-function structureToolIntentLabel(value: string): string {
+function structureToolIntentLabel(value: string, l?: (key: string, fallback?: string) => string): string {
   const labels: Record<string, string> = {
     READ_NATIVE_TEXT: "读取原生文字",
     RENDER_SCOPE: "渲染局部原文",
@@ -288,10 +291,11 @@ function structureToolIntentLabel(value: string): string {
     VALIDATE_MATERIALIZATION: "检查物化结果",
     VALIDATE_STRUCTURE_GRANULARITY: "检查标题树粒度",
   };
-  return labels[value] || "局部证据工具";
+  const text = labels[value] || "局部证据工具";
+  return l ? l(text) : text;
 }
 
-function activityKindLabel(value: unknown, index: number): string {
+function activityKindLabel(value: unknown, index: number, l?: (key: string, fallback?: string, params?: Record<string, string | number>) => string): string {
   const labels: Record<string, string> = {
     GOAL_SET: "设定目标",
     SOURCE_LOCKED: "核对来源",
@@ -302,46 +306,48 @@ function activityKindLabel(value: unknown, index: number): string {
     FRESH_REPLAY_COMPARED: "复跑稳定性对照",
     COMPLETED_WITH_UNRESOLVED: "保留局部未决",
   };
-  return labels[String(value || "")] || `执行步骤 ${index + 1}`;
+  const text = labels[String(value || "")];
+  if (text) return l ? l(text) : text;
+  return l ? l("执行步骤 {index}", undefined, { index: index + 1 }) : `执行步骤 ${index + 1}`;
 }
 
-function activityPublicSummary(activity: Record<string, unknown>): string {
+function activityPublicSummary(activity: Record<string, unknown>, l?: (key: string, fallback?: string, params?: Record<string, string | number>) => string): string {
   const kind = String(activity.kind || "");
   const scope = String(activity.scope || "");
   if (kind === "GOAL_SET") {
-    return "明确本轮只恢复原文结构，不进入需求判断或原子化。";
+    return l ? l("明确本轮只恢复原文结构，不进入需求判断或原子化。") : "明确本轮只恢复原文结构，不进入需求判断或原子化。";
   }
   if (kind === "SOURCE_LOCKED") {
-    return "已核对 29 页来源文件及可用表格证据。";
+    return l ? l("已核对 29 页来源文件及可用表格证据。") : "已核对 29 页来源文件及可用表格证据。";
   }
   if (kind === "VISUAL_OPENED") {
-    return "已建立整文页面概览，并继续逐页查看高清原文。";
+    return l ? l("已建立整文页面概览，并继续逐页查看高清原文。") : "已建立整文页面概览，并继续逐页查看高清原文。";
   }
   if (kind === "SCOPE_REVIEWED") {
     if (scope.includes("P1-P9")) {
-      return "已核对主文档 P1–P9 的章节、正文与表格边界。";
+      return l ? l("已核对主文档 P1–P9 的章节、正文与表格边界。") : "已核对主文档 P1–P9 的章节、正文与表格边界。";
     }
     if (scope.includes("P10-P21")) {
-      return "已核对前后减振器试验大纲及跨页表格。";
+      return l ? l("已核对前后减振器试验大纲及跨页表格。") : "已核对前后减振器试验大纲及跨页表格。";
     }
     if (scope.includes("P22-P29")) {
-      return "已核对蓄能器与连接器相关附件。";
+      return l ? l("已核对蓄能器与连接器相关附件。") : "已核对蓄能器与连接器相关附件。";
     }
-    return `已核对 ${scope || "当前范围"} 的原文结构。`;
+    return l ? l("已核对 {scope} 的原文结构。", undefined, { scope: scope || l("当前范围") }) : `已核对 ${scope || "当前范围"} 的原文结构。`;
   }
   if (kind === "CANDIDATE_ASSEMBLED") {
-    return "已组装整文结构草案；对象数量只作观察。";
+    return l ? l("已组装整文结构草案；对象数量只作观察。") : "已组装整文结构草案；对象数量只作观察。";
   }
   if (kind === "VALIDATION_PASSED") {
-    return "已验证页面、表格与来源覆盖完整。";
+    return l ? l("已验证页面、表格与来源覆盖完整。") : "已验证页面、表格与来源覆盖完整。";
   }
   if (kind === "FRESH_REPLAY_COMPARED") {
-    return "已完成隔离复跑，关键结构保持稳定。";
+    return l ? l("已完成隔离复跑，关键结构保持稳定。") : "已完成隔离复跑，关键结构保持稳定。";
   }
   if (kind === "COMPLETED_WITH_UNRESOLVED") {
-    return "已保留原文无法确定的局部关系，不阻止其他内容继续。";
+    return l ? l("已保留原文无法确定的局部关系，不阻止其他内容继续。") : "已保留原文无法确定的局部关系，不阻止其他内容继续。";
   }
-  return String(activity.summary || "已完成一步结构检查");
+  return String(activity.summary || (l ? l("已完成一步结构检查") : "已完成一步结构检查"));
 }
 
 export function activeNativeStructureFocusPages(
@@ -1396,6 +1402,7 @@ function StructureTreeBranch({
   showStructureFindings = true,
   workingAffectedScopeIds = new Set(),
 }: StructureTreeBranchProps) {
+  const l = useUiCopy();
   const children = childrenByParent.get(node.node_id) || [];
   const expanded = children.length > 0 && expandedIds.has(node.node_id);
   const selected = selectedId === node.node_id;
@@ -1419,7 +1426,7 @@ function StructureTreeBranch({
             type="button"
             className="native-hierarchy-tree-toggle"
             tabIndex={-1}
-            aria-label={`${expanded ? "收起" : "展开"} ${nodeTitle(node)}`}
+            aria-label={`${expanded ? l("收起") : l("展开")} ${nodeTitle(node, l)}`}
             onClick={() => onToggle(node.node_id)}
           >
             <Icon name={expanded ? "chevron-down" : "chevron"} size={13} />
@@ -1445,16 +1452,16 @@ function StructureTreeBranch({
             size={14}
           />
           <span>
-            <strong>{nodeTitle(node)}</strong>
+            <strong>{nodeTitle(node, l)}</strong>
             <small>
-              {pageLabel(node.pages)}
-              {node.content_blocks.length ? " · 含表格" : ""}
+              {pageLabel(node.pages, l)}
+              {node.content_blocks.length ? l(" · 含表格") : ""}
             </small>
           </span>
           {["DERIVED_FROM_VISIBLE_TABLE_ROLE", "AGENT_SURVEY_LABEL"].includes(node.title_authority) ? (
-            <em>Agent 命名</em>
+            <em>{l("Agent 命名")}</em>
           ) : null}
-          {workingAffectedScopeIds.has(node.node_id) ? <em>正在确认</em> : null}
+          {workingAffectedScopeIds.has(node.node_id) ? <em>{l("正在确认")}</em> : null}
           {recordCounts?.recordCount ? (
             <em className="source-requirement-tree-count">
               {recordCounts.requirementCount} 需求
@@ -1464,7 +1471,7 @@ function StructureTreeBranch({
             </em>
           ) : null}
           {showStructureFindings && node.finding_codes.length ? (
-            <span className="native-hierarchy-finding-dot" aria-label="有待判断项" />
+            <span className="native-hierarchy-finding-dot" aria-label={l("有待判断项")} />
           ) : null}
         </button>
       </div>
@@ -1491,33 +1498,34 @@ function StructureTreeBranch({
   );
 }
 
-function sourceItemRoleLabel(record: SourceRequirementOutlineRecordV1): string {
-  if (record.requirementness === "REQUIREMENT") return "需求";
+function sourceItemRoleLabel(record: SourceRequirementOutlineRecordV1, l?: (key: string, fallback?: string) => string): string {
+  const text = (key: string) => l ? l(key) : key;
+  if (record.requirementness === "REQUIREMENT") return text("需求");
   const role = record.non_requirement_role;
-  if (!role) return "非需求内容";
+  if (!role) return text("非需求内容");
   return (
     {
-      HEADING: "层级标题",
-      METADATA: "文控信息",
-      REVISION_HISTORY: "修订记录",
-      CONTEXT: "背景说明",
-      DEFINITION: "定义",
-      RATIONALE: "理由",
-      EXAMPLE: "示例",
-      NOTE: "注释",
-      REFERENCE: "外部引用",
-    }[role] || "非需求内容"
+      HEADING: text("层级标题"),
+      METADATA: text("文控信息"),
+      REVISION_HISTORY: text("修订记录"),
+      CONTEXT: text("背景说明"),
+      DEFINITION: text("定义"),
+      RATIONALE: text("理由"),
+      EXAMPLE: text("示例"),
+      NOTE: text("注释"),
+      REFERENCE: text("外部引用"),
+    }[role] || text("非需求内容")
   );
 }
 
-function sourceItemKindSummary(record: SourceRequirementOutlineRecordV1): string {
+function sourceItemKindSummary(record: SourceRequirementOutlineRecordV1, l?: (key: string, fallback?: string) => string): string {
   if (record.requirementness !== "REQUIREMENT") return "";
   return record.requirement_kinds
     .map(
       (value) =>
         ({ FUNCTIONAL: "功能", QUALITY: "质量", CONSTRAINT: "约束", PROJECT: "项目", PROCESS: "过程" })[
           value
-        ] || value,
+        ] ? (l ? l(({ FUNCTIONAL: "功能", QUALITY: "质量", CONSTRAINT: "约束", PROJECT: "项目", PROCESS: "过程" })[value]) : ({ FUNCTIONAL: "功能", QUALITY: "质量", CONSTRAINT: "约束", PROJECT: "项目", PROCESS: "过程" })[value]) : value,
     )
     .join(" / ");
 }
@@ -1538,6 +1546,7 @@ function SourceItemLedgerBranch({
   reviewCounts,
   derivedCounts, scopeSummaries,
 }: SourceItemLedgerBranchProps) {
+  const l = useUiCopy();
   if (visibleRows && !visibleRows.has(row.row_id)) return null;
   const node = nodesById.get(row.structure_node_id);
   if (!node) return null;
@@ -1579,11 +1588,11 @@ function SourceItemLedgerBranch({
     else onSelectStructure(node);
   };
   const primaryLabel =
-    isSourceItem && sourceItem ? sourceItem.display_label : nodeTitle(node);
+    isSourceItem && sourceItem ? sourceItem.display_label : nodeTitle(node, l);
   const identifier = sourceItem
     ? sourceItem.requirement_display_id || sourceItem.source_display_id
     : "";
-  const kindSummary = sourceItem ? sourceItemKindSummary(sourceItem) : "";
+  const kindSummary = sourceItem ? sourceItemKindSummary(sourceItem, l) : "";
   const review = sourceItem ? reviewContext?.records[sourceItem.source_record_id] : null;
   const scopeCount = reviewCounts?.get(row.row_id);
   const derivedCount = sourceItem ? review?.derived_count || derivedCounts?.get(sourceItem.source_record_id) || 0 : 0;
@@ -1609,7 +1618,7 @@ function SourceItemLedgerBranch({
             type="button"
             className="native-hierarchy-tree-toggle"
             tabIndex={-1}
-            aria-label={`${expanded ? "收起" : "展开"} ${primaryLabel}`}
+            aria-label={`${expanded ? l("收起") : l("展开")} ${primaryLabel}`}
             onClick={() => onToggle(row.row_id)}
           >
             <Icon name={expanded ? "chevron-down" : "chevron"} size={13} />
@@ -1636,33 +1645,33 @@ function SourceItemLedgerBranch({
             size={14}
           />
           <span>
-            <strong>{sourceItem?.source_number !== undefined && <span className="tree-source-number" title="客户原编号">{originalNumber(sourceItem)} </span>}{primaryLabel}</strong>
+            <strong>{sourceItem?.source_number !== undefined && <span className="tree-source-number" title={l("客户原编号")}>{originalNumber(sourceItem)} </span>}{primaryLabel}</strong>
             <small>
               {identifier ? `${identifier} · ` : ""}
               {sourceItem
                 ? `P${sourceItem.pages.join("–P")}${
                     kindSummary ? ` · ${kindSummary}` : ""
                   }`
-                : `${pageLabel(node.pages)}${
-                    row.is_table_structure ? " · 原表" : ""
+                : `${pageLabel(node.pages, l)}${
+                    row.is_table_structure ? l(" · 原表") : ""
                   }`}
             </small>
             {sourceItem && (derivedCount > 0 || review?.has_visual_interpretation || review?.focus_areas.length) ?
               <small className="source-tree-review-signals">{[
                 review?.focus_areas.map(area => FOCUS_LABELS[area]).join(" / "),
                 derivedCount ? `派生 ${derivedCount}` : "",
-                review?.has_visual_interpretation ? "图片释读" : "",
+                review?.has_visual_interpretation ? l("图片释读") : "",
               ].filter(Boolean).join(" · ")}</small> : null}
             {!sourceItem && scopeCount?.focus ? <small className="source-tree-review-signals">重点分析 {scopeCount.focus}{scopeCount.attention ? ` · 待核对 ${scopeCount.attention}` : ""}</small> : null}
           </span>
-          {review?.needs_attention || review?.pending_feedback_count ? <em className="source-tree-attention">待核对</em> : review?.focus_areas.length ? <em className="source-tree-focus">重点</em> : sourceItem ? (
+          {review?.needs_attention || review?.pending_feedback_count ? <em className="source-tree-attention">{l("待核对")}</em> : review?.focus_areas.length ? <em className="source-tree-focus">{l("重点")}</em> : sourceItem ? (
             <em
               className={cx(
                 "source-item-tree-role",
                 sourceItem.requirementness === "REQUIREMENT" && "is-requirement",
               )}
             >
-              {sourceItemRoleLabel(sourceItem)}
+              {sourceItemRoleLabel(sourceItem, l)}
             </em>
           ) : directItemCountLabel ? (
             <em className="source-requirement-tree-count" title={scopeCountDetail(scopeSummaries?.[row.structure_node_id])}>
@@ -1718,8 +1727,10 @@ export function NativeStructureReferenceDock({
   initialReasoningState,
   sourceReader,
 }: NativeStructureReferenceDockProps) {
+  const l = useUiCopy();
+  const locale = useUiLocale();
   const host = useWorkbenchHost();
-  const viewerUrl = host.pdfViewerUrl(sourceFileUrl, 1, true);
+  const viewerUrl = withPdfLocale(host.pdfViewerUrl(sourceFileUrl, 1, true), locale);
   const viewerOrigin = new URL(viewerUrl, window.location.origin).origin;
   const documentAgent = useDocumentAgent();
   const externalContentIdentity = sourceReader ? `${sourceReader.reference.artifact_id}:${sourceReader.outline?.baseline?.artifact_sha256 || sourceReader.revision_id}` : undefined;
@@ -1780,9 +1791,9 @@ export function NativeStructureReferenceDock({
   const sourceItemReasoning = sourceReader ? { ...nativeReasoning,
     scopeKey: sourceReader.responseScope || `${projectId}:${documentId}:${sourceSha256}:${sourceReader.outline?.baseline?.artifact_sha256 || sourceReader.revision_id}`,
     state: sourceReader.reasoning ? { ...sourceReader.reasoning, analysis_policy: sourceReader.analysis_policy } : null,
-    saveEngineerResponse: sourceReader.saveEngineerResponse || (async () => { throw new Error("当前连接尚未提供人工响应保存能力。"); }),
-    loadEngineerResponses: sourceReader.loadEngineerResponses || (async () => { throw new Error("当前连接尚未提供人工响应读取能力。"); }),
-    run: async () => { throw new Error("请在关联外部会话中发起分析或拆分。"); },
+    saveEngineerResponse: sourceReader.saveEngineerResponse || (async () => { throw new Error(l("当前连接尚未提供人工响应保存能力。")); }),
+    loadEngineerResponses: sourceReader.loadEngineerResponses || (async () => { throw new Error(l("当前连接尚未提供人工响应读取能力。")); }),
+    run: async () => { throw new Error(l("请在关联外部会话中发起分析或拆分。")); },
   } : nativeReasoning;
   const previewReader = useMemo<SourcePreviewReader | undefined>(() => sourceRequirementOutline ? {
     scope: `${projectId}:${documentId}:${sourceSha256}:${sourceReader?.revision_id || sourceRequirementOutline.baseline.artifact_sha256}`,
@@ -1935,7 +1946,7 @@ export function NativeStructureReferenceDock({
               if (authoritativeRefreshStateRef.current !== state) return null;
               if (result.source_sha256 !== sourceSha256) {
                 setActivitySyncNotice(
-                  "运行状态已切换到新的文档版本，请刷新后继续。",
+                  l("运行状态已切换到新的文档版本，请刷新后继续。"),
                 );
                 return null;
               }
@@ -1954,17 +1965,17 @@ export function NativeStructureReferenceDock({
               }
               setActivitySyncNotice(
                 attempt === 0
-                  ? "最新结构投影仍在生成，正在重试；当前显示仍是上一版。"
-                  : "最新结构投影尚未就绪，当前显示仍是已读取的最近版本。",
+                  ? l("最新结构投影仍在生成，正在重试；当前显示仍是上一版。")
+                  : l("最新结构投影尚未就绪，当前显示仍是已读取的最近版本。"),
               );
             } catch (caught) {
               if (authoritativeRefreshStateRef.current !== state) return null;
               setActivitySyncNotice(
                 attempt === 0
-                  ? "最新结构投影同步暂时延迟，正在重试；当前显示仍是上一版。"
+                  ? l("最新结构投影同步暂时延迟，正在重试；当前显示仍是上一版。")
                   : caught instanceof ApiError
-                    ? "最新结构投影同步仍未恢复，当前显示仍是上一版；原文核对和其他节点不受影响。"
-                    : "最新结构投影暂时未更新，当前显示仍是上一版；原文核对和其他节点不受影响。",
+                    ? l("最新结构投影同步仍未恢复，当前显示仍是上一版；原文核对和其他节点不受影响。")
+                    : l("最新结构投影暂时未更新，当前显示仍是上一版；原文核对和其他节点不受影响。"),
               );
             }
           }
@@ -2101,7 +2112,7 @@ export function NativeStructureReferenceDock({
           response.source_sha256 !== sourceSha256
         ) {
           setWorkingRevisionNotice(
-            "工作结构状态属于其他文件版本；当前继续显示最近有效结构。",
+            l("工作结构状态属于其他文件版本；当前继续显示最近有效结构。"),
           );
           timer = window.setTimeout(poll, 3_000);
           return;
@@ -2128,7 +2139,7 @@ export function NativeStructureReferenceDock({
             head.revision < 1
           ) {
             setWorkingRevisionNotice(
-              "工作结构状态身份不完整；当前继续显示最近有效结构。",
+              l("工作结构状态身份不完整；当前继续显示最近有效结构。"),
             );
             timer = window.setTimeout(poll, 3_000);
             return;
@@ -2148,7 +2159,7 @@ export function NativeStructureReferenceDock({
                   head.state !== previous.state)))
           ) {
             setWorkingRevisionNotice(
-              "工作结构 head 出现回退或同身份漂移；当前继续显示最近有效结构。",
+              l("工作结构 head 出现回退或同身份漂移；当前继续显示最近有效结构。"),
             );
             if (previous.state === "WORKING") {
               timer = window.setTimeout(poll, 3_000);
@@ -2173,7 +2184,7 @@ export function NativeStructureReferenceDock({
         if (controller.signal.aborted) return;
         if (!(caught instanceof ApiError && caught.status === 404)) {
           setWorkingRevisionNotice(
-            "工作结构状态暂时无法同步；当前继续显示最近有效结构。",
+            l("工作结构状态暂时无法同步；当前继续显示最近有效结构。"),
           );
         }
         if (
@@ -2235,7 +2246,7 @@ export function NativeStructureReferenceDock({
           workingRevisionHead.base_projection_sha256)
     ) {
       setWorkingRevisionNotice(
-        "工作结构运行身份发生冲突；当前继续显示最近有效结构。",
+        l("工作结构运行身份发生冲突；当前继续显示最近有效结构。"),
       );
       return;
     }
@@ -2401,7 +2412,7 @@ export function NativeStructureReferenceDock({
         if (controller.signal.aborted) return;
         if (value.source_sha256 !== sourceSha256) {
           setSourceRequirementOutline(null);
-          setSourceRequirementError("原文需求清单属于旧文件版本，请重新生成当前切片。");
+          setSourceRequirementError(l("原文需求清单属于旧文件版本，请重新生成当前切片。"));
           return;
         }
         setSourceRequirementOutline(value);
@@ -2411,7 +2422,7 @@ export function NativeStructureReferenceDock({
         setSourceRequirementOutline(null);
         setSourceRequirementError(
           caught instanceof ApiError && caught.status === 404
-            ? "Agent 尚未发布原文需求清单切片。"
+            ? l("Agent 尚未发布原文需求清单切片。")
             : errorMessage(caught),
         );
       });
@@ -2469,7 +2480,7 @@ export function NativeStructureReferenceDock({
         setSourceRequirementRunError(
           caught instanceof ApiError
             ? caught.message
-            : "Agent 运行状态暂时无法同步；当前清单仍可浏览。",
+            : l("Agent 运行状态暂时无法同步；当前清单仍可浏览。"),
         );
         timer = window.setTimeout(poll, 3_000);
       }
@@ -2572,7 +2583,7 @@ export function NativeStructureReferenceDock({
           stream.source_sha256 !== activitySourceSha256 ||
           stream.artifact_id !== activityArtifactId
         ) {
-          setActivitySyncNotice("运行状态已切换到新的文档版本，请刷新后继续。");
+          setActivitySyncNotice(l("运行状态已切换到新的文档版本，请刷新后继续。"));
           return;
         }
         const activityHead = stream.working_revision_head;
@@ -2595,7 +2606,7 @@ export function NativeStructureReferenceDock({
         }
         if (stream.handoff_id !== activityHandoffId) {
           setActivitySyncNotice(
-            "检测到其他客户端推进了当前结构任务，正在同步最新工作投影。",
+            l("检测到其他客户端推进了当前结构任务，正在同步最新工作投影。"),
           );
           const refreshed = await refreshAuthoritativeReference(
             `handoff-promoted-from:${activityHandoffId}:to:${stream.handoff_id}`,
@@ -2673,8 +2684,8 @@ export function NativeStructureReferenceDock({
         if (controller.signal.aborted) return;
         setActivitySyncNotice(
           caught instanceof ApiError
-            ? "运行状态同步暂时延迟，原文核对和其他节点不受影响。"
-            : "运行状态暂时未更新，原文核对和其他节点不受影响。",
+            ? l("运行状态同步暂时延迟，原文核对和其他节点不受影响。")
+            : l("运行状态暂时未更新，原文核对和其他节点不受影响。"),
         );
         if (
           [
@@ -3011,7 +3022,7 @@ export function NativeStructureReferenceDock({
   useEffect(() => {
     if (!sourceReader || !externalBind) return;
     return externalBind({ sourceSha256, baselineSha256: sourceReader.outline?.baseline?.artifact_sha256 || "", revisionId: sourceReader.revision_id,
-      selectedSourceItemId, selectedNodeId, selectedDerivedUnitId: selectedDerivedId || undefined, selectedLabel: selectedSourceItem ? `${selectedDerivedId ? "父条款 " : ""}${selectedSourceItem.requirement_display_id || selectedSourceItem.source_display_id}` : nodesById.get(selectedNodeId)?.title || "当前结构",
+      selectedSourceItemId, selectedNodeId, selectedDerivedUnitId: selectedDerivedId || undefined, selectedLabel: selectedSourceItem ? `${selectedDerivedId ? l("父条款 ") : ""}${selectedSourceItem.requirement_display_id || selectedSourceItem.source_display_id}` : nodesById.get(selectedNodeId)?.title || l("当前结构"),
       onUpdated: () => setSourceRequirementRefreshToken(value => value + 1) });
   }, [externalBind, sourceReader?.revision_id, sourceSha256, selectedSourceItemId, selectedNodeId, selectedDerivedId, selectedSourceItem, nodesById]);
   const reviewNavigationRows = useMemo(() => flattenVisibleSourceItemLedger(sourceRequirementOutline, new Set(sourceItemLedgerExpandableIds))
@@ -3123,7 +3134,7 @@ export function NativeStructureReferenceDock({
             : [
                 [
                   table.scope_id,
-                  "续页列映射没有完整覆盖规范表头，已停止将该表标记为还原完成。",
+                  l("续页列映射没有完整覆盖规范表头，已停止将该表标记为还原完成。"),
                 ],
               ];
         }),
@@ -3218,7 +3229,7 @@ export function NativeStructureReferenceDock({
     const invalidTableId = tableIds.find((scopeId) => tableGridErrors[scopeId]);
     if (invalidTableId) {
       setActivitySyncNotice(
-        "局部表格仍存在续页列映射冲突；已停止提交复验通过，原文和其他节点仍可继续核对。",
+        l("局部表格仍存在续页列映射冲突；已停止提交复验通过，原文和其他节点仍可继续核对。"),
       );
       return;
     }
@@ -3247,7 +3258,7 @@ export function NativeStructureReferenceDock({
           })
           .then(async (result) => {
             if (!cancelled) {
-              setActivitySyncNotice("局部渲染已重新打开，Host 后置验证已提交。");
+              setActivitySyncNotice(l("局部渲染已重新打开，Host 后置验证已提交。"));
               await refreshAuthoritativeReference(
                 `rendered-reopen:${verificationAttempt.attempt_id}:` +
                   result.reopen_receipt_sha256,
@@ -3264,7 +3275,7 @@ export function NativeStructureReferenceDock({
             if (!cancelled) {
               renderAckAttemptRef.current = "";
               setActivitySyncNotice(
-                "局部渲染复验暂时未完成，原文核对和其他节点不受影响。",
+                l("局部渲染复验暂时未完成，原文核对和其他节点不受影响。"),
               );
             }
           });
@@ -3344,7 +3355,7 @@ export function NativeStructureReferenceDock({
           (displayWorkingRevision &&
             preview.artifact_id !== displayWorkingRevision.base_artifact_id)
         ) {
-          throw new Error("表格预览身份与当前工作结构不一致。");
+          throw new Error(l("表格预览身份与当前工作结构不一致。"));
         }
         if (displayWorkingRevision) {
           const binding = displayWorkingRevision.table_preview_bindings.find(
@@ -3354,7 +3365,7 @@ export function NativeStructureReferenceDock({
             !binding ||
             canonicalJsonSha256(preview) !== binding.preview_sha256
           ) {
-            throw new Error("表格预览内容与工作修订绑定不一致。");
+            throw new Error(l("表格预览内容与工作修订绑定不一致。"));
           }
         }
         setTablePreviewsById((current) => ({ ...current, [scopeId]: preview }));
@@ -3365,7 +3376,7 @@ export function NativeStructureReferenceDock({
           [scopeId]:
             apiErrorCode(caught) ===
             "working_revision_table_evidence_not_materialized"
-              ? "该工作节点的表格证据尚未完成不可变物化；当前不会回退到旧表格，PDF 原文和其他节点仍可继续核对。"
+              ? l("该工作节点的表格证据尚未完成不可变物化；当前不会回退到旧表格，PDF 原文和其他节点仍可继续核对。")
               : errorMessage(caught),
         }));
       } finally {
@@ -3429,7 +3440,7 @@ export function NativeStructureReferenceDock({
               : proposal.object_kind === "TABLE_CELL_RECOVERY"
                 ? "TABLE"
                 : "TEXT",
-          label: proposal.proposal_title || "Agent 发现位置",
+          label: proposal.proposal_title || l("Agent 发现位置"),
           bbox: proposal.bbox,
           sourceBounds: proposal.source_bounds,
           selected: true,
@@ -3472,7 +3483,7 @@ export function NativeStructureReferenceDock({
               ? `表格 ${index + 1}`
               : anchor.anchor_kind === "IMAGE"
                 ? `图片 ${index + 1}`
-                : selectedNode?.label || "标题",
+                : selectedNode?.label || l("标题"),
           bbox: anchor.bbox,
           sourceBounds: anchor.source_bounds,
           selected: true,
@@ -3977,7 +3988,7 @@ export function NativeStructureReferenceDock({
       id: `content:${content.content_id}`,
       page: content.page,
       type: "TEXT",
-      label: nodeTitle(selectedNode!),
+      label: nodeTitle(selectedNode!, l),
       bbox: content.bbox,
       sourceBounds: content.source_bounds,
     });
@@ -4009,7 +4020,7 @@ export function NativeStructureReferenceDock({
     if (isSaasAccountMode() && !sourceReader) {
       if (documentAgent) {
         documentAgent.show(normalized, "document");
-        setFeedbackNotice("请在文档 Agent 协作中核对并发送，节点草稿保留。");
+        setFeedbackNotice(l("请在文档 Agent 协作中核对并发送，节点草稿保留。"));
       }
       return;
     }
@@ -4020,7 +4031,7 @@ export function NativeStructureReferenceDock({
       if (sourceReader) {
         await sourceReader.saveFeedback(normalized, selectedNode.node_id, []);
         clearSourceFeedbackDraft(externalDraftKey, message);
-        setFeedbackNotice("指引已保存，等待当前插件任务取回并修订。");
+        setFeedbackNotice(l("指引已保存，等待当前插件任务取回并修订。"));
         return;
       }
       const result = await api.submitNativeStructureFeedback(projectId, documentId, {
@@ -4048,7 +4059,7 @@ export function NativeStructureReferenceDock({
                 can_continue: true,
                 pending_feedback_count:
                   current.continuation.pending_feedback_count + 1,
-                message: "有新的节点指引，可继续交给 Agent。",
+                message: l("有新的节点指引，可继续交给 Agent。"),
               },
             }
           : current,
@@ -4133,13 +4144,13 @@ export function NativeStructureReferenceDock({
       setProposalNotice(
         action === "CONFIRM"
           ? requiresLocalProcessing
-            ? "已确认处理方向；等待局部证据恢复，不影响其他节点继续。"
+            ? l("已确认处理方向；等待局部证据恢复，不影响其他节点继续。")
             : imageOnly
-              ? "已确认 Agent 的图片归属建议。"
-              : "已采纳结构建议；将在下一次局部草案中应用。"
+              ? l("已确认 Agent 的图片归属建议。")
+              : l("已采纳结构建议；将在下一次局部草案中应用。")
           : action === "UNDO"
-            ? "已撤销自动归属；图片保留为未决证据。"
-            : "已保持未决；其他节点可以继续处理。",
+            ? l("已撤销自动归属；图片保留为未决证据。")
+            : l("已保持未决；其他节点可以继续处理。"),
       );
     } catch (caught) {
       setError(errorMessage(caught));
@@ -4173,27 +4184,27 @@ export function NativeStructureReferenceDock({
       continuation.evidence_state || "",
     );
   const legacyStructureAgentStatusTitle = continuation?.can_continue
-    ? "反馈待继续"
+    ? l("反馈待继续")
     : continuation?.status === "CONSUMED"
-      ? "本轮已完成"
+      ? l("本轮已完成")
       : continuation?.status === "NO_CHANGE"
         ? uncertainWorkingDecision
-          ? "已明确保留当前结构"
-          : "本轮无需修改"
+          ? l("已明确保留当前结构")
+          : l("本轮无需修改")
       : continuation?.status === "NEEDS_GUIDANCE"
-        ? "未决项已继续"
+        ? l("未决项已继续")
       : continuation?.status === "UNRESOLVED_CONTINUED"
-        ? "已按默认策略继续"
+        ? l("已按默认策略继续")
       : continuation?.status === "VERIFYING"
-        ? "Agent 正在复验"
+        ? l("Agent 正在复验")
       : continuation?.status === "REVISION_REQUIRED"
-        ? "Agent 正在修正"
+        ? l("Agent 正在修正")
         : continuation?.status === "IN_PROGRESS" ||
             continuation?.status === "ACKNOWLEDGED"
-      ? "Agent 正在处理"
+      ? l("Agent 正在处理")
       : continuation?.status === "QUEUED_FOR_CODEX_APP"
-        ? "Agent 待读取"
-        : "本轮结构已生成";
+        ? l("Agent 待读取")
+        : l("本轮结构已生成");
   const legacyStructureAgentCurrentAction = continuation?.can_continue
     ? `${continuation.pending_feedback_count} 条指引、${continuation.pending_proposal_decision_count} 项选择等待继续`
     : continuation?.status === "CONSUMED"
@@ -4211,17 +4222,17 @@ export function NativeStructureReferenceDock({
           continuation?.status === "ACKNOWLEDGED"
       ? continuation.latest_handoff?.current_action || continuation.message
       : continuation?.status === "QUEUED_FOR_CODEX_APP"
-        ? "反馈已提交，等待 Agent 真实读取回执"
-      : continuation?.message || "等待你的指引";
+        ? l("反馈已提交，等待 Agent 真实读取回执")
+      : continuation?.message || l("等待你的指引");
   const structureAgentStatusTitle = transportReplayActive
-    ? "传输回放 · 非 Agent 重解析"
+    ? l("传输回放 · 非 Agent 重解析")
     : hostVerifiedD2Active
-      ? "Host 已验证工作结构"
+      ? l("Host 已验证工作结构")
       : legacyStructureAgentStatusTitle;
   const structureAgentCurrentAction = transportReplayActive
     ? `正在回放第 ${displayWorkingRevision?.revision || 0} 版不可变结构投影；未重新调用 Agent。`
     : hostVerifiedD2Active
-      ? `第 ${displayWorkingRevision?.revision || 0} 版工作结构已通过来源验证。${workingRevisionActive ? "当前为局部结果，其余范围尚未发布；可先核对已恢复的正文和表格。" : ""}`
+      ? `第 ${displayWorkingRevision?.revision || 0} 版工作结构已通过来源验证。${workingRevisionActive ? l("当前为局部结果，其余范围尚未发布；可先核对已恢复的正文和表格。") : ""}`
       : legacyStructureAgentCurrentAction;
   const sourceRequirementMode = mode === "SOURCE_REQUIREMENTS";
   const sourceRequirementRunJob = sourceRequirementRunStatus?.job || null;
@@ -4256,8 +4267,8 @@ export function NativeStructureReferenceDock({
     ? sourceRequirementRunProgress.total_window_count > 0
       ? `${sourceRequirementRunProgress.completed_window_count}/${sourceRequirementRunProgress.total_window_count} ${
           sourceRequirementRunProgress.strategy === "TEXT_BATCH"
-            ? "个正文范围已处理"
-            : "个窗口已验证"
+            ? l("个正文范围已处理")
+            : l("个窗口已验证")
         }`
       : sourceRequirementRunProgress.message
     : "";
@@ -4357,17 +4368,17 @@ export function NativeStructureReferenceDock({
   const agentStatusTitle = sourceRequirementMode
     ? sourceRequirementRunActive
       ? sourceRequirementRunJobStatus === "PENDING"
-        ? "Agent 任务已排队"
-        : "Agent 正在生长原文条目"
+        ? l("Agent 任务已排队")
+        : l("Agent 正在生长原文条目")
       : sourceRequirementRunComplete
         ? sourceRequirementRunScopePublished
-          ? "当前范围已长入清单"
-          : "当前范围候选已验证"
+          ? l("当前范围已长入清单")
+          : l("当前范围候选已验证")
         : sourceRequirementRunFailed
-          ? "当前范围可从检查点重试"
+          ? l("当前范围可从检查点重试")
           : sourceRequirementOutline
-      ? "当前原文清单"
-      : "等待原文需求清单"
+      ? l("当前原文清单")
+      : l("等待原文需求清单")
     : structureAgentStatusTitle;
   const agentCurrentAction = sourceRequirementMode
     ? sourceRequirementRunActive
@@ -4376,13 +4387,13 @@ export function NativeStructureReferenceDock({
       : sourceRequirementRunComplete
         ? sourceRequirementRunScopePublished
           ? `当前范围已合并到原文需求清单第 ${sourceRequirementOutline?.baseline.revision || 0} 版；原表、条目与 PDF 证据保持同一层级。`
-          : `${sourceRequirementRunStatus?.message || "当前范围已完成。"} Host 已保存候选与检查点，下一步合并到工作清单修订。`
+          : `${sourceRequirementRunStatus?.message || l("当前范围已完成。")} Host 已保存候选与检查点，下一步合并到工作清单修订。`
         : sourceRequirementRunFailed
           ? sourceRequirementRunStatus?.message ||
-            "当前范围没有完成；已接受窗口仍保留，重试只处理失败窗口。"
+            l("当前范围没有完成；已接受窗口仍保留，重试只处理失败窗口。")
           : sourceRequirementOutline
       ? `${sourceRequirementOutline.summary.requirement_count} 条需求 · ${sourceRequirementOutline.summary.non_requirement_count} 条保留内容。可核对原文、按需拆分并继续分析。`
-      : sourceRequirementError || "原文结构保持可浏览；Agent 切片尚未发布。"
+      : sourceRequirementError || l("原文结构保持可浏览；Agent 切片尚未发布。")
     : structureAgentCurrentAction;
   const publicActivityKinds = new Set(
     (reference?.activity || []).map((activity) => String(activity.kind || "")),
@@ -4409,10 +4420,10 @@ export function NativeStructureReferenceDock({
     (complete) => !complete,
   );
   const structureRunSteps = [
-    "准备原文证据",
-    "理解全文范围",
-    "逐层生长结构",
-    "复验来源覆盖",
+    l("准备原文证据"),
+    l("理解全文范围"),
+    l("逐层生长结构"),
+    l("复验来源覆盖"),
   ].map((label, index) => ({
     label,
     state: structureRunCompletion[index]
@@ -4428,40 +4439,40 @@ export function NativeStructureReferenceDock({
 
   const legacyHistory = (
         <details className="native-hierarchy-status-details">
-          <summary>{documentAgent ? "成果生成记录" : "运行轨迹"}</summary>
+          <summary>{documentAgent ? l("成果生成记录") : l("运行轨迹")}</summary>
           <div className="native-hierarchy-agent-trace">
             <header>
               <div>
                 <span className="native-hierarchy-live-dot" aria-hidden="true" />
                 <strong>{agentStatusTitle}</strong>
               </div>
-              <small>{sourceRequirementMode ? "原文需求清单" : "文档结构恢复"}</small>
+              <small>{sourceRequirementMode ? l("原文需求清单") : l("文档结构恢复")}</small>
               <p>
                 {sourceRequirementMode
-                  ? "沿原文层级逐步生成可定位、可分类、可导出的原文条目"
-                  : "将文档转化为可逐条核对的原文结构"}
+                  ? l("沿原文层级逐步生成可定位、可分类、可导出的原文条目")
+                  : l("将文档转化为可逐条核对的原文结构")}
               </p>
             </header>
             <section className="native-hierarchy-agent-current">
-              <span>当前行动</span>
+              <span>{l("当前行动")}</span>
               <p>{agentCurrentAction}</p>
             </section>
             {!sourceRequirementMode && latestAttempt ? (
               <section className="native-hierarchy-agent-attempt">
-                <span>本轮可核对记录</span>
+                <span>{l("本轮可核对记录")}</span>
                 <ul>
                   <li>
-                    工具：
+                    {l("工具：")}
                     {attemptSummary?.tool_call_count
                       ? `${attemptSummary.tool_call_count} 次 · ${attemptSummary.tool_intents
-                          .map((item) => structureToolIntentLabel(item))
+                          .map((item) => structureToolIntentLabel(item, l))
                           .join("、")
                         }`
                       : latestAttempt.tool_calls.length
                         ? latestAttempt.tool_calls
-                            .map((item) => structureToolIntentLabel(item.intent))
+                            .map((item) => structureToolIntentLabel(item.intent, l))
                             .join("、")
-                      : "现有证据充分，未额外调用"}
+                      : l("现有证据充分，未额外调用")}
                   </li>
                   <li>
                     Agent 修订：
@@ -4470,22 +4481,22 @@ export function NativeStructureReferenceDock({
                   </li>
                   {latestAttempt.default_applied_work_item_count ? (
                     <li>
-                      可逆默认处理：
+                      {l("可逆默认处理：")}
                       {latestAttempt.default_applied_work_item_count} 项 ·
-                      未决标记保留
+                      {l("未决标记保留")}
                     </li>
                   ) : null}
                   <li>
-                    判断依据：
+                    {l("判断依据：")}
                     {latestAttempt.evidence_state === "CONFLICTING"
-                      ? "证据存在冲突 · 已采用首选可逆方案"
+                      ? l("证据存在冲突 · 已采用首选可逆方案")
                       : latestAttempt.evidence_state === "INSUFFICIENT"
-                        ? "证据有限 · 已采用首选可逆方案"
-                        : "证据充分"}
+                        ? l("证据有限 · 已采用首选可逆方案")
+                        : l("证据充分")}
                   </li>
                   {latestAttempt.affected_scope_ids.length > 1 ? (
                     <li>
-                      范围复验：
+                      {l("范围复验：")}
                       {latestAttempt.rendered_reopened_scope_ids?.length || 0}/
                       {latestAttempt.affected_scope_ids.length} · 按来源顺序继续
                     </li>
@@ -4493,16 +4504,16 @@ export function NativeStructureReferenceDock({
                   <li>
                     Host 复验：
                     {latestAttempt.validation_status === "PASS"
-                      ? "通过"
+                      ? l("通过")
                       : latestAttempt.status === "VERIFICATION_REQUIRED"
-                        ? "待重新打开确认"
-                      : "未通过，继续修正"}
+                        ? l("待重新打开确认")
+                      : l("未通过，继续修正")}
                   </li>
                 </ul>
               </section>
             ) : null}
             <div className="native-hierarchy-agent-trace-heading">
-              <strong>执行步骤</strong>
+              <strong>{l("执行步骤")}</strong>
               <span>
                 {sourceRequirementMode
                   ? (sourceRequirementOutline?.activity.length || 0) +
@@ -4546,11 +4557,11 @@ export function NativeStructureReferenceDock({
                     <strong>
                       {sourceRequirementRunComplete
                         ? sourceRequirementRunScopePublished
-                          ? "当前表格已长入原文需求清单"
-                          : "当前表格候选已通过 Host 验证"
+                          ? l("当前表格已长入原文需求清单")
+                          : l("当前表格候选已通过 Host 验证")
                         : sourceRequirementRunFailed
-                          ? "当前表格处理未完成"
-                          : "正在识别业务记录并逐窗判断"}
+                          ? l("当前表格处理未完成")
+                          : l("正在识别业务记录并逐窗判断")}
                     </strong>
                     <p>
                       {sourceRequirementRunStatus?.message}
@@ -4567,8 +4578,8 @@ export function NativeStructureReferenceDock({
                     <Icon name="check" size={11} />
                   </span>
                   <div>
-                    <strong>{activityKindLabel(activity.kind, index)}</strong>
-                    <p>{activityPublicSummary(activity)}</p>
+                    <strong>{activityKindLabel(activity.kind, index, l)}</strong>
+                    <p>{activityPublicSummary(activity, l)}</p>
                   </div>
                 </li>
               ))}
@@ -4639,7 +4650,7 @@ export function NativeStructureReferenceDock({
               </li> : null}
             </ol>
             <footer>
-              <span>公开活动摘要，不包含模型隐藏思维链</span>
+              <span>{l("公开活动摘要，不包含模型隐藏思维链")}</span>
               {activitySyncNotice ? <p role="status">{activitySyncNotice}</p> : null}
               {continueNotice ? <p role="status">{continueNotice}</p> : null}
               {sourceRequirementMode && sourceRequirementRunError ? (
@@ -4652,7 +4663,7 @@ export function NativeStructureReferenceDock({
   return (
     <section
       className={cx("native-hierarchy", sourceRequirementMode && "is-source-requirement-mode", purpose === "analysis" && "is-analysis-workbench")}
-      aria-label={host.readOnly ? sourceRequirementMode ? "已保存原文清单" : "已保存原文结构" : sourceRequirementMode ? "Agent 原文需求清单" : "Agent 原文结构草案"}
+      aria-label={host.readOnly ? sourceRequirementMode ? l("已保存原文清单") : l("已保存原文结构") : sourceRequirementMode ? l("Agent 原文需求清单") : l("Agent 原文结构草案")}
       onKeyDownCapture={event => {
         const target = event.target as HTMLElement;
         if (sourceRequirementMode && event.key === "/" && !["INPUT", "TEXTAREA", "SELECT"].includes(target.tagName) && !target.isContentEditable && !target.closest('[role="dialog"]')) {
@@ -4665,10 +4676,10 @@ export function NativeStructureReferenceDock({
           <Icon name="split" size={15} />
         </span>
         <div className="native-hierarchy-identity">
-          <strong>{sourceRequirementMode ? documentAgent && purpose === "analysis" ? "响应分析" : "原文审阅" : host.readOnly ? "原文结构" : "Agent 原文结构草案"}</strong>
+          <strong>{sourceRequirementMode ? documentAgent && purpose === "analysis" ? l("响应分析") : l("原文审阅") : host.readOnly ? l("原文结构") : l("Agent 原文结构草案")}</strong>
           <span>
             {loading
-              ? "正在读取本轮结果"
+              ? l("正在读取本轮结果")
               : sourceRequirementMode
                 ? `${sourceReader ? "" : `第 ${sourceRequirementOutline?.baseline.revision || 1} 版 · `}原文 ${sourceRequirementOutline?.summary.source_item_count || 0} · 需求 ${sourceRequirementOutline?.summary.requirement_count || 0} · 保留 ${sourceRequirementOutline?.summary.non_requirement_count || 0}`
                 : sourceReader ? `${tree?.nodes.length || 0} 个结构节点 · 可对照原文` : `文档结构恢复 · 已查看 ${activeVisualSummary.opened_page_count} 页`}
@@ -4676,12 +4687,12 @@ export function NativeStructureReferenceDock({
           {workingRevisionActive ? (
             <span>
               {transportReplayActive
-                ? "传输回放 · 非 Agent 重解析"
-                : "工作结构 · Host 已验证"}
+                ? l("传输回放 · 非 Agent 重解析")
+                : l("工作结构 · Host 已验证")}
             </span>
           ) : null}
           {workingStructureProjection ? (
-            <span>工作投影 · 待原文复验</span>
+            <span>{l("工作投影 · 待原文复验")}</span>
           ) : null}
         </div>
         <section
@@ -4704,7 +4715,7 @@ export function NativeStructureReferenceDock({
               : continuation?.status === "QUEUED_FOR_CODEX_APP") && "is-queued",
             sourceRequirementMode && sourceRequirementRunFailed && "is-attention",
           )}
-          aria-label="Agent 下一步"
+          aria-label={l("Agent 下一步")}
           aria-live="polite"
         >
           <span className="native-hierarchy-live-dot" aria-hidden="true" />
@@ -4720,10 +4731,10 @@ export function NativeStructureReferenceDock({
             onClick={() => void continueWithFeedback()}
           >
             {continuing
-              ? "正在提交…"
+              ? l("正在提交…")
               : continuation.pending_feedback_count
                 ? `继续处理 ${continuation.pending_feedback_count} 条指引`
-                : "继续处理本轮选择"}
+                : l("继续处理本轮选择")}
           </button>
         ) : null}
         {!sourceRequirementMode && tree ? (
@@ -4737,27 +4748,27 @@ export function NativeStructureReferenceDock({
             onClick={() => setPageAtlasOpen((value) => !value)}
           >
             <Icon name="eye" size={14} />
-            全文概览
+            {l("全文概览")}
           </button>
         ) : null}
         {!sourceReader && sourceRequirementMode && sourceRequirementOutline && purpose === "analysis" ? <SourceItemDeliveryActions workflow={sourceItemReasoning} /> : null}
         {!sourceReader && sourceRequirementMode && sourceRequirementOutline && <SourceItemAgentLoop projectId={projectId} documentId={documentId}
           sourceSha256={sourceSha256} baselineSha256={sourceRequirementOutline.baseline.artifact_sha256}
           selectedSourceItemId={selectedSourceItemId} selectedLabel={selectedSourceItem?.requirement_display_id || selectedSourceItem?.source_display_id || undefined} onUpdated={() => setSourceRequirementRefreshToken(value => value + 1)} />}
-        {sourceRequirementMode && (documentAgent || sourceReader) && <div className="review-presentation-tabs" role="group" aria-label="审阅方式">
-          <button type="button" aria-pressed={reviewPresentation === "table"} title="逐项检查编号、分类、派生和响应；保持当前查看版本" onClick={() => { setReviewPresentation("table"); setCompactPanel("content"); setWideReading(false); }}><Icon name="matrix" size={14} />条目台账</button>
-          <button type="button" aria-pressed={reviewPresentation === "source"} title="核对结构、完整内容和原页；切换不会重新提取" onClick={() => { setReviewPresentation("source"); setWideReading(false); }}><Icon name="tree" size={14} />原页对照</button>
+        {sourceRequirementMode && (documentAgent || sourceReader) && <div className="review-presentation-tabs" role="group" aria-label={l("审阅方式")}>
+          <button type="button" aria-pressed={reviewPresentation === "table"} title={l("逐项检查编号、分类、派生和响应；保持当前查看版本")} onClick={() => { setReviewPresentation("table"); setCompactPanel("content"); setWideReading(false); }}><Icon name="matrix" size={14} />{l("条目台账")}</button>
+          <button type="button" aria-pressed={reviewPresentation === "source"} title={l("核对结构、完整内容和原页；切换不会重新提取")} onClick={() => { setReviewPresentation("source"); setWideReading(false); }}><Icon name="tree" size={14} />{l("原页对照")}</button>
         </div>}
         {sourceRequirementMode && showSourcePreview && (!(documentAgent || sourceReader) || reviewPresentation === "source") && <button type="button" className="button secondary compact source-review-wide-toggle"
           aria-pressed={wideReading} onClick={() => { setWideReading(value => !value); setCompactPanel("content"); }}>
-          {wideReading ? "恢复 PDF 对照" : "宽屏阅读"}</button>}
+          {wideReading ? l("恢复 PDF 对照") : l("宽屏阅读")}</button>}
         {!sourceReader && (documentAgent ? documentAgent.historyHost ? createPortal(legacyHistory, documentAgent.historyHost) : null : legacyHistory)}
         <SourceFindingsPanel value={sourceReader?.source_findings || sourceRequirementOutline?.source_findings || reference?.source_findings} sourceSha256={sourceSha256}
           onLocate={(nodeId, page) => { const row = sourceItemLedgerRowsById.get(nodeId); const node = nodesById.get(nodeId); if (row) focusSourceItemLedgerRow(row); else if (node) focusTreeNode(node); if (page) onPageChange(page); setReviewPresentation("source"); setCompactPanel("source"); }} />
         {!sourceReader && !sourceRequirementMode && !documentAgent ? (
           <ol
             className="native-hierarchy-progress-strip"
-            aria-label="原文结构运行阶段"
+            aria-label={l("原文结构运行阶段")}
           >
             {structureRunSteps.map((step) => (
               <li className={`is-${step.state}`} key={step.label}>
@@ -4774,14 +4785,14 @@ export function NativeStructureReferenceDock({
       </header>
 
       {!sourceReader && purpose === "analysis" && (pairEvidence ? <details className="analysis-knowledge-scope">
-        <summary>任务内部依据 <span>由启动时冻结</span></summary>
-        <p>本任务只分析启动时明确选择的 PAIR 项目参考或团队知识。每次检索/读取与保存引用都记录在任务分析中；未选择时符合性分析明确跳过，不搜索全部知识库。</p>
+        <summary>{l("任务内部依据")} <span>{l("由启动时冻结")}</span></summary>
+        <p>{l("本任务只分析启动时明确选择的 PAIR 项目参考或团队知识。每次检索/读取与保存引用都记录在任务分析中；未选择时符合性分析明确跳过，不搜索全部知识库。")}</p>
       </details> : <details className="analysis-knowledge-scope">
-        <summary>下次分析依据 <span>{sourceItemReasoning.knowledgeSelection.ids === null ? "项目默认资料" : `已选 ${sourceItemReasoning.knowledgeSelection.ids.length} 份资料`}</span></summary>
+        <summary>{l("下次分析依据")} <span>{sourceItemReasoning.knowledgeSelection.ids === null ? l("项目默认资料") : l("已选 {count} 份资料", undefined, { count: sourceItemReasoning.knowledgeSelection.ids.length })}</span></summary>
         <ProjectKnowledgePanel projectId={projectId} selection={{ ids: sourceItemReasoning.knowledgeSelection.ids, onChange: sourceItemReasoning.knowledgeSelection.setIds, durable: sourceItemReasoning.knowledgeSelection.durable, disabled: sourceItemReasoning.busy }} />
       </details>)}
-      {purpose === "analysis" && <section className="response-queue-bar" aria-label="响应工作队列">
-        <div><strong>响应工作队列</strong><span>按实际分析单元计数 · 保留完整原文关系</span></div>
+      {purpose === "analysis" && <section className="response-queue-bar" aria-label={l("响应工作队列")}>
+        <div><strong>{l("响应工作队列")}</strong><span>{l("按实际分析单元计数 · 保留完整原文关系")}</span></div>
         <div className="response-queue-filters">{ANALYSIS_QUEUES.map(([value, label]) => <button key={value} type="button" disabled={!sourceItemReasoning.state} aria-pressed={analysisQueue === value} onClick={() => setAnalysisQueue(value)}>{label}<span>{sourceItemReasoning.state ? responseUnits.filter(unit => inAnalysisQueue(unit, value)).length : "…"}</span></button>)}</div>
       </section>}
       <div className="native-hierarchy-body">
@@ -4801,7 +4812,7 @@ export function NativeStructureReferenceDock({
         ) : null}
         {error ? (
           <div className="native-hierarchy-error" role="alert">
-            <strong>当前操作没有完成</strong>
+            <strong>{l("当前操作没有完成")}</strong>
             <span>{error}</span>
           </div>
         ) : null}
@@ -4848,7 +4859,7 @@ export function NativeStructureReferenceDock({
                 ref={treeViewportRef}
                 className="native-hierarchy-tree"
                 aria-label={
-                  sourceRequirementMode ? "原文层级与条目" : "文档标题树"
+                  sourceRequirementMode ? l("原文层级与条目") : l("文档标题树")
                 }
               >
                 {sourceRequirementMode ? <SourceReviewToolbar analysisMode={purpose === "analysis"}
@@ -4871,7 +4882,7 @@ export function NativeStructureReferenceDock({
                 /> : <>
                 <header>
                   <div>
-                    <strong>{sourceRequirementMode ? "原文层级" : "文档标题树"}</strong>
+                    <strong>{sourceRequirementMode ? l("原文层级") : l("文档标题树")}</strong>
                     <span>
                       {tree.nodes.length} 个层级 · 按原文编号与标题展开
                       {sourceRequirementMode
@@ -4892,10 +4903,10 @@ export function NativeStructureReferenceDock({
                         )
                       }
                     >
-                      全部展开
+                      {l("全部展开")}
                     </button>
                     <button type="button" onClick={() => setExpandedIds(new Set())}>
-                      全部收起
+                      {l("全部收起")}
                     </button>
                     <button
                       type="button"
@@ -4908,7 +4919,7 @@ export function NativeStructureReferenceDock({
                         }
                       }}
                     >
-                      定位当前
+                      {l("定位当前")}
                     </button>
                   </div>
                 </header>
@@ -4924,12 +4935,12 @@ export function NativeStructureReferenceDock({
                   collapsedDerivedIds={collapsedDerivedIds} visibleDerivedIds={visibleDerivedIds}
                   onToggleDerived={sourceId => { setCollapsedDerivedIds(values => { const next = new Set(values); if (next.has(sourceId)) next.delete(sourceId); else next.add(sourceId); return next; }); if (selectedDerived?.sourceId === sourceId) setSelectedDerived(null); }}
                   onToggle={id => { if (reviewFilter.active) setFilterCollapsed(values => { const next = new Set(values); if (reviewExpandedIds.has(id)) next.add(id); else next.delete(id); return next; }); else toggleNode(id); }}
-                  titleFor={row => { const record = row.source_item_id ? sourceItemsById.get(row.source_item_id) : null; const node = nodesById.get(row.structure_node_id); return record ? record.display_label : node ? nodeTitle(node) : "原文内容"; }}
+                  titleFor={row => { const record = row.source_item_id ? sourceItemsById.get(row.source_item_id) : null; const node = nodesById.get(row.structure_node_id); return record ? record.display_label : node ? nodeTitle(node, l) : l("原文内容"); }}
                   kindFor={sourceItemKindSummary} reasoning={sourceItemReasoning.state ? { ...sourceItemReasoning.state, analysis_policy: sourceReader?.analysis_policy || sourceItemReasoning.state.analysis_policy } : null} review={reviewRequest.value} scopeSummaries={sourceRequirementOutline?.scope_summaries || sourceReader?.scope_summaries} /> : (
                 <ul
                   ref={treeRef}
                   role="tree"
-                  aria-label={sourceRequirementMode ? "原文层级与条目" : "原文标题层级"}
+                  aria-label={sourceRequirementMode ? l("原文层级与条目") : l("原文标题层级")}
                   onKeyDown={
                     sourceRequirementMode
                       ? handleSourceItemLedgerKeyDown
@@ -4987,20 +4998,20 @@ export function NativeStructureReferenceDock({
                         ))}
                 </ul>
                 )}
-                {sourceRequirementMode && reviewFilter.active && !reviewFilter.matched.size && <p className="source-review-empty">没有匹配条目。清除筛选可恢复全部原文。</p>}
+                {sourceRequirementMode && reviewFilter.active && !reviewFilter.matched.size && <p className="source-review-empty">{l("没有匹配条目。清除筛选可恢复全部原文。")}</p>}
               </nav>
 
               {hasSourcePreview ? (
                 <div
                   className="native-hierarchy-splitter is-tree-detail"
                   role="separator"
-                  aria-label="调整标题树和原文条目宽度"
+                  aria-label={l("调整标题树和原文条目宽度")}
                   aria-orientation="vertical"
                   aria-valuemin={18}
                   aria-valuemax={55}
                   aria-valuenow={Math.round(columnShares.tree)}
                   tabIndex={0}
-                  title="拖动调整列宽；方向键微调；双击恢复默认"
+                  title={l("拖动调整列宽；方向键微调；双击恢复默认")}
                   onPointerDown={(event) =>
                     beginColumnResize("TREE_DETAIL", event)
                   }
@@ -5019,9 +5030,9 @@ export function NativeStructureReferenceDock({
               {hasSourcePreview ? (
                 <div className="native-hierarchy-compact-bar">
                   <span>
-                    查看“{selectedSourceItem?.display_label || nodeTitle(selectedNode)}”
+                    查看“{selectedSourceItem?.display_label || nodeTitle(selectedNode, l)}”
                   </span>
-                  <div role="group" aria-label="当前节点查看方式">
+                  <div role="group" aria-label={l("当前节点查看方式")}>
                     <button
                       type="button"
                       className={compactPanel === "content" ? "is-active" : ""}
@@ -5030,9 +5041,9 @@ export function NativeStructureReferenceDock({
                     >
                       {sourceRequirementMode
                         ? selectedSourceItem
-                          ? "条目内容"
-                          : "层级内容"
-                        : "节点内容"}
+                          ? l("条目内容")
+                          : l("层级内容")
+                        : l("节点内容")}
                     </button>
                     <button
                       type="button"
@@ -5054,11 +5065,11 @@ export function NativeStructureReferenceDock({
                     "has-source-requirement-records",
                 )}
               >
-                <nav className="native-hierarchy-breadcrumb" aria-label="当前层级路径">
+                <nav className="native-hierarchy-breadcrumb" aria-label={l("当前层级路径")}>
                   {breadcrumb.filter(node => !selectedSourceItemLedgerRow?.is_one_to_one_item || node.node_id !== selectedNodeId).map((node, index) => (
                     <span key={node.node_id}>
                       {index ? <Icon name="chevron" size={11} /> : null}
-                      {nodeTitle(node)}
+                      {nodeTitle(node, l)}
                     </span>
                   ))}
                 </nav>
@@ -5069,12 +5080,12 @@ export function NativeStructureReferenceDock({
                     <span>
                       {sourceRequirementMode
                         ? selectedTables.length
-                          ? "原文层级 · 总表"
-                          : "原文层级"
-                        : nodeKindLabel(selectedNode)}
+                          ? l("原文层级 · 总表")
+                          : l("原文层级")
+                        : nodeKindLabel(selectedNode, l)}
                     </span>
-                    <h3>{nodeTitle(selectedNode)}</h3>
-                    <small>{pageLabel(selectedPages)}</small>
+                    <h3>{nodeTitle(selectedNode, l)}</h3>
+                    <small>{pageLabel(selectedPages, l)}</small>
                   </div>
                   <div className="native-hierarchy-detail-badges">
                     <span
@@ -5083,7 +5094,7 @@ export function NativeStructureReferenceDock({
                           "DERIVED_FROM_VISIBLE_TABLE_ROLE" && "is-derived",
                       )}
                     >
-                      {titleAuthorityLabel(selectedNode)}
+                      {titleAuthorityLabel(selectedNode, l)}
                     </span>
                     {!sourceRequirementMode && autoAppliedProposalCount ? (
                       <span className="is-proposal">
@@ -5105,7 +5116,7 @@ export function NativeStructureReferenceDock({
                 ) : null}
 
                 {sourceRequirementMode && reviewFilter.active && selectedSourceItemId && !reviewFilter.matched.has(selectedSourceItemId) &&
-                  <p className="source-review-outside-filter" role="status">当前详情不在筛选结果内；选择左侧结果即可切换，草稿会保留。</p>}
+                  <p className="source-review-outside-filter" role="status">{l("当前详情不在筛选结果内；选择左侧结果即可切换，草稿会保留。")}</p>}
                 {sourceRequirementMode &&
                 sourceRequirementOutline &&
                 selectedSourceItemId ? (
@@ -5128,10 +5139,10 @@ export function NativeStructureReferenceDock({
                     analysisUnitIds={purpose === "analysis" || reviewPresentation === "table" ? visibleResponseUnits.filter(unit => unit.sourceId === selectedSourceItemId && baseReviewFilter.matched.has(unit.sourceId)).map(unit => unit.id) : undefined}
                     tableView={reviewPresentation === "table"} selectedDerivedUnitId={selectedDerivedId}
                     onAnalysisUnitChange={unitId => { if (selectedSourceItemLedgerRow) selectDerivedUnit(selectedSourceItemLedgerRow, unitId); }}
-                    sourceHeading={selectedSourceItemLedgerRow?.is_one_to_one_item && !["AGENT_SURVEY_LABEL", "DERIVED_FROM_VISIBLE_TABLE_ROLE"].includes(selectedNode.title_authority) ? nodeTitle(selectedNode) : undefined}
+                    sourceHeading={selectedSourceItemLedgerRow?.is_one_to_one_item && !["AGENT_SURVEY_LABEL", "DERIVED_FROM_VISIBLE_TABLE_ROLE"].includes(selectedNode.title_authority) ? nodeTitle(selectedNode, l) : undefined}
                     onNextReviewItem={() => { if (nextReviewRow) focusSourceItemLedgerRow(nextReviewRow); }}
                     atReviewEnd={!nextReviewRow}
-                    nextReviewLabel={reviewNavigationIndex < 0 ? "首个匹配项" : "下一项"}
+                    nextReviewLabel={reviewNavigationIndex < 0 ? l("首个匹配项") : l("下一项")}
                     tablePreviewsById={tablePreviewsById}
                     tableModelsById={verifiedTableModelsById}
                     activePage={activePage}
@@ -5155,16 +5166,16 @@ export function NativeStructureReferenceDock({
                 ) ? (
                   <section
                     className="native-hierarchy-source-content"
-                    aria-label="节点直接原文内容"
+                    aria-label={l("节点直接原文内容")}
                   >
                   <header>
                     <div>
-                      <span>当前原文条目</span>
-                      <strong>当前标题下的完整原文</strong>
-                      <small>从当前标题到下一个标题；不重复汇总下级节点</small>
+                      <span>{l("当前原文条目")}</span>
+                      <strong>{l("当前标题下的完整原文")}</strong>
+                      <small>{l("从当前标题到下一个标题；不重复汇总下级节点")}</small>
                     </div>
                     <strong className="native-hierarchy-content-count">
-                      {isOfficeSource ? "原件段落与表格" : `${contentSequence.length} 项 · 正文与表格按原页顺序还原`}
+                      {isOfficeSource ? l("原件段落与表格") : `${contentSequence.length} 项 · 正文与表格按原页顺序还原`}
                     </strong>
                   </header>
                   {sourceRequirementMode && selectedSourceContent.length ? (() => {
@@ -5202,23 +5213,23 @@ export function NativeStructureReferenceDock({
                         <div>
                           <strong>
                             {currentRunMatchesText && sourceRequirementRunActive
-                              ? "Agent 正在处理当前直接正文"
+                              ? l("Agent 正在处理当前直接正文")
                               : currentRunMatchesText &&
                                   sourceRequirementRunComplete
                                 ? sourceRequirementRunScopePublished
-                                  ? "当前正文已长入原文需求清单"
-                                  : "当前正文候选已验证"
+                                  ? l("当前正文已长入原文需求清单")
+                                  : l("当前正文候选已验证")
                                 : currentRunMatchesText &&
                                     sourceRequirementRunFailed
-                                  ? "当前正文可从候选检查点重试"
-                                  : "当前直接正文尚未生长原文条目"}
+                                  ? l("当前正文可从候选检查点重试")
+                                  : l("当前直接正文尚未生长原文条目")}
                           </strong>
                           <span>
                             {currentRunMatchesText
                               ? sourceRequirementRunStatus?.message
                               : sourceRequirementRunActive
-                                ? "Agent 正在处理另一范围；当前正文仍可核对。"
-                                : "Agent 将保持逐字原文，判断完整条目边界与需求/非需求内容。"}
+                                ? l("Agent 正在处理另一范围；当前正文仍可核对。")
+                                : l("Agent 将保持逐字原文，判断完整条目边界与需求/非需求内容。")}
                           </span>
                           {sourceRequirementRunError ? (
                             <small role="alert">{sourceRequirementRunError}</small>
@@ -5233,23 +5244,23 @@ export function NativeStructureReferenceDock({
                           onClick={() =>
                             void startSourceItemTextScope(
                               selectedNode.node_id,
-                              nodeTitle(selectedNode),
+                              nodeTitle(selectedNode, l),
                             )
                           }
                         >
                           {sourceRequirementRunStartingScopeId === textScopeId
-                            ? "正在提交…"
+                            ? l("正在提交…")
                             : currentRunMatchesText && sourceRequirementRunActive
-                              ? "处理中"
+                              ? l("处理中")
                               : currentRunMatchesText &&
                                   sourceRequirementRunComplete
                                 ? sourceRequirementRunScopePublished
-                                  ? "已进入清单"
-                                  : "等待合并"
+                                  ? l("已进入清单")
+                                  : l("等待合并")
                                 : currentRunMatchesText &&
                                     sourceRequirementRunFailed
-                                  ? "重试当前正文"
-                                  : "让 Agent 处理当前正文"}
+                                  ? l("重试当前正文")
+                                  : l("让 Agent 处理当前正文")}
                         </button>
                       </section>
                     );
@@ -5297,8 +5308,8 @@ export function NativeStructureReferenceDock({
                           )}
                           aria-label={
                             item.models.length > 1
-                              ? "跨页表格完整内容"
-                              : "原文表格内容"
+                              ? l("跨页表格完整内容")
+                              : l("原文表格内容")
                           }
                         >
                           {showScopeRun ? (
@@ -5320,23 +5331,23 @@ export function NativeStructureReferenceDock({
                               <div>
                                 <strong>
                                   {currentRunMatchesScope && sourceRequirementRunActive
-                                    ? "Agent 正在处理当前原表"
+                                    ? l("Agent 正在处理当前原表")
                                     : currentRunMatchesScope &&
                                         sourceRequirementRunComplete
                                       ? sourceRequirementRunScopePublished
-                                        ? "当前原表已长入原文需求清单"
-                                        : "当前范围候选已验证"
+                                        ? l("当前原表已长入原文需求清单")
+                                        : l("当前范围候选已验证")
                                       : currentRunMatchesScope &&
                                           sourceRequirementRunFailed
-                                        ? "当前范围可从检查点重试"
-                                        : "当前原表尚未生长原文条目"}
+                                        ? l("当前范围可从检查点重试")
+                                        : l("当前原表尚未生长原文条目")}
                                 </strong>
                                 <span>
                                   {currentRunMatchesScope
                                     ? sourceRequirementRunStatus?.message
                                     : sourceRequirementRunActive
-                                      ? "Agent 正在处理另一范围；当前原表仍可核对，完成后可继续。"
-                                      : "Agent 将先识别完整业务记录边界，再按窗口判断需求与非需求。"}
+                                      ? l("Agent 正在处理另一范围；当前原表仍可核对，完成后可继续。")
+                                      : l("Agent 将先识别完整业务记录边界，再按窗口判断需求与非需求。")}
                                   {currentRunMatchesScope &&
                                   sourceRequirementRunProgressLabel
                                     ? ` · ${sourceRequirementRunProgressLabel}`
@@ -5362,19 +5373,19 @@ export function NativeStructureReferenceDock({
                                 }
                               >
                                 {sourceRequirementRunStartingScopeId === scopeId
-                                  ? "正在提交…"
+                                  ? l("正在提交…")
                                   : currentRunMatchesScope &&
                                       sourceRequirementRunActive
-                                    ? "处理中"
+                                    ? l("处理中")
                                     : currentRunMatchesScope &&
                                         sourceRequirementRunComplete
                                       ? sourceRequirementRunScopePublished
-                                        ? "已进入清单"
-                                        : "等待合并"
+                                        ? l("已进入清单")
+                                        : l("等待合并")
                                       : currentRunMatchesScope &&
                                           sourceRequirementRunFailed
-                                        ? "重试失败窗口"
-                                        : "让 Agent 处理当前表格"}
+                                        ? l("重试失败窗口")
+                                        : l("让 Agent 处理当前表格")}
                               </button>
                             </section>
                           ) : null}
@@ -5394,7 +5405,7 @@ export function NativeStructureReferenceDock({
                                   )} 列
                                 </strong>
                                 <span>
-                                  旧合并块已弃用；当前页面与 Agent 共用这份经来源校验的单元格证据。
+                                  {l("旧合并块已弃用；当前页面与 Agent 共用这份经来源校验的单元格证据。")}
                                 </span>
                               </div>
                             </div>
@@ -5444,7 +5455,7 @@ export function NativeStructureReferenceDock({
                             type="button"
                             onClick={() => void loadTablePreview(table.scope_id)}
                           >
-                            重试
+                            {l("重试")}
                           </button>
                         </div>
                       ) : tableGridErrors[table.scope_id] ? (
@@ -5460,7 +5471,7 @@ export function NativeStructureReferenceDock({
                             type="button"
                             onClick={() => void loadTablePreview(table.scope_id)}
                           >
-                            重新读取
+                            {l("重新读取")}
                           </button>
                         </div>
                       ) : null,
@@ -5475,11 +5486,11 @@ export function NativeStructureReferenceDock({
                       Boolean(tableGridErrors[table.scope_id]),
                     ) ? (
                       <div className="native-hierarchy-content-empty">
-                        <strong>当前标题没有直接正文</strong>
+                        <strong>{l("当前标题没有直接正文")}</strong>
                         <span>
                           {(childrenByParent.get(selectedNode.node_id) || []).length
-                            ? "正文属于下级标题；请选择子标题查看，不把后代内容重复堆到父级。"
-                            : "只识别到标题或定位证据，尚无可安全还原的直接内容。"}
+                            ? l("正文属于下级标题；请选择子标题查看，不把后代内容重复堆到父级。")
+                            : l("只识别到标题或定位证据，尚无可安全还原的直接内容。")}
                         </span>
                       </div>
                     ) : null}
@@ -5494,21 +5505,21 @@ export function NativeStructureReferenceDock({
                   <>
                     <section
                       className="native-hierarchy-agent-brief"
-                      aria-label="Agent 结构说明"
+                      aria-label={l("Agent 结构说明")}
                     >
                   <span aria-hidden="true">
                     <Icon name="split" size={14} />
                   </span>
                   <div>
-                    <strong>Agent 结构说明</strong>
+                    <strong>{l("Agent 结构说明")}</strong>
                     <p>
                       {selectedNode.title_authority === "AGENT_SURVEY_LABEL"
-                        ? `“${nodeTitle(selectedNode)}”是 Agent 在全文概览中建立的可修订范围，覆盖 ${pageLabel(selectedPages)}。该名称不是原文标题；具体内容将随局部结构恢复逐步呈现。`
+                        ? `“${nodeTitle(selectedNode, l)}”是 Agent 在全文概览中建立的可修订范围，覆盖 ${pageLabel(selectedPages, l)}。该名称不是原文标题；具体内容将随局部结构恢复逐步呈现。`
                         : selectedNode.kind === "DOCUMENT_ROOT"
                         ? `本轮恢复了 ${tree.nodes.length} 个结构节点；${tableNodeCount} 个节点包含表格，${derivedTitleCount} 个补充单元因原文无明确标题而标记为“Agent 命名”，${activeUnresolved.length} 项关系保持待判断。`
                         : parentNode
-                          ? `我将“${nodeTitle(selectedNode)}”放在“${nodeTitle(parentNode)}”下。${titleAuthorityLabel(selectedNode)}，覆盖 ${pageLabel(selectedPages)}；当前绑定 ${selectedSourceContent.length} 个原文内容块${selectedTables.length ? `和 ${selectedTables.length} 张表格` : ""}${autoAppliedProposalCount ? `，已自动处理 ${autoAppliedProposalCount} 个高置信证据归属` : ""}${suggestedProposalCount ? `，提供 ${suggestedProposalCount} 项不阻断建议` : ""}${unproposedFindings.length ? `，另保留 ${unproposedFindings.length} 项待判断` : ""}。`
-                          : `“${nodeTitle(selectedNode)}”是一个独立文档单元，覆盖 ${pageLabel(selectedPages)}。${titleAuthorityLabel(selectedNode)}。`}
+                          ? `我将“${nodeTitle(selectedNode, l)}”放在“${nodeTitle(parentNode, l)}”下。${titleAuthorityLabel(selectedNode, l)}，覆盖 ${pageLabel(selectedPages, l)}；当前绑定 ${selectedSourceContent.length} 个原文内容块${selectedTables.length ? `和 ${selectedTables.length} 张表格` : ""}${autoAppliedProposalCount ? `，已自动处理 ${autoAppliedProposalCount} 个高置信证据归属` : ""}${suggestedProposalCount ? `，提供 ${suggestedProposalCount} 项不阻断建议` : ""}${unproposedFindings.length ? `，另保留 ${unproposedFindings.length} 项待判断` : ""}。`
+                          : `“${nodeTitle(selectedNode, l)}”是一个独立文档单元，覆盖 ${pageLabel(selectedPages, l)}。${titleAuthorityLabel(selectedNode, l)}。`}
                     </p>
                   </div>
                 </section>
@@ -5516,13 +5527,13 @@ export function NativeStructureReferenceDock({
                 {selectedProposalGroups.length ? (
                   <section
                     className="native-hierarchy-proposals"
-                    aria-label="Agent 处理建议"
+                    aria-label={l("Agent 处理建议")}
                   >
                     <header>
                       <Icon name="check" size={15} />
                       <div>
-                        <strong>Agent 发现与处理建议</strong>
-                        <span>安全项自动处理；其余建议不阻止其他节点继续</span>
+                        <strong>{l("Agent 发现与处理建议")}</strong>
+                        <span>{l("安全项自动处理；其余建议不阻止其他节点继续")}</span>
                       </div>
                     </header>
                     <div>
@@ -5553,7 +5564,7 @@ export function NativeStructureReferenceDock({
                                 <strong>
                                   {imageGroup
                                     ? `${proposals.length} 张图片的父级归属`
-                                    : first.proposal_title || "结构处理建议"}
+                                    : first.proposal_title || l("结构处理建议")}
                                 </strong>
                                 <span
                                   className={cx(
@@ -5564,27 +5575,27 @@ export function NativeStructureReferenceDock({
                                 >
                                   {undone
                                     ? statuses.has("KEPT_UNRESOLVED")
-                                      ? "保持未决"
-                                      : "已撤销"
+                                      ? l("保持未决")
+                                      : l("已撤销")
                                     : confirmed
-                                      ? "已确认"
+                                      ? l("已确认")
                                       : autoApplied
-                                        ? "已自动应用 · 待抽查"
+                                        ? l("已自动应用 · 待抽查")
                                         : unresolved
-                                          ? "等待局部恢复 · 可继续"
+                                          ? l("等待局部恢复 · 可继续")
                                           : proposed
-                                            ? "建议待确认 · 可继续"
-                                            : "可继续"}
+                                            ? l("建议待确认 · 可继续")
+                                            : l("可继续")}
                                 </span>
                               </div>
                               <p>
                                 {imageGroup
-                                  ? `这些图片均完整落在“${nodeTitle(selectedNode)}”的已验证表格区域内，且没有竞争表格区域。`
+                                  ? `这些图片均完整落在“${nodeTitle(selectedNode, l)}”的已验证表格区域内，且没有竞争表格区域。`
                                   : first.observation}
                               </p>
                               {first.recommendation ? (
                                 <p>
-                                  <strong>建议：</strong>
+                                  <strong>{l("建议：")}</strong>
                                   {first.recommendation}
                                 </p>
                               ) : null}
@@ -5598,7 +5609,7 @@ export function NativeStructureReferenceDock({
                                 className="button ghost compact"
                                 onClick={() => locateProposal(proposals)}
                               >
-                                框选原文位置
+                                {l("框选原文位置")}
                               </button>
                               {undone ? (
                                 <button
@@ -5610,7 +5621,7 @@ export function NativeStructureReferenceDock({
                                     void decideProposalGroup(proposals, "CONFIRM")
                                   }
                                 >
-                                  恢复建议
+                                  {l("恢复建议")}
                                 </button>
                               ) : (
                                 <>
@@ -5625,10 +5636,10 @@ export function NativeStructureReferenceDock({
                                       }
                                     >
                                       {imageGroup
-                                        ? "确认归属"
+                                        ? l("确认归属")
                                         : unresolved
-                                          ? "确认处理方向"
-                                          : "采用建议"}
+                                          ? l("确认处理方向")
+                                          : l("采用建议")}
                                     </button>
                                   ) : null}
                                   {autoApplied || confirmed ? (
@@ -5641,7 +5652,7 @@ export function NativeStructureReferenceDock({
                                         void decideProposalGroup(proposals, "UNDO")
                                       }
                                     >
-                                      {autoApplied ? "撤销" : "撤销确认"}
+                                      {autoApplied ? l("撤销") : l("撤销确认")}
                                     </button>
                                   ) : (
                                     <button
@@ -5656,7 +5667,7 @@ export function NativeStructureReferenceDock({
                                         )
                                       }
                                     >
-                                      保持未决
+                                      {l("保持未决")}
                                     </button>
                                   )}
                                 </>
@@ -5675,10 +5686,10 @@ export function NativeStructureReferenceDock({
                 ) : null}
 
                 {unproposedFindings.length ? (
-                  <section className="native-hierarchy-findings" aria-label="Agent 待判断">
+                  <section className="native-hierarchy-findings" aria-label={l("Agent 待判断")}>
                     <header>
                       <Icon name="evidence" size={15} />
-                      <strong>Agent 保留的待判断</strong>
+                      <strong>{l("Agent 保留的待判断")}</strong>
                     </header>
                     <ul>
                       {unproposedFindings.map((finding) => (
@@ -5690,8 +5701,8 @@ export function NativeStructureReferenceDock({
                   </section>
                 ) : null}
 
-                <section className="native-hierarchy-pages" aria-label="来源页面">
-                  <span>来源页面</span>
+                <section className="native-hierarchy-pages" aria-label={l("来源页面")}>
+                  <span>{l("来源页面")}</span>
                   <div>
                     {selectedPages.map((page) => (
                       <button
@@ -5708,20 +5719,20 @@ export function NativeStructureReferenceDock({
                 </section>
 
                 {isSaasAccountMode() && !sourceReader && <p role="status">{SAAS_LEGACY_STRUCTURE_UNAVAILABLE_MESSAGE} 原有指引草稿保留，发送前请在文档协作中核对。</p>}
-                {host.readOnly ? <div className="native-hierarchy-feedback-actions"><button type="button" className="button secondary compact" disabled={!documentAgent?.collaborationAvailable} onClick={() => documentAgent?.show(message.trim(), "selected")}>在会话中讨论此节点</button></div> : sourceReader && documentAgent?.producer === "EXTERNAL_PLUGIN" && !message && !externalDraft.otherDrafts.length
-                  ? <div className="native-hierarchy-feedback-actions"><small>修改意见将绑定当前节点，在协作区统一记录。</small><button type="button" className="button secondary compact" onClick={() => documentAgent.show("", "selected")}>在协作中调整此节点</button></div>
+                {host.readOnly ? <div className="native-hierarchy-feedback-actions"><button type="button" className="button secondary compact" disabled={!documentAgent?.collaborationAvailable} onClick={() => documentAgent?.show(message.trim(), "selected")}>{l("在会话中讨论此节点")}</button></div> : sourceReader && documentAgent?.producer === "EXTERNAL_PLUGIN" && !message && !externalDraft.otherDrafts.length
+                  ? <div className="native-hierarchy-feedback-actions"><small>{l("修改意见将绑定当前节点，在协作区统一记录。")}</small><button type="button" className="button secondary compact" onClick={() => documentAgent.show("", "selected")}>{l("在协作中调整此节点")}</button></div>
                   : <><label className="native-hierarchy-feedback">
                   <span>
-                    告诉 Agent 这个节点应如何调整
-                    <strong>保存后等待 Agent 读取</strong>
+                    {l("告诉 Agent 这个节点应如何调整")}
+                    <strong>{l("保存后等待 Agent 读取")}</strong>
                   </span>
                   <textarea
-                    aria-label="给 Agent 的节点指引"
+                    aria-label={l("给 Agent 的节点指引")}
                     rows={3}
                     maxLength={4000}
                     disabled={!reference}
                     value={message}
-                    placeholder="例如：P23、P24 和 P25–29 应保持三个独立的补充文档。"
+                    placeholder={l("例如：P23、P24 和 P25–29 应保持三个独立的补充文档。")}
                     onChange={(event) => sourceReader ? externalDraft.update(event.target.value) :
                       setDraftsByNode((current) => ({
                         ...current,
@@ -5731,7 +5742,7 @@ export function NativeStructureReferenceDock({
                   />
                 </label>
                 <div className="native-hierarchy-feedback-actions">
-                  <small>指引将绑定到“{nodeTitle(selectedNode)}”，不会修改其他节点。</small>
+                  <small>指引将绑定到“{nodeTitle(selectedNode, l)}”，不会修改其他节点。</small>
                   <button
                     type="button"
                     className="button primary compact"
@@ -5739,10 +5750,10 @@ export function NativeStructureReferenceDock({
                     title={isSaasAccountMode() && !sourceReader && !documentAgent ? SAAS_LEGACY_STRUCTURE_UNAVAILABLE_MESSAGE : undefined}
                     onClick={() => void submitFeedback()}
                   >
-                    {submitting ? "正在保存…" : isSaasAccountMode() && !sourceReader && documentAgent ? "打开文档 Agent 协作" : "保存指引"}
+                    {submitting ? l("正在保存…") : isSaasAccountMode() && !sourceReader && documentAgent ? l("打开文档 Agent 协作") : l("保存指引")}
                   </button>
                 </div>
-                {sourceReader?.feedbackCapability && !sourceReader.feedbackCapability.enabled && <p className="agent-policy-note">{sourceReader.feedbackCapability.reason || "当前版本暂不可提交指引。"}</p>}
+                {sourceReader?.feedbackCapability && !sourceReader.feedbackCapability.enabled && <p className="agent-policy-note">{sourceReader.feedbackCapability.reason || l("当前版本暂不可提交指引。")}</p>}
                 </>}
                 {feedbackNotice ? (
                   <p className="native-hierarchy-feedback-notice" role="status">
@@ -5752,17 +5763,17 @@ export function NativeStructureReferenceDock({
                 {sourceReader && externalDraft.otherDrafts.length > 0 && <details>
                   <summary>其他版本的未提交指引（{externalDraft.otherDrafts.length}）</summary>
                   {externalDraft.otherDrafts.map(other => <article key={other.key}><strong>v{other.revision}</strong><p>{other.text}</p>
-                    <button type="button" onClick={() => externalDraft.update([message, other.text].filter(Boolean).join("\n\n"))}>追加到当前草稿</button>
+                    <button type="button" onClick={() => externalDraft.update([message, other.text].filter(Boolean).join("\n\n"))}>{l("追加到当前草稿")}</button>
                   </article>)}
                 </details>}
                 {selectedFeedbacks.length ? (
                   <section className="native-hierarchy-feedback-history">
-                    <strong>此节点最近的指引</strong>
+                    <strong>{l("此节点最近的指引")}</strong>
                     <ul>
                       {selectedFeedbacks.map((feedback) => (
                         <li key={feedback.feedback_id}>
                           <span>{feedback.message}</span>
-                          <small>{feedbackStatusLabel(feedback)}</small>
+                          <small>{feedbackStatusLabel(feedback, l)}</small>
                         </li>
                       ))}
                     </ul>
@@ -5776,7 +5787,7 @@ export function NativeStructureReferenceDock({
                 <div
                   className="native-hierarchy-splitter is-detail-source"
                   role="separator"
-                  aria-label="调整原文条目和 PDF 宽度"
+                  aria-label={l("调整原文条目和 PDF 宽度")}
                   aria-orientation="vertical"
                   aria-valuemin={45}
                   aria-valuemax={82}
@@ -5784,7 +5795,7 @@ export function NativeStructureReferenceDock({
                     columnShares.tree + columnShares.detail,
                   )}
                   tabIndex={0}
-                  title="拖动调整列宽；方向键微调；双击恢复默认"
+                  title={l("拖动调整列宽；方向键微调；双击恢复默认")}
                   onPointerDown={(event) =>
                     beginColumnResize("DETAIL_SOURCE", event)
                   }
@@ -5801,7 +5812,7 @@ export function NativeStructureReferenceDock({
               ) : null}
 
               {hasSourcePreview && isOfficeSource ? (
-                <section className="native-hierarchy-source" aria-label="Office 原文对照">
+                <section className="native-hierarchy-source" aria-label={l("Office 原文对照")}>
                   <NativeOfficeSourceView projectId={projectId} documentId={documentId} sourceSha256={sourceSha256}
                     sourceFileUrl={sourceFileUrl} focusIds={nativeFocusIds.length ? nativeFocusIds
                       : (selectedNode.source_anchors || []).map(anchor => anchor.source_handle || anchor.anchor_id)} />
@@ -5809,17 +5820,17 @@ export function NativeStructureReferenceDock({
               ) : hasSourcePreview ? (
                 <section
                   className="native-hierarchy-source"
-                  aria-label="原文 PDF 对照"
+                  aria-label={l("原文 PDF 对照")}
                 >
                   <header>
                     <div>
-                      <strong>原文 PDF</strong>
+                      <strong>{l("原文 PDF")}</strong>
                       <span>
                         {selectedOverlays.length
                           ? approximateOverlayCount
                             ? `${selectedOverlays.length} 个框 · ${approximateOverlayCount} 个粗定位`
                             : `${selectedOverlays.length} 个精确框`
-                          : "当前页"}
+                          : l("当前页")}
                       </span>
                     </div>
                     <a
@@ -5827,8 +5838,8 @@ export function NativeStructureReferenceDock({
                       href={host.pdfViewerUrl(sourceFileUrl, activePage, false)}
                       target="_blank"
                       rel="noreferrer"
-                      aria-label="在新窗口打开原文 PDF"
-                      title="在新窗口打开原文 PDF"
+                      aria-label={l("在新窗口打开原文 PDF")}
+                      title={l("在新窗口打开原文 PDF")}
                     >
                       <Icon name="external" size={14} />
                     </a>
@@ -5847,13 +5858,13 @@ export function NativeStructureReferenceDock({
 
             {!documentAgent && !sourceReader && <footer className="native-hierarchy-disclosure">
               <span>
-                默认只显示原文层级和用户可理解的内容；解析器编号与文件校验信息保留在后台证据中。
+                {l("默认只显示原文层级和用户可理解的内容；解析器编号与文件校验信息保留在后台证据中。")}
               </span>
               <span>
                 {sourceRequirementMode
-                  ? "当前反馈能力：保存并应用指引 · Agent 局部修订 · 可撤销 · 来源完整性检查"
+                  ? l("当前反馈能力：保存并应用指引 · Agent 局部修订 · 可撤销 · 来源完整性检查")
                   : continuation?.status === "CONSUMED"
-                  ? "当前反馈能力：保存交接 · Agent 局部修订 · Host 复验 · 刷新恢复"
+                  ? l("当前反馈能力：保存交接 · Agent 局部修订 · Host 复验 · 刷新恢复")
                   : [
                         "QUEUED_FOR_CODEX_APP",
                         "ACKNOWLEDGED",
@@ -5861,14 +5872,14 @@ export function NativeStructureReferenceDock({
                         "VERIFYING",
                         "REVISION_REQUIRED",
                       ].includes(continuation?.status || "")
-                    ? "当前反馈能力：真实运行状态同步 · 局部修订 · Host 后置验证"
-                    : "当前反馈能力：保存节点指引 · 整文交接 · 无反馈时继续"}
+                    ? l("当前反馈能力：真实运行状态同步 · 局部修订 · Host 后置验证")
+                    : l("当前反馈能力：保存节点指引 · 整文交接 · 无反馈时继续")}
               </span>
             </footer>}
           </>
         ) : loading ? (
           <div className="native-hierarchy-loading" role="status">
-            正在读取标题层级与来源证据…
+            {l("正在读取标题层级与来源证据…")}
           </div>
         ) : null}
       </div>

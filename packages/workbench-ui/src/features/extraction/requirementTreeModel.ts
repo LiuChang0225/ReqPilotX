@@ -297,33 +297,38 @@ export function requirementTreeReviewCandidateRoleCounts(
   };
 }
 
+type Copy = (key: string, fallback?: string) => string;
+
 export function requirementTreeNodeStatusLabel(
   node: RequirementTreeNode,
+  l?: Copy,
 ): string {
-  return requirementTreeNodeRoleLabel(node);
+  return requirementTreeNodeRoleLabel(node, l);
 }
 
 export function requirementTreeNodeRoleLabel(
   node: RequirementTreeNode,
+  l?: Copy,
 ): string {
+  const text = (key: string) => l ? l(key) : key;
   if (isPublishedRequirementNode(node)) {
     if (node.status === "REVIEWED" || node.semantic_state === "CONFIRMED") {
-      return "已确认需求";
+      return text("已确认需求");
     }
     if (node.attention_count > 0 || node.status === "NEEDS_ATTENTION") {
-      return "需求 · 需关注";
+      return text("需求 · 需关注");
     }
-    return "需求 · 待确认";
+    return text("需求 · 待确认");
   }
-  if (isRequirementTreeTocNode(node)) return "目录";
+  if (isRequirementTreeTocNode(node)) return text("目录");
   if (isWholeTableReviewNode(node) || node.kind === "TABLE") {
-    return "完整表格 · 未做语义判断";
+    return text("完整表格 · 未做语义判断");
   }
   if (
     node.kind === "TABLE_RECORD" ||
     node.projection_role === "TABLE_RECORD"
   ) {
-    return "表格条目 · 未做语义判断";
+    return text("表格条目 · 未做语义判断");
   }
   if (
     ["STRUCTURE_PROXY", "DIRECT_CONTENT"].includes(
@@ -332,15 +337,16 @@ export function requirementTreeNodeRoleLabel(
     node.kind === "DIRECT_CONTENT" ||
     (node.kind === "REQUIREMENT" && !isPublishedRequirementNode(node))
   ) {
-    return "条款内容 · 未做语义判断";
+    return text("条款内容 · 未做语义判断");
   }
-  return "仅标题";
+  return text("仅标题");
 }
 
 export function requirementTreeRowSecondaryLabel(
   node: RequirementTreeNode,
+  l?: Copy,
 ): string {
-  return node.kind === "DOCUMENT" ? "" : requirementTreeNodeRoleLabel(node);
+  return node.kind === "DOCUMENT" ? "" : requirementTreeNodeRoleLabel(node, l);
 }
 
 function records(value: unknown): Record<string, unknown>[] {

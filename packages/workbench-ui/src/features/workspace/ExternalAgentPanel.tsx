@@ -1,5 +1,4 @@
 import { useEffect, useId, useRef, useState } from "react";
-import { useHostCopy } from "../../host/HostLocaleContext";
 import { Icon } from "../../shared/ui/Icon";
 import { clearSourceFeedbackDraft, sourceFeedbackDraftKey, useSourceFeedbackDraft } from "../extraction/sourceItemDrafts";
 import type { SourceStage } from "../extraction/SourceDocumentStageResults";
@@ -7,6 +6,7 @@ import type { DocumentAgentBinding } from "./DocumentAgentContext";
 import { AgentPanelFrame } from "./AgentPanelFrame";
 import { externalExecutionLabel, pluginFeedbackLabel } from "./documentWorkProvider";
 import type { PluginWorkbenchProvider } from "./usePluginWorkbench";
+import { useUiCopy, useUiLocale } from "../../host/HostLocaleContext";
 
 export function ExternalAgentPanel({ provider, projectId, documentId, documentName, binding, onClose, onViewStage, openRequest, requestedScope }: {
   provider: PluginWorkbenchProvider; projectId: string; documentId: string; documentName: string;
@@ -14,14 +14,15 @@ export function ExternalAgentPanel({ provider, projectId, documentId, documentNa
   onViewStage: (stage: SourceStage, revision?: string) => void; openRequest: number;
   requestedScope?: { id: number; scope: "selected" | "document" };
 }) {
-  const l = useHostCopy();
+  const l = useUiCopy();
+  const locale = useUiLocale();
   const { state, pinned, version } = provider;
   const [scope, setScope] = useState<"selected" | "document">("selected");
   const hasSelection = Boolean(binding?.selectedSourceItemId || binding?.selectedNodeId);
   const selected = scope === "selected" && hasSelection;
   const sourceIds = selected && binding?.selectedSourceItemId ? [binding.selectedSourceItemId] : [];
   const nodeId = selected ? binding?.selectedNodeId || "" : "";
-  const target = selected ? binding?.selectedLabel || l("external.targetSelected", "当前原文范围") : l("external.targetDocument", "整个文档");
+  const target = selected ? binding?.selectedLabel || l("external.currentScope", "当前原文范围") : l("external.wholeDocument", "整个文档");
   const draftKey = sourceFeedbackDraftKey(projectId, documentId, `external:${state?.session_id || "pending"}:${sourceIds.join(",") || nodeId || "document"}`, pinned || "pending");
   const draft = useSourceFeedbackDraft(draftKey, version?.number || 0);
   const activeDraft = useRef(draftKey); activeDraft.current = draftKey;
@@ -43,42 +44,41 @@ export function ExternalAgentPanel({ provider, projectId, documentId, documentNa
     } catch (cause) { if (activeDraft.current === key) setError(cause instanceof Error ? cause.message : l("external.saveFailed", "保存未完成，请重试。")); }
   };
   const copyBrief = async () => {
-    const text = l("external.brief", "继续当前 ReqPilotX 外部任务。文档：{document}；正在核对 v{version}。请在原任务中取回工作台已保存的确认和反馈，核对其来源/版本后继续原范围，保存修订成果。\n工作台：{url}",
-      { document: documentName, version: version?.number || "未提供", url: window.location.href });
-    try { await navigator.clipboard.writeText(text); setNotice(l("external.briefCopied", "接续说明已复制；请回到原外部任务继续。此操作未启动模型。")); }
+    const text = l("external.handoffText", "继续当前 ReqPilotX 外部任务。文档：{name}；正在核对 v{version}。请在原任务中取回工作台已保存的确认和反馈，核对其来源/版本后继续原范围，保存修订成果。\n工作台：{url}", { name: documentName, version: version?.number || l("common.unknown", "未提供"), url: window.location.href });
+    try { await navigator.clipboard.writeText(text); setNotice(l("external.copied", "接续说明已复制；请回到原外部任务继续。此操作未启动模型。")); }
     catch { setError(l("external.copyFailed", "暂时无法复制，请使用当前工作台链接回到原外部任务继续。")); }
   };
   const visibleVersions = new Set(state?.versions.filter(v => v.number <= (version?.number || 0)).map(v => v.revision_id));
   const feedback = state?.feedback.filter(item => visibleVersions.has(item.expected_revision_id)) || [];
   const lastSync = state?.last_synced_at || state?.updated_at;
   return <AgentPanelFrame onClose={onClose} footer={<>
-    <div className="agent-context-chips" aria-label={l("external.contextAria", "任务上下文")}><span><Icon name="document" size={13}/>{documentName}</span><span>{version ? l("external.reviewVersion", "核对版 v{number}", { number: version.number }) : state ? l("external.sourceBound", "来源已绑定") : l("external.syncingWork", "正在同步工作")}</span><span>{target}</span></div>
+    <div className="agent-context-chips" aria-label={l("external.contextAria", "任务上下文")}><span><Icon name="document" size={13}/>{documentName}</span><span>{version ? l("external.reviewVersion", "核对版 v{version}", { version: version.number }) : state ? l("external.sourceBound", "来源已绑定") : l("external.syncingWork", "正在同步工作")}</span><span>{target}</span></div>
     <div className="agent-composer"><label htmlFor={`${id}-feedback`}>{l("external.feedbackLabel", "给外部任务的修改意见")}</label>
       <textarea ref={input} id={`${id}-feedback`} rows={3} value={draft.text} maxLength={12000} onChange={event => draft.update(event.target.value)} placeholder={l("external.feedbackPlaceholder", "记录要核对或修改的内容；保存后由原外部任务取回…")} />
       <div className="agent-composer-toolbar"><label className="source-agent-loop-scope">{l("external.scope", "修改范围")}<select value={selected ? "selected" : "document"} onChange={event => setScope(event.target.value as typeof scope)}>
-        {hasSelection && <option value="selected">{binding?.selectedSourceItemId ? l("external.scopeClause", "当前条款") : l("external.scopeNode", "当前结构范围")}</option>}<option value="document">{l("external.targetDocument", "整个文档")}</option></select></label>
-        <button type="button" className="button primary compact" disabled={!capability.enabled || !provider.reader || !draft.text.trim() || provider.pending} onClick={() => void save()}>{provider.pending ? l("external.saving", "正在保存…") : l("external.save", "保存意见")}<Icon name="arrow" size={14}/></button>
+        {hasSelection && <option value="selected">{binding?.selectedSourceItemId ? l("external.currentClause", "当前条款") : l("external.currentStructure", "当前结构范围")}</option>}<option value="document">{l("external.wholeDocument", "整个文档")}</option></select></label>
+        <button type="button" className="button primary compact" disabled={!capability.enabled || !provider.reader || !draft.text.trim() || provider.pending} onClick={() => void save()}>{provider.pending ? l("common.saving", "正在保存…") : l("external.save", "保存意见")}<Icon name="arrow" size={14}/></button>
       </div>
     </div>
-    <div className="agent-composer-footnote"><span>{!draft.durable ? l("external.draftVolatile", "本机暂存不可用，输入暂留在当前页面") : draft.text ? l("external.draftUnsent", "草稿 · 尚未发送") : l("external.saveNoModel", "保存意见不会唤醒或新建模型任务")}</span></div>
+    <div className="agent-composer-footnote"><span>{!draft.durable ? l("external.draftUnavailable", "本机暂存不可用，输入暂留在当前页面") : draft.text ? l("external.draft", "草稿 · 尚未发送") : l("external.noModel", "保存意见不会唤醒或新建模型任务")}</span></div>
     {error && <p className="agent-inline-notice is-error" role="alert">{error}</p>}{notice && <p className="agent-inline-notice" role="status">{notice}</p>}
-    {!capability.enabled && <p className="agent-policy-note">{capability.reason || l("external.unavailable", "当前版本暂不可提交意见。")}</p>}
+    {!capability.enabled && <p className="agent-policy-note">{capability.reason ? l(capability.reason, capability.reason) : l("external.cannotSubmit", "当前版本暂不可提交意见。")}</p>}
   </>}>
     <section className="agent-task-state" data-active={false} aria-label={l("external.taskStateAria", "当前任务状态")}><span className="agent-state-mark"><Icon name="spark" size={17}/></span><div>
-      <span className="agent-task-status" role="status">{state ? externalExecutionLabel(state) : l("external.readingWork", "正在读取外部任务信息")}</span><h3>{l("external.currentTask", "当前文档任务")}</h3>
-      <p>{l("external.savedExternally", "成果由外部任务保存；此处展示已同步内容与意见回执。")}</p>
-      {lastSync && <time className="agent-task-update" dateTime={lastSync}>{l("external.lastSync", "最近同步 {time}", { time: new Date(lastSync).toLocaleString() })}</time>}
+      <span className="agent-task-status" role="status">{state ? externalExecutionLabel(state, l) : l("external.readingTask", "正在读取外部任务信息")}</span><h3>{l("external.currentTask", "当前文档任务")}</h3>
+      <p>{l("external.taskNote", "成果由外部任务保存；此处展示已同步内容与意见回执。")}</p>
+      {lastSync && <time className="agent-task-update" dateTime={lastSync}>{l("external.lastSync", "最近同步 {time}", { time: new Date(lastSync).toLocaleString(locale === "en" ? "en-US" : "zh-CN") })}</time>}
       <details className="agent-task-goal"><summary>{l("external.goal", "任务目标")}</summary><p>{state?.goal?.trim() || l("external.noGoal", "外部任务未提供目标文本；已有成果和反馈继续保留。")}</p></details>
     </div></section>
-    {state?.map_confirmation_required && <section className="agent-stage-results" aria-label={l("external.needsYou", "需要你处理")}><strong>{l("external.confirmStructure", "需要核对结构")}</strong><p>{l("external.confirmStructureHint", "确认指定版本后，外部任务取回确认才会继续。")}</p>
-      {state.stages.filter(stage => stage.stage === "MAP").map(stage => <button key={stage.stage} className="button secondary compact" onClick={() => onViewStage(stage, state.revision_id || undefined)}>{l("external.viewPendingStructure", "查看待确认结构")}</button>)}
+    {state?.map_confirmation_required && <section className="agent-stage-results" aria-label={l("external.needsAction", "需要你处理")}><strong>{l("external.mapConfirmation", "需要核对结构")}</strong><p>{l("external.mapConfirmationNote", "确认指定版本后，外部任务取回确认才会继续。")}</p>
+      {state.stages.filter(stage => stage.stage === "MAP").map(stage => <button key={stage.stage} className="button secondary compact" onClick={() => onViewStage(stage, state.revision_id || undefined)}>{l("external.viewMap", "查看待确认结构")}</button>)}
     </section>}
-    {version && <section className="agent-stage-results" aria-label={l("external.stageResults", "阶段成果")}><strong>{l("external.currentResult", "当前核对版成果")}</strong><div className="agent-stage-result-list">{version.stages.map(stage => <button type="button" className="agent-stage-result" key={stage.stage} onClick={() => onViewStage(stage, pinned || undefined)}><Icon name={stage.stage === "MAP" ? "tree" : "requirement"} size={16}/><span>{stage.stage === "MAP" ? l("external.structure", "文档结构") : l("external.items", "原文条目与分类")}<small>{l("external.savedAt", "v{version} · 已保存", { version: version.number })}</small></span><em>{l("external.count", "{count} 项", { count: stage.count })}</em></button>)}</div></section>}
-    <section className="external-feedback-list" aria-label={l("external.historyAria", "意见与修订记录")}><strong>{l("external.history", "意见与修订记录")}</strong>
-      {!feedback.length ? <p className="muted">{state && !state.revision_id ? l("external.noSavedStage", "阶段成果尚未保存，形成后可围绕成果记录意见。") : !state || !version ? l("external.readingHistory", "正在读取当前核对版的意见记录…") : l("external.noFeedback", "当前核对版尚无已保存意见。")}</p> : feedback.map(item => <article key={item.feedback_id}><span>{pluginFeedbackLabel(state!, item, pinned)}</span><p>{item.text}</p><small>{item.target_label || l("external.sourceScope", "原文范围")} · {l("external.sourceVersion", "来源 v{version}", { version: state?.versions.find(v => v.revision_id === item.expected_revision_id)?.number || "—" })}</small>
-        {state?.feedback_resolutions?.[item.feedback_id] && visibleVersions.has(state.feedback_resolutions[item.feedback_id].revision_id) && <details><summary>{l("external.resolution", "修订说明")}</summary><p>{state.feedback_resolutions[item.feedback_id].reason}</p></details>}
+    {version && <section className="agent-stage-results" aria-label={l("stage.resultsAria", "阶段成果")}><strong>{l("external.currentResult", "当前核对版成果")}</strong><div className="agent-stage-result-list">{version.stages.map(stage => <button type="button" className="agent-stage-result" key={stage.stage} onClick={() => onViewStage(stage, pinned || undefined)}><Icon name={stage.stage === "MAP" ? "tree" : "requirement"} size={16}/><span>{stage.stage === "MAP" ? l("external.documentStructure", "文档结构") : l("external.sourceItems", "原文条目与分类")}<small>{l("external.versionSaved", "v{version} · 已保存", { version: version.number })}</small></span><em>{l(stage.count === 1 ? "sourceWorkspace.itemCountOne" : "sourceWorkspace.itemCount", "{count} 项", { count: stage.count })}</em></button>)}</div></section>}
+    <section className="external-feedback-list" aria-label={l("external.feedbackHistoryAria", "意见与修订记录")}><strong>{l("external.feedbackHistory", "意见与修订记录")}</strong>
+      {!feedback.length ? <p className="muted">{state && !state.revision_id ? l("external.noStageYet", "阶段成果尚未保存，形成后可围绕成果记录意见。") : !state || !version ? l("external.readingFeedback", "正在读取当前核对版的意见记录…") : l("external.noFeedback", "当前核对版尚无已保存意见。")}</p> : feedback.map(item => <article key={item.feedback_id}><span>{pluginFeedbackLabel(state!, item, pinned, l)}</span><p>{item.text}</p><small>{item.target_label || l("external.sourceScope", "原文范围")} · {l("external.sourceVersion", "来源 v{version}", { version: state?.versions.find(v => v.revision_id === item.expected_revision_id)?.number || "—" })}</small>
+        {state?.feedback_resolutions?.[item.feedback_id] && visibleVersions.has(state.feedback_resolutions[item.feedback_id].revision_id) && <details><summary>{l("external.revisionNote", "修订说明")}</summary><p>{state.feedback_resolutions[item.feedback_id].reason}</p></details>}
       </article>)}
     </section>
-    <details className="external-handoff" aria-label={l("external.handoffAria", "外部任务接续")}><summary>{l("external.handoff", "需要回到原任务时")}</summary><p>{l("external.handoffHint", "可复制当前工作的链接与接续说明，在原任务中打开；已有成果和意见继续保留。")}</p><button type="button" className="button secondary compact" onClick={() => void copyBrief()}>{l("external.copyBrief", "复制接续说明")}</button></details>
+    <details className="external-handoff" aria-label={l("external.handoffAria", "外部任务接续")}><summary>{l("external.handoff", "需要回到原任务时")}</summary><p>{l("external.handoffHint", "可复制当前工作的链接与接续说明，在原任务中打开；已有成果和意见继续保留。")}</p><button type="button" className="button secondary compact" onClick={() => void copyBrief()}>{l("external.copyHandoff", "复制接续说明")}</button></details>
   </AgentPanelFrame>;
 }

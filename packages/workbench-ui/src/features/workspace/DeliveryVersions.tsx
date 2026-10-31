@@ -1,7 +1,7 @@
 import { useEffect, useRef, useState } from "react";
 import { request } from "../../shared/api/client";
 import { retainedCommand, settleCommand } from "../extraction/agentTaskTransport";
-import { useHostCopy } from "../../host/HostLocaleContext";
+import { useUiCopy, useUiLocale } from "../../host/HostLocaleContext";
 
 type Readiness = { can_lock: boolean; blockers: string[]; analysis_target_count: number; effective_conclusion_count: number; ai_default_count: number; human_count: number };
 type Preview = { source_sha256: string; delivery_sha256: string; business_basis_sha256?: string; baseline_revision: number; response_revision: number; readiness: Readiness; revision_id?: string; version?: string };
@@ -16,7 +16,8 @@ export function DeliveryVersions(props: DeliveryVersionsProps) {
   return <ScopedDeliveryVersions key={`${props.projectId}:${props.documentId}:${props.sourceSha256}:${props.baselineRevision}:${props.transport?.root || "native"}:${props.transport?.revisionId || ""}`} {...props} />;
 }
 function ScopedDeliveryVersions({ projectId, documentId, sourceSha256, baselineRevision, transport, resourceUrl = path => path }: DeliveryVersionsProps) {
-  const l = useHostCopy();
+  const l = useUiCopy();
+  const locale = useUiLocale();
   const root = transport?.root || `/api/projects/${encodeURIComponent(projectId)}/sor-documents/${encodeURIComponent(documentId)}/agent-structure/delivery/versions`;
   const send = transport?.request || request, revisionId = transport?.revisionId || "", writable = !transport || transport.writable;
   const scope = `${root}:${sourceSha256}:${baselineRevision}:${revisionId}`, identity = useRef(scope); identity.current = scope;
@@ -50,20 +51,20 @@ function ScopedDeliveryVersions({ projectId, documentId, sourceSha256, baselineR
       settleCommand(storage, command_id);
       if (identity.current !== sentScope) return;
       setVersions(old => [saved, ...old.filter(version => version.revision !== saved.revision)].sort((a,b) => b.revision-a.revision));
-      setAccepted(false); setNotice(l("delivery.saved", "交付 v{version} 已保存，快照与 Excel 可在下方重新下载。", { version: saved.revision }));
+      setAccepted(false); setNotice(l("delivery.saved", "交付 v{revision} 已保存，快照与 Excel 可在下方重新下载。", { revision: saved.revision }));
     } catch (cause) { settleCommand(storage, command_id, cause); if (identity.current === sentScope) setError(cause instanceof Error ? cause.message : l("delivery.saveFailed", "保存未完成，请重试。")); }
     finally { if (identity.current === sentScope) setBusy(false); }
   };
-  return <section className="delivery-versions" aria-label={l("delivery.aria", "交付版本")}>
-    <header><div><h2>{l("delivery.saveTitle", "保存交付版本")}</h2><p>{l("delivery.saveHint", "保存完整账本与 Excel，后续修订保留这次交付。")}</p></div><button className="button ghost compact" disabled={busy || loading} onClick={() => setReload(value => value+1)}>{l("delivery.sync", "同步交付状态")}</button></header>
+  return <section className="delivery-versions" aria-label={l("delivery.versionsAria", "交付版本")}>
+    <header><div><h2>{l("delivery.saveTitle", "保存交付版本")}</h2><p>{l("delivery.saveHint", "保存完整账本与 Excel，后续修订保留这次交付。")}</p></div><button className="button ghost compact" disabled={busy || loading} onClick={() => setReload(value => value+1)}>{l("delivery.syncStatus", "同步交付状态")}</button></header>
     {loading && <p role="status">{l("delivery.loading", "正在核对来源、响应与历史版本…")}</p>}
     {error && <p role="alert">{error}</p>}{notice && <p role="status">{notice}</p>}
-    {!writable && <p role="status">{transport?.reason || l("delivery.readOnly", "当前版本只读；已保存交付仍可下载。")}</p>}
+    {!writable && <p role="status">{transport?.reason ? l(transport.reason, transport.reason) : l("delivery.readOnly", "当前版本只读；已保存交付仍可下载。")}</p>}
     {preview && <div className="delivery-freeze">
-      <div><strong>{l("delivery.basis", "原文 v{source} · 响应 v{response}", { source: preview.baseline_revision, response: preview.response_revision })}</strong>
+      <div><strong>{l("delivery.baselineResponse", "原文 v{baseline} · 响应 v{response}", { baseline: preview.baseline_revision, response: preview.response_revision })}</strong>
         <p>{l("delivery.coverage", "{effective} / {target} 个单元已有有效响应（工程师 {human} 项，Agent 建议 {ai} 项）", { effective: preview.readiness.effective_conclusion_count, target: preview.readiness.analysis_target_count, human: preview.readiness.human_count, ai: preview.readiness.ai_default_count })}</p>
         {preview.readiness.blockers.length > 0 && <ul>{preview.readiness.blockers.map(blocker => <li key={blocker}>{blocker}</li>)}</ul>}
-        <button className="button secondary" disabled={busy || !writable} onClick={() => void save("DRAFT")}>{busy ? l("delivery.saving", "正在保存…") : l("delivery.saveDraft", "保存草稿版本")}</button>
+        <button className="button secondary" disabled={busy || !writable} onClick={() => void save("DRAFT")}>{busy ? l("common.saving", "正在保存…") : l("delivery.saveDraft", "保存草稿版本")}</button>
       </div>
       <div className="delivery-lock">
         <strong>{l("delivery.lockTitle", "锁定正式交付版")}</strong><p>{l("delivery.lockHint", "确认这份响应快照后保存为 FORMAL；当前工作版可继续修订。")}</p>
@@ -71,13 +72,13 @@ function ScopedDeliveryVersions({ projectId, documentId, sourceSha256, baselineR
         <button className="button primary" disabled={busy || !writable || !accepted || !preview.readiness.can_lock} onClick={() => void save("FORMAL")}>{l("delivery.saveFormal", "确认并保存正式版")}</button>
       </div>
     </div>}
-    <div className="delivery-history-heading"><h2>{l("delivery.history", "交付历史")}</h2><span>{historyKnown ? l("delivery.versionCount", "{count} 个版本", { count: versions.length }) : loading ? l("delivery.reading", "正在读取…") : l("delivery.unavailable", "暂不可读取")}</span></div>
+    <div className="delivery-history-heading"><h2>{l("delivery.history", "交付历史")}</h2><span>{historyKnown ? l(versions.length === 1 ? "delivery.versionCountOne" : "delivery.versionCount", "{count} 个版本", { count: versions.length }) : loading ? l("delivery.reading", "正在读取…") : l("delivery.unavailable", "暂不可读取")}</span></div>
     {!loading && historyKnown && versions.length === 0 && <p className="muted">{l("delivery.empty", "还没有保存的交付版本。保存草稿后，可随时下载同一份文件。")}</p>}
-    {versions.length > 0 && <div className="delivery-history-scroll"><table className="delivery-history-table"><thead><tr><th>{l("delivery.tableVersion", "交付版")}</th><th>{l("delivery.tableBasis", "绑定工作版")}</th><th>{l("delivery.tableCoverage", "响应覆盖")}</th><th>{l("delivery.tableSaved", "保存时间")}</th><th>{l("delivery.tableFile", "文件")}</th></tr></thead>
-      <tbody>{versions.map(version => <tr key={version.revision}><td><strong>v{version.revision}</strong><span className="delivery-mode">{version.mode === "FORMAL" ? l("delivery.formal", "正式版 · 已锁定") : l("delivery.draft", "评审草稿")}</span></td>
-        <td>{l("delivery.basis", "原文 v{source} · 响应 v{response}", { source: version.baseline_revision, response: version.response_revision })}{version.source_sha256 !== sourceSha256 && <small>{l("delivery.previousSource", "前一来源文件")}</small>}</td>
+    {versions.length > 0 && <div className="delivery-history-scroll"><table className="delivery-history-table"><thead><tr><th>{l("delivery.version", "交付版")}</th><th>{l("delivery.boundWork", "绑定工作版")}</th><th>{l("delivery.responseCoverage", "响应覆盖")}</th><th>{l("delivery.savedAt", "保存时间")}</th><th>{l("delivery.file", "文件")}</th></tr></thead>
+      <tbody>{versions.map(version => <tr key={version.revision}><td><strong>v{version.revision}</strong><span className="delivery-mode">{version.mode === "FORMAL" ? l("delivery.formalLocked", "正式版 · 已锁定") : l("delivery.reviewDraft", "评审草稿")}</span></td>
+        <td>{l("delivery.baselineResponse", "原文 v{baseline} · 响应 v{response}", { baseline: version.baseline_revision, response: version.response_revision })}{version.source_sha256 !== sourceSha256 && <small>{l("delivery.previousSource", "前一来源文件")}</small>}</td>
         <td>{version.readiness.effective_conclusion_count} / {version.readiness.analysis_target_count}</td>
-        <td><time dateTime={version.created_at}>{new Date(version.created_at).toLocaleString(undefined, { month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })}</time></td>
-        <td><a className="button ghost compact" href={resourceUrl(`${root}/${version.revision}/export`)}>{l("delivery.download", "下载 Excel")}</a></td></tr>)}</tbody></table></div>}
+        <td><time dateTime={version.created_at}>{new Date(version.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN", { month:"2-digit", day:"2-digit", hour:"2-digit", minute:"2-digit" })}</time></td>
+        <td><a className="button ghost compact" href={resourceUrl(`${root}/${version.revision}/export`)}>{l("delivery.downloadExcel", "下载 Excel")}</a></td></tr>)}</tbody></table></div>}
   </section>;
 }

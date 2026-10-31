@@ -11145,14 +11145,31 @@ select:focus {
 }
 
 .requirement-tree-page {
-  display: grid;
-  grid-template-rows: auto auto minmax(0, 1fr);
+  display: flex;
+  flex-direction: column;
   width: 100%;
   height: 100%;
+  min-width: 0;
   min-height: 0;
   overflow: hidden;
+  container-type: inline-size;
   background: var(--canvas);
 }
+
+/* Secondary status/notices never consume the primary tree/detail body. */
+.requirement-tree-page > :not(.requirement-tree-workbench):not(.native-hierarchy):not(.document-intake):not(.requirement-tree-status-stack) {
+  flex: 0 0 auto;
+}
+.requirement-tree-page > .requirement-tree-workbench,
+.requirement-tree-page > .native-hierarchy,
+.requirement-tree-page > .document-intake,
+.requirement-tree-page > .requirement-tree-status-stack {
+  flex: 1 1 auto;
+  min-height: 0;
+}
+.requirement-tree-page > .native-hierarchy { height: auto; }
+.requirement-tree-page > .document-intake { overflow: auto; }
+.requirement-tree-page > .agent-workflow-cockpit { flex: 0 0 auto; }
 
 .requirement-tree-commandbar {
   display: flex;
@@ -11338,9 +11355,22 @@ select:focus {
 }
 
 .requirement-tree-status-stack {
-  display: grid;
+  display: flex;
+  flex-direction: column;
   min-height: 0;
   gap: 8px;
+  overflow: hidden;
+}
+
+.requirement-tree-status-stack > :not(.native-hierarchy) {
+  flex: 0 0 auto;
+  min-height: 0;
+}
+
+.requirement-tree-status-stack > .native-hierarchy {
+  flex: 1 1 auto;
+  min-height: 0;
+  height: auto;
 }
 
 .requirement-tree-status-stack:not(:empty) {
@@ -17740,6 +17770,49 @@ button.tree-figure-placeholder.is-actionable:hover {
   transform: rotate(-90deg);
 }
 
+@container (max-width: 960px) {
+  .requirement-tree-workbench {
+    grid-template-columns: minmax(280px, 0.9fr) minmax(0, 1.1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+  .requirement-tree-pane {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+  }
+  .tree-compact-detail-bar {
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
+    min-width: 0;
+    min-height: 46px;
+    align-items: center;
+    justify-content: space-between;
+    gap: 16px;
+    padding: 5px 14px 0;
+    border-bottom: 1px solid var(--line);
+    background: var(--paper);
+  }
+  .tree-compact-detail-bar > span {
+    overflow: hidden;
+    color: var(--ink-soft);
+    font-size: 12px;
+    font-weight: 700;
+    text-overflow: ellipsis;
+    white-space: nowrap;
+  }
+  .requirement-content-pane,
+  .requirement-pdf-pane {
+    grid-column: 2;
+    grid-row: 2;
+  }
+  .requirement-tree-workbench[data-compact-detail="content"] .requirement-pdf-pane,
+  .requirement-tree-workbench[data-compact-detail="source"] .requirement-content-pane {
+    display: none;
+  }
+  .requirement-content-pane { border-right: 0; }
+}
+
 @media (max-width: 1300px) {
   .requirement-tree-workbench {
     grid-template-columns: 310px minmax(0, 1fr);
@@ -17975,21 +18048,39 @@ button.tree-figure-placeholder.is-actionable:hover {
   }
 
   .requirement-tree-workbench {
-    display: block;
-    overflow: auto;
+    display: grid;
+    grid-template-columns: minmax(250px, 0.9fr) minmax(0, 1.1fr);
+    grid-template-rows: auto minmax(0, 1fr);
+    overflow: hidden;
+  }
+
+  .requirement-tree-pane {
+    grid-column: 1;
+    grid-row: 1 / span 2;
+    border-right: 1px solid var(--line);
+    border-bottom: 0;
   }
 
   .tree-compact-detail-bar {
-    display: none;
+    display: flex;
+    grid-column: 2;
+    grid-row: 1;
   }
 
-  .requirement-tree-pane,
   .requirement-content-pane,
   .requirement-pdf-pane {
-    display: block !important;
-    min-height: 560px;
+    grid-column: 2;
+    grid-row: 2;
+    min-height: 0;
     border-right: 0;
-    border-bottom: 1px solid var(--line);
+    border-bottom: 0;
+  }
+
+  .requirement-tree-workbench[data-compact-detail="content"]
+    .requirement-pdf-pane,
+  .requirement-tree-workbench[data-compact-detail="source"]
+    .requirement-content-pane {
+    display: none;
   }
 
   .source-guidance {

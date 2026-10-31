@@ -1,6 +1,7 @@
 import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { HomePage } from "./HomePage";
+import { HostLocaleProvider } from "../../host/HostLocaleContext";
 
 const serviceReady = { runtime_ready: true, ready: false, status: "READY", checks: [] };
 const agentConfigured = {
@@ -131,5 +132,25 @@ describe("HomePage", () => {
     expect(screen.queryByRole("alert")).not.toBeInTheDocument();
     expect(documentAttempts).toBe(2);
     expect(fetchMock.mock.calls.filter(([input]) => input === "/api/projects")).toHaveLength(1);
+  });
+});
+
+describe("HomePage English host locale", () => {
+  it("renders the home entry, project list and runtime states in English while preserving customer content", async () => {
+    serve({
+      "/api/projects": () => json([
+        { id: "p1", name: "Customer SOR", customer_name: "Customer A", created_at: "2026-10-20T10:00:00Z" },
+      ]),
+      "/api/projects/p1/sor-documents": () => json([
+        { id: "d1", project_id: "p1", file_name: "客户技术要求.pdf", file_type: "pdf", created_at: "2026-10-23T10:00:00Z" },
+      ]),
+    });
+    const view = render(<HostLocaleProvider t={key => key === "workbench.locale" ? "en" : key}><HomePage /></HostLocaleProvider>);
+    expect(await screen.findByRole("link", { name: "Continue project: Customer SOR" })).toBeVisible();
+    expect(screen.getByRole("heading", { name: "Start from a document and continue your work." })).toBeVisible();
+    expect(screen.getByRole("link", { name: "Open workbench" })).toBeVisible();
+    expect(await screen.findByRole("link", { name: "Quick read: 客户技术要求.pdf" })).toBeVisible();
+    expect(screen.getByText("客户技术要求.pdf")).toBeVisible();
+    expect((view.container.textContent || "").replaceAll("客户技术要求.pdf", "")).not.toMatch(/[\u4e00-\u9fff]/);
   });
 });

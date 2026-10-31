@@ -1,5 +1,6 @@
+import { useId, useRef, useState } from "react";
 import type { ApplicationWorkflowDescriptor, ApplicationWorkflowState } from "./ApplicationHost";
-import { useHostCopy } from "./HostLocaleContext";
+import { useUiCopy } from "./HostLocaleContext";
 
 const statusLabels: Record<string, string> = {
   PENDING: "尚未保存", IN_PROGRESS: "处理中", SAVED: "已保存", SKIPPED: "按规则跳过",
@@ -36,7 +37,7 @@ const expectedOutputKeys: Record<string, string> = {
 };
 
 export function FixedWorkflowSummary({ workflow }: { workflow?: ApplicationWorkflowDescriptor | null }) {
-  const l = useHostCopy();
+  const l = useUiCopy();
   if (!workflow) return <p className="agent-inline-notice" role="status">{l("workflow.noDescriptor", "当前宿主尚未提供固定流程描述；不会用聊天目标替代阶段检查。")}</p>;
   return <section className="fixed-workflow-intake" aria-label={l("workflow.intakeAria", "固定业务流程")}>
     <header><strong>{l("workflow.defaultLabel", workflow.label || "客户需求整理固定流程")}</strong><span>{l("workflow.version", "版本 {version}", { version: workflow.version })}</span></header>
@@ -61,9 +62,12 @@ export function FixedWorkflowSummary({ workflow }: { workflow?: ApplicationWorkf
   </section>;
 }
 
-export function FixedWorkflowStatus({ state, unconfirmed }: { state?: ApplicationWorkflowState | null;
-  unconfirmed?: { reason: string; message?: string } | null }) {
-  const l = useHostCopy();
+export function FixedWorkflowStatus({ state, unconfirmed, compact = false }: { state?: ApplicationWorkflowState | null;
+  unconfirmed?: { reason: string; message?: string } | null; compact?: boolean }) {
+  const l = useUiCopy();
+  const [expanded, setExpanded] = useState(false);
+  const toggle = useRef<HTMLButtonElement>(null);
+  const detailsId = useId();
   if (!state) return <p className="agent-inline-notice" role="status">{unconfirmed
     ? l("workflow.unconfirmed", "固定流程状态未确认：{reason}。已保存成果仍保留，请重新读取任务后再核对。", { reason: unconfirmed.message || unconfirmed.reason })
     : l("workflow.noState", "固定流程状态尚未保存；任务尚未开始或成果尚未同步。")}</p>;
@@ -71,8 +75,18 @@ export function FixedWorkflowStatus({ state, unconfirmed }: { state?: Applicatio
     <header><strong>{l("workflow.statusHeading", "业务成果阶段")}</strong><span>{l("workflow.statusUnconfirmed", "状态未确认")}</span></header>
     <p role="status">{l("workflow.unconfirmed", "固定流程状态未确认：{reason}。已保存成果仍保留，请重新读取任务后再核对。", { reason: (state as ApplicationWorkflowState & { unconfirmed?: { reason?: string } }).unconfirmed?.reason || l("workflow.unconfirmedReason", "派生状态与保存工件不一致") })}</p>
   </section>;
-  return <section className="fixed-workflow-status" aria-label={l("workflow.statusAria", "固定流程成果")}>
-    <header><strong>{l("workflow.statusHeading", "业务成果阶段")}</strong><span>{l("workflow.workflowVersion", "流程 v{version}", { version: state.workflow.version })}</span></header>
+  const active = state.stages.find(stage => stage.id === state.next_stage)
+    || state.stages.find(stage => stage.status === "IN_PROGRESS")
+    || state.stages.find(stage => ["WAITING", "BLOCKED"].includes(stage.status))
+    || state.stages.find(stage => stage.status === "PENDING")
+    || [...state.stages].reverse().find(stage => stage.status === "SAVED");
+  const activeLabel = active ? l(`workflow.stageLabel.${active.id}`, active.label) : "";
+  const activeStatus = active ? l(`workflow.stage.${active.status}`, statusLabels[active.status] || active.status) : "";
+  const activeReason = active?.reason ? l(`workflow.reason.${active.reason}`, reasonLabels[active.reason] || active.reason) : "";
+  const visibleReasons = [...new Set([activeReason, ...(!state.ready_to_review
+    ? (state.open_items || []).filter(reason => reason !== "EVIDENCE_ANALYSIS_SKIPPED")
+      .map(reason => l(`workflow.reason.${reason}`, reasonLabels[reason] || reason)) : [])].filter(Boolean))].join("; ");
+  const details = <>
     <ol>{state.stages.map(stage => <li key={stage.id} data-status={stage.status}>
       <span>{l(`workflow.stageLabel.${stage.id}`, stage.label)}</span><strong>{l(`workflow.stage.${stage.status}`, statusLabels[stage.status] || stage.status)}</strong>
       {stage.reason && <small>{l(`workflow.reason.${stage.reason}`, reasonLabels[stage.reason] || stage.reason)}</small>}
@@ -88,5 +102,22 @@ export function FixedWorkflowStatus({ state, unconfirmed }: { state?: Applicatio
     </p>}
     <p role="status">{state.ready_to_review ? l("workflow.ready", "已保存成果满足当前可核对条件；人工接受仍未声称。") : `${l("workflow.next", "下一步：")}${state.next_stage ? l(`workflow.stageLabel.${state.next_stage}`, state.stages.find(stage => stage.id === state.next_stage)?.label || state.next_stage) : l("workflow.continueRemaining", "继续处理未决项")}`}</p>
     {state.open_items?.length ? <p className="agent-inline-notice">{l("workflow.openItems", "未决项：")}{state.open_items.map(item => l(`workflow.reason.${item}`, reasonLabels[item] || item)).join("；")}</p> : null}
+  </>;
+  if (compact) return <section className="fixed-workflow-status is-compact" aria-label={l("workflow.statusAria", "固定流程成果")}>
+    <div className="fixed-workflow-compact-row">
+      <strong>{l("workflow.statusHeading", "业务成果阶段")}</strong>
+      {active && <span className="fixed-workflow-compact-stage">{l("workflow.currentStage", "当前：{stage}", { stage: activeLabel })}</span>}
+      {active && <span className="fixed-workflow-compact-result" data-status={active.status}>{activeStatus}</span>}
+      {visibleReasons && <small className="fixed-workflow-compact-reason" title={visibleReasons}>{visibleReasons}</small>}
+      {!active && <span className="fixed-workflow-compact-result">{activeStatus || l("workflow.statusUnconfirmed", "状态未确认")}</span>}
+      <button ref={toggle} type="button" className="button ghost compact fixed-workflow-compact-toggle" aria-expanded={expanded} aria-controls={detailsId} onClick={() => setExpanded(value => !value)}>
+        {expanded ? l("workflow.hideDetails", "收起详情") : l("workflow.viewDetails", "查看详情")}
+      </button>
+    </div>
+    <div id={detailsId} className="fixed-workflow-compact-details" hidden={!expanded}>{details}</div>
+  </section>;
+  return <section className="fixed-workflow-status" aria-label={l("workflow.statusAria", "固定流程成果")}>
+    <header><strong>{l("workflow.statusHeading", "业务成果阶段")}</strong><span>{l("workflow.workflowVersion", "流程 v{version}", { version: state.workflow.version })}</span></header>
+    {details}
   </section>;
 }

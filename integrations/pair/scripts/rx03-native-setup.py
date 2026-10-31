@@ -17,16 +17,17 @@ def main() -> int:
     parser.add_argument('--mapping', type=Path, required=True)
     parser.add_argument('--scenario', type=Path, required=True)
     args = parser.parse_args()
-    sys.path[:0] = [str(args.repo / 'plugins/reqpilot/scripts'),
-                    str(args.repo / 'plugins/reqpilot/tests'),
-                    str(args.repo / 'packages/engine/src'), str(args.repo / 'prototype')]
+    pinned = args.workspace / '.reqpilot'
+    # Setup uses the same frozen implementation and entrypoint as this task's MCP server.
+    sys.path[:0] = [str(pinned / 'scripts'), str(pinned / 'runtime/prototype'),
+                    str(args.repo / 'plugins/reqpilot/tests')]
     from portable_fixtures import item_decisions
     from task_service import TaskService
     from revision_tools import bundle
 
     context = json.loads((args.task_root / 'task-context.json').read_text())
     task_id = context['work_id']
-    service = TaskService(args.workspace, args.bundle / 'scripts/reqpilot.py')
+    service = TaskService(args.workspace, pinned / 'scripts/reqpilot.py')
     mapping = json.loads(args.mapping.read_text())
 
     def state():

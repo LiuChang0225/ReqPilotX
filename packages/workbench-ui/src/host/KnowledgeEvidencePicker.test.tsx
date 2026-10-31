@@ -3,6 +3,7 @@ import userEvent from "@testing-library/user-event";
 import { describe, expect, it, vi } from "vitest";
 import { ApplicationHostContext, type WorkbenchApplicationHost } from "./ApplicationHost";
 import { KnowledgeEvidencePicker } from "./KnowledgeEvidencePicker";
+import { HostLocaleProvider } from "./HostLocaleContext";
 
 function host(): WorkbenchApplicationHost {
   const knowledge = {
@@ -50,4 +51,16 @@ describe("KnowledgeEvidencePicker", () => {
     fireEvent.change(input, { target: { files: [file] } });
     await waitFor(() => expect(value.knowledge?.uploadReference).toHaveBeenCalledWith("p", file, "REFERENCE"));
   });
-});
+
+  it("localizes the evidence preparation controls while preserving names and IDs", async () => {
+    const value = host();
+    render(<HostLocaleProvider locale="en"><ApplicationHostContext.Provider value={value}><KnowledgeEvidencePicker projectId="p" onChange={vi.fn()} /></ApplicationHostContext.Provider></HostLocaleProvider>);
+    await screen.findByText("internal.txt");
+    expect(screen.getByText("Project references")).toBeVisible();
+    expect(screen.getAllByText("internal.txt").length).toBeGreaterThan(0);
+    await userEvent.selectOptions(screen.getByLabelText("Select team knowledge library"), "kb-team");
+    expect(screen.getByText("Team knowledge libraries")).toBeVisible();
+    expect(await screen.findByRole("button", { name: "Retained topic version" })).toBeVisible();
+    expect(screen.getAllByText("团队规范").length).toBeGreaterThan(0);
+  });
+})

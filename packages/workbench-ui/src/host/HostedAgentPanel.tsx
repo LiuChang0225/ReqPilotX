@@ -3,7 +3,7 @@ import { AgentPanelFrame } from "../features/workspace/AgentPanelFrame";
 import type { DocumentAgentBinding } from "../features/workspace/DocumentAgentContext";
 import { useApplicationHost, type ApplicationKnowledgeSelection, type ApplicationTaskReceipt } from "./ApplicationHost";
 import { FixedWorkflowStatus, FixedWorkflowSummary } from "./FixedWorkflowStatus";
-import { useHostCopy } from "./HostLocaleContext";
+import { useUiCopy } from "./HostLocaleContext";
 import { KnowledgeEvidencePicker } from "./KnowledgeEvidencePicker";
 
 const executionLabels: Record<string, string> = { ACCEPTED: "已受理", RUNNING: "正在处理", WAITING: "等待中", SUCCEEDED: "本轮已结束", FAILED: "本轮未完成", INTERRUPTED: "已暂停", IDLE: "空闲" };
@@ -18,7 +18,7 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
   onAccepted: (receipt: ApplicationTaskReceipt) => void; onClose: () => void;
 }) {
   const host = useApplicationHost()!;
-  const l = useHostCopy();
+  const l = useUiCopy();
   const executionLabel = (receipt: ApplicationTaskReceipt) => {
     const status = receipt.execution?.status || receipt.status;
     return executionLabels[status]

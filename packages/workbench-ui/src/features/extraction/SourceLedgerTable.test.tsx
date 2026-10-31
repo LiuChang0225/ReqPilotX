@@ -3,6 +3,7 @@ import { afterEach, expect, it, vi } from "vitest";
 import { SourceLedgerTable } from "./SourceLedgerTable";
 import type { SourceItemLedgerRowV1, SourceRequirementOutlineRecordV1 } from "../../shared/api/contracts";
 import type { SourceItemDeliveryState } from "./SourceItemReasoning";
+import { HostLocaleProvider } from "../../host/HostLocaleContext";
 afterEach(cleanup);
 it("keeps source identity and engineer precedence in the table projection", () => {
   const row = { row_id: "row", source_item_id: "src", child_row_ids: [], structure_node_id: "section" } as unknown as SourceItemLedgerRowV1;
@@ -53,4 +54,19 @@ it("retains the parent context when filtering derived rows and lets the family c
   fireEvent.click(screen.getByRole("button",{name:"收起 REQ-0001 的派生项"}));expect(props.onToggleDerived).toHaveBeenCalledWith("src");
   page.rerender(<SourceLedgerTable {...props} collapsedDerivedIds={new Set(["src"])} />);
   expect(screen.queryByText("第二项独立要求")).not.toBeInTheDocument();expect(screen.getByText("下一条源条款")).toBeVisible();
+});
+
+it("localizes the source ledger through the owned dictionary without touching source labels", () => {
+  const row = { row_id: "row", source_item_id: "src", child_row_ids: [], structure_node_id: "section" } as unknown as SourceItemLedgerRowV1;
+  const record = { source_record_id: "src", requirement_display_id: "REQ-0001", source_display_id: "SRC-0001", requirementness: "REQUIREMENT", display_label: "Customer verbatim label", pages: [1] } as unknown as SourceRequirementOutlineRecordV1;
+  const reasoning = { assessments: { records: { src: { decision: "COMPLIANT" } } }, engineer_responses: { records: { src: { state: "CURRENT", decision: "NEEDS_CLARIFICATION" } } } } as unknown as SourceItemDeliveryState;
+  render(<HostLocaleProvider t={key => key === "workbench.locale" ? "en" : key}>
+    <SourceLedgerTable rows={[row]} nodes={new Map()} records={new Map([["src", record]])} selectedId="row" expandedIds={new Set()}
+      onSelect={vi.fn()} onToggle={vi.fn()} titleFor={() => "Customer verbatim label"} kindFor={() => "Functional"} reasoning={reasoning} />
+  </HostLocaleProvider>);
+  expect(screen.getByRole("columnheader", { name: "Customer source number" })).toBeVisible();
+  expect(screen.getByRole("columnheader", { name: "Response / Attention" })).toBeVisible();
+  expect(screen.getByText("Pending clarification")).toBeVisible();
+  expect(screen.getByText("Engineer opinion")).toBeVisible();
+  expect(screen.getByText("Customer verbatim label")).toBeVisible();
 });
