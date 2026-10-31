@@ -24,7 +24,7 @@ from reqpilotx_server.adapters.agents.provider_tool_loop import (
     provider_loop_ready,
 )
 from reqpilotx_server.infrastructure.runtime_settings import AgentRuntimeBackend
-from reqpilotx_server.application.agent_workflow.document_map_jobs import _container
+from reqpilotx_server.application.agent_workflow.document_map_jobs import _container, _runtime_container
 from reqpilotx_server.application.agent_workflow.native_loop_tools import NativeLoopToolHost
 from reqpilotx_server.application.agent_workflow.native_loop_workspace import (
     export_current_review_input,
@@ -462,7 +462,7 @@ def get_latest_source_item_loop(
 ):
     response.headers.update(_no_store_headers())
     _require_project_document(project_id, document_id)
-    container = _container()
+    container = _runtime_container()
     if container.jobs is None:
         # The lightweight local application does not run the legacy durable
         # native-loop queue. This is a declared unavailable capability, not a

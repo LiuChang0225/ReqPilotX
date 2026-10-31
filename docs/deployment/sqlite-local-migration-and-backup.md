@@ -152,3 +152,5 @@ knowledge-mapping.json        # 提供时
 - RX07 需在导入后的新根上验证工作台打开、项目/文档引用、人工意见显示、冻结交付 workbook 下载和 Excel 内容。
 - RX03/RX05 需确认下游知识绑定与修订/证据语义；在此之前 `activation_ready` 的未解析映射必须继续作为阻断，而不是被 UI 当作已完成。
 - Agent Structure/table materialization 等仅导出表需要后续切片决定本地存储或继续保留在导出包；当前不回放、不伪造。
+
+The local SQLite profile reports the legacy standalone loop queue as unavailable and not started; its status reads do not require PostgreSQL. PAIR-owned task execution and business result stages are reported by the PAIR integration separately.

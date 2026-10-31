@@ -8,6 +8,7 @@ from .runtime_isolation import activate_test_runtime
 activate_test_runtime()
 from app.application.agent_workflow import source_document_loop_jobs as source
 from app.application.agent_workflow import source_item_loop_jobs as item_loop
+from reqpilotx_server.application.runtime import RUNTIME_STATE
 
 class SourceDocumentModelSelectionTests(TestCase):
     def test_task_selection_reaches_driver_and_legacy_defaults_remain(self):
@@ -33,12 +34,12 @@ class SourceDocumentModelSelectionTests(TestCase):
     def test_latest_reports_no_task_when_legacy_local_jobs_are_disabled(self):
         response = SimpleNamespace(headers={})
         container = SimpleNamespace(jobs=None)
-        with patch.object(source, '_require_project_document', return_value={}), patch.object(source, '_container', return_value=container):
+        with patch.object(source, '_require_project_document', return_value={}), patch.object(RUNTIME_STATE, 'container', container):
             value = source.get_latest_source_document_loop('p', 'd', response)
         self.assertIsNone(value['task_id'])
         self.assertEqual(value['job_status'], 'NOT_STARTED')
         self.assertEqual(value['job_availability'], 'UNAVAILABLE_LOCAL_RUNTIME')
-        with patch.object(item_loop, '_require_project_document', return_value={}), patch.object(item_loop, '_container', return_value=container):
+        with patch.object(item_loop, '_require_project_document', return_value={}), patch.object(RUNTIME_STATE, 'container', container):
             value = item_loop.get_latest_source_item_loop('p', 'd', response)
         self.assertIsNone(value['task_id'])
         self.assertEqual(value['job_status'], 'NOT_STARTED')
