@@ -18,7 +18,7 @@ type CarryNote = { text: string; origin?: string };
 type Citation = { fact_id: string; quote: string };
 type EvidenceFact = { document_name?: string; document_id: string; source_sha256: string; url?: string; kb_id?: string;
   original_revision?: string; extraction_revision?: string; coverage?: string; location?: string;
-  applicability?: string; source_ref?: { location?: { page_number?: number; section?: string | null } } };
+  applicability?: string; source_ref?: { location?: { page_number?: number | null; section?: number | string | null; number?: number } } };
 type Decision = { decision: string; reason: string; clarification_question: string; evidence: Citation[] };
 type Child = SourceNumberFieldsV1 & { node_id?: string; singular_requirement_id?: string; requirement_display_id: string; text: string;
   source_excerpts?: { text: string; page?: number }[]; requirement_kinds?: SourceRequirementKindV1[] };
@@ -316,8 +316,11 @@ export function SourceItemReasoningDetail({ workflow, sourceItemId, requirementI
           {decision.evidence.map((citation, index) => {
             const fact = state?.assessments?.evidence_catalog[citation.fact_id];
             const sourceUrl = fact?.url ? workflow.citationUrl?.(fact) : fact && workflow.knowledgeFileUrl?.(fact.document_id, fact.source_sha256);
+            const page = fact?.source_ref?.location?.page_number;
+            const section = fact?.source_ref?.location?.section;
+            const locator = page ? ` · P${page}` : section !== undefined && section !== null && section !== "" ? ` · 逻辑段 ${section}` : "";
             return <blockquote key={`${citation.fact_id}:${index}`}><p>{citation.quote}</p><cite>
-              {sourceUrl ? <a href={`${sourceUrl}${fact?.source_ref?.location?.page_number ? `#page=${fact.source_ref.location.page_number}` : ""}`} target="_blank" rel="noreferrer">{fact?.document_name || "打开引用原件"}{fact?.source_ref?.location?.page_number ? ` · P${fact.source_ref.location.page_number}` : ""}</a> : <>{fact?.document_name || fact?.document_id || "内部资料"}{fact?.source_ref?.location?.page_number ? ` · P${fact.source_ref.location.page_number}` : ""}</>}
+              {sourceUrl ? <a href={`${sourceUrl}${page ? `#page=${page}` : ""}`} target="_blank" rel="noreferrer">{fact?.document_name || "打开引用原件"}{locator}</a> : <>{fact?.document_name || fact?.document_id || "内部资料"}{locator}</>}
             </cite></blockquote>;
           })}</div>}
       </article>;

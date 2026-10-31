@@ -2,8 +2,11 @@
 import hashlib
 import json
 import os
+import re
+from argparse import Namespace
 from pathlib import Path
 import sys
+from unittest.mock import patch
 from tempfile import TemporaryDirectory
 import unittest
 
@@ -11,6 +14,7 @@ ROOT = Path(__file__).resolve().parents[3]
 ENTRY = ROOT / 'plugins/reqpilot/scripts/reqpilot.py'
 sys.path[:0] = [str(ENTRY.parent), str(ROOT / 'prototype'), str(ROOT / 'packages/engine/src')]
 from test_portable import item_decisions, make_fixture
+import workbench_tools as workbench
 from reqpilotx.application.agent_workflow import fixed_workflow as workflow
 from reqpilotx.application.agent_workflow import knowledge_binding as binding_module
 from reqpilotx.application.agent_workflow import pair_evidence
@@ -29,10 +33,10 @@ def canonical(value):
         separators=(',', ':')).encode()).hexdigest()
 
 
-def attestation(binding, task_id, revision, command, unit_ids, decisions, catalog):
+def attestation(binding, task_id, revision, command, unit_ids, decisions, catalog, workbench_ref='', document_id=''):
     payload = {'schema': 'reqpilot-pair-analysis-attestation/v1',
         'application_id': binding['application_id'], 'project_id': binding['project_id'],
-        'document_id': '', 'task_id': task_id, 'workbench_ref': '',
+        'document_id': document_id, 'task_id': task_id, 'workbench_ref': workbench_ref,
         'binding_sha256': binding['binding_sha256'], 'mode': binding['mode'],
         'task_revision': revision, 'command_id': command, 'unit_ids': unit_ids,
         'decisions': decisions, 'decisions_sha256': canonical(decisions),
@@ -108,10 +112,12 @@ class PairEvidenceTaskTests(unittest.TestCase):
     def tearDown(self):
         os.environ.pop('REQPILOT_HOST_ATTESTATION_KEY', None)
 
-    def analyze(self, service, state, catalog, decisions, *, command, unit_ids=None, revision=None):
+    def analyze(self, service, state, catalog, decisions, *, command, unit_ids=None, revision=None,
+                workbench_ref='', document_id=''):
         binding = json.loads((Path(state['task_root']) / 'task-context.json').read_text())['request']['knowledge_evidence']
         revision = revision or state['revision']
-        signed = attestation(binding, state['task_id'], revision, command, unit_ids, decisions, catalog)
+        signed = attestation(binding, state['task_id'], revision, command, unit_ids, decisions, catalog,
+            workbench_ref, document_id)
         return service.invoke('analysis', {'task_id': state['task_id'],
             'expected_revision': revision, 'command_id': command,
             'unit_ids': unit_ids, 'decisions': decisions, 'knowledge_attestation': signed})
@@ -211,6 +217,13 @@ class PairEvidenceTaskTests(unittest.TestCase):
             self.assertEqual(review_values['records'][unit]['decision'], 'COMPLIANT')
             self.assertEqual(set(review_values['records']), set(required))
             current = service.invoke('inspect', {'task_id': state['task_id']})
+            partial_signed = attestation(json.loads(
+                (Path(state['task_root']) / 'task-context.json').read_text())['request']['knowledge_evidence'],
+                state['task_id'], current['revision'], 'incomplete-cumulative', [unit], [compliant], catalog)
+            with self.assertRaisesRegex(ValueError, 'cumulative assessment records'):
+                service.invoke('analysis', {'task_id': state['task_id'],
+                    'expected_revision': current['revision'], 'command_id': 'incomplete-cumulative',
+                    'unit_ids': [unit], 'decisions': [compliant], 'knowledge_attestation': partial_signed})
             delivered = service.invoke('deliver', {'task_id': state['task_id'],
                 'expected_revision': current['revision'], 'command_id': 'pair-analysis-delivery'})
             self.assertEqual(delivered['operation_state'], 'COMMITTED', delivered)
@@ -324,6 +337,45 @@ class PairEvidenceTaskTests(unittest.TestCase):
                 service.invoke('analysis', {'task_id': state['task_id'],
                     'expected_revision': stale_revision, 'command_id': 'stale-old',
                     'unit_ids': [unit], 'decisions': decisions, 'knowledge_attestation': signed})
+
+    def test_actual_workbench_binding_positive_and_wrong_ref_rejects(self):
+        with TemporaryDirectory() as temporary:
+            root = Path(temporary)
+            service, state, catalog, _ = self.prepare(root)
+            baseline = json.loads(Path(state['selected']['ITEMS']['path']).read_text())
+            unit = self.requirements(baseline)[0]
+            fact = next(iter(catalog['evidence_catalog'].values()))
+            decisions = [{'unit_id': unit, 'decision': 'COMPLIANT',
+                'reason': 'The selected internal evidence covers the declared condition.',
+                'evidence': [{'fact_id': fact['fact_id'], 'quote': TEXT}],
+                'clarification_question': ''}]
+            def fake_request(url, payload=None):
+                session = url.rstrip('/').split('/')[-1]
+                session = session if re.fullmatch(r'plugin-[a-f0-9]{32}', session) else payload['session_id']
+                return {'session_id': session, 'source_sha256': state['source']['sha256'],
+                    'project_id': 'p', 'document_id': 'd', 'revision_id': None,
+                    'revision_number': 0, 'stages': [], 'feedback': [],
+                    'map_confirmation_required': False, 'confirmed_map_sha256': None}
+            with patch.object(workbench, 'request', side_effect=fake_request):
+                synced = workbench.sync_workbench(Namespace(
+                    workspace=Path(state['task_root']),
+                    url='http://127.0.0.1:18080/workspace?projectId=p&documentId=d',
+                    source=None, map_dir=None,
+                    baseline_dir=Path(state['selected']['ITEMS']['output_dir']), review_dir=None,
+                    binding_file=None, require_map_confirmation=False, no_map_confirmation=None,
+                    open=False, goal='Synthetic client test', project_id=None, document_id=None))
+            session_id = synced['session_id']
+            from reqpilotx.application.agent_workflow.task_workspace import bind_task_workspace
+            task_id = state['task_id']
+            state = {**bind_task_workspace(state['task_root'], Path(synced['binding_file']),
+                state['source']['sha256'], project_id='p', document_id='d'), 'task_id': task_id}
+            with patch.object(workbench, 'sync_after_operation', side_effect=lambda args, result: result):
+                partial = self.analyze(service, state, catalog, decisions, command='bound-analysis',
+                    unit_ids=[unit], workbench_ref=session_id, document_id='d')
+            self.assertEqual(partial['operation_state'], 'COMMITTED', partial)
+            with self.assertRaisesRegex(ValueError, 'workbench_ref mismatch'):
+                self.analyze(service, state, catalog, decisions, command='wrong-workbench',
+                    unit_ids=[unit], workbench_ref='plugin-' + 'b'*32, document_id='d')
 
     def test_unavailable_binding_is_visible_and_does_not_retarget(self):
         with TemporaryDirectory() as temporary:

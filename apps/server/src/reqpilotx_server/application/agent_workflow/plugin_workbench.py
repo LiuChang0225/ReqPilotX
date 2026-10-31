@@ -437,10 +437,11 @@ def _compile_view(artifacts, source_sha, *, project_id, document_id, workbench_r
                 or attestation.get('catalog_sha256') != catalog.get('catalog_sha256')):
             raise ValueError('Host evidence attestation belongs to another project, document or workbench work')
         records = assessment_values[0].get('records') or {}
-        for decision in attestation.get('decisions', []):
-            expected = {key: decision[key] for key in ('decision', 'reason', 'evidence', 'clarification_question')}
-            if records.get(decision.get('unit_id')) != expected:
-                raise ValueError('Host attestation decisions differ from the saved assessment records')
+        expected_records = {decision['unit_id']: {key: decision[key] for key in
+            ('decision', 'reason', 'evidence', 'clarification_question')}
+            for decision in attestation.get('decisions', [])}
+        if records != expected_records:
+            raise ValueError('Host attestation does not authenticate every cumulative assessment record')
         packet = assessment_values[1]
         expected = analysis_core.build_source_item_analysis_packet(mapping, baseline,
             artifacts['table-previews.json'], catalog,

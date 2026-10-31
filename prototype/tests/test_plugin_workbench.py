@@ -277,6 +277,7 @@ class PluginWorkbenchTests(unittest.TestCase):
             'evidence': [{'fact_id': fact_id, 'quote': text}], 'clarification_question': ''}]
         assessment = analysis.compile_source_item_assessments(packet, {'decisions': decisions})
         key = 'c'*64
+        self.session = 'plugin-' + 'd'*32
         payload = {'schema': 'reqpilot-pair-analysis-attestation/v1',
             'application_id': 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc',
             'project_id': 'p', 'document_id': 'd', 'task_id': 'task-x',
@@ -343,6 +344,76 @@ class PluginWorkbenchTests(unittest.TestCase):
             self.root, {}, None)
         stage = {item['id']: item for item in state['stages']}['EVIDENCE_ANALYSIS']
         self.assertEqual(stage['status'], 'SAVED')
+
+    def test_cumulative_two_batch_analysis_rejects_mutated_retained_record(self):
+        from app.application.agent_workflow import source_item_analysis as analysis
+        from app.application.agent_workflow import pair_evidence
+        mapping = api.core.DocumentMapArtifactV1.model_validate(self.artifacts['document-map.json'])
+        baseline = api.core.SourceRequirementBaselineArtifactV1.model_validate(
+            self.artifacts['source-requirement-baseline.json'])
+        required = analysis.required_analysis_unit_ids(baseline)
+        self.assertGreater(len(required), 1)
+        catalog = {'schema_version': 'project-knowledge-facts/v1', 'project_id': 'p',
+            'knowledge_base_version': 1, 'evidence_catalog': {}, 'documents': [], 'gaps': [],
+            'selection': 'EXPLICIT_TASK_EVIDENCE'}
+        catalog['catalog_sha256'] = api.core.canonical_json_sha256(catalog)
+        registration = {'schema_version': pair_evidence.PAIR_EVIDENCE_SCHEMA, 'binding_sha256': 'a'*64,
+            'mode': 'PROJECT_REFERENCES', 'application_id': 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc',
+            'project_id': 'p', 'catalog_sha256': catalog['catalog_sha256'], 'documents': [], 'facts': [],
+            'receipts': [{'tool': 'search', 'request_sha256': 'b'*64,
+                'returned_at': '2026-10-31T00:00:00Z', 'fact_ids': []}],
+            'authority': 'HOST_SELECTED_EVIDENCE_NOT_HUMAN_ACCEPTANCE', 'human_acceptance': 'NOT_CLAIMED'}
+        registration['registration_sha256'] = api.core.canonical_json_sha256(registration)
+        decisions = [{'unit_id': unit, 'decision': 'PENDING_EVIDENCE', 'reason': 'Evidence pending.',
+            'evidence': [], 'clarification_question': 'Provide current product evidence.'} for unit in required[:2]]
+        first_packet = analysis.build_source_item_analysis_packet(mapping, baseline,
+            self.artifacts['table-previews.json'], catalog, selected_unit_ids=[required[0]])
+        first = analysis.compile_source_item_assessments(first_packet, {'decisions': [decisions[0]]})
+        second_packet = analysis.build_source_item_analysis_packet(mapping, baseline,
+            self.artifacts['table-previews.json'], catalog, selected_unit_ids=[required[1]])
+        second = analysis.compile_source_item_assessments(second_packet, {'decisions': [decisions[1]]},
+            previous=first)
+        self.assertEqual(set(second['records']), set(required[:2]))
+        key = 'c'*64
+        self.session = 'plugin-' + 'd'*32
+        payload = {'schema': 'reqpilot-pair-analysis-attestation/v1',
+            'application_id': 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc',
+            'project_id': 'p', 'document_id': 'd', 'task_id': 'task-x',
+            'workbench_ref': self.session, 'binding_sha256': 'a'*64,
+            'mode': 'PROJECT_REFERENCES', 'task_revision': 'revision-x',
+            'command_id': 'command-x', 'unit_ids': [required[1]], 'decisions': decisions,
+            'decisions_sha256': api.core.canonical_json_sha256(decisions),
+            'catalog_sha256': catalog['catalog_sha256'],
+            'ledger_sha256': api.core.canonical_json_sha256({'fixture': 'ledger'}),
+            'consumed_fact_ids': [], 'checked_at': '2026-10-31T00:00:02Z'}
+        attestation = {**payload, 'signature': pair_evidence.sign_pair_attestation(payload, key)}
+        artifacts = {**self.artifacts, 'source-item-assessments.json': second,
+            'analysis-packet.json': second_packet, 'knowledge-catalog.json': catalog,
+            'evidence-registration.json': registration, 'knowledge-attestation.json': attestation}
+        old_key = os.environ.get('REQPILOT_HOST_ATTESTATION_KEY')
+        os.environ['REQPILOT_HOST_ATTESTATION_KEY'] = key
+        try:
+            state = self.sync(artifacts, require_map_confirmation=False)
+            self.assertEqual(set(second['records']), set(required[:2]))
+            replay = self.sync(artifacts, require_map_confirmation=False)
+            self.assertEqual(replay['revision_id'], state['revision_id'])
+            for field, value in (('decision', 'COMPLIANT'),
+                                 ('reason', 'Forged retained reason.'),
+                                 ('evidence', [{'fact_id': 'forged', 'quote': 'forged'}])):
+                forged = {**artifacts}
+                forged_assessment = json.loads(json.dumps(second))
+                forged_assessment['records'][required[0]][field] = value
+                unsigned = {key: item for key, item in forged_assessment.items()
+                    if key not in {'artifact_id', 'artifact_sha256'}}
+                digest = api.core.canonical_json_sha256(unsigned)
+                forged_assessment.update(artifact_id='source-item-assessments-' + digest[:32],
+                    artifact_sha256=digest)
+                forged['source-item-assessments.json'] = forged_assessment
+                with self.assertRaisesRegex(ApplicationError, 'authenticate every cumulative'):
+                    self.sync(forged, require_map_confirmation=False)
+        finally:
+            if old_key is None: os.environ.pop('REQPILOT_HOST_ATTESTATION_KEY', None)
+            else: os.environ['REQPILOT_HOST_ATTESTATION_KEY'] = old_key
 
     def test_public_cross_consumer_full_partial_check_and_delivery(self):
         full_check, full_artifacts = self.real_task_workflow()

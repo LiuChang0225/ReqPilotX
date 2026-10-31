@@ -394,6 +394,18 @@ def decomposition_attention(state):
         'semantic_review':'NOT_CLAIMED'}
 
 
+def workbench_identity(root, state):
+    """Read the task-owned workbench binding through its owning validator."""
+    from workbench_tools import _validate_binding, read
+    path = Path(state.get('binding_file') or '')
+    if not path.is_file():
+        return ''
+    binding = read(path)
+    _validate_binding(binding, state['context']['source']['sha256'],
+                      (Path(root), state['context']))
+    return binding['session_id']
+
+
 def task_summary(state):
     from task_workbench import workbench_link
     link=workbench_link(state)
@@ -586,10 +598,17 @@ class TaskService:
                 'task_id': request.task_id, 'binding_sha256': bound['binding_sha256'],
                 'mode': bound['mode'], 'task_revision': request.expected_revision,
                 'command_id': request.command_id, 'unit_ids': unit_ids,
-                'workbench_ref': state.get('workbench_link', {}).get('session_id') or ''},
-            catalog=catalog, decisions=normalized_decisions)
+                'workbench_ref': workbench_identity(root, state)},
+            catalog=catalog)
         if unit_ids is not None and (not unit_ids or len(unit_ids) != len(set(unit_ids))):
             raise ValueError('INVALID_DECISION: analysis unit_ids must be unique and nonempty')
+        attested = {item['unit_id']: item for item in request.knowledge_attestation['decisions']}
+        for decision in normalized_decisions:
+            if attested.get(decision['unit_id']) != decision:
+                raise ValueError('HOST_ATTESTATION_INVALID: submitted decisions differ from the Host-signed batch')
+        attested_records = {unit_id: {key: item[key] for key in
+            ('decision', 'reason', 'evidence', 'clarification_question')}
+            for unit_id, item in attested.items()}
         candidate = {'decisions': normalized_decisions}
         previous_assessments = previous_packet = None
         decomposition = None
@@ -609,8 +628,9 @@ class TaskService:
             if previous_assessments and previous_packet and previous_packet.get('packet_sha256') == packet['packet_sha256']:
                 expected = analysis_core.compile_source_item_assessments(packet, candidate)
                 selected_ids = set(packet.get('selected_unit_ids', [unit['unit_id'] for unit in packet['units']]))
-                if all(previous_assessments.get('records', {}).get(unit_id) == expected['records'].get(unit_id)
-                        for unit_id in selected_ids):
+                if (previous_assessments.get('records', {}) == attested_records
+                        and all(previous_assessments.get('records', {}).get(unit_id) == expected['records'].get(unit_id)
+                                for unit_id in selected_ids)):
                     previous_attestation = current_dir / 'knowledge-attestation.json'
                     prior = (read(previous_attestation)
                              if previous_attestation.is_file() else {})
@@ -632,6 +652,8 @@ class TaskService:
             packet, candidate, previous=previous_assessments,
             input_packet_ref={'task_id': request.task_id, 'source': 'TASK_EVIDENCE_RUNTIME_BINDING'})
         analysis_core.validate_source_item_assessments(packet, artifact)
+        if artifact.get('records') != attested_records:
+            raise ValueError('HOST_ATTESTATION_INVALID: cumulative assessment records differ from the signed record set')
         scope_status = analysis_core.assessment_scope_status(baseline, decomposition, artifact)
         directory = root / 'inputs' / 'analysis' / artifact['artifact_sha256'][:32]
         directory.mkdir(parents=True, exist_ok=True, mode=0o700)
@@ -883,14 +905,14 @@ class TaskService:
                     'document_id': state['context'].get('document_id') or '', 'task_id': request.task_id,
                     'binding_sha256': bound['binding_sha256'], 'mode': bound['mode'],
                     'task_revision': request.expected_revision,
-                    'workbench_ref': state.get('workbench_link', {}).get('session_id') or ''},
+                    'workbench_ref': workbench_identity(root, state)},
                 catalog=catalog)
             records = read_artifact(analysis_paths['assessments']).get('records') or {}
-            for decision in attestation.get('decisions', []):
-                expected_record = {name: decision[name] for name in
-                    ('decision', 'reason', 'evidence', 'clarification_question')}
-                if records.get(decision.get('unit_id')) != expected_record:
-                    raise ValueError('HOST_ATTESTATION_INVALID: assessment decisions differ from Host attestation')
+            expected_records = {decision['unit_id']: {name: decision[name] for name in
+                ('decision', 'reason', 'evidence', 'clarification_question')}
+                for decision in attestation.get('decisions', [])}
+            if records != expected_records:
+                raise ValueError('HOST_ATTESTATION_INVALID: cumulative assessment records differ from Host attestation')
         args = Namespace(operation=operation, workspace=root, binding_file=None, input=input_path,
             analysis_policy=policy_path,
             expected_revision=request.expected_revision, command_id=command_id, request_payload=explicit,

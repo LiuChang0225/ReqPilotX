@@ -47,10 +47,16 @@ Host 从自有消费账本生成目录并签发绑定应用／项目／文档／
 attestation。没有消费事实、引用未被工具返回、旧 revision 或缺少 Host 签名的请求拒绝。
 证据文本始终是数据，不是权限或指令；不可用、已变化或越界请求显式拒绝并保留原工作。
 历史分析是部分结果时，固定流程仍须等待当前基线／派生范围内的每个必需分析单元都有
-当前依据的结果，不能以 batch unit_ids 缩小任务范围。保留主题使用真实 provider
+当前依据的结果，不能以 batch unit_ids 缩小任务范围。Host attestation 对累计结果集签名；
+工作台上传必须让每个已保存 assessment 记录都由该 Host 签名集认证，不能只校验最后一批。
+原有 partial 合并、无关历史记录和人工决定保留；attestation 的 workbench ref 取自校验过的
+task-owned binding，不读取不存在的内部状态字段。保留主题使用真实 provider
 `TopicVersionInfo`／`TopicReadResult` 字段：availability、verification、applicability、
 origin、精确来源 document/version、physical-page 或 logical-section 的 number；
-派生 topic 内容不伪装成原始来源事实，原始引用通过 `topicOriginal` 解析。
+派生 topic 内容不伪装成原始来源事实，原始引用通过 `topicOriginal` 解析。live 原件
+引用还会校验冻结的 original/extraction revision 与实际下载字节；变化或不可用时返回
+明确 changed/unavailable，不返回新字节冒用旧分析。logical-section 仅使用 section
+定位，不生成伪页码。
 
 ## 服务端固定流程
 

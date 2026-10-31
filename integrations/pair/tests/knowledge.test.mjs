@@ -20,7 +20,7 @@ function fakeKnowledge() {
   add('kb-project', 'project-doc', 'internal.txt', 'The measured standby current was 4 mA at 12 V and 25 C.');
   add('kb-project', 'unselected-doc', 'other.txt', 'Unselected text must not be returned.');
   add('kb-team', 'team-doc', 'team.txt', 'Team live evidence says the valve opens in 28 ms at 12 V and 23 C.');
-  const selections = new Map(); const pins = new Map(); const calls = [];
+  const selections = new Map(); const pins = new Map(); const calls = []; const control = { onOriginal: null };
   const bases = [projectBase, teamBase];
   const selectedDocs = caller => (selections.get(caller) || []).flatMap(kbId =>
     [...documents.values()].filter(document => document.kbId === kbId && document.state !== 'deleted'));
@@ -38,7 +38,7 @@ function fakeKnowledge() {
       }) };
   };
   return {
-    applicationId, calls, documents, selections, pins,
+    applicationId, calls, documents, selections, pins, control,
     snapshot: () => ({ schemaVersion: 1, bases: bases.map(base => ({ ...base })), documents: [...documents.values()].map(value => ({ ...value })), jobs: [], selections: {}, wikiEdits: [] }),
     getProjectReferenceLibrary: owner => owner.projectId === 'p' ? bases.find(base => base.id === 'kb-project') : undefined,
     ensureProjectReferenceLibrary: async () => bases.find(base => base.id === 'kb-project'),
@@ -68,7 +68,10 @@ function fakeKnowledge() {
       documents.set(id, document);
       return { document, job: { id: 'job-' + id, documentId: id, state: 'source-ready', message: '', updatedAt: '', model: null }, sourceReady: true, wiki: 'not-requested' };
     },
-    original: async id => { const document = documents.get(id); if (!document) throw Error('document-unavailable'); return { document, bytes: Buffer.from(document.pages[0].text) }; },
+    original: async id => { const document = documents.get(id); if (!document) throw Error('document-unavailable');
+      const before = { document: { ...document, pages: document.pages.map(page => ({ ...page })) }, bytes: Buffer.from(document.pages[0].text) };
+      if (typeof control.onOriginal === 'function') control.onOriginal(document);
+      return before; },
     topicVersions: async (caller, kbId) => [{ kbId: 'kb-team', versionId: 'topic-v1', topicId: 'topic-id',
       title: 'Retained design topic', availability: { state: 'available', acceptedBy: 'curator' },
       verification: { state: 'verified', confirmedBy: 'reviewer' }, origin: 'human-authored',
@@ -89,7 +92,8 @@ function fakeKnowledge() {
           text: 'The retained team topic states the valve opens in 28 ms at 12 V and 23 C.',
           url: '/api/pair-knowledge/topic/source/kb-team/topic-v1/11111111-1111-4111-8111-111111111111' }] };
     },
-    topicOriginal: async (kbId, versionId, documentId) => ({ document: { name: 'design.md', mime: 'text/markdown' }, bytes: Buffer.from('topic original') }),
+    topicOriginal: async (kbId, versionId, documentId) => { calls.push({ op: 'topicOriginal', kbId, versionId, documentId });
+      return { document: { name: 'design.md', mime: 'text/markdown', sha256: 'd'.repeat(64) }, bytes: Buffer.from('topic original') }; },
     close: async () => {},
   };
 }
@@ -114,7 +118,13 @@ test('project, team-topic and combined bindings use isolated scopes and consumed
     const search = await bridge.search('command-one', 'standby', 5);
     assert.equal(search.facts.length, 1);
     assert.equal(search.facts[0].document_id, 'project-doc');
-    await bridge.read('command-one', 'project-doc', 1, 1);
+    assert.equal(search.facts[0].source_ref.kind, 'logical-section');
+    assert.equal(search.facts[0].source_ref.location.page_number, null);
+    assert.equal(search.facts[0].source_ref.location.section, 1);
+    const read = await bridge.read('command-one', 'project-doc', 1, 1);
+    assert.equal(read.facts[0].source_ref.kind, 'logical-section');
+    assert.equal(read.facts[0].source_ref.location.page_number, null);
+    assert.equal(read.facts[0].source_ref.location.section, 1);
     const { catalog, registration } = await bridge.writeCatalog('command-one');
     assert.equal(catalog.documents.length, 1);
     assert.equal(Object.keys(catalog.evidence_catalog).length, 1);
@@ -140,7 +150,10 @@ test('project, team-topic and combined bindings use isolated scopes and consumed
     assert.ok(mixed.facts.some(fact => fact.document_id === 'project-doc'));
     assert.ok(mixed.facts.some(fact => fact.origin === 'PAIR_RETAINED_TOPIC'
       && fact.document_id === '11111111-1111-4111-8111-111111111111'
-      && fact.source_ref.location.number === 2));
+      && fact.source_ref.kind === 'physical-page'
+      && fact.source_ref.location.number === 2
+      && fact.source_ref.location.page_number === 2
+      && fact.source_ref.location.section === null));
     assert.equal(service.calls.filter(value => value.op === 'search' && value.caller === combined.team.caller).length, 0);
     assert.equal((await bridge.checkBinding('command-two')).state, 'CURRENT');
     const topic = await bridge.topicRead('command-two');
@@ -254,11 +267,11 @@ test('analysis transport writes the consumed catalog and invokes the typed task 
       calls.push({ argv, env });
       assert.equal(env.REQPILOT_HOST_ATTESTATION_KEY, 'f'.repeat(64));
       const request = JSON.parse(await readFile(argv[argv.indexOf('--input') + 1], 'utf8'));
-      assert.equal(request.expected_revision, 'workspace-revision-one');
-      assert.equal(request.command_id, 'model-command-one');
-      assert.equal(request.decisions[0].unit_id, 'u1');
-      assert.equal(request.knowledge_attestation.task_revision, 'workspace-revision-one');
-      assert.equal(request.knowledge_attestation.command_id, 'model-command-one');
+      assert.equal(request.expected_revision, request.command_id === 'model-command-two'
+        ? 'workspace-revision-two' : 'workspace-revision-one');
+      assert.equal(request.command_id, request.decisions[0].unit_id === 'u2' ? 'model-command-two' : 'model-command-one');
+      assert.equal(request.knowledge_attestation.task_revision, request.expected_revision);
+      assert.equal(request.knowledge_attestation.command_id, request.command_id);
       assert.equal(request.knowledge_attestation.signature.length, 64);
       return JSON.stringify({ status: 'WORKSPACE_OPERATION_SAVED', operation_state: 'COMMITTED',
         analysis: { artifact_sha256: 'a'.repeat(64), assessed_unit_count: 1, human_acceptance: 'NOT_CLAIMED' } });
@@ -278,6 +291,19 @@ test('analysis transport writes the consumed catalog and invokes the typed task 
     assert.equal(calls.length, 1);
     assert.ok(calls[0].argv.includes('analysis'));
     assert.ok(!calls[0].argv.includes('inspect'));
+    const firstRequest = JSON.parse(await readFile(calls[0].argv[calls[0].argv.indexOf('--input') + 1], 'utf8'));
+    assert.deepEqual(firstRequest.knowledge_attestation.decisions.map(item => item.unit_id), ['u1']);
+    const second = await bridge.analysis('analysis-command', [{ unit_id: 'u2', decision: 'PENDING_EVIDENCE',
+      reason: 'No suitable evidence for this unit.', evidence: [],
+      clarification_question: 'Provide current evidence.' }], ['u2'], 'workspace-revision-two', 'model-command-two');
+    assert.equal(second.analysis.assessed_unit_count, 1);
+    assert.equal(calls.length, 2);
+    const secondRequest = JSON.parse(await readFile(calls[1].argv[calls[1].argv.indexOf('--input') + 1], 'utf8'));
+    assert.deepEqual(secondRequest.decisions.map(item => item.unit_id), ['u2']);
+    assert.equal(secondRequest.knowledge_attestation.task_revision, 'workspace-revision-two');
+    assert.deepEqual(secondRequest.knowledge_attestation.decisions.map(item => item.unit_id).sort(), ['u1', 'u2']);
+    const history = JSON.parse(await readFile(join(root, 'knowledge-analysis', 'analysis-command.history.json'), 'utf8'));
+    assert.equal(history.entries.length, 2);
     const catalog = JSON.parse(await readFile(join(taskRoot, 'inputs/knowledge/knowledge-catalog.json'), 'utf8'));
     assert.ok(catalog.evidence_catalog[fact.fact_id]);
     const registration = JSON.parse(await readFile(join(taskRoot, 'inputs/knowledge/evidence-registration.json'), 'utf8'));
@@ -333,4 +359,45 @@ test('close during startup awaits the listener and leaves no server or retry pat
     assert.equal(created[0].closed, true);
     await assert.rejects(bridge.ensureServer(), /KNOWLEDGE_SERVICE_STOPPING/);
   } finally { await rm(root, { recursive: true, force: true }); }
+});
+
+test('citation original requires frozen bytes and extraction versions without leaking newer bytes', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-knowledge-original-'));
+  const service = fakeKnowledge();
+  const bridge = new KnowledgeBridge({ service, dataRoot: root, applicationId: service.applicationId });
+  try {
+    await bridge.prepareBinding({ commandId: 'original-command', projectId: 'p', mode: 'PROJECT_REFERENCES', projectDocumentIds: ['project-doc'] });
+    const document = service.documents.get('project-doc');
+    const good = await bridge.original('original-command', 'project-doc');
+    assert.equal(good.document.sha256, document.sha256);
+    service.documents.get('unselected-doc').backendRevision = '9'.repeat(64);
+    assert.equal((await bridge.original('original-command', 'project-doc')).document.sha256, document.sha256);
+    const originalText = document.pages[0].text;
+    document.pages[0].text = 'Changed bytes under the old citation.';
+    await assert.rejects(bridge.original('original-command', 'project-doc'), /KNOWLEDGE_EVIDENCE_CHANGED/);
+    document.pages[0].text = originalText;
+    document.backendRevision = '8'.repeat(64);
+    await assert.rejects(bridge.original('original-command', 'project-doc'), /KNOWLEDGE_EVIDENCE_CHANGED/);
+    document.backendRevision = 'b5f690f8366c785a41cac7db6259935dfa0680a8c0b612748034d3fb0c3dd4ed';
+    service.control.onOriginal = current => { current.backendRevision = '7'.repeat(64); };
+    await assert.rejects(bridge.original('original-command', 'project-doc'), /KNOWLEDGE_EVIDENCE_CHANGED/);
+    service.control.onOriginal = null;
+    document.backendRevision = 'b5f690f8366c785a41cac7db6259935dfa0680a8c0b612748034d3fb0c3dd4ed';
+    assert.equal((await bridge.original('original-command', 'project-doc')).document.sha256, document.sha256);
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('topic citation uses only topicOriginal for the frozen version', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-topic-original-'));
+  const service = fakeKnowledge();
+  const bridge = new KnowledgeBridge({ service, dataRoot: root, applicationId: service.applicationId });
+  try {
+    await bridge.prepareBinding({ commandId: 'topic-original', projectId: 'p', mode: 'TEAM_KNOWLEDGE',
+      team: { kbId: 'kb-team', topicVersionId: 'topic-v1' } });
+    const before = service.calls.filter(value => value.op === 'topicOriginal').length;
+    const value = await bridge.original('topic-original', '11111111-1111-4111-8111-111111111111', 'topic-v1');
+    assert.equal(Buffer.from(value.bytes).toString(), 'topic original');
+    assert.equal(service.calls.filter(item => item.op === 'topicOriginal').length, before + 1);
+    assert.equal(service.calls.some(item => item.op === 'original'), false);
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
 });

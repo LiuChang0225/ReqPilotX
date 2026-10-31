@@ -458,14 +458,17 @@ export class KnowledgeBridge {
         + '?version=' + encodeURIComponent(topic.version_id) };
   }
   fact(commandId, binding, document, text, location, origin) {
+    const kind = location.kind || document.location || 'document';
+    const number = Number.isSafeInteger(location.number) ? location.number : null;
     const id = 'pair-fact-' + digest({ binding: binding.binding_sha256, document: document.id,
-      revision: document.source_sha256 || document.extractionRevision, location, text }).slice(0, 32);
+      revision: document.source_sha256 || document.extractionRevision, location: { kind, number }, text }).slice(0, 32);
     const meta = document.authority ? document : null;
     const authority = meta?.authority || 'UNKNOWN';
     return { fact_id: id, document_id: document.id, kb_id: document.kb_id, project_id: binding.project_id,
       source_sha256: document.source_sha256, role: 'PROJECT_EVIDENCE', text,
-      text_sha256: sha(text), source_ref: { kind: location.kind || 'document',
-        location: { page_number: location.page || null, section: location.section || null },
+      text_sha256: sha(text), source_ref: { kind,
+        location: { page_number: kind === 'physical-page' ? number : null,
+          section: kind === 'logical-section' ? number : null, number },
         document_id: document.id, coverage: location.coverage || 'complete' },
       document_name: document.file_name, document_version: document.doc_version,
       authority, claim_role: document.claim_role, applicability: document.applicability,
@@ -473,13 +476,13 @@ export class KnowledgeBridge {
       capture_mode: 'PAIR_SELECTED_EVIDENCE', origin,
       original_revision: document.source_sha256,
       extraction_revision: document.extractionRevision || '',
-      coverage: location.coverage || 'complete', location: location.kind || 'document',
+      coverage: location.coverage || 'complete', location: kind,
       url: '/reqpilotx/knowledge/tasks/' + encodeURIComponent(commandId) + '/documents/' + encodeURIComponent(document.id)
         + (binding.team?.kind === 'TOPIC' ? '?version=' + encodeURIComponent(binding.team.topic.version_id) : '') };
   }
   mapLiveHit(commandId, binding, document, hit) {
     return this.fact(commandId, binding, document, hit.text,
-      { kind: hit.location?.kind || document.location, page: hit.location?.number,
+      { kind: hit.location?.kind || document.location, number: hit.location?.number,
         coverage: hit.coverage || document.coverage }, 'PAIR_SELECTED_SOURCE');
   }
   async search(commandId, query, limit = 8) {
@@ -531,7 +534,7 @@ export class KnowledgeBridge {
         { version: 1, caller, kbIds: [binding.project.library_id], documents: binding.project.documents },
         documentId, firstPage, count);
       const facts = read.pages.map(page => this.fact(commandId, binding, document, page.text,
-        { kind: document.location, page: page.number, coverage: read.document.coverage }, 'PAIR_SELECTED_SOURCE'));
+        { kind: document.location, number: page.number, coverage: read.document.coverage }, 'PAIR_SELECTED_SOURCE'));
       await this.recordConsumption(commandId, 'read', { documentId, firstPage, count }, facts);
       return { bindingSha256: binding.binding_sha256, document: documentSummary({ ...read.document, id: documentId,
         kbId: document.kb_id, name: document.file_name, mime: 'application/octet-stream', sha256: document.source_sha256,
@@ -544,7 +547,7 @@ export class KnowledgeBridge {
         { version: 1, caller, kbIds: [binding.team.library_id], documents: binding.team.documents },
         documentId, firstPage, count);
       const facts = read.pages.map(page => this.fact(commandId, binding, document, page.text,
-        { kind: document.location, page: page.number, coverage: read.document.coverage }, 'PAIR_SELECTED_SOURCE'));
+        { kind: document.location, number: page.number, coverage: read.document.coverage }, 'PAIR_SELECTED_SOURCE'));
       await this.recordConsumption(commandId, 'read', { documentId, firstPage, count }, facts);
       return { bindingSha256: binding.binding_sha256, document: documentSummary({ ...read.document, id: documentId,
         kbId: document.kb_id, name: document.file_name, mime: 'application/octet-stream', sha256: document.source_sha256,
@@ -607,6 +610,25 @@ export class KnowledgeBridge {
     await this.writeJson(join(directory, 'evidence-registration.json'), registration, 0o400);
     return { catalog, registration };
   }
+  analysisHistoryPath(commandId) {
+    return join(this.dataRoot, 'knowledge-analysis', commandId + '.history.json');
+  }
+  async loadAnalysisHistory(commandId, binding, taskId) {
+    try {
+      const value = await this.readJson(this.analysisHistoryPath(commandId));
+      if (value?.schema_version !== 'reqpilot-pair-analysis-history/v1'
+        || value.binding_sha256 !== binding.binding_sha256 || value.task_id !== taskId
+        || !Array.isArray(value.entries)) throw new KnowledgeError('ANALYSIS_HISTORY_INVALID');
+      return value;
+    } catch (error) {
+      if (error.code === 'ENOENT') return { schema_version: 'reqpilot-pair-analysis-history/v1',
+        binding_sha256: binding.binding_sha256, task_id: taskId, entries: [] };
+      throw error;
+    }
+  }
+  async saveAnalysisHistory(commandId, history) {
+    await this.writeJson(this.analysisHistoryPath(commandId), history);
+  }
   async analysis(commandId, decisions, unitIds, expectedRevision, modelCommandId) {
     const record = this.getRecord(commandId);
     if (!record?.prepared?.task_root) throw new KnowledgeError('TASK_NOT_PREPARED', 409);
@@ -631,12 +653,25 @@ export class KnowledgeBridge {
     await this.requireCurrent(commandId, 'analysis');
     const binding = await this.loadBinding(commandId);
     const consumed = await this.loadConsumption(commandId);
+    const batchIds = unitIds || normalized.map(item => item.unit_id).sort();
+    if (JSON.stringify(batchIds) !== JSON.stringify([...batchIds].sort()))
+      throw new KnowledgeError('INVALID_ANALYSIS', 422);
+    if (normalized.some(item => !batchIds.includes(item.unit_id)))
+      throw new KnowledgeError('INVALID_ANALYSIS', 422);
+    const history = await this.loadAnalysisHistory(commandId, binding, record.prepared.task_id);
+    const prior = history.entries.find(entry => entry.command_id === modelCommandId);
+    if (prior && digest(prior.decisions) !== digest(normalized))
+      throw new KnowledgeError('COMMAND_CONFLICT', 409, 'The analysis command already has different decisions');
     for (const decision of normalized) for (const citation of decision.evidence) {
       const fact = consumed.facts[citation.fact_id];
       if (!fact || !citation.quote.trim() || !fact.text.includes(citation.quote))
         throw new KnowledgeError('EVIDENCE_FACT_NOT_CONSUMED', 409, 'Cite only exact quotes from logged task evidence results');
     }
     const { catalog, registration } = await this.writeCatalog(commandId);
+    const cumulative = new Map();
+    for (const entry of history.entries) for (const decision of entry.decisions) cumulative.set(decision.unit_id, decision);
+    for (const decision of normalized) cumulative.set(decision.unit_id, decision);
+    const cumulativeDecisions = [...cumulative.values()].sort((left, right) => left.unit_id.localeCompare(right.unit_id));
     if (!this.runtime.attestationKey) throw new KnowledgeError('HOST_ATTESTATION_KEY_UNAVAILABLE', 503);
     const payload = { schema: 'reqpilot-pair-analysis-attestation/v1',
       application_id: binding.application_id, project_id: binding.project_id,
@@ -644,8 +679,8 @@ export class KnowledgeBridge {
       workbench_ref: record.prepared.work_ref || '',
       binding_sha256: binding.binding_sha256,
       mode: binding.mode, task_revision: expectedRevision, command_id: modelCommandId,
-      unit_ids: unitIds || null, decisions: normalized,
-      decisions_sha256: digest(normalized), catalog_sha256: catalog.catalog_sha256,
+      unit_ids: batchIds, decisions: cumulativeDecisions,
+      decisions_sha256: digest(cumulativeDecisions), catalog_sha256: catalog.catalog_sha256,
       ledger_sha256: digest({ facts: consumed.facts, receipts: consumed.receipts }),
       consumed_fact_ids: Object.keys(consumed.facts).sort(),
       checked_at: new Date().toISOString() };
@@ -658,8 +693,7 @@ export class KnowledgeBridge {
     const requestFile = join(directory, commandId + '-analysis.json');
     const request = { task_id: record.prepared.task_id, expected_revision: expectedRevision,
       command_id: modelCommandId, decisions: normalized,
-      ...(unitIds ? { unit_ids: unitIds } : {}),
-      knowledge_attestation: attestation };
+      unit_ids: batchIds, knowledge_attestation: attestation };
     await writeFile(requestFile, JSON.stringify(request), { mode: 0o600 });
     const stdout = await this.runtime.command([record.python, '-I', join(record.capabilityRoot, 'scripts/reqpilot.py'),
       'task', 'analysis', '--working-root', workspace, '--input', requestFile],
@@ -670,15 +704,68 @@ export class KnowledgeBridge {
     try { result = JSON.parse(stdout); } catch { throw new KnowledgeError('ANALYSIS_RESULT_UNREADABLE', 502); }
     if (result.status === 'FAILED' || result.status === 'UNKNOWN') throw new KnowledgeError(
       result.error_code || 'ANALYSIS_NOT_SAVED', 409, result.message || result.error || result.status);
+    if (!prior) history.entries.push({ command_id: modelCommandId, task_revision: expectedRevision,
+      decisions: normalized, checked_at: new Date().toISOString() });
+    await this.saveAnalysisHistory(commandId, history);
     return result;
   }
   async original(commandId, documentId, versionId = null) {
     const binding = await this.loadBinding(commandId);
     const project = binding.project?.documents?.find(item => item.documentId === documentId);
     const team = binding.team?.documents?.find(item => item.documentId === documentId);
-    if (project || team) return this.api().original(documentId);
+    if (project || team) {
+      const scope = project
+        ? { caller: binding.project.caller, kbId: binding.project.library_id, document: project, team: false }
+        : { caller: binding.team.caller, kbId: binding.team.library_id, document: team, team: true };
+      const verify = async () => {
+        let captured;
+        try {
+          captured = await this.api().captureSelectedSources(scope.caller,
+            [{ kbId: scope.kbId, documentId }]);
+        } catch (error) {
+          throw new KnowledgeError('KNOWLEDGE_EVIDENCE_UNAVAILABLE', 409,
+            String(error?.message || error));
+        }
+        const current = captured.documents?.find(item => item.documentId === documentId);
+        if (!current
+          || current.originalRevision !== scope.document.originalRevision
+          || current.extractionRevision !== scope.document.extractionRevision
+          || current.coverage !== scope.document.coverage
+          || current.location !== scope.document.location
+          || current.pages !== scope.document.pages) {
+          throw new KnowledgeError('KNOWLEDGE_EVIDENCE_CHANGED', 409,
+            'The selected original or extraction version changed after the task was frozen');
+        }
+      };
+      await verify();
+      let value;
+      try { value = await this.api().original(documentId); }
+      catch (error) {
+        throw new KnowledgeError('KNOWLEDGE_EVIDENCE_UNAVAILABLE', 409,
+          String(error?.message || error));
+      }
+      const bytes = Buffer.from(value?.bytes || value || []);
+      const actual = value?.document || {};
+      if (actual.sha256 !== scope.document.originalRevision
+        || sha(bytes) !== scope.document.originalRevision
+        || (actual.backendRevision !== undefined
+          && actual.backendRevision !== scope.document.extractionRevision)) {
+        throw new KnowledgeError('KNOWLEDGE_EVIDENCE_CHANGED', 409,
+          'Original bytes or extraction revision changed after the task was frozen');
+      }
+      await verify();
+      return { document: { ...actual, id: documentId, kbId: scope.kbId,
+        name: scope.document.name, mime: scope.document.mime,
+        sha256: scope.document.originalRevision }, bytes };
+    }
     if (binding.team?.kind === 'TOPIC' && versionId === binding.team.topic.version_id) {
-      return this.api().topicOriginal(binding.team.library_id, binding.team.topic.version_id, documentId);
+      try {
+        return await this.api().topicOriginal(binding.team.library_id,
+          binding.team.topic.version_id, documentId);
+      } catch (error) {
+        throw new KnowledgeError('KNOWLEDGE_EVIDENCE_UNAVAILABLE', 409,
+          String(error?.message || error));
+      }
     }
     throw new KnowledgeError('DOCUMENT_NOT_SELECTED', 409);
   }
