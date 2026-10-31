@@ -85,11 +85,14 @@ async function fixture(populated = false) {
         if (input.artifacts?.['document-map.json']) {
           work.revision_id = sha(JSON.stringify(input.artifacts)); work.revision_number++;
           work.stages = [{ stage: 'MAP', artifact_sha256: input.artifacts['document-map.json'].artifact_sha256 }];
+          work.versions.push({ revision_id: work.revision_id, number: work.revision_number,
+            stages: work.stages, created_at: '2026-11-01T00:00:00.000Z' });
         }
         send(work); return;
       }
       const work = works.get(req.url.split('/').at(-1));
-      if (work) send({ ...work, ...(foreignWork ? { session_id: 'plugin-' + 'f'.repeat(32) } : {}) });
+      if (work) send({ schema_version: 'reqpilot-plugin-workbench/v1', work_ref: work.session_id,
+        feedback_resolutions: {}, ...work, ...(foreignWork ? { session_id: 'plugin-' + 'f'.repeat(32) } : {}) });
       else { res.writeHead(404); res.end(); }
     });
     server.listen(port, '127.0.0.1'); await once(server, 'listening');
@@ -141,14 +144,18 @@ print(json.dumps({'operation_id':operation['operation_id'],'publication':publish
 }
 
 test('owned lease/port transition reconnects one frozen task and a NEW continuation reads its feedback', { skip: !enabled }, async () => {
-  const f = await fixture(); try {
+  const f = await fixture(true); try {
     const before = await f.saved(), writes = f.calls.writes;
     const prior = await f.transition();
     assert.equal((await f.launcher.inspect(before.commandId)).controlCapabilities.continue, false);
     assert.equal((await f.launcher.inspect(before.commandId)).controlCapabilities.reconnect, true);
     await assert.rejects(f.launcher.toolBinding(f.started.sessionId), /RECONNECT_REQUIRED/);
     await assert.rejects(f.launcher.control(f.control('continue')), /INTERRUPTED/);
-    f.works.get(f.started.workRef).feedback.push({ feedback_id: 'human-feedback', text: 'Check the changed condition.', baseline_sha256: null });
+    const work = f.works.get(f.started.workRef);
+    assert.match(work.revision_id, /^[a-f0-9]{64}$/);
+    work.feedback.push({ feedback_id: 'human-feedback', expected_source_sha256: f.sourceSha,
+      expected_revision_id: work.revision_id, source_item_ids: [], text: 'Check the changed condition.',
+      baseline_sha256: work.versions.at(-1)?.baseline_sha256 ?? null, origin: 'USER_REQUEST' });
     const reconnected = await f.launcher.control(f.control('reconnect'));
     assert.equal(reconnected.controlCapabilities.continue, true);
     const after = await f.saved();

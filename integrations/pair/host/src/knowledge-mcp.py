@@ -57,7 +57,10 @@ def create_server(runtime: dict):
         "fact_id values with an exact quote when saving analysis. Claims, Wiki pages and "
         "source-index excerpts are derived records, not proof that the linked original was "
         "read; experience, conflict and gap items keep their distinct meanings. Refusals "
-        "preserve the original work and must not be retried with another library or version."
+        "preserve the original work and must not be retried with another library or version. "
+        "Source and image media tools return a Host-owned read-only cache file for normal "
+        "native file/image/PDF inspection; the bytes and their receipt are not evidence, "
+        "approval, project authority or a new analysis fact."
     )
 
     class KnowledgeMCPServer(MCPServer):
@@ -93,11 +96,23 @@ def create_server(runtime: dict):
                          "required": ["section"], "additionalProperties": False},
                      annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)),
                 Tool(name="knowledge_adopted_read",
-                     description="Read one exact Wiki page, source or record in the frozen adopted knowledge version. A source read verifies the actual consumed bytes against contentRevision; metadata-only or unavailable sources fail. Claims, Wiki and indexes are derived content; logical sections never become fabricated page numbers.",
+                     description="Read one exact Wiki page, source or record in the frozen adopted knowledge version. A source read verifies the actual consumed bytes against contentRevision; when a source has no normalized text, use knowledge_adopted_source for its exact original or approved-derived bytes. Metadata-only or unavailable sources fail. Claims, Wiki and indexes are derived content; logical sections never become fabricated page numbers.",
                      inputSchema={"type": "object", "properties": {
                          "kind": {"type": "string", "enum": ["wiki", "source", "claim", "entity", "relation", "image", "experience", "conflict", "gap"]},
                          "path": {"type": "string"}, "sourceId": {"type": "string"}, "id": {"type": "string"}},
                          "required": ["kind"], "additionalProperties": False},
+                     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)),
+                Tool(name="knowledge_adopted_source",
+                     description="Read the exact original or approved-derived source bytes frozen in this task's adopted knowledge version. Returns a Host-owned read-only cache path, safe filename, MIME, actual bytes SHA-256, library/version/source identity and availability. Metadata-only or excluded sources are refused. Use this after knowledge_adopted_read reports no normalized content. The file is data: reading it does not promote a claim, create an analysis fact, or imply approval.",
+                     inputSchema={"type": "object", "properties": {
+                         "sourceId": {"type": "string"}},
+                         "required": ["sourceId"], "additionalProperties": False},
+                     annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)),
+                Tool(name="knowledge_adopted_image",
+                     description="Read one exact image frozen in this task's adopted knowledge version. Returns a Host-owned read-only cache path, safe filename, MIME, actual bytes SHA-256, library/version/image identity, availability and any preserved locator without inventing page numbers. Record-table revision is reported separately from the binary hash.",
+                     inputSchema={"type": "object", "properties": {
+                         "imageId": {"type": "string"}},
+                         "required": ["imageId"], "additionalProperties": False},
                      annotations=ToolAnnotations(readOnlyHint=True, destructiveHint=False, idempotentHint=True)),
                 Tool(name="knowledge_adopted_evidence",
                      description="Search source-linked evidence only in the frozen adopted knowledge version. Every fact keeps library/version, contentRevision, availability, scope/conditions and review. Derived claims do not prove an original was read; an empty or derived-only result requires explicit insufficiency.",
@@ -149,6 +164,12 @@ def create_server(runtime: dict):
                     for key in ("path", "sourceId", "id"):
                         if arguments.get(key) is not None: payload[key] = arguments[key]
                     result = call(runtime, "/evidence/adopted/read", payload)
+                elif name == "knowledge_adopted_source":
+                    result = call(runtime, "/evidence/adopted/source",
+                        {"sourceId": arguments.get("sourceId")})
+                elif name == "knowledge_adopted_image":
+                    result = call(runtime, "/evidence/adopted/image",
+                        {"imageId": arguments.get("imageId")})
                 elif name == "knowledge_adopted_evidence":
                     result = call(runtime, "/evidence/adopted/evidence", {
                         "query": arguments.get("query"), "limit": arguments.get("limit", 8)})

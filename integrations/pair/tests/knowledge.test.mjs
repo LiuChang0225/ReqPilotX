@@ -1,11 +1,13 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
-import { mkdtemp, mkdir, readFile, rm, writeFile } from 'node:fs/promises';
+import { mkdtemp, mkdir, readFile, rm, stat, writeFile } from 'node:fs/promises';
+import { spawn } from 'node:child_process';
 import { createHash } from 'node:crypto';
 import { createServer } from 'node:http';
 import { once } from 'node:events';
 import { join } from 'node:path';
 import { tmpdir } from 'node:os';
+import { fileURLToPath } from 'node:url';
 import { KnowledgeBridge } from '../host/src/knowledge.js';
 import { TaskLauncher } from '../host/src/task-launch.js';
 import { createHandler } from '../host/src/index.js';
@@ -686,6 +688,10 @@ function fakeAdopted() {
   const originalRevision = digest(originalBytes);
   const declaredOriginalRevision = 'd'.repeat(64);
   const claimsRevision = digest('synthetic claims table');
+  const imagesRevision = digest('synthetic images table');
+  const derivedBytes = Buffer.from('%PDF-1.7\napproved derivative bytes');
+  const derivedRevision = digest(derivedBytes);
+  const imageBytes = Buffer.from([0x89, 0x50, 0x4e, 0x47, 0x00, 0x01]);
   const experiencesRevision = digest('synthetic experiences table');
   const conflictsRevision = digest('synthetic conflicts table');
   const gapsRevision = digest('synthetic gaps table');
@@ -701,13 +707,17 @@ function fakeAdopted() {
       record: { id: 'conflict-1', status: 'open' }, revision: conflictsRevision },
     gap: { kind: 'gap', id: 'gap-1', title: 'Synthetic gap',
       record: { id: 'gap-1', severity: 'medium' }, revision: gapsRevision },
+    image: { kind: 'image', id: 'image-1', title: 'Synthetic figure', path: 'images/figure-1.png',
+      record: { id: 'image-1', image_path: 'images/figure-1.png' }, revision: imagesRevision },
     wiki: { kind: 'wiki', id: 'guide.md', path: 'guide.md', title: 'Synthetic guide',
       content: '# Synthetic guide\n\nDerived wiki content.', revision: wikiRevision },
   };
-  const bindings = new Map(); const calls = []; const control = { metadataOnly: false };
+  const bindings = new Map(); const calls = [];
+  const control = { metadataOnly: false, noNormalized: false, derived: false, metadataError: null };
   return {
     calls, control, normalizedText, normalizedRevision, originalBytes, originalRevision, declaredOriginalRevision,
-    claimsRevision, experiencesRevision, conflictsRevision, gapsRevision, wikiRevision, sourceText: normalizedText,
+    claimsRevision, experiencesRevision, conflictsRevision, gapsRevision, imagesRevision, wikiRevision,
+    derivedBytes, derivedRevision, imageBytes, sourceText: normalizedText,
     adoptedLibraries: () => [{ ...library }],
     bindAdoptedSession: async (caller, libraryId) => {
       if (libraryId !== library.id) throw Object.assign(Error('not-found'), { code: 'not-found' });
@@ -727,15 +737,22 @@ function fakeAdopted() {
       if (!binding) throw Object.assign(Error('library-unselected'), { code: 'library-unselected' });
       if (request.kind === 'source') return { libraryId: library.id, versionId: library.versionId,
         packageVersion: '1.0.0', kind: 'source', id: request.sourceId, sourceId: request.sourceId,
-        title: 'Original note', content: control.metadataOnly ? '' : normalizedText,
+        title: 'Original note', content: control.metadataOnly || control.noNormalized ? '' : normalizedText,
         locator: { kind: 'logical-section', section: '2.1' },
-        availability: control.metadataOnly ? 'metadata-only' : 'original', admission: 'full_original',
-        sourceVersion: originalRevision, originalSourceVersion: declaredOriginalRevision,
-        contentRevision: normalizedRevision };
+        availability: control.metadataOnly ? 'metadata-only' : control.derived ? 'derived' : 'original',
+        admission: 'full_original',
+        sourceVersion: control.derived ? derivedRevision : originalRevision,
+        originalSourceVersion: declaredOriginalRevision,
+        contentRevision: control.derived ? derivedRevision : control.noNormalized ? originalRevision : normalizedRevision };
       if (request.kind === 'wiki') return { libraryId: library.id, versionId: library.versionId,
         packageVersion: '1.0.0', kind: 'wiki', id: request.path, path: request.path, title: 'Synthetic guide',
         content: records.wiki.content, contentRevision: wikiRevision,
         locator: { kind: 'logical-section', section: request.path }, availability: 'derived' };
+      if (request.kind === 'image' && control.metadataError) {
+        if (control.metadataError === 'version-changed') library.versionId = 'c'.repeat(64);
+        if (control.metadataError === 'library-unselected') bindings.delete(caller);
+        throw Object.assign(Error(control.metadataError), { code: control.metadataError });
+      }
       const record = records[request.kind];
       if (!record) throw Object.assign(Error('source-unavailable'), { code: 'source-unavailable' });
       return { libraryId: library.id, versionId: library.versionId, packageVersion: '1.0.0',
@@ -744,7 +761,10 @@ function fakeAdopted() {
           originalSourceVersion: declaredOriginalRevision, admission: 'full_original',
           review: claim.review, scope: claim.scope, conditions: claim.conditions,
           availability: control.metadataOnly ? 'metadata-only' : 'original' } : {}),
-        locator: { kind: 'logical-section', section: '2.1' },
+        locator: record.kind === 'image'
+          ? { kind: 'image-region', imagePath: record.path, bbox: [10, 20, 30, 40] }
+          : { kind: 'logical-section', section: '2.1' },
+        ...(record.kind === 'image' ? { availability: 'original' } : {}),
         contentRevision: record.kind === 'claim' && control.metadataOnly ? claimsRevision : record.revision };
     },
     adoptedEvidence: async (caller, query, limit) => {
@@ -776,10 +796,12 @@ function fakeAdopted() {
         throw Object.assign(Error('version-changed'), { code: 'version-changed' });
       if (control.metadataOnly) throw Object.assign(Error('metadata-only'), { code: 'metadata-only' });
       if (sourceId !== 'source-1') throw Object.assign(Error('source-unavailable'), { code: 'source-unavailable' });
+      if (control.derived) return { bytes: derivedBytes, mime: 'application/pdf', filename: 'approved-derivative.pdf',
+        availability: 'derived', contentRevision: derivedRevision };
       return { bytes: originalBytes, mime: 'application/pdf', filename: 'note.pdf', availability: 'original',
         contentRevision: originalRevision };
     },
-    adoptedImage: async () => ({ bytes: Buffer.from([1]), mime: 'image/png' }),
+    adoptedImage: async () => ({ bytes: imageBytes, mime: 'image/png' }),
     setVersion: versionId => { library.versionId = versionId; },
   };
 }
@@ -929,5 +951,221 @@ test('adopted version changes and cumulative attestation cannot silently retarge
     assert.match(String(stale.message), /ADOPTED_VERSION_CHANGED/);
     const history = JSON.parse(await readFile(join(root, 'knowledge-analysis', 'adopted-version.history.json'), 'utf8'));
     assert.equal(history.entries.length, 1);
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+const mediaApplicationId = 'reqpilotx-pair:12345678-1234-4234-8234-123456789abc';
+async function mediaBridge(root, service) {
+  const bridge = new KnowledgeBridge({ service, dataRoot: root, applicationId: mediaApplicationId });
+  await bridge.prepareAdoptedBinding({ commandId: 'media-task', projectId: 'p',
+    libraryId: service.adoptedLibraries()[0].id, versionId: 'b'.repeat(64) });
+  return bridge;
+}
+
+test('adopted source media returns exact binary bytes when normalized content is unavailable', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-media-source-'));
+  const service = fakeAdopted(); service.control.noNormalized = true;
+  const bridge = await mediaBridge(root, service);
+  try {
+    const read = await bridge.adoptedRead('media-task', { kind: 'source', sourceId: 'source-1' }).catch(error => error);
+    assert.match(String(read.message), /ADOPTED_SOURCE_CONTENT_UNAVAILABLE/);
+    assert.match(String(read.message), /knowledge_adopted_source/);
+    const media = await bridge.adoptedSourceMedia('media-task', 'source-1');
+    assert.equal(media.availability, 'original');
+    assert.equal(media.contentRevision, service.originalRevision);
+    assert.equal(media.contentRevisionBasis, 'BINARY_FILE');
+    assert.equal(media.bytesSha256, service.originalRevision);
+    assert.equal(media.mime, 'application/pdf');
+    assert.equal(media.filename, 'note.pdf');
+    assert.equal(media.locator.kind, 'logical-section');
+    assert.equal(media.locator.location.page_number, null);
+    assert.equal(media.authority, 'MEDIA_BYTES_NOT_EVIDENCE');
+    assert.equal(media.humanAcceptance, 'NOT_CLAIMED');
+    assert.deepEqual(await readFile(media.path), service.originalBytes);
+    assert.equal((await stat(media.path)).mode & 0o222, 0);
+    assert.ok(media.path.startsWith(join(root, 'task-media', 'media-task')));
+    const consumed = await bridge.loadConsumption('media-task');
+    assert.deepEqual(consumed.facts, {});
+    assert.deepEqual(consumed.receipts, []);
+    const receipts = JSON.parse(await readFile(bridge.mediaReceiptPath('media-task'), 'utf8'));
+    assert.equal(receipts.entries.length, 1);
+    assert.equal(receipts.entries[0].tool, 'adopted_source');
+    assert.equal(receipts.entries[0].bytes_sha256, service.originalRevision);
+    assert.equal(receipts.entries[0].authority, 'MEDIA_BYTES_NOT_EVIDENCE');
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('approved-derived bytes stay distinct from normalized records and metadata-only sources are refused', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-media-derived-'));
+  const service = fakeAdopted(); service.control.derived = true;
+  const bridge = await mediaBridge(root, service);
+  try {
+    const media = await bridge.adoptedSourceMedia('media-task', 'source-1');
+    assert.equal(media.availability, 'derived');
+    assert.equal(media.contentRevision, service.derivedRevision);
+    assert.equal(media.bytesSha256, service.derivedRevision);
+    assert.notEqual(media.contentRevision, service.normalizedRevision);
+    assert.equal(media.filename, 'approved-derivative.pdf');
+    assert.deepEqual(await readFile(media.path), service.derivedBytes);
+    service.control.metadataOnly = true;
+    await assert.rejects(bridge.adoptedSourceMedia('media-task', 'source-1'), /ADOPTED_METADATA_ONLY/);
+    const receipts = JSON.parse(await readFile(bridge.mediaReceiptPath('media-task'), 'utf8'));
+    assert.equal(receipts.entries.length, 1);
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('adopted media refuses changed versions and unbound tasks without caching or facts', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-media-version-'));
+  const service = fakeAdopted();
+  const bridge = await mediaBridge(root, service);
+  try {
+    await assert.rejects(bridge.adoptedSourceMedia('unbound-task', 'source-1'), /KNOWLEDGE_BINDING_MISSING/);
+    service.setVersion('c'.repeat(64));
+    await assert.rejects(bridge.adoptedSourceMedia('media-task', 'source-1'), /ADOPTED_VERSION_CHANGED/);
+    const consumed = await bridge.loadConsumption('media-task');
+    assert.deepEqual(consumed.facts, {});
+    assert.deepEqual(consumed.receipts, []);
+    await assert.rejects(readFile(bridge.mediaReceiptPath('media-task')), error => error.code === 'ENOENT');
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('adopted image media keeps image identity and locator without inventing a page number', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-media-image-'));
+  const service = fakeAdopted();
+  const bridge = await mediaBridge(root, service);
+  try {
+    const media = await bridge.adoptedImageMedia('media-task', 'image-1');
+    assert.equal(media.kind, 'image');
+    assert.equal(media.id, 'image-1');
+    assert.equal(media.libraryId, service.adoptedLibraries()[0].id);
+    assert.equal(media.versionId, 'b'.repeat(64));
+    assert.equal(media.mime, 'image/png');
+    assert.equal(media.filename, 'figure-1.png');
+    assert.equal(media.bytesSha256, digest(service.imageBytes));
+    assert.equal(media.metadata, 'AVAILABLE');
+    assert.equal(media.recordContentRevision, service.imagesRevision);
+    assert.equal(media.recordContentRevisionBasis, 'RECORD_TABLE_NOT_BINARY_BYTES');
+    assert.equal(media.contentRevision, undefined);
+    assert.notEqual(media.recordContentRevision, media.bytesSha256);
+    assert.equal(media.locator.kind, 'image-region');
+    assert.equal(media.locator.location.page_number, null);
+    assert.equal(media.locator.location.section, null);
+    assert.equal(media.locator.location.number, null);
+    assert.deepEqual(await readFile(media.path), service.imageBytes);
+    const receipts = JSON.parse(await readFile(bridge.mediaReceiptPath('media-task'), 'utf8'));
+    assert.equal(receipts.entries[0].tool, 'adopted_image');
+    assert.equal(receipts.entries[0].record_content_revision, service.imagesRevision);
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+test('adopted image metadata owner failures are not swallowed and leave no accepted receipt', async () => {
+  for (const [code, expected] of [['version-changed', /ADOPTED_VERSION_CHANGED/],
+    ['library-unselected', /ADOPTED_LIBRARY_UNSELECTED/]]) {
+    const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-media-metadata-'));
+    const service = fakeAdopted();
+    const bridge = await mediaBridge(root, service);
+    try {
+      service.control.metadataError = code;
+      await assert.rejects(bridge.adoptedImageMedia('media-task', 'image-1'), expected, code);
+      await assert.rejects(readFile(bridge.mediaReceiptPath('media-task')), error => error.code === 'ENOENT', code);
+      const consumed = await bridge.loadConsumption('media-task');
+      assert.deepEqual(consumed.facts, {}, code);
+      assert.deepEqual(consumed.receipts, [], code);
+    } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+  }
+});
+
+test('adopted image metadata absence is explicit rather than a swallowed owner error', async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-media-metadata-absent-'));
+  const service = fakeAdopted();
+  const bridge = await mediaBridge(root, service);
+  try {
+    service.control.metadataError = 'source-unavailable';
+    const media = await bridge.adoptedImageMedia('media-task', 'image-1');
+    assert.equal(media.metadata, 'UNAVAILABLE');
+    assert.equal(media.availability, null);
+    assert.equal(media.recordContentRevision, null);
+    assert.equal(media.locator.kind, 'document');
+    assert.equal(media.locator.location.page_number, null);
+    assert.equal(media.bytesSha256, digest(service.imageBytes));
+    assert.deepEqual(await readFile(media.path), service.imageBytes);
+    const receipts = JSON.parse(await readFile(bridge.mediaReceiptPath('media-task'), 'utf8'));
+    assert.equal(receipts.entries.length, 1);
+    assert.equal(receipts.entries[0].record_content_revision, null);
+  } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
+});
+
+const mcpPython = process.env.PAIR_HOST_COMMAND_PYTHON;
+test('actual adopted media MCP dispatch reaches bounded Host routes and logs the media result', { skip: !mcpPython }, async () => {
+  const root = await mkdtemp(join(tmpdir(), 'reqpilot-adopted-media-mcp-'));
+  const service = fakeAdopted();
+  const bridge = await mediaBridge(root, service);
+  const runtimeFile = await bridge.runtimeFile('media-task');
+  const mcpScript = fileURLToPath(new URL('../host/src/knowledge-mcp.py', import.meta.url));
+  const driver = join(root, 'mcp-dispatch-driver.py');
+  await writeFile(driver, `import asyncio, importlib.util, json, sys, types
+mcp = types.ModuleType('mcp'); server_mod = types.ModuleType('mcp.server'); types_mod = types.ModuleType('mcp.types')
+class MCPServer:
+    def __init__(self, *args, **kwargs): pass
+class Tool:
+    def __init__(self, **kwargs): self.__dict__.update(kwargs)
+class ToolAnnotations:
+    def __init__(self, **kwargs): self.__dict__.update(kwargs)
+class CallToolResult:
+    def __init__(self, **kwargs): self.__dict__.update(kwargs)
+class TextContent:
+    def __init__(self, **kwargs): self.__dict__.update(kwargs)
+server_mod.MCPServer = MCPServer
+types_mod.Tool = Tool; types_mod.ToolAnnotations = ToolAnnotations
+types_mod.CallToolResult = CallToolResult; types_mod.TextContent = TextContent
+mcp.server = server_mod; mcp.types = types_mod
+sys.modules['mcp'] = mcp; sys.modules['mcp.server'] = server_mod; sys.modules['mcp.types'] = types_mod
+spec = importlib.util.spec_from_file_location('knowledge_mcp_dispatch', sys.argv[1])
+module = importlib.util.module_from_spec(spec); spec.loader.exec_module(module)
+runtime = json.loads(open(sys.argv[2], encoding='utf-8').read())
+adapter = module.create_server(runtime)
+if sys.argv[3] == '__list__':
+    print(json.dumps([tool.name for tool in asyncio.run(adapter.list_tools())]))
+else:
+    result = asyncio.run(adapter.call_tool(sys.argv[3], json.loads(sys.argv[4])))
+    print(json.dumps(result.structuredContent, ensure_ascii=False))
+`);
+  const env = { ...process.env, PYTHONDONTWRITEBYTECODE: '1' };
+  delete env.PYTHONPATH; delete env.PYTHONHOME;
+  const dispatch = (tool, args = {}) => new Promise((resolve, reject) => {
+    const child = spawn(mcpPython, [driver, mcpScript, runtimeFile, tool, JSON.stringify(args)], { cwd: root, env });
+    let stdout = '', stderr = '';
+    child.stdout.on('data', chunk => { stdout += chunk; });
+    child.stderr.on('data', chunk => { stderr += chunk; });
+    child.once('error', reject);
+    child.once('close', code => {
+      if (code !== 0) return reject(Error('MCP driver failed: ' + stderr + stdout));
+      try { resolve(JSON.parse(stdout.trim().split('\n').at(-1))); }
+      catch { reject(Error('MCP driver returned unreadable output: ' + stdout + stderr)); }
+    });
+  });
+  try {
+    const names = await dispatch('__list__');
+    assert.ok(names.includes('knowledge_adopted_source'));
+    assert.ok(names.includes('knowledge_adopted_image'));
+    assert.ok(names.every(name => !/ledger|approval|compliant/i.test(name)));
+    service.control.noNormalized = true;
+    const read = await dispatch('knowledge_adopted_read', { kind: 'source', sourceId: 'source-1' });
+    assert.equal(read.status, 'FAILED');
+    assert.equal(read.error_code, 'ADOPTED_SOURCE_CONTENT_UNAVAILABLE');
+    assert.match(read.message, /knowledge_adopted_source/);
+    const source = await dispatch('knowledge_adopted_source', { sourceId: 'source-1' });
+    assert.equal(source.status, 'READY');
+    assert.equal(source.bytesSha256, service.originalRevision);
+    assert.deepEqual(await readFile(source.path), service.originalBytes);
+    const image = await dispatch('knowledge_adopted_image', { imageId: 'image-1' });
+    assert.equal(image.status, 'READY');
+    assert.equal(image.bytesSha256, digest(service.imageBytes));
+    assert.equal(image.locator.location.page_number, null);
+    const consumed = await bridge.loadConsumption('media-task');
+    assert.deepEqual(consumed.facts, {});
+    assert.deepEqual(consumed.receipts, []);
+    const receipts = JSON.parse(await readFile(bridge.mediaReceiptPath('media-task'), 'utf8'));
+    assert.deepEqual(receipts.entries.map(entry => entry.tool), ['adopted_source', 'adopted_image']);
   } finally { await bridge.close(); await rm(root, { recursive: true, force: true }); }
 });

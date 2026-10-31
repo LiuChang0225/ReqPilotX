@@ -25,8 +25,13 @@ const taskWorkflowState = hash => ({ ...workflowState(hash), stages: [
   { id: 'DELIVERABLE', label: '可核对成果', status: 'BLOCKED', reason: 'ITEMS_REQUIRED' } ] });
 async function fixture(config = {}) {
   const root = await mkdtemp(join(tmpdir(), 'reqpilot-launch-')); const source = Buffer.from('original'); const hash = createHash('sha256').update(source).digest('hex');
-  const calls = { prepare: 0, create: [], prompt: [], workspace: [], workspaceTitle: [], model: [] };
+  const calls = { prepare: 0, create: [], prompt: [], workspace: [], workspaceTitle: [], model: [], feedbackReads: 0 };
+  const workRef = 'plugin-' + 'a'.repeat(32);
   let taskWorkflow = taskWorkflowState(hash);
+  let workbench = { schema_version: 'reqpilot-plugin-workbench/v1', session_id: workRef, work_ref: workRef,
+    project_id: 'p', document_id: 'd', source_sha256: hash, revision_id: 'c'.repeat(64), revision_number: 1,
+    versions: [{ revision_id: 'c'.repeat(64), number: 1, stages: [], created_at: '2026-11-01T00:00:00.000Z' }],
+    feedback: [], feedback_resolutions: {}, map_confirmation_required: false, confirmed_map_sha256: null };
   const runtime = { dataRoot: root, python: '/installed/python', ownerId: commandId, snapshot: { status: 'READY', mode: 'managed', serviceOrigin: 'http://127.0.0.1:1234' }, async command(args) {
     if (args.some(value => value.endsWith('task-workflow.py'))) return JSON.stringify({ status: 'READY', task_id: 'task-one', workflow: taskWorkflow });
     calls.prepare++; const input = JSON.parse(await readFile(args[2], 'utf8')); await mkdir(input.workspace, { recursive: true });
@@ -46,11 +51,19 @@ async function fixture(config = {}) {
       async inspect() { const error = new Error('session not found'); error.code = 'session/not-found'; throw error; },
       async selectSessionModel(value) { calls.model.push(value); const { sessionId, ...selected } = value; return { selected }; },
       async prompt(value) { calls.prompt.push(value); return { accepted: true }; } } };
-  const transport = async url => url.endsWith('/file') ? new Response(source) : new Response(JSON.stringify([{ id: 'd', file_name: 'source.pdf', source_sha256: hash }]));
+  const transport = async url => {
+    if (url.includes('/agent-structure/delivery/plugin-workbench/')) {
+      calls.feedbackReads++;
+      return new Response(JSON.stringify(workbench));
+    }
+    return url.endsWith('/file') ? new Response(source) : new Response(JSON.stringify([{ id: 'd', file_name: 'source.pdf', source_sha256: hash }]));
+  };
   const launcher = new TaskLauncher(runtime, config, () => services, transport); launcher.ready = true; launcher.capabilityRoot = root; launcher.bundleSha = 'b'.repeat(64);
   launcher.workflow = workflowSpec; launcher.workflowDescriptor = workflow;
   const input = { commandId, projectId: 'p', documentId: 'd', sourceSha256: hash, goal: 'User goal' };
-  return { root, calls, runtime, services, launcher, input, get workflowState() { return taskWorkflow; }, set workflowState(value) { taskWorkflow = value; }, async close() { await launcher.close(); await rm(root, { recursive: true, force: true }); } };
+  return { root, calls, runtime, services, launcher, input, get workflowState() { return taskWorkflow; }, set workflowState(value) { taskWorkflow = value; },
+    get workbench() { return workbench; }, set workbench(value) { workbench = value; },
+    async close() { await launcher.close(); await rm(root, { recursive: true, force: true }); } };
 }
 const codexModel = { provider: 'openai-codex', model: 'gpt-6.1-sol', reasoningEffort: 'xhigh' };
 test('native tasks bind the configured model before admission and retain it across acknowledgement retries', async () => {
@@ -567,5 +580,202 @@ test('a recreated Session without model selection support refuses the retried pr
     await assert.rejects(f.launcher.start(f.input), /PAIR_SESSION_MODEL_SELECTION_UNSUPPORTED/);
     assert.equal(f.calls.prompt.length, 1);
     assert.equal((await f.launcher.inspect(commandId)).status, 'TASK_PREPARED');
+  } finally { await f.close(); }
+});
+
+const continueInput = started => ({ commandId, controlId: 'dddddddd-dddd-4ddd-8ddd-dddddddddddd',
+  action: 'continue', sessionId: started.sessionId, workRef: started.workRef, sourceSha256: started.sourceSha256 });
+const feedbackItem = (hash, revision, overrides = {}) => ({
+  feedback_id: 'plugin-feedback-' + '1'.repeat(32), command_id: 'feedback-command',
+  expected_source_sha256: hash, expected_revision_id: revision,
+  source_item_ids: [], node_id: 'node-2', text: '请修正 Map 中第 2 页的标题，并继续完成全部条目和分析。',
+  target_label: 'Map 第 2 页', baseline_sha256: null, map_sha256: 'e'.repeat(64),
+  origin: 'USER_REQUEST', created_at: '2026-11-01T00:00:00.000Z', ...overrides });
+
+test('continuation reads early Map feedback from the bound Workbench route and keeps the original full scope', async () => {
+  const f = await fixture({ taskMcp: true }); try {
+    const started = await f.launcher.start(f.input);
+    const revision = 'c'.repeat(64);
+    f.workbench = { ...f.workbench, revision_id: revision, feedback: [feedbackItem(f.input.sourceSha256, revision)] };
+    f.services.sessions.inspect = async () => ({ events: [] });
+    const receipt = await f.launcher.control(continueInput(started));
+    assert.equal(receipt.control.status, 'ACCEPTED');
+    const text = f.calls.prompt.at(-1).content[0].text;
+    assert.match(text, /plugin-feedback-1{32}/);
+    assert.match(text, /请修正 Map 中第 2 页的标题/);
+    assert.match(text, /不是原文、不是工程师响应、不是审批/);
+    assert.match(text, /保留已经正确且不受反馈影响的结果/);
+    assert.match(text, /继续完成原固定工作流中所有仍未完成、原本要求的阶段/);
+    assert.match(text, /原目标（冻结，供核对）：User goal/);
+    assert.match(text, /pending=1/);
+    assert.doesNotMatch(text, /只修订受影响范围/);
+    assert.equal(f.calls.feedbackReads, 1);
+    const record = JSON.parse(await readFile(join(f.root, 'task-launches', commandId + '.json'), 'utf8'));
+    assert.equal(record.controls[continueInput(started).controlId].continueFeedback.pending_count, 1);
+    assert.equal(record.controls[continueInput(started).controlId].promptText, text);
+  } finally { await f.close(); }
+});
+
+test('continuation reports an empty Workbench feedback list honestly instead of inferring it from delivery responses', async () => {
+  const f = await fixture({ taskMcp: true }); try {
+    const started = await f.launcher.start(f.input);
+    f.services.sessions.inspect = async () => ({ events: [] });
+    await f.launcher.control(continueInput(started));
+    const text = f.calls.prompt.at(-1).content[0].text;
+    assert.match(text, /total=0，pending=0，resolved=0/);
+    assert.match(text, /工作台反馈数据/);
+    assert.match(text, /不是工程师响应/);
+  } finally { await f.close(); }
+});
+
+test('continuation refuses foreign, stale, missing-route and unreadable Workbench feedback without sending a prompt', async () => {
+  const cases = [
+    ['foreign project', f => { f.workbench = { ...f.workbench, project_id: 'other' }; }, /TASK_CONTINUE_FEEDBACK_BINDING_MISMATCH/],
+    ['foreign work_ref', f => { f.workbench = { ...f.workbench, work_ref: 'plugin-' + 'f'.repeat(32) }; }, /TASK_CONTINUE_FEEDBACK_BINDING_MISMATCH/],
+    ['changed source', f => { f.workbench = { ...f.workbench, source_sha256: 'e'.repeat(64) }; }, /TASK_CONTINUE_FEEDBACK_BINDING_MISMATCH/],
+    ['stale revision', f => { f.workbench = { ...f.workbench, feedback: [feedbackItem(f.input.sourceSha256, 'd'.repeat(64))] }; }, /TASK_CONTINUE_FEEDBACK_STALE/],
+    ['missing route', f => { f.launcher.transport = async () => new Response('{}', { status: 404 }); }, /TASK_CONTINUE_FEEDBACK_ROUTE_MISSING/],
+    ['unreadable route', f => { f.launcher.transport = async () => { throw Error('network down'); }; }, /TASK_CONTINUE_FEEDBACK_UNREADABLE/],
+  ];
+  for (const [label, mutate, expected] of cases) {
+    const f = await fixture({ taskMcp: true }); try {
+      const started = await f.launcher.start(f.input); mutate(f);
+      f.services.sessions.inspect = async () => ({ events: [] });
+      await assert.rejects(f.launcher.control(continueInput(started)), expected, label);
+      assert.equal(f.calls.prompt.length, 1, label);
+    } finally { await f.close(); }
+  }
+});
+
+test('same continuation control reuses one frozen feedback prompt and request identity after a lost acknowledgement', async () => {
+  const f = await fixture({ taskMcp: true }); try {
+    const started = await f.launcher.start(f.input);
+    const revision = 'c'.repeat(64);
+    f.workbench = { ...f.workbench, revision_id: revision, feedback: [feedbackItem(f.input.sourceSha256, revision)] };
+    f.services.sessions.inspect = async () => ({ events: [] });
+    let attempts = 0;
+    f.services.sessions.prompt = async value => { f.calls.prompt.push(value); if (++attempts === 1) throw Error('ack lost'); return { accepted: true }; };
+    const input = continueInput(started);
+    await assert.rejects(f.launcher.control(input), /ack lost/);
+    f.workbench = { ...f.workbench, feedback: [feedbackItem(f.input.sourceSha256, revision,
+      { feedback_id: 'plugin-feedback-' + '2'.repeat(32), text: 'Later feedback must not replace the frozen prompt.' })] };
+    assert.equal((await f.launcher.control(input)).control.status, 'ACCEPTED');
+    assert.equal(f.calls.feedbackReads, 1);
+    assert.equal(f.calls.prompt.length, 3);
+    assert.equal(f.calls.prompt[1].content[0].text, f.calls.prompt[2].content[0].text);
+    assert.equal(f.calls.prompt[1].requestId, f.calls.prompt[2].requestId);
+    assert.match(f.calls.prompt[2].content[0].text, /plugin-feedback-1{32}/);
+    assert.doesNotMatch(f.calls.prompt[2].content[0].text, /Later feedback/);
+    assert.equal((await f.launcher.control(input)).control.status, 'ACCEPTED');
+    assert.equal(f.calls.prompt.length, 3);
+  } finally { await f.close(); }
+});
+
+test('a durable continuation journal entry is reconciled before any feedback read or prompt resend', async () => {
+  const f = await fixture({ taskMcp: true }); try {
+    const started = await f.launcher.start(f.input);
+    const input = continueInput(started);
+    f.services.sessions.prompt = async value => { f.calls.prompt.push(value); throw Error('ack lost'); };
+    await assert.rejects(f.launcher.control(input), /ack lost/);
+    const requestId = f.calls.prompt.at(-1).requestId;
+    f.services.sessions.inspect = async () => ({ events: [{ type: 'user/message', seq: 21,
+      data: { source: { kind: 'user', rpcId: requestId } } }] });
+    f.workbench = { ...f.workbench, project_id: 'foreign' };
+    assert.equal((await f.launcher.control(input)).control.status, 'ACCEPTED');
+    assert.equal(f.calls.prompt.length, 2);
+    assert.equal(f.calls.feedbackReads, 1);
+  } finally { await f.close(); }
+});
+
+test('continuation respects a requested Map confirmation and never turns feedback into approval', async () => {
+  const f = await fixture({ taskMcp: true }); try {
+    const started = await f.launcher.start({ ...f.input, requireMapConfirmation: true });
+    f.services.sessions.inspect = async () => ({ events: [] });
+    f.workbench = { ...f.workbench, map_confirmation_required: true, confirmed_map_sha256: null };
+    await f.launcher.control(continueInput(started));
+    let text = f.calls.prompt.at(-1).content[0].text;
+    assert.match(text, /当前尚未确认/);
+    assert.match(text, /不构成 Map 确认/);
+    assert.match(text, /不要自行继续条目\/分析或伪造确认/);
+
+    f.services.sessions.prompt = async value => { f.calls.prompt.push(value); return { accepted: true }; };
+    f.services.sessions.inspect = async () => ({ events: [] });
+    f.workbench = { ...f.workbench, map_confirmation_required: false, confirmed_map_sha256: 'e'.repeat(64),
+      stages: [{ stage: 'MAP', artifact_sha256: 'e'.repeat(64), count: 1 }] };
+    const second = { ...continueInput(started), controlId: 'eeeeeeee-eeee-4eee-8eee-eeeeeeeeeeee' };
+    await f.launcher.control(second);
+    text = f.calls.prompt.at(-1).content[0].text;
+    assert.match(text, /已在 PAIR 工作台确认当前 Map/);
+    assert.match(text, /e{64}/);
+  } finally { await f.close(); }
+});
+
+test('continuation accepts a real no-artifact Workbench state with null revision and empty feedback', async () => {
+  const f = await fixture({ taskMcp: true }); try {
+    const started = await f.launcher.start(f.input);
+    f.workbench = { ...f.workbench, revision_id: null, revision_number: 0, versions: [], feedback: [],
+      feedback_resolutions: {}, confirmed_map_sha256: null };
+    f.services.sessions.inspect = async () => ({ events: [] });
+    await f.launcher.control(continueInput(started));
+    const text = f.calls.prompt.at(-1).content[0].text;
+    assert.match(text, /current_revision=NONE/);
+    assert.match(text, /total=0，pending=0/);
+  } finally { await f.close(); }
+});
+
+test('continuation keeps large Workbench feedback lists honest and bounded', async () => {
+  const f = await fixture({ taskMcp: true }); try {
+    const started = await f.launcher.start(f.input);
+    const revision = 'c'.repeat(64);
+    const feedback = Array.from({ length: 30 }, (_, index) => feedbackItem(f.input.sourceSha256, revision, {
+      feedback_id: 'plugin-feedback-' + String(index).padStart(32, '0'),
+      text: '反馈 ' + index + '：请逐条处理并继续原任务全部阶段。' }));
+    f.workbench = { ...f.workbench, revision_id: revision, feedback };
+    f.services.sessions.inspect = async () => ({ events: [] });
+    await f.launcher.control(continueInput(started));
+    const text = f.calls.prompt.at(-1).content[0].text;
+    assert.match(text, /pending=30/);
+    assert.match(text, /另有 6 条仅保留身份/);
+    assert.match(text, /plugin-feedback-00000000000000000000000000000024/);
+    const record = JSON.parse(await readFile(join(f.root, 'task-launches', commandId + '.json'), 'utf8'));
+    const saved = record.controls[continueInput(started).controlId].continueFeedback;
+    assert.equal(saved.items.length, 24);
+    assert.equal(saved.omitted.length, 6);
+    assert.equal(saved.included_count + saved.omitted_count, saved.pending_count);
+  } finally { await f.close(); }
+});
+
+test('continuation does not treat a retained old Map confirmation as current approval', async () => {
+  const f = await fixture({ taskMcp: true }); try {
+    const started = await f.launcher.start({ ...f.input, requireMapConfirmation: true });
+    const mapV1 = '1'.repeat(64), mapV2 = '2'.repeat(64), revisionV1 = 'c'.repeat(64), revisionV2 = 'd'.repeat(64);
+    f.workbench = { ...f.workbench, revision_id: revisionV1, revision_number: 1,
+      versions: [{ revision_id: revisionV1, number: 1, stages: [{ stage: 'MAP', artifact_sha256: mapV1, count: 1 }],
+        created_at: '2026-11-01T00:00:00.000Z' }],
+      stages: [{ stage: 'MAP', artifact_sha256: mapV1, count: 1 }],
+      confirmed_map_sha256: mapV1, map_confirmation_required: false };
+    f.services.sessions.inspect = async () => ({ events: [] });
+    await f.launcher.control(continueInput(started));
+    let text = f.calls.prompt.at(-1).content[0].text;
+    assert.match(text, /已在 PAIR 工作台确认当前 Map/);
+    assert.match(text, new RegExp(mapV1));
+
+    f.workbench = { ...f.workbench, revision_id: revisionV2, revision_number: 2,
+      versions: [...f.workbench.versions, { revision_id: revisionV2, number: 2,
+        stages: [{ stage: 'MAP', artifact_sha256: mapV2, count: 2 }], created_at: '2026-11-01T00:01:00.000Z' }],
+      stages: [{ stage: 'MAP', artifact_sha256: mapV2, count: 2 }],
+      confirmed_map_sha256: mapV1, map_confirmation_required: true };
+    const second = { ...continueInput(started), controlId: 'ffffffff-ffff-4fff-8fff-ffffffffffff' };
+    await f.launcher.control(second);
+    text = f.calls.prompt.at(-1).content[0].text;
+    assert.match(text, /当前尚未确认/);
+    assert.match(text, /不构成 Map 确认/);
+    assert.doesNotMatch(text, /已在 PAIR 工作台确认当前 Map/);
+    const record = JSON.parse(await readFile(join(f.root, 'task-launches', commandId + '.json'), 'utf8'));
+    const saved = record.controls[second.controlId].continueFeedback;
+    assert.equal(saved.map_confirmation_required, true);
+    assert.equal(saved.map_confirmation_pending, true);
+    assert.equal(saved.confirmed_map_sha256, null);
+    assert.equal(saved.current_map_sha256, mapV2);
   } finally { await f.close(); }
 });

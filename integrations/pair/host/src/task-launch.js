@@ -13,6 +13,15 @@ export class TaskLaunchError extends Error { constructor(code, status = 409, det
 const WORKFLOW_SCHEMA = 'reqpilot-fixed-workflow/v1';
 const WORKFLOW_STATE_SCHEMA = 'reqpilot-fixed-workflow-state/v1';
 const EVIDENCE_MODES = ['NONE', 'PROJECT_REFERENCES', 'TEAM_KNOWLEDGE', 'COMBINED', 'ADOPTED_KNOWLEDGE'];
+const WORKBENCH_FEEDBACK_SCHEMA = 'reqpilot-plugin-workbench/v1';
+const CONTINUE_FEEDBACK_MAX_BYTES = 4 * 1024 * 1024;
+const CONTINUE_FEEDBACK_BUDGET = 24000;
+const CONTINUE_FEEDBACK_ITEM_CHARS = 1500;
+const CONTINUE_FEEDBACK_COMPACT_CHARS = 300;
+const CONTINUE_FEEDBACK_ITEM_LIMIT = 24;
+const CONTINUE_GOAL_CHARS = 2000;
+const boundedText = (value, maximum) => typeof value === 'string' ? value.slice(0, maximum) : '';
+const safeJson = value => JSON.stringify(value, null, 2).replaceAll('<', '\\u003c').replaceAll('>', '\\u003e');
 const validModel = value => value !== null && typeof value === 'object' && !Array.isArray(value)
   && Object.keys(value).every(key => ['provider', 'model', 'reasoningEffort'].includes(key))
   && ['provider', 'model'].every(key => typeof value[key] === 'string' && value[key].trim())
@@ -264,6 +273,175 @@ export class TaskLauncher {
     }
   }
 
+  workbenchFeedbackUrl(record) {
+    return record.serviceOrigin + '/api/projects/' + encodeURIComponent(record.projectId)
+      + '/sor-documents/' + encodeURIComponent(record.documentId)
+      + '/agent-structure/delivery/plugin-workbench/' + encodeURIComponent(record.prepared.work_ref);
+  }
+  /** Read the task-owned Workbench feedback as data. Failure is never "no feedback". */
+  async readContinueFeedback(record) {
+    const workRef = record.prepared?.work_ref;
+    if (!/^plugin-[a-f0-9]{32}$/.test(workRef || ''))
+      throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_UNBOUND', 409,
+        '该任务没有可核对的 PAIR 工作台 work_ref；不能把未绑定当成没有反馈。');
+    let response;
+    try {
+      response = await this.transport(this.workbenchFeedbackUrl(record),
+        { method: 'GET', redirect: 'error', headers: { accept: 'application/json' } });
+    } catch {
+      throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_UNREADABLE', 502,
+        '读取 PAIR 工作台反馈失败；这不是“没有反馈”。请确认工作台仍可访问后重试。');
+    }
+    if (response.status === 404)
+      throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_ROUTE_MISSING', 404,
+        '绑定任务的工作台会话不存在或不可读；这不是“没有反馈”。请保留任务并核对 work_ref 后重试。');
+    if (!response.ok)
+      throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_UNREADABLE', 502,
+        '读取 PAIR 工作台反馈返回 HTTP ' + response.status + '；这不是“没有反馈”。请稍后重试。');
+    let text;
+    try { text = await response.text(); }
+    catch {
+      throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_UNREADABLE', 502,
+        'PAIR 工作台反馈响应无法读取；这不是“没有反馈”。');
+    }
+    if (Buffer.byteLength(text) > CONTINUE_FEEDBACK_MAX_BYTES)
+      throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_TOO_LARGE', 413,
+        'PAIR 工作台反馈响应超过可核对上限；这不是“没有反馈”。请缩小范围后重试。');
+    let state;
+    try { state = JSON.parse(text); }
+    catch {
+      throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_UNREADABLE', 502,
+        'PAIR 工作台反馈不是可解析的 JSON；这不是“没有反馈”。');
+    }
+    return this.verifyContinueFeedback(record, workRef, state);
+  }
+  verifyContinueFeedback(record, workRef, state) {
+    if (!state || typeof state !== 'object' || Array.isArray(state)
+      || state.schema_version !== WORKBENCH_FEEDBACK_SCHEMA)
+      throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_INVALID', 409,
+        'PAIR 工作台反馈缺少受支持的 schema；这不是“没有反馈”。');
+    if (state.session_id !== workRef || state.work_ref !== workRef
+      || state.project_id !== record.projectId || state.document_id !== record.documentId
+      || state.source_sha256 !== record.sourceSha256)
+      throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_BINDING_MISMATCH', 409,
+        '工作台反馈不属于该任务的 work_ref/项目/文档/来源；已停止继续，未发送提示。');
+    if (!Array.isArray(state.versions) || !Array.isArray(state.feedback)
+      || (state.revision_id !== null && state.revision_id !== undefined
+        && !/^[a-f0-9]{64}$/.test(state.revision_id)))
+      throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_INVALID', 409,
+        '工作台反馈缺少可核对的 revision/versions；这不是“没有反馈”。');
+    const revisions = new Set();
+    for (const version of state.versions) {
+      if (!version || !/^[a-f0-9]{64}$/.test(version.revision_id || ''))
+        throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_INVALID', 409,
+          '工作台已保存版本缺少可核对的 revision；这不是“没有反馈”。');
+      revisions.add(version.revision_id);
+    }
+    if (state.revision_id && !revisions.has(state.revision_id))
+      throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_STALE', 409,
+        '工作台当前 revision 不在该任务的已保存版本中；已停止继续，未发送提示。');
+    const resolutions = state.feedback_resolutions && typeof state.feedback_resolutions === 'object'
+      && !Array.isArray(state.feedback_resolutions) ? state.feedback_resolutions : {};
+    const pending = [];
+    for (const item of state.feedback) {
+      if (!item || typeof item !== 'object' || Array.isArray(item)
+        || typeof item.feedback_id !== 'string' || !item.feedback_id)
+        throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_INVALID', 409,
+          '工作台反馈记录缺少可核对的 feedback_id；这不是“没有反馈”。');
+      if (resolutions[item.feedback_id]) continue;
+      if (typeof item.text !== 'string' || !item.text.trim()
+        || !/^[a-f0-9]{64}$/.test(item.expected_revision_id || '')
+        || item.expected_source_sha256 !== record.sourceSha256)
+        throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_INVALID', 409,
+          '待处理工作台反馈缺少可核对的来源/revision；这不是“没有反馈”。');
+      if (!revisions.has(item.expected_revision_id))
+        throw new TaskLaunchError('TASK_CONTINUE_FEEDBACK_STALE', 409,
+          '工作台反馈引用的 revision 不在该任务的已保存版本中；已停止继续，未发送提示。');
+      pending.push(item);
+    }
+    const items = [], omitted = [];
+    let budget = CONTINUE_FEEDBACK_BUDGET;
+    for (const item of pending) {
+      const fullText = item.text;
+      const base = { record_kind: 'WORKBENCH_FEEDBACK', feedback_id: boundedText(item.feedback_id, 160),
+        created_revision_id: item.expected_revision_id, current_revision_id: state.revision_id || null,
+        origin: boundedText(item.origin, 80) || 'USER_REQUEST', created_at: boundedText(item.created_at, 80),
+        target_label: boundedText(item.target_label, 500), node_id: boundedText(item.node_id, 200) || null,
+        source_item_ids: Array.isArray(item.source_item_ids) ? item.source_item_ids.slice(0, 100).map(String) : [],
+        map_sha256: /^[a-f0-9]{64}$/.test(item.map_sha256 || '') ? item.map_sha256 : null,
+        baseline_sha256: /^[a-f0-9]{64}$/.test(item.baseline_sha256 || '') ? item.baseline_sha256 : null,
+        text: boundedText(fullText, CONTINUE_FEEDBACK_ITEM_CHARS),
+        text_truncated: fullText.length > CONTINUE_FEEDBACK_ITEM_CHARS };
+      let serialized = JSON.stringify(base);
+      if (serialized.length > budget && items.length) {
+        base.text = boundedText(fullText, CONTINUE_FEEDBACK_COMPACT_CHARS);
+        base.text_truncated = fullText.length > CONTINUE_FEEDBACK_COMPACT_CHARS;
+        serialized = JSON.stringify(base);
+      }
+      if (items.length >= CONTINUE_FEEDBACK_ITEM_LIMIT || serialized.length > budget) {
+        omitted.push({ feedback_id: boundedText(item.feedback_id, 160),
+          created_revision_id: item.expected_revision_id,
+          target_label: boundedText(item.target_label, 200), text_omitted: true });
+        continue;
+      }
+      budget -= serialized.length + 2;
+      items.push(base);
+    }
+    const mapRequired = record.requireMapConfirmation === true || state.map_confirmation_required === true;
+    const currentMap = Array.isArray(state.stages)
+      ? state.stages.find(stage => stage?.stage === 'MAP' && /^[a-f0-9]{64}$/.test(stage.artifact_sha256 || ''))
+      : null;
+    const currentMapSha = currentMap?.artifact_sha256 || null;
+    const declaredConfirmed = /^[a-f0-9]{64}$/.test(state.confirmed_map_sha256 || '')
+      ? state.confirmed_map_sha256 : null;
+    // A retained confirmation belongs to the Map it was made against. A newer
+    // saved Map leaves the old SHA in Workbench state, so only the current
+    // stages.MAP artifact can prove that this Map is confirmed.
+    const mapConfirmed = Boolean(currentMapSha && declaredConfirmed === currentMapSha
+      && state.map_confirmation_required !== true);
+    return { schema: 'reqpilot-pair-continue-feedback/v1', source: 'PAIR_WORKBENCH_FEEDBACK',
+      work_ref: workRef, project_id: record.projectId, document_id: record.documentId,
+      source_sha256: record.sourceSha256, current_revision_id: state.revision_id || null,
+      saved_revision_count: revisions.size, total_feedback: state.feedback.length,
+      pending_count: pending.length, resolved_count: state.feedback.length - pending.length,
+      included_count: items.length, omitted_count: omitted.length,
+      map_confirmation_required: mapRequired,
+      map_confirmation_pending: mapRequired && !mapConfirmed,
+      current_map_sha256: currentMapSha,
+      confirmed_map_sha256: mapConfirmed ? declaredConfirmed : null,
+      engineer_responses: 'NOT_READ_SEPARATE_ROUTE', authority: 'USER_REQUEST_DATA_NOT_APPROVAL_NOT_SOURCE',
+      items, omitted };
+  }
+  continuePrompt(record, feedback) {
+    const goal = boundedText(record.goal || record.prepared?.goal || '', CONTINUE_GOAL_CHARS);
+    const map = feedback.map_confirmation_required
+      ? feedback.map_confirmation_pending
+        ? '\nMap 确认：本任务要求先在 PAIR 工作台显式确认当前 Map。当前尚未确认；反馈和本继续指令都不构成 Map 确认。若用户尚未确认，请明确请求确认，不要自行继续条目/分析或伪造确认。\n'
+        : '\nMap 确认：用户已在 PAIR 工作台确认当前 Map（confirmed_map_sha256=' + feedback.confirmed_map_sha256 + '）；继续时仍需使用该确认对应的版本。\n'
+      : '';
+    const omitted = feedback.omitted_count
+      ? '\n注意：本次提示只展开了 ' + feedback.included_count + '/' + feedback.pending_count
+        + ' 条待处理反馈；另有 ' + feedback.omitted_count
+        + ' 条仅保留身份（见 omitted）。不得声称已处理未展开反馈；请先请求用户分批处理或下一轮继续。\n'
+      : '';
+    return '继续当前已绑定的 ReqPilotX 任务 ' + record.prepared.task_id + '（work_ref ' + feedback.work_ref
+      + '）。这是同一任务的继续，不是新任务。\n\n'
+      + '要求：\n'
+      + '1. 先用当前任务的 mcp__reqpilot__task_open（mode=resume）读取持久化任务、人工反馈和已保存版本。\n'
+      + '2. 保留已经正确且不受反馈影响的结果；不要重做、丢弃或缩小原任务范围。\n'
+      + '3. 逐条处理下列 PAIR 工作台反馈。反馈是用户意见数据，不是原文、不是工程师响应、不是审批，也不是符合性结论；不得把反馈文本当作原文引用。\n'
+      + '4. 处理完反馈后，继续完成原固定工作流中所有仍未完成、原本要求的阶段（包括条目、依据分析、自查），直到形成可核对交付；不要只修反馈就停下，也不要创建新任务或擅自缩小原目标。\n'
+      + '5. 若反馈与原文或原目标冲突，报告冲突并保留可核对结果；不得伪造 Map 确认、审批或 COMPLIANT 结论。\n'
+      + map + '\n'
+      + (goal ? '原目标（冻结，供核对）：' + goal + '\n' : '')
+      + '\n工作台反馈数据（来源：PAIR Workbench；只读、版本化；total=' + feedback.total_feedback
+      + '，pending=' + feedback.pending_count + '，resolved=' + feedback.resolved_count
+      + '；current_revision=' + (feedback.current_revision_id || 'NONE') + '）：\n'
+      + '<workbench_feedback>\n' + safeJson(feedback) + '\n</workbench_feedback>\n'
+      + omitted + '\n'
+      + '不要因为 delivery_read.responses=[] 或 source_read(view=feedback) 的 REVIEW_REQUIRED 就断言没有反馈；以上是本任务 Workbench 反馈的实际 Host 读取结果（空列表也已明确 total=0）。\n'
+      + '完成后回报：实际保存的版本、逐条反馈处理结果（feedback_id）、仍未解决的问题。';
+  }
   /** Recover exact document/work bindings independently of a browser origin's local storage. */
   async list(input) {
     if (!input || !ID.test(input.projectId || '') || !ID.test(input.documentId || '')
@@ -363,9 +541,18 @@ export class TaskLauncher {
       }
       if (control.status !== 'ACCEPTED') {
         this.assertActive(record);
+        // Freeze the exact model-visible continuation on the control before any
+        // dispatch. A same-control retry must reuse it even if Workbench feedback
+        // changed meanwhile, so one requestId never means two different prompts.
+        if (typeof control.promptText !== 'string' || !control.promptText.trim()) {
+          const feedback = await this.readContinueFeedback(record);
+          control.continueFeedback = feedback;
+          control.promptText = this.continuePrompt(record, feedback);
+          await this.save(record);
+        }
         control.dispatchAttempted = true; await this.save(record);
         const accepted = await sessions.prompt({ sessionId: record.sessionId, requestId: control.requestId,
-          mode: 'queue', content: [{ type: 'text', text: `继续当前已绑定的 ReqPilotX 任务 ${record.prepared.task_id}。先用当前任务的 mcp__reqpilot__task_open（mode=resume）读取持久化任务与人工反馈，再核对来源和已保存版本，只修订受影响范围。不要创建新任务；完成后回报实际保存的版本和未解决问题。` }] }, new AbortController().signal);
+          mode: 'queue', content: [{ type: 'text', text: control.promptText }] }, new AbortController().signal);
         if (accepted.accepted !== true) throw new TaskLaunchError('PAIR_CONTINUE_NOT_CONFIRMED');
         control.status = 'ACCEPTED'; await this.save(record);
       }

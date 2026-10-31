@@ -2,13 +2,16 @@
 import { createHash, createHmac, randomBytes } from 'node:crypto';
 import { createServer } from 'node:http';
 import { mkdir, readFile, writeFile, rename, chmod } from 'node:fs/promises';
-import { join } from 'node:path';
+import { basename, join } from 'node:path';
 import { fileURLToPath } from 'node:url';
 import { once } from 'node:events';
 
 const BINDING_SCHEMA = 'reqpilot-task-evidence/v1';
 const CONSUMPTION_SCHEMA = 'reqpilot-pair-evidence-consumption/v1';
+const MEDIA_RECEIPTS_SCHEMA = 'reqpilot-pair-media-receipts/v1';
 const REGISTRATION_SCHEMA = 'reqpilot-pair-evidence-registration/v1';
+const MEDIA_MAX_BYTES = 128 * 1024 * 1024;
+const MEDIA_RECEIPT_LIMIT = 200;
 const MODES = ['NONE', 'PROJECT_REFERENCES', 'TEAM_KNOWLEDGE', 'COMBINED', 'ADOPTED_KNOWLEDGE'];
 const ADOPTED_SECTIONS = ['wiki', 'claims', 'entities', 'relations', 'images', 'experiences', 'conflicts', 'gaps', 'sources'];
 const ADOPTED_KINDS = ['wiki', 'source', 'claim', 'entity', 'relation', 'image', 'experience', 'conflict', 'gap'];
@@ -25,6 +28,15 @@ const stable = value => Array.isArray(value)
 const digest = value => sha(stable(value));
 const fileKey = value => sha(String(value)).slice(0, 32);
 const bounded = (value, maximum = 2000) => typeof value === 'string' ? value.slice(0, maximum) : '';
+function safeMediaName(value, fallback) {
+  const raw = typeof value === 'string' ? basename(value) : '';
+  const name = raw.replace(/[^a-zA-Z0-9._-]+/g, '_').replace(/^[._-]+/, '').slice(0, 120);
+  return name || fallback;
+}
+function mediaMime(value) {
+  return typeof value === 'string' && /^[a-zA-Z0-9.+-]+\/[a-zA-Z0-9.+-]+$/.test(value)
+    ? value : 'application/octet-stream';
+}
 
 export class KnowledgeError extends Error {
   constructor(code, status = 409, detail) {
@@ -1094,7 +1106,8 @@ export class KnowledgeBridge {
       if (result.availability === 'metadata-only') throw new KnowledgeError('ADOPTED_METADATA_ONLY', 409,
         'Only metadata was admitted for this source; no normalized or original body was consumed.');
       throw new KnowledgeError('ADOPTED_SOURCE_CONTENT_UNAVAILABLE', 409,
-        'The selected source has no readable normalized content; request its bytes through the separate source route.');
+        'The selected source has no readable normalized content; call knowledge_adopted_source with sourceId '
+        + JSON.stringify(request.sourceId) + ' to retrieve the exact original or approved-derived bytes through the task-bound media route.');
     }
     if (!raw && result.record !== undefined) raw = JSON.stringify(result.record, null, 2);
     if (!raw.trim()) throw new KnowledgeError('ADOPTED_CONTENT_UNAVAILABLE', 409,
@@ -1140,6 +1153,140 @@ export class KnowledgeBridge {
     if (!value || !Buffer.isBuffer(value.bytes)) throw new KnowledgeError('ADOPTED_SOURCE_UNAVAILABLE', 409);
     await this.requireAdoptedCurrent(commandId);
     return value;
+  }
+  mediaCacheRoot(commandId) {
+    return join(this.runtime?.dataRoot || this.dataRoot, 'task-media', commandId);
+  }
+  mediaReceiptPath(commandId) {
+    return join(this.runtime?.dataRoot || this.dataRoot, 'knowledge-media', commandId + '.receipts.json');
+  }
+  async loadMediaReceipts(commandId) {
+    try {
+      const value = await this.readJson(this.mediaReceiptPath(commandId));
+      if (value?.schema_version !== MEDIA_RECEIPTS_SCHEMA || !Array.isArray(value.entries))
+        throw new KnowledgeError('MEDIA_RECEIPTS_INVALID', 409);
+      return value;
+    } catch (error) {
+      if (error.code === 'ENOENT') return { schema_version: MEDIA_RECEIPTS_SCHEMA, entries: [] };
+      throw error;
+    }
+  }
+  async recordMediaReceipt(commandId, tool, request, media) {
+    const run = this.consumption(commandId).then(async () => {
+      const binding = await this.loadBinding(commandId);
+      const current = await this.loadMediaReceipts(commandId);
+      if (current.binding_sha256 && current.binding_sha256 !== binding.binding_sha256)
+        throw new KnowledgeError('KNOWLEDGE_BINDING_CONFLICT');
+      current.schema_version = MEDIA_RECEIPTS_SCHEMA;
+      current.binding_sha256 = binding.binding_sha256;
+      current.task_id = this.getRecord(commandId)?.prepared?.task_id || null;
+      current.entries.push({ tool, request_sha256: digest(request), returned_at: new Date().toISOString(),
+        kind: media.kind, id: media.id, library_id: media.libraryId, version_id: media.versionId,
+        metadata: media.metadata ?? 'AVAILABLE',
+        availability: media.availability ?? null, content_revision: media.contentRevision ?? null,
+        record_content_revision: media.recordContentRevision ?? null,
+        bytes_sha256: media.bytesSha256, bytes: media.bytes, mime: media.mime,
+        filename: media.filename, cache_file: join('task-media', commandId, basename(media.path)),
+        authority: 'MEDIA_BYTES_NOT_EVIDENCE', human_acceptance: 'NOT_CLAIMED' });
+      if (current.entries.length > MEDIA_RECEIPT_LIMIT) current.entries = current.entries.slice(-MEDIA_RECEIPT_LIMIT);
+      await this.writeJson(this.mediaReceiptPath(commandId), current);
+    });
+    this.pending.set(commandId, run.catch(() => {}));
+    return run;
+  }
+  async materializeMedia(commandId, kind, id, value) {
+    if (!value || !Buffer.isBuffer(value.bytes))
+      throw new KnowledgeError('ADOPTED_SOURCE_UNAVAILABLE', 409);
+    if (value.bytes.length > MEDIA_MAX_BYTES)
+      throw new KnowledgeError('ADOPTED_MEDIA_TOO_LARGE', 413,
+        'The selected media exceeds the Host read limit; no partial file was cached.');
+    const actual = sha(value.bytes);
+    const fallback = kind + '-' + String(id).replace(/[^a-zA-Z0-9._-]+/g, '_').slice(0, 80);
+    const filename = safeMediaName(value.filename, fallback);
+    const root = this.mediaCacheRoot(commandId);
+    await mkdir(root, { recursive: true, mode: 0o700 });
+    const file = join(root, actual + '-' + filename);
+    const temporary = file + '.' + randomBytes(6).toString('hex') + '.tmp';
+    await writeFile(temporary, value.bytes, { mode: 0o400 });
+    await rename(temporary, file);
+    await chmod(file, 0o400);
+    return { path: file, filename, mime: mediaMime(value.mime), sha256: actual, bytes: value.bytes.length };
+  }
+  async adoptedSourceMedia(commandId, sourceId) {
+    if (!ADOPTED_ID.test(sourceId || '') || sourceId.split('/').includes('..'))
+      throw new KnowledgeError('INVALID_ADOPTED_SOURCE', 422);
+    const binding = await this.requireAdoptedCurrent(commandId);
+    const frozen = binding.adopted;
+    let record = null;
+    try {
+      record = await this.service.readAdopted(frozen.caller, { kind: 'source', sourceId });
+      this.assertAdoptedResult(binding, record);
+      if (record.kind !== 'source' || (record.sourceId || record.id) !== sourceId)
+        throw new KnowledgeError('ADOPTED_CONTENT_UNVERIFIED', 409,
+          'The adopted source read returned a different source identity.');
+    } catch (error) {
+      if (error instanceof KnowledgeError) throw error;
+      record = null;
+    }
+    const value = await this.adoptedSource(commandId, sourceId);
+    const media = await this.materializeMedia(commandId, 'source', sourceId, {
+      bytes: value.bytes, mime: value.mime, filename: value.filename });
+    const result = { schema: 'reqpilot-adopted-media/v1', kind: 'source', id: sourceId,
+      libraryId: frozen.library_id, versionId: frozen.version_id,
+      title: bounded(record?.title, 500) || sourceId,
+      availability: value.availability, admission: record?.admission ?? null,
+      contentRevision: value.contentRevision, contentRevisionBasis: 'BINARY_FILE',
+      sourceVersion: record?.sourceVersion ?? null, originalSourceVersion: record?.originalSourceVersion ?? null,
+      locator: adoptedLocator(record?.locator), mime: media.mime, filename: media.filename,
+      path: media.path, bytesSha256: media.sha256, bytes: media.bytes,
+      identity: { kind: 'source', id: sourceId, library_id: frozen.library_id, version_id: frozen.version_id },
+      authority: 'MEDIA_BYTES_NOT_EVIDENCE', humanAcceptance: 'NOT_CLAIMED' };
+    await this.recordMediaReceipt(commandId, 'adopted_source', { sourceId }, result);
+    return result;
+  }
+  async adoptedImageMedia(commandId, imageId) {
+    if (!ADOPTED_ID.test(imageId || '') || imageId.split('/').includes('..'))
+      throw new KnowledgeError('INVALID_ADOPTED_IMAGE', 422);
+    const binding = await this.requireAdoptedCurrent(commandId);
+    const frozen = binding.adopted;
+    const value = await this.adoptedImage(commandId, imageId);
+    let record = null;
+    let metadata = 'AVAILABLE';
+    try {
+      record = await this.service.readAdopted(frozen.caller, { kind: 'image', id: imageId });
+      this.assertAdoptedResult(binding, record);
+      if (record.kind !== 'image' || record.id !== imageId)
+        throw new KnowledgeError('ADOPTED_CONTENT_UNVERIFIED', 409,
+          'The adopted image read returned a different image identity.');
+    } catch (error) {
+      if (error instanceof KnowledgeError) throw error;
+      const code = String(error?.code || '');
+      // Only an explicit record absence may omit locator/revision metadata.
+      // Version, binding, permission and transport failures must stay failures.
+      if (code === 'source-unavailable' || code === 'not-found') {
+        record = null; metadata = 'UNAVAILABLE';
+      } else {
+        throw adoptionFailure(error);
+      }
+    }
+    await this.requireAdoptedCurrent(commandId);
+    const mediaPath = record?.path
+      || (typeof record?.record?.image_path === 'string' ? record.record.image_path : null);
+    const media = await this.materializeMedia(commandId, 'image', imageId, {
+      bytes: value.bytes, mime: value.mime, filename: mediaPath ? basename(mediaPath) : null });
+    await this.requireAdoptedCurrent(commandId);
+    const result = { schema: 'reqpilot-adopted-media/v1', kind: 'image', id: imageId,
+      libraryId: frozen.library_id, versionId: frozen.version_id,
+      title: bounded(record?.title, 500) || imageId, metadata,
+      availability: record?.availability ?? null, admission: record?.admission ?? null,
+      recordContentRevision: record?.contentRevision ?? null,
+      recordContentRevisionBasis: 'RECORD_TABLE_NOT_BINARY_BYTES',
+      locator: adoptedLocator(record?.locator), mime: media.mime, filename: media.filename,
+      path: media.path, bytesSha256: media.sha256, bytes: media.bytes,
+      identity: { kind: 'image', id: imageId, library_id: frozen.library_id, version_id: frozen.version_id },
+      authority: 'MEDIA_BYTES_NOT_EVIDENCE', humanAcceptance: 'NOT_CLAIMED' };
+    await this.recordMediaReceipt(commandId, 'adopted_image', { imageId }, result);
+    return result;
   }
   async original(commandId, documentId, versionId = null) {
     const binding = await this.loadBinding(commandId);
@@ -1261,6 +1408,8 @@ export class KnowledgeBridge {
       else if (req.url === '/evidence/adopted/browse') result = await this.adoptedBrowse(commandId, body.section,
         { ...(body.query === undefined ? {} : { query: body.query }), ...(body.limit === undefined ? {} : { limit: body.limit }) });
       else if (req.url === '/evidence/adopted/read') result = await this.adoptedRead(commandId, body);
+      else if (req.url === '/evidence/adopted/source') result = await this.adoptedSourceMedia(commandId, body.sourceId);
+      else if (req.url === '/evidence/adopted/image') result = await this.adoptedImageMedia(commandId, body.imageId);
       else if (req.url === '/evidence/adopted/evidence') result = await this.adoptedEvidence(commandId, body.query, body.limit ?? 8);
       else if (req.url === '/evidence/analysis') result = await this.analysis(commandId, body.decisions,
         body.unitIds, body.expectedRevision, body.commandId);
