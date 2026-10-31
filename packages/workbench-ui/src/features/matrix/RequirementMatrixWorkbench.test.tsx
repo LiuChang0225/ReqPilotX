@@ -4867,3 +4867,60 @@ describe("RequirementMatrixWorkbench English host locale", () => {
     expect(screen.queryByText("返回检查")).not.toBeInTheDocument();
   });
 });
+
+describe("RequirementMatrixWorkbench locale-stable draft guards", () => {
+  it("keeps dirty and saving guards across zh→en while preserving the draft and saved values", async () => {
+    const { matrix, root, atomic1 } = fixture();
+    installResizeObserver({ treeWidth: 350, workbenchWidth: 1200 });
+    installReviewMatrixApis(matrix, root);
+    const pending = deferred<{ node: RequirementMatrixNode }>();
+    const decisionRequest = vi
+      .spyOn(api, "updateRequirementMatrixDecision")
+      .mockReturnValue(pending.promise as ReturnType<typeof api.updateRequirementMatrixDecision>);
+    const confirm = vi.spyOn(window, "confirm").mockReturnValue(false);
+    const renderLocale = (locale: "zh" | "en") => (
+      <HostLocaleProvider t={key => key === "workbench.locale" ? locale : key}>
+        <WorkspaceProvider value={workspaceValue()}><RequirementMatrixWorkbench lens="analysis" /></WorkspaceProvider>
+      </HostLocaleProvider>
+    );
+    const view = render(renderLocale("zh"));
+    const firstRow = await screen.findByRole("row", { name: /4\.1\.1，高温验证/ });
+    await userEvent.setup().click(firstRow);
+    const decision = screen.getByLabelText("结论");
+    await userEvent.setup().selectOptions(decision, "ACCEPT");
+    const reason = screen.getByLabelText("工程师说明");
+    await userEvent.setup().type(reason, "已核对");
+    expect(screen.getByText("未保存")).toBeVisible();
+
+    view.rerender(renderLocale("en"));
+    expect(screen.getByText("Not saved")).toBeVisible();
+    expect(firstRow).toHaveAttribute("aria-selected", "true");
+    expect(reason).toHaveValue("已核对");
+    const beforeUnload = new Event("beforeunload", { cancelable: true });
+    window.dispatchEvent(beforeUnload);
+    expect(beforeUnload.defaultPrevented).toBe(true);
+
+    await userEvent.setup().click(screen.getByRole("row", { name: /4\.1\.2，低温验证/ }));
+    expect(confirm).toHaveBeenCalled();
+    expect(firstRow).toHaveAttribute("aria-selected", "true");
+    expect(reason).toHaveValue("已核对");
+    expect(decision).toHaveValue("ACCEPT");
+
+    const beforeEnSave = vi.mocked(api.requirementMatrix).mock.calls.length;
+    fireEvent.keyDown(reason, { key: "Enter", metaKey: true });
+    await waitFor(() => expect(decisionRequest).toHaveBeenCalledTimes(1));
+    expect(decisionRequest.mock.calls[0][3]).toBe(atomic1.node_id);
+    expect(decisionRequest.mock.calls[0][4]).toMatchObject({ final_decision: "ACCEPT", engineer_reason: "已核对" });
+
+    view.rerender(renderLocale("en"));
+    expect(screen.getByRole("button", { name: /Saving/ })).toBeDisabled();
+    fireEvent.keyDown(reason, { key: "Enter", metaKey: true });
+    expect(decisionRequest).toHaveBeenCalledTimes(1);
+    expect(vi.mocked(api.requirementMatrix).mock.calls.length).toBe(beforeEnSave);
+
+    pending.resolve({ node: { ...atomic1, save_revision: 1, manual_decision: { decision: "ACCEPT", reason: "已核对", decided_at: "2026-07-31T00:00:00Z" } } });
+    expect(await screen.findByText(/Saved/)).toBeVisible();
+    expect(decision).toHaveValue("ACCEPT");
+    expect(reason).toHaveValue("已核对");
+  });
+});

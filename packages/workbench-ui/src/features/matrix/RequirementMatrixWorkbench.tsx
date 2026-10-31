@@ -115,7 +115,37 @@ type BatchScope = "branch" | "filter" | "all";
 type MatrixWorkflowDialog = "lock" | "unlock" | "analysis" | "stop" | null;
 type MatrixWorkflowPending = "lock" | "unlock" | "analysis" | "stop" | null;
 type AnalysisRetryKind = "" | "preview" | "start";
-type SaveState = string;
+type SaveStateStatus = "idle" | "dirty" | "saving" | "failed" | "saved";
+type SaveState = { status: SaveStateStatus; savedAt?: string };
+type BatchStateStatus = "idle" | "saving" | "undoing" | "applied" | "undone" | "failed";
+type BatchState = { status: BatchStateStatus; count?: number; message?: string };
+type ExportState = { status: "idle" | "exporting" | "completeSource" | "matched" | "failed"; message?: string };
+type Copy = (key: string, fallback?: string, params?: Record<string, string | number>) => string;
+
+function saveStateLabel(state: SaveState, l: Copy): string {
+  if (state.status === "dirty") return l("未保存");
+  if (state.status === "saving") return l("保存中…");
+  if (state.status === "failed") return l("保存失败，请重试");
+  if (state.status === "saved") return l("已保存 {time}", undefined, { time: state.savedAt || "" });
+  return "";
+}
+
+function batchStateLabel(state: BatchState, l: Copy): string {
+  if (state.status === "saving") return l("保存中…");
+  if (state.status === "undoing") return l("正在撤销…");
+  if (state.status === "applied") return l("已批量处理 {count} 项", undefined, { count: state.count || 0 });
+  if (state.status === "undone") return l("已撤销 {count} 项批量处理", undefined, { count: state.count || 0 });
+  if (state.status === "failed") return state.message || l("批量处理失败，请重试。");
+  return "";
+}
+
+function exportStateLabel(state: ExportState, l: Copy): string {
+  if (state.status === "exporting") return l("正在导出…");
+  if (state.status === "completeSource") return l("已导出完整原文矩阵");
+  if (state.status === "matched") return l("已导出当前命中条目");
+  if (state.status === "failed") return state.message || "";
+  return "";
+}
 type MatrixMutationKind = "single" | "batch";
 export type MatrixMutationRequest = {
   generation: number;
@@ -936,11 +966,11 @@ function MatrixInspector({
   ]);
 
   useEffect(() => {
-    onSaveState("");
+    onSaveState({ status: "idle" });
   }, [node?.node_id, onSaveState, resetSignal]);
 
   const save = useCallback(async (): Promise<boolean> => {
-    if (!node || saveState === l("保存中…")) return false;
+    if (!node || saveState.status === "saving") return false;
     if (
       (lens === "review" &&
         (!canEditDisposition ||
@@ -951,7 +981,7 @@ function MatrixInspector({
       return false;
     }
     const mutationRequest = beginMatrixMutation();
-    onSaveState(l("保存中…"));
+    onSaveState({ status: "saving" });
     try {
       if (lens === "review") {
         const response = await api.updateRequirementMatrixDisposition(
@@ -987,11 +1017,11 @@ function MatrixInspector({
         const responseNode = asRecord(response).node as RequirementMatrixNode;
         onNodeUpdated(responseNode);
       }
-      onSaveState(l("已保存 {time}", undefined, { time: savedTimeFormatter.format(new Date()) }));
+      onSaveState({ status: "saved", savedAt: savedTimeFormatter.format(new Date()) });
       return true;
     } catch {
       if (!isMatrixMutationCurrent(mutationRequest)) return false;
-      onSaveState(l("保存失败，请重试"));
+      onSaveState({ status: "failed" });
       return false;
     }
   }, [
@@ -1125,7 +1155,7 @@ function MatrixInspector({
                         }
                         onChange={() => {
                           setDisposition(option.value);
-                          onSaveState(l("未保存"));
+                          onSaveState({ status: "dirty" });
                         }}
                       />
                       <span>
@@ -1147,7 +1177,7 @@ function MatrixInspector({
                   placeholder={l("仅在需要说明排除或保留原因时填写")}
                   onChange={(event) => {
                     setDispositionReason(event.target.value);
-                    onSaveState(l("未保存"));
+                    onSaveState({ status: "dirty" });
                   }}
                 />
               </label>
@@ -1252,7 +1282,7 @@ function MatrixInspector({
                 disabled={!canWriteDecision}
                 onChange={(event) => {
                   setDecision(event.target.value);
-                  onSaveState(l("未保存"));
+                  onSaveState({ status: "dirty" });
                 }}
               >
                 <option value="">{l("保持 AI 结论（未修改）")}</option>
@@ -1273,7 +1303,7 @@ function MatrixInspector({
                 disabled={!canWriteDecision}
                 onChange={(event) => {
                   setDecisionReason(event.target.value);
-                  onSaveState(l("未保存"));
+                  onSaveState({ status: "dirty" });
                 }}
               />
             </label>
@@ -1293,13 +1323,13 @@ function MatrixInspector({
 
       <footer className="matrix-inspector-footer">
         <span aria-live="polite">
-          {saveState || `当前：${dispositionLabel(node.disposition, l)}`}
+          {saveStateLabel(saveState, l) || `当前：${dispositionLabel(node.disposition, l)}`}
         </span>
         <button
           className="button primary"
           type="button"
           disabled={
-            saveState === l("保存中…") ||
+            saveState.status === "saving" ||
             (lens === "review"
               ? !canEditDisposition ||
                 (isContainer && disposition !== "RETAIN") ||
@@ -1309,12 +1339,12 @@ function MatrixInspector({
           onClick={() => void save()}
         >
           <Icon
-            name={saveState === l("保存失败，请重试") ? "refresh" : "check"}
+            name={saveState.status === "failed" ? "refresh" : "check"}
             size={15}
           />
-          {saveState === l("保存中…")
+          {saveState.status === "saving"
             ? l("保存中…")
-            : saveState === l("保存失败，请重试")
+            : saveState.status === "failed"
               ? l("重试保存")
               : l("保存")}
           <kbd>⌘↵</kbd>
@@ -1372,7 +1402,7 @@ export function RequirementMatrixWorkbench({
   const facets = useMemo(() => ({ category, topic }), [category, topic]);
   const candidateMetadata = asRecord(matrix?.candidate_review);
   const topicLabels = asRecord(candidateMetadata.topics) as Record<string, string>;
-  const [exportState, setExportState] = useState("");
+  const [exportState, setExportState] = useState<ExportState>({ status: "idle" });
   const [selectedId, setSelectedId] = useScopedUiState(
     `${uiScope}:selected-node`,
     "",
@@ -1401,9 +1431,9 @@ export function RequirementMatrixWorkbench({
   const [detailError, setDetailError] = useState("");
   const [tableError, setTableError] = useState("");
   const [tableDetails, setTableDetails] = useState<RequirementMatrixLogicalTable[]>([]);
-  const [saveState, setSaveState] = useState<SaveState>("");
+  const [saveState, setSaveState] = useState<SaveState>({ status: "idle" });
   const hasUnsavedChanges =
-    saveState === l("未保存") || saveState === l("保存失败，请重试");
+    saveState.status === "dirty" || saveState.status === "failed";
   const [matrixRefreshPending, setMatrixRefreshPending] = useState(false);
   const [resetSignal, setResetSignal] = useState(0);
   const [batchOpen, setBatchOpen] = useState(false);
@@ -1411,11 +1441,11 @@ export function RequirementMatrixWorkbench({
   const [batchDisposition, setBatchDisposition] =
     useState<RequirementMatrixNodeDisposition>("ANALYZE");
   const [batchReason, setBatchReason] = useState("");
-  const [batchState, setBatchState] = useState("");
+  const [batchState, setBatchState] = useState<BatchState>({ status: "idle" });
   const matrixMutationPending =
-    saveState === l("保存中…") ||
-    batchState === l("保存中…") ||
-    batchState === l("正在撤销…");
+    saveState.status === "saving" ||
+    batchState.status === "saving" ||
+    batchState.status === "undoing";
   const [workflowDialog, setWorkflowDialog] =
     useState<MatrixWorkflowDialog>(null);
   const [workflowPending, setWorkflowPending] =
@@ -1529,9 +1559,9 @@ export function RequirementMatrixWorkbench({
     matrixMutationGenerationRef.current.batch += 1;
     lockReadinessRequestRef.current += 1;
     analysisPreviewRequestRef.current += 1;
-    setSaveState("");
+    setSaveState({ status: "idle" });
     setBatchOpen(false);
-    setBatchState("");
+    setBatchState({ status: "idle" });
     setBatchUndo([]);
     setBatchReason("");
     setWorkflowDialog(null);
@@ -2802,7 +2832,7 @@ export function RequirementMatrixWorkbench({
     setWorkflowPending(null);
     setWorkflowDialog(null);
     setBatchOpen(false);
-    setBatchState("");
+    setBatchState({ status: "idle" });
     setBatchUndo([]);
     if (
       lockedAnalysisCount !== lockReadiness.counts.analysis_targets
@@ -3289,8 +3319,8 @@ export function RequirementMatrixWorkbench({
       !matrix ||
       !canBatchDisposition ||
       !batchCandidateNodes.length ||
-      batchState === l("保存中…") ||
-      batchState === l("正在撤销…")
+      batchState.status === "saving" ||
+      batchState.status === "undoing"
     ) {
       return;
     }
@@ -3300,7 +3330,7 @@ export function RequirementMatrixWorkbench({
       reason: String(node.disposition_reason || ""),
     }));
     const mutationRequest = beginMatrixMutation("batch");
-    setBatchState(l("保存中…"));
+    setBatchState({ status: "saving" });
     try {
       const response = await api.updateRequirementMatrixDispositions(
         route.projectId,
@@ -3346,14 +3376,12 @@ export function RequirementMatrixWorkbench({
             : [];
         }),
       );
-      setBatchState(l("已批量处理 {count} 项", undefined, { count: updatedNodes.length }));
+      setBatchState({ status: "applied", count: updatedNodes.length });
       setBatchOpen(false);
       setBatchReason("");
     } catch (cause) {
       if (!isMatrixMutationCurrent(mutationRequest)) return;
-      setBatchState(
-        cause instanceof Error ? cause.message : l("批量处理失败，请重试。"),
-      );
+      setBatchState({ status: "failed", message: cause instanceof Error ? cause.message : l("批量处理失败，请重试。") });
     }
   }, [
     batchCandidateNodes,
@@ -3374,13 +3402,13 @@ export function RequirementMatrixWorkbench({
       !matrix ||
       !canBatchDisposition ||
       !batchUndo.length ||
-      batchState === l("保存中…") ||
-      batchState === l("正在撤销…")
+      batchState.status === "saving" ||
+      batchState.status === "undoing"
     ) {
       return;
     }
     const mutationRequest = beginMatrixMutation("batch");
-    setBatchState(l("正在撤销…"));
+    setBatchState({ status: "undoing" });
     try {
       const response = await api.updateRequirementMatrixDispositions(
         route.projectId,
@@ -3411,12 +3439,10 @@ export function RequirementMatrixWorkbench({
           : current,
       );
       setBatchUndo([]);
-      setBatchState(l("已撤销 {count} 项批量处理", undefined, { count: updatedNodes.length }));
+      setBatchState({ status: "undone", count: updatedNodes.length });
     } catch (cause) {
       if (!isMatrixMutationCurrent(mutationRequest)) return;
-      setBatchState(
-        cause instanceof Error ? cause.message : l("撤销失败，请刷新后重试。"),
-      );
+      setBatchState({ status: "failed", message: cause instanceof Error ? cause.message : l("撤销失败，请刷新后重试。") });
     }
   }, [
     batchUndo,
@@ -3893,8 +3919,8 @@ export function RequirementMatrixWorkbench({
         <label>{l("需求类别")}<select aria-label={l("筛选需求类别")} value={category} onChange={event => setCategory(event.target.value)}>{CLASSIFICATION_OPTIONS.map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         <label>{l("主题标签")}<select aria-label={l("筛选主题标签")} value={topic} onChange={event => setTopic(event.target.value)}><option value="">{l("全部主题")}</option>{Object.entries(topicLabels).map(([value,label]) => <option value={value} key={value}>{label}</option>)}</select></label>
         {(category || topic) && <button type="button" className="text-button" onClick={() => { setCategory(""); setTopic(""); }}>{l("清除分类筛选")}</button>}
-        {isCandidateReview && <button type="button" className="button secondary" disabled={exportState === l("正在导出…")} onClick={async () => {
-          setExportState(l("正在导出…"));
+        {isCandidateReview && <button type="button" className="button secondary" disabled={exportState.status === "exporting"} onClick={async () => {
+          setExportState({ status: "exporting" });
           try {
             const state = await request<JsonRecord>("/api/review-state");
             const completeSource = candidateMetadata.exportScope === "COMPLETE_SOURCE";
@@ -3903,10 +3929,10 @@ export function RequirementMatrixWorkbench({
               : matchingCandidateExportIds(matrix, query, filter, facets);
             const response = await fetch("/api/candidate-review/export", { method: "POST", headers: { "Content-Type": "application/json", "X-Review-Token": String(state.writeToken) }, body: JSON.stringify({ sourceRevision: matrix?.tree_sha256, expectedRevision: state.revision, nodeIds: ids }) });
             if (!response.ok) throw new Error(l("导出未完成，请刷新后重试。"));
-            const url = URL.createObjectURL(await response.blob()); const link = document.createElement("a"); link.href = url; link.download = l("ReqPilotX-原文核对清单.xlsx"); link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); setExportState(completeSource ? l("已导出完整原文矩阵") : l("已导出当前命中条目"));
-          } catch (cause) { setExportState(cause instanceof Error ? cause.message : String(cause)); }
+            const url = URL.createObjectURL(await response.blob()); const link = document.createElement("a"); link.href = url; link.download = l("ReqPilotX-原文核对清单.xlsx"); link.click(); setTimeout(() => URL.revokeObjectURL(url), 1000); setExportState({ status: completeSource ? "completeSource" : "matched" });
+          } catch (cause) { setExportState({ status: "failed", message: cause instanceof Error ? cause.message : String(cause) }); }
         }}>{candidateMetadata.exportScope === "COMPLETE_SOURCE" ? l("导出完整原文矩阵") : l("导出筛选结果")}</button>}
-        <span role="status" aria-live="polite">{exportState}</span>
+        <span role="status" aria-live="polite">{exportStateLabel(exportState, l)}</span>
       </div>}
       {lens === "review" &&
         impactFeedback?.requirementSetId === selectedSetId && (
@@ -4776,18 +4802,18 @@ export function RequirementMatrixWorkbench({
             <button
               className="button primary"
               type="button"
-              disabled={!batchCandidateNodes.length || batchState === l("保存中…")}
+              disabled={!batchCandidateNodes.length || batchState.status === "saving"}
               onClick={() => void applyBatchDisposition()}
             >
-              {batchState === l("保存中…") ? l("正在应用…") : l("确认批量应用")}
+              {batchState.status === "saving" ? l("正在应用…") : l("确认批量应用")}
             </button>
           </div>
         </section>
       )}
 
-      {lens === "review" && batchState && !batchOpen && (
+      {lens === "review" && batchState.status !== "idle" && !batchOpen && (
         <div className="matrix-batch-result" role="status" aria-live="polite">
-          <span>{batchState}</span>
+          <span>{batchStateLabel(batchState, l)}</span>
           {canBatchDisposition && batchUndo.length > 0 && (
             <button
               className="text-button"

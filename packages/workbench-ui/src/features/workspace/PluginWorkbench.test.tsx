@@ -88,11 +88,12 @@ it("opens a reading handoff in the document draft without submitting it or chang
 it("keeps a source-only external task external and ends artifact loading honestly", async () => {
   current = { ...current, revision_id: null, revision_number: 0, versions: [], stages: [], capabilities: { save_feedback: { supported: true, enabled: false, reason: "当前任务尚无阶段成果。" } } };
   route = { ...route, checkpoint: "structure" };
-  show();
+  const view = show();
   expect(await screen.findByText("尚无阶段成果")).toBeVisible();
   const source = screen.getByRole("link", { name: "阅读原件" });
   expect(source).toHaveAttribute("href", expect.stringContaining("/pdf-viewer"));
   expect(source).toHaveAttribute("href", expect.stringContaining(encodeURIComponent(`/api/projects/p/sor-documents/d/file`)));
+  expect(source).toHaveAttribute("href", expect.stringContaining("locale=zh"));
   expect(source).toHaveAttribute("target", "_blank");
   expect(route.pluginSessionId).toBe(current.session_id);
   expect(screen.queryByLabelText("核对版本")).not.toBeInTheDocument();
@@ -100,6 +101,12 @@ it("keeps a source-only external task external and ends artifact loading honestl
   expect(screen.queryByText("成果已保存")).not.toBeInTheDocument();
   expect(screen.queryByText(/正在查看历史版本/)).not.toBeInTheDocument();
   expect(calls).toHaveLength(0);
+  view.unmount();
+  render(<HostLocaleProvider t={key => key === "workbench.locale" ? "en" : key}><DocumentWorkSurface><div>native-content</div></DocumentWorkSurface></HostLocaleProvider>);
+  const englishSource = await screen.findByRole("link", { name: "Read source" });
+  expect(englishSource).toHaveAttribute("href", expect.stringContaining("locale=en"));
+  expect(englishSource).toHaveAttribute("href", expect.stringContaining(encodeURIComponent(`/api/projects/p/sor-documents/d/file`)));
+  expect(route.pluginSessionId).toBe(current.session_id);
 });
 it("a scoped feedback shortcut selects the current item even after the composer was on the document scope", async () => {
   show(); await screen.findByTestId("incumbent-workbench");

@@ -10,6 +10,7 @@ import { DeliveryVersions } from "./DeliveryVersions";
 import { FixedWorkflowStatus } from "../../host/FixedWorkflowStatus";
 import { useApplicationHost } from "../../host/ApplicationHost";
 import { useUiCopy, useUiLocale } from "../../host/HostLocaleContext";
+import { useHostPdfViewerUrl } from "../pdf/pdfViewerUrl";
 export type { PluginState } from "./documentWorkProvider";
 
 type PluginWorkbenchProps = {
@@ -26,6 +27,7 @@ export function PluginWorkbenchContent({ provider, projectId, documentId, source
   const applicationHost = useApplicationHost();
   const l = useUiCopy();
   const locale = useUiLocale();
+  const hostPdfViewerUrl = useHostPdfViewerUrl();
   const taskNoun = applicationHost ? l("hosted.sessionNoun", l("PAIR 会话")) : l("work.externalTask", l("外部任务"));
   const [page, setPage] = useState(1), [error, setError] = useState("");
   const { reader, state, version, current } = provider;
@@ -34,7 +36,7 @@ export function PluginWorkbenchContent({ provider, projectId, documentId, source
   const itemsMode = hasItems && (route.checkpoint === "list" || route.task === "analysis");
   const sourceUrl = host.resourceUrl(`/api/projects/${encodeURIComponent(projectId)}/sor-documents/${encodeURIComponent(documentId)}/file`);
   const sourceIsPdf = documentName.toLowerCase().endsWith(".pdf");
-  const sourceViewerUrl = sourceIsPdf ? host.pdfViewerUrl(sourceUrl, 1, false) : sourceUrl;
+  const sourceViewerUrl = sourceIsPdf ? hostPdfViewerUrl(sourceUrl, 1, false) : sourceUrl;
   const confirm = async () => { setError(""); try { await provider.confirmMap(); } catch (cause) { setError(cause instanceof Error ? cause.message : l("确认未保存，请重试。")); } };
   if (route.task === "export" && !reader) return <section className="source-working-export" aria-label={l("当前核对版交付")}><h1>{l("交付当前核对版")}</h1><p role="status">{state && !state.revision_id ? l("当前任务只有来源，尚无可导出的阶段成果。") : provider.error ? l("当前版本暂不可读取，请重新同步或选择已保存版本。") : l("正在读取当前核对版的交付内容…")}</p><button type="button" className="button secondary" onClick={() => updateRoute({ task: "extraction", mode: "organize", checkpoint: "structure" })}>{l("返回当前工作")}</button></section>;
   if (route.task === "export") return <section className="source-working-export" aria-label={l("当前核对版交付")}>
