@@ -6,7 +6,7 @@ import { RequirementTreeStageRail } from "./RequirementTreeStageRail";
 afterEach(cleanup);
 
 describe("RequirementTreeStageRail", () => {
-  it("shows the three product checkpoints and keeps confirmation unavailable until a review version exists", async () => {
+  it("shows three compact extraction lenses without a second numbered analysis workflow", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
@@ -19,15 +19,20 @@ describe("RequirementTreeStageRail", () => {
 
     expect(
       screen.getByRole("tab", {
-        name: "第 1 步：原文结构",
+        name: "原文结构",
       }),
     ).toHaveAttribute("aria-selected", "true");
     expect(
-      screen.getByRole("tab", { name: "第 2 步：原文需求清单" }),
+      screen.getByRole("tab", { name: "原文条目" }),
     ).toBeEnabled();
+    expect(
+      screen.getByRole("tab", { name: "需求清单" }),
+    ).toBeEnabled();
+    expect(screen.queryByRole("tab", { name: /AI 分析/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("tab")).toHaveLength(3);
     expect(screen.queryByRole("tab", { name: /来源核对/ })).not.toBeInTheDocument();
-    const review = screen.getByRole("tab", {
-      name: "第 3 步：版本确认（可选）；锁定版本后可用",
+    const review = screen.getByRole("button", {
+      name: "版本确认（可选）",
     });
     expect(review).toBeDisabled();
 
@@ -35,7 +40,7 @@ describe("RequirementTreeStageRail", () => {
     expect(onChange).not.toHaveBeenCalled();
   });
 
-  it("navigates between working checkpoints without changing data itself", async () => {
+  it("navigates between document views without changing data itself", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
@@ -47,12 +52,17 @@ describe("RequirementTreeStageRail", () => {
     );
 
     await user.click(
-      screen.getByRole("tab", { name: "第 2 步：原文需求清单" }),
+      screen.getByRole("tab", { name: "原文条目" }),
     );
     expect(onChange).toHaveBeenCalledWith("list");
+    await user.click(
+      screen.getByRole("tab", { name: "需求清单" }),
+    );
+    expect(onChange).toHaveBeenCalledWith("requirements");
+    expect(screen.queryByRole("tab", { name: /AI 分析/ })).not.toBeInTheDocument();
   });
 
-  it("enters confirmation when a review version exists", async () => {
+  it("enters optional version confirmation when a review version exists", async () => {
     const user = userEvent.setup();
     const onChange = vi.fn();
     render(
@@ -64,11 +74,31 @@ describe("RequirementTreeStageRail", () => {
     );
 
     await user.click(
-      screen.getByRole("tab", {
-        name: "第 3 步：版本确认（可选）",
+      screen.getByRole("button", {
+        name: "版本确认（可选）",
       }),
     );
     expect(onChange).toHaveBeenCalledWith("review");
+  });
+
+  it("disables item-based views until saved source items exist", () => {
+    render(
+      <RequirementTreeStageRail
+        value="structure"
+        reviewAvailable={false}
+        itemsAvailable={false}
+        onChange={vi.fn()}
+      />,
+    );
+
+    expect(
+      screen.getByRole("tab", { name: "原文条目" }),
+    ).toBeDisabled();
+    expect(
+      screen.getByRole("tab", { name: "需求清单" }),
+    ).toBeDisabled();
+    expect(screen.queryByRole("tab", { name: /AI 分析/ })).not.toBeInTheDocument();
+    expect(screen.getAllByRole("tab")).toHaveLength(3);
   });
 
   it("projects legacy diagnosis routes onto original structure", () => {
@@ -81,7 +111,7 @@ describe("RequirementTreeStageRail", () => {
     );
 
     expect(
-      screen.getByRole("tab", { name: "第 1 步：原文结构" }),
+      screen.getByRole("tab", { name: "原文结构" }),
     ).toHaveAttribute("aria-selected", "true");
   });
 });

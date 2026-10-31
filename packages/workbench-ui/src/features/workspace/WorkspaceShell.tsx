@@ -143,6 +143,11 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
     extraction: requirementCount,
     analysis: analyzedCount,
   };
+  const hostedNavigation = primaryNavigation.filter(
+    (item) =>
+      !["reading", "knowledge"].includes(item.task) &&
+      (!isSaasAccountMode() || item.task !== "knowledge"),
+  );
   const currentKnowledgeGate = knowledgeGate(
     processingProfile,
     runtimeCapabilities,
@@ -280,7 +285,7 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
       <a className="skip-link" href="#workspace-content">
         {l("shell.skip", "跳到主工作区")}
       </a>
-      <aside ref={sidebarRef} className="workspace-sidebar">
+      {!applicationHost && <aside ref={sidebarRef} className="workspace-sidebar">
         <div className="workspace-brand">
           <div className="workspace-brand-lockup">
             <Brand compact />
@@ -375,9 +380,9 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
         {!isSaasAccountMode() && <button className="nav-item workspace-agent-settings" type="button" onClick={() => setSettingsOpen(true)} aria-label={l("shell.agentSettings", "Agent 设置")}>
           <Icon name="settings" size={19} /><span><strong>{l("shell.agentSettings", "Agent 设置")}</strong><small>{l("shell.agentSettingsDesc", "连接与处理方式")}</small></span>
         </button>}
-      </aside>
+      </aside>}
 
-      {sidebarOverlayOpen && (
+      {!applicationHost && sidebarOverlayOpen && (
         <button
           className="sidebar-backdrop"
           type="button"
@@ -389,19 +394,57 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
       <section className="workspace-body">
         <header className="workspace-topbar">
           <div className="workspace-context-strip">
-            <div className="workspace-breadcrumb">
-              <span>{selectedProject?.name || "ReqPilotX"}</span>
-              <i>/</i>
-              <strong>{l(taskTitles[route.task], taskTitles[route.task])}</strong>
-            </div>
+            {applicationHost ? (
+              <>
+                <Brand compact />
+                <button
+                  className="workspace-hosted-context"
+                  type="button"
+                  aria-label={l("shell.currentProjectAria", "当前项目：{name}", { name: selectedProject?.name || l("shell.notSelected", "未选择") })}
+                  onClick={() => chooseTask("projects")}
+                >
+                  <strong>{selectedProject?.name || l("shell.selectProject", "选择项目")}</strong>
+                  <span>{selectedDocument?.file_name || l("shell.noSource", "尚未选择客户来源")}</span>
+                </button>
+
+              </>
+            ) : (
+              <div className="workspace-breadcrumb">
+                <span>{selectedProject?.name || "ReqPilotX"}</span>
+                <i>/</i>
+                <strong>{l(taskTitles[route.task], taskTitles[route.task])}</strong>
+              </div>
+            )}
           </div>
+          {applicationHost && (
+            <nav className="workspace-hosted-flow" aria-label={l("shell.navAria", "工作台导航")}>
+              {hostedNavigation.map((item, index) => {
+                const active = route.task === item.task;
+                const label = l(item.label, item.label);
+                return (
+                  <button
+                    key={item.task}
+                    type="button"
+                    className={cx("workspace-hosted-flow-item", active && "is-active")}
+                    aria-current={active ? "page" : undefined}
+                    aria-label={label}
+                    title={`${index + 1}. ${label}`}
+                    onClick={() => chooseTask(item.task)}
+                  >
+                    <span aria-hidden="true">{index + 1}</span>
+                    <strong>{label}</strong>
+                  </button>
+                );
+              })}
+            </nav>
+          )}
           <div className="workspace-toolbar">
             {notice && (
               <span className="workspace-notice" role="status" aria-live="polite">
                 {notice}
               </span>
             )}
-            <button
+            {applicationHost ? <details className="workspace-more-actions"><summary aria-label={l("shell.moreActions", "更多操作")}>{l("shell.moreActions", "更多操作")}</summary><div className="workspace-more-actions-menu">            <button
               className="button ghost compact workspace-sync-button"
               type="button"
               aria-label={l("shell.syncAria", "同步当前文档的最新状态，不会重新提取")}
@@ -440,6 +483,46 @@ export function WorkspaceShell({ children }: PropsWithChildren) {
             >
               <Icon name="home" />
             </AppLink>
+</div></details> : <>            <button
+              className="button ghost compact workspace-sync-button"
+              type="button"
+              aria-label={l("shell.syncAria", "同步当前文档的最新状态，不会重新提取")}
+              title={l("shell.syncTitle", "同步最新状态；不会重新提取或修改结构")}
+              onClick={() => void refreshDocument()}
+              disabled={refreshing}
+            >
+              <Icon
+                name="refresh"
+                className={refreshing ? "is-spinning" : ""}
+              />
+              <span>{refreshing ? l("common.syncing", "同步中") : l("common.sync", "同步")}</span>
+            </button>
+            {!isSaasAccountMode() && <button
+              className="button secondary compact"
+              type="button"
+              aria-label={l("shell.agentSettingsAria", "打开 Agent 设置")}
+              title={l("shell.agentSettings", "Agent 设置")}
+              onClick={() => setSettingsOpen(true)}
+            >
+              <Icon name="settings" /><span>{l("shell.agentSettings", "Agent 设置")}</span>
+            </button>}
+            <button
+              className="icon-button"
+              type="button"
+              aria-label={l("shell.toggleTheme", "切换主题")}
+              onClick={toggleTheme}
+            >
+              <Icon name={theme === "light" ? "moon" : "sun"} />
+            </button>
+            <AppLink
+              className="icon-button"
+              to="/home"
+              aria-label={l("shell.openHome", "打开工作首页")}
+              title={l("shell.home", "工作首页")}
+            >
+              <Icon name="home" />
+            </AppLink>
+</>}
           </div>
         </header>
         <main id="workspace-content" className="workspace-content" tabIndex={-1}>

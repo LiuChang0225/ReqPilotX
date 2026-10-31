@@ -27,6 +27,7 @@ import {
   overlayLabelPlacement,
   overlayStyleFor,
   overlayFocusView,
+  pdfFocusOverlayIndex,
 } from "./overlayGeometry";
 
 GlobalWorkerOptions.workerSrc = workerUrl;
@@ -517,7 +518,7 @@ export function PdfViewerPage() {
   const wheelCooldownUntilRef = useRef(0);
   const focusRequestRef = useRef(0);
   const [focusedOverlayIndex, setFocusedOverlayIndex] = useState(-1);
-  const [pendingFocus, setPendingFocus] = useState<{ centerX: number; centerY: number } | null>(null);
+  const [pendingFocus, setPendingFocus] = useState<{ centerX: number; centerY: number; topY?: number } | null>(null);
   const overlayIdentity = overlays.map(overlay => overlay.id).join("|");
   useEffect(() => { focusRequestRef.current++; setFocusedOverlayIndex(-1); setPendingFocus(null); }, [page, overlayIdentity]);
   useEffect(() => {
@@ -527,13 +528,12 @@ export function PdfViewerPage() {
       if (!stage || !wrap) return;
       const outer = stage.getBoundingClientRect(), inner = wrap.getBoundingClientRect();
       stage.scrollTo({ left: Math.max(0, inner.left - outer.left + stage.scrollLeft + pendingFocus.centerX * renderSize.width - stage.clientWidth / 2),
-        top: Math.max(0, inner.top - outer.top + stage.scrollTop + pendingFocus.centerY * renderSize.height - stage.clientHeight / 2) });
+        top: Math.max(0, inner.top - outer.top + stage.scrollTop + (pendingFocus.topY ?? pendingFocus.centerY) * renderSize.height - Math.min(48, stage.clientHeight * 0.15)) });
     });
     return () => cancelAnimationFrame(frame);
   }, [pendingFocus, renderSize]);
-  const focusOverlay = async () => {
-    if (!pdf || !stageRef.current || !overlays.length) return;
-    const index = (focusedOverlayIndex + 1) % overlays.length;
+  const focusOverlayAt = async (index: number) => {
+    if (!pdf || !stageRef.current || !overlays[index]) return;
     const ticket = ++focusRequestRef.current;
     const natural = (await pdf.getPage(page)).getViewport({ scale: 1 });
     if (ticket !== focusRequestRef.current || !stageRef.current) return;
@@ -541,6 +541,18 @@ export function PdfViewerPage() {
     if (!target) return;
     setFocusedOverlayIndex(index); setScale(target.scale); setFitMode("custom"); setPendingFocus(target);
   };
+  const focusOverlay = async () => {
+    if (!pdf || !stageRef.current || !overlays.length) return;
+    await focusOverlayAt((focusedOverlayIndex + 1) % overlays.length);
+  };
+  const [pendingFocusOverlayId, setPendingFocusOverlayId] = useState<string | null>(null);
+  useEffect(() => {
+    if (!pendingFocusOverlayId) return;
+    const index = pdfFocusOverlayIndex(overlays, pendingFocusOverlayId);
+    if (index < 0) return;
+    setPendingFocusOverlayId(null);
+    void focusOverlayAt(index);
+  }, [pendingFocusOverlayId, overlays, page, pdf]);
 
   useEffect(() => {
     document.title = "ReqPilotX · PDF";
@@ -778,6 +790,9 @@ export function PdfViewerPage() {
         } else if (nextPage !== page) {
           setOverlays([]);
         }
+        if (typeof message.focusOverlayId === "string" && message.focusOverlayId) {
+          setPendingFocusOverlayId(message.focusOverlayId);
+        }
         if (
           Object.prototype.hasOwnProperty.call(message, "selectableLayer") ||
           Object.prototype.hasOwnProperty.call(message, "selectable_layer")
@@ -995,7 +1010,7 @@ export function PdfViewerPage() {
         </button>
         <span className="toolbar-divider" />
         <button
-          className="icon-button text-button"
+          className="icon-button text-button pdf-zoom-button"
           type="button"
           aria-label={l("pdf.zoomOut", "缩小")}
           onClick={() => zoom(-0.15)}
@@ -1015,16 +1030,20 @@ export function PdfViewerPage() {
             : l("pdf.fullPage", "显示整页")}
         </button>
         <button
-          className="icon-button text-button"
+          className="icon-button text-button pdf-zoom-button"
           type="button"
           aria-label={l("pdf.zoomIn", "放大")}
           onClick={() => zoom(0.15)}
         >
           +
         </button>
-        {overlays.length ? <button type="button" className="pdf-fit-button" aria-label={l("pdf.focusOverlay", "聚焦原文框标")} title={l("pdf.focusOverlayTitle", "放大框标；再次点击切换下一框")}
+        {overlays.length ? <button type="button" className="pdf-fit-button pdf-focus-button" aria-label={l("pdf.focusOverlay", "聚焦原文框标")} title={l("pdf.focusOverlayTitle", "放大框标；再次点击切换下一框")}
           onClick={() => void focusOverlay()}>{focusedOverlayIndex < 0 ? l("pdf.focusOverlay", "聚焦框标") : l("pdf.overlayFocus", "框 {index}/{count} · 切换", { index: focusedOverlayIndex + 1, count: overlays.length })}</button>
           : <span className="pdf-overlay-count">{l("pdf.source", "原文")}</span>}
+        {embedded && <details className="pdf-zoom-menu"><summary aria-label={l("pdf.zoomOptions", "缩放选项")}>{l("pdf.zoomLabel", "缩放")}</summary>
+          <div><button type="button" className="icon-button" aria-label={l("pdf.zoomOut", "缩小")} onClick={() => zoom(-0.15)}>−</button>
+            <button type="button" className="icon-button" aria-label={l("pdf.zoomIn", "放大")} onClick={() => zoom(0.15)}>+</button></div>
+        </details>}
       </nav>
       {loading && <LoadingBlock label={l("pdf.loading", "正在载入 PDF")} />}
       {error && <ErrorBlock error={error} onRetry={() => void renderPage()} />}
@@ -1083,7 +1102,7 @@ export function PdfViewerPage() {
               : null}
           </div>
           <div className="pdf-overlay-layer" aria-hidden="true">
-            {overlays.map((overlay) => (
+            {overlays.map((overlay, index) => (
               <span
                 key={overlay.id}
                 className={cx(
@@ -1094,6 +1113,7 @@ export function PdfViewerPage() {
                   `has-label-${overlayLabelPlacement(overlay)}`,
                   overlay.selected && "is-selected",
                   overlay.focus && "is-focus",
+                  index === focusedOverlayIndex && "is-current-focus",
                   overlay.precision.includes("APPROXIMATE") &&
                     "is-approximate",
                 )}

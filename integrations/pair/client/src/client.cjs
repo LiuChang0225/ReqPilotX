@@ -72,8 +72,8 @@ Object.assign(copy.zh, {
   'panel.noStageResult': '尚无阶段成果', 'panel.syncingResult': '正在同步成果',
   'panel.sessionUnbound': '会话未绑定当前工作', 'panel.noHostSession': '尚未关联宿主会话',
   'panel.newerAvailable': '已有更新的成果，当前核对版保留。', 'panel.viewLatest': '查看最新成果',
-  'panel.views': '业务视图', 'panel.view.structure': '原文结构', 'panel.view.items': '原文台账',
-  'panel.view.analysis': '响应与证据', 'panel.view.export': '版本与导出',
+  'panel.views': '业务视图', 'panel.view.structure': '原文结构', 'panel.view.items': '原文条目', 'panel.view.requirements': '需求清单',
+  'panel.view.analysis': 'AI 分析', 'panel.view.export': '版本与导出',
   'panel.execution.RUNNING': '会话正在处理', 'panel.execution.WAITING': '会话正在等待', 'panel.execution.IDLE': '会话当前空闲',
   'panel.execution.SUCCEEDED': '会话本轮已结束', 'panel.execution.FAILED': '会话本轮未完成',
   'panel.execution.INTERRUPTED': '会话已暂停', 'panel.executionUnreported': '宿主尚未报告当前工作的运行状态',
@@ -223,8 +223,8 @@ Object.assign(copy.en, {
   'panel.noStageResult': 'No stage result yet', 'panel.syncingResult': 'Syncing result',
   'panel.sessionUnbound': 'Session is not bound to this work', 'panel.noHostSession': 'No host session is linked yet',
   'panel.newerAvailable': 'A newer result exists; this review version is retained.', 'panel.viewLatest': 'View latest result',
-  'panel.views': 'Business views', 'panel.view.structure': 'Source structure', 'panel.view.items': 'Source items',
-  'panel.view.analysis': 'Responses and evidence', 'panel.view.export': 'Versions and export',
+  'panel.views': 'Business views', 'panel.view.structure': 'Source structure', 'panel.view.items': 'Source items', 'panel.view.requirements': 'Requirements',
+  'panel.view.analysis': 'AI analysis', 'panel.view.export': 'Versions and export',
   'panel.execution.RUNNING': 'Session is processing', 'panel.execution.WAITING': 'Session is waiting', 'panel.execution.IDLE': 'Session is idle',
   'panel.execution.SUCCEEDED': 'This session turn ended', 'panel.execution.FAILED': 'This session turn did not complete',
   'panel.execution.INTERRUPTED': 'Session is paused', 'panel.executionUnreported': 'The host has not reported execution status for this work',
@@ -309,6 +309,22 @@ function assetUrl(path, origin) {
   if (url.origin !== origin || !url.pathname.startsWith('/api/')) throw new Error('Unsupported ReqPilotX resource URL.');
   return PREFIX + '/service' + url.pathname + url.search;
 }
+/** Keep the workbench link contract in one place so reopened links restore the same document view. */
+function workspaceSelectionFromUrl(value) {
+  const url = new URL(value);
+  const q = url.searchParams;
+  const task = q.get('task');
+  const checkpoint = q.get('checkpoint');
+  const view = task === 'analysis' ? 'analysis' : task === 'export' ? 'export'
+    : checkpoint === 'requirements' ? 'requirements' : checkpoint === 'list' ? 'items' : 'structure';
+  return {
+    url,
+    selection: {
+      projectId: q.get('projectId'), documentId: q.get('documentId'), workRef: q.get('pluginSessionId'),
+      revisionId: q.get('resultRevision') || undefined, view,
+    },
+  };
+}
 function Panel({ t }) {
   const [origin, setOrigin] = React.useState('');
   const [saved, setSaved] = React.useState(null);
@@ -330,9 +346,7 @@ function Panel({ t }) {
   async function open(event) {
     event.preventDefault(); if (!origin || busy) return; setBusy(true); setError('');
     try {
-      const url = new URL(value);
-      const q = url.searchParams;
-      const selection = { projectId: q.get('projectId'), documentId: q.get('documentId'), workRef: q.get('pluginSessionId'), revisionId: q.get('resultRevision') || undefined, view: q.get('checkpoint') === 'list' ? 'items' : 'structure' };
+      const { url, selection } = workspaceSelectionFromUrl(value);
       if (url.origin !== origin || url.pathname !== '/workspace' || !selection.projectId || !selection.documentId || !/^plugin-[a-f0-9]{32}$/.test(selection.workRef || '') || (selection.revisionId && !/^[a-f0-9]{64}$/.test(selection.revisionId))) throw Error(t('invalid'));
       const path = '/api/projects/' + encodeURIComponent(selection.projectId) + '/sor-documents/' + encodeURIComponent(selection.documentId) + '/agent-structure/delivery/plugin-workbench/' + selection.workRef;
       const response = await fetch(assetUrl(path, origin)); if (!response.ok) throw Error(t('unavailable'));
@@ -398,4 +412,4 @@ function apply(ctx) {
   } }) }, Application));
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({ name: 'sidebar.panellist', id: 'reqpilotx', label: 'ReqPilotX', order: 20 }, Icon));
 }
-module.exports = { inject, apply };
+module.exports = { inject, apply, workspaceSelectionFromUrl };

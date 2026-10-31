@@ -92,7 +92,7 @@ function ReadonlyPanel({ selection: initial, host, documentName, theme = "light"
   const presentation = useMemo(() => ({ readOnly: !host.feedbackWrites, resourceUrl: host.resourceUrl, pdfViewerUrl: host.pdfViewerUrl }), [host.feedbackWrites, host.resourceUrl, host.pdfViewerUrl]);
   const view = provider.version && !provider.version.stages.some(stage => stage.stage === "ITEMS") ? "structure" : selection.view || "structure";
   const route: WorkspaceRoute = { task: view === "analysis" || view === "export" ? view : "extraction", mode: "organize",
-    checkpoint: view === "items" ? "list" : "structure", projectId: selection.projectId, documentId: selection.documentId,
+    checkpoint: view === "items" ? "list" : view === "requirements" ? "requirements" : "structure", projectId: selection.projectId, documentId: selection.documentId,
     requirementSetId: "", pluginSessionId: selection.workRef, resultRevision: provider.pinned || undefined };
   const status = execution ? ({ RUNNING: l("panel.execution.RUNNING", "会话正在处理"), WAITING: l("panel.execution.WAITING", "会话正在等待"), IDLE: l("panel.execution.IDLE", "会话当前空闲"), SUCCEEDED: l("panel.execution.SUCCEEDED", "会话本轮已结束"), FAILED: l("panel.execution.FAILED", "会话本轮未完成"), INTERRUPTED: l("panel.execution.INTERRUPTED", "会话已暂停") })[execution.status]
     : host.execution ? l("panel.executionUnreported", "宿主尚未报告当前工作的运行状态") : externalExecutionLabel(provider.state);
@@ -114,11 +114,11 @@ function ReadonlyPanel({ selection: initial, host, documentName, theme = "light"
       {issue && <p role="alert" className="readonly-panel-notice">{issue}</p>}
       {provider.error && <p role="alert" className="readonly-panel-notice">{provider.error}</p>}
       {provider.state?.revision_id && provider.pinned && !provider.current && <p className="readonly-panel-notice">{l("panel.newerAvailable", "已有更新的成果，当前核对版保留。")}<button type="button" className="button ghost compact" onClick={() => provider.selectRevision(provider.state!.revision_id!)}>{l("panel.viewLatest", "查看最新成果")}</button></p>}
-      <nav className="readonly-panel-views" aria-label={l("panel.views", "业务视图")}>{([ ["structure", l("panel.view.structure", "原文结构")], ["items", l("panel.view.items", "原文台账")], ["analysis", l("panel.view.analysis", "响应与证据")], ["export", l("panel.view.export", "版本与导出")] ] as const).map(([value, label]) => <button type="button" key={value} aria-current={view === value ? "page" : undefined} disabled={value !== "structure" && !provider.reader?.outline} onClick={() => changeSelection({ view: value })}>{label}</button>)}</nav>
+      <nav className="readonly-panel-views" aria-label={l("panel.views", "业务视图")}>{([ ["structure", l("panel.view.structure", "原文结构")], ["items", l("panel.view.items", "原文条目")], ["requirements", l("panel.view.requirements", "需求清单")], ["analysis", l("panel.view.analysis", "AI 分析")], ["export", l("panel.view.export", "版本与导出")] ] as const).map(([value, label]) => <button type="button" key={value} aria-current={view === value ? "page" : undefined} disabled={value !== "structure" && !provider.reader?.outline} onClick={() => changeSelection({ view: value })}>{label}</button>)}</nav>
       <div className="readonly-panel-content"><PluginWorkbenchContent provider={provider} projectId={selection.projectId} documentId={selection.documentId}
-        sourceSha256={selection.sourceSha256} documentName={documentName} route={route} updateRoute={patch => {
+        sourceSha256={selection.sourceSha256} documentName={documentName} route={route} hideDocumentViewRail updateRoute={patch => {
           if (patch.task === "analysis" || patch.task === "export") changeSelection({ view: patch.task });
-          else changeSelection({ view: patch.checkpoint === "list" ? "items" : "structure" });
+          else changeSelection({ view: patch.checkpoint === "list" ? "items" : patch.checkpoint === "requirements" ? "requirements" : "structure" });
         }} /></div>
   </DocumentAgentContext.Provider></WorkbenchHostContext.Provider>;
 }

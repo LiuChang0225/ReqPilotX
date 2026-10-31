@@ -109,7 +109,10 @@ class McpTaskAdapterTests(unittest.TestCase):
             async def exercise():
                 async with Client(params) as client:
                     listing=await client.list_tools()
-                    self.assertEqual(len(listing.tools),len(REQUESTS))
+                    # evidence_status is an internal Host write, not a public MCP business action.
+                    public_actions=set(REQUESTS)-{'evidence_status'}
+                    self.assertEqual(len(listing.tools),len(public_actions))
+                    self.assertNotIn('EvidenceStatus',json.dumps([tool.input_schema for tool in listing.tools]))
                     self.assertIn('source_transcription_revise',{t.name for t in listing.tools})
                     async def call(name,request):
                         reply=await client.call_tool(name,request)

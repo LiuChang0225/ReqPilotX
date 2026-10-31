@@ -213,6 +213,14 @@ describe("document task return navigation", () => {
     expect(value.updateRoute).toHaveBeenCalledWith({ task: "reading" });
   });
 
+  it("keeps the requirements document view on reopen for the same source and work", () => {
+    const value = scoped(); value.route = { ...value.route, task: "extraction", mode: "organize", checkpoint: "requirements", pluginSessionId: sessionId, resultRevision: revisionId };
+    show(value);
+    expect(readExtractionCheckpoint("project-1", "document-1", source, plugin)).toBe("requirements");
+    rememberExtractionCheckpoint("project-1", "document-1", source, native, "requirements");
+    expect(readExtractionCheckpoint("project-1", "document-1", source, native)).toBe("requirements");
+  });
+
   it("does not recover plugin choices from a replaced source document", async () => {
     const value = scoped();
     value.selectedDocument = { ...value.selectedDocument!, source_sha256: "d".repeat(64) };
@@ -239,14 +247,17 @@ describe("PAIR-edition four-view boundary", () => {
     </ApplicationHostContext.Provider></HostLocaleProvider>);
   }
 
-  it("shows only projects, extraction, analysis and export in the hosted navigation", () => {
+  it("replaces the hosted side rail with one compact top flow and keeps project context", () => {
     renderHosted();
     for (const label of ["项目管理", "需求提取", "需求分析", "矩阵导出"]) {
       expect(screen.getByRole("button", { name: label })).toBeInTheDocument();
     }
     expect(screen.queryByRole("button", { name: "AI 辅助阅读" })).not.toBeInTheDocument();
     expect(screen.queryByRole("button", { name: "领域知识库" })).not.toBeInTheDocument();
-    expect(screen.getByText("知识由 PAIR 管理")).toBeVisible();
+    expect(screen.queryByText("知识由 PAIR 管理")).not.toBeInTheDocument();
+    expect(screen.getByRole("button", { name: "当前项目：正式项目" })).toBeVisible();
+    expect(screen.getAllByRole("navigation", { name: "工作台导航" })).toHaveLength(1);
+    expect(screen.getAllByRole("button", { name: "打开 Agent 设置" })).toHaveLength(1);
   });
 
   it("rebinds the four hosted navigation labels through the native locale without remounting the shell", () => {

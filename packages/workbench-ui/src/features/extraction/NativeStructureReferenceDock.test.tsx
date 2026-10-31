@@ -1238,6 +1238,39 @@ describe("NativeStructureReferenceDock", () => {
     expect(screen.queryByText("工作结构 · Host 已验证")).not.toBeInTheDocument();
   });
 
+  it("keeps the requirement lens beside the original PDF and uses requirement fields", async () => {
+    vi.spyOn(api, "nativeStructureReference").mockResolvedValue(reference);
+    vi.spyOn(api, "sourceRequirementBaselineOutline").mockResolvedValue(sourceRequirementOutline);
+    vi.spyOn(api, "sourceRequirementRecord").mockResolvedValue(sourceRequirementDetail);
+    vi.spyOn(api, "nativeStructureTablePreview").mockResolvedValue(tablePreview);
+    render(
+      <NativeStructureReferenceDock
+        projectId="project-1"
+        documentId="document-1"
+        sourceSha256={reference.source_sha256}
+        onPageChange={vi.fn()}
+        activePage={10}
+        mode="SOURCE_REQUIREMENTS"
+        requirementsOnly
+        showSourcePreview
+        sourceFileUrl="/api/source.pdf"
+      />,
+    );
+    expect(await screen.findByRole("table", { name: "需求清单表格" })).toBeVisible();
+    expect(screen.getByRole("columnheader", { name: "REQ / 类别" })).toBeVisible();
+    expect(screen.queryByRole("columnheader", { name: "响应 / 需处理" })).not.toBeInTheDocument();
+    const sourceRegion = screen.getByRole("region", { name: "原文 PDF 对照" });
+    expect(sourceRegion).toBeVisible();
+    const frame = sourceRegion.querySelector("iframe") as HTMLIFrameElement;
+    expect(frame.src).toContain("fit=width");
+    const postMessage = vi.spyOn(frame.contentWindow!, "postMessage");
+    fireEvent.click(screen.getByRole("button", { name: /1 外观检查/ }));
+    const pageEntry = await screen.findByRole("navigation", { name: "原文页码入口" });
+    fireEvent.click(within(pageEntry).getByRole("button", { name: "P10" }));
+    await waitFor(() => expect(postMessage.mock.calls.some(([message]) =>
+      message?.type === "REQPILOTX_PDF_NAVIGATE" && typeof message.focusOverlayId === "string")).toBe(true));
+  });
+
   it("separates table records from other source items in table-structure counts", async () => {
     const user = userEvent.setup();
     const textItemId = `source-record-${"8".repeat(32)}`;
@@ -3119,10 +3152,10 @@ describe("NativeStructureReferenceDock", () => {
       ".native-hierarchy-workbench",
     ) as HTMLElement;
     expect(workbench.style.getPropertyValue("--native-detail-share")).toBe(
-      "38fr",
+      "40fr",
     );
     expect(workbench.style.getPropertyValue("--native-source-share")).toBe(
-      "38fr",
+      "40fr",
     );
     const first = screen.getByRole("separator", {
       name: "调整标题树和原文条目宽度",
@@ -3130,10 +3163,10 @@ describe("NativeStructureReferenceDock", () => {
     first.focus();
     await user.keyboard("{ArrowRight}");
     expect(workbench.style.getPropertyValue("--native-tree-share")).toBe(
-      "25.5fr",
+      "21.5fr",
     );
     expect(workbench.style.getPropertyValue("--native-detail-share")).toBe(
-      "36.5fr",
+      "38.5fr",
     );
     const second = screen.getByRole("separator", {
       name: "调整原文条目和 PDF 宽度",
@@ -3177,13 +3210,13 @@ describe("NativeStructureReferenceDock", () => {
     fireEvent.pointerUp(second, { pointerId: 1, clientX: 550 });
     fireEvent.doubleClick(second);
     expect(workbench.style.getPropertyValue("--native-tree-share")).toBe(
-      "24fr",
+      "20fr",
     );
     expect(workbench.style.getPropertyValue("--native-detail-share")).toBe(
-      "38fr",
+      "40fr",
     );
     expect(workbench.style.getPropertyValue("--native-source-share")).toBe(
-      "38fr",
+      "40fr",
     );
   });
 

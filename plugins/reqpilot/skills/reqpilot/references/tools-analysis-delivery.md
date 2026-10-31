@@ -33,6 +33,16 @@ same-version Excel; it is not an engineer opinion or human acceptance. Partial
 analysis is retained, but the fixed workflow remains pending until every current
 required analysis unit has an outcome.
 
+In a fixed-workflow task, `stage_focus` follows this same ownership. When the
+task has a frozen PAIR knowledge binding (project references, team knowledge or
+an adopted library), `EVIDENCE_ANALYSIS` names the Host `reqpilot_knowledge`
+evidence tools and `reqpilot_knowledge.knowledge_analysis_save`; the ordinary
+task `analysis_save` is only for a standalone/no-binding path. Use that Host
+tool, which attaches the signature. Never hand-write an attestation, change the binding,
+catalog or guard, or retry through an ordinary save to force acceptance. If the
+binding status is not CURRENT, or a returned fact is unavailable, changed or
+unsuitable, keep the unit explicitly unresolved.
+
 Persist the declared choice in a source-bound `analysis-policy.json`, for example `{"source_sha256":"<actual source SHA>","status":"SKIPPED","reason":"NO_INTERNAL_EVIDENCE"}`. A file elsewhere in the run folder is not automatically part of a review. Pass it with `review-open --analysis-policy <file>`; later exports inherit the saved review policy. For an existing review use `review-revise --input <version-bound revision request> --analysis-policy <file>` so old versions stay intact. Direct `deliver` also accepts `--analysis-policy <file>` when no review is used. Check `analysis_policy_status` in the open/export result; `UNSPECIFIED` is not SKIPPED. Do not create empty assessment decisions just to express this branch.
 
 Explicit policy imports also accept `reason_code` with prose `reason`; the program keeps the prose as `note` and rejects conflicting codes. If `baseline_sha256` is supplied, it must match the import baseline. Historical saved policies are not reinterpreted or rewritten.

@@ -3,6 +3,7 @@ import {
   overlayLabelPlacement,
   overlayStyleFor,
   overlayFocusView,
+  pdfFocusOverlayIndex,
 } from "./overlayGeometry";
 
 describe("PDF overlay geometry", () => {
@@ -11,6 +12,11 @@ describe("PDF overlay geometry", () => {
     expect(result?.centerX).toBe(.5); expect(result?.centerY).toBe(.2);
     expect(result?.scale).toBeCloseTo(368/300);
     expect(overlayFocusView({ bbox: [1,1,1,1] }, 600,800,400,300)).toBeNull();
+  });
+  it("caps short-line focus at a readable scale and exposes the actual region top for aligned comparison", () => {
+    const result = overlayFocusView({ bbox: [10,45,40,47], sourceBounds: [0,0,100,100] }, 600,800,800,700);
+    expect(result?.scale).toBe(1.5);
+    expect(result?.topY).toBe(.45);
   });
   it("projects PDF point coordinates through the exact page bounds", () => {
     expect(
@@ -76,5 +82,13 @@ describe("PDF overlay geometry", () => {
         sourceBounds: [0, 0, 595, 842],
       }),
     ).toBe("outside");
+  });
+});
+
+describe("PDF overlay focus requests", () => {
+  it("resolves only an overlay id present on the current page", () => {
+    const overlays = [{ id: "src-1:content-a" }, { id: "src-1:content-b" }];
+    expect(pdfFocusOverlayIndex(overlays, "src-1:content-b")).toBe(1);
+    expect(pdfFocusOverlayIndex(overlays, "other-page:content")).toBe(-1);
   });
 });

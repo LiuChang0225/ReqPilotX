@@ -1,4 +1,4 @@
-import { cleanup, fireEvent, render, screen, waitFor } from "@testing-library/react";
+import { cleanup, fireEvent, render, screen, waitFor, within } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { api } from "../../shared/api/client";
 import type { SourceRequirementBaselineOutlineV1, SourceRequirementRecordDetailV1 } from "../../shared/api/contracts";
@@ -240,4 +240,38 @@ it("retains explicitly linked source conditions and opens their complete origina
   fireEvent.click(await screen.findByText('关联原文与条件 · 1 项'));
   expect(screen.getByText('Supply 12 V at 23 C.')).toBeVisible();
   fireEvent.click(screen.getByRole('button',{name:'查看完整关联条目'}));expect(select).toHaveBeenCalledWith('condition');
+});
+
+it("shows the full source path and page entry beside the extracted verbatim", async () => {
+  const { detail, props } = fixture();
+  detail.record.text_bindings = [{ content_id: "content", text: "尺寸上限 18 mm。", page: 1,
+    bbox: [20, 30, 180, 90], source_bounds: [0, 0, 595, 842] }] as unknown as typeof detail.record.text_bindings;
+  vi.spyOn(api, "sourceRequirementRecord").mockResolvedValue(detail);
+  render(<SourceItemLens {...props} requirementsView />);
+  expect(await screen.findByText("提取原文")).toBeVisible();
+  expect(screen.getByText("提取的客户原文 · 可对照来源核查")).toBeVisible();
+  expect(screen.getByText("规格 / 尺寸")).toBeVisible();
+  expect(screen.queryByRole("navigation", { name: "原文页码入口" })).not.toBeInTheDocument();
+  expect(screen.getByText("已识别需求 · 原文依据")).toBeVisible();
+  fireEvent.click(within(screen.getByRole("region", { name: "当前原文条目的逐字内容" })).getByRole("button", { name: "P1" }));
+  expect(props.onPageChange).toHaveBeenCalledWith(1);
+  expect(props.onShowSource).toHaveBeenCalled();
+});
+
+it("labels a non-requirement detail as source context instead of an identified requirement", async () => {
+  const { detail, props } = fixture();
+  detail.record.requirementness = "NON_REQUIREMENT";
+  detail.record.requirement_display_id = null;
+  detail.record.non_requirement_role = "CONTEXT";
+  detail.record.requirement_kinds = [];
+  props.outline.records[0] = { ...props.outline.records[0], requirementness: "NON_REQUIREMENT", requirement_display_id: null, non_requirement_role: "CONTEXT", requirement_kinds: [] };
+  vi.spyOn(api, "sourceRequirementRecord").mockResolvedValue(detail);
+  const view = render(<SourceItemLens {...props} />);
+  await screen.findByRole("img");
+  expect(screen.queryByText("已识别需求 · 原文依据")).not.toBeInTheDocument();
+  view.rerender(<SourceItemLens {...props} requirementsView />);
+  await screen.findByRole("img");
+  expect(screen.getByText("来源上下文 · 保留原文")).toBeVisible();
+  expect(screen.getByText("非需求")).toBeVisible();
+  expect(screen.queryByText("已识别需求 · 原文依据")).not.toBeInTheDocument();
 });

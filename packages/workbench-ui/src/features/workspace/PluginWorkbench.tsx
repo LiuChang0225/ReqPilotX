@@ -22,7 +22,7 @@ export function PluginWorkbench(props: PluginWorkbenchProps) {
 }
 
 /** The same business view mounted by the standalone shell or a host panel. */
-export function PluginWorkbenchContent({ provider, projectId, documentId, sourceSha256, documentName, route, updateRoute }: PluginWorkbenchProps & Pick<WorkspaceContextValue, "route" | "updateRoute">) {
+export function PluginWorkbenchContent({ provider, projectId, documentId, sourceSha256, documentName, route, updateRoute, hideDocumentViewRail = false }: PluginWorkbenchProps & Pick<WorkspaceContextValue, "route" | "updateRoute"> & { hideDocumentViewRail?: boolean }) {
   const host = useWorkbenchHost();
   const applicationHost = useApplicationHost();
   const l = useUiCopy();
@@ -33,7 +33,23 @@ export function PluginWorkbenchContent({ provider, projectId, documentId, source
   const { reader, state, version, current } = provider;
   useEffect(() => { setError(""); }, [provider.pinned, projectId, documentId]);
   const hasItems = Boolean(reader?.outline);
-  const itemsMode = hasItems && (route.checkpoint === "list" || route.task === "analysis");
+  const requirementsMode = hasItems && route.checkpoint === "requirements" && route.task !== "analysis";
+  const itemsMode = hasItems && (requirementsMode || route.checkpoint === "list" || route.task === "analysis");
+  const documentView = route.task === "analysis"
+    ? "analysis" as const
+    : requirementsMode
+      ? "requirements" as const
+      : itemsMode
+        ? "list" as const
+        : "structure" as const;
+  const openDocumentView = (view: "diagnose" | "structure" | "list" | "requirements" | "review" | "analysis") => {
+    if (view === "analysis") {
+      updateRoute({ task: "analysis", mode: "organize", checkpoint: hasItems ? "list" : "structure" });
+      return;
+    }
+    if (view === "review") return;
+    updateRoute({ task: "extraction", mode: "organize", checkpoint: view === "diagnose" ? "structure" : view });
+  };
   const sourceUrl = host.resourceUrl(`/api/projects/${encodeURIComponent(projectId)}/sor-documents/${encodeURIComponent(documentId)}/file`);
   const sourceIsPdf = documentName.toLowerCase().endsWith(".pdf");
   const sourceViewerUrl = sourceIsPdf ? hostPdfViewerUrl(sourceUrl, 1, false) : sourceUrl;
@@ -52,9 +68,6 @@ export function PluginWorkbenchContent({ provider, projectId, documentId, source
     <section className="delivery-versions"><h2>{l("已保存的成果版本")}</h2><div className="delivery-history-scroll"><table className="delivery-history-table"><thead><tr><th>{l("版本")}</th><th>{l("已保存成果")}</th><th>{l("保存时间")}</th><th>{l("查看")}</th></tr></thead><tbody>{state?.versions.map(item => <tr key={item.revision_id}><td>v{item.number}</td><td>{item.stages.map(s => l("{stage} {count} 项", undefined, { stage: s.stage === "MAP" ? l("结构") : l("原文条目"), count: s.count })).join(" · ")}</td><td>{item.created_at ? new Date(item.created_at).toLocaleString(locale === "en" ? "en-US" : "zh-CN") : l("未提供")}</td><td><button className="button ghost compact" disabled={item.revision_id === provider.pinned} onClick={() => provider.selectRevision(item.revision_id)}>{l("核对此版")}</button></td></tr>)}</tbody></table></div></section>
   </section>;
   return <section className="requirement-tree-page" aria-label={route.task === "analysis" ? l("当前核对版分析") : l("当前核对版原文")}>
-    {!host.readOnly && <header className="requirement-tree-commandbar"><div className="requirement-tree-title"><span>{route.task === "analysis" ? l("响应与证据") : l("需求提取")}</span><strong title={documentName}>{documentName}</strong></div>
-      {route.task === "extraction" && <RequirementTreeStageRail value={itemsMode ? "list" : "structure"} reviewAvailable={false} workingLedger itemsAvailable={hasItems} onChange={checkpoint => updateRoute({ task:"extraction",mode:"organize",checkpoint })}/>}
-    </header>}
     {error && <p role="alert">{error}</p>}
     {state?.fixed_workflow && <FixedWorkflowStatus state={state.fixed_workflow} compact />}
     {!host.readOnly && current && state?.map_confirmation_required && route.task === "extraction" && !itemsMode && <section className="stage-approval-card" aria-label={l("确认文档结构")}><div><strong>{l("核对这一版结构后继续")}</strong><p>确认会保存到当前版本；由原{taskNoun}取回后继续整理条目。</p></div><button className="button primary compact" disabled={!reader || provider.pending || !provider.capability("confirm_map").enabled} onClick={() => void confirm()}>{l("确认此结构")}</button></section>}
@@ -63,6 +76,7 @@ export function PluginWorkbenchContent({ provider, projectId, documentId, source
     {!reader ? state && !state.revision_id ? null : <p role="status">{provider.error ? l("当前核对版暂不可读取，请重新同步或选择已保存版本。") : !state ? l("正在同步成果…") : provider.pinned ? l("正在读取当前核对版…") : l("等待{task}保存首个结构成果…", undefined, { task: taskNoun })}</p> : route.task === "analysis" && !hasItems ? <p>{l("当前只有结构草稿；条目形成后可查看响应。")}</p> : <NativeStructureReferenceDock
       key={`${provider.scope}:${reader.reference.artifact_id}:${reader.outline?.baseline?.artifact_sha256 || reader.revision_id}`} projectId={projectId} documentId={documentId} sourceSha256={sourceSha256} sourceReader={reader}
       onChangePurpose={purpose => updateRoute({ task: purpose === "analysis" ? "analysis" : "extraction", mode: "organize", checkpoint: "list" })}
-      sourceFileUrl={sourceUrl} showSourcePreview activePage={page} onPageChange={setPage} mode={itemsMode ? "SOURCE_REQUIREMENTS" : "STRUCTURE"} purpose={route.task === "analysis" ? "analysis" : "review"}/> }
+      viewNavigation={!host.readOnly && !hideDocumentViewRail && route.task === "extraction" ? <RequirementTreeStageRail value={documentView} reviewAvailable={false} workingLedger itemsAvailable={hasItems} onChange={openDocumentView}/> : undefined}
+      sourceFileUrl={sourceUrl} showSourcePreview activePage={page} onPageChange={setPage} mode={itemsMode ? "SOURCE_REQUIREMENTS" : "STRUCTURE"} requirementsOnly={requirementsMode} purpose={route.task === "analysis" ? "analysis" : "review"}/> }
   </section>;
 }

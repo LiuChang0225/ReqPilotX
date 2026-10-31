@@ -1,77 +1,28 @@
 import { Tabs } from "../../shared/ui/Tabs";
 import type { ExtractionCheckpoint } from "../workspace/route";
 import { useUiCopy } from "../../host/HostLocaleContext";
+import { cx } from "../../shared/lib/format";
 
+export type RequirementWorkbenchView = ExtractionCheckpoint | "analysis";
 interface RequirementTreeStageRailProps {
-  value: ExtractionCheckpoint;
-  reviewAvailable: boolean;
-  workingLedger?: boolean;
-  itemsAvailable?: boolean;
-  onChange: (checkpoint: ExtractionCheckpoint) => void;
+  value: RequirementWorkbenchView; reviewAvailable: boolean; workingLedger?: boolean;
+  itemsAvailable?: boolean; onChange: (view: RequirementWorkbenchView) => void;
 }
-
-export function RequirementTreeStageRail({
-  value,
-  reviewAvailable,
-  workingLedger = false,
-  itemsAvailable = true,
-  onChange,
-}: RequirementTreeStageRailProps) {
+/** Inspection lenses inside extraction; the application owns the single major workflow. */
+export function RequirementTreeStageRail({ value, reviewAvailable, workingLedger = false, itemsAvailable = true, onChange }: RequirementTreeStageRailProps) {
   const l = useUiCopy();
   const visibleValue = value === "diagnose" ? "structure" : value;
-
-  return (
-    <Tabs
-      className="tree-mode-switch"
-      label={l("需求提取步骤")}
-      value={visibleValue}
-      onChange={onChange}
+  return <div className="requirement-view-switch is-compact-lens">
+    <Tabs className="tree-mode-switch" label={l("workbench.view.switch", "文档视图")} value={visibleValue} onChange={onChange}
       items={[
-        {
-          value: "structure" as const,
-          ariaLabel: l("第 1 步：原文结构"),
-          label: (
-            <>
-              <span className="tree-mode-step-index" aria-hidden="true">
-                1
-              </span>
-              <span className="tree-mode-step-label">{l("原文结构")}</span>
-            </>
-          ),
-        },
-        {
-          value: "list" as const,
-          disabled: !itemsAvailable,
-          title: itemsAvailable ? l("核对已保存的原文条目与分类") : l("条目尚未保存，当前可先核对结构"),
-          ariaLabel: l("第 2 步：原文需求清单"),
-          label: (
-            <>
-              <span className="tree-mode-step-index" aria-hidden="true">
-                2
-              </span>
-              <span className="tree-mode-step-label">{l("原文需求清单")}</span>
-            </>
-          ),
-        },
-        {
-          value: "review" as const,
-          ariaLabel: reviewAvailable
-            ? l("第 3 步：版本确认（可选）")
-            : l("第 3 步：版本确认（可选）；锁定版本后可用"),
-          disabled: !reviewAvailable,
-          title: reviewAvailable
-            ? l("打开已锁定版本；人工确认不阻止工作基线继续")
-            : l("先在原文需求清单中锁定一个版本"),
-          label: (
-            <>
-              <span className="tree-mode-step-index" aria-hidden="true">
-                3
-              </span>
-              <span className="tree-mode-step-label">{l("版本确认（可选）")}</span>
-            </>
-          ),
-        },
-      ].filter(item => !workingLedger || item.value !== "review")}
-    />
-  );
+        { value: "structure" as const, ariaLabel: l("workbench.view.structure", "原文结构"), label: l("workbench.view.structure", "原文结构") },
+        { value: "list" as const, ariaLabel: l("workbench.view.items", "原文条目"), label: l("workbench.view.items", "原文条目"), disabled: !itemsAvailable,
+          title: itemsAvailable ? l("核对已保存的原文条目") : l("条目尚未保存，当前可先核对结构") },
+        { value: "requirements" as const, ariaLabel: l("workbench.view.requirements", "需求清单"), label: l("workbench.view.requirements", "需求清单"), disabled: !itemsAvailable,
+          title: l("仅查看已识别需求，保留原文祖先路径") },
+      ]} />
+    {!workingLedger && <button type="button" className={cx("tree-mode-review-entry", visibleValue === "review" && "is-active")}
+      disabled={!reviewAvailable} aria-pressed={visibleValue === "review"} onClick={() => onChange("review")}
+      title={reviewAvailable ? l("打开已锁定版本；人工确认不阻止工作基线继续") : l("先在原文条目阶段锁定一个版本")}>{l("workbench.view.review", "版本确认（可选）")}</button>}
+  </div>;
 }

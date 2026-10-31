@@ -14,6 +14,7 @@ from pydantic import BaseModel, ConfigDict, Field, StrictInt, StrictStr, field_v
 
 from task_contracts import MapEditRequest, ItemDecisionsRequest, bind_item_decisions
 from task_change_contracts import AnnotationChangesRequest, DecompositionRequest, ExistingItemsChangeRequest, ImageItemsRequest
+from task_stage_focus import build_stage_focus
 
 
 class Request(BaseModel):
@@ -445,6 +446,9 @@ def task_summary(state):
             'task_id':context['work_id'],'view':'items',
             'expected_map_sha256':state['selected']['MAP']['artifact_sha256'],
             'expected_baseline_sha256':state['selected']['ITEMS']['artifact_sha256']}}
+    focus = build_stage_focus(state)
+    if focus is not None:
+        result['stage_focus'] = focus
     return result
 
 

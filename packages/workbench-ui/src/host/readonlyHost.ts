@@ -5,7 +5,7 @@ import type { WorkbenchPresentation } from "../features/workspace/WorkbenchHostC
 
 export type ReadonlyWorkSelection = {
   projectId: string; documentId: string; sourceSha256: string; workRef: string; revisionId?: string;
-  view?: "structure" | "items" | "analysis" | "export";
+  view?: "structure" | "items" | "requirements" | "analysis" | "export";
 };
 export type SessionBinding = Pick<ReadonlyWorkSelection, "projectId" | "documentId" | "sourceSha256" | "workRef"> & {
   hostId: string; workspaceId: string; sessionId: string; taskId?: string;

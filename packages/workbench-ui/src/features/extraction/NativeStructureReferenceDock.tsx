@@ -5,10 +5,12 @@ import {
   useDeferredValue,
   useMemo,
   useRef,
+  useId,
   useState,
 } from "react";
 import type {
   CSSProperties,
+  ReactNode,
   KeyboardEvent as ReactKeyboardEvent,
   PointerEvent as ReactPointerEvent,
 } from "react";
@@ -72,7 +74,7 @@ import { filterSourceItemLedger, sourceReviewCounts, useSourceItemReviewContext,
 import type { SourceWorkbenchReader } from "./SourceWorkbenchReader";
 import { clearSourceFeedbackDraft, sourceFeedbackDraftKey, useSourceFeedbackDraft } from "./sourceItemDrafts";
 import { useUiCopy, useUiLocale } from "../../host/HostLocaleContext";
-import { pdfViewerHref, withPdfLocale } from "../pdf/pdfViewerUrl";
+import { pdfViewerHref, withPdfFit, withPdfLocale } from "../pdf/pdfViewerUrl";
 
 interface NativeStructureReferenceDockProps {
   sourceReader?: SourceWorkbenchReader;
@@ -88,6 +90,9 @@ interface NativeStructureReferenceDockProps {
   showSourcePreview?: boolean;
   onAdvancementChange?: (state: NativeStructureAdvancementState) => void;
   mode?: "STRUCTURE" | "SOURCE_REQUIREMENTS";
+  /** Only already identified requirements plus their source ancestors; never infer UNKNOWN from missing data. */
+  requirementsOnly?: boolean;
+  viewNavigation?: ReactNode;
   refreshToken?: number;
   baselineRefreshSha?: string;
   purpose?: "review" | "analysis";
@@ -149,12 +154,12 @@ type StructureColumnShares = {
 type StructureSplitter = "TREE_DETAIL" | "DETAIL_SOURCE";
 
 const DEFAULT_COLUMN_SHARES: StructureColumnShares = {
-  tree: 24,
-  detail: 38,
-  source: 38,
+  tree: 20,
+  detail: 40,
+  source: 40,
 };
 
-const COLUMN_LAYOUT_VERSION = 1;
+const COLUMN_LAYOUT_VERSION = 2;
 
 function columnLayoutStorageKey(projectId: string, documentId: string): string {
   return `reqpilotx:native-structure-columns:${projectId}:${documentId}`;
@@ -1720,6 +1725,8 @@ export function NativeStructureReferenceDock({
   showSourcePreview = false,
   onAdvancementChange,
   mode = "STRUCTURE",
+  requirementsOnly = false,
+  viewNavigation,
   refreshToken = 0,
   baselineRefreshSha = "",
   purpose = "review",
@@ -1728,13 +1735,17 @@ export function NativeStructureReferenceDock({
   sourceReader,
 }: NativeStructureReferenceDockProps) {
   const l = useUiCopy();
+  const treeId = useId();
+  const treeToggleRef = useRef<HTMLButtonElement>(null);
+  const [treeDrawerOpen, setTreeDrawerOpen] = useState(false);
   const locale = useUiLocale();
   const host = useWorkbenchHost();
-  const viewerUrl = withPdfLocale(host.pdfViewerUrl(sourceFileUrl, 1, true), locale);
+  const viewerUrl = withPdfFit(withPdfLocale(host.pdfViewerUrl(sourceFileUrl, 1, true), locale), "width");
   const viewerOrigin = new URL(viewerUrl, window.location.origin).origin;
   const documentAgent = useDocumentAgent();
   const externalContentIdentity = sourceReader ? `${sourceReader.reference.artifact_id}:${sourceReader.outline?.baseline?.artifact_sha256 || sourceReader.revision_id}` : undefined;
   const [reviewPresentation, setReviewPresentation] = useState<"table" | "source">(() => documentAgent ? "table" : "source");
+  const ledgerPresentation = requirementsOnly ? "table" : reviewPresentation;
 
   const [reference, setReference] =
     useState<NativeStructureReferencePublicV1 | null>(null);
@@ -1842,6 +1853,9 @@ export function NativeStructureReferenceDock({
   const [wideReading, setWideReading] = useState(false);
   const [pageAtlasOpen, setPageAtlasOpen] = useState(false);
   const pdfFrameRef = useRef<HTMLIFrameElement | null>(null);
+  const pendingPdfFocusRef = useRef<string | null>(null);
+  const initialPdfSelectionRef = useRef<string | null>(null);
+  const lastPdfFocusRequestRef = useRef(0);
   const treeRef = useRef<HTMLUListElement | null>(null);
   const treeViewportRef = useRef<HTMLElement | null>(null);
   const workbenchRef = useRef<HTMLDivElement | null>(null);
@@ -2915,9 +2929,11 @@ export function NativeStructureReferenceDock({
     .map(([id, children]) => [id, children.map(child => ({ search_text: `${child.singular_requirement_id || child.node_id || ""} ${child.requirement_display_id} ${child.source_number || ""} ${child.text}`,
       requirement_kinds: child.requirement_kinds || sourceItemsById.get(id)?.requirement_kinds || [] }))])), [sourceItemReasoning.state?.decomposition, sourceItemsById]);
   const baseReviewFilter = useMemo(() => filterSourceItemLedger(sourceRequirementOutline, reviewRequest.value,
-    { query: deferredReviewQuery, view: !reviewRequest.value && !["ALL", "REQUIREMENTS"].includes(reviewView) ? "ALL" : reviewView,
-      category: reviewCategory, topic: reviewRequest.value ? reviewTopic : "" }, relatedReviewItems),
-    [sourceRequirementOutline, reviewRequest.value, deferredReviewQuery, reviewView, reviewCategory, reviewTopic, relatedReviewItems]);
+    requirementsOnly
+      ? { query: deferredReviewQuery, view: "REQUIREMENTS" as const, category: reviewCategory, topic: reviewTopic }
+      : { query: deferredReviewQuery, view: !reviewRequest.value && !["ALL", "REQUIREMENTS"].includes(reviewView) ? "ALL" : reviewView,
+        category: reviewCategory, topic: reviewRequest.value ? reviewTopic : "" }, relatedReviewItems),
+    [sourceRequirementOutline, reviewRequest.value, deferredReviewQuery, reviewView, reviewCategory, reviewTopic, relatedReviewItems, requirementsOnly]);
   const responseUnits = useMemo(() => analysisUnits(sourceItemsById.values(), sourceItemReasoning.state), [sourceItemsById, sourceItemReasoning.state]);
   const visibleResponseUnits = useMemo(() => responseUnits.filter(unit => (purpose !== "analysis" || inAnalysisQueue(unit, analysisQueue))
     && matchesAnalysisSearch(unit, deferredReviewQuery) && (!reviewCategory || unit.kinds?.includes(reviewCategory))),
@@ -2925,7 +2941,7 @@ export function NativeStructureReferenceDock({
   const visibleDerivedIds = useMemo(() => new Set(visibleResponseUnits.filter(unit => baseReviewFilter.matched.has(unit.sourceId)).map(unit => unit.id)), [visibleResponseUnits, baseReviewFilter]);
   useEffect(() => { setSelectedDerived(null); setCollapsedDerivedIds(new Set()); }, [analysisQueue, deferredReviewQuery, reviewCategory, reviewView, reviewTopic, positionKey]);
   const reviewFilter = useMemo(() => {
-    if (purpose !== "analysis" || !sourceItemReasoning.state) return baseReviewFilter;
+    if (requirementsOnly || purpose !== "analysis" || !sourceItemReasoning.state) return baseReviewFilter;
     const matched = new Set(visibleResponseUnits.map(unit => unit.sourceId).filter(id => baseReviewFilter.matched.has(id)));
     const visible = new Set<string>(), ancestors = new Set<string>();
     for (const row of sourceItemLedgerRowsById.values()) {
@@ -2935,7 +2951,7 @@ export function NativeStructureReferenceDock({
       while (parent && !ancestors.has(parent)) { ancestors.add(parent); visible.add(parent); parent = sourceItemLedgerRowsById.get(parent)?.parent_row_id || null; }
     }
     return { ...baseReviewFilter, matched, visible, ancestors, active: true };
-  }, [purpose, sourceItemReasoning.state, visibleResponseUnits, baseReviewFilter, sourceItemLedgerRowsById]);
+  }, [requirementsOnly, purpose, sourceItemReasoning.state, visibleResponseUnits, baseReviewFilter, sourceItemLedgerRowsById]);
   useEffect(() => setFilterCollapsed(new Set()), [deferredReviewQuery, reviewView, reviewCategory, reviewTopic, analysisQueue]);
   const reviewExpandedIds = useMemo(() => {
     if (!reviewFilter.active) return expandedIds;
@@ -2994,10 +3010,10 @@ export function NativeStructureReferenceDock({
   }, [positionKey, selectedSourceItemId, sourceRequirementOutline, sourceItemReasoning.state, sourceReader?.revision_id]);
   const locatedReviewRow = useRef("");
   useEffect(() => {
-    const key = `${positionKey}:${selectedTableRowId}:${reviewPresentation}:${reviewRequest.value ? "indexed" : "basic"}`;
+    const key = `${positionKey}:${selectedTableRowId}:${ledgerPresentation}:${reviewRequest.value ? "indexed" : "basic"}`;
     if (mode !== "SOURCE_REQUIREMENTS" || !selectedLedgerRowId || locatedReviewRow.current === key) return;
     const frame = requestAnimationFrame(() => {
-      const element = reviewPresentation === "table"
+      const element = ledgerPresentation === "table"
         ? treeViewportRef.current?.querySelector<HTMLElement>(`[data-ledger-row="${CSS.escape(selectedTableRowId)}"]`)
         : treeRef.current?.querySelector<HTMLElement>(`[data-tree-row="${CSS.escape(selectedLedgerRowId)}"]`);
       if (element) {
@@ -3014,7 +3030,7 @@ export function NativeStructureReferenceDock({
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [positionKey, selectedLedgerRowId, selectedTableRowId, selectedDerivedId, mode, visibleSourceItemLedgerRows, reviewRequest.value, reviewPresentation]);
+  }, [positionKey, selectedLedgerRowId, selectedTableRowId, selectedDerivedId, mode, visibleSourceItemLedgerRows, reviewRequest.value, ledgerPresentation]);
   const selectedSourceItem = selectedSourceItemId
     ? sourceItemsById.get(selectedSourceItemId) || null
     : null;
@@ -3518,15 +3534,39 @@ export function NativeStructureReferenceDock({
   }, [nodesById, selectedNode]);
 
   const syncPdf = useCallback(() => {
+    const focusOverlayId = pendingPdfFocusRef.current;
     pdfFrameRef.current?.contentWindow?.postMessage(
       {
         type: "REQPILOTX_PDF_NAVIGATE",
         page: activePage,
         overlays: selectedOverlays,
+        ...(focusOverlayId ? { focusOverlayId } : {}),
       },
       viewerOrigin,
     );
+    pendingPdfFocusRef.current = null;
   }, [activePage, selectedOverlays, viewerOrigin]);
+
+  const [pdfFocusRequest, setPdfFocusRequest] = useState(0);
+  useEffect(() => {
+    if (mode !== "SOURCE_REQUIREMENTS" || !showSourcePreview || !selectedSourceItemId) return;
+    const selectionKey = `${selectedSourceItemId}:${selectedDerivedId || ""}`;
+    if (initialPdfSelectionRef.current === null) {
+      initialPdfSelectionRef.current = selectionKey;
+      // A restored selection is visible without stealing focus on mount or HMR.
+      if (selectionKey !== ":") return;
+    }
+    const overlaysForSelection = sourceRequirementOverlays.filter(overlay =>
+      overlay.page === activePage && String(overlay.id).startsWith(`${selectedSourceItemId}:`));
+    if (!overlaysForSelection.length) return;
+    const selectionChanged = initialPdfSelectionRef.current !== selectionKey;
+    const explicitPageFocus = lastPdfFocusRequestRef.current !== pdfFocusRequest;
+    if (!selectionChanged && !explicitPageFocus) return;
+    initialPdfSelectionRef.current = selectionKey;
+    lastPdfFocusRequestRef.current = pdfFocusRequest;
+    pendingPdfFocusRef.current = overlaysForSelection[0].id;
+    syncPdf();
+  }, [activePage, mode, pdfFocusRequest, selectedDerivedId, selectedSourceItemId, showSourcePreview, sourceRequirementOverlays, syncPdf]);
 
   useEffect(() => {
     syncPdf();
@@ -3643,7 +3683,7 @@ export function NativeStructureReferenceDock({
     else selectNode(owner);
     if (derivedId && sourceItem) selectDerivedUnit(row, derivedId);
     requestAnimationFrame(() => {
-      const element = reviewPresentation === "table"
+      const element = ledgerPresentation === "table"
         ? treeViewportRef.current?.querySelector<HTMLElement>(`[data-ledger-row="${CSS.escape(derivedId ? derivedTableRowId(derivedId) : row.row_id)}"] .ledger-select`)
         : treeRef.current?.querySelector<HTMLElement>(`[data-tree-row="${CSS.escape(row.row_id)}"]`);
       element?.focus(); element?.scrollIntoView?.({ block: "nearest" });
@@ -4755,11 +4795,11 @@ export function NativeStructureReferenceDock({
         {!sourceReader && sourceRequirementMode && sourceRequirementOutline && <SourceItemAgentLoop projectId={projectId} documentId={documentId}
           sourceSha256={sourceSha256} baselineSha256={sourceRequirementOutline.baseline.artifact_sha256}
           selectedSourceItemId={selectedSourceItemId} selectedLabel={selectedSourceItem?.requirement_display_id || selectedSourceItem?.source_display_id || undefined} onUpdated={() => setSourceRequirementRefreshToken(value => value + 1)} />}
-        {sourceRequirementMode && (documentAgent || sourceReader) && <div className="review-presentation-tabs" role="group" aria-label={l("审阅方式")}>
-          <button type="button" aria-pressed={reviewPresentation === "table"} title={l("逐项检查编号、分类、派生和响应；保持当前查看版本")} onClick={() => { setReviewPresentation("table"); setCompactPanel("content"); setWideReading(false); }}><Icon name="matrix" size={14} />{l("条目台账")}</button>
-          <button type="button" aria-pressed={reviewPresentation === "source"} title={l("核对结构、完整内容和原页；切换不会重新提取")} onClick={() => { setReviewPresentation("source"); setWideReading(false); }}><Icon name="tree" size={14} />{l("原页对照")}</button>
+        {sourceRequirementMode && !requirementsOnly && (documentAgent || sourceReader) && <div className="review-presentation-tabs" role="group" aria-label={l("审阅方式")}>
+          <button type="button" aria-pressed={ledgerPresentation === "table"} title={l("逐项检查编号、分类、派生和响应；保持当前查看版本")} onClick={() => { setReviewPresentation("table"); setCompactPanel("content"); setWideReading(false); }}><Icon name="matrix" size={14} />{l("条目台账")}</button>
+          <button type="button" aria-pressed={ledgerPresentation === "source"} title={l("核对结构、完整内容和原页；切换不会重新提取")} onClick={() => { setReviewPresentation("source"); setWideReading(false); }}><Icon name="tree" size={14} />{l("原页对照")}</button>
         </div>}
-        {sourceRequirementMode && showSourcePreview && (!(documentAgent || sourceReader) || reviewPresentation === "source") && <button type="button" className="button secondary compact source-review-wide-toggle"
+        {sourceRequirementMode && !requirementsOnly && showSourcePreview && (!(documentAgent || sourceReader) || ledgerPresentation === "source") && <button type="button" className="button secondary compact source-review-wide-toggle"
           aria-pressed={wideReading} onClick={() => { setWideReading(value => !value); setCompactPanel("content"); }}>
           {wideReading ? l("恢复 PDF 对照") : l("宽屏阅读")}</button>}
         {!sourceReader && (documentAgent ? documentAgent.historyHost ? createPortal(legacyHistory, documentAgent.historyHost) : null : legacyHistory)}
@@ -4844,9 +4884,12 @@ export function NativeStructureReferenceDock({
                 hasSourcePreview && "has-source",
                 sourceRequirementMode && "is-source-requirement-workbench",
                 wideReading && "is-wide-reading",
-                sourceRequirementMode && reviewPresentation === "table" && "is-table-view",
+                sourceRequirementMode && ledgerPresentation === "table" && "is-table-view",
+                requirementsOnly && "is-requirements-view",
+                treeDrawerOpen && "is-tree-drawer-open",
               )}
               data-compact-panel={compactPanel}
+              onKeyDown={event => { if (event.key === "Escape" && treeDrawerOpen) { event.stopPropagation(); setTreeDrawerOpen(false); treeToggleRef.current?.focus(); } }}
               style={
                 {
                   "--native-tree-share": `${columnShares.tree}fr`,
@@ -4855,18 +4898,22 @@ export function NativeStructureReferenceDock({
                 } as CSSProperties
               }
             >
+              {treeDrawerOpen && <button className="native-tree-scrim" type="button" tabIndex={-1} aria-label={l("workbench.tree.close", "收起来源层级")} onClick={() => { setTreeDrawerOpen(false); treeToggleRef.current?.focus(); }} />}
               <nav
+                id={treeId}
                 ref={treeViewportRef}
                 className="native-hierarchy-tree"
                 aria-label={
                   sourceRequirementMode ? l("原文层级与条目") : l("文档标题树")
                 }
               >
+                {viewNavigation && <div className="native-tree-view-navigation">{viewNavigation}</div>}
                 {sourceRequirementMode ? <SourceReviewToolbar analysisMode={purpose === "analysis"}
                   query={reviewQuery} onQuery={setReviewQuery} view={reviewView} onView={setReviewView}
                   category={reviewCategory} onCategory={setReviewCategory} topic={reviewTopic} onTopic={setReviewTopic}
                   more={reviewMore} onMore={setReviewMore}
-                  total={(purpose === "analysis" ? sourceRequirementOutline?.summary.requirement_count : sourceRequirementOutline?.summary.source_item_count) || 0} matched={reviewFilter.matched.size}
+                  total={(purpose === "analysis" || requirementsOnly ? sourceRequirementOutline?.summary.requirement_count : sourceRequirementOutline?.summary.source_item_count) || 0} matched={reviewFilter.matched.size}
+                  requirementsOnly={requirementsOnly}
                   focus={reviewSummary.focus} attention={reviewSummary.attention} changed={reviewSummary.changed}
                   ready={Boolean(reviewRequest.value)} historyKnown={reviewRequest.value?.history_status === "AVAILABLE"}
                   focusStatus={reviewRequest.value?.focus_annotation_status || "UNAVAILABLE"}
@@ -4927,15 +4974,19 @@ export function NativeStructureReferenceDock({
                   ↑↓ 浏览 · ←→ 层级 · ⇧←→ 当前分支 · Home/End 首尾
                 </div>
                 </>}
-                {sourceRequirementMode && reviewPresentation === "table" ? <SourceLedgerTable
+                {sourceRequirementMode && ledgerPresentation === "table" ? <SourceLedgerTable
                   previewReader={previewReader}
+                  lens={requirementsOnly ? "requirements" : purpose === "analysis" ? "analysis" : "source"}
+                  requirementsOnly={requirementsOnly}
+                  ancestorIds={reviewFilter.ancestors}
+                  ancestorPathFor={record => record.ancestor_path.filter(Boolean).join(" / ")}
                   rows={visibleSourceItemLedgerRows} nodes={nodesById} records={sourceItemsById} selectedId={selectedLedgerRowId}
                   expandedIds={reviewExpandedIds} onSelect={focusSourceItemLedgerRow}
                   selectedDerivedId={selectedDerivedId} onSelectDerived={focusSourceItemLedgerRow}
                   collapsedDerivedIds={collapsedDerivedIds} visibleDerivedIds={visibleDerivedIds}
                   onToggleDerived={sourceId => { setCollapsedDerivedIds(values => { const next = new Set(values); if (next.has(sourceId)) next.delete(sourceId); else next.add(sourceId); return next; }); if (selectedDerived?.sourceId === sourceId) setSelectedDerived(null); }}
                   onToggle={id => { if (reviewFilter.active) setFilterCollapsed(values => { const next = new Set(values); if (reviewExpandedIds.has(id)) next.add(id); else next.delete(id); return next; }); else toggleNode(id); }}
-                  titleFor={row => { const record = row.source_item_id ? sourceItemsById.get(row.source_item_id) : null; const node = nodesById.get(row.structure_node_id); return record ? record.display_label : node ? nodeTitle(node, l) : l("原文内容"); }}
+                  titleFor={row => { const record = row.source_item_id ? sourceItemsById.get(row.source_item_id) : null; const node = nodesById.get(row.structure_node_id); if (node && row.is_one_to_one_item && !["AGENT_SURVEY_LABEL", "DERIVED_FROM_VISIBLE_TABLE_ROLE"].includes(node.title_authority)) return nodeTitle(node, l); return record ? record.display_label : node ? nodeTitle(node, l) : l("原文内容"); }}
                   kindFor={sourceItemKindSummary} reasoning={sourceItemReasoning.state ? { ...sourceItemReasoning.state, analysis_policy: sourceReader?.analysis_policy || sourceItemReasoning.state.analysis_policy } : null} review={reviewRequest.value} scopeSummaries={sourceRequirementOutline?.scope_summaries || sourceReader?.scope_summaries} /> : (
                 <ul
                   ref={treeRef}
@@ -5029,10 +5080,12 @@ export function NativeStructureReferenceDock({
 
               {hasSourcePreview ? (
                 <div className="native-hierarchy-compact-bar">
+                  <button ref={treeToggleRef} type="button" className="native-tree-toggle" aria-controls={treeId} aria-expanded={treeDrawerOpen} onClick={() => setTreeDrawerOpen(value => !value)}>{l("workbench.tree.title", "来源层级")}</button>
+                  {viewNavigation && <div className="native-compact-view-navigation">{viewNavigation}</div>}
                   <span>
                     查看“{selectedSourceItem?.display_label || nodeTitle(selectedNode, l)}”
                   </span>
-                  <div role="group" aria-label={l("当前节点查看方式")}>
+                  <div className="native-compact-reading-modes" role="group" aria-label={l("当前节点查看方式")}>
                     <button
                       type="button"
                       className={compactPanel === "content" ? "is-active" : ""}
@@ -5135,9 +5188,10 @@ export function NativeStructureReferenceDock({
                     review={reviewRequest.value?.records[selectedSourceItemId]}
                     capabilities={reviewRequest.value?.capabilities}
                     analysisMode={purpose === "analysis"}
+                    requirementsView={requirementsOnly}
                     onChangePurpose={onChangePurpose}
-                    analysisUnitIds={purpose === "analysis" || reviewPresentation === "table" ? visibleResponseUnits.filter(unit => unit.sourceId === selectedSourceItemId && baseReviewFilter.matched.has(unit.sourceId)).map(unit => unit.id) : undefined}
-                    tableView={reviewPresentation === "table"} selectedDerivedUnitId={selectedDerivedId}
+                    analysisUnitIds={purpose === "analysis" || ledgerPresentation === "table" ? visibleResponseUnits.filter(unit => unit.sourceId === selectedSourceItemId && baseReviewFilter.matched.has(unit.sourceId)).map(unit => unit.id) : undefined}
+                    tableView={ledgerPresentation === "table"} selectedDerivedUnitId={selectedDerivedId}
                     onAnalysisUnitChange={unitId => { if (selectedSourceItemLedgerRow) selectDerivedUnit(selectedSourceItemLedgerRow, unitId); }}
                     sourceHeading={selectedSourceItemLedgerRow?.is_one_to_one_item && !["AGENT_SURVEY_LABEL", "DERIVED_FROM_VISIBLE_TABLE_ROLE"].includes(selectedNode.title_authority) ? nodeTitle(selectedNode, l) : undefined}
                     onNextReviewItem={() => { if (nextReviewRow) focusSourceItemLedgerRow(nextReviewRow); }}
@@ -5147,7 +5201,7 @@ export function NativeStructureReferenceDock({
                     tableModelsById={verifiedTableModelsById}
                     activePage={activePage}
                     onPageChange={onPageChange}
-                    onShowSource={() => { setReviewPresentation("source"); setCompactPanel("source"); }}
+                    onShowSource={(focus) => { setReviewPresentation("source"); setCompactPanel("source"); if (focus) setPdfFocusRequest(value => value + 1); }}
                     onLocateNative={ids => { setReviewPresentation("source"); setNativeFocusIds(ids); setCompactPanel("source"); }}
                     onEvidenceChange={setSourceRequirementOverlays}
                     onFeedbackSaved={() =>

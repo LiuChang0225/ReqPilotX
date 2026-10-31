@@ -60,8 +60,13 @@ export function overlayFocusView(geometry: OverlayGeometry, pageWidth: number, p
   const width = Number.parseFloat(style.width) / 100, height = Number.parseFloat(style.height) / 100;
   if (width <= 0 || height <= 0) return null;
   return {
-    scale: Math.max(.25, Math.min(4, (viewportWidth - 32) / (pageWidth * width), (viewportHeight - 48) / (pageHeight * height))),
+    scale: Math.max(.25, Math.min(1.5, (viewportWidth - 32) / (pageWidth * width), (viewportHeight - 48) / (pageHeight * height))),
     centerX: Number.parseFloat(style.left) / 100 + width / 2,
     centerY: Number.parseFloat(style.top) / 100 + height / 2,
+    topY: Number.parseFloat(style.top) / 100,
   };
+}
+
+export function pdfFocusOverlayIndex(overlays: readonly { id: string }[], overlayId: string): number {
+  return overlays.findIndex(overlay => overlay.id === overlayId);
 }

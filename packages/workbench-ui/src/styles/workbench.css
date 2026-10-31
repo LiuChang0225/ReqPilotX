@@ -88,7 +88,8 @@
 .workspace-app .source-review-facets > span { padding: 3px 7px; border-radius: 5px; }
 .workspace-app .source-review-shortcuts button { border-radius: 6px; min-height: 30px; }
 .workspace-app .source-review-shortcuts button.is-primary { border-color: var(--line-strong); background: var(--brand-faint); }
-.workspace-app .source-review-original { font-size: 14px; line-height: 1.85; }
+.workspace-app .source-review-original { font-size: 16px; line-height: 1.78; }
+.workspace-app .source-review-original .source-item-verbatim { padding: 14px 16px; border: 1px solid var(--line); border-radius: 10px; background: var(--paper); }
 .workspace-app .source-review-focus-reason, .workspace-app .source-review-issues { border-left-width: 1px; }
 /* Always visible entry; animation indicates actual active work only. */
 .workspace-app .source-agent-loop > summary { gap: 7px; min-height: 34px; padding: 6px 10px; border: 1px solid var(--line); border-radius: 8px; color: var(--ink); background: var(--paper); font-size: 12px; font-weight: 600; }
@@ -219,19 +220,65 @@
 .review-presentation-tabs { display: flex; gap: 2px; padding: 3px; border-radius: 8px; background: var(--canvas); }
 .review-presentation-tabs button { display: inline-flex; gap: 5px; align-items: center; border: 0; border-radius: 6px; padding: 6px 8px; font: inherit; font-size: 12px; color: var(--muted); background: transparent; }
 .review-presentation-tabs button[aria-pressed="true"] { background: var(--paper); color: var(--ink); }
-.native-hierarchy-workbench.is-table-view.has-source { grid-template-columns: minmax(360px, 1.15fr) 7px minmax(320px, 1fr); grid-template-rows: minmax(0, 1fr); }
+/* One real column-share model serves tree and ledger reading. */
+.native-hierarchy-workbench.has-source { position: relative; }
+.native-tree-scrim { display: none; }
+.native-hierarchy-workbench.is-table-view.has-source { grid-template-columns: minmax(180px, var(--native-tree-share, 20fr)) 7px minmax(300px, var(--native-detail-share, 40fr)) 7px minmax(300px, var(--native-source-share, 40fr)); grid-template-rows: minmax(0, 1fr); }
 .native-hierarchy-workbench.is-table-view.has-source > .native-hierarchy-tree { grid-column: 1; grid-row: 1; }
-.native-hierarchy-workbench.is-table-view.has-source > .native-hierarchy-detail { display: grid !important; grid-column: 3; grid-row: 1; padding: 16px 18px 24px; }
-.native-hierarchy-workbench.is-table-view > :is(.native-hierarchy-source, .native-hierarchy-compact-bar, .native-hierarchy-splitter.is-detail-source) { display: none !important; }
+.native-hierarchy-workbench.is-table-view.has-source > .native-hierarchy-detail { display: grid; grid-column: 3; grid-row: 1; padding: 12px 16px 20px; }
+.native-hierarchy-workbench.is-table-view.has-source > .native-hierarchy-source { display: grid; grid-column: 5; grid-row: 1; }
+.native-hierarchy-workbench.is-table-view > .native-hierarchy-compact-bar { display: none; }
 .native-hierarchy-workbench.is-table-view > .native-hierarchy-splitter.is-tree-detail { display: flex; grid-column: 2; grid-row: 1; }
+.native-hierarchy-workbench.is-table-view > .native-hierarchy-splitter.is-detail-source { display: flex; grid-column: 4; grid-row: 1; }
+@container (min-width: 901px) {
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) { grid-template-columns: minmax(180px, var(--native-tree-share, 20fr)) 7px minmax(300px, var(--native-detail-share, 40fr)) 7px minmax(300px, var(--native-source-share, 40fr)); grid-template-rows: minmax(0, 1fr); }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) > .native-hierarchy-tree { grid-column: 1; grid-row: 1; }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) > .native-hierarchy-detail { grid-column: 3; grid-row: 1; display: grid; }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) > .native-hierarchy-source { grid-column: 5; grid-row: 1; display: grid; }
+  .native-hierarchy-workbench.has-source > .native-hierarchy-compact-bar { display: none; }
+  .native-hierarchy-workbench.has-source > .native-hierarchy-splitter.is-tree-detail,
+  .native-hierarchy-workbench.has-source > .native-hierarchy-splitter.is-detail-source { display: flex; }
+}
+@container (max-width: 900px) {
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) { grid-template-columns: minmax(0, 1fr) minmax(0, 1fr); grid-template-rows: auto minmax(0, 1fr); }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) > .native-hierarchy-tree { display: none; }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading).is-tree-drawer-open > .native-hierarchy-tree { display: block; position: absolute; inset: 40px auto 0 0; width: min(290px, 82%); z-index: 12; border: 0; box-shadow: 8px 0 24px rgb(0 0 0 / .12); }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading).is-tree-drawer-open > .native-tree-scrim { display: block; position: absolute; inset: 40px 0 0; z-index: 11; border: 0; background: rgb(10 30 20 / .06); }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) > .native-hierarchy-detail { display: grid; grid-column: 1; grid-row: 2; }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) > .native-hierarchy-source { display: grid; grid-column: 2; grid-row: 2; }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) > .native-hierarchy-splitter.is-tree-detail,
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) > .native-hierarchy-splitter.is-detail-source { display: none; }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) > .native-hierarchy-compact-bar { display: flex; grid-column: 1 / -1; grid-row: 1; gap: 8px; padding: 5px 8px; min-height: 40px; flex-wrap: wrap; }
+  .native-hierarchy-compact-bar > span, .native-hierarchy-compact-bar .native-compact-reading-modes { display: none; }
+  .native-hierarchy-compact-bar .native-tree-toggle { flex: none; min-height: 28px; padding: 3px 8px; border: 1px solid var(--line); border-radius: 5px; color: var(--ink); }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) .native-tree-view-navigation { display: none; }
+}
+@container (max-width: 700px) {
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) { grid-template-columns: minmax(0, 1fr); }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) > .native-hierarchy-detail,
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading) > .native-hierarchy-source { grid-column: 1; }
+  .native-hierarchy-compact-bar .native-compact-reading-modes { display: flex; }
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading)[data-compact-panel="content"] > .native-hierarchy-source,
+  .native-hierarchy-workbench.has-source:not(.is-wide-reading)[data-compact-panel="source"] > .native-hierarchy-detail { display: none; }
+}
 .native-hierarchy-workbench.is-table-view .native-hierarchy-tree { background: var(--paper); }
 .native-hierarchy-workbench.is-table-view .source-review-tree-toolbar { background: var(--paper); }
 .source-ledger-table { width: 100%; table-layout: fixed; border-collapse: collapse; font-size: 12px; }
 .source-ledger-table th { padding: 10px 9px; text-align: left; color: var(--muted); background: var(--canvas); font-size: 11px; font-weight: 550; border-bottom: 1px solid var(--line); }
-.source-ledger-table th:first-child { width: 53%; }
-.source-ledger-table th:nth-child(2) { width: 23%; }
+.source-ledger-table .col-content { width: 50%; }
+.source-ledger-table .col-original-number { width: 14%; }
+.source-ledger-table .col-identity { width: 23%; }
+.source-ledger-table.is-analysis-lens .col-content { width: 43%; }
+.source-ledger-table.is-analysis-lens .col-original-number { width: 13%; }
+.source-ledger-table.is-analysis-lens .col-identity { width: 25%; }
+.source-ledger-table.is-analysis-lens .col-response { width: 19%; }
+.source-ledger-table.is-requirements-lens .col-content { width: 52%; }
+.source-ledger-table.is-requirements-lens .col-identity { width: 28%; }
+.source-ledger-table.is-source-lens .col-content { width: 55%; }
+.source-ledger-table.is-source-lens .col-identity { width: 26%; }
 .source-ledger-table td { padding: 10px 9px; border-bottom: 1px solid var(--line); vertical-align: middle; color: var(--ink-soft); }
-.source-ledger-table td:first-child { padding: 0; }
+.source-ledger-table td.col-original-number { padding: 9px 7px; }
+.source-ledger-table td.col-content { padding: 0; }
 .source-ledger-table tr:hover { background: var(--canvas); }
 .source-ledger-table tr.is-selected { background: var(--brand-faint); }
 .source-ledger-table tr.is-structure { background: var(--canvas); }
@@ -485,6 +532,11 @@
 .document-work-surface .requirement-tree-commandbar { flex-wrap: wrap; gap: 6px 14px; }
 .document-work-surface .requirement-tree-title { flex: 1 1 180px; min-width: 0; }
 .document-work-surface .requirement-tree-commandbar .tree-mode-switch { flex: 0 0 auto; order: 0; margin-left: auto; justify-content: flex-end; }
+.requirement-view-switch { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin-left: auto; }
+.tree-mode-review-entry { min-height: 29px; padding: 4px 9px; border: 1px solid var(--line); border-radius: 5px; color: var(--muted); background: var(--paper); font: inherit; font-size: 11px; }
+.tree-mode-review-entry:hover:not(:disabled), .tree-mode-review-entry.is-active { color: var(--brand-strong); border-color: var(--brand); background: var(--brand-faint); }
+.tree-mode-review-entry:disabled { opacity: .55; }
+.source-review-scope-note { color: var(--brand-strong); font-size: 11px; font-weight: 650; }
 .document-ledger-empty { padding: 28px; max-width: 780px; }
 .document-ledger-empty h2 { margin: 0 0 10px; font-size: 22px; }
 .document-ledger-empty p { margin: 0 0 20px; color: var(--ink-soft); line-height: 1.7; }
@@ -554,14 +606,10 @@
 .external-feedback-list article { padding: 12px 0; border-bottom: 1px solid var(--line); }
 .external-feedback-list article > span, .external-feedback-list small { color: var(--muted); font-size: 11px; }
 .external-feedback-list p, .external-handoff p { white-space: pre-wrap; overflow-wrap: anywhere; color: var(--ink-soft); font-size: 12px; line-height: 1.7; }
-.source-ledger-table th:first-child { width: 13%; }
-.source-ledger-table th:nth-child(2) { width: 43%; }
-.source-ledger-table th:nth-child(3) { width: 25%; }
-.source-ledger-table th:nth-child(4) { width: 19%; }
-.source-ledger-table td:first-child { padding: 9px 7px; }
-.source-ledger-table td:nth-child(2) { padding: 0; }
 .ledger-original-number { font-size: 11px; overflow-wrap: anywhere; color: var(--ink-soft); }
 .source-ledger-table .ledger-original-number small { font-size: 10px; }
+.ledger-ancestor-path { color: var(--muted); font-size: 10px; line-height: 1.45; }
+.source-ledger-table tr.is-derived .ledger-ancestor-path { display: none; }
 .tree-source-number { color: var(--muted); font-size: 12px; }
 .source-original-number { display: inline-block; margin-bottom: 6px; font-size: 12px; color: var(--ink-soft); }
 .source-findings-panel { font-size: 12px; }
@@ -666,3 +714,86 @@
 .native-evidence-locator { font-family: monospace; overflow-wrap: anywhere; }
 .native-evidence-review-trigger { margin: 12px 0; }
 @media (max-width: 640px) { .native-evidence-file-pickers, .native-evidence-metadata { grid-template-columns: 1fr; } .native-evidence-review-header { flex-direction: column; } }
+
+/* 2026-11-01: one primary workflow, compact extraction lenses, source-first comparison. */
+.product-logo { display: inline-flex; align-items: center; min-width: 0; }
+.product-logo img { max-width: 100%; height: auto; }
+.product-logo .product-logo-light { display: block; }
+.product-logo .product-logo-dark { display: none; }
+[data-theme="dark"] .product-logo .product-logo-light { display: none; }
+[data-theme="dark"] .product-logo .product-logo-dark { display: block; }
+.brand-lockup .brand-logo-lockup img { width: 156px; height: auto; }
+.brand-lockup .brand-logo-symbol { display: none; }
+.brand-lockup.is-compact .brand-logo-lockup img { width: 112px; height: auto; }
+.workspace-app.is-hosted-application .workspace-context-strip { display: flex; align-items: center; gap: 14px; min-width: 0; }
+.workspace-app.is-hosted-application .workspace-topbar { grid-template-columns: minmax(260px, 1fr) auto auto; gap: 12px; padding-inline: 14px; }
+.workspace-app.is-hosted-application .workspace-context-strip > .brand-lockup { flex: none; }
+.workspace-hosted-context { min-width: 0; }
+.workspace-more-actions { position: relative; flex: none; }
+.workspace-more-actions > summary { list-style: none; cursor: pointer; padding: 7px 9px; font-size: 12px; color: var(--muted); border-radius: 5px; }
+.workspace-more-actions > summary::-webkit-details-marker { display: none; }
+.workspace-more-actions > summary:hover { color: var(--ink); background: var(--canvas); }
+.workspace-more-actions-menu { position: absolute; top: 100%; right: 0; z-index: 50; display: grid; min-width: 190px; gap: 4px; padding: 8px; border: 0; background: var(--paper); box-shadow: 0 8px 24px rgb(0 0 0 / .1); }
+.workspace-more-actions-menu > :is(button,a) { width: 100%; justify-content: flex-start; }
+.native-tree-view-navigation { padding: 8px 8px 4px; background: var(--paper); }
+.requirement-view-switch.is-compact-lens { display: flex; align-items: center; gap: 4px; }
+.is-compact-lens .tree-mode-switch { min-height: 28px; gap: 2px; padding: 0; }
+.is-compact-lens .tree-mode-switch button { min-height: 28px; padding: 4px 7px; font-size: 12px; white-space: nowrap; }
+.is-compact-lens .tree-mode-switch button + button::before { content: none; }
+.is-compact-lens .tree-mode-review-entry { font-size: 11px; padding: 4px 6px; }
+.native-hierarchy-detail:has(.source-requirement-lens[data-has-source-path="true"]) > .native-hierarchy-breadcrumb { display: none; }
+.native-hierarchy-detail .source-review-item-header { position: static; padding: 0; margin: 0; border: 0; background: transparent; }
+.native-hierarchy-detail .source-review-item-header::before { content: none; }
+.native-hierarchy-detail .source-review-identity { display: flex; flex-wrap: wrap; align-items: baseline; gap: 3px 10px; }
+.native-hierarchy-detail .source-review-identity h4 { order: -1; flex-basis: 100%; font-size: 16px; line-height: 1.45; margin: 0; }
+.native-hierarchy-detail .source-review-identity > span { font-size: 11px; line-height: 1.5; }
+.native-hierarchy-detail .source-review-origin-line { display: contents; }
+.native-hierarchy-detail .source-original-number { font-size: 11px; margin: 0; }
+.native-hierarchy-detail .source-review-identity .source-requirement-path { flex-basis: 100%; margin: 0; font-size: 12px; line-height: 1.5; overflow-wrap: anywhere; }
+.native-hierarchy-detail .source-requirement-detail { gap: 12px; }
+.native-hierarchy-detail .source-review-original { margin: 0; padding: 0; }
+.native-hierarchy-detail .source-item-verbatim { margin: 0; padding: 12px 14px; border: 1px solid var(--line-strong); border-radius: 7px; background: var(--brand-faint); }
+.native-hierarchy-detail .source-item-verbatim > header { padding: 0 0 8px; margin: 0; min-height: 0; }
+.native-hierarchy-detail .source-item-verbatim > header span { display: none; }
+.native-hierarchy-detail .source-item-verbatim article { padding: 0; border: 0; }
+.native-hierarchy-detail .source-item-verbatim p { margin: 0; font-size: 17px; line-height: 1.7; color: var(--ink); }
+.native-hierarchy-detail .source-review-meta { margin-top: 2px; }
+.source-ledger-table .ledger-title-cell { position: relative; }
+.source-ledger-table .ledger-expand, .source-ledger-table .ledger-expand-spacer, .source-ledger-table .ledger-derived-mark { width: 18px; min-width: 18px; flex: 0 0 18px; }
+.source-ledger-table tr[data-depth]:not([data-depth="0"]) .ledger-title-cell::before { content: ""; position: absolute; left: calc(18px * var(--ledger-depth) - 3px); top: 0; height: 23px; width: 8px; border-left: 1px solid var(--line-strong); border-bottom: 1px solid var(--line-strong); pointer-events: none; }
+.source-ledger-table .ledger-select { min-width: 0; }
+.source-ledger-table .ledger-source-ref { font-size: 10px; }
+@container (max-width: 1180px) {
+  .source-ledger-table:not(.is-analysis-lens) .col-identity { display: none; }
+  .source-ledger-table:not(.is-analysis-lens) .col-original-number { width: 25%; }
+  .source-ledger-table:not(.is-analysis-lens) .col-content { width: 75%; }
+}
+
+/* Preserve the approved SVG colours; old corporate-logo inversion is inapplicable. */
+.brand-lockup .product-logo img { filter: none; }
+.native-hierarchy-tree .source-review-toolbar-main { flex-wrap: wrap; }
+.native-hierarchy-tree .source-review-toolbar-main > input { min-width: 100px; flex: 1 1 100px; }
+.native-hierarchy-tree .source-review-toolbar-main > div { flex: 0 0 auto; }
+/* User review C6/C7: quiet ancestry guides and a genuinely centred major workflow. */
+.workspace-app.is-hosted-application .workspace-topbar { grid-template-columns: minmax(0, 1fr) auto minmax(0, 1fr); }
+.workspace-app.is-hosted-application .workspace-toolbar { justify-self: end; }
+.workspace-app.is-hosted-application .workspace-hosted-context { display: grid; align-content: center; gap: 1px; flex: 1; max-width: 100%; }
+.workspace-app.is-hosted-application .workspace-hosted-context strong,
+.workspace-app.is-hosted-application .workspace-hosted-context span { display: block; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.source-ledger-table:not(.is-analysis-lens) td { border-bottom-color: transparent; }
+.source-ledger-table tr[data-depth]:not([data-depth="0"]) .ledger-title-cell::before { left: calc(18px * var(--ledger-depth) - 1px); top: 0; bottom: 0; height: auto; width: 0; border-left: 1px solid var(--line); border-bottom: 0; }
+.source-ledger-table .is-structure .ledger-select strong { font-weight: 650; }
+.source-ledger-table:not(.is-analysis-lens) .ledger-select { padding-block: 9px; }
+@media (max-width: 760px) {
+  .workspace-app.is-hosted-application .workspace-body { grid-template-rows: auto minmax(0, 1fr); }
+  .workspace-app.is-hosted-application .workspace-topbar { grid-template-columns: minmax(0, 1fr) auto; grid-template-rows: auto auto; height: auto; min-height: 84px; padding-block: 5px; gap: 3px 8px; }
+  .workspace-app.is-hosted-application .workspace-context-strip { grid-column: 1; grid-row: 1; }
+  .workspace-app.is-hosted-application .workspace-toolbar { grid-column: 2; grid-row: 1; }
+  .workspace-app.is-hosted-application .workspace-hosted-flow { grid-column: 1 / -1; grid-row: 2; justify-self: center; }
+}
+
+.source-ledger-table:not(.is-analysis-lens) .col-original-number, .source-ledger-table.is-analysis-lens .col-original-number { width: 52px; }
+.source-ledger-table th.col-original-number { white-space: nowrap; }
+/* Removed auxiliary headers must not leave an empty reserved grid track below reading. */
+.native-hierarchy:has(> .native-hierarchy-workbench) { display: flex; flex-direction: column; min-height: 0; }
+.native-hierarchy > .native-hierarchy-workbench { flex: 1 1 auto; min-height: 0; }

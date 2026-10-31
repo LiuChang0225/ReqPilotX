@@ -15,6 +15,18 @@ export function withPdfLocale(url: string, locale: UiLocale): string {
   }
 }
 
+/** Preserve the viewer's source/origin checks while choosing an embedded reading fit. */
+export function withPdfFit(url: string, fit: "page" | "width"): string {
+  try {
+    const relative = url.startsWith("/") && !url.startsWith("//");
+    const parsed = new URL(url, window.location.origin);
+    parsed.searchParams.set("fit", fit);
+    return relative ? `${parsed.pathname}${parsed.search}${parsed.hash}` : parsed.href;
+  } catch {
+    return url;
+  }
+}
+
 export function pdfViewerHref(input: {
   sourceUrl: string;
   page: number;

@@ -4,8 +4,9 @@ import { useUiCopy } from "../../host/HostLocaleContext";
 
 export function SourceReviewToolbar({ query, onQuery, view, onView, category, onCategory, topic, onTopic,
   more, onMore, total, matched, focus, attention, changed, ready, focusStatus, historyKnown, error, onRetry,
-  onExpand, onCollapse, onLocate, onChooseFirst, inputRef, analysisMode = false }: {
+  onExpand, onCollapse, onLocate, onChooseFirst, inputRef, analysisMode = false, requirementsOnly = false }: {
   analysisMode?: boolean;
+  requirementsOnly?: boolean;
   query: string; onQuery: (value: string) => void; view: ReviewFilter; onView: (value: ReviewFilter) => void;
   category: string; onCategory: (value: string) => void; topic: string; onTopic: (value: string) => void;
   more: boolean; onMore: (value: boolean) => void; total: number; matched: number;
@@ -33,10 +34,11 @@ export function SourceReviewToolbar({ query, onQuery, view, onView, category, on
     </div>
     <div className="source-review-toolbar-filters">
     <div className="source-review-quick-filters" aria-label={l("reviewToolbar.scope", "审阅范围")}>
-      {!analysisMode && <><button type="button" aria-pressed={view === "ALL"} onClick={() => onView("ALL")}>{l("reviewToolbar.all", "全部 {count}", { count: total })}</button>
+      {requirementsOnly ? <span className="source-review-scope-note" role="status">{l("reviewToolbar.requirementsOnly", "仅需求 {count} · 保留祖先路径", { count: total })}</span>
+        : !analysisMode && <><button type="button" aria-pressed={view === "ALL"} onClick={() => onView("ALL")}>{l("reviewToolbar.all", "全部 {count}", { count: total })}</button>
       <button type="button" disabled={!focusAvailable} title={focusHint} aria-pressed={view === "FOCUS"} onClick={() => onView("FOCUS")}>{l("reviewToolbar.focus", "重点 {count}", { count: focusAvailable ? focus : ready || error ? "—" : "…" })}</button>
       <button type="button" disabled={!ready} aria-pressed={view === "ATTENTION"} onClick={() => onView("ATTENTION")}>{l("reviewToolbar.attention", "需关注 {count}", { count: ready ? attention : error ? "—" : "…" })}</button></>}
-      <button type="button" className={category || topic || !["ALL", "FOCUS", "ATTENTION"].includes(view) ? "has-active-filters" : undefined} aria-expanded={more} onClick={() => onMore(!more)}>{l("reviewToolbar.filters", "筛选")}</button>
+      <button type="button" className={category || topic || !["ALL", "REQUIREMENTS", "FOCUS", "ATTENTION"].includes(view) ? "has-active-filters" : undefined} aria-expanded={more} onClick={() => onMore(!more)}>{l("reviewToolbar.filters", "筛选")}</button>
     </div>
     {(filtered || analysisMode) && <div className="source-review-filter-result" role="status" title={l("reviewToolbar.filterResultTitle", "匹配条目及其完整原文路径已保留")}>
       <span>{analysisMode && !filtered ? l("reviewToolbar.sourceCount", "{count} 条原文", { count: matched }) : l("reviewToolbar.matchCount", "匹配 {matched} / {total}", { matched, total })}</span>
@@ -45,13 +47,14 @@ export function SourceReviewToolbar({ query, onQuery, view, onView, category, on
     </div>
     {more && <div className="source-review-more-filters">
       <small>{focusHint}</small>
-      <label>{l("reviewToolbar.scopeLabel", "范围")}<select aria-label={l("reviewToolbar.scopeFilterAria", "筛选审阅状态")} value={view} onChange={event => onView(event.target.value as ReviewFilter)}>
+      {requirementsOnly ? <small>{l("reviewToolbar.requirementsOnlyHint", "当前为需求清单视图；非需求内容仍在原文条目视图中查看。")}</small>
+        : <label>{l("reviewToolbar.scopeLabel", "范围")}<select aria-label={l("reviewToolbar.scopeFilterAria", "筛选审阅状态")} value={view} onChange={event => onView(event.target.value as ReviewFilter)}>
         <option value="ALL">{l("reviewToolbar.scopeAll", "全部原文")}</option><option value="REQUIREMENTS">{l("reviewToolbar.scopeRequirements", "仅需求")}</option>
         <option value="FOCUS" disabled={!focusAvailable}>{l("reviewToolbar.scopeFocus", "重点分析")}</option><option value="PARAMETERS" disabled={!focusAvailable}>{l("reviewToolbar.scopeParameters", "技术参数")}</option>
         <option value="VERIFICATION" disabled={!focusAvailable}>{l("reviewToolbar.scopeVerification", "试验验证")}</option><option value="ATTENTION" disabled={!ready}>{l("reviewToolbar.scopeAttention", "需关注")}</option>
         <option value="CHANGED" disabled={!ready || !historyKnown}>{l("reviewToolbar.scopeChanged", "本次变化 {count}", { count: historyKnown ? changed : l("reviewToolbar.historyUnknown", "（历史未知）") })}</option>
         <option value="DERIVED" disabled={!ready}>{l("reviewToolbar.scopeDerived", "有派生项")}</option><option value="IMAGES" disabled={!ready}>{l("reviewToolbar.scopeImages", "有图片释读")}</option>
-      </select></label>
+      </select></label>}
       <label>{l("reviewToolbar.category", "类别")}<select aria-label={l("reviewToolbar.categoryFilterAria", "筛选需求类别")} value={category} onChange={event => onCategory(event.target.value)}>
         <option value="">{l("reviewToolbar.categoryAll", "全部类别")}</option><option value="FUNCTIONAL">{l("stage.kind.functional", "功能")}</option><option value="QUALITY">{l("stage.kind.quality", "质量")}</option>
         <option value="CONSTRAINT">{l("stage.kind.constraint", "约束")}</option><option value="PROJECT">{l("stage.kind.project", "项目")}</option><option value="PROCESS">{l("stage.kind.process", "过程")}</option>

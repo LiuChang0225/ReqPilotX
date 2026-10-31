@@ -2186,6 +2186,7 @@ function RequirementTreeOrganizePanel() {
     "diagnose",
     "structure",
     "list",
+    "requirements",
     "review",
   ].includes(String(route.checkpoint || ""))
     ? (route.checkpoint as ExtractionCheckpoint)
@@ -5321,7 +5322,11 @@ function RequirementTreeOrganizePanel() {
     navigateToCheckpoint("structure");
   };
 
-  const requestCheckpoint = (checkpoint: ExtractionCheckpoint) => {
+  const requestCheckpoint = (checkpoint: ExtractionCheckpoint | "analysis") => {
+    if (checkpoint === "analysis") {
+      updateRoute({ task: "analysis", mode: "organize", checkpoint: sourceRequirementReady ? "list" : "structure" });
+      return;
+    }
     if (checkpoint === "diagnose") {
       setSourceEvidenceOpen(true);
       return;
@@ -7125,6 +7130,7 @@ function RequirementTreeOrganizePanel() {
           value={activeCheckpoint}
           reviewAvailable={!reviewStageUnavailable}
           workingLedger={Boolean(documentAgent) || sourceRequirementReady && requestedCheckpoint !== "review"}
+          itemsAvailable={sourceRequirementReady}
           onChange={requestCheckpoint}
         />
         {treeState === "READY" && activeCheckpoint === "structure" && (
@@ -7318,7 +7324,8 @@ function RequirementTreeOrganizePanel() {
         ) : null}
         {!showSourceEvidenceLens &&
         (requestedCheckpoint === "structure" ||
-          requestedCheckpoint === "list") ? (
+          requestedCheckpoint === "list" ||
+          requestedCheckpoint === "requirements") ? (
           <NativeStructureReferenceDock
             projectId={route.projectId}
             onChangePurpose={() => updateRoute({ task: "analysis" })}
@@ -7345,10 +7352,11 @@ function RequirementTreeOrganizePanel() {
             pageCount={nativeStructurePageLimit}
             showSourcePreview
             mode={
-              requestedCheckpoint === "list" && sourceRequirementReady
+              (requestedCheckpoint === "list" || requestedCheckpoint === "requirements") && sourceRequirementReady
                 ? "SOURCE_REQUIREMENTS"
                 : "STRUCTURE"
             }
+            requirementsOnly={requestedCheckpoint === "requirements" && sourceRequirementReady}
           />
         ) : null}
         {!showSourceEvidenceLens && activeCheckpoint === "list" &&
@@ -10020,15 +10028,19 @@ export function RequirementTreePanel() {
           {route.reviewCase ? <span className="status-badge">{l("原文清单 · 候选核对")}</span> : <RequirementTreeStageRail
             value="review"
             reviewAvailable
-            onChange={(checkpoint) =>
+            onChange={(view) => {
+              if (view === "analysis") {
+                updateRoute({ task: "analysis", mode: "organize", checkpoint: "list" });
+                return;
+              }
               updateRoute({
                 task: "extraction",
-                mode: checkpoint === "review" ? "review" : "organize",
-                checkpoint,
+                mode: view === "review" ? "review" : "organize",
+                checkpoint: view,
                 requirementSetId:
-                  checkpoint === "review" ? route.requirementSetId : "",
-              })
-            }
+                  view === "review" ? route.requirementSetId : "",
+              });
+            }}
           />}
         </header>
         <RequirementMatrixWorkbench lens="review" />

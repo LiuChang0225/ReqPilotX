@@ -41,11 +41,22 @@ it("mounts the existing business view without global navigation, model setup or 
   expect(screen.queryByRole("navigation", {name:"工作台导航"})).not.toBeInTheDocument();
   expect(screen.queryByText("确认此结构")).not.toBeInTheDocument();
   expect(request.mock.calls.every(([path]) => path.includes("plugin-workbench"))).toBe(true);
-  fireEvent.click(screen.getByRole("button",{name:"响应与证据"}));
+  expect(screen.getByRole("button",{name:"原文条目"})).toHaveAttribute("aria-current","page");
+  fireEvent.click(screen.getByRole("button",{name:"需求清单"}));
   expect(location.href).toBe(before);
+  expect(host.onSelectionChange).toHaveBeenLastCalledWith({...selection,view:"requirements"});
+  fireEvent.click(screen.getByRole("button",{name:"AI 分析"}));
   expect(host.onSelectionChange).toHaveBeenLastCalledWith({...selection,view:"analysis"});
   expect(host.openSession).not.toHaveBeenCalled();
 });
+it("keeps one four-view navigation when the host permits feedback writes", async () => {
+  const {host} = setup(); host.feedbackWrites = true;
+  render(<ReqPilotXReadonlyPanel host={host} selection={selection} documentName="source.pdf" />);
+  await screen.findByText("共用业务工作面");
+  expect(screen.getByRole("navigation", {name:"业务视图"})).toBeVisible();
+  expect(screen.queryByRole("tablist", {name:"文档视图"})).not.toBeInTheDocument();
+});
+
 it("opens only the explicitly bound session with the selected source and derived unit", async () => {
   const {host} = setup(); render(<ReqPilotXReadonlyPanel host={host} selection={selection} documentName="source.pdf" />);
   await screen.findByText("共用业务工作面");
