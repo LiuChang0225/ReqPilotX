@@ -283,6 +283,27 @@ class LocalMigrationTests(unittest.TestCase):
         with self.assertRaisesRegex(LocalMigrationError, "hash mismatch"):
             migration._export_selected(source, project_ids=["p1"], object_root=object_root, output_dir=self.root / "changed-object", knowledge_map_path=expected["map_path"])
 
+    def test_source_only_identity_columns_are_omitted_from_export(self) -> None:
+        source, object_root, expected = self._fixture()
+        source.rows["ai_analysis_jobs"][0]["_row_order"] = 1
+        source.rows["ai_analysis_jobs"][0]["runtime_job_id"] = "runtime-job-1"
+        export_dir = self._export(source, object_root, name="source-only-columns", map_path=expected["map_path"])
+        manifest, table_entries = migration.validate_export(export_dir)
+        entry = table_entries["ai_analysis_jobs"]
+        self.assertNotIn("_row_order", entry["columns"])
+        self.assertNotIn("runtime_job_id", entry["columns"])
+        target = self.root / "source-only-columns-target"
+        receipt = migration.import_export(export_dir, target)
+        self.assertTrue(receipt["verification"]["ok"])
+        conn = sqlite3.connect(target / "app.db")
+        try:
+            columns = {row[1] for row in conn.execute("PRAGMA table_info(ai_analysis_jobs)").fetchall()}
+            self.assertNotIn("_row_order", columns)
+            self.assertNotIn("runtime_job_id", columns)
+            self.assertEqual(conn.execute("SELECT status FROM ai_analysis_jobs WHERE id='j1'").fetchone()[0], "FAILED")
+        finally:
+            conn.close()
+
     def test_export_validation_rejects_tampering(self) -> None:
         source, object_root, expected = self._fixture()
         export_dir = self._export(source, object_root, name="tamper-export", map_path=expected["map_path"])

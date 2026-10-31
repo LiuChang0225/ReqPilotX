@@ -76,7 +76,7 @@ knowledge-mapping.json        # 提供时
 
 导入：`projects`、`sor_documents`、`knowledge_documents`、`knowledge_document_syncs`、`requirement_sets`、`requirements`、`assessments`、`evidences`、`assessment_runs`、`ai_analysis_jobs`/targets/node attempts/events、`review_logs`、`export_jobs`、`batch_decision_operations`、`parsing_risk_acknowledgements`、表资产、entry classifications/receipts、`entry_command_receipts`、`table_projection_revisions`、source capture/visual/reading、`source_item_manual_decision_versions`、`source_item_delivery_versions`、`source_ir_snapshots`、LLM review、atomization/refinement/enrichment publication、matrix node states、impact receipts、`stored_objects`、`source_asset_managed_objects`。
 
-列映射：`storage_key -> file_path`（source/knowledge/export）与 `payload_storage_key -> payload_path`（knowledge sync）。`ai_analysis_jobs.runtime_job_id` 和 PostgreSQL `_row_order` 是运行/origin 身份，不进入本地业务语义；其他未知列直接使导入失败。
+列映射：`storage_key -> file_path`（source/knowledge/export）与 `payload_storage_key -> payload_path`（knowledge sync）。`ai_analysis_jobs.runtime_job_id` 和 PostgreSQL `_row_order` 是运行/origin 身份，导出时省略；其他未知列直接使导入失败。
 
 仅导出保留：`saas_project_owners`、`source_asset_references` 与全部 `agent_structure_*`/`agent_table_materialization*`。不导出且不重放：运行 job/worker、暂存引用、提取结果临时对象、全局 provider 审计、SaaS 凭据、旧 cutover 回执。
 
@@ -135,11 +135,13 @@ knowledge-mapping.json        # 提供时
 
 ## 7. 已执行与未执行验证
 
-本轮已执行聚焦合成测试 `prototype/tests/test_local_migration_and_backup.py`（15 项），覆盖导出/校验/导入/回执、显式项目隔离、对象 bytes/hash、嵌套 symlink 逃逸拒绝、空可选引用、已解码/字符串 JSONB 引用、所有权证据、知识映射 entries、人工意见、交付 XLSX、活动任务隔离、未知 schema/表/对象、缺失知识映射、导出-only 阻断、失败 staging、重复导入、inventory 新写/竞态安全、真实 public CLI 全链、SQLite online backup、WAL 内容、tamper 拒绝、恢复重定位和回执复核。
+本轮已执行聚焦合成测试 `prototype/tests/test_local_migration_and_backup.py`（16 项），覆盖导出/校验/导入/回执、显式项目隔离、源端 identity 列省略、对象 bytes/hash、嵌套 symlink 逃逸拒绝、空可选引用、已解码/字符串 JSONB 引用、所有权证据、知识映射 entries、人工意见、交付 XLSX、活动任务隔离、未知 schema/表/对象、缺失知识映射、导出-only 阻断、失败 staging、重复导入、inventory 新写/竞态安全、真实 public CLI 全链、SQLite online backup、WAL 内容、tamper 拒绝、恢复重定位和回执复核。
+
+真实 PostgreSQL 合成演练（2026-10-31，PostgreSQL 16.14 Homebrew，隔离 TCP 回环临时集群）已执行：使用打包 PostgreSQL migrations `0001`–`0039`、有效合成 PDF/XLSX、显式选择/未选择项目、JSONB 对象引用、空可选引用、原 owner/knowledge mapping 证据和活动任务隔离，通过 public CLI 完成 inventory -> export -> validate-export -> import -> verify-target -> backup -> verify -> restore -> verify-target。源逻辑摘要前后一致；目标在停止 PostgreSQL 且屏蔽 `psycopg` 导入的环境下完成导入、校验、备份和恢复。该演练使用合成数据，不是客户数据迁移，也不等于 RX06/RX07 全部完成。
 
 未执行：
 
-- 真实 PostgreSQL 导出：没有使用任何已运行的原 PostgreSQL 实例或客户数据；本机也没有为此启动或安装 PostgreSQL。真实迁移演练必须由父任务在隔离 fixture 上显式执行。
+- 真实客户/原库数据迁移或原 PostgreSQL 服务启动/停止：本轮仅使用一次性合成集群。
 - Windows 上的安全对象打开/引用校验未取得 `O_NOFOLLOW`/`dir_fd` 保证时明确失败；本轮只在 macOS 合成路径验证。
 - 原生工作台/真实 Excel 产品验收：属于 RX07。
 - RX03/RX05 的修订/证据业务最终资格；本工具只提供窄迁移/恢复机制。

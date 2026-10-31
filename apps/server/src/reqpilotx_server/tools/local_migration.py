@@ -790,6 +790,12 @@ def _export_selected(
                 continue
             params = (projects, projects) if spec.name == "entry_command_receipts" else (projects,)
             rows = source.fetch_rows(spec.name, spec.filter_sql, params, spec.primary_key)
+            dropped = _DROPPED_SOURCE_COLUMNS.get(spec.name, {})
+            if dropped:
+                rows = [
+                    {key: value for key, value in row.items() if key not in dropped}
+                    for row in rows
+                ]
             table_payloads[spec.name] = rows
             for row in rows:
                 keys, expected = _row_object_references(spec.name, row)
