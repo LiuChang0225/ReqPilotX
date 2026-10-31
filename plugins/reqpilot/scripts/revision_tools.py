@@ -275,6 +275,9 @@ def open_review(args):
     if evidence_path.is_file():
         from evidence_tools import copy_registration
         copy_registration(evidence_path, directory)
+    attestation_path = getattr(args, "knowledge_attestation", None) or source_dir / "knowledge-attestation.json"
+    if Path(attestation_path).is_file():
+        save(directory, "knowledge-attestation.json", read(attestation_path))
     originals = root / "source"; originals.mkdir(mode=0o700)
     target = originals / source.name; shutil.copyfile(source, target); target.chmod(0o600)
     head = write_head(root, {"schema_version": "reqpilot-review-workspace/v1", "source": {"path": relative(root, target), "sha256": baseline.source_sha256},
@@ -510,6 +513,9 @@ def revise_review(args):
     if evidence_path.is_file():
         from evidence_tools import copy_registration
         copy_registration(evidence_path, output)
+    attestation_path = getattr(args, "knowledge_attestation", None) or directory / "knowledge-attestation.json"
+    if Path(attestation_path).is_file():
+        save(output, "knowledge-attestation.json", read(attestation_path))
     save(output, "revision-diff.json", diff); save(output, "carry-forward.json", carry)
     if coordination:
         save(output, "classification-coordination.json", coordination.model_dump(mode="json")); save(output, "classification-proof.json", proof.model_dump(mode="json"))

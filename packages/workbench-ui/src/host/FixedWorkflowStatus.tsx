@@ -10,12 +10,14 @@ const reasonLabels: Record<string, string> = {
   ITEMS_REQUIRED: "需要先保存原文条目", MAP_CONFIRMATION_REQUIRED: "等待确认这一版结构",
   SCOPED_DERIVATION_REMAINING: "明确授权的派生范围尚未处理完", UNPROCESSED_SOURCE_SCOPE: "仍有原文范围尚未处理",
   NO_INTERNAL_EVIDENCE: "未提供内部依据", INTERNAL_EVIDENCE_NOT_WIRED: "当前版本尚未接入内部依据",
-  INTERNAL_EVIDENCE_ANALYSIS_REQUIRED: "内部依据分析尚未保存", WORKFLOW_EVIDENCE_CONFLICT: "工作流声明与依据状态不一致",
+  INTERNAL_EVIDENCE_ANALYSIS_REQUIRED: "内部依据分析尚未保存", INTERNAL_EVIDENCE_ANALYSIS_PARTIAL: "部分分析已保存，仍有必需单元未完成",
+  WORKFLOW_EVIDENCE_CONFLICT: "工作流声明与依据状态不一致",
   SELF_CHECK_NOT_SAVED: "尚无已保存自查", SELF_CHECK_NOT_RUN: "尚未运行程序自查",
   SELF_CHECK_BASIS_CHANGED: "自查依据已变化，需要重新核对", SELF_CHECK_FAILED: "程序自查未通过",
   DELIVERABLE_NOT_SAVED: "尚未保存交付成果", SELF_CHECK_REQUIRED: "需要先完成自查",
   INCOMPLETE_OPERATION: "存在结果未知或待恢复的程序操作", OPERATION_FAILURE: "保留失败尝试记录",
   EVIDENCE_ANALYSIS_SKIPPED: "依据分析按声明跳过",
+  EVIDENCE_BINDING_UNAVAILABLE: "冻结的内部依据当前不可用", EVIDENCE_BINDING_CHANGED: "冻结的内部依据版本已变化",
 };
 const evidenceLabels: Record<string, string> = {
   TASK_CONTEXT: "任务与来源", TASK_BINDING: "任务绑定", DOCUMENT_MAP: "文档结构", SOURCE_ITEMS: "原文条目",
@@ -76,6 +78,14 @@ export function FixedWorkflowStatus({ state, unconfirmed }: { state?: Applicatio
       {stage.reason && <small>{l(`workflow.reason.${stage.reason}`, reasonLabels[stage.reason] || stage.reason)}</small>}
       {stage.evidence?.length ? <small>{stage.evidence.map(item => l(`workflow.evidence.${item.kind}`, evidenceLabels[item.kind] || item.kind)).join("、")}</small> : null}
     </li>)}</ol>
+    {state.knowledge_evidence && <p className={state.knowledge_evidence.status === "CURRENT" ? "" : "agent-inline-notice"} role="status">
+      {l("workflow.knowledgeEvidence", "内部依据：{mode} · {status}。已保存分析建议仍按当时引用保留。", {
+        mode: state.knowledge_evidence.mode || "NONE",
+        status: state.knowledge_evidence.status === "CURRENT"
+          ? l("workflow.knowledgeCurrent", "任务冻结版本可读取")
+          : state.knowledge_evidence.message || l("workflow.knowledgeUnconfirmed", "任务冻结版本未确认"),
+      })}
+    </p>}
     <p role="status">{state.ready_to_review ? l("workflow.ready", "已保存成果满足当前可核对条件；人工接受仍未声称。") : `${l("workflow.next", "下一步：")}${state.next_stage ? l(`workflow.stageLabel.${state.next_stage}`, state.stages.find(stage => stage.id === state.next_stage)?.label || state.next_stage) : l("workflow.continueRemaining", "继续处理未决项")}`}</p>
     {state.open_items?.length ? <p className="agent-inline-notice">{l("workflow.openItems", "未决项：")}{state.open_items.map(item => l(`workflow.reason.${item}`, reasonLabels[item] || item)).join("；")}</p> : null}
   </section>;

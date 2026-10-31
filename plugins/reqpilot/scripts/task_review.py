@@ -18,6 +18,10 @@ REPLACEMENTS = {'annotations': ('image-annotations.json', 'annotation-compilatio
                 'decomposition': ('source-item-decomposition.json', 'decomposition-compilation-receipt.json')}
 SEALED_REPLACEMENTS = {key: value[0] for key, value in REPLACEMENTS.items()} | {
     'analysis_policy': 'analysis-policy.json',
+    'assessments': 'source-item-assessments.json',
+    'analysis_packet': 'analysis-packet.json',
+    'knowledge_catalog': 'knowledge-catalog.json',
+    'knowledge_attestation': 'knowledge-attestation.json',
 }
 REVISION_FIELDS = {'schema_version', 'expected_review_sha256', 'expected_baseline_sha256', 'model_id',
                    'decisions', 'scope_revision', 'map_revision', 'visual_readings', 'annotation_updates', 'addressed_feedback_ids'}
@@ -212,6 +216,11 @@ def apply_review(root: Path, *, expected_revision: str, command_id: str, revisio
         for key, path in replacements.items():
             target = inputs / SEALED_REPLACEMENTS[key]
             value = core.read_json(Path(path)); _once(target, value); copied[key] = target
+            if key == 'knowledge_catalog':
+                registration = Path(path).parent / 'evidence-registration.json'
+                if not registration.is_file():
+                    raise ValueError('Saved analysis requires its Host evidence registration')
+                _once(inputs / 'evidence-registration.json', core.read_json(registration))
         _once(inputs / 'request.json', supplied)
         planned = core.begin_operation(root, OPERATION,
             {'input': inputs / 'request.json', 'replacements': copied,

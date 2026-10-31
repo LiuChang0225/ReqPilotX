@@ -295,7 +295,7 @@ def main() -> int:
     execute.add_argument('--expected-revision', help='The opaque revision returned by workspace status')
     execute.add_argument('--command-id', help='Stable key for replaying one logical operation')
     execute.add_argument('--binding-file',type=Path)
-    for flag in ('input','source-ir','source','map-dir','baseline-dir','annotations','decomposition','previous-decomposition','knowledge-catalog','analysis-packet','analysis-policy','assessments','manual-decisions'):
+    for flag in ('input','source-ir','source','map-dir','baseline-dir','annotations','decomposition','previous-decomposition','knowledge-catalog','analysis-packet','analysis-policy','assessments','knowledge-attestation','manual-decisions'):
         execute.add_argument('--'+flag,type=Path)
     execute.add_argument('--expected-sha256');execute.add_argument('--capture-only',action='store_true');execute.add_argument('--progress',action='store_true')
     execute.add_argument('--full',action='store_true',help='Include complete index/history rather than compact task references')
@@ -362,6 +362,7 @@ def main() -> int:
         operation.add_argument("--previous-decomposition", type=Path)
         operation.add_argument("--knowledge-catalog", type=Path)
         operation.add_argument("--analysis-packet", type=Path)
+        operation.add_argument("--knowledge-attestation", type=Path)
         if name in {'review-open', 'review-revise', 'deliver'}:
             operation.add_argument('--analysis-policy', type=Path, help='Explicit source-bound analysis-policy.json; imported into the review version or used by direct delivery')
         operation.add_argument("--assessments", type=Path)

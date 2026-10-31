@@ -47,9 +47,12 @@
 ## 固定流程与宿主状态
 
 `WorkbenchApplicationHost` 可选提供 `workflow`（服务端声明的固定流程）和
-`taskSetup`（启动缺项）。`HostedAgentPanel` 用它们展示必需客户文档、当前
-不可用的可选内部依据、预期成果和阶段顺序。开始按钮不要求用户编写目标；
-补充说明是可选文本，不能取消 Map、条目、自查或交付前置条件。
+`taskSetup`（启动缺项）。`HostedAgentPanel` 用它们展示必需客户文档、可选
+内部依据、预期成果和阶段顺序。PAIR 宿主提供 `knowledge` 适配器时，内联选择器
+可上传本项目参考资料、选择团队实时文档或保留主题版本；选择会随任务冻结。
+开始按钮不要求用户编写目标；补充说明是可选文本，不能取消 Map、条目、自查
+或交付前置条件。只有选择或导入不会形成符合性分析；分析建议由任务证据工具
+读取实际引用后保存，并进入原分析工作台与同版交付。
 
 `ApplicationTaskReceipt.workflowState` 是任务程序根据已保存工件生成的阶段
 投影（`reqpilot-fixed-workflow-state/v1`）。组件把它与 `execution` 运行状态

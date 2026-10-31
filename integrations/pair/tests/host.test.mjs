@@ -124,3 +124,57 @@ test('Host discovery contribution registers through the supplied fiber and dispo
 test('raw DSH without pairSkillCenter keeps the Host contribution silent', () => {
   assert.equal(registerPairApplication({ effect() { throw Error('must not register'); } }, { snapshot: { status: 'READY' } }), null);
 });
+
+test('knowledge business routes expose project references and frozen task status without a generic service proxy', async () => {
+  const calls = [];
+  const knowledge = {
+    async inventory(projectId) { calls.push(['inventory', projectId]); return { available: true, projectDocuments: [], teamLibraries: [] }; },
+    async uploadProjectReference(projectId, name, bytes, kind) { calls.push(['upload', projectId, name, kind, bytes.toString()]); return { document: { id: 'doc' } }; },
+    async loadBinding(commandId) { calls.push(['binding', commandId]); return { binding_sha256: 'a'.repeat(64), mode: 'PROJECT_REFERENCES' }; },
+    async checkBinding(commandId) { calls.push(['check', commandId]); return { state: 'CURRENT', message: '' }; },
+  };
+  const proxy = await serve(createHandler(null, () => undefined, fetch, () => ({ mode: 'managed', status: 'READY' }), null, knowledge));
+  try {
+    assert.equal((await (await fetch(proxy.url + '/reqpilotx/knowledge/inventory?projectId=p')).json()).available, true);
+    const upload = await fetch(proxy.url + '/reqpilotx/knowledge/projects/p/references?name=ref.txt&kind=REFERENCE', { method: 'POST', body: 'original' });
+    assert.equal(upload.status, 201);
+    const task = await (await fetch(proxy.url + '/reqpilotx/knowledge/tasks/command-one')).json();
+    assert.equal(task.bindingSha256, 'a'.repeat(64));
+    assert.deepEqual(calls, [['inventory', 'p'], ['upload', 'p', 'ref.txt', 'REFERENCE', 'original'], ['binding', 'command-one'], ['check', 'command-one']]);
+  } finally { await proxy.close(); }
+});
+
+test('actual apply composition mounts the owned knowledge service on the Host route and public capability projection', async () => {
+  const ownerId = '12345678-1234-4234-8234-123456789abc';
+  const base = { id: 'kb-project', name: 'Project references', owner: { kind: 'application-project',
+    applicationId: 'reqpilotx-pair:' + ownerId, projectId: 'p' } };
+  const knowledge = {
+    getProjectReferenceLibrary: owner => owner.projectId === 'p' ? base : undefined,
+    ensureProjectReferenceLibrary: async () => base,
+    snapshot: () => ({ bases: [base], documents: [], jobs: [] }),
+  };
+  let handler; const disposers = [];
+  const runtime = { ownerId, dataRoot: '/tmp/reqpilotx-apply-test', snapshot: { mode: 'managed', status: 'STARTING' },
+    async start() { this.snapshot = { ...this.snapshot, status: 'READY', serviceOrigin: 'http://127.0.0.1:1234', instanceId: 'instance' }; },
+    async stop() {} };
+  const scope = {
+    subprocess: {}, connection: { requestRejection: () => undefined },
+    get(name) { return name === 'knowledge' ? knowledge : undefined; },
+    effect(run) { const dispose = run(); disposers.push(dispose); return dispose; },
+    webServer: { register(route) { assert.equal(route.path, '/reqpilotx'); handler = route.handler; return () => { handler = null; }; } },
+  };
+  apply(scope, { workbenchCapture: false }, () => runtime);
+  const proxy = await serve(handler);
+  try {
+    await new Promise(resolve => setTimeout(resolve, 0));
+    const config = await (await fetch(proxy.url + '/reqpilotx/config')).json();
+    assert.equal(config.knowledge.schema, 'reqpilot-knowledge-host/v1');
+    assert.equal(config.knowledge.available, true);
+    const inventory = await (await fetch(proxy.url + '/reqpilotx/knowledge/inventory?projectId=p')).json();
+    assert.equal(inventory.projectLibrary.id, 'kb-project');
+    assert.equal(inventory.available, true);
+  } finally {
+    await proxy.close();
+    for (const dispose of disposers.reverse()) if (typeof dispose === 'function') await dispose();
+  }
+});

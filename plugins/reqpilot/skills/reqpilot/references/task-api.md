@@ -77,7 +77,7 @@ Check `pending_decomposition` after a revision. A parent classification or sourc
 
 Visual interpretation is an annotation, never verbatim source text or a reason to turn a table into an image item. Decomposition reads the parent's actual packet; exact `quote` selectors save offset calculations but still require complete source coverage. Explicit unresolved ranges remain partial. `KEEP` needs a source-grounded reason, and `UNDO` retires the split while retaining identity history. Pure image parents have no native text spans; do not invent spans from an interpretation. Interpretation supports add/update; withdrawal is not a supported empty-text operation.
 
-Older tasks retain their fixed package: unsupported actions return `UNSUPPORTED_CAPABILITY`; use that task's established CLI tools without replacing its package. Evidence-bearing assessments and engineer opinions still lack complete workbench transport; do not drop them to force synchronization.
+Older tasks retain their fixed package: unsupported actions return `UNSUPPORTED_CAPABILITY`; use that task's established CLI tools without replacing its package. Current packages carry evidence-bearing Agent assessments through the typed `analysis` action and the workbench bundle. PAIR analysis requires the Host-signed attestation for the observed task revision and command; a model-written catalog or receipt cannot authorize it. Engineer opinions remain a separate explicit user-owned path and must not be dropped or rewritten to force synchronization.
 
 ## CLI and host setup
 

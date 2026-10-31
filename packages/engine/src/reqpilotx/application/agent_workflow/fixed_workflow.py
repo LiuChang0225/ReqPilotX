@@ -10,6 +10,10 @@ import hashlib
 import json
 from pathlib import Path
 
+from reqpilotx.application.agent_workflow import knowledge_binding
+from reqpilotx.application.agent_workflow import source_item_analysis
+from reqpilotx.application.agent_workflow import source_requirement_baseline as source_core
+
 WORKFLOW_SCHEMA = 'reqpilot-fixed-workflow/v1'
 STATE_SCHEMA = 'reqpilot-fixed-workflow-state/v1'
 WORKFLOW_ID = 'reqpilot-fixed-workflow'
@@ -91,9 +95,9 @@ def public_descriptor() -> dict:
         ],
         'optional_inputs': [
             {'id': 'project_references', 'label': '项目参考资料', 'available': False,
-             'reason': '当前版本尚未接入项目参考资料。'},
+             'reason': '宿主未提供 PAIR 知识服务。'},
             {'id': 'team_knowledge', 'label': '团队知识库', 'available': False,
-             'reason': '当前版本尚未接入团队知识库。'},
+             'reason': '宿主未提供 PAIR 知识服务。'},
         ],
         'expected_outputs': [
             '可回查原文与顺序的文档结构',
@@ -175,33 +179,67 @@ def _decomposition_remaining(selected: dict) -> int:
     return len(remaining) if isinstance(remaining, list) else 1
 
 
-def _assessments_evidence(review: dict | None, source_sha256: str):
+def _assessment_projection(review: dict | None, source_sha256: str):
     if not review:
         return None
     root = review.get('review_root')
     if not root:
         return None
-    path = Path(root) / 'source-item-assessments.json'
-    if not path.is_file():
+    base = Path(root)
+    version = review.get('version_path')
+    directory = (base / version) if version else base
+    baseline_path = directory / 'source-requirement-baseline.json'
+    assessment_path = directory / 'source-item-assessments.json'
+    attestation_path = directory / 'knowledge-attestation.json'
+    if not baseline_path.is_file() and not assessment_path.is_file():
         return None
+    if (not baseline_path.is_file() or not assessment_path.is_file()
+            or not attestation_path.is_file()):
+        return {'complete': False, 'invalid': True, 'required': [], 'assessed': [], 'missing': [],
+                'evidence': None, 'path': str(assessment_path)}
     try:
-        artifact = json.loads(path.read_text(encoding='utf-8'))
-    except (OSError, ValueError, TypeError):
-        return None
-    if not isinstance(artifact, dict) or artifact.get('source_sha256') != source_sha256:
-        return None
-    return _evidence('ASSESSMENTS', source_sha256=source_sha256,
-                     artifact_sha256=artifact.get('artifact_sha256'), path=str(path))
+        baseline = source_core.SourceRequirementBaselineArtifactV1.model_validate_json(
+            baseline_path.read_text(encoding='utf-8'))
+        decomposition_path = directory / 'source-item-decomposition.json'
+        decomposition = (json.loads(decomposition_path.read_text(encoding='utf-8'))
+                         if decomposition_path.is_file() else None)
+        artifact = json.loads(assessment_path.read_text(encoding='utf-8'))
+        attestation = json.loads(attestation_path.read_text(encoding='utf-8'))
+        if (not isinstance(artifact, dict) or artifact.get('source_sha256') != source_sha256
+                or not isinstance(attestation, dict)
+                or attestation.get('schema') != 'reqpilot-pair-analysis-attestation/v1'
+                or attestation.get('catalog_sha256') != artifact.get('catalog_sha256')):
+            raise ValueError('assessment source or Host attestation differs')
+        status = source_item_analysis.assessment_scope_status(baseline, decomposition, artifact)
+    except (OSError, ValueError, TypeError, KeyError):
+        return {'complete': False, 'invalid': True, 'required': [], 'assessed': [], 'missing': [],
+                'evidence': None, 'path': str(assessment_path)}
+    evidence = _evidence('ASSESSMENTS', source_sha256=source_sha256,
+        artifact_sha256=artifact.get('artifact_sha256'), path=str(assessment_path),
+        count=len(status['assessed']), required=len(status['required']),
+        missing=len(status['missing']))
+    return {**status, 'invalid': False, 'evidence': evidence, 'path': str(assessment_path)}
 
 
 def project_workflow(*, context: dict, selected: dict, brief: dict,
                      review: dict | None = None, check: dict | None = None,
-                     unresolved_operations=None, incomplete_operations=None) -> dict | None:
+                     unresolved_operations=None, incomplete_operations=None,
+                     bound_evidence=None, evidence_status=None) -> dict | None:
     """Project only program-saved artifact identities into the fixed stage order."""
     spec = (context.get('request') or {}).get('workflow')
     if not spec:
         return None
     spec = validate_workflow_spec(spec)
+    if bound_evidence is not None:
+        bound_evidence = knowledge_binding.validate_binding(bound_evidence)
+        if bound_evidence['mode'] != spec['evidence']['mode']:
+            raise ValueError('WORKFLOW_EVIDENCE_BINDING_MISMATCH')
+    elif spec['evidence']['mode'] != 'NONE':
+        raise ValueError('WORKFLOW_EVIDENCE_BINDING_MISSING')
+    if evidence_status is not None:
+        if bound_evidence is None:
+            raise ValueError('EVIDENCE_STATUS_INVALID: no binding')
+        knowledge_binding.validate_status(evidence_status, bound_evidence)
     source_sha256 = (context.get('source') or {}).get('sha256')
     if not isinstance(source_sha256, str) or len(source_sha256) != 64:
         raise ValueError('WORKFLOW_SOURCE_BINDING_MISSING')
@@ -264,34 +302,53 @@ def project_workflow(*, context: dict, selected: dict, brief: dict,
     mode = spec['evidence']['mode']
     policy = brief.get('analysis_policy') or {}
     policy_status = policy.get('status') or 'UNKNOWN'
+    status_state = (evidence_status or {}).get('state')
+    status_message = (evidence_status or {}).get('message') or ''
     if not baseline_current:
-        evidence_status, evidence_reason = 'BLOCKED', 'ITEMS_REQUIRED'
+        analysis_status, analysis_reason = 'BLOCKED', 'ITEMS_REQUIRED'
     elif mode == 'NONE':
         if policy_status == 'AVAILABLE':
-            evidence_status, evidence_reason = 'BLOCKED', 'WORKFLOW_EVIDENCE_CONFLICT'
+            analysis_status, analysis_reason = 'BLOCKED', 'WORKFLOW_EVIDENCE_CONFLICT'
             open_items.append('WORKFLOW_EVIDENCE_CONFLICT')
         else:
-            evidence_status = 'SKIPPED'
-            evidence_reason = policy.get('reason') or 'NO_INTERNAL_EVIDENCE'
+            analysis_status = 'SKIPPED'
+            analysis_reason = policy.get('reason') or 'NO_INTERNAL_EVIDENCE'
             open_items.append('EVIDENCE_ANALYSIS_SKIPPED')
-    elif policy_status == 'SKIPPED':
-        evidence_status, evidence_reason = 'SKIPPED', policy.get('reason') or 'USER_SKIPPED'
-        open_items.append('EVIDENCE_ANALYSIS_SKIPPED')
     else:
-        saved = _assessments_evidence(review, source_sha256)
+        # Supplied internal evidence requires retained analysis. A policy flag
+        # or a selected document is not an analysis result.
+        projection = _assessment_projection(review, source_sha256)
+        saved = bool(projection and projection.get('complete') and projection.get('evidence'))
         if saved:
-            evidence_status, evidence_reason = 'SAVED', None
-        else:
-            evidence_status, evidence_reason = 'PENDING', 'INTERNAL_EVIDENCE_ANALYSIS_REQUIRED'
+            analysis_status, analysis_reason = 'SAVED', None
+        elif projection and projection.get('required') and not projection.get('invalid'):
+            analysis_status = 'PENDING'
+            analysis_reason = ('INTERNAL_EVIDENCE_ANALYSIS_PARTIAL' if projection.get('current')
+                               else 'INTERNAL_EVIDENCE_ANALYSIS_REQUIRED')
             open_items.append('INTERNAL_EVIDENCE_ANALYSIS_REQUIRED')
+        elif status_state in {'UNAVAILABLE', 'INVALID'}:
+            analysis_status = 'PENDING'
+            analysis_reason = 'EVIDENCE_BINDING_UNAVAILABLE'
+            open_items.append('EVIDENCE_BINDING_UNAVAILABLE')
+        elif status_state == 'CHANGED':
+            analysis_status = 'PENDING'
+            analysis_reason = 'EVIDENCE_BINDING_CHANGED'
+            open_items.append('EVIDENCE_BINDING_CHANGED')
+        else:
+            analysis_status, analysis_reason = 'PENDING', 'INTERNAL_EVIDENCE_ANALYSIS_REQUIRED'
+            open_items.append('INTERNAL_EVIDENCE_ANALYSIS_REQUIRED')
+        if policy_status == 'SKIPPED':
+            # The package owns the required-analysis branch for supplied
+            # evidence; a skip declaration cannot replace the saved analysis.
+            open_items.append('EVIDENCE_ANALYSIS_SKIPPED')
     evidence_list = []
-    if evidence_status == 'SKIPPED':
+    if analysis_status == 'SKIPPED':
         evidence_list.append(_evidence('WORKFLOW_BRANCH', source_sha256=source_sha256,
-                                       branch='NO_INTERNAL_EVIDENCE' if mode == 'NONE' else 'USER_SKIPPED'))
-    elif evidence_status == 'SAVED':
-        evidence_list.append(_assessments_evidence(review, source_sha256))
-    stages.append(_stage('EVIDENCE_ANALYSIS', evidence_status, evidence=evidence_list,
-                         reason=evidence_reason,
+                                       branch='NO_INTERNAL_EVIDENCE'))
+    elif analysis_status in {'SAVED', 'PENDING'} and projection and projection.get('evidence'):
+        evidence_list.append(projection['evidence'])
+    stages.append(_stage('EVIDENCE_ANALYSIS', analysis_status, evidence=evidence_list,
+                         reason=analysis_reason,
                          branch='NO_INTERNAL_EVIDENCE' if mode == 'NONE' else 'INTERNAL_EVIDENCE'))
 
     review_sha = review.get('review_sha256') if review else None
@@ -367,7 +424,7 @@ def project_workflow(*, context: dict, selected: dict, brief: dict,
     ready = (delivery_status == 'SAVED' and check_passed
              and all(stage['status'] in {'SAVED', 'SKIPPED'} for stage in stages)
              and not blocking)
-    return {
+    value = {
         'schema': STATE_SCHEMA,
         'workflow': {'id': spec['id'], 'version': spec['version'],
                      'definition_sha256': spec['definition_sha256'],
@@ -381,3 +438,11 @@ def project_workflow(*, context: dict, selected: dict, brief: dict,
         'open_items': sorted(set(open_items)),
         'human_acceptance': 'NOT_CLAIMED',
     }
+    if bound_evidence is not None:
+        value['knowledge_evidence'] = {
+            'binding_sha256': bound_evidence['binding_sha256'],
+            'mode': bound_evidence['mode'],
+            'status': status_state or 'UNCHECKED',
+            'message': status_message,
+        }
+    return value

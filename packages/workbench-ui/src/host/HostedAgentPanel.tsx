@@ -1,9 +1,10 @@
 import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
 import { AgentPanelFrame } from "../features/workspace/AgentPanelFrame";
 import type { DocumentAgentBinding } from "../features/workspace/DocumentAgentContext";
-import { useApplicationHost, type ApplicationTaskReceipt } from "./ApplicationHost";
+import { useApplicationHost, type ApplicationKnowledgeSelection, type ApplicationTaskReceipt } from "./ApplicationHost";
 import { FixedWorkflowStatus, FixedWorkflowSummary } from "./FixedWorkflowStatus";
 import { useHostCopy } from "./HostLocaleContext";
+import { KnowledgeEvidencePicker } from "./KnowledgeEvidencePicker";
 
 const executionLabels: Record<string, string> = { ACCEPTED: "已受理", RUNNING: "正在处理", WAITING: "等待中", SUCCEEDED: "本轮已结束", FAILED: "本轮未完成", INTERRUPTED: "已暂停", IDLE: "空闲" };
 
@@ -29,6 +30,8 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
   type Selection = typeof selection;
   const [goal, setGoal] = useState(initialGoal || "");
   const [requireMapConfirmation, setRequireMapConfirmation] = useState(false);
+  const [knowledge, setKnowledge] = useState<ApplicationKnowledgeSelection | null>(null);
+  useEffect(() => { setKnowledge(null); }, [projectId, documentId, sourceSha256]);
   const [result, setResult] = useState<{ selection: Selection; receipt: ApplicationTaskReceipt | null } | null>(null);
   const [busySelection, setBusySelection] = useState<Selection | null>(null);
   const [failure, setFailure] = useState<{ selection: Selection; message: string } | null>(null);
@@ -60,7 +63,8 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
           const value = await host.restoreTask(scope, { signal: request.controller.signal });
           if (current() && observedRevision === operationRevision.current) {
             setResult({ selection, receipt: value }); const draft = host.taskDraft(scope);
-            if (!edited.current && draft) { setGoal(draft.goal); setRequireMapConfirmation(draft.requireMapConfirmation); }
+            if (!edited.current && draft) { setGoal(draft.goal); setRequireMapConfirmation(draft.requireMapConfirmation);
+              if (draft.knowledge) setKnowledge(draft.knowledge); }
           }
         } catch (cause) {
           if (current() && observedRevision === operationRevision.current) setFailure({ selection, message: cause instanceof Error ? cause.message : "原任务状态暂不可读取，请重试。" });
@@ -79,7 +83,7 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
     if (observation.current?.selection === selection) observation.current.controller.abort();
     setBusySelection(selection); setFailure(null);
     try {
-      const next = action && bound ? await host.controlTask(bound, action) : await host.startTask({ ...scope, goal: goal.trim(), requireMapConfirmation });
+      const next = action && bound ? await host.controlTask(bound, action) : await host.startTask({ ...scope, goal: goal.trim(), requireMapConfirmation, knowledge });
       if (activeSelection.current === selection && pendingAction.current === operation) {
         setResult({ selection, receipt: next });
         if (!action) onAccepted(next);
@@ -100,6 +104,12 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
     TASK_START_NOT_CONFIGURED: "PAIR 任务启动尚未配置：请确认能力包已安装并已选择默认模型。",
   };
   const setupMessage = host.taskSetup ? l(`hosted.setup.${host.taskSetup}`, setupFallbacks[host.taskSetup] || host.taskSetup) : "";
+  const knowledgeEvidenceText = (value: NonNullable<ApplicationTaskReceipt["knowledgeEvidence"]>, saved = false) => l(
+    saved ? "knowledge.evidenceSaved" : "knowledge.evidence",
+    saved ? "内部依据：{mode} · {status}；已保存分析建议按原引用保留。" : "内部依据：{mode} · {status}",
+    { mode: value.mode, status: value.status === "CURRENT"
+      ? l("knowledge.current", "冻结版本可读取")
+      : value.message || l("knowledge.unconfirmed", "冻结版本未确认") });
   const discuss = () => {
     if (!bound) return;
     const selectedRevision = binding?.revisionId || selectedRevisionId || revisionId;
@@ -123,7 +133,8 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
   </div>;
   if (workRef) return <section aria-label={l("session.connectionAria", "PAIR 会话连接")} className="agent-inline-notice">
     <strong>{l("session.heading", "PAIR 会话")}</strong><p>{bound ? l("session.bound", "已关联原任务 · {status}", { status: executionLabel(bound) }) : l("session.unbound", "尚未开始；当前成果未关联此工作台保存的 PAIR 会话。")}</p>
-    {bound && <><FixedWorkflowStatus state={bound.workflowState} unconfirmed={bound.workflowUnconfirmed} /><p>{l("session.runAndBusiness", "运行状态：{status}；业务成果状态单独以上述已保存阶段为准。", { status: executionLabel(bound) })}</p></>}
+    {bound && <><FixedWorkflowStatus state={bound.workflowState} unconfirmed={bound.workflowUnconfirmed} /><p>{l("session.runAndBusiness", "运行状态：{status}；业务成果状态单独以上述已保存阶段为准。", { status: executionLabel(bound) })}</p>
+      {bound.knowledgeEvidence && <p className={bound.knowledgeEvidence.status === "CURRENT" ? "" : "agent-inline-notice"} role="status">{knowledgeEvidenceText(bound.knowledgeEvidence, true)}</p>}</>}
     {controls}
   </section>;
   return <AgentPanelFrame onClose={onClose} footer={controls}>
@@ -131,10 +142,12 @@ export function HostedAgentPanel({ projectId, documentId, documentName, sourceSh
       <FixedWorkflowSummary workflow={host.workflow} />
       {!host.taskStartAvailable && <p role="status">{setupMessage || l("intake.noStart", "当前宿主尚未配置本应用的任务启动能力；原件与已保存成果仍可核对。")}</p>}
       {bound ? <><p role="status">{l("intake.found", "已找到原任务：{status}", { status: executionLabel(bound) })}</p><FixedWorkflowStatus state={bound.workflowState} unconfirmed={bound.workflowUnconfirmed} />
+          {bound.knowledgeEvidence && <p className={bound.knowledgeEvidence.status === "CURRENT" ? "" : "agent-inline-notice"} role="status">{knowledgeEvidenceText(bound.knowledgeEvidence)}</p>}
           <p role="status">{l("intake.runtimeAndBusiness", "运行状态与业务成果分别核对；已保存阶段不代表人工接受。")}</p>
           <button className="button secondary" type="button" disabled={busy} onClick={() => onAccepted(bound)}>{l("intake.returnResult", "回到原任务成果")}</button></>
         : <><p role="status">{error ? l("intake.statusNotConfirmed", "原任务状态暂时无法确认，请保留当前说明并重试。") : l("intake.notStarted", "尚未开始")}</p>
           {documentName ? <p>{l("intake.currentDocument", "当前客户文档：{name}", { name: documentName })}</p> : null}
+          <KnowledgeEvidencePicker key={projectId} projectId={projectId} initial={knowledge} onChange={setKnowledge} disabled={busy} />
           <label>{l("intake.notesLabel", "补充说明（可选）")}<textarea aria-label={l("intake.notesLabel", "补充说明（可选）")} value={goal} maxLength={12000} placeholder={l("intake.notesPlaceholder", "例如：本次重点关注试验条件；不填写也会执行固定流程。")} onChange={event => { edited.current = true; setGoal(event.target.value); }} disabled={busy} rows={5} /></label>
           <label className="agent-confirm-option"><input type="checkbox" checked={requireMapConfirmation} disabled={busy} onChange={event => { edited.current = true; setRequireMapConfirmation(event.target.checked); }} />{l("intake.confirmMap", "先核对结构，再继续整理条目")}</label>
           <button type="button" className="button primary" disabled={busy || !host.taskStartAvailable} onClick={() => void run()}>{busy ? l("intake.starting", "正在确认原请求…") : l("intake.start", "开始固定流程")}</button></>}

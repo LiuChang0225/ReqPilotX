@@ -149,7 +149,7 @@ function DocumentIntake({ fileName, sourceFileUrl, projectId, documentId, source
           <div><dt>必需资料</dt><dd>客户需求文档：{fileName}</dd></div>
           <div><dt>可选内部依据</dt><dd>{applicationHost.workflow?.optional_inputs?.length
             ? applicationHost.workflow.optional_inputs.map(item => `${item.label}：${item.available ? "可选择" : item.reason || "当前不可用"}`).join("；")
-            : "当前版本尚未接入项目参考或团队知识库；不会据此虚构符合性结论。"}</dd></div>
+            : "宿主未提供项目参考或团队知识库；不会据此虚构符合性结论。"}</dd></div>
           <div><dt>预期成果</dt><dd>{applicationHost.workflow?.expected_outputs?.join("；") || "文档结构、原文条目与分类、自查和可核对成果；无内部依据时明确标记符合性分析未执行。"}</dd></div>
         </dl>
         <p>点击开始一次即可，无需编写启动提示词；补充说明是可选输入，不能取消阶段和成果检查。</p>

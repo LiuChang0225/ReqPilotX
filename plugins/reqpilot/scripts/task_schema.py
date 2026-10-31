@@ -23,6 +23,8 @@ PURPOSES = {
     'deliver':'程序导出当前版本并登记首次同版交付。', 'sync':'取回反馈，或显式补同步已保存的当前成果。',
     'recover':'恢复已有工件登记；不盲目重跑未知执行。',
     'delivery_read':'只读取本任务绑定工作台的人工响应、交付预览、历史及同版快照；不创建用户意见或正式接受。',
+    'analysis':'把当前 PAIR 会话实际读取的内部依据保存为当前 Map/条目的分析建议；不使用第二模型运行时。',
+    'evidence_status':'Host 记录冻结证据绑定的可用性；不创建 Agent 分析或人工意见。',
 }
 NOTES = {
     'task_id':'使用 task_open 返回的持久 task_id；不猜测 latest 任务。',
@@ -171,6 +173,9 @@ def _rules(action,facts):
             'page/image 按页码或准确capture图像位置读取，缺页文/高清图会自动准备登记；继续写入使用这次返回的revision。',
             'max_chars超过24000时按24000返回并保留continuation；item需要当前SRC，长结果按next_read续读。'],
         'sync':['publish_current_review 需要当前 expected_revision；retry_publication 需要真实 operation_id，旧 producer 不会强行补发。'],
+        'analysis':['先通过本任务证据工具读取所选来源；只能引用已返回的 fact_id 和原文引文，不能自造目录或证据。',
+            '每个待分析单元必须给出当前 unit_id；无充分依据时使用 PENDING_EVIDENCE 或 NEEDS_CLARIFICATION 并写明具体缺口。',
+            '分析建议不是工程师正式意见或人工接受；保存后由现有工作台与同版导出显示。'],
     }
     rules.extend(additions.get(action,[]))
     return {'current_owner':facts.get('current_owner'),'rules':rules,'stage_changed_by_describe':False}

@@ -1,9 +1,9 @@
 {
-  "source_commit": "068c4d7fb3be294fbe12d74567ee2c0056cf16e3",
+  "source_commit": "9b9cb2beeacb62ea23a4c1d6a50084276a830cae",
   "groups": [
     {
       "id": "current-portable-skills",
-      "source_tree_sha256": "9df835e458244789272e9a253702945925de308d095e421b979b7a1944753a16",
+      "source_tree_sha256": "357491af4abc9823205cde0f0840a9d26260f9fe9692f896c5c105d527181f35",
       "files": [
         {
           "path": "skills/reqpilot/SKILL.md",
@@ -77,8 +77,8 @@
         },
         {
           "path": "skills/reqpilot/references/task-api.md",
-          "sha256": "7dd1201dacc5e4795c20ad012d097bfcb8f8916276d493ae90dc6eef9a814732",
-          "bytes": 23622
+          "sha256": "ed9d9fb068f418595952effa3db2c249f191af73cdbceff1ac6d628d50a2c6f6",
+          "bytes": 23882
         },
         {
           "path": "skills/reqpilot/references/task-workspaces.md",
@@ -87,8 +87,8 @@
         },
         {
           "path": "skills/reqpilot/references/tools-analysis-delivery.md",
-          "sha256": "8130367d9f651e56e257960b4ae4d9c8a282c97674a7cbdcc9eee28fadcb636e",
-          "bytes": 10048
+          "sha256": "bf6b458ee12a5cff52a8336242d22c01492e25d36ed9172c26cef6732b1f5fdb",
+          "bytes": 11246
         },
         {
           "path": "skills/reqpilot/references/tools-capture.md",
@@ -107,8 +107,8 @@
         },
         {
           "path": "skills/reqpilot/references/tools-host.md",
-          "sha256": "71d25123911f6396d6f46b81ceb6dec3ea4350ac8ad5d4853fc3e3f4a755be33",
-          "bytes": 9710
+          "sha256": "ebf0f43af1aa954c281939a56b77b422d378f42bbfc7433545f30a774f658d05",
+          "bytes": 9967
         },
         {
           "path": "skills/reqpilot/references/tools-images.md",

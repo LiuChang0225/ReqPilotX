@@ -167,6 +167,42 @@ def _parent_context(document_map, record):
     return list(reversed(values))
 
 
+def required_analysis_unit_ids(baseline, decomposition=None):
+    """Return the complete current analysis scope owned by this baseline.
+
+    A decomposition replaces its parent with its active children; otherwise
+    the requirement SourceItem remains the analysis unit. Batch selection is
+    never a shrink of this task-wide requirement scope.
+    """
+    children_by_parent = (decomposition or {}).get('records', {})
+    units = []
+    for record in baseline.records:
+        if record.requirementness is not Requirementness.REQUIREMENT:
+            continue
+        children = children_by_parent.get(record.source_record_id)
+        if children:
+            units.extend(child['singular_requirement_id'] for child in children)
+        else:
+            units.append(record.source_record_id)
+    return units
+
+
+def assessment_scope_status(baseline, decomposition, assessments):
+    """Report full/partial analysis coverage without trusting submitted counts."""
+    required = required_analysis_unit_ids(baseline, decomposition)
+    if not assessments:
+        return {'required': required, 'assessed': [], 'missing': required, 'complete': False, 'current': False}
+    if assessments.get('baseline_sha256') != baseline.artifact_sha256:
+        return {'required': required, 'assessed': [], 'missing': required, 'complete': False, 'current': False}
+    if assessments.get('decomposition_sha256', '') != (decomposition or {}).get('artifact_sha256', ''):
+        return {'required': required, 'assessed': [], 'missing': required, 'complete': False, 'current': False}
+    records = assessments.get('records') if isinstance(assessments.get('records'), dict) else {}
+    assessed = [unit_id for unit_id in required if unit_id in records]
+    missing = [unit_id for unit_id in required if unit_id not in records]
+    return {'required': required, 'assessed': assessed, 'missing': missing,
+            'complete': not missing, 'current': True}
+
+
 def build_source_item_analysis_packet(
     document_map,
     baseline,

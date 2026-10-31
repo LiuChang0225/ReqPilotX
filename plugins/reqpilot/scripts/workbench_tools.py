@@ -12,7 +12,9 @@ from urllib.request import Request, build_opener, HTTPRedirectHandler
 
 ARTIFACTS=('document-map.json','table-previews.json','source-requirement-baseline.json','validation-receipt.json',
            'item-compilation-receipt.json','workflow-check.json','image-annotations.json',
-           'source-item-decomposition.json','analysis-policy.json')
+           'source-item-decomposition.json','analysis-policy.json',
+           'source-item-assessments.json','analysis-packet.json','knowledge-catalog.json',
+           'evidence-registration.json','knowledge-attestation.json')
 
 
 def read(path):return json.loads(Path(path).read_text(encoding='utf-8'))
@@ -225,9 +227,9 @@ def source_and_artifacts(args):
     if folder:
         folder=folder.resolve(strict=True)
         if not getattr(args,'map_dir',None):
-            unsupported=[n for n in ('source-item-assessments.json','manual-decisions.json') if (folder/n).is_file()]
+            unsupported=[n for n in ('manual-decisions.json',) if (folder/n).is_file()]
             if unsupported:
-                raise ValueError('This draft includes analysis/engineer-opinion evidence not yet supported by this transport; do not omit it: '+', '.join(unsupported))
+                raise ValueError('This draft includes engineer opinions; do not omit them. Import through the explicit user-owned workbench path: '+', '.join(unsupported))
         names=ARTIFACTS[:2] if getattr(args,'map_dir',None) else ARTIFACTS
         artifacts={n:read(folder/n) for n in names if (folder/n).is_file()}
         if 'document-map.json' not in artifacts:raise ValueError('The selected directory has no compiled Document Map')
