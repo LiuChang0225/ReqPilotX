@@ -22,6 +22,7 @@ from reqpilotx_server.infrastructure.runtime_settings import (
     RuntimeSettings,
 )
 from reqpilotx_server.ports.object_store import ObjectStore
+from reqpilotx_server.runtime_paths import resolve_storage_dir
 
 
 _PROTOTYPE_DIR = development_path('prototype')
@@ -68,22 +69,36 @@ def resolve_source_record_path(record: dict[str, Any] | None) -> Path:
         return _BINDING.files.resolve_record(record)
 
     settings = _BINDING.settings or _settings_from_environment()
-    if settings.database_backend is not DatabaseBackend.SQLITE_TEST:
-        raise RuntimeError("Production source records must use a storage_key.")
     file_path = str(record.get("file_path") or "").strip()
-    if not file_path:
-        raise ValueError("Test source record has no file path.")
-    return Path(file_path)
+    if settings.database_backend is DatabaseBackend.SQLITE_TEST:
+        if not file_path:
+            raise ValueError("Test source record has no file path.")
+        return Path(file_path)
+    if settings.database_backend is DatabaseBackend.SQLITE_LOCAL:
+        if not file_path:
+            raise ValueError("Local SQLite source record has no file path.")
+        path = Path(file_path).expanduser()
+        root = resolve_storage_dir(_PROTOTYPE_DIR).resolve(strict=False)
+        if (
+            not path.is_absolute()
+            or path.is_symlink()
+            or not path.resolve(strict=False).is_relative_to(root)
+        ):
+            raise RuntimeError(
+                "Local SQLite source records must stay inside the application storage root."
+            )
+        return path
+    raise RuntimeError("Production source records must use a storage_key.")
 
 
 def get_source_object_store() -> ObjectStore:
-    """Return the bound source store, with a local-only test fallback."""
+    """Return the bound source store, with a local-only fallback."""
 
     if _BINDING.object_store is not None:
         return _BINDING.object_store
     settings = _BINDING.settings or _settings_from_environment()
     if (
-        settings.database_backend is DatabaseBackend.SQLITE_TEST
+        settings.is_sqlite
         and settings.object_store_backend is ObjectStoreBackend.LOCAL
     ):
         return LocalObjectStore(settings.object_root)

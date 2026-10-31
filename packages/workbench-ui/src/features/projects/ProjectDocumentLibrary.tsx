@@ -5,11 +5,13 @@ import { useEffect, useMemo, useState } from "react";
 import { Icon } from "../../shared/ui/Icon";
 import { formatBytes, formatDate } from "../../shared/lib/format";
 import { useWorkspace } from "../workspace/WorkspaceContext";
+import { useWorkbenchHost } from "../workspace/WorkbenchHostContext";
 import { agentTaskLabel, documentDeliveryLabel, documentWorkCheckpoint, isAgentTaskActive, readDocumentWorkSummary, type DocumentWorkSummary } from "../workspace/documentWorkSummary";
 import type { UploadKind } from "../documents/uploadQueue";
 
 export function ProjectDocumentLibrary({ onRemove, removeDisabledReason, kind: controlledKind, onKindChange }: { removeDisabledReason?: string; kind?: UploadKind; onKindChange?: (kind: UploadKind) => void; onRemove: (kind: UploadKind, id: string, fileName: string) => void }) {
   const { route, updateRoute, projects, documents, knowledge, selectedProject, loading, refreshing, refreshProject } = useWorkspace();
+  const host = useWorkbenchHost();
   const [internalKind, setInternalKind] = useState<UploadKind>("sor");
   const kind = controlledKind || internalKind;
   const setKind = (value: UploadKind) => { setInternalKind(value); onKindChange?.(value); };
@@ -52,6 +54,9 @@ export function ProjectDocumentLibrary({ onRemove, removeDisabledReason, kind: c
   }, [sourceScope, route.projectId, refresh]);
   const files = kind === "sor" ? documents : knowledge;
   const previewFile = files.find(file => file.id === preview);
+  const previewSourceUrl = previewFile && kind === "sor"
+    ? host.resourceUrl(`/api/projects/${encodeURIComponent(route.projectId)}/sor-documents/${encodeURIComponent(previewFile.id)}/file`)
+    : "";
   const choosingFile = kind === "sor" ? documents.find(file => file.id === choosing) : undefined;
   const visible = files.filter(file => {
     if (!file.file_name.toLocaleLowerCase().includes(query.trim().toLocaleLowerCase())) return false;
@@ -117,7 +122,7 @@ export function ProjectDocumentLibrary({ onRemove, removeDisabledReason, kind: c
         summary={summaries[choosingFile.id] || null} onSelect={chooseWork} />
     </section>}
     {previewFile && <section className="document-preview-panel" aria-label="文档预览"><header><strong>{previewFile.file_name}</strong><button type="button" className="icon-button" aria-label="关闭文档预览" onClick={() => setPreview("")}><Icon name="close" /></button></header>
-      {kind === "sor" && String(previewFile.file_name || "").toLowerCase().endsWith(".pdf") ? <iframe title="客户文档预览" src={`/pdf-viewer?embedded=1&fit=page&pdf=${encodeURIComponent(`/api/projects/${route.projectId}/sor-documents/${preview}/file`)}&page=1`} /> : kind === "sor" ? <a className="button secondary" href={`/api/projects/${encodeURIComponent(route.projectId)}/sor-documents/${encodeURIComponent(preview)}/file`} target="_blank" rel="noreferrer">打开原文件</a> : <button type="button" className="button secondary" onClick={() => updateRoute({ task: "knowledge", knowledgeSpace: "project", knowledgePage: previewFile.id })}>查看这份项目依据</button>}
+      {kind === "sor" && String(previewFile.file_name || "").toLowerCase().endsWith(".pdf") ? <iframe title="客户文档预览" src={host.pdfViewerUrl(previewSourceUrl, 1, true)} /> : kind === "sor" ? <a className="button secondary" href={previewSourceUrl} target="_blank" rel="noreferrer">打开原文件</a> : <button type="button" className="button secondary" onClick={() => updateRoute({ task: "knowledge", knowledgeSpace: "project", knowledgePage: previewFile.id })}>查看这份项目依据</button>}
     </section>}
   </section>;
 }

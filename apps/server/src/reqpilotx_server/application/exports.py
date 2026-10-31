@@ -372,7 +372,7 @@ def _execute_project_export(
 
     export_dir = (
         EXPORTS_DIR
-        if RUNTIME_SETTINGS.database_backend is DatabaseBackend.SQLITE_TEST
+        if RUNTIME_SETTINGS.is_sqlite
         else RUNTIME_SETTINGS.scratch_root / "export-staging"
     )
     export_dir.mkdir(parents=True, exist_ok=True)

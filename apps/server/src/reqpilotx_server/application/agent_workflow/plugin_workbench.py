@@ -17,7 +17,7 @@ from urllib.parse import urlencode
 from pydantic import BaseModel, ConfigDict, Field
 from reqpilotx_server.adapters.agents.codex_app_server.native_loop_driver import _write_json
 from reqpilotx_server.application.agent_workflow import source_requirement_baseline as core
-from reqpilotx_server.application.agent_workflow.document_map_jobs import _container
+from reqpilotx_server.application.agent_workflow.document_map_jobs import _runtime_container as _container
 from reqpilotx_server.application.agent_workflow.native_structure_bridge import _require_project_document, _document_source_sha256, _no_store_headers
 from reqpilotx_server.application.agent_workflow.source_item_loop_jobs import _locked
 from reqpilotx_server.application.agent_workflow.source_item_delivery import build_delivery_snapshot, export_delivery_xlsx

@@ -211,12 +211,27 @@ def _runtime_record_path(record: dict[str, Any] | None) -> Path:
         if RUNTIME_STATE.files is None:
             raise RuntimeError("Runtime object materialization is not initialized.")
         return RUNTIME_STATE.files.resolve_record(record)
-    if RUNTIME_SETTINGS.database_backend is not DatabaseBackend.SQLITE_TEST:
-        raise RuntimeError("Production records must use a storage_key.")
+    backend = RUNTIME_SETTINGS.database_backend
     file_path = str(record.get("file_path") or "").strip()
-    if not file_path:
-        raise ValueError("Test record has no file path.")
-    return Path(file_path)
+    if backend is DatabaseBackend.SQLITE_TEST:
+        if not file_path:
+            raise ValueError("Test record has no file path.")
+        return Path(file_path)
+    if backend is DatabaseBackend.SQLITE_LOCAL:
+        if not file_path:
+            raise ValueError("Local SQLite record has no file path.")
+        path = Path(file_path).expanduser()
+        root = STORAGE_DIR.resolve(strict=False)
+        if (
+            not path.is_absolute()
+            or path.is_symlink()
+            or not path.resolve(strict=False).is_relative_to(root)
+        ):
+            raise RuntimeError(
+                "Local SQLite records require an absolute file inside the application storage root."
+            )
+        return path
+    raise RuntimeError("Production records must use a storage_key.")
 
 
 def configure_worker_runtime(container: RuntimeContainer) -> None:
@@ -355,6 +370,9 @@ def _build_health_response(*, runtime_only: bool = False) -> JsonArtifact:
             startup_initialized=startup_initialized,
             startup_error=startup_error,
             startup_checked_at=startup_checked_at,
+            deployment_mode=RUNTIME_SETTINGS.deployment_mode.value,
+            database_backend=RUNTIME_SETTINGS.database_backend.value,
+            object_store_backend=RUNTIME_SETTINGS.object_store_backend.value,
         )
     readiness_field = "runtime_ready" if runtime_only else "ready"
     status_code = 200 if payload[readiness_field] else 503
@@ -386,20 +404,23 @@ def _artifact_smoke_identity(request: RequestContext) -> dict[str, Any]:
 def startup() -> None:
     ai_config = load_ai_copilot_config()
     try:
-        if RUNTIME_SETTINGS.database_backend is DatabaseBackend.SQLITE_TEST:
+        if RUNTIME_SETTINGS.is_sqlite:
             acquire_runtime_storage_lease()
+            db.configure_runtime(RUNTIME_SETTINGS)
+            # SQLite repository constructors create their own tables. Validate
+            # the store and apply application migrations before any constructor
+            # or runtime-directory population.
+            db.init_db()
             ensure_runtime_directories(_runtime_directories(ai_config))
         RUNTIME_STATE.container = build_runtime_container(
             RUNTIME_SETTINGS,
             apply_migrations=True,
-            sqlite_database_path=(db.DB_PATH if RUNTIME_SETTINGS.is_test else None),
+            sqlite_database_path=(db.DB_PATH if RUNTIME_SETTINGS.is_sqlite else None),
         )
         db.configure_runtime(
             RUNTIME_SETTINGS,
             postgres_database=RUNTIME_STATE.container.database,
         )
-        if RUNTIME_SETTINGS.database_backend is DatabaseBackend.SQLITE_TEST:
-            db.init_db()
         RUNTIME_STATE.files = RuntimeObjectFiles(
             RUNTIME_STATE.container.object_store,
             RUNTIME_SETTINGS.scratch_root / "materialized",

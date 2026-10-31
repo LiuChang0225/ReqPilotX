@@ -23,8 +23,23 @@ Writable state is always host configured with `REQPILOT_STORAGE_DIR` and
 `REQPILOT_OBJECT_ROOT`; installed code never writes beside site-packages.
 `REQPILOT_FRONTEND_DIR` selects the separately built frontend. Checkout-only
 Agent Kit and development-source bundle operations require the explicit absolute
-`REQPILOT_DEVELOPMENT_ROOT`. PostgreSQL migrations and the App Server protocol
-lock are read-only package resources.
+`REQPILOT_DEVELOPMENT_ROOT`.
+
+Local mode defaults to the application-owned `sqlite-local` backend at
+`<REQPILOT_STORAGE_DIR>/app.db` with package migrations under
+`resources/migrations/sqlite/`. Startup rejects unknown applied migrations and
+changed/missing migration files before schema changes, and commits each pending
+migration atomically with its ledger row. Existing SQLite files are preflighted
+read-only before writable PRAGMAs; unversioned/unknown stores are refused
+unchanged, while a new empty destination initializes. A new SQLite store is also
+refused beside historical PostgreSQL cluster/password markers. Set
+`REQPILOT_DATABASE_URL` or `REQPILOT_DATABASE_BACKEND=postgresql` to keep the
+explicit PostgreSQL route; an omitted URL keeps the existing
+`postgresql://localhost/reqpilotx` default, and `psycopg[binary,pool]` is then
+installed with the `postgres` extra. Test mode
+(`REQPILOT_TEST_MODE=1`) remains a separate `sqlite-test` backend. PostgreSQL
+migrations, SQLite migrations and the App Server protocol lock are read-only
+package resources. See [Pair lightweight SQLite](../../docs/architecture/pair-lightweight-sqlite.md).
 
 Project creation and source import accept an optional body/form `command_id`.
 Migration `0038_entry_command_receipts.sql` binds unique command receipts to the

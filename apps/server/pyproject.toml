@@ -29,10 +29,12 @@ dependencies = [
   "azure-identity==1.25.3",
   "azure-search-documents==11.6.0",
   "truststore==0.10.4",
-  "psycopg[binary,pool]==3.3.4",
 ]
 
 [project.optional-dependencies]
+postgres = [
+  "psycopg[binary,pool]==3.3.4",
+]
 retrieval = [
   "qdrant-client==1.15.1",
   "haystack-ai==2.26.1",
@@ -56,4 +58,5 @@ namespaces = true
 reqpilotx_server = [
   "adapters/agents/codex_app_server/protocol_lock.json",
   "resources/migrations/postgresql/*.sql",
+  "resources/migrations/sqlite/*.sql",
 ]

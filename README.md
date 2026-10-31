@@ -17,15 +17,9 @@ ReqPilotX 是面向汽车 SOR 的需求工程工作台，把复杂文档转成�
 
 ## 本地运行
 
-应用使用 React/Vite/TypeScript、FastAPI、worker、PostgreSQL 与本地对象存储。按照[运行说明](prototype/README.md)准备依赖和数据库后：
+应用使用 React/Vite/TypeScript、FastAPI 与本地对象存储。Pair 轻量本地入口和普通本地 API 默认使用应用自有 SQLite，不需要 PostgreSQL 服务或驱动；显式设置 `REQPILOT_DATABASE_URL` 或 `REQPILOT_DATABASE_BACKEND=postgresql` 可保留 PostgreSQL/云端路线。仓库现有 `prototype/start.sh` 的完整开发 worker 池仍显式使用 PostgreSQL，不能代表 Pair 本地运行路径。
 
-```bash
-cd prototype
-./start.sh
-./status.sh
-```
-
-本地核心不依赖 Docker，也不默认连接云端。Agent 模型运行需要单独配置相应宿主、身份与能力；基础程序检查通过不代表模型语义或所有文档类型通过。
+按照[运行说明](prototype/README.md)准备依赖；Pair 轻量本地存储的边界、迁移和验证见[Pair lightweight SQLite](docs/architecture/pair-lightweight-sqlite.md)。本地核心不依赖 Docker，也不默认连接云端。Agent 模型运行需要单独配置相应宿主、身份与能力；基础程序检查通过不代表模型语义或所有文档类型通过。
 
 ## 源码与资料
 

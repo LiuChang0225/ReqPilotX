@@ -25,15 +25,16 @@ def installation():
         if spec is None or not spec.origin or not Path(spec.origin).resolve().is_relative_to(root):
             raise RuntimeError(f"{module} does not resolve to its installed distribution")
         result[distribution] = {"version": dist.version, "module_origin": spec.origin}
-    from reqpilotx_server.resource_paths import postgres_migration_dir
+    from reqpilotx_server.resource_paths import postgres_migration_dir, sqlite_migration_dir
     result["migration_count"] = len(list(postgres_migration_dir().glob("*.sql")))
+    result["sqlite_migration_count"] = len(list(sqlite_migration_dir().glob("*.sql")))
     return result
 
 
 def configure_environment():
-    allowed = {"REQPILOT_DATABASE_URL", "REQPILOT_STORAGE_DIR", "REQPILOT_FRONTEND_DIR",
-               "REQPILOT_OBJECT_ROOT", "REQPILOT_SCRATCH_ROOT", "REQPILOT_MANAGED_INSTANCE",
-               "REQPILOT_MANAGED_OWNER", "REQPILOT_MANAGED_PROOF_KEY"}
+    allowed = {"REQPILOT_DATABASE_URL", "REQPILOT_DATABASE_BACKEND", "REQPILOT_STORAGE_DIR",
+               "REQPILOT_FRONTEND_DIR", "REQPILOT_OBJECT_ROOT", "REQPILOT_SCRATCH_ROOT",
+               "REQPILOT_MANAGED_INSTANCE", "REQPILOT_MANAGED_OWNER", "REQPILOT_MANAGED_PROOF_KEY"}
     for key in list(os.environ):
         if key.startswith(("REQPILOT_", "REQPILOTX_", "OPENAI_", "AZURE_", "DASHSCOPE_", "ALIYUN_")) and key not in allowed:
             del os.environ[key]
@@ -71,14 +72,20 @@ def main():
         return
     configure_environment()
     if command == "migrate":
+        from reqpilotx_server import db
         from reqpilotx_server.infrastructure.runtime_container import build_runtime_container
         from reqpilotx_server.infrastructure.runtime_settings import RuntimeSettings
-        container = build_runtime_container(RuntimeSettings.from_environment(), apply_migrations=True)
+        settings = RuntimeSettings.from_environment()
+        if settings.is_sqlite:
+            db.init_db()
+            print(json.dumps({"migrations": "applied", "database_backend": settings.database_backend.value}))
+            return
+        container = build_runtime_container(settings, apply_migrations=True)
         try:
             container.database.healthcheck()
         finally:
             container.close()
-        print(json.dumps({"migrations": "applied"}))
+        print(json.dumps({"migrations": "applied", "database_backend": settings.database_backend.value}))
         return
     if command != "serve":
         raise ValueError("Expected probe, migrate or serve")

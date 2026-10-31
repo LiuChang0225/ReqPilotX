@@ -166,10 +166,10 @@ def build_runtime_container(
         agent_table_materialization_repository = (
             PostgresAgentTableMaterializationRepository(database)
         )
-    else:
+    elif settings.is_sqlite:
         if sqlite_database_path is None:
             raise ValueError(
-                "The isolated SQLite test adapter requires sqlite_database_path."
+                "The SQLite backend requires sqlite_database_path."
             )
         from reqpilotx_server.adapters.persistence.sqlite_llm_requirement_reviews import (
             SQLiteLlmRequirementReviewRepository,
@@ -184,6 +184,8 @@ def build_runtime_container(
         requirement_enrichment_repository = SQLiteRequirementEnrichmentRepository(
             sqlite_database_path
         )
+    else:
+        raise ValueError("Unsupported database backend.")
     return RuntimeContainer(
         settings=settings,
         object_store=object_store,

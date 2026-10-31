@@ -22,6 +22,13 @@ def postgres_migration_dir() -> Path:
     return path
 
 
+def sqlite_migration_dir() -> Path:
+    path = package_resource_path("migrations", "sqlite")
+    if not path.is_dir():
+        raise FileNotFoundError(f"Installed SQLite migrations are missing: {path}")
+    return path
+
+
 def configured_frontend_dir(
     environment: Mapping[str, str] | None = None,
 ) -> Path:
@@ -68,4 +75,5 @@ __all__ = [
     "development_path",
     "package_resource_path",
     "postgres_migration_dir",
+    "sqlite_migration_dir",
 ]

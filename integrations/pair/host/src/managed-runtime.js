@@ -19,12 +19,12 @@ export class ManagedRuntime {
   constructor(subprocess, config = {}) {
     this.subprocess = subprocess;
     this.legacyAppRoot = config.appRoot;
+    this.legacyPostgresBinDir = config.postgresBinDir;
     this.invalidDataRoot = config.dataRoot && !isAbsolute(config.dataRoot);
     this.dataRoot = resolve(config.dataRoot || join(homedir(), '.local/share/reqpilotx/pair'));
     this.python = config.python;
     this.frontendRoot = config.frontendRoot;
     this.wrapper = fileURLToPath(new URL('./managed_api.py', import.meta.url));
-    this.binDir = config.postgresBinDir;
     this.token = randomUUID(); this.endpointProofKey = randomBytes(32).toString('hex'); this.handles = []; this.cancel = new AbortController();
     this.snapshot = { mode: 'managed', status: 'STARTING', stage: 'dependencies', message: '正在准备 ReqPilotX 服务', owned: true };
   }
@@ -44,6 +44,12 @@ export class ManagedRuntime {
       await writeFile(marker, JSON.stringify(owner) + '\n', { mode: 0o600, flag: 'wx' });
     }
     if (owner.application !== 'reqpilotx-pair' || owner.version !== 1) throw Error('Data directory ownership does not match.');
+    // Never adopt a historical PostgreSQL-owned data root into the lightweight
+    // store. Keep it untouched for an explicit RX06 migration.
+    for (const name of ['postgres/PG_VERSION', 'database-password']) {
+      try { await lstat(join(this.dataRoot, name)); throw Error('This data directory belongs to the historical PostgreSQL runtime; export it explicitly before using the lightweight store.'); }
+      catch (e) { if (e.code === 'ENOENT') continue; throw e; }
+    }
     this.ownerId = owner.id;
     const lock = join(this.dataRoot, 'runtime.lock');
     try { const prior = JSON.parse(await readFile(lock, 'utf8')); if (ownerAlive(prior.pid)) throw Error('This ReqPilotX data directory is already in use by another Pair process.'); await unlink(lock); }
@@ -109,6 +115,7 @@ export class ManagedRuntime {
   }
   async startInner() {
     if (this.legacyAppRoot) throw Error('appRoot checkout mode is no longer supported; configure installed python and frontendRoot.');
+    if (this.legacyPostgresBinDir) throw Error('postgresBinDir is retired; the lightweight local runtime does not use PostgreSQL binaries.');
     if (!this.python || !isAbsolute(this.python)) throw Error('An absolute installed engine/server Python executable is required.');
     if (!this.frontendRoot || !isAbsolute(this.frontendRoot)) throw Error('An absolute built frontendRoot is required.');
     this.frontendRoot = await realpath(this.frontendRoot);
@@ -118,39 +125,10 @@ export class ManagedRuntime {
     await this.claim();
     this.python = await this.subprocess.resolveExecutable(this.python);
     const installation = JSON.parse(await this.command([this.python, '-I', this.wrapper, 'probe']));
-    const initdb = this.binDir ? join(this.binDir, 'initdb') : await this.subprocess.resolveExecutable('initdb');
-    this.binDir = dirname(await realpath(initdb));
-    for (const name of ['postgres', 'psql', 'createdb', 'pg_isready']) await this.subprocess.resolveExecutable(join(this.binDir, name));
-    const pgData = join(this.dataRoot, 'postgres');
+    this.stage('storage', '正在初始化应用数据目录');
     await mkdir(join(this.dataRoot, 'storage'), { recursive: true, mode: 0o700 });
-    try { this.secret = (await readFile(join(this.dataRoot, 'database-password'), 'utf8')).trim(); }
-    catch (e) { if (e.code !== 'ENOENT') throw e; this.secret = randomBytes(32).toString('hex'); await writeFile(join(this.dataRoot, 'database-password'), this.secret + '\n', { mode: 0o600 }); }
-    if (!/^[a-f0-9]{64}$/.test(this.secret)) throw Error('Invalid private database credential file.');
-    try { await stat(join(pgData, 'PG_VERSION')); }
-    catch (e) {
-      if (e.code !== 'ENOENT') throw e;
-      this.stage('storage', '正在初始化应用数据目录');
-      await this.command([initdb, '-D', pgData, '--username=reqpilotx', '--auth-local=trust', '--auth-host=scram-sha-256', '--encoding=UTF8', '--locale=C', '--pwfile=' + join(this.dataRoot, 'database-password')]);
-    }
-    // An unexplained live cluster is never signalled or adopted by this new owner.
-    try { const pid = Number((await readFile(join(pgData, 'postmaster.pid'), 'utf8')).split('\n')[0]); if (ownerAlive(pid)) throw Error('The owned data directory still has a live database process; it was not started by this Pair instance.'); }
-    catch (e) { if (e.code !== 'ENOENT') throw e; }
-    const pgPort = await freePort();
-    this.stage('database', '正在启动应用数据库');
-    const pg = this.spawn([join(this.binDir, 'postgres'), '-D', pgData, '-h', '127.0.0.1', '-p', String(pgPort), '-k', ''], {}, false);
-    const dbEnv = { PGPASSWORD: this.secret, PGHOST: '127.0.0.1', PGPORT: String(pgPort), PGUSER: 'reqpilotx', PGDATABASE: 'postgres' };
-    let pgExit; pg.done.then(result => { pgExit = result; }, error => { pgExit = { error: error.message }; });
-    let ready = false;
-    for (let i = 0; i < 100; i++) {
-      if (pgExit) throw Error('Managed database stopped before readiness.');
-      const check = this.spawn([join(this.binDir, 'pg_isready'), '-q'], dbEnv);
-      if ((await check.done).exitCode === 0) { ready = true; break; }
-      await delay(100);
-    }
-    if (!ready) throw Error('Managed database did not become ready.');
-    const exists = await this.command([join(this.binDir, 'psql'), '-Atqc', "SELECT 1 FROM pg_database WHERE datname='reqpilotx'"], dbEnv);
-    if (exists.trim() !== '1') await this.command([join(this.binDir, 'createdb'), 'reqpilotx'], dbEnv);
-    const env = { REQPILOT_ENV: 'local', REQPILOT_PROCESS_ROLE: 'api', REQPILOT_AGENT_RUNTIME: 'none', REQPILOT_DATABASE_URL: 'postgresql://reqpilotx:' + this.secret + '@127.0.0.1:' + pgPort + '/reqpilotx', REQPILOT_STORAGE_DIR: join(this.dataRoot, 'storage'), REQPILOT_FRONTEND_DIR: this.frontendRoot, REQPILOT_OBJECT_ROOT: join(this.dataRoot, 'storage'), REQPILOT_SCRATCH_ROOT: join(this.dataRoot, 'scratch'), REQPILOT_ALLOWED_HOSTS: '127.0.0.1,localhost', REQPILOT_MANAGED_INSTANCE: this.token, REQPILOT_MANAGED_OWNER: this.ownerId, REQPILOT_MANAGED_PROOF_KEY: this.endpointProofKey };
+    await mkdir(join(this.dataRoot, 'scratch'), { recursive: true, mode: 0o700 });
+    const env = { REQPILOT_ENV: 'local', REQPILOT_PROCESS_ROLE: 'api', REQPILOT_AGENT_RUNTIME: 'none', REQPILOT_DATABASE_BACKEND: 'sqlite-local', REQPILOT_STORAGE_DIR: join(this.dataRoot, 'storage'), REQPILOT_FRONTEND_DIR: this.frontendRoot, REQPILOT_OBJECT_ROOT: join(this.dataRoot, 'storage'), REQPILOT_SCRATCH_ROOT: join(this.dataRoot, 'scratch'), REQPILOT_ALLOWED_HOSTS: '127.0.0.1,localhost', REQPILOT_MANAGED_INSTANCE: this.token, REQPILOT_MANAGED_OWNER: this.ownerId, REQPILOT_MANAGED_PROOF_KEY: this.endpointProofKey };
     this.stage('migrations', '正在恢复项目与文档存储');
     await this.command([this.python, '-I', this.wrapper, 'migrate'], env);
     this.stage('api', '正在启动 ReqPilotX');
@@ -171,14 +149,13 @@ export class ManagedRuntime {
       info = null; await delay(150);
     }
     if (!info) throw Error('Managed API did not become ready.');
-    const pgPid = Number((await readFile(join(pgData, 'postmaster.pid'), 'utf8')).split('\n')[0]);
     this.snapshot = { mode: 'managed', status: 'READY', stage: 'ready', message: 'ReqPilotX 已就绪', owned: true, serviceOrigin: info.origin, instanceId: this.token };
-    await this.privateWrite('runtime-receipt.json', { ownerId: this.ownerId, ownerPid: process.pid, instanceId: this.token, apiPid: info.pid, apiOrigin: info.origin, postgresPid: pgPid, postgresPort: pgPort, installation, frontendRoot: this.frontendRoot, workerStarted: false });
+    await this.privateWrite('runtime-receipt.json', { ownerId: this.ownerId, ownerPid: process.pid, instanceId: this.token, apiPid: info.pid, apiOrigin: info.origin, databaseBackend: 'sqlite-local', installation, frontendRoot: this.frontendRoot, workerStarted: false });
     const exited = () => { if (!this.stopping && this.snapshot.status === 'READY') { this.snapshot = { mode: 'managed', status: 'ERROR', stage: 'runtime', message: 'ReqPilotX 服务已停止，请重新启用插件恢复。', owned: true }; void this.cleanup().catch(() => { this.snapshot = { ...this.snapshot, message: '自有进程尚未完全停止，已保留所有权记录。' }; }); } };
-    api.done.then(exited, exited); pg.done.then(exited, exited);
+    api.done.then(exited, exited);
   }
   async cleanup() {
-    // Sequential termination lets the API close its pool before PostgreSQL checkpoints and stops.
+    // Terminate only this owner's actual subprocess handles.
     for (const handle of [...this.handles].reverse()) {
       handle.terminate(); if (!await handle.waitForExit(AbortSignal.timeout(20000))) throw Error('Owned process did not stop; ownership lock retained.');
     }
