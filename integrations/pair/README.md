@@ -37,7 +37,18 @@ preparation, source/Map, items/classification with explicitly scoped derivation,
 evidence analysis, self-check/correction and saved deliverable. Completion is
 projected only from saved task artifacts and receipts; model prose, idle
 sessions and exports do not advance a stage. With no internal evidence, the
-declared branch marks evidence analysis skipped. Task state is rederived through the pinned task read API. Host inspect validates
+declared branch marks evidence analysis skipped. The public `publish_current_review` task sync now completes a fixed-workflow
+handoff by previewing the exact current server snapshot and registering or
+reusing one DRAFT delivery version through the existing CAS/idempotency
+endpoints. A successful checked `task_deliver` invokes the same path when the
+task is bound; unbound portable tasks remain local. Newer manual responses or
+revisions conflict without resetting or targeting latest, and no FORMAL
+acceptance is created. The workbench can list and download that exact DRAFT
+workbook.
+
+Unchanged verification retains its receipt identity, so repeated delivery/check requests do not create result or DRAFT versions from timestamps alone. Partial drafts remain downloadable; fixed-workflow handoff requires complete declared scope and final local/remote currentness. Portable tasks without a fixed-workflow context retain their source-bound content verification.
+
+Task state is rederived through the pinned task read API. Host inspect validates
 task/source/workflow/brief identity, stage order, SAVED evidence and readiness;
 the task's `workflow-status.json` is only a derived cache and is not trusted.
 Corrupt or foreign cache/read state is shown as unconfirmed while saved work is

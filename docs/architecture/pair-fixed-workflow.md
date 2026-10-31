@@ -1,6 +1,6 @@
-# PAIR 固定业务流程与任务模型选择（RX02）
+# PAIR 固定业务流程与任务模型选择
 
-更新：2026-10-31。本文记录 RX02 的当前实现，不声明真实模型、原生浏览器或业务语义验收已完成。验收范围仍由[规格](../../reports/pair-lightweight/work/inputs/spec.zh.md)拥有。
+更新：2026-10-31。本文记录固定流程的当前实现，不声明真实模型、原生浏览器或业务语义验收已完成。验收范围由 [PAIR 迁移规格](https://github.com/LiuChang0225/PAIR/blob/codex/pair-integration-20261027/docs/pair/development/reqpilotx/spec.zh.md)拥有。
 
 ## 入口与资料引导
 
@@ -35,7 +35,7 @@
 2. `SOURCE_MAP`：已保存 Document Map；
 3. `ITEMS_CLASSIFICATION`：已保存条目、分类及明确范围的派生；
 4. `EVIDENCE_ANALYSIS`：有内部依据时的保存分析；声明无依据时 `SKIPPED`；
-5. `SELF_CHECK`：与当前 Map/条目不冲突的 review；
+5. `SELF_CHECK`：绑定当前来源、Map、条目、review 与交付的程序检查成功回执；
 6. `DELIVERABLE`：与当前条目同版的已保存交付。
 
 `fixed_workflow.py` 只从这些已保存工件和分支声明投影状态。模型文字、会话
@@ -49,9 +49,15 @@ brief、阶段顺序、SAVED 证据和 readiness。缓存损坏、外来任务�
 阶段状态和 `ready_to_review`，只根据已验证的 Map、条目、派生、分析策略及
 当前同版交付版本回执重新推导。六个 SAVED 但没有工件、空证据、矛盾
 readiness、旧 basis 或损坏交付回执都不能得到 ready；无内部依据保持
-`SKIPPED`。经实际编译、复核并保存交付版本的完整流程仍可得到 ready。
+`SKIPPED`。经实际编译、复核并保存交付版本的完整流程仍可得到 ready。当前
+`publish_current_review` 会为已通过的当前检查预览精确快照，并通过现有
+CAS／幂等交付接口注册或复用一份 DRAFT（`acceptance=null`，不创建 FORMAL）。
+绑定任务的 `task_deliver` 通过同一路径完成工作台交接；未绑定任务保持本地。
+手工意见或远端版本变化使用精确冲突拒绝，不回退 latest，也不重编译来源。
 历史任务没有工作流上下文时不生成该状态。`ready_to_review` 与 Pair 执行状态
 分开显示，仍不等于人工接受。
+
+相同检查内容保留已有回执身份，重复检查时间不会产生新成果版或重复 DRAFT。部分成果可以保存和下载，但未完成声明范围时不报告固定流程交接完成；交接还要求最终远端和本地版本均匹配。没有固定流程上下文的 portable 任务保留其原有来源与工作台内容验证。
 
 Map 确认、无内部依据和显式派生是声明的分支；Map/items/delivery 原有校验
 继续拥有前置条件。没有 Map 保存条目、错误来源或错误工作流版本都会被拒绝。

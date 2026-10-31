@@ -208,7 +208,7 @@ def _derive_fixed_workflow(value, source_sha, mapping, baseline, artifacts, root
         delivery_status, delivery_reason = ('SAVED', None) if delivery is not None else ('PENDING', 'DELIVERABLE_NOT_SAVED')
     else:
         check_status, check_reason = 'PENDING', 'SELF_CHECK_NOT_RUN'
-        delivery_status, delivery_reason = 'PENDING', 'DELIVERABLE_NOT_SAVED'
+        delivery_status, delivery_reason = ('SAVED', None) if delivery is not None else ('PENDING', 'DELIVERABLE_NOT_SAVED')
     check_evidence = ([{'kind': 'WORKFLOW_CHECK' if check_passed else 'DELIVERY_VERSION', 'source_sha256': source_sha,
                         'artifact_sha256': check.get('check_sha256') if check_passed else delivery.get('delivery_sha256')}]
                       if check_status == 'SAVED' else None)

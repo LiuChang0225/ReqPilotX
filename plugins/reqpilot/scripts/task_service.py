@@ -673,9 +673,31 @@ class TaskService:
             response['workflow'] = fresh.get('workflow')
             response['ready_to_review'] = bool((fresh.get('workflow') or {}).get('ready_to_review'))
             response['local_delivery_ready'] = bool(check.get('review_verified') and check.get('current_delivery_registered'))
-            response['handoff_ready'] = bool(response['local_delivery_ready'] and check.get('workbench_content_verified')
-                and check.get('workbench_is_current',True)
-                and not check.get('pending_decomposition',{}).get('remaining_count'))
+            if fresh.get('workflow') and response['local_delivery_ready']:
+                from task_workbench import sync_current_review
+                try:
+                    response['workbench_delivery'] = sync_current_review(root, fresh['revision'])
+                except (ValueError, OSError, KeyError, TypeError, RuntimeError) as exc:
+                    response['workbench_delivery'] = {'status':'UNAVAILABLE','local_artifact_preserved':True,
+                        'error':str(exc),'next':'Keep the local delivery and retry publish_current_review for this exact revision.'}
+            workbench = response.get('workbench_delivery') or {}
+            draft = workbench.get('draft_delivery') or {}
+            draft_delivery = draft.get('delivery') or {}
+            published = bool(draft.get('status') in {'DRAFT_REGISTERED','DRAFT_REUSED'}
+                and draft.get('remote_current') is True and workbench.get('still_current') is True
+                and draft_delivery.get('acceptance') is None
+                and draft_delivery.get('delivery_sha256') == (fresh.get('workflow_check') or {}).get('delivery_snapshot_sha256'))
+            response['local_artifact_ready'] = response['local_delivery_ready']
+            if fresh.get('workflow'):
+                workflow_ready = bool(fresh['workflow'].get('ready_to_review'))
+                response['workbench_handoff'] = {'ready':published and workflow_ready,'draft_status':draft.get('status'),
+                    'still_current':workbench.get('still_current'),'remote_current':draft.get('remote_current')}
+                response['handoff_ready'] = bool(published and workflow_ready and response['local_delivery_ready']
+                    and not check.get('pending_decomposition',{}).get('remaining_count'))
+            else:
+                response['handoff_ready'] = bool(response['local_delivery_ready'] and check.get('workbench_content_verified')
+                    and check.get('workbench_is_current',True)
+                    and not check.get('pending_decomposition',{}).get('remaining_count'))
         return response
 
     def ensure_pages(self, state, request):
@@ -819,7 +841,16 @@ class TaskService:
             'checked_at':__import__('datetime').datetime.now(__import__('datetime').timezone.utc).isoformat(),
             **({'error':str(error)} if error is not None else {}),
             **({'delivery_status':result.get('delivery_status')} if result.get('delivery_status') else {})}
-        _atomic_json(root/'workflow-check.json', payload)
+        path = root/'workflow-check.json'
+        if path.is_file():
+            try:
+                existing = json.loads(path.read_text(encoding='utf-8'))
+                if ({k:v for k,v in existing.items() if k != 'checked_at'}
+                        == {k:v for k,v in payload.items() if k != 'checked_at'}):
+                    return existing
+            except (OSError, ValueError, TypeError):
+                pass
+        _atomic_json(path, payload)
         return payload
 
     def _finish_check(self, root, state, result, error=None):
