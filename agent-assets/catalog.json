@@ -27,7 +27,7 @@
       "classification": "CURRENT",
       "asset_kind": "PORTABLE_PLUGIN_SKILLS_AND_REFERENCES",
       "source": "agent-assets/current/plugin-skills",
-      "tree_sha256": "fa5c08a8baf3e8e2b1acc7380aa96218bfedd5321d1311d48e132f4fef0e395e",
+      "tree_sha256": "a66ad8e1f33e0fdebd61f45e074ad86f35bc6c0f17449bcf403b64bb25a8c4fc",
       "consumers": [
         "ReqPilotX portable plugin discovery",
         "native registered capability bundles",
@@ -109,13 +109,13 @@
       "classification": "COMPATIBILITY",
       "asset_kind": "PORTABLE_STAGE_AGENT_KIT",
       "source": "agent-kit",
-      "tree_sha256": "2b198da7f124ecacebc5a9fbadd9a329b5c0e41841c190db768789069ea7e851",
+      "tree_sha256": "34a80a9a76112a9596b571dc14b0349936edd29241b7f31054b86c0cab46ac5d",
       "consumers": [
         "native structure and SourceItem compatibility workflows",
         "Agent Kit materializer and cold canaries",
         "schema, stage-lineage and bundle-reference validators"
       ],
-      "target": "Preserve Agent Kit 0.15.2, its D0-D6 contracts and its internal relative layout while current product skills evolve separately.",
+      "target": "Preserve the explicitly versioned Agent Kit 0.16.0, its D0-D6 contracts and mixed text-ownership schemas while current product skills evolve separately.",
       "compatibility": "The existing agent-kit path remains authoritative for this frozen compatibility group; it is not rewritten as the current business workflow.",
       "verification": "Existing lock, manifest, materializer and focused compatibility tests.",
       "retirement_condition": "Retire only after all listed runtime, canary and replay consumers use a versioned successor and old frozen tasks remain replayable.",

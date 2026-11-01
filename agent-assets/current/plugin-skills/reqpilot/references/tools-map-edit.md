@@ -63,6 +63,10 @@ After the first meaningful scope is saved, pass its output directory as `map_dir
 
 This example requires an existing table named `observed-table`; it does not create table evidence. Lists supplied on an existing object replace that field completely. `content` replaces both content source arrays; `heading` replaces title/label/title evidence together. Do not combine these convenience fields with their explicit counterparts in one edit. Optional node fields may be removed with `unset`; explicit object deletion uses `remove_node_ids` / `remove_table_ids`. Dangling parents, overlaps and merged-cell cuts still fail. `source_dispositions`, if supplied, replaces the complete disposition list; never blanket-discard unread capture nodes.
 
+## Repair a heading captured as body
+
+If `Symbol definitions` is an actual local heading above several definitions, give it its source-backed heading node and attach those definitions as its body. Remove only the moved ranges from the former owner's body, retaining unrelated surrounding content. For a shared parser block, use exact quote/range selectors; the program computes offsets. Read the regenerated scopes before Items. A standalone heading belongs in structure; a defining or governing sentence remains content. Do not mark substantive text `NON_BUSINESS` to pass a structural check. A table caption follows the different repair below.
+
 ## Repair a misplaced pure caption
 
 Pure table titles and repeated continuation captions are structural text. If a previous Map put one in body content and item compilation rejects `structure_only`, retain the table's actual title and exact caption references, and record a source disposition for the pure labels. Do not turn a table caption into a fictitious chapter or extra SRC. For a section whose only body was two pure captions:

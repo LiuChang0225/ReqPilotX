@@ -7,6 +7,11 @@ SPECS = (
     RouteSpec("/api/projects", projects.create_project, "POST"),
     RouteSpec("/api/projects", projects.list_projects, "GET"),
     RouteSpec(
+        "/api/projects/creation-commands/{command_id}",
+        projects.get_project_creation_command,
+        "GET",
+    ),
+    RouteSpec(
         "/api/projects/{project_id}/processing-profile",
         processing_profiles.get_project_processing_profile_route,
         "GET",

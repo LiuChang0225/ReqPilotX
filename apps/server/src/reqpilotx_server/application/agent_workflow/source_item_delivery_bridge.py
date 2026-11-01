@@ -87,6 +87,15 @@ def _reasoning(project_id, document_id, baseline):
                 or current_assessments.get("knowledge_base_version") != int(project.get("knowledge_base_version") or 0)):
             output["notices"].append("分析单元或内部资料已更新，旧分析保留为历史；当前版本需要重新分析。")
             output["assessments"], output["analysis_job_id"] = None, None
+    from reqpilotx_server.application.openkb_evidence import current_preparation
+    latest_selected = container.jobs.get(output["analysis_job_id"]) if output["analysis_job_id"] else None
+    prepared = current_preparation(project_id, document_id, baseline,
+        (output["decomposition"] or {}).get("artifact_sha256", ""),
+        newer_than=latest_selected.updated_at if latest_selected else None)
+    if prepared is not None:
+        output["assessments"], output["openkb_preparation"] = prepared
+        output["analysis_job_id"] = None
+        output["notices"].append("登记原件已准备为待证据工作草稿；OpenKB模型未运行，尚未作语义符合性判断。")
     return output
 
 
@@ -136,6 +145,8 @@ def get_source_item_delivery_state(project_id: str, document_id: str, response: 
     baseline = bundle["baseline"]
     children = (reasoning["decomposition"] or {}).get("records", {})
     decisions = (reasoning["assessments"] or {}).get("records", {})
+    prepared_ids = {uid for uid, receipt in (reasoning['assessments'] or {}).get('unit_input_receipts', {}).items()
+        if (receipt.get('input_packet_ref') or {}).get('producer_origin') == 'HOST_ORIGINAL_PREPARATION'}
     required = [r for r in baseline.records if r.requirementness.value == "REQUIREMENT"]
     unit_count = sum(len(children[r.source_record_id]) if children.get(r.source_record_id) else 1 for r in required)
     pending = {"UNKNOWN", "PENDING_EVIDENCE", "NEEDS_CLARIFICATION"}
@@ -152,6 +163,8 @@ def get_source_item_delivery_state(project_id: str, document_id: str, response: 
     effective_decisions = dict(decisions)
     for uid, opinion in (engineer_view or {}).get('records', {}).items():
         if opinion['state'] == 'CURRENT': effective_decisions[uid] = opinion
+    manual_current_ids = {uid for uid, opinion in (engineer_view or {}).get('records', {}).items() if opinion['state'] == 'CURRENT'}
+    assessed_ids = (set(effective_decisions) - prepared_ids) | manual_current_ids
     decision_counts = dict(Counter(r["decision"] for r in effective_decisions.values()))
     from copy import deepcopy
     from reqpilotx_server.application.agent_workflow.source_requirement_reference_bridge import load_source_workbench_metadata
@@ -164,9 +177,10 @@ def get_source_item_delivery_state(project_id: str, document_id: str, response: 
             "baseline_sha256": baseline.artifact_sha256, "baseline_revision": baseline.revision,
             "source_item_count": len(baseline.records), "requirement_count": len(required),
             "non_requirement_count": len(baseline.records) - len(required),
-            "analysis_unit_count": unit_count, "assessed_unit_count": len(effective_decisions),
-            "ai_assessed_unit_count": len(decisions), "engineer_responses": engineer_view, "business_basis_sha256": basis_sha,
-            "unassessed_unit_count": unit_count - len(effective_decisions),
+            "analysis_unit_count": unit_count, "assessed_unit_count": len(assessed_ids),
+            "ai_assessed_unit_count": len(set(decisions) - prepared_ids), "original_prepared_unit_count": len(prepared_ids),
+            "engineer_responses": engineer_view, "business_basis_sha256": basis_sha,
+            "unassessed_unit_count": unit_count - len(assessed_ids),
             "awaiting_evidence_unit_count": decision_counts.get("PENDING_EVIDENCE", 0),
             "clarification_unit_count": decision_counts.get("NEEDS_CLARIFICATION", 0),
             "pending_unit_count": unit_count - sum(n for key, n in decision_counts.items() if key not in pending),
@@ -189,6 +203,11 @@ def _build_current_delivery(project_id, document_id):
         annotations=bundle.get("image_annotations"),
         decomposition=reasoning["decomposition"], assessments=reasoning["assessments"], manual_decisions=manual,
         analysis_policy=bundle.get("analysis_policy"), project_id=project_id, document_id=document_id)
+    original_receipt = (reasoning.get('openkb_preparation') or {}).get('original_reference_receipt')
+    if original_receipt is not None:
+        if original_receipt['assessment_sha256'] != (reasoning.get('assessments') or {}).get('artifact_sha256'):
+            raise ApplicationError(status_code=409, detail='原件准备引用与当前分析工件版本不一致。')
+        snapshot['source_item_baseline']['original_reference_receipt'] = original_receipt
     from reqpilotx_server.application.agent_workflow.source_item_reading import baseline_reading_projections
     from reqpilotx_server.application.agent_workflow.source_requirement_baseline import canonical_json_sha256
     reading = baseline_reading_projections(bundle["document_map"], bundle["baseline"].records, source_path)

@@ -72,3 +72,22 @@ it("keeps a later draft when an earlier save resolves after switching away and b
   page.unmount();render(<EngineerOpinion {...props} view={newer} unitId="u" />);
   expect(screen.getByLabelText("判断理由")).toHaveValue("后来补写的草稿");
 });
+
+it("allows managed human opinions while native analysis remains disabled",async()=>{
+  const opinions=view(),state={engineer_responses:opinions,decomposition:{records:{src:[{singular_requirement_id:'u',requirement_display_id:'REQ-0001-S01',text:'完整派生内容'}]}},assessments:null} as unknown as SourceItemDeliveryState;
+  const save=vi.fn(async()=>{}),run=vi.fn(),workflow={state,busy:false,scopeKey:'managed:p:d:baseline',run,saveEngineerResponse:save} as unknown as Parameters<typeof SourceItemReasoningDetail>[0]['workflow'];
+  const page=render(<SourceItemReasoningDetail workflow={workflow} sourceItemId='src' requirementId='REQ-0001' onPageChange={vi.fn()} purpose='analysis' readOnly engineerReadOnly={false}/>);
+  expect(screen.getByRole('button',{name:'分析本条'})).toBeDisabled();
+  const user=userEvent.setup();await user.type(screen.getByLabelText('判断理由'),'仅人工响应');await user.click(screen.getByRole('button',{name:'保存为本版工作意见'}));
+  expect(save).toHaveBeenCalledWith('u',expect.objectContaining({reason:'仅人工响应'}));expect(run).not.toHaveBeenCalled();
+  page.rerender(<SourceItemReasoningDetail workflow={workflow} sourceItemId='src' requirementId='REQ-0001' onPageChange={vi.fn()} purpose='analysis' readOnly engineerReadOnly/>);
+  expect(screen.queryByLabelText('判断理由')).not.toBeInTheDocument();
+});
+
+it("keeps saved reasons, conditions, evidence requests and history readable without authoring controls",()=>{
+  const opinions=view();opinions.records.u={record_id:'manual',unit_id:'u',source_item_id:'src',requirement_display_id:'REQ-0001',decision:'NON_COMPLIANT',reason:'已保存理由',conditions:'限定方案',evidence_requests:'需要正式图纸',state:'CURRENT',decided_at:'2026-10-01',origin:'USER_INPUT',baseline_sha256:'basis'};
+  opinions.history=[{...opinions.records.u,record_id:'history',reason:'历史理由'}];
+  render(<EngineerOpinion unitId='u' view={opinions} onSave={vi.fn()} readOnly/>);
+  expect(screen.getByText(/已保存理由/)).toBeVisible();expect(screen.getAllByText('适用条件：限定方案')[0]).toBeVisible();expect(screen.getAllByText('证据请求：需要正式图纸')[0]).toBeVisible();
+  expect(screen.getByText('历史工程师意见 · 1 条')).toBeInTheDocument();expect(screen.queryByRole('textbox')).not.toBeInTheDocument();expect(screen.queryByRole('button',{name:'保存为本版工作意见'})).not.toBeInTheDocument();
+});

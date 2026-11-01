@@ -112,6 +112,14 @@ both explicit decision lists:
   source-location proof. It never changes source hierarchy to manufacture a 1:1
   heading/item relationship. Topic and context IDs use existing shared contracts.
 
+The typed task tools additionally accept `source_number_ref:{kind:ITEM_SOURCE,
+segment_index}` for a number at the beginning of a read source segment, or
+`{kind:ITEM_HEADING,heading_ref}` from `source_read(view:item,part:numbering)`.
+They resolve to the same exact references above; they do not detect numbers or
+infer table roles. A historic Map label containing the whole title does not
+prevent selecting the exact numeric prefix of the actual owning heading.
+Low-level compiler input remains the explicit TEXT/MAP_HEADING/TABLE_CELL form.
+
 For multiple original numbers use `source_numbers: [{value, source_number_ref,
 source_extent?}]` in an update. Each optional `source_extent` is an explicit list
 of owned TEXT/TABLE_CELL ranges for that clause; the Agent must read and decide

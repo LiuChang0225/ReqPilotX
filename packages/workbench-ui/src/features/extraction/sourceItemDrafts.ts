@@ -1,4 +1,5 @@
 import { useCallback, useEffect, useState } from "react";
+import { saasStorageKey } from "../../shared/api/saasSession";
 
 type Draft = { schema: 1; text: string; revision: number; updatedAt: string };
 const memory = new Map<string, Draft | null>();
@@ -7,7 +8,7 @@ const prefix = "reqpilotx:source-feedback:v1:";
 const changedEvent = "reqpilotx:source-feedback-draft";
 
 export function sourceFeedbackDraftKey(project: string, document: string, source: string, baseline: string) {
-  return prefix + [project, document, source, baseline].map(encodeURIComponent).join(":");
+  return saasStorageKey(prefix + [project, document, source, baseline].map(encodeURIComponent).join(":"));
 }
 
 function read(key: string): Draft | null {

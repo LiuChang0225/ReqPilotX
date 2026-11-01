@@ -13,6 +13,8 @@ import type {
   PointerEvent as ReactPointerEvent,
 } from "react";
 import { ApiError, api } from "../../shared/api/client";
+import { isSaasAccountMode } from "../../shared/api/saasSession";
+import { SAAS_KIT_UNAVAILABLE_MESSAGE, SAAS_LEGACY_STRUCTURE_UNAVAILABLE_MESSAGE } from "./saasAgentAvailability";
 import type {
   NativeStructureDocumentTreeV1,
   NativeStructureActivityEventV2,
@@ -1718,6 +1720,7 @@ export function NativeStructureReferenceDock({
   const viewerUrl = host.pdfViewerUrl(sourceFileUrl, 1, true);
   const viewerOrigin = new URL(viewerUrl, window.location.origin).origin;
   const documentAgent = useDocumentAgent();
+  const externalContentIdentity = sourceReader ? `${sourceReader.reference.artifact_id}:${sourceReader.outline?.baseline?.artifact_sha256 || sourceReader.revision_id}` : undefined;
   const [reviewPresentation, setReviewPresentation] = useState<"table" | "source">(() => documentAgent ? "table" : "source");
 
   const [reference, setReference] =
@@ -1772,7 +1775,13 @@ export function NativeStructureReferenceDock({
     useState<SourceRequirementBaselineOutlineV1 | null>(null);
   const nativeReasoning = useSourceItemReasoning(projectId, documentId,
     !sourceReader && mode === "SOURCE_REQUIREMENTS" ? sourceRequirementOutline?.baseline.artifact_sha256 || "" : "", initialReasoningState);
-  const sourceItemReasoning = sourceReader ? { ...nativeReasoning, state: sourceReader.reasoning ? { ...sourceReader.reasoning, analysis_policy: sourceReader.analysis_policy } : null } : nativeReasoning;
+  const sourceItemReasoning = sourceReader ? { ...nativeReasoning,
+    scopeKey: sourceReader.responseScope || `${projectId}:${documentId}:${sourceSha256}:${sourceReader.outline?.baseline?.artifact_sha256 || sourceReader.revision_id}`,
+    state: sourceReader.reasoning ? { ...sourceReader.reasoning, analysis_policy: sourceReader.analysis_policy } : null,
+    saveEngineerResponse: sourceReader.saveEngineerResponse || (async () => { throw new Error("当前连接尚未提供人工响应保存能力。"); }),
+    loadEngineerResponses: sourceReader.loadEngineerResponses || (async () => { throw new Error("当前连接尚未提供人工响应读取能力。"); }),
+    run: async () => { throw new Error("请在关联外部会话中发起分析或拆分。"); },
+  } : nativeReasoning;
   const previewReader = useMemo<SourcePreviewReader | undefined>(() => sourceRequirementOutline ? {
     scope: `${projectId}:${documentId}:${sourceSha256}:${sourceReader?.revision_id || sourceRequirementOutline.baseline.artifact_sha256}`,
     sourceSha256, baselineSha256: sourceRequirementOutline.baseline.artifact_sha256,
@@ -2067,7 +2076,7 @@ export function NativeStructureReferenceDock({
     documentId,
     projectId,
     sourceSha256,
-    sourceReader?.revision_id,
+    externalContentIdentity,
   ]);
 
   useEffect(() => {
@@ -2997,7 +3006,7 @@ export function NativeStructureReferenceDock({
   const externalBind = documentAgent?.bind;
   useEffect(() => {
     if (!sourceReader || !externalBind) return;
-    return externalBind({ sourceSha256, baselineSha256: sourceReader.outline?.baseline.artifact_sha256 || "", revisionId: sourceReader.revision_id,
+    return externalBind({ sourceSha256, baselineSha256: sourceReader.outline?.baseline?.artifact_sha256 || "", revisionId: sourceReader.revision_id,
       selectedSourceItemId, selectedNodeId, selectedDerivedUnitId: selectedDerivedId || undefined, selectedLabel: selectedSourceItem ? `${selectedDerivedId ? "父条款 " : ""}${selectedSourceItem.requirement_display_id || selectedSourceItem.source_display_id}` : nodesById.get(selectedNodeId)?.title || "当前结构",
       onUpdated: () => setSourceRequirementRefreshToken(value => value + 1) });
   }, [externalBind, sourceReader?.revision_id, sourceSha256, selectedSourceItemId, selectedNodeId, selectedDerivedId, selectedSourceItem, nodesById]);
@@ -3992,6 +4001,13 @@ export function NativeStructureReferenceDock({
     if (host.readOnly) return;
     const normalized = message.trim();
     if (!reference || !selectedNode || !normalized || submitting) return;
+    if (isSaasAccountMode() && !sourceReader) {
+      if (documentAgent) {
+        documentAgent.show(normalized, "document");
+        setFeedbackNotice("请在文档 Agent 协作中核对并发送，节点草稿保留。");
+      }
+      return;
+    }
     setSubmitting(true);
     setError("");
     setFeedbackNotice("");
@@ -4046,7 +4062,7 @@ export function NativeStructureReferenceDock({
   };
 
   const continueWithFeedback = async () => {
-    if (host.readOnly || sourceReader) return;
+    if (isSaasAccountMode() || host.readOnly || sourceReader) return;
     if (!reference?.continuation.can_continue || continuing) return;
     setContinuing(true);
     setError("");
@@ -4079,7 +4095,7 @@ export function NativeStructureReferenceDock({
     proposals: NativeStructureProposalV1[],
     action: "CONFIRM" | "UNDO" | "KEEP_UNRESOLVED",
   ) => {
-    if (host.readOnly || sourceReader || !reference || !proposals.length || proposalMutation) return;
+    if (isSaasAccountMode() || host.readOnly || sourceReader || !reference || !proposals.length || proposalMutation) return;
     const mutationKey = `${proposals[0].finding_code}:${action}`;
     setProposalMutation(mutationKey);
     setProposalNotice("");
@@ -4244,7 +4260,7 @@ export function NativeStructureReferenceDock({
     scopeId: string,
     title: string,
   ) => {
-    if (host.readOnly || sourceReader) return;
+    if (isSaasAccountMode() || host.readOnly || sourceReader) return;
     if (
       !reference ||
       !sourceRequirementMode ||
@@ -4290,7 +4306,7 @@ export function NativeStructureReferenceDock({
     nodeId: string,
     title: string,
   ) => {
-    if (host.readOnly || sourceReader) return;
+    if (isSaasAccountMode() || host.readOnly || sourceReader) return;
     const scopeId = `text:${nodeId}`;
     if (
       !reference ||
@@ -4694,7 +4710,8 @@ export function NativeStructureReferenceDock({
           <button
             type="button"
             className="button primary compact native-hierarchy-continue-button"
-            disabled={continuing}
+            disabled={isSaasAccountMode() || continuing}
+            title={isSaasAccountMode() ? SAAS_LEGACY_STRUCTURE_UNAVAILABLE_MESSAGE : undefined}
             onClick={() => void continueWithFeedback()}
           >
             {continuing
@@ -5153,7 +5170,7 @@ export function NativeStructureReferenceDock({
                       sourceRequirementRunJob?.scope_id === textScopeId;
                     if (textScopeCovered && !currentRunMatchesText) return null;
                     const disabled =
-                      Boolean(sourceReader) || Boolean(sourceRequirementRunStartingScopeId) ||
+                      isSaasAccountMode() || Boolean(sourceReader) || Boolean(sourceRequirementRunStartingScopeId) ||
                       sourceRequirementRunActive ||
                       sourceRequirementRunStatus?.status === "UNAVAILABLE" ||
                       (currentRunMatchesText && sourceRequirementRunComplete);
@@ -5198,11 +5215,13 @@ export function NativeStructureReferenceDock({
                           {sourceRequirementRunError ? (
                             <small role="alert">{sourceRequirementRunError}</small>
                           ) : null}
+                          {isSaasAccountMode() && <small role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</small>}
                         </div>
                         <button
                           type="button"
                           className="button secondary compact"
                           disabled={disabled}
+                          title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined}
                           onClick={() =>
                             void startSourceItemTextScope(
                               selectedNode.node_id,
@@ -5257,7 +5276,7 @@ export function NativeStructureReferenceDock({
                         sourceRequirementMode &&
                         (!scopeCovered || currentRunMatchesScope);
                       const scopeRunDisabled =
-                        Boolean(sourceReader) || Boolean(sourceRequirementRunStartingScopeId) ||
+                        isSaasAccountMode() || Boolean(sourceReader) || Boolean(sourceRequirementRunStartingScopeId) ||
                         sourceRequirementRunActive ||
                         sourceRequirementRunStatus?.status === "UNAVAILABLE" ||
                         (currentRunMatchesScope && sourceRequirementRunComplete);
@@ -5320,11 +5339,13 @@ export function NativeStructureReferenceDock({
                                     {sourceRequirementRunError}
                                   </small>
                                 ) : null}
+                                {isSaasAccountMode() && <small role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</small>}
                               </div>
                               <button
                                 type="button"
                                 className="button secondary compact"
                                 disabled={scopeRunDisabled}
+                                title={isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : undefined}
                                 onClick={() =>
                                   void startSourceRequirementScope(
                                     scopeId,
@@ -5575,7 +5596,8 @@ export function NativeStructureReferenceDock({
                                 <button
                                   type="button"
                                   className="button secondary compact"
-                                  disabled={host.readOnly || Boolean(sourceReader) || !reference || Boolean(proposalMutation)}
+                                  disabled={isSaasAccountMode() || host.readOnly || Boolean(sourceReader) || !reference || Boolean(proposalMutation)}
+                                      title={isSaasAccountMode() ? SAAS_LEGACY_STRUCTURE_UNAVAILABLE_MESSAGE : undefined}
                                   onClick={() =>
                                     void decideProposalGroup(proposals, "CONFIRM")
                                   }
@@ -5588,7 +5610,8 @@ export function NativeStructureReferenceDock({
                                     <button
                                       type="button"
                                       className="button secondary compact"
-                                      disabled={host.readOnly || Boolean(sourceReader) || !reference || Boolean(proposalMutation)}
+                                      disabled={isSaasAccountMode() || host.readOnly || Boolean(sourceReader) || !reference || Boolean(proposalMutation)}
+                                      title={isSaasAccountMode() ? SAAS_LEGACY_STRUCTURE_UNAVAILABLE_MESSAGE : undefined}
                                       onClick={() =>
                                         void decideProposalGroup(proposals, "CONFIRM")
                                       }
@@ -5604,7 +5627,8 @@ export function NativeStructureReferenceDock({
                                     <button
                                       type="button"
                                       className="button ghost compact"
-                                      disabled={host.readOnly || Boolean(sourceReader) || !reference || Boolean(proposalMutation)}
+                                      disabled={isSaasAccountMode() || host.readOnly || Boolean(sourceReader) || !reference || Boolean(proposalMutation)}
+                                      title={isSaasAccountMode() ? SAAS_LEGACY_STRUCTURE_UNAVAILABLE_MESSAGE : undefined}
                                       onClick={() =>
                                         void decideProposalGroup(proposals, "UNDO")
                                       }
@@ -5615,7 +5639,8 @@ export function NativeStructureReferenceDock({
                                     <button
                                       type="button"
                                       className="button ghost compact"
-                                      disabled={host.readOnly || Boolean(sourceReader) || !reference || Boolean(proposalMutation)}
+                                      disabled={isSaasAccountMode() || host.readOnly || Boolean(sourceReader) || !reference || Boolean(proposalMutation)}
+                                      title={isSaasAccountMode() ? SAAS_LEGACY_STRUCTURE_UNAVAILABLE_MESSAGE : undefined}
                                       onClick={() =>
                                         void decideProposalGroup(
                                           proposals,
@@ -5674,6 +5699,7 @@ export function NativeStructureReferenceDock({
                   </div>
                 </section>
 
+                {isSaasAccountMode() && !sourceReader && <p role="status">{SAAS_LEGACY_STRUCTURE_UNAVAILABLE_MESSAGE} 原有指引草稿保留，发送前请在文档协作中核对。</p>}
                 {host.readOnly ? <div className="native-hierarchy-feedback-actions"><button type="button" className="button secondary compact" disabled={!documentAgent?.collaborationAvailable} onClick={() => documentAgent?.show("", "selected")}>在会话中讨论此节点</button></div> : sourceReader && documentAgent?.producer === "EXTERNAL_PLUGIN" && !message && !externalDraft.otherDrafts.length
                   ? <div className="native-hierarchy-feedback-actions"><small>修改意见将绑定当前节点，在协作区统一记录。</small><button type="button" className="button secondary compact" onClick={() => documentAgent.show("", "selected")}>在协作中调整此节点</button></div>
                   : <><label className="native-hierarchy-feedback">
@@ -5701,10 +5727,11 @@ export function NativeStructureReferenceDock({
                   <button
                     type="button"
                     className="button primary compact"
-                    disabled={!reference || !message.trim() || submitting || Boolean(sourceReader?.feedbackCapability && !sourceReader.feedbackCapability.enabled)}
+                    disabled={isSaasAccountMode() && !sourceReader && !documentAgent || !reference || !message.trim() || submitting || Boolean(sourceReader?.feedbackCapability && !sourceReader.feedbackCapability.enabled)}
+                    title={isSaasAccountMode() && !sourceReader && !documentAgent ? SAAS_LEGACY_STRUCTURE_UNAVAILABLE_MESSAGE : undefined}
                     onClick={() => void submitFeedback()}
                   >
-                    {submitting ? "正在保存…" : "保存指引"}
+                    {submitting ? "正在保存…" : isSaasAccountMode() && !sourceReader && documentAgent ? "打开文档 Agent 协作" : "保存指引"}
                   </button>
                 </div>
                 {sourceReader?.feedbackCapability && !sourceReader.feedbackCapability.enabled && <p className="agent-policy-note">{sourceReader.feedbackCapability.reason || "当前版本暂不可提交指引。"}</p>}

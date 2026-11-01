@@ -7,6 +7,7 @@ cells and records, and decisions require explicit version-bound evidence.
 from __future__ import annotations
 
 from copy import deepcopy
+import json
 from pathlib import Path
 from tempfile import TemporaryDirectory
 from typing import Any
@@ -119,7 +120,7 @@ def _record_projection(record, segments):
             'figure_refs': []}
 
 
-def _apply_assessment(fields, decision, evidence_catalog):
+def _apply_assessment(fields, decision, evidence_catalog, *, input_receipt=None):
     evidence = decision.get('evidence', [])
     roles = set()
     for citation in evidence:
@@ -130,13 +131,17 @@ def _apply_assessment(fields, decision, evidence_catalog):
     if decision.get('decision') in {'COMPLIANT', 'PARTIALLY_COMPLIANT', 'NON_COMPLIANT'}:
         if not evidence or not roles.intersection({'INTERNAL_KNOWLEDGE', 'PRODUCT_EVIDENCE', 'PROJECT_EVIDENCE'}):
             raise DeliveryError('A compliance conclusion requires internal product/project evidence, not only the customer requirement')
-    fields.update(analysis_status='ASSESSED', analysis_result_state='CURRENT',
+    prepared = ((input_receipt or {}).get('input_packet_ref') or {}).get('producer_origin') == 'HOST_ORIGINAL_PREPARATION'
+    fields.update(analysis_status='NOT_STARTED' if prepared else 'ASSESSED', analysis_result_state='CURRENT',
         ai_assessment={'decision': decision['decision'], 'reason': decision.get('reason', ''),
                        'analysis_basis': '\n'.join(
-                           f"{evidence_catalog[c['fact_id']].get('document_name') or evidence_catalog[c['fact_id']].get('document_id') or c['fact_id']}: {c['quote']}"
+                           f"{evidence_catalog[c['fact_id']].get('document_name') or evidence_catalog[c['fact_id']].get('document_id') or c['fact_id']}: {c['quote']}\n"
+                           f"[登记原件 ID={evidence_catalog[c['fact_id']].get('document_id', '')}; "
+                           f"SHA256={evidence_catalog[c['fact_id']].get('source_sha256', '')}; fact={c['fact_id']}; "
+                           f"原生定位={json.dumps(evidence_catalog[c['fact_id']].get('source_ref', {}), ensure_ascii=False, sort_keys=True)}]"
                            for c in evidence),
                        'clarification_question': decision.get('clarification_question', ''),
-                       'assessment_mode': 'agent-evidence-bound'})
+                       'assessment_mode': 'host-evidence-preparation' if prepared else 'agent-evidence-bound'})
 
 
 def source_item_carry_notes(decomposition=None, assessments=None):
@@ -459,7 +464,8 @@ def build_delivery_snapshot(document_map, baseline, table_previews, *, annotatio
         if decision:
             if not eligible:
                 raise DeliveryError('Assessment targets a non-active analysis unit')
-            _apply_assessment(fields, decision, evidence_catalog)
+            _apply_assessment(fields, decision, evidence_catalog,
+                input_receipt=(assessments or {}).get('unit_input_receipts', {}).get(record.source_record_id))
         record_notes = carry_notes.get(record.source_record_id, []) if record else []
         if record_notes and not decision:
             fields['disposition_reason'] = '\n'.join(item['message'] for item in record_notes)
@@ -543,7 +549,8 @@ def build_delivery_snapshot(document_map, baseline, table_previews, *, annotatio
                             and any(item.get('stale_unit_ids') for item in child_notes)):
                         fields['analysis_result_state'] = 'STALE_REFERENCE'
                 if assessment_records.get(child['singular_requirement_id']):
-                    _apply_assessment(fields, assessment_records[child['singular_requirement_id']], evidence_catalog)
+                    _apply_assessment(fields, assessment_records[child['singular_requirement_id']], evidence_catalog,
+                        input_receipt=(assessments or {}).get('unit_input_receipts', {}).get(child['singular_requirement_id']))
                 node_models.append(MatrixNodeStateV1(**fields))
                 for table in tables:
                     if table['logical_table_id'] in parent.logical_table_ids:
@@ -599,6 +606,20 @@ def build_delivery_snapshot(document_map, baseline, table_previews, *, annotatio
         'source_sha256': baseline.source_sha256, 'revision': baseline.revision, 'status': baseline.status,
         'source_item_count': len(records), 'requirement_count': sum(r.requirementness is Requirementness.REQUIREMENT for r in records.values()),
         'non_requirement_count': sum(r.requirementness is Requirementness.NON_REQUIREMENT for r in records.values())}
+    if assessments is not None and all(key in assessments for key in ('artifact_sha256', 'knowledge_base_version', 'catalog_sha256')):
+        original_refs = []
+        for unit_id, decision in assessments.get('records', {}).items():
+            for citation in decision.get('evidence', []):
+                fact = evidence_catalog[citation['fact_id']]
+                original_refs.append({'unit_id': unit_id, 'decision': decision['decision'],
+                    'fact_id': citation['fact_id'], 'document_id': fact['document_id'],
+                    'document_name': fact.get('document_name', ''), 'source_sha256': fact['source_sha256'],
+                    'source_ref': deepcopy(fact['source_ref']), 'quote': citation['quote'],
+                    'authority': fact.get('authority', 'UNKNOWN'), 'claim_role': fact.get('claim_role', 'UNKNOWN'),
+                    'applicability': fact.get('applicability', 'UNKNOWN'), 'semantic_coverage': 'NOT_INDEPENDENTLY_VERIFIED'})
+        snapshot['source_item_baseline'].update(analysis_artifact_sha256=assessments['artifact_sha256'],
+            knowledge_base_version=assessments['knowledge_base_version'], catalog_sha256=assessments['catalog_sha256'],
+            analysis_original_evidence=original_refs)
     if manual_decisions is not None:
         snapshot['source_item_baseline'].update(manual_decisions_sha256=manual_decisions['artifact_sha256'],
             manual_decisions_revision=manual_decisions['revision'], human_acceptance='NOT_CLAIMED')

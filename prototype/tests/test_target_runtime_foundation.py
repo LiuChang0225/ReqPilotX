@@ -1459,6 +1459,7 @@ class AppFactoryBoundaryTests(unittest.TestCase):
             app.state.domain_routers,
             (
                 "runtime",
+                "saas-auth",
                 "projects",
                 "ingestion",
                 "reading",
@@ -1471,6 +1472,7 @@ class AppFactoryBoundaryTests(unittest.TestCase):
                 "matrix",
                 "assessment",
                 "knowledge",
+                "openkb-evidence",
                 "export",
             ),
         )

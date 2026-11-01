@@ -6,6 +6,7 @@ import { useWorkspace } from "./WorkspaceContext";
 import type { PluginWorkbenchProvider } from "./usePluginWorkbench";
 import type { WorkspaceContextValue } from "./WorkspaceContext";
 import { useWorkbenchHost } from "./WorkbenchHostContext";
+import { DeliveryVersions } from "./DeliveryVersions";
 export type { PluginState } from "./documentWorkProvider";
 
 type PluginWorkbenchProps = {
@@ -35,7 +36,8 @@ export function PluginWorkbenchContent({ provider, projectId, documentId, source
     {reader?.outline && <dl><div><dt>原文条目</dt><dd>{reader.outline.summary.source_item_count}</dd></div><div><dt>原文需求</dt><dd>{reader.outline.summary.requirement_count}</dd></div><div><dt>保留的非需求</dt><dd>{reader.outline.summary.non_requirement_count}</dd></div><div><dt>实际分析单元</dt><dd>{reader.reasoning?.analysis_unit_count ?? "未提供"}</dd></div></dl>}
     <div className="source-working-export-actions">{hasItems && provider.capability("export_draft").enabled ? <a className="button primary" href={host.resourceUrl(provider.exportUrl)}>导出当前核对版 Excel</a> : <p>{provider.capability("export_draft").reason || "当前版本暂不可导出。"}</p>}
       <button className="button secondary" onClick={() => updateRoute({ task:"extraction", mode:"organize", checkpoint:hasItems?"list":"structure" })}>回到原文核对</button></div>
-    <p className="muted">这是外部插件提交的工作草稿。当前连接尚未接入完整人工响应和正式交付锁定能力。</p>
+    {reader?.outline?.baseline && <DeliveryVersions projectId={projectId} documentId={documentId} sourceSha256={sourceSha256}
+      baselineRevision={reader.outline.baseline.revision} transport={provider.deliveryTransport} resourceUrl={host.resourceUrl} />}
     <section className="delivery-versions"><h2>已保存的成果版本</h2><div className="delivery-history-scroll"><table className="delivery-history-table"><thead><tr><th>版本</th><th>已保存成果</th><th>保存时间</th><th>查看</th></tr></thead><tbody>{state?.versions.map(item => <tr key={item.revision_id}><td>v{item.number}</td><td>{item.stages.map(s => `${s.stage === "MAP" ? "结构" : "原文条目"} ${s.count} 项`).join(" · ")}</td><td>{item.created_at ? new Date(item.created_at).toLocaleString("zh-CN") : "未提供"}</td><td><button className="button ghost compact" disabled={item.revision_id === provider.pinned} onClick={() => provider.selectRevision(item.revision_id)}>核对此版</button></td></tr>)}</tbody></table></div></section>
   </section>;
   return <section className="requirement-tree-page" aria-label={route.task === "analysis" ? "当前核对版分析" : "当前核对版原文"}>
@@ -44,10 +46,10 @@ export function PluginWorkbenchContent({ provider, projectId, documentId, source
     </header>}
     {error && <p role="alert">{error}</p>}
     {!host.readOnly && current && state?.map_confirmation_required && route.task === "extraction" && !itemsMode && <section className="stage-approval-card" aria-label="确认文档结构"><div><strong>核对这一版结构后继续</strong><p>确认会保存到当前版本；由原外部任务取回后继续整理条目。</p></div><button className="button primary compact" disabled={!reader || provider.pending || !provider.capability("confirm_map").enabled} onClick={() => void confirm()}>确认此结构</button></section>}
-    {route.task === "analysis" && <p className="agent-policy-note">{reader?.analysis_policy?.status === "SKIPPED" ? "符合性分析未执行：未提供内部依据或本次选择跳过。" : "当前显示外部已保存成果。"} {host.readOnly ? "当前面板只读，可核对来源与已保存建议。" : "当前连接尚未接入分析和人工响应的完整传输，可核对来源并保存修改意见。"}</p>}
+    {route.task === "analysis" && <p className="agent-policy-note">{reader?.analysis_policy?.status === "SKIPPED" ? "符合性分析未执行：未提供内部依据或本次选择跳过。" : "当前显示外部已保存成果。"} {host.readOnly ? "当前面板只读，可核对来源与已保存建议。" : provider.capability("save_engineer_response").enabled ? "工程师响应保存为新的成果版本，来源与 Agent 建议继续保留。" : provider.capability("save_engineer_response").reason || "当前版本只读，可核对来源与已保存意见。"}</p>}
     {state && !state.revision_id && <div className="source-only-work"><p>当前任务已绑定这份原件，尚未保存结构或条目。可先阅读原件，后续成果会保留在这个任务中。</p>{host.readOnly ? <a className="button secondary" href={sourceUrl} target="_blank" rel="noreferrer">阅读原件</a> : <button type="button" className="button secondary" onClick={() => updateRoute({ task: "reading" })}>阅读原件</button>}</div>}
     {!reader ? state && !state.revision_id ? null : <p role="status">{provider.error ? "当前核对版暂不可读取，请重新同步或选择已保存版本。" : !state ? "正在同步外部成果…" : provider.pinned ? "正在读取当前核对版…" : "等待外部任务保存首个结构成果…"}</p> : route.task === "analysis" && !hasItems ? <p>当前只有结构草稿；条目形成后可查看响应。</p> : <NativeStructureReferenceDock
-      key={`${reader.revision_id}`} projectId={projectId} documentId={documentId} sourceSha256={sourceSha256} sourceReader={reader}
+      key={`${provider.scope}:${reader.reference.artifact_id}:${reader.outline?.baseline?.artifact_sha256 || reader.revision_id}`} projectId={projectId} documentId={documentId} sourceSha256={sourceSha256} sourceReader={reader}
       onChangePurpose={purpose => updateRoute({ task: purpose === "analysis" ? "analysis" : "extraction", mode: "organize", checkpoint: "list" })}
       sourceFileUrl={sourceUrl} showSourcePreview activePage={page} onPageChange={setPage} mode={itemsMode ? "SOURCE_REQUIREMENTS" : "STRUCTURE"} purpose={route.task === "analysis" ? "analysis" : "review"}/> }
   </section>;

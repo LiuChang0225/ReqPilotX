@@ -155,13 +155,22 @@ def source_item_read(bundle_dir, *, source_item_id, expected_source_sha256, expe
         requirement_kinds=[k.value for k in record.requirement_kinds], non_requirement_role=record.non_requirement_role.value if record.non_requirement_role else None,
         original_number=number, source_numbers=numbers, confidence=record.confidence,
         decision_summary=record.decision_summary, reason_codes=list(record.reason_codes))
+    numbering_review = {'projected_number':number, 'projected_numbers':numbers,
+        'explicit_clear':annotation.get('source_number') == '' or annotation.get('source_numbers') == [],
+        'read_sources':_next('source_item_read', {'source_item_id':record.source_display_id,'part':'numbering'}),
+        'instruction':'A blank projection does not prove there is no original number. Check source text/cells. For a leading original number select ITEM_SOURCE with the source segment_index; for an owning heading use the numbering read heading_ref. Agent selects actual identifiers; program binds coordinates. Preserve an intentional explicit clear unless correcting it from source.'}
     sections = {'identity': identity, 'source': facts, 'shared_context': shared, 'images': images,
+        'numbering_review':numbering_review,
         'annotations': annotation, 'context_review': context_review, 'decomposition': {'children': (decomposition or {}).get('records', {}).get(record.source_record_id, []),
             'disposition': (decomposition or {}).get('dispositions', {}).get(record.source_record_id),
             'review_scope': (decomposition or {}).get('review_scope'),
             'authority': 'AGENT_WORKING_PROPOSAL', 'packet_available': bool(record.requirementness is core.Requirementness.REQUIREMENT and facts)}}
     base = _base(document_map, baseline, record)
     arguments = {'source_item_id': record.source_display_id, 'part': original_part}
+    if part == 'numbering':
+        from task_numbering import numbering_sources
+        return _json_part(base, {**numbering_review, **numbering_sources(document_map,baseline,record,tables)},
+            arguments, offset=offset, max_chars=max_chars, link_transform=link_transform)
     if part in {'context_candidates', 'linked_context'}:
         arguments['part'] = part + '@' + context_review['context_bindings_sha256']
         context_base = {**base, 'context_bindings_sha256': context_review['context_bindings_sha256'], 'part': part}
@@ -175,6 +184,9 @@ def source_item_read(bundle_dir, *, source_item_id, expected_source_sha256, expe
             raise ValueError('Existing IMAGE items use visual/classification changes; scope replacement is TEXT/TABLE')
         from scope_tools import scope_template
         scope = scope_template(document_map, baseline, tables, core._record_scope_id(record))
+        if scope.get('coupled_scope_ids'):
+            scope['coupled_scope_templates'] = [scope_template(document_map, baseline, tables, scope_id)
+                for scope_id in scope['coupled_scope_ids']]
         return _json_part(base, scope, arguments, offset=offset, max_chars=max_chars, link_transform=link_transform)
     if part == 'image_scope':
         return _json_part(base, image_packet, arguments, offset=offset, max_chars=max_chars, link_transform=link_transform)

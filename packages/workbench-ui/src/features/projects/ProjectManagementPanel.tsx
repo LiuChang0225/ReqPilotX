@@ -7,6 +7,7 @@ import { FileName } from "../../shared/ui/FileName";
 import { Icon } from "../../shared/ui/Icon";
 import { ProjectDocumentLibrary } from "./ProjectDocumentLibrary";
 import { useWorkspace } from "../workspace/WorkspaceContext";
+import { useWorkbenchHost } from "../workspace/WorkbenchHostContext";
 import { UploadQueueDialog } from "../documents/UploadQueueDialog";
 import {
   createUploadItems,
@@ -15,6 +16,8 @@ import {
 } from "../documents/uploadQueue";
 
 export function ProjectManagementPanel() {
+  const host = useWorkbenchHost();
+  const nativeEvidence = host.nativeEvidence === true && !host.readOnly;
   const {
     projects,
     route,
@@ -26,6 +29,7 @@ export function ProjectManagementPanel() {
     runAction,
     busyAction,
     refreshProject,
+    refreshAll,
     setNotice,
   } = useWorkspace();
   const sorInput = useRef<HTMLInputElement>(null);
@@ -73,7 +77,7 @@ export function ProjectManagementPanel() {
     const created = await runAction(
       "创建项目",
       () => api.createProject(projectName.trim(), customerName.trim()),
-      { refresh: "all" },
+      { refresh: "none", scope: "project" },
     );
     if (!created) return;
     setProjectName("");
@@ -88,7 +92,29 @@ export function ProjectManagementPanel() {
       },
       { replace: true },
     );
+    try { await refreshAll(); }
+    catch { setNotice("项目已保存，项目列表暂未更新。请同步项目后查看。"); }
   };
+
+  useEffect(() => {
+    let live = true;
+    try {
+      const pending = api.pendingEntryCommands().find(item => item.kind === 'project.create');
+      if (pending) { setProjectName(String(pending.payload.name)); setCustomerName(String(pending.payload.customer_name)); setShowCreateProject(true); }
+      void api.recoverPendingEntryCommands(route.projectId).then(async ({ recovered, failures }) => {
+        if (!live) return;
+        if (failures.length) setNotice(failures[0].error instanceof Error ? failures[0].error.message : String(failures[0].error));
+        if (!recovered.length) return;
+        const project = recovered.find(item => item.intent.kind === 'project.create');
+        if (project) { setShowCreateProject(false); setProjectName(''); setCustomerName('');
+          updateRoute({ task: 'projects', projectId: project.result.id, documentId: '', requirementSetId: '' }, { replace: true }); }
+        const imported = recovered.find(item => item.intent.kind === 'document.import' && item.intent.scope === route.projectId);
+        if (!project && imported) updateRoute({ documentId: imported.result.id, requirementSetId: '' }, { replace: true });
+        await refreshAll();
+      }).catch(cause => { if (live) setNotice(cause instanceof Error ? cause.message : String(cause)); });
+    } catch (cause) { setNotice(cause instanceof Error ? cause.message : String(cause)); }
+    return () => { live = false; };
+  }, [route.projectId, refreshAll, setNotice, updateRoute]);
 
   useEffect(() => {
     const active = uploadQueue.find((item) =>
@@ -252,11 +278,15 @@ export function ProjectManagementPanel() {
             type="button"
             disabled={!selectedProject}
             title={
-              knowledgeReady
+              nativeEvidence ? "登记证据原件，不运行索引或模型" : knowledgeReady
                 ? "添加知识依据"
                 : "文件会先安全保存；检索能力连接后再同步"
             }
             onClick={() => {
+              if (nativeEvidence) {
+                updateRoute({ task: "knowledge", knowledgeSpace: "project", knowledgePage: undefined, knowledgeView: undefined });
+                return;
+              }
               setActiveKind("knowledge");
               knowledgeInput.current?.click();
             }}

@@ -1,4 +1,7 @@
 /** ReqPilotX application host: owned runtime by default; explicit readonly connection for development probes. */
+import discovery from './application-discovery.cjs';
+import { installTaskMcp } from './task-mcp.js';
+import { TaskLauncher } from './task-launch.js';
 import { ManagedRuntime } from './managed-runtime.js';
 import { Readable } from 'node:stream';
 import { pipeline } from 'node:stream/promises';
@@ -25,18 +28,42 @@ export function proxyTarget(requestUrl, origin) {
   return new URL(path + url.search, origin);
 }
 
-/** A read-only proxy handler; forwards Range but no Pair cookies or credentials upstream. */
-export function createHandler(origin, reject, transport = fetch, runtimeSnapshot) {
+/** Authenticated resource broker with an explicit write policy; no Pair credentials go upstream. */
+export function createHandler(origin, reject, transport = fetch, runtimeSnapshot, taskLauncher) {
   return async (req, res) => {
     const denied = reject(req);
     if (denied !== undefined) { res.writeHead(denied); res.end(); return; }
     const url = new URL(req.url, 'http://pair.invalid');
     const state = runtimeSnapshot ? runtimeSnapshot() : { serviceOrigin: origin, mode: 'readonly-connect', status: 'READY' };
-    const canCreate = state.mode === 'managed' && req.method === 'POST' && /^\/reqpilotx\/service\/api\/projects(?:\/[^/]+\/sor-documents)?$/.test(url.pathname);
+    if (url.pathname === PREFIX + '/tasks/start' || url.pathname.startsWith(PREFIX + '/tasks/')) {
+      try {
+        if (!taskLauncher) { res.writeHead(503); res.end(JSON.stringify({ error: 'TASK_LAUNCH_NOT_CONFIGURED' })); return; }
+        let result;
+        const control = /^\/reqpilotx\/tasks\/([^/]+)\/control$/.exec(url.pathname);
+        if ((url.pathname === PREFIX + '/tasks/start' || control) && req.method === 'POST') {
+          req.setEncoding('utf8');
+          let text = ''; for await (const chunk of req) { text += chunk; if (Buffer.byteLength(text) > 32768) { res.writeHead(413); res.end(); return; } }
+          const input = JSON.parse(text);
+          if (control) {
+            if (input.commandId !== control[1]) { res.writeHead(422); res.end(); return; }
+            result = await taskLauncher.control(input);
+          } else result = await taskLauncher.start(input);
+        } else if (req.method === 'GET' && url.pathname !== PREFIX + '/tasks/start' && !control) {
+          result = await taskLauncher.inspect(url.pathname.slice((PREFIX + '/tasks/').length));
+        } else { res.writeHead(405); res.end(); return; }
+        res.writeHead(req.method === 'POST' ? 202 : 200, { 'content-type': 'application/json', 'cache-control': 'no-store' }); res.end(JSON.stringify(result));
+      } catch (error) {
+        const status = error.status || (error.code === 'ENOENT' ? 404 : error instanceof SyntaxError ? 422 : 502);
+        res.writeHead(status, { 'content-type': 'application/json', 'cache-control': 'no-store' });
+        res.end(JSON.stringify({ error: error.status ? error.message : 'TASK_LAUNCH_NOT_CONFIRMED', retry: 'SAME_COMMAND_ID' }));
+      }
+      return;
+    }
+    const canCreate = discovery.allowsWrite(state, req.method, url.pathname);
     if (!['GET', 'HEAD'].includes(req.method) && !canCreate) { res.writeHead(405, { Allow: 'GET, HEAD' }); res.end(); return; }
     if (url.pathname === PREFIX + '/config') {
       res.writeHead(200, { 'content-type': 'application/json', 'cache-control': 'no-store' });
-      res.end(req.method === 'HEAD' ? undefined : JSON.stringify(state));
+      res.end(req.method === 'HEAD' ? undefined : JSON.stringify(discovery.publicConfiguration(state)));
       return;
     }
     if (state.status !== 'READY') { res.writeHead(503, { 'content-type': 'application/json' }); res.end(JSON.stringify({ detail: state.message || 'ReqPilotX is starting.' })); return; }
@@ -54,7 +81,7 @@ export function createHandler(origin, reject, transport = fetch, runtimeSnapshot
         await upstream.body?.cancel(); res.writeHead(502); res.end('Unexpected service redirect.'); return;
       }
       const responseHeaders = { 'cache-control': 'no-store', 'x-content-type-options': 'nosniff' };
-      for (const key of ['content-type', 'content-disposition', 'content-range', 'accept-ranges', 'etag', 'x-reqpilot-revision', 'x-reqpilot-snapshot']) {
+      for (const key of ['content-type', 'content-disposition', 'content-range', 'accept-ranges', 'etag', 'x-reqpilot-revision', 'x-reqpilot-snapshot', 'x-reqpilotx-delivery-sha256', 'x-reqpilotx-export-sha256']) {
         const value = upstream.headers.get(key); if (value !== null) responseHeaders[key] = value;
       }
       res.writeHead(upstream.status, responseHeaders);
@@ -73,10 +100,15 @@ export function createHandler(origin, reject, transport = fetch, runtimeSnapshot
 export function apply(ctx, config = {}) {
   const connect = config.mode === 'connect' || (!config.mode && config.serviceOrigin);
   const runtime = connect ? null : new ManagedRuntime(ctx.subprocess, config);
+  const taskLauncher = runtime && config.capabilityRoot ? new TaskLauncher(runtime, config, () => ({ sessions: ctx.get('sessionController'), workspaces: ctx.get('workspaceController'), liveStatus: id => ctx.get('agents')?.get(id)?.status })) : null;
+  if (taskLauncher && config.taskMcp === true) installTaskMcp(ctx, taskLauncher);
   const origin = connect ? serviceOrigin(config.serviceOrigin) : null;
   if (runtime) ctx.effect(() => () => runtime.stop(), 'reqpilotx: managed runtime');
+  if (taskLauncher) ctx.effect(() => () => taskLauncher.close(), 'reqpilotx: task launch lifetime');
   ctx.effect(() => ctx.webServer.register({ kind: 'prefix', path: PREFIX,
-    handler: createHandler(origin, req => ctx.connection.requestRejection(req), fetch, runtime ? () => runtime.snapshot : undefined),
+    handler: createHandler(origin, req => ctx.connection.requestRejection(req), fetch, runtime ? () => ({ ...runtime.snapshot, ownerId: runtime.ownerId,
+      taskLaunchReady: taskLauncher?.available() === true, taskCancelReady: taskLauncher?.canCancel() === true,
+      taskContinueReady: taskLauncher?.canContinue() === true, taskReconnectReady: taskLauncher?.canReconnect() === true }) : undefined, taskLauncher),
   }), 'reqpilotx: application route');
-  if (runtime) void runtime.start();
+  if (runtime) void runtime.start().then(async () => { if (runtime.snapshot.status === 'READY') await taskLauncher?.initialize(); }).catch(() => { if (taskLauncher) taskLauncher.ready = false; });
 }

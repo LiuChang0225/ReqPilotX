@@ -12,6 +12,12 @@ Use when a source contains a table or table-like layout. Recover its real owner 
 | T04 Message layout, enum list or applicability matrix | Keep the defining statement with structured byte/bit/value or scenario content | Byte offsets are not clause numbers. Independently specified services/behaviors may need separate source items; cell intersections become separate test scenarios only when that later task is authorized |
 | T05 Schedule or product information table | Preserve the whole business organization and judge its actual obligations | A descriptive schedule/configuration is not automatically a requirement. Binding delivery dates can be PROJECT, imposed configuration CONSTRAINT; do not classify every row as product QUALITY or every information table as background |
 
+For T02, identify what the source says must be supplied or assessed together. `One valve assembly comprises: 1 housing, 2 seal, 3 fasteners` is one BOM unit, even when each row has its own part number, quantity or manufacturing note. Preserve those original ordinals in the unit; row numbers alone do not justify separate requirements. Calling each flat row a “branch” does not establish an independent BOM.
+
+If the introducing sentence is source-owned by this BOM, bind its exact text span and the table rows to the same table record. Mirror the text range in its text scope as table-owned; a shared-content reference alone does not prevent a duplicate SRC/REQ. A separately numbered obligation beside the table retains its own text item.
+
+Countercase: the source explicitly gives separate `Variant A supply list` and `Variant B supply list`, each with its own complete component set and applicability. Those can be separate BOM units even when printed in one physical table. Cite that source boundary when separating them; different component names alone are not that boundary. Preserve a real shared condition without linking unrelated variants.
+
 ## Preserve relationships across boundaries
 
 | Case | Handling and change condition |

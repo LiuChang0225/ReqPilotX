@@ -1,6 +1,7 @@
 import { cleanup, render, screen, waitFor } from "@testing-library/react";
 import userEvent from "@testing-library/user-event";
 import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
+import * as apiClient from "../../shared/api/client";
 import { api } from "../../shared/api/client";
 import type {
   ProjectProcessingProfile,
@@ -18,7 +19,7 @@ afterEach(() => {
 });
 
 beforeEach(() => {
-  vi.spyOn(api, "codexReadiness").mockResolvedValue({
+  vi.spyOn(apiClient, "request").mockResolvedValue({
     schema_version: "codex-runtime-readiness/v1",
     ready: true,
     runtime_id: "codex-app-server",
@@ -149,10 +150,10 @@ function renderPanel(patch: Partial<WorkspaceContextValue> = {}) {
 
 describe("SettingsPanel Codex automatic runtime", () => {
   it("ends the loading message after failure and can retry", async () => {
-    vi.mocked(api.codexReadiness).mockRejectedValueOnce(new Error("offline"));
+    vi.mocked(apiClient.request).mockRejectedValueOnce(new Error("offline"));
     renderPanel();
-    expect(await screen.findByText("Codex 状态尚未取得，可刷新状态重试。")).toBeVisible();
-    expect(screen.queryByText("正在核验 ChatGPT 登录和目标模型…")).not.toBeInTheDocument();
+    expect(await screen.findByText("Agent 状态尚未取得，可刷新状态重试。")).toBeVisible();
+    expect(screen.queryByText("正在读取 Agent 运行配置…")).not.toBeInTheDocument();
     await userEvent.setup().click(screen.getByRole("button", { name: "刷新状态" }));
     expect(await screen.findByText("已登录")).toBeVisible();
   });
@@ -185,7 +186,7 @@ describe("SettingsPanel Codex automatic runtime", () => {
   });
 
   it("reports Codex login as the recovery action", async () => {
-    vi.mocked(api.codexReadiness).mockResolvedValue({
+    vi.mocked(apiClient.request).mockResolvedValue({
       schema_version: "codex-runtime-readiness/v1",
       ready: false,
       runtime_id: "codex-app-server",
@@ -224,5 +225,94 @@ describe("SettingsPanel Codex automatic runtime", () => {
       }),
     );
     expect(refreshProject).toHaveBeenCalled();
+  });
+});
+
+function providerReadiness(patch: Record<string, unknown> = {}) {
+  return {
+    schema_version: "agent-runtime-readiness/v1",
+    ready: true,
+    configured: true,
+    runtime_id: "provider-tool-loop",
+    provider_id: "aliyun",
+    model_name: "configured-provider-model",
+    configuration_source: "AGENT_PROVIDER_PROFILE",
+    readiness_scope: "configuration",
+    authentication_verified: false,
+    reason_code: null,
+    ...patch,
+  };
+}
+
+describe("SettingsPanel selected Agent runtime diagnostics", () => {
+  it.each(["azure", "aliyun"])("shows %s configuration without claiming login or giving Codex instructions", async (provider) => {
+    vi.mocked(apiClient.request).mockResolvedValue(providerReadiness({ provider_id: provider }));
+    const codexProbe = vi.spyOn(api, "codexReadiness");
+    renderPanel({ processingProfile: profile({ llm_provider: "none", revision: 0 }) });
+
+    expect(await screen.findByText("配置就绪")).toBeVisible();
+    expect(screen.getByText("provider-tool-loop")).toBeVisible();
+    expect(screen.getByText(provider)).toBeVisible();
+    expect(screen.getByText("configured-provider-model")).toBeVisible();
+    expect(screen.getByText(/尚未核验在线认证、模型权限或服务可用性/)).toBeVisible();
+    expect(screen.queryByText("已登录")).not.toBeInTheDocument();
+    expect(screen.queryByText(/Codex/)).not.toBeInTheDocument();
+    expect(screen.queryByRole("button", { name: "启用 Agent 自动方案" })).not.toBeInTheDocument();
+    expect(apiClient.request).toHaveBeenCalledWith("/api/runtime/agent-readiness");
+    expect(codexProbe).not.toHaveBeenCalled();
+  });
+
+  it("reports missing provider configuration without a ChatGPT login instruction", async () => {
+    vi.mocked(apiClient.request).mockResolvedValue(providerReadiness({
+      ready: false,
+      configured: false,
+      model_name: null,
+      reason_code: "PROVIDER_CONFIGURATION_UNAVAILABLE",
+    }));
+    renderPanel();
+
+    expect(await screen.findByText(/供应商或目标模型配置不完整/)).toBeVisible();
+    expect(screen.getByText("需要处理")).toBeVisible();
+    expect(screen.getByText("尚未配置")).toBeVisible();
+    expect(screen.queryByText(/Codex|ChatGPT|已登录/)).not.toBeInTheDocument();
+  });
+
+  it.each(["none", "future-runtime", null])("fails closed for runtime %s without inventing a model", async (runtimeId) => {
+    vi.mocked(apiClient.request).mockResolvedValue({
+      ready: true,
+      runtime_id: runtimeId,
+      model_name: null,
+      reason_code: "AGENT_RUNTIME_UNSUPPORTED",
+    });
+    renderPanel();
+
+    expect(await screen.findByText(/当前服务未选择受支持的 Agent 运行时/)).toBeVisible();
+    expect(screen.getByText("需要处理")).toBeVisible();
+    expect(screen.getByText("尚未配置")).toBeVisible();
+    expect(screen.queryByText(/Codex|ChatGPT|gpt-5.6-sol|已登录/)).not.toBeInTheDocument();
+  });
+
+  it("does not promote provider configuration into verified authentication", async () => {
+    vi.mocked(apiClient.request).mockResolvedValue(providerReadiness({
+      authentication_verified: true,
+      readiness_scope: "authentication",
+    }));
+    renderPanel();
+
+    expect(await screen.findByText("需要处理")).toBeVisible();
+    expect(screen.queryByText("已登录")).not.toBeInTheDocument();
+    expect(screen.queryByText("配置就绪")).not.toBeInTheDocument();
+  });
+
+  it("refreshes a missing provider configuration into configured status", async () => {
+    vi.mocked(apiClient.request)
+      .mockResolvedValueOnce(providerReadiness({ ready: false, configured: false }))
+      .mockResolvedValueOnce(providerReadiness());
+    renderPanel();
+
+    expect(await screen.findByText(/供应商或目标模型配置不完整/)).toBeVisible();
+    await userEvent.setup().click(screen.getByRole("button", { name: "刷新状态" }));
+    expect(await screen.findByText("配置就绪")).toBeVisible();
+    expect(screen.queryByText(/Codex|ChatGPT|已登录/)).not.toBeInTheDocument();
   });
 });

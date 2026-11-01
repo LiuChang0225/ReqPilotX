@@ -701,6 +701,7 @@ async def upload_knowledge_document(
     authority: str = form_value("UNKNOWN"),
     claim_role: str = form_value("UNKNOWN"),
     applicability: str = form_value("UNKNOWN"),
+    source_only: bool = form_value(False),
 ) -> dict:
     from reqpilotx_server.application.ingestion import (
         _inspect_uploaded_document,
@@ -715,9 +716,12 @@ async def upload_knowledge_document(
     from reqpilotx_server.application.runtime import RUNTIME_SETTINGS
 
     _require_project(project_id)
+    source_only = source_only is True or getattr(source_only, "default", False) is True
     selected_profile_ids: list[str] = []
     deferred_sync_reason = ""
     try:
+        if source_only:
+            raise ApplicationError(status_code=409, detail="仅登记原件与事实；未请求检索索引或模型调用。")
         selected_profile_ids = _project_knowledge_sync_profile_ids(project_id)
     except ApplicationError as exc:
         # Durable source storage is a core local capability. Embedding and

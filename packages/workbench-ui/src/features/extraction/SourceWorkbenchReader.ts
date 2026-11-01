@@ -3,6 +3,7 @@ import type { NativeStructureReferencePublicV1, NativeStructureTablePreviewV1,
 import type { WorkCapability } from "../workspace/documentWorkProvider";
 import type { SourceItemDeliveryState } from "./SourceItemReasoning";
 import type { SourceItemReviewContext } from "./sourceItemReviewContext";
+import type { EngineerChoice } from "./EngineerOpinion";
 
 /** Producer adapter for the existing workbench; never changes its source semantics. */
 export interface SourceWorkbenchReadModel {
@@ -20,6 +21,10 @@ export interface SourceWorkbenchReadModel {
 }
 export interface SourceWorkbenchReader extends SourceWorkbenchReadModel {
   feedbackCapability?: WorkCapability;
+  responseCapability?: WorkCapability;
+  responseScope?: string;
+  saveEngineerResponse?: (unitId: string, choice: EngineerChoice) => Promise<void>;
+  loadEngineerResponses?: () => Promise<void>;
   loadRecord: (sourceId: string, signal?: AbortSignal) => Promise<SourceRequirementRecordDetailV1>;
   saveFeedback: (text: string, nodeId: string, sourceIds: string[]) => Promise<void>;
 }

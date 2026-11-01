@@ -1,0 +1,34 @@
+[Unit]
+Description=ReqPilotX private pilot worker
+After=network.target postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=simple
+User=reqpilotx
+Group=reqpilotx
+WorkingDirectory=/opt/reqpilotx/current
+EnvironmentFile=/etc/reqpilotx/application.env
+Environment=REQPILOT_PROCESS_ROLE=worker
+ExecStartPre=/opt/reqpilotx/current/venv/bin/python /opt/reqpilotx/current/deploy/entrypoint.py preflight
+ExecStart=/opt/reqpilotx/current/venv/bin/python /opt/reqpilotx/current/deploy/entrypoint.py worker
+Restart=on-failure
+RestartSec=5
+TimeoutStopSec=180
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/reqpilotx/application
+MemoryAccounting=yes
+CPUAccounting=yes
+MemoryMax=512M
+CPUQuota=60%
+TasksMax=96
+LimitNOFILE=4096
+StandardOutput=journal
+StandardError=journal
+
+[Install]
+WantedBy=multi-user.target

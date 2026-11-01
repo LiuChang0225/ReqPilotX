@@ -16,12 +16,12 @@ export type ReqPilotXReadonlyPanelProps = {
 const emptySnapshot = () => null;
 const noSubscription = () => () => {};
 
-/** No app bootstrap, browser-history mutation, model configuration, or business writes. */
+/** Embedded shared panel; managed hosts may enable only the declared, exact-work business writes. */
 export function ReqPilotXReadonlyPanel(props: ReqPilotXReadonlyPanelProps) {
   if (!validWorkSelection(props.selection)) return <section className="reqpilotx-panel-root workspace-app" data-theme={props.theme || "light"}>
     <p role="alert">工作链接不完整，请提供准确的来源、工作及成果版本。</p>
   </section>;
-  return <section className="reqpilotx-panel-root workspace-app" data-theme={props.theme || "light"} aria-label="ReqPilotX 只读工作面板">
+  return <section className="reqpilotx-panel-root workspace-app" data-theme={props.theme || "light"} aria-label={props.host.feedbackWrites ? "ReqPilotX 核对与反馈" : "ReqPilotX 只读工作面板"}>
     <ErrorBoundary embedded key={`${props.host.id}:${props.host.client.id}:${props.selection.projectId}:${props.selection.documentId}:${props.selection.sourceSha256}:${props.selection.workRef}`}><ReadonlyPanel {...props} /></ErrorBoundary>
   </section>;
 }
@@ -48,7 +48,7 @@ function ReadonlyPanel({ selection: initial, host, documentName, theme = "light"
   }, [changeSelection]);
   const provider = usePluginWorkbench({ projectId: selection.projectId, documentId: selection.documentId,
     sourceSha256: selection.sourceSha256, sessionId: selection.workRef, revisionId: selection.revisionId,
-    onRevision, readClient: host.client, readOnly: true, pollIntervalMs: active && !host.subscribeWorkUpdates ? 5000 : 0 });
+    onRevision, readClient: host.client, readOnly: !host.feedbackWrites, hostCapabilities: host.workCapabilities, pollIntervalMs: active && !host.subscribeWorkUpdates ? 5000 : 0 });
   versionsRef.current = provider.state?.versions || [];
   const binding = matchingSession(selection, host.sessionBinding);
   const reported = useSyncExternalStore(host.execution?.subscribe || noSubscription, host.execution?.getSnapshot || emptySnapshot, emptySnapshot);
@@ -75,7 +75,7 @@ function ReadonlyPanel({ selection: initial, host, documentName, theme = "light"
   }, [binding, host.openSession, opening]);
   const agent = useMemo(() => ({ producer: "EXTERNAL_PLUGIN" as const, collaborationAvailable: canDiscuss,
     task: null, historyHost: null, bind, show, openStage: () => {} }), [canDiscuss, bind, show]);
-  const presentation = useMemo(() => ({ readOnly: true, resourceUrl: host.resourceUrl, pdfViewerUrl: host.pdfViewerUrl }), [host.resourceUrl, host.pdfViewerUrl]);
+  const presentation = useMemo(() => ({ readOnly: !host.feedbackWrites, resourceUrl: host.resourceUrl, pdfViewerUrl: host.pdfViewerUrl }), [host.feedbackWrites, host.resourceUrl, host.pdfViewerUrl]);
   const view = provider.version && !provider.version.stages.some(stage => stage.stage === "ITEMS") ? "structure" : selection.view || "structure";
   const route: WorkspaceRoute = { task: view === "analysis" || view === "export" ? view : "extraction", mode: "organize",
     checkpoint: view === "items" ? "list" : "structure", projectId: selection.projectId, documentId: selection.documentId,
@@ -83,7 +83,7 @@ function ReadonlyPanel({ selection: initial, host, documentName, theme = "light"
   const status = execution ? ({ RUNNING: "会话正在处理", WAITING: "会话正在等待", IDLE: "会话当前空闲", SUCCEEDED: "会话本轮已结束", FAILED: "会话本轮未完成", INTERRUPTED: "会话已暂停" })[execution.status]
     : host.execution ? "宿主尚未报告当前工作的运行状态" : externalExecutionLabel(provider.state);
   return <WorkbenchHostContext.Provider value={presentation}><DocumentAgentContext.Provider value={agent}>
-      <header className="readonly-panel-header"><div><strong title={documentName}>{documentName}</strong><span>ReqPilotX · 只读工作面板</span></div>
+      <header className="readonly-panel-header"><div><strong title={documentName}>{documentName}</strong><span>{host.feedbackWrites ? "ReqPilotX · 核对与反馈" : "ReqPilotX · 只读工作面板"}</span></div>
         <label>核对版本<select aria-label="核对版本" value={provider.pinned || ""} onChange={event => provider.selectRevision(event.target.value)} disabled={!provider.state?.versions.length}>
           {!provider.state?.versions.some(version => version.revision_id === provider.pinned) && <option value={provider.pinned || ""}>{!provider.state ? "正在同步版本" : provider.pinned ? "指定版本不可用" : "尚无成果"}</option>}{provider.state?.versions.map(version => <option key={version.revision_id} value={version.revision_id}>v{version.number}{version.revision_id === provider.state?.revision_id ? " · 最新" : ""}</option>)}
         </select></label>

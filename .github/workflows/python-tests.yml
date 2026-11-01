@@ -60,3 +60,7 @@ jobs:
           cp -R integrations/pair "$RUNNER_TEMP/r4-pair"
           cp -R apps/web/dist "$RUNNER_TEMP/r4-web"
           node "$RUNNER_TEMP/r4-pair/scripts/installed-smoke.mjs" "$RUNNER_TEMP/r4-installed/bin/python" "$RUNNER_TEMP/r4-web" "$(pg_config --bindir)" "$PWD/output/r4-synthetic" "$PWD/output/r4-installed-receipt.json"
+      - name: SaaS PostgreSQL HTTP worker and simulated SDK review export
+        run: |
+          prototype/.venv/bin/python plugins/reqpilot/scripts/build_bundle.py --repo . --output output/saas-plugin --engine-wheel "$(find output/r4-engine -maxdepth 1 -name '*.whl' -print -quit)"
+          prototype/.venv/bin/python scripts/test_saas_postgres.py --postgres-bin "$(pg_config --bindir)" --bundle output/saas-plugin --output output/saas-postgres

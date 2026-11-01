@@ -17,14 +17,24 @@ class SqlReadingCatalogRepository:
     """Read identity facts without hydrating generic project/document rows."""
 
     def list_projects(self) -> tuple[ReadingProjectCatalogItemV1, ...]:
+        from reqpilotx_server.saas.context import current_scope
+        from reqpilotx_server.saas.config import SaaSSettings
+        owner = current_scope()
+        if SaaSSettings.from_environment().enabled and owner is None:
+            raise PermissionError("saas_catalog_requires_trusted_owner")
         with db.get_conn() as connection:
-            rows = connection.execute(
+            if owner is not None:
+                rows = connection.execute("""SELECT p.id,p.name,p.customer_name FROM projects p
+                    JOIN saas_project_owners o ON o.project_id=p.id WHERE o.account_id=?
+                    ORDER BY p.created_at DESC""", (owner.account_id,)).fetchall()
+            else:
+                rows = connection.execute(
                 """
                 SELECT id, name, customer_name
                 FROM projects
                 ORDER BY created_at DESC
                 """
-            ).fetchall()
+                ).fetchall()
         return tuple(_project_item(row) for row in rows)
 
     def get_project(

@@ -1,7 +1,54 @@
 {
   "contract_version": "reqpilot-task-api/v1",
-  "actions": ["describe", "open", "inspect", "prepare", "visual_revise", "read", "map", "items", "review", "check", "deliver", "sync", "recover", "images", "annotations", "decomposition", "revise"],
-  "read_views": ["source", "part", "scope", "page", "image", "items", "item", "item_image", "image_scope", "image_scope_image", "feedback"],
-  "read_features": ["scope_template", "source_handles", "lazy_pages", "source_context_candidates", "pdf_region_images"],
-  "write_features": ["map_outline", "items_retain_map_structure", "visual_transcription_revision", "local_ocr", "items_generated_local_keys"]
+  "actions": [
+    "describe",
+    "open",
+    "inspect",
+    "prepare",
+    "visual_revise",
+    "read",
+    "map",
+    "items",
+    "review",
+    "check",
+    "deliver",
+    "sync",
+    "recover",
+    "images",
+    "annotations",
+    "decomposition",
+    "revise",
+    "delivery_read"
+  ],
+  "read_views": [
+    "source",
+    "part",
+    "scope",
+    "page",
+    "image",
+    "items",
+    "item",
+    "item_image",
+    "image_scope",
+    "image_scope_image",
+    "feedback"
+  ],
+  "read_features": [
+    "scope_template",
+    "source_handles",
+    "lazy_pages",
+    "source_context_candidates",
+    "pdf_region_images",
+    "source_numbering_review",
+    "read_navigation_recovery",
+    "bound_workbench_deliveries"
+  ],
+  "write_features": [
+    "map_outline",
+    "items_retain_map_structure",
+    "visual_transcription_revision",
+    "local_ocr",
+    "items_generated_local_keys",
+    "item_number_refs"
+  ]
 }

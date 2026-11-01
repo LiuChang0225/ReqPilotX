@@ -418,9 +418,14 @@ class PortableCompilationTests(unittest.TestCase):
         changed = record.model_copy(update={"image_bindings": (record.image_bindings[0].model_copy(update={"page": 2}),)})
         with self.assertRaisesRegex(ValueError, "BINDING_DRIFT"):
             validate_source_image_record_against_map(document_map, changed)
-        mixed = record.model_dump(mode="json"); mixed["text_bindings"] = baseline.records[0].model_dump(mode="json")["text_bindings"]
-        with self.assertRaisesRegex(ValueError, "exactly one"):
+        valid = record.model_dump(mode="json")
+        self.assertEqual(SourceRequirementRecordV1.model_validate(valid), record)
+        mixed = deepcopy(valid)
+        mixed["text_bindings"] = baseline.records[0].model_dump(mode="json")["text_bindings"]
+        with self.assertRaises(ValueError) as caught:
             SourceRequirementRecordV1.model_validate(mixed)
+        self.assertEqual([(error["loc"], error["type"]) for error in caught.exception.errors()],
+                         [((), "value_error")])
 
     def test_image_only_baseline_needs_no_fake_transcribed_text(self) -> None:
         from app.application.agent_workflow.source_item_visual import compile_source_item_images

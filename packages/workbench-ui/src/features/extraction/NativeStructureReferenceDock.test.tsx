@@ -10,6 +10,8 @@ import {
 import userEvent from "@testing-library/user-event";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { ApiError, api } from "../../shared/api/client";
+import { setSaasAccountIdentity } from "../../shared/api/saasSession";
+import { SAAS_KIT_UNAVAILABLE_MESSAGE } from "./saasAgentAvailability";
 import type {
   NativeStructureActivityEventV2,
   NativeStructureActivityStreamV1,
@@ -35,6 +37,7 @@ import { WorkbenchHostContext } from "../workspace/WorkbenchHostContext";
 afterEach(() => {
   cleanup();
   vi.restoreAllMocks();
+  setSaasAccountIdentity(undefined);
 });
 
 const reference: NativeStructureReferencePublicV1 = {
@@ -1963,7 +1966,8 @@ describe("NativeStructureReferenceDock", () => {
     });
   });
 
-  it("starts direct-text growth from the existing structure node", async () => {
+  it.each([false, true])("preserves local direct-text growth and disables missing-Kit SaaS mode (%s)", async saas => {
+    if (saas) setSaasAccountIdentity("account-a");
     const user = userEvent.setup();
     vi.spyOn(api, "nativeStructureReference").mockResolvedValue(reference);
     vi.spyOn(api, "nativeStructureTablePreview").mockResolvedValue(tablePreview);
@@ -2023,6 +2027,14 @@ describe("NativeStructureReferenceDock", () => {
     const start = await screen.findByRole("button", {
       name: "让 Agent 处理当前正文",
     });
+    if (saas) {
+      expect(start).toBeDisabled();
+      expect(start).toHaveAttribute("title", SAAS_KIT_UNAVAILABLE_MESSAGE);
+      expect(screen.getByText(SAAS_KIT_UNAVAILABLE_MESSAGE)).toBeVisible();
+      await user.click(start);
+      expect(startText).not.toHaveBeenCalled();
+      return;
+    }
     await user.click(start);
 
     expect(startText).toHaveBeenCalledWith(
@@ -4695,4 +4707,18 @@ it("keeps legacy structure proposal decisions readonly in a hosted saved result"
   fireEvent.click(screen.getByRole("button",{name:/3.2.1 产品信息/}));
   const undo=screen.getByRole("button",{name:"撤销"});expect(undo).toBeDisabled();fireEvent.click(undo);
   expect(decide).not.toHaveBeenCalled();expect(screen.queryByLabelText("给 Agent 的节点指引")).not.toBeInTheDocument();
+});
+
+it("preserves selected structure and expansion after a response-only result revision",async()=>{
+  const reader={revision_id:'e'.repeat(64),source_sha256:reference.source_sha256,reference,
+    outline:{baseline:{artifact_sha256:'same-ledger'}},tables:{},reasoning:null,review:null,saveFeedback:vi.fn(),loadRecord:vi.fn()} as unknown as NonNullable<Parameters<typeof NativeStructureReferenceDock>[0]['sourceReader']>;
+  const props={projectId:'response-preserve',documentId:'document',sourceSha256:reference.source_sha256,onPageChange:vi.fn()};
+  const page=render(<NativeStructureReferenceDock {...props} sourceReader={reader}/>);
+  fireEvent.click(await screen.findByRole('button',{name:'展开 3 车型/产品信息'}));
+  fireEvent.click(screen.getByRole('button',{name:'展开 3.2 产品技术要求及说明'}));
+  const target=screen.getByRole('button',{name:/3.2.1 产品信息/});fireEvent.click(target);
+  expect(target.closest('[role=treeitem]')).toHaveAttribute('aria-selected','true');
+  page.rerender(<NativeStructureReferenceDock {...props} sourceReader={{...reader,revision_id:'f'.repeat(64)}}/>);
+  await waitFor(()=>expect(screen.getByRole('button',{name:/3.2.1 产品信息/}).closest('[role=treeitem]')).toHaveAttribute('aria-selected','true'));
+  expect(screen.getByRole('button',{name:'收起 3.2 产品技术要求及说明'})).toBeInTheDocument();
 });

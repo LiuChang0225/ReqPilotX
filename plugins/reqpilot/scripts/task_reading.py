@@ -17,6 +17,14 @@ from reqpilotx.domain.extraction.source_ir import SourceIRSnapshot
 from source_authoring_tools import authoring_view
 
 
+class ReadNavigationError(ValueError):
+    """Invalid navigation with a real, version-pinned read back to its index."""
+    def __init__(self, code, message, next_read):
+        super().__init__(message)
+        self.code = code
+        self.next_read = next_read
+
+
 def _read(path):return json.loads(Path(path).read_text(encoding='utf-8'))
 def _hash(raw):return hashlib.sha256(raw).hexdigest()
 def _size(value):return len(json.dumps(value,ensure_ascii=False,separators=(',',':')))
@@ -187,8 +195,12 @@ def scope_read(map_dir,*,expected_source_sha256,scope_id=None,expected_map_sha25
     base={'schema_version':'reqpilot-task-reading/v1','source_sha256':mapping.source_sha256,
           'map_sha256':mapping.artifact_sha256,'semantic_authority':'NONE','authoring_part':'template'}
     arguments={'scope_id':scope_id,'expected_map_sha256':mapping.artifact_sha256,'part':part}
+    def navigation_error(code, message, selected_scope=None):
+        args={'expected_map_sha256':mapping.artifact_sha256,'max_chars':max_chars}
+        if selected_scope is not None:args['scope_id']=selected_scope
+        return ReadNavigationError(code,message,_next('scope_read',args))
     if scope_id is None:
-        if part is not None:raise ValueError('A scope part requires its explicit scope_id')
+        if part is not None:raise navigation_error('SCOPE_REQUIRED','A scope part requires its explicit scope_id; follow the scope index read')
         entries=[]
         for kind,request in requests:
             identifier=request.scope_id if kind=='TEXT' else request.logical_table_scope_id
@@ -203,7 +215,7 @@ def scope_read(map_dir,*,expected_source_sha256,scope_id=None,expected_map_sha25
         return _window({**base,'view':'SCOPE_INDEX'},entries,field='scopes',offset=offset,limit=limit,max_chars=max_chars,
             reader='scope_read',arguments=arguments)
     selected=next(((kind,request) for kind,request in requests if (request.scope_id if kind=='TEXT' else request.logical_table_scope_id)==scope_id),None)
-    if selected is None:raise ValueError('Unknown scope_id for this Map')
+    if selected is None:raise navigation_error('UNKNOWN_SCOPE','Unknown scope_id for this Map; no scope was substituted')
     kind,request=selected
     base.update(scope_id=scope_id,scope_kind=kind,scope_ref=request.request_sha256,node_id=request.node_id,
         structural_role=request.structural_role,ref_namespace='CONTENT_REFS_ARE_LOCAL_TO_THIS_SCOPE; not capture refs')
@@ -240,18 +252,18 @@ def scope_read(map_dir,*,expected_source_sha256,scope_id=None,expected_map_sha25
     text_match=re.fullmatch(r'content:(\d+)',part)
     if text_match:
         index=int(text_match[1])
-        if index>=len(request.source_content):raise ValueError('Unknown scope content part')
+        if index>=len(request.source_content):raise navigation_error('UNKNOWN_SCOPE_PART','Unknown scope content part; follow the selected scope read',scope_id)
         content=request.source_content[index]
         return _text({**base,'view':'SCOPE_TEXT','content_ref':index,'content_id':content.content_id,'is_title':content.is_title,
             'page':content.page,'bbox':content.bbox},content.text,offset=offset,max_chars=max_chars,reader='scope_read',arguments=arguments)
     table_match=re.fullmatch(r'table:(\d+)(?::cell:(\d+))?',part)
-    if not table_match or kind!='TABLE' or int(table_match[1])>=len(request.fragments):raise ValueError('Unknown scope part; use a part returned by the reader')
+    if not table_match or kind!='TABLE' or int(table_match[1])>=len(request.fragments):raise navigation_error('UNKNOWN_SCOPE_PART','Unknown scope part; follow the selected scope read and its returned table/content requests',scope_id)
     fragment_index=int(table_match[1]);fragment=request.fragments[fragment_index]
     base.update(fragment_id=fragment.fragment_id,fragment_ref=fragment_index,page=fragment.page,row_count=fragment.row_count,column_count=fragment.column_count,
         source_row_range=fragment.row_range,row_coordinates='LOCAL_TO_COMPILED_FRAGMENT; 0-based half-open')
     if table_match[2] is not None:
         index=int(table_match[2])
-        if index>=len(fragment.cells):raise ValueError('Unknown scope cell part')
+        if index>=len(fragment.cells):raise navigation_error('UNKNOWN_SCOPE_PART','Unknown scope cell part; follow the selected scope read',scope_id)
         cell=fragment.cells[index]
         return _text({**base,'view':'SCOPE_CELL_TEXT','cell_id':cell.cell_id,'row':cell.row,'column':cell.column,
             'row_span':cell.row_span,'column_span':cell.column_span},cell.text,offset=offset,max_chars=max_chars,reader='scope_read',arguments=arguments)

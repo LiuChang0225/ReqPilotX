@@ -1,0 +1,7 @@
+# Private pilot: replace existing HBA only for a newly created empty ReqPilotX cluster.
+# Existing business cluster permissions MUST be preserved, never replaced blindly.
+local   all         postgres                               peer
+local   reqpilotx   reqpilotx                               peer
+local   all         all                                    reject
+host    all         all          0.0.0.0/0                 reject
+host    all         all          ::/0                      reject

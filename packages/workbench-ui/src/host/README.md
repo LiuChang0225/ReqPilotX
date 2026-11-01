@@ -48,10 +48,18 @@
 
 `panel-preview.html`及`vite.panel-preview.config.ts`是开发期宿主兼容验证页，不是Pair产品界面。它加载真正构建的库，React18fixture与临时类型检查配置放在忽略提交的`prototype/runtime-data/ui-pair-panel-20260914/`。主Web应用保留React19依赖。
 
-实际Pair的sidebar/main注册、Session持久绑定与真实Pair事件转发仍由DSH集成任务完成；此面板的契约／模拟事件通过不等于这些宿主动作已部署。完整项目管理、上传、阅读问答和业务写操作属于后续接入切片。
+实际Pair的sidebar/main注册、Session持久绑定与真实Pair事件转发仍由DSH集成任务完成；此面板的契约／模拟事件通过不等于这些宿主动作已部署。完整项目管理、上传与阅读问答的宿主验收仍需分别完成。受控宿主设置 `feedbackWrites=true` 且使用允许精确 session 路径写入的 transport 后，共用工作面现在可保存人工响应和交付版本；该字段保留兼容名称，但不会使历史版可写。人工响应使用来源／会话／结果／响应 CAS，保存返回新的不可变成果版；正式交付须用户明确核对并接受快照。默认只读 transport 与 provider 双重拒绝写入，仍可读取意见理由、条件、证据请求、历史及冻结 Excel。合成组件测试与构建通过不等于实际 Pair 注册和员工操作验收。
 
 ## 共源升级合同
 
 项目/文档业务客户端在`shared/api/projectDocuments.ts`，独立App的`api`与宿主导出共同使用。Pair通过`createProjectDocumentClient`注入transport，禁止在适配层重写create/import请求字段。`requestWithTransport`继续复用错误/JSON解析；上传进度由真实upload transport提供。
 
 `contract.ts`定义共享导出面的major/minor；构建检查实际exports并生成`dist-panel/host-contract.json`。消费端声明所需major与exports，兼容新增不会强迫适配器改代码。contract版本、能力包版本和具体成果revision分别记录，不能互相替代。
+
+
+受控嵌入宿主现在可传 `workCapabilities`（`save_feedback`、`confirm_map`、
+`save_engineer_response`、`save_delivery_version`）。传入时各项须显式为 true，
+并与业务服务 capability 取交集；缺项不授权写入。`feedbackWrites` 保留兼容
+名称，只表示工作面是否可进入受控写入模式，不能覆盖细粒度 capability
+或历史版本限制。未传该可选字段的既有宿主保持原兼容行为；Pair Client
+使用四项已发现权限传入。必须重建配套共享 UI 与 Client 后再执行真实宿主验收。

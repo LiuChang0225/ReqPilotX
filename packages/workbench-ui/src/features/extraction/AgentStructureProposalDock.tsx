@@ -1,5 +1,7 @@
 import { useCallback, useEffect, useMemo, useState } from "react";
 import { ApiError, api } from "../../shared/api/client";
+import { isSaasAccountMode } from "../../shared/api/saasSession";
+import { SAAS_KIT_UNAVAILABLE_MESSAGE } from "./saasAgentAvailability";
 import type {
   AgentStructureIntent,
   AgentStructureOperation,
@@ -128,7 +130,7 @@ export function AgentStructureProposalDock({
     proposal?.base.expected_effective_snapshot_id === effectiveSnapshotId &&
     proposal.source_sha256 === sourceSha256;
   const actionDisabled =
-    disabled ||
+    isSaasAccountMode() || disabled ||
     Boolean(mutation) ||
     jobActive ||
     !sourceSha256 ||
@@ -153,6 +155,7 @@ export function AgentStructureProposalDock({
   }, [currentBase, jobStatus, loading, noProposal, proposal, proposalReady]);
 
   const runMutation = async (label: string, action: () => Promise<unknown>) => {
+    if (isSaasAccountMode()) return;
     setMutation(label);
     setError("");
     try {
@@ -236,6 +239,7 @@ export function AgentStructureProposalDock({
   };
 
   const apply = async () => {
+    if (isSaasAccountMode()) return;
     if (!proposal) return;
     setApplyOpen(false);
     await runMutation("apply", async () => {
@@ -280,6 +284,7 @@ export function AgentStructureProposalDock({
           <Icon name={expanded ? "chevron-down" : "chevron"} size={14} />
         </button>
       </div>
+      {isSaasAccountMode() && <p role="status">{SAAS_KIT_UNAVAILABLE_MESSAGE}</p>}
       <div
         id="agent-structure-proposal-details"
         className="agent-structure-dock-details"
@@ -320,13 +325,13 @@ export function AgentStructureProposalDock({
                   className="button ghost compact"
                   type="button"
                   disabled={
-                    Boolean(mutation) ||
+                    isSaasAccountMode() || Boolean(mutation) ||
                     !selectedStructureNodeId ||
                     latestSteer?.status === "PENDING" ||
                     latestSteer?.status === "DELIVERING"
                   }
                   title={
-                    selectedStructureNodeId
+                    isSaasAccountMode() ? SAAS_KIT_UNAVAILABLE_MESSAGE : selectedStructureNodeId
                       ? "发送到当前正在运行的 exact turn"
                       : "请先选择一个可编辑的结构节点"
                   }

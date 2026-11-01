@@ -66,6 +66,13 @@ and copies the skill folders when symlink privileges are unavailable. The Codex
 cold-session harness is a separate host adapter. Actual host execution has been
 verified on macOS Codex; Windows lock/symlink branches and other coding agents are
 supported interfaces, not a claim that those hosts have been end-to-end tested.
+The lazy PDF page-preparation lock also selects `msvcrt` on Windows and `fcntl`
+on POSIX. The fixed task transport stops timed-out subprocess groups through
+the current OS process API and keeps the outcome `UNKNOWN` until the saved
+task is inspected or replayed. A synthetic macOS bundle run verifies task persistence, feedback
+revision, recovery and same-version Excel, and a separate stdio MCP run verifies
+the prepared host's tool connection. Neither run validates Windows execution or
+an autonomous model session for the newly built bundle.
 
 For a strict cold test, use `python3 <built-plugin>/scripts/cold_run.py --workspace <new-workspace> --model gpt-5.6-luna --reasoning-effort max --timeout-seconds 900` (or `gpt-5.6-sol` with `high`). It first asks the local CLI to render its actual prompt, disables ambient skills and automatic parent AGENTS injection, explicitly supplies this workspace's AGENTS, verifies the packaged skill inventory, and starts a new session. Model and effort are required; delegation defaults off and needs explicit authorization plus `--allow-delegation`. `--prepare-only` checks discovery without a model. It changes no global configuration or authentication directory. Public commands, failures, configuration and output hashes remain in private `runtime-data/cold-session/`; timeout is separate from completion and semantic success.
 
@@ -113,3 +120,23 @@ pipeline. Its current implementation requires macOS (`Darwin`),
 that binary version validation was not run; overall Python readiness does not
 certify XLSB conversion. Windows/Linux need a separately implemented equivalent
 converter. PDF/DOCX/XLSX do not require that converter.
+
+## Host-neutral task preparation
+
+A built bundle exposes `scripts/host_launch.py <private-request.json>` for application adapters. It composes the existing bootstrap and typed TaskService and returns a task/brief reference with `execution: NOT_STARTED`; it does not choose a model or start a host session. Inputs bind a workspace, original SHA, expected full bundle identity, application identity and the existing OpenRequest. Existing task/package identities cannot be overwritten by retrying a different request. Business rules remain in the same skills and engine. Pair consumes this helper; its session submission is a separate host operation.
+
+`host_launch.py --describe` advertises the host preparation protocol. Prepared launches now return a host-neutral `reqpilot-host-tools/v1` MCP descriptor for their exact frozen package/workspace. Adapters own the MCP client lifecycle; they must not rewrite or duplicate the shared tools. Python MCP dependencies are pinned in `requirements-mcp.txt`.
+
+
+### Bound workbench delivery reads
+
+`reqpilot.py task delivery_read --working-root ... --input request.json` and
+MCP `workbench_delivery_read` use the task's existing project/document/session/
+source binding. `view` is `responses`, `preview`, `versions` or `version`;
+`result_revision` optionally pins responses/preview, while `delivery_revision`
+is required for a frozen version. The returned Matrix snapshot matches that
+version's program export. No latest-task fallback, human-opinion authoring,
+formal acceptance or local opinion import occurs. The fixed runtime capability
+catalog rejects this action for older task packages rather than upgrading them.
+Human writes and saved delivery publication use the application's session-bound
+API; raw assessment/manual artifact uploads remain unsupported.

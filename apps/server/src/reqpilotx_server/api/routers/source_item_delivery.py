@@ -8,6 +8,7 @@ from reqpilotx_server.application.agent_workflow import native_loop_finalization
 from reqpilotx_server.application.agent_workflow import source_item_delivery_versions as versions
 from reqpilotx_server.application.agent_workflow import plugin_workbench as plugin
 from reqpilotx_server.application.agent_workflow import plugin_workbench_reader as plugin_reader
+from reqpilotx_server.application.agent_workflow import plugin_workbench_delivery as plugin_delivery
 from ._factory import RouteSpec, build_router
 
 ROOT = "/api/projects/{project_id}/sor-documents/{document_id}/agent-structure/delivery"
@@ -23,6 +24,13 @@ SPECS = (
     RouteSpec(f"{ROOT}/plugin-workbench/{{session_id}}/confirm-map", plugin.confirm_plugin_map, "POST"),
     RouteSpec(f"{ROOT}/plugin-workbench/{{session_id}}/feedback", plugin.post_plugin_feedback, "POST"),
     RouteSpec(f"{ROOT}/plugin-workbench/{{session_id}}/export", plugin.export_plugin_draft, "GET"),
+    RouteSpec(f"{ROOT}/plugin-workbench/{{session_id}}/engineer-responses", plugin_delivery.get_plugin_engineer_responses, "GET"),
+    RouteSpec(f"{ROOT}/plugin-workbench/{{session_id}}/engineer-responses", plugin_delivery.post_plugin_engineer_responses, "POST"),
+    RouteSpec(f"{ROOT}/plugin-workbench/{{session_id}}/versions/preview", plugin_delivery.preview_plugin_delivery_version, "GET"),
+    RouteSpec(f"{ROOT}/plugin-workbench/{{session_id}}/versions", plugin_delivery.list_plugin_delivery_versions, "GET"),
+    RouteSpec(f"{ROOT}/plugin-workbench/{{session_id}}/versions", plugin_delivery.save_plugin_delivery_version, "POST"),
+    RouteSpec(f"{ROOT}/plugin-workbench/{{session_id}}/versions/{{revision}}", plugin_delivery.get_plugin_delivery_version, "GET"),
+    RouteSpec(f"{ROOT}/plugin-workbench/{{session_id}}/versions/{{revision}}/export", plugin_delivery.download_plugin_delivery_version, "GET"),
     RouteSpec(f"{ROOT}/versions/preview", versions.preview_delivery_version, "GET"),
     RouteSpec(f"{ROOT}/versions", versions.list_delivery_versions, "GET"),
     RouteSpec(f"{ROOT}/versions", versions.save_delivery_version, "POST"),

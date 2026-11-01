@@ -1,0 +1,33 @@
+/** Launch the supported dsh Web profile in a private DSH_HOME with no copied credentials. */
+import { mkdir, readFile, writeFile } from 'node:fs/promises';
+import { resolve, join } from 'node:path';
+import { fileURLToPath, pathToFileURL } from 'node:url';
+import { createRequire } from 'node:module';
+import { spawn, execFileSync } from 'node:child_process';
+const [pairArg, pythonArg, bundleArg, outArg, mode] = process.argv.slice(2);
+if (!outArg || (mode && !['--admission', '--recover', '--mcp', '--control', '--cancel'].includes(mode))) throw Error('Usage: dsh-binding-smoke.mjs <Pair checkout> <python> <frozen bundle> <new private output> [--admission|--recover|--mcp|--control|--cancel]');
+const pair = resolve(pairArg), python = resolve(pythonArg), bundle = resolve(bundleArg), output = resolve(outArg);
+await mkdir(output, { recursive: false, mode: 0o700 });
+const home = join(output, 'harness-home'); await mkdir(home);
+execFileSync(python, ['-c', 'from pypdf import PdfWriter;import sys;w=PdfWriter();w.add_blank_page(200,200);w.write(sys.argv[1])', join(output, 'synthetic.pdf')]);
+const guard = join(output, 'network-guard.mjs');
+await writeFile(guard, `import {appendFileSync} from 'node:fs';\nconst original=globalThis.fetch;globalThis.fetch=(input,...args)=>{const url=new URL(typeof input==='string'||input instanceof URL?input:input.url);if(!['127.0.0.1','localhost','[::1]'].includes(url.hostname)){appendFileSync(${JSON.stringify(join(output,'blocked-network.jsonl'))},JSON.stringify({hostname:url.hostname})+'\\n');throw Error('NONLOCAL_NETWORK_BLOCKED_BY_PROBE');}return original(input,...args);};\n`);
+const patch = join(output, 'probe.patch.json');
+await writeFile(patch, JSON.stringify([{ id: 'session-title-llm', disabled: true }, { insert: [{ id: 'reqpilot-binding-probe', name: fileURLToPath(new URL('./dsh-binding-probe.mjs', import.meta.url)) }] }], null, 2));
+const require = createRequire(join(pair, 'package.json'));
+const tsx = pathToFileURL(require.resolve('tsx/esm')).href;
+const env = Object.fromEntries(['PATH','HOME','LANG','TMPDIR'].filter(key => process.env[key]).map(key => [key, process.env[key]]));
+Object.assign(env, { DSH_HOME: home, TSX_TSCONFIG_PATH: join(pair, 'tsconfig.json'), REQPILOT_PROBE_OUTPUT: output, REQPILOT_PROBE_PYTHON: python, REQPILOT_PROBE_CAPABILITY: bundle, REQPILOT_PROBE_PAIR: pair, REQPILOT_PROBE_ADMISSION: mode ? '1' : '0', REQPILOT_PROBE_RECOVER: mode === '--recover' ? '1' : '0', REQPILOT_PROBE_MCP: ['--mcp','--control','--cancel'].includes(mode) ? '1' : '0', REQPILOT_PROBE_CONTROL: ['--control','--cancel'].includes(mode) ? '1' : '0', REQPILOT_PROBE_CANCEL: mode === '--cancel' ? '1' : '0' });
+const child = spawn(process.execPath, ['--import', guard, '--import', tsx, join(pair, 'apps/cli/src/bin.ts'), '--profile', 'web', '--patch', patch, '--no-open', '--port', '0'], { cwd: output, env, stdio: ['ignore','pipe','pipe'] });
+let stdout = '', stderr = '';
+child.stdout.on('data', chunk => stdout += chunk); child.stderr.on('data', chunk => stderr += chunk);
+const timeout = setTimeout(() => child.kill('SIGTERM'), 90000);
+const exitCode = await new Promise((ok, fail) => { child.once('error', fail); child.once('close', ok); }); clearTimeout(timeout);
+await writeFile(join(output, 'launcher.log'), (stdout + '\n' + stderr).replace(/token=[^\s]+/g, 'token=[redacted]'));
+if (exitCode !== 0) { let failure; try { failure = JSON.parse(await readFile(join(output, 'failure.json'))).message; } catch { failure = stderr.slice(-1800); } throw Error('DSH probe failed: ' + failure); }
+const receipt = JSON.parse(await readFile(join(output, 'receipt.json')));
+const blocked = await readFile(join(output, 'blocked-network.jsonl'), 'utf8').catch(error => { if (error.code === 'ENOENT') return ''; throw error; });
+if (blocked.trim()) throw Error('Unexpected nonlocal fetch attempted; inspect private probe evidence.');
+receipt.nonlocal_fetch_attempts = 0;
+receipt.dsh_home_isolated = true; receipt.launcher_exit_code = exitCode;
+await writeFile(join(output, 'receipt.json'), JSON.stringify(receipt, null, 2) + '\n'); console.log(JSON.stringify(receipt));

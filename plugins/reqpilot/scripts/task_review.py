@@ -16,6 +16,9 @@ import revision_tools as review
 OPERATION = 'review-apply'
 REPLACEMENTS = {'annotations': ('image-annotations.json', 'annotation-compilation-receipt.json'),
                 'decomposition': ('source-item-decomposition.json', 'decomposition-compilation-receipt.json')}
+SEALED_REPLACEMENTS = {key: value[0] for key, value in REPLACEMENTS.items()} | {
+    'analysis_policy': 'analysis-policy.json',
+}
 REVISION_FIELDS = {'schema_version', 'expected_review_sha256', 'expected_baseline_sha256', 'model_id',
                    'decisions', 'scope_revision', 'visual_readings', 'annotation_updates', 'addressed_feedback_ids'}
 
@@ -173,8 +176,8 @@ def apply_review(root: Path, *, expected_revision: str, command_id: str, revisio
                     or not isinstance(self_review_finding.get('source_item_ids'), list)
                     or not isinstance(self_review_finding.get('rationale', ''), str)):
                 raise ValueError('INVALID_DECISION: self_review_finding requires explicit Agent text, resolved source_item_ids and optional rationale')
-        if set(replacements) - REPLACEMENTS.keys() or set(compile_replacements) - REPLACEMENTS.keys() or set(replacements) & set(compile_replacements):
-            raise ValueError('INVALID_DECISION: provide annotations/decomposition once, as a sealed artifact or compiler decisions')
+        if set(replacements) - SEALED_REPLACEMENTS.keys() or set(compile_replacements) - REPLACEMENTS.keys() or set(replacements) & set(compile_replacements):
+            raise ValueError('INVALID_DECISION: provide annotations/decomposition once, or an explicit sealed analysis policy; policy has no semantic compiler')
         review_root = root / 'review'; head = review.load_head(review_root, revision['expected_review_sha256'])
         if head['current']['baseline_sha256'] != revision['expected_baseline_sha256']:
             raise ValueError('REVISION_CONFLICT: revision decisions target another baseline')
@@ -194,7 +197,7 @@ def apply_review(root: Path, *, expected_revision: str, command_id: str, revisio
         inputs.mkdir(parents=True, exist_ok=True)
         copied = {}
         for key, path in replacements.items():
-            target = inputs / REPLACEMENTS[key][0]
+            target = inputs / SEALED_REPLACEMENTS[key]
             value = core.read_json(Path(path)); _once(target, value); copied[key] = target
         _once(inputs / 'request.json', supplied)
         planned = core.begin_operation(root, OPERATION, {'input': inputs / 'request.json', 'replacements': copied},
@@ -259,7 +262,7 @@ def apply_review(root: Path, *, expected_revision: str, command_id: str, revisio
                     review.revise_review(Namespace(review_dir=review_root, input=revision_path, output_dir=candidate, **selected_replacements))
                 _checkpoint(directory, 'compile', _candidate(review_root, candidate, revision, context['source']['sha256']))
                 for key, path in selected_replacements.items():
-                    if core.read_json(candidate / REPLACEMENTS[key][0]) != core.read_json(path):
+                    if core.read_json(candidate / SEALED_REPLACEMENTS[key]) != core.read_json(path):
                         raise ValueError('Saved candidate omits a selected review replacement')
                 if not delivery.exists():
                     artifact_tools.deliver(Namespace(baseline_dir=candidate, source=core.inside(root, context['source']['path']),

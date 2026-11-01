@@ -39,6 +39,8 @@ class PostgresJobQueue:
         priority: int = 0,
         max_attempts: int = 3,
     ) -> DurableJob:
+        from reqpilotx_server.saas.authorization import bind_job_payload
+        payload = bind_job_payload(payload, aggregate_type=aggregate_type, aggregate_id=aggregate_id)
         kind = _validated_token(kind, "kind")
         aggregate_type = _validated_token(aggregate_type, "aggregate_type")
         aggregate_id = _validated_token(aggregate_id, "aggregate_id")

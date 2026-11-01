@@ -10,7 +10,8 @@ def write(path: Path, value: object) -> None:
     path.write_text(json.dumps(value, ensure_ascii=False), encoding="utf-8")
 
 
-def make_fixture(directory: Path, *, table_image=False, numbered_targets=False) -> tuple[Path, Path, dict]:
+def make_fixture(directory: Path, *, table_image=False, numbered_targets=False,
+                 mixed_bom=False) -> tuple[Path, Path, dict]:
     """Raw invented obligations cover all five classes and a complete test table."""
     import pymupdf
     from reqpilotx.application.fast_source_capture import capture_fast_source
@@ -36,6 +37,9 @@ def make_fixture(directory: Path, *, table_image=False, numbered_targets=False) 
     ]
     if numbered_targets:
         lines[2] = (120, "1.1 The valve shall open within 30 ms at 12 V and 23 C.\n1.2 The valve shall close within 40 ms at 12 V and 23 C.")
+    if mixed_bom:
+        lines[-2] = (415, "6 Product BOM")
+        lines[-1] = (650, "The valve module shall contain the following parts.")
     for y, text in lines:
         page.insert_text((40, y), text, fontsize=11)
     for x in (40, 190, 420, 555):
@@ -47,6 +51,10 @@ def make_fixture(directory: Path, *, table_image=False, numbered_targets=False) 
         (45, 495, "Response"), (195, 495, "Apply 12 V at 23 C."), (425, 495, "Open <= 30 ms"),
         (45, 550, "Durability"), (195, 550, "Repeat 1000 cycles."), (425, 550, "No leakage"),
     ]:
+        if mixed_bom:
+            text = {"Test": "Part", "Method and conditions": "Material", "Criterion": "Qty",
+                    "Response": "Housing", "Apply 12 V at 23 C.": "Aluminium", "Open <= 30 ms": "1",
+                    "Durability": "Seal", "Repeat 1000 cycles.": "Rubber", "No leakage": "1"}[text]
         page.insert_text((x, y), text, fontsize=10)
     from PIL import Image, ImageDraw
     if table_image:
@@ -89,7 +97,9 @@ def make_fixture(directory: Path, *, table_image=False, numbered_targets=False) 
     decisions = {
         "schema_version": "reqpilot-map-decisions/v1", "source_sha256": ir["source_sha256"], "nodes": nodes,
         "logical_tables": [{
-            "scope_id": "technical-test", "owner_node_id": "s6", "title": "Technical test", "role": "TEST_MATRIX",
+            "scope_id": "technical-test", "owner_node_id": "s6",
+            "title": "Product BOM" if mixed_bom else "Technical test",
+            "role": "REFERENCE_BOM" if mixed_bom else "TEST_MATRIX",
             "fragments": [{"source_node_id": table["source_node_id"], "row_range": [0, 3]}],
         }],
         "source_dispositions": [

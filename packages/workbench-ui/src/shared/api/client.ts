@@ -1,4 +1,5 @@
 import { createProjectDocumentClient } from './projectDocuments';
+import { saasCsrfFor, expireSaasSession } from './saasSession';
 import type {
   AiProviderSetup,
   AgentStructureProposalApplyResultV1,
@@ -128,12 +129,17 @@ export async function requestWithTransport<T>(
     headers.set("Content-Type", "application/json");
   }
   headers.set("Accept", "application/json");
+  const csrf = saasCsrfFor(path);
+  if (csrf && !["GET", "HEAD", "OPTIONS"].includes((init.method || "GET").toUpperCase())) {
+    headers.set("X-ReqPilot-CSRF", csrf);
+  }
 
   const response = await transport(path, {
     credentials: "same-origin",
     ...init,
     headers,
   });
+  expireSaasSession(response.status, csrf);
   const contentType = response.headers.get("content-type") || "";
   let payload: unknown = null;
   if (response.status !== 204) {

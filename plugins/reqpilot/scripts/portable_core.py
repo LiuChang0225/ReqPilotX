@@ -27,6 +27,7 @@ MODULE_ROOTS = (
     "reqpilotx.application.agent_workflow.source_item_visual",
     "reqpilotx.application.agent_workflow.source_item_analysis",
     "reqpilotx.application.knowledge_evidence_capture",
+    "reqpilotx.application.openkb_originals",
     "reqpilotx.application.agent_workflow.document_map_revision",
     "reqpilotx.application.agent_workflow.delivery_snapshot_compatibility",
     "reqpilotx.application.agent_workflow.artifact_kind_catalog",
@@ -199,6 +200,7 @@ def selected_module_roots(*, extraction_only: bool = False) -> tuple[str, ...]:
         "source_item_decomposition",
         "source_item_visual",
         "source_item_analysis",
+        "openkb_originals",
     )
     return tuple(module for module in MODULE_ROOTS if not module.endswith(excluded))
 

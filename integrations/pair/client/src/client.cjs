@@ -65,11 +65,22 @@ function Icon({ size }) {
   return h('svg', { width: size, height: size, viewBox: '0 0 24 24', fill: 'none', stroke: 'currentColor', strokeWidth: 1.7, 'aria-hidden': true },
     h('path', { d: 'M6 3h9l4 4v14H6z M14 3v5h5 M9 12h7 M9 16h7' }));
 }
-const inject = ['slots', 'locale', 'layout'];
+const inject = ['slots', 'locale', 'layout', 'sessions', 'conversation'];
 function apply(ctx) {
   ctx.effect(() => ctx.locale.register(NS, copy), 'reqpilotx: dictionaries');
   ctx.effect(() => { const style = document.createElement('style'); style.dataset.reqpilotx = 'readonly'; style.textContent = panelCss; document.head.append(style); return () => style.remove(); }, 'reqpilotx: panel styles');
-  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'reqpilotx', locale: NS }, Application));
+  ctx.slots.inject('main', () => ctx.slots.register({ name: 'main', key: 'reqpilotx', locale: NS, inject: () => ({ openSession: async (sessionId, context) => {
+    const signal = ctx.layout.beginNavigation(); await ctx.sessions.open(sessionId); if (signal.aborted) return;
+    if (context) {
+      const scope = ctx.sessions.scope(sessionId); if (!scope) throw Error('关联会话尚未就绪。');
+      const state = ctx.conversation.input.for(scope).state.getSnapshot();
+      if (state.phase !== 'plain') throw Error('会话正在提交内容，请稍后再带入所选原文。');
+      const reference = Object.fromEntries(['projectId', 'documentId', 'sourceSha256', 'workRef', 'revisionId', 'scope', 'nodeId', 'sourceItemId', 'derivedUnitId'].filter(key => context[key] !== undefined).map(key => [key, context[key]]));
+      const text = '讨论当前选中的原文（保留此来源与版本）：\n' + JSON.stringify(reference, null, 2) + '\n\n';
+      if (scope.bail(scope, 'slash/input-insert-text', { text, span: { start: 0, end: 0, draftRev: state.draftRev } }) !== true) throw Error('当前会话未接收原文上下文，请重试。');
+    }
+    ctx.layout.selectPanel(null);
+  } }) }, Application));
   ctx.slots.inject('sidebar.panellist', () => ctx.slots.register({ name: 'sidebar.panellist', id: 'reqpilotx', label: 'ReqPilotX', order: 20 }, Icon));
 }
 module.exports = { inject, apply };

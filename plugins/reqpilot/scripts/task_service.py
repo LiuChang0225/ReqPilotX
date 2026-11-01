@@ -219,7 +219,8 @@ class ItemsRequest(WriteRequest):
 
 
 class ReviewRequest(WriteRequest):
-    analysis_policy: Literal['preserve', 'skip_no_internal_evidence'] = 'preserve'
+    analysis_policy: Literal['preserve', 'skip_no_internal_evidence'] = Field(default='preserve',
+        description='Preserve the current policy, or explicitly record the authorized source-only scope. This is not inferred from failed retrieval. Existing reviews update through an immutable policy revision.')
 
 
 class SelfReviewFinding(Request):
@@ -273,6 +274,20 @@ class SyncRequest(TaskRequest):
     expected_revision: str | None = None
 
 
+class DeliveryReadRequest(TaskRequest):
+    view: Literal['responses', 'preview', 'versions', 'version'] = 'preview'
+    result_revision: str | None = Field(default=None, pattern=r'^[0-9a-f]{64}$')
+    delivery_revision: StrictInt | None = Field(default=None, ge=1)
+
+    @model_validator(mode='after')
+    def version_selector(self):
+        if (self.view == 'version') != (self.delivery_revision is not None):
+            raise ValueError('delivery_revision is required only for view=version')
+        if self.result_revision is not None and self.view not in {'responses', 'preview'}:
+            raise ValueError('result_revision selects responses/preview; saved deliveries use delivery_revision')
+        return self
+
+
 REQUESTS = {
     'describe':DescribeRequest,
     'open': OpenRequest, 'inspect': InspectRequest, 'prepare': PrepareRequest,
@@ -282,6 +297,7 @@ REQUESTS = {
     'annotations':AnnotationsRequest,'decomposition':DecompositionApplyRequest,
     'revise':ExistingItemsRequest,'images':ImagesRequest,
     'visual_revise':VisualRevisionRequest,
+    'delivery_read':DeliveryReadRequest,
 }
 OPERATIONS = {'map': 'compile-map', 'items': 'compile-items', 'review': 'review-open', 'deliver': 'deliver',
     'images':'compile-images','annotations':'compile-annotations','decomposition':'compile-decomposition',
@@ -340,12 +356,20 @@ def task_summary(state):
         'pending_decomposition': decomposition_attention(state),
         'capabilities': {'contract_version': CONTRACT_VERSION, 'actions': list(REQUESTS),
             'map_items_semantics': 'EXISTING_COMPILERS', 'existing_item_revision': 'TYPED_REVIEW_APPLY',
-            'assessment_and_engineer_opinion_transport': 'UNSUPPORTED'},
+            'assessment_and_engineer_opinion_transport': 'UNSUPPORTED',
+            'saved_human_response_and_delivery_read': 'BOUND_WORKBENCH_READ_ONLY'},
     }
     # The complete brief is an artifact. Keep role, goal and continuation information,
     # without returning its duplicated manifests and full paths on every call.
     result['brief'] = {k:v for k,v in result['brief'].items() if k not in {
         'saved_artifacts', 'retained_stage_artifacts', 'source', 'current_request'}}
+    if state['selected'].get('MAP'):
+        result['scope_read'] = TaskService.scope_link(state, context['work_id'])
+    if state['selected'].get('ITEMS'):
+        result['source_items_read'] = {'tool':'source_read','request':{
+            'task_id':context['work_id'],'view':'items',
+            'expected_map_sha256':state['selected']['MAP']['artifact_sha256'],
+            'expected_baseline_sha256':state['selected']['ITEMS']['artifact_sha256']}}
     return result
 
 
@@ -370,6 +394,13 @@ class TaskService:
         if action == 'open':
             return self.open(request)
         root, state = self.state(request.task_id)
+        if isinstance(request, WriteRequest):
+            from task_review_policy import guard_write_command
+            with guard_write_command(root, state, action, request):
+                return self._invoke_task(action, request, root, state)
+        return self._invoke_task(action, request, root, state)
+
+    def _invoke_task(self, action, request, root, state):
         if action == 'inspect':
             result = {'status': 'READY', **task_summary(state)}
             if request.include_history:
@@ -378,9 +409,16 @@ class TaskService:
                               history_path=str(root/'workspace-index.json'))
             return result
         if action == 'read':
+            from task_reading import ReadNavigationError
             budget=request.max_chars
             request=request.model_copy(update={'max_chars':min(budget,24000)})
-            result=self.read(state, request)
+            try:
+                result=self.read(state, request)
+            except ReadNavigationError as exc:
+                return {'status':'FAILED','error_code':exc.code,'message':str(exc),
+                    'task_id':request.task_id,'revision':state['revision'],'preserved_existing_artifacts':True,
+                    'next_action':self.read_links(exc.next_read,request.task_id,
+                        map_sha=state['selected'].get('MAP',{}).get('artifact_sha256'))}
             if budget!=request.max_chars:result['read_budget']={'requested_max_chars':budget,'applied_max_chars':request.max_chars,'content_continuation_preserved':True}
             return result
         if action == 'recover':
@@ -392,9 +430,15 @@ class TaskService:
             return self.check(root, state)
         if action == 'sync':
             return self.sync(root, state, request)
+        if action == 'delivery_read':
+            from task_workbench import read_workbench_delivery
+            return read_workbench_delivery(state, request)
         if action in {'annotations','decomposition','revise','images'}:
             from task_changes import execute_change
             return execute_change(self,root,state,action,request)
+        if action == 'review':
+            from task_review_policy import prepare_review
+            return prepare_review(self,root,state,request)
         try:
             return self.write(root, state, action, request)
         except ValueError as exc:
@@ -414,7 +458,7 @@ class TaskService:
             'next_action':cls.scope_link(state,task_id)}
 
     def describe(self, request):
-        from task_schema import describe
+        from task_schema import describe, SchemaPartError
         state=self.state(request.task_id)[1] if request.task_id else None
         if request.expected_revision and (state is None or state['revision']!=request.expected_revision):
             raise ValueError('DESCRIBE_CONTEXT_CHANGED: reload the description for the current task')
@@ -428,7 +472,20 @@ class TaskService:
             if chosen is None:return self.unknown_scope(state,request.task_id,'Select a scope returned by the current Map; no scope was substituted.')
             kind,value=chosen;scope={'scope_kind':kind,'scope_id':request.scope_id,'node_id':value.node_id}
             if kind=='TABLE':scope['logical_table_scope_id']=request.scope_id
-        result=describe(request.action,context=state,scope=scope,part=request.part,offset=request.offset,max_chars=request.max_chars)
+        try:
+            result=describe(request.action,context=state,scope=scope,part=request.part,offset=request.offset,max_chars=request.max_chars)
+        except SchemaPartError as exc:
+            discovery=describe(request.action,context=state,scope=scope,part='definitions',max_chars=request.max_chars)
+            if request.expected_schema_sha256 and request.expected_schema_sha256!=discovery['request_schema_sha256']:
+                raise ValueError('DESCRIPTION_SCHEMA_CHANGED: restart this schema part')
+            args={'action':request.action,'part':'definitions','max_chars':request.max_chars,
+                'expected_schema_sha256':discovery['request_schema_sha256']}
+            if state:args.update(task_id=request.task_id,expected_revision=state['revision'])
+            if request.scope_id:args['scope_id']=request.scope_id
+            DescribeRequest.model_validate(args)
+            return {'status':'FAILED','error_code':'UNKNOWN_SCHEMA_PART','message':str(exc),
+                'preserved_existing_artifacts':True,'next_action':{'tool':'task_describe','request':args},
+                **({'task_id':request.task_id,'revision':state['revision']} if state else {})}
         if request.expected_schema_sha256 and request.expected_schema_sha256!=result['request_schema_sha256']:
             raise ValueError('DESCRIPTION_SCHEMA_CHANGED: restart this schema part')
         def links(value):
@@ -468,6 +525,11 @@ class TaskService:
         return response
 
     def write(self, root, state, action, request):
+        from task_review_policy import guard_write_command
+        with guard_write_command(root, state, action, request):
+            return self._write(root, state, action, request)
+
+    def _write(self, root, state, action, request):
         from reqpilotx.application.agent_workflow import task_workspace as core
         from workspace_tools import run
         requested_pages=None
@@ -609,15 +671,13 @@ class TaskService:
 
     def ensure_pages(self, state, request):
         """Lazily register the established reading-workspace once per task/capture."""
-        import fcntl
+        from portable_lock import exclusive_file
         from reqpilotx.adapters.documents.pdf_source_crop_renderer import inspect_pdf_page_geometry
         root=Path(state['task_root'])
         # A separate derivative-preparation lock serializes concurrent page reads;
         # existing workspace writes keep their own CAS and publication locks.
         lock=root/'reading'/'.page-preparation.lock'
-        lock.parent.mkdir(parents=True,exist_ok=True)
-        with lock.open('a') as stream:
-            fcntl.flock(stream.fileno(),fcntl.LOCK_EX)
+        with exclusive_file(lock):
             current=self.state(request.task_id)[1]
             from task_read_resolution import resolve_source_request
             resolve_source_request(current,request)  # reject stale refs before writes
@@ -647,6 +707,11 @@ class TaskService:
             state,preparation=self.ensure_pages(state,request)
         selected = state['selected']; sha = state['context']['source']['sha256']
         if request.view in {'items','item','item_image','image_scope','image_scope_image','feedback'}:
+            if request.view in {'items','item','item_image'} and not selected.get('ITEMS') and selected.get('MAP'):
+                return {'status':'FAILED','error_code':'ITEMS_REQUIRED',
+                    'message':'No saved Items yet. Read the actual Map scopes and compile source judgments before reading the ledger.',
+                    'task_id':request.task_id,'revision':state['revision'],'preserved_existing_artifacts':True,
+                    'next_action':self.scope_link(state,request.task_id)}
             from task_item_views import read_item_view
             result=read_item_view(state,request)
             result=self.read_links(result,request.task_id,None,selected.get('MAP',{}).get('artifact_sha256'),selected.get('ITEMS',{}).get('artifact_sha256'))

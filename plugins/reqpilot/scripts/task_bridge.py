@@ -3,12 +3,12 @@ from __future__ import annotations
 
 import hashlib
 import json
-import os
 from pathlib import Path
-import signal
 import subprocess
 import sys
 import tempfile
+
+from portable_process import isolation_kwargs, stop_timed_out_process
 
 
 def _needs_generated_item_keys(decisions):
@@ -25,6 +25,12 @@ def _needs_generated_item_keys(decisions):
     return False
 
 
+def _uses_item_number_refs(value):
+    if isinstance(value,dict):
+        return value.get('kind') in {'ITEM_SOURCE','ITEM_HEADING'} or any(_uses_item_number_refs(v) for v in value.values())
+    return isinstance(value,(list,tuple)) and any(_uses_item_number_refs(v) for v in value)
+
+
 class TaskBridge:
     def __init__(self, working_root, entrypoint, *, project_root=None, timeout=120, source_roots=None):
         self.working_root = Path(working_root).expanduser().resolve(strict=True)
@@ -32,6 +38,23 @@ class TaskBridge:
         self.project_root = project_root
         self.timeout = timeout
         self.source_roots = [Path(p).expanduser().resolve(strict=True) for p in (source_roots or [self.working_root])]
+
+    def command_revision(self, task_id, command_id):
+        """Recover only this command's original CAS token, never the current head.
+
+        The fixed CLI still authenticates the complete request digest and receipt.
+        No new journal or mutable binding sidecar is introduced.
+        """
+        from task_service import find_task_root
+        from reqpilotx.application.agent_workflow import task_workspace as core
+        root, context = core._resolve_task(find_task_root(self.working_root, task_id))
+        identifier = core._command_operation_id(context, command_id)
+        if not (root/'operations'/(identifier+'.json')).is_file():
+            return None
+        operation = core._operation(root, identifier)
+        if operation.get('command_id') != command_id or not operation.get('expected_revision'):
+            raise ValueError('COMMAND_CONTEXT_INVALID: original command revision is unavailable; supply the original explicit request')
+        return operation['expected_revision']
 
     def invoke(self, action, request):
         from task_service import find_task_root
@@ -72,7 +95,11 @@ class TaskBridge:
         generated_keys_unsupported=(action=='items'
             and 'items_generated_local_keys' not in supported.get('write_features',[])
             and _needs_generated_item_keys(request.get('decisions')))
-        if generated_keys_unsupported or region_unsupported or context_unsupported or retention_unsupported or handle_unsupported or action not in supported['actions'] or (action=='read' and request.get('view','source') not in supported['read_views']) or template_unsupported or outline_unsupported:
+        number_refs_unsupported=(action in {'annotations','revise'} and _uses_item_number_refs(request.get('changes'))
+            and 'item_number_refs' not in supported.get('write_features',[]))
+        numbering_unsupported=(action=='read' and request.get('view')=='item' and request.get('part') in {'numbering','numbering_review'}
+            and 'source_numbering_review' not in supported.get('read_features',[]))
+        if number_refs_unsupported or numbering_unsupported or generated_keys_unsupported or region_unsupported or context_unsupported or retention_unsupported or handle_unsupported or action not in supported['actions'] or (action=='read' and request.get('view','source') not in supported['read_views']) or template_unsupported or outline_unsupported:
             return {'status':'FAILED','error_code':'UNSUPPORTED_CAPABILITY',
                 'message':'This operation is not provided by the task\'s fixed package. Its package was not replaced.',
                 'supported':supported}
@@ -81,16 +108,14 @@ class TaskBridge:
             path.write_text(json.dumps(request, ensure_ascii=False), encoding='utf-8'); path.chmod(0o600)
             command += ['task', action, '--working-root', str(self.working_root), '--input', str(path)]
             process = subprocess.Popen(command, cwd=self.working_root, stdout=subprocess.PIPE,
-                stderr=subprocess.PIPE, text=True, start_new_session=True)
+                stderr=subprocess.PIPE, text=True, **isolation_kwargs())
             try:
                 stdout, stderr = process.communicate(timeout=self.timeout)
             except subprocess.TimeoutExpired:
-                try: os.killpg(process.pid, signal.SIGTERM)
-                except ProcessLookupError: pass
+                stop_timed_out_process(process, force=False)
                 try: process.communicate(timeout=5)
                 except subprocess.TimeoutExpired:
-                    try: os.killpg(process.pid, signal.SIGKILL)
-                    except ProcessLookupError: pass
+                    stop_timed_out_process(process, force=True)
                     process.communicate()
                 return {'status':'UNKNOWN','error_code':'OPERATION_TIMEOUT',
                     'task_id':request.get('task_id'), 'command_id':request.get('command_id'),

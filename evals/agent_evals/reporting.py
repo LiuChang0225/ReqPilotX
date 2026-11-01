@@ -380,6 +380,9 @@ def grade(run_dir, output, reviews=None):
         "origin": run["origin"],
         "partition": run["partition"],
         "scope": run["scope"],
+        "preparation": run.get('preparation', 'HISTORICAL_NOT_RECLASSIFIED'),
+        "provided_stages": (run.get('stage_fixture') or {}).get('provided_stages', []),
+        "acceptance_scope": 'PREPARED_INPUT_STAGE' if run.get('preparation') == 'STAGE_FIXTURE' else 'DECLARED_CASE_SCOPE',
         "criterion_scope": {
             "scope": run["scope"],
             "coverage_basis": "EXPLICIT_CASE_RANGE" if run["scope"] == "SCOPED_EXTRACTION" else "CASE_SCOPE",

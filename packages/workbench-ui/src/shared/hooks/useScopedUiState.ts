@@ -5,12 +5,14 @@ import {
   useEffect,
   useState,
 } from "react";
+import { saasStorageKey } from "../api/saasSession";
 
 const cache = new Map<string, unknown>();
 const MAX_SCOPED_STATES = 320;
 
 /** A completed save may outlive its editor; never erase a newer draft. */
 export function clearScopedUiStateIfUnchanged<T>(key: string, expected: T): boolean {
+  key = saasStorageKey(key);
   if (cache.has(key) && cache.get(key) !== expected) return false;
   cache.delete(key);
   return true;
@@ -28,6 +30,7 @@ export function useScopedUiState<T>(
   key: string,
   initialValue: T | (() => T),
 ): [T, Dispatch<SetStateAction<T>>] {
+  key = saasStorageKey(key);
   const resolveInitial = useCallback(
     () =>
       cache.has(key)

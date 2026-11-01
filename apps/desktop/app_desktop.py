@@ -66,6 +66,11 @@ def _prefer_bundled_runtime_packages() -> None:
 
 
 _prefer_bundled_runtime_packages()
+from frozen_python import is_frozen_python_child, run_frozen_python_child
+
+if is_frozen_python_child():
+    raise SystemExit(run_frozen_python_child())
+
 os.environ["REQPILOT_DESKTOP_EMBEDDED"] = "1"
 if getattr(sys, "frozen", False):
     os.environ.setdefault(
@@ -80,11 +85,20 @@ from reqpilotx_server.infrastructure.local_runtime import (
     probe_local_runtime_readiness,
     prepare_artifact_smoke_storage,
     qdrant_loopback_environment,
-    shutdown_runtime_in_order,
     uvicorn_loopback_kwargs,
     wait_for_local_readiness,
 )
 from reqpilotx_server.runtime_paths import resolve_storage_dir
+from reqpilotx_server.infrastructure.local_postgres import (
+    LocalPostgresError,
+    ManagedPostgres,
+    resolve_postgres_bin,
+)
+from reqpilotx_server.infrastructure.storage_lock import (
+    StorageLockError,
+    acquire_file_lease,
+)
+from local_workers import LocalWorkerError, LocalWorkerPool
 
 ARTIFACT_SMOKE_SERVER_FLAG = "--artifact-smoke-server"
 ARTIFACT_SMOKE_HANDSHAKE_FLAG = "--artifact-smoke-handshake"
@@ -194,27 +208,23 @@ if config_file.exists():
             f"error_type={type(e).__name__}"
         )
 
-# If we have a key (from any source), default to enabling local Qdrant retrieval for Aliyun POC
+# A DashScope credential does not imply a bundled Qdrant service. Retrieval is
+# opt-in and must be configured separately for a package that includes Qdrant.
 if has_key:
-    os.environ["REQPILOT_ALIYUN_RETRIEVAL_BACKEND"] = "qdrant"
     if not os.environ.get("REQPILOT_DASHSCOPE_BASE_URL"):
         os.environ["REQPILOT_DASHSCOPE_BASE_URL"] = "https://dashscope.aliyuncs.com/compatible-mode/v1"
 
 import uvicorn
 import webview
-from reqpilotx_server.application.runtime import (
-    acquire_runtime_storage_lease,
-    manage_runtime_storage_lease_from_launcher,
-    register_artifact_smoke_shutdown,
-    release_runtime_storage_lease,
-)
-from reqpilotx_server.infrastructure.storage_lock import StorageLockError
-from reqpilotx_server.main import app
 
 # Qdrant process reference for cleanup
 qdrant_process = None
 backend_server = None
 backend_thread = None
+managed_postgres = None
+worker_pool = None
+desktop_lease = None
+runtime_imported = False
 
 
 def bind_loopback_socket() -> socket.socket:
@@ -237,6 +247,8 @@ def request_backend_shutdown() -> None:
 
 def start_backend(listener: socket.socket) -> bool:
     global backend_server
+    from reqpilotx_server.application.runtime import register_artifact_smoke_shutdown
+    from reqpilotx_server.main import app
     host, port = listener.getsockname()[:2]
     if host != LOOPBACK_HOST:
         listener.close()
@@ -289,6 +301,8 @@ def is_server_ready(port: int, timeout: float = 10.0) -> bool:
 
 def start_qdrant_if_needed() -> None:
     global qdrant_process
+    if os.environ.get("REQPILOT_ALIYUN_RETRIEVAL_BACKEND", "").strip().lower() != "qdrant":
+        return
     
     # Check if Qdrant is already running and healthy
     if check_qdrant_service():
@@ -392,11 +406,19 @@ def stop_qdrant() -> None:
 
 
 def shutdown_owned_runtime(thread: threading.Thread | None) -> None:
-    shutdown_runtime_in_order(
-        stop_qdrant=stop_qdrant,
-        stop_backend=lambda: stop_backend(thread),
-        release_storage=release_runtime_storage_lease,
-    )
+    global desktop_lease
+    if worker_pool is not None:
+        worker_pool.stop()
+    stop_backend(thread)
+    if managed_postgres is not None:
+        managed_postgres.stop()
+    stop_qdrant()
+    if runtime_imported:
+        from reqpilotx_server.application.runtime import release_runtime_storage_lease
+        release_runtime_storage_lease()
+    if desktop_lease is not None:
+        desktop_lease.release()
+        desktop_lease = None
 
 
 def cleanup_processes() -> None:
@@ -448,8 +470,13 @@ def _write_artifact_smoke_handshake(
 
 
 def main() -> int:
-    global backend_thread
+    global backend_thread, managed_postgres, worker_pool, desktop_lease, runtime_imported
     if _artifact_smoke_server:
+        from reqpilotx_server.application.runtime import (
+            manage_runtime_storage_lease_from_launcher,
+            release_runtime_storage_lease,
+        )
+        runtime_imported = True
         try:
             nonce = _required_argument(ARTIFACT_SMOKE_NONCE_FLAG)
             handshake_path = Path(
@@ -478,11 +505,32 @@ def main() -> int:
         release_runtime_storage_lease()
         return 0
 
-    manage_runtime_storage_lease_from_launcher(True)
     try:
+        desktop_lease = acquire_file_lease(
+            storage_dir.parent / f".{storage_dir.name}.desktop.lock", blocking=False,
+        )
+        managed_postgres = ManagedPostgres(
+            storage_dir,
+            resolve_postgres_bin(
+                packaged_root=Path(sys._MEIPASS)
+                if getattr(sys, "frozen", False) else None,
+            ),
+        )
+        os.environ["REQPILOT_DATABASE_URL"] = managed_postgres.start()
+        os.environ["REQPILOT_ENV"] = "local"
+        os.environ["REQPILOT_PROCESS_ROLE"] = "api"
+        os.environ["REQPILOT_LOCAL_RUNTIME_INSTANCE_ID"] = uuid.uuid4().hex
+        os.environ.setdefault("REQPILOT_RUNTIME_SOURCE_REVISION", "desktop-local")
+        from reqpilotx_server.application.runtime import (
+            acquire_runtime_storage_lease,
+            manage_runtime_storage_lease_from_launcher,
+        )
+        runtime_imported = True
+        manage_runtime_storage_lease_from_launcher(True)
         acquire_runtime_storage_lease()
-    except StorageLockError as exc:
-        print(f"[ReqPilotX] Startup blocked: {exc}")
+    except (StorageLockError, LocalPostgresError, OSError, ValueError) as exc:
+        print(f"[ReqPilotX] Startup blocked: {type(exc).__name__}.")
+        shutdown_owned_runtime(None)
         return 2
 
     # 1. Start Qdrant backend if available
@@ -496,13 +544,43 @@ def main() -> int:
     t.start()
     
     # Wait for backend server to be ready
-    if not is_server_ready(port):
+    if not is_server_ready(port, timeout=30.0):
         print(f"[Error] Backend server failed to start on port {port} within timeout.")
         try:
             shutdown_owned_runtime(t)
         except RuntimeError:
             return 1
         return 1
+
+    try:
+        worker_count = int(os.environ.get("REQPILOT_LOCAL_WORKER_COUNT", "2"))
+        worker_pool = LocalWorkerPool(
+            storage_root=storage_dir,
+            api_port=port,
+            count=worker_count,
+            instance_id=os.environ["REQPILOT_LOCAL_RUNTIME_INSTANCE_ID"],
+        )
+        worker_pool.start()
+    except (LocalWorkerError, OSError, ValueError) as exc:
+        print(f"[ReqPilotX] Durable worker startup failed: {type(exc).__name__}.")
+        shutdown_owned_runtime(t)
+        return 1
+
+    if "--runtime-smoke-seconds" in sys.argv:
+        try:
+            duration = float(_required_argument("--runtime-smoke-seconds"))
+            if not 0 < duration <= 60:
+                raise ValueError("Runtime smoke duration must be between 0 and 60 seconds.")
+            deadline = time.monotonic() + duration
+            while time.monotonic() < deadline:
+                if not managed_postgres.alive() or not worker_pool.check() or not t.is_alive():
+                    print("[ReqPilotX] Runtime smoke failed: owned service exited.")
+                    return 1
+                time.sleep(0.2)
+            print("[ReqPilotX] Runtime smoke passed: PostgreSQL, API and workers stayed live.")
+            return 0
+        finally:
+            shutdown_owned_runtime(t)
         
     url = loopback_url(port)
     
@@ -550,13 +628,39 @@ def main() -> int:
         window.evaluate_js(js_code)
         
     window.events.loaded += remove_target_blank
+
+    monitor_stop = threading.Event()
+    runtime_failed = threading.Event()
+
+    def monitor_owned_services() -> None:
+        while not monitor_stop.wait(2.0):
+            try:
+                if not managed_postgres.alive() or not t.is_alive():
+                    raise RuntimeError("An owned runtime service stopped.")
+                restarted = worker_pool.restart_exited()
+                if restarted:
+                    print("[ReqPilotX] Restarted an exited durable worker.")
+            except (LocalPostgresError, LocalWorkerError, OSError, RuntimeError):
+                runtime_failed.set()
+                print("[ReqPilotX] Owned runtime became unavailable; close and restart ReqPilotX.")
+                request_backend_shutdown()
+                try:
+                    window.destroy()
+                except Exception:
+                    pass
+                return
+
+    monitor_thread = threading.Thread(target=monitor_owned_services, daemon=True)
+    monitor_thread.start()
     
     # Start the native window event loop (this blocks until window is closed)
     try:
         webview.start()
     finally:
+        monitor_stop.set()
+        monitor_thread.join(timeout=3)
         shutdown_owned_runtime(t)
-    return 0
+    return 1 if runtime_failed.is_set() else 0
 
 if __name__ == '__main__':
     raise SystemExit(main())

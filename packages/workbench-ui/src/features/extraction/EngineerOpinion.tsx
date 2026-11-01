@@ -1,10 +1,12 @@
 import { useEffect, useRef, useState } from "react";
+import { saasStorageKey } from "../../shared/api/saasSession";
 
 export type EngineerDecision = "COMPLIANT" | "PARTIALLY_COMPLIANT" | "NON_COMPLIANT" | "PENDING_EVIDENCE" | "NEEDS_CLARIFICATION" | "NOT_APPLICABLE";
 export type EngineerRecord = { record_id: string; unit_id: string; source_item_id: string; requirement_display_id: string;
   decision: EngineerDecision | ""; reason: string; conditions: string; evidence_requests: string;
   state: "CURRENT" | "STALE" | "WITHDRAWN"; decided_at: string; origin: "USER_INPUT" | "USER_PROVIDED_FILE"; baseline_sha256: string };
 export type EngineerResponseView = { available: boolean; response_revision: number; response_sha256: string;
+  source_sha256?: string; session_id?: string; revision_id?: string; current_revision_id?: string; version?: string; baseline_sha256?: string;
   business_basis_sha256?: string;
   units: Record<string, { unit_id: string; source_item_id: string; requirement_display_id: string; unit_context_sha256: string }>;
   records: Record<string, EngineerRecord>; history: EngineerRecord[] };
@@ -12,7 +14,8 @@ export type EngineerChoice = { action: "SET" | "WITHDRAW"; decision?: EngineerDe
 export const ENGINEER_DECISION_LABELS: Record<EngineerDecision, string> = { COMPLIANT: "符合", PARTIALLY_COMPLIANT: "部分符合", NON_COMPLIANT: "不符合",
   PENDING_EVIDENCE: "待内部证据", NEEDS_CLARIFICATION: "待澄清", NOT_APPLICABLE: "不适用" };
 
-export function EngineerOpinion({ unitId, view, onSave, onLoad, defaultExpanded = false, draftScope, suggestion }: { unitId: string; view?: EngineerResponseView | null;
+export function EngineerOpinion({ unitId, view, onSave, onLoad, defaultExpanded = false, draftScope, suggestion, readOnly = false }: { unitId: string; view?: EngineerResponseView | null;
+  readOnly?: boolean;
   defaultExpanded?: boolean; draftScope?: string; suggestion?: { decision: string; reason: string; clarification_question?: string };
   onLoad?: () => Promise<void>;
   onSave: (unitId: string, choice: EngineerChoice) => Promise<void> }) {
@@ -25,7 +28,7 @@ export function EngineerOpinion({ unitId, view, onSave, onLoad, defaultExpanded 
   const [open, setOpen] = useState(defaultExpanded);
   const [draftUnavailable, setDraftUnavailable] = useState(false);
   const businessScope = `${draftScope || ""}:${unitId}:${view?.units[unitId]?.unit_context_sha256 || "unloaded"}`;
-  const draftKey = draftScope ? `reqpilotx:engineer-draft:${businessScope}` : "";
+  const draftKey = draftScope ? saasStorageKey(`reqpilotx:engineer-draft:${businessScope}`) : "";
   const scopeRef = useRef(businessScope); scopeRef.current = businessScope;
   useEffect(() => {
     let draft: { decision?: EngineerDecision; reason?: string; conditions?: string; evidence?: string } | null = null;
@@ -34,7 +37,7 @@ export function EngineerOpinion({ unitId, view, onSave, onLoad, defaultExpanded 
     setReason(draft?.reason ?? current?.reason ?? ""); setConditions(draft?.conditions ?? current?.conditions ?? "");
     setEvidence(draft?.evidence ?? current?.evidence_requests ?? ""); setMessage(""); setSaving(false);
   }, [draftKey, unitId, current?.record_id, current?.state]);
-  useEffect(() => { if (open && !view && onLoad) void onLoad().catch(error => setMessage(error.message)); }, [open, view, onLoad]);
+  useEffect(() => { if (!readOnly && open && !view && onLoad) void onLoad().catch(error => setMessage(error.message)); }, [readOnly, open, view, onLoad]);
   const change = (patch: Partial<{ decision: EngineerDecision; reason: string; conditions: string; evidence: string }>) => {
     if (saving) return;
     const next = { decision, reason, conditions, evidence, ...patch };
@@ -43,6 +46,7 @@ export function EngineerOpinion({ unitId, view, onSave, onLoad, defaultExpanded 
   };
   const history = view?.history.filter(record => record.unit_id === unitId) || [];
   const save = async (action: "SET" | "WITHDRAW") => {
+    if (readOnly) return;
     const startedScope = businessScope, sentDraftKey = draftKey;
     const sentDraft = JSON.stringify({ decision, reason, conditions, evidence });
     setSaving(true); setMessage("");
@@ -64,7 +68,7 @@ export function EngineerOpinion({ unitId, view, onSave, onLoad, defaultExpanded 
       {current.conditions && <p>适用条件：{current.conditions}</p>}
       {current.evidence_requests && <p>证据请求：{current.evidence_requests}</p>}
     </div>}
-    <details open={open} onToggle={event => setOpen(event.currentTarget.open)}>
+    {!readOnly && <details open={open} onToggle={event => setOpen(event.currentTarget.open)}>
       <summary>{current?.state === "CURRENT" ? "修改工程师工作意见" : "记录工程师工作意见"}</summary>
       <p className="muted">保存后作为本版工程师响应，Agent 建议和来源继续保留。</p>
       {suggestion && suggestion.decision in ENGINEER_DECISION_LABELS && <button type="button" className="button secondary compact" disabled={saving || suggestion.reason.length > 8000} onClick={() => change({ decision: suggestion.decision as EngineerDecision, reason: suggestion.reason, evidence: suggestion.clarification_question || "" })}>引用 Agent 建议为草稿</button>}
@@ -83,7 +87,7 @@ export function EngineerOpinion({ unitId, view, onSave, onLoad, defaultExpanded 
           {current && current.state !== "WITHDRAWN" && <button type="button" className="button secondary compact" disabled={saving} onClick={() => void save("WITHDRAW")}>撤回人工意见</button>}
         </div>
       </fieldset></form>}
-    </details>
+    </details>}
     {draftUnavailable && <p role="status">本机草稿暂存不可用；当前输入保留在此页。</p>}
     {message && <p role="status">{message}</p>}
     {history.length > 0 && <details><summary>历史工程师意见 · {history.length} 条</summary>

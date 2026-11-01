@@ -1,7 +1,8 @@
-import { act, cleanup, render, renderHook, screen } from "@testing-library/react";
+import { act, cleanup, fireEvent, render, renderHook, screen } from "@testing-library/react";
 import { afterEach, describe, expect, it, vi } from "vitest";
 import { SourceItemReasoningDetail, SourceItemReasoningStatus, useSourceItemReasoning, type SourceItemDeliveryState } from "./SourceItemReasoning";
 import { request } from "../../shared/api/client";
+import { WorkbenchHostContext } from "../workspace/WorkbenchHostContext";
 vi.mock("../../shared/api/client", () => ({ request: vi.fn() }));
 afterEach(() => { cleanup(); localStorage.clear(); vi.mocked(request).mockReset(); });
 const sid = "source-a";
@@ -115,4 +116,34 @@ it("links a cited fact to the exact registered original and page", () => {
   function Detail() { const workflow = useSourceItemReasoning("p", "d", value.baseline_sha256, value); return <SourceItemReasoningDetail workflow={workflow} sourceItemId={sid} requirementId="REQ-0001" onPageChange={vi.fn()} reviewMode />; }
   render(<Detail />);
   expect(screen.getByRole("link", { name: "记录.pdf · P3" })).toHaveAttribute("href", `/api/projects/p/knowledge-documents/k/file?expected_source_sha256=${"a".repeat(64)}#page=3`);
+});
+
+it("exposes the standalone evidence preparation inside existing reasoning and dismisses it without an analysis call", () => {
+  HTMLDialogElement.prototype.showModal = function () { this.open = true; this.setAttribute("open", ""); };
+  HTMLDialogElement.prototype.close = function () { this.open = false; this.removeAttribute("open"); };
+  const value = state(); vi.mocked(request).mockImplementation(() => new Promise(() => {}));
+  function Detail() { const workflow = useSourceItemReasoning("p", "d", value.baseline_sha256, value); return <SourceItemReasoningDetail workflow={workflow} sourceItemId={sid} requirementId="REQ-0001" onPageChange={vi.fn()} purpose="analysis" />; }
+  render(<Detail />);
+  fireEvent.click(screen.getByRole("button", { name: "核对证据并准备评审草稿" }));
+  expect(screen.getByRole("dialog", { name: "准备内部证据评审草稿" })).toBeVisible();
+  expect(screen.getByText(/语义比较未执行（NOT_PERFORMED）/)).toBeVisible();
+  fireEvent.click(screen.getByRole("button", { name: "关闭证据评审" }));
+  expect(screen.queryByRole("dialog")).not.toBeInTheDocument();
+  expect(vi.mocked(request).mock.calls.every(([, init]) => !init?.method || init.method === "GET")).toBe(true);
+});
+
+it("keeps external providers without a native flag on their original reasoning contract", () => {
+  const value = state();
+  vi.mocked(request).mockImplementation(() => new Promise(() => {}));
+  function Detail() { const workflow = useSourceItemReasoning("p", "d", value.baseline_sha256, value); return <SourceItemReasoningDetail workflow={workflow} sourceItemId={sid} requirementId="REQ-0001" onPageChange={vi.fn()} purpose="analysis" />; }
+  render(<WorkbenchHostContext.Provider value={{ readOnly: false, resourceUrl: path => path, pdfViewerUrl: () => "" }}><Detail /></WorkbenchHostContext.Provider>);
+  expect(screen.queryByRole("button", { name: "核对证据并准备评审草稿" })).not.toBeInTheDocument();
+  expect(vi.mocked(request).mock.calls.every(([path]) => !path.includes("openkb-evidence"))).toBe(true);
+});
+
+it("preserves no-model and no-human-acceptance facts after canonical draft refresh", () => {
+  const value = state(); value.openkb_preparation = { assessment_sha256: "a".repeat(64), prepared_at: "2026-10-02T09:00:00Z", model_call_count: 0, semantic_validation: "NOT_PERFORMED", live_openkb: "NOT_RUN", human_acceptance: "NOT_CLAIMED" };
+  const workflow = { state: value } as unknown as Parameters<typeof SourceItemReasoningStatus>[0]["workflow"];
+  render(<SourceItemReasoningStatus workflow={workflow} />);
+  expect(screen.getByRole("status")).toHaveTextContent("语义比较未执行（NOT_PERFORMED） · 实时检索未运行（NOT_RUN） · 人工接受未声明（NOT_CLAIMED）");
 });

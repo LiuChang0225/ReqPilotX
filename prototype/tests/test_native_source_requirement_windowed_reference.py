@@ -91,7 +91,7 @@ class NativeSourceRequirementWindowedReferenceTests(unittest.TestCase):
         self.assertEqual(runner.max_active_classification_calls, 2)
         self.assertEqual(result.run_receipt.execution_strategy, "BOUNDARY_WINDOWS")
         self.assertEqual(result.run_receipt.runner_version, "1.10.0")
-        self.assertEqual(result.run_receipt.kit_version, "0.15.2")
+        self.assertEqual(result.run_receipt.kit_version, "0.16.0")
         self.assertEqual(result.run_receipt.classification_window_count, 2)
         self.assertEqual(result.run_receipt.classification_attempt_count, 2)
         self.assertEqual(result.run_receipt.attempt_count, 3)

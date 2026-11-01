@@ -283,7 +283,7 @@ def prepare(
             case["task_goal"],
             operator,
         )
-        prompt += "\n本次为现有任务的阶段复核，输入说明见 stage-input.md；准备程序提供的Map和条目不计为本轮提取成果。"
+        prompt += "\n本次为预制输入上的阶段任务，具体已提供工件见 stage-input.md；只把你实际新增或修订的成果计为本轮输出。"
         (operator / "prompt.txt").write_text(prompt)
     runner_files = {p.name: file_sha(p) for p in ROOT.glob("*.py")}
     run = freeze_run(
@@ -318,7 +318,7 @@ def prepare(
             else "No overall host deadline configured"
         ),
         workbench_url=workbench_url,
-        prior_answers_supplied=False,
+        prior_answers_supplied=bool(stage_fixture),
         preparation=preparation,
         stage_fixture=stage_fixture,
         prepared_at=now(),

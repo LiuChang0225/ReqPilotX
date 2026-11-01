@@ -56,8 +56,17 @@ def acquire_storage_lease(
     blocking: bool = False,
 ) -> StorageLease:
     root = Path(storage_root).expanduser().resolve(strict=False)
-    root.parent.mkdir(parents=True, exist_ok=True)
-    lock_path = storage_lock_path(root)
+    return acquire_file_lease(storage_lock_path(root), blocking=blocking)
+
+
+def acquire_file_lease(path: Path, *, blocking: bool = True) -> StorageLease:
+    """Hold one process-wide advisory byte lock on a private local lock file.
+
+    The same primitive is used by the desktop storage and native task state so
+    Windows and POSIX serialize writes with identical ownership semantics.
+    """
+    lock_path = Path(path).expanduser().absolute()
+    lock_path.parent.mkdir(parents=True, exist_ok=True)
     if lock_path.is_symlink():
         raise StorageLockError("Storage lock path must not be a symbolic link.")
 

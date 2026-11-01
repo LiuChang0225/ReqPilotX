@@ -6,12 +6,12 @@ Valid out-of-order outputs are retained as immutable stage versions, not failure
 from contextlib import contextmanager
 from pathlib import Path
 from tempfile import TemporaryDirectory
-import fcntl
 import hashlib
 import json
 import os
 
 from reqpilotx_server.application.agent_workflow import source_requirement_baseline as core
+from reqpilotx_server.infrastructure.storage_lock import acquire_file_lease
 
 STAGES = {'compile-map': ('MAP', 'document-map.json'),
           'compile-items': ('ITEMS', 'source-requirement-baseline.json'),
@@ -27,13 +27,8 @@ def _stage_lock(root):
     # Only short local registration/read operations hold this lock, never a model.
     root = Path(root)
     root.mkdir(parents=True, exist_ok=True)
-    with (root / 'stage.lock').open('a+b') as stream:
-        os.chmod(stream.name, 0o600)
-        fcntl.flock(stream, fcntl.LOCK_EX)
-        try:
-            yield
-        finally:
-            fcntl.flock(stream, fcntl.LOCK_UN)
+    with acquire_file_lease(root / 'stage.lock'):
+        yield
 
 
 def _read_json(path, default):

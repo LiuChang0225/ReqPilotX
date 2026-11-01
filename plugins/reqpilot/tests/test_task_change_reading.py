@@ -37,6 +37,12 @@ class TaskChangeReadingTests(ChangeFixture):
         template = self.read(part='scope')['data']
         self.assertEqual(template['candidate_template']['items'][0]['item_key'], 'existing-' + self.parent.source_display_id.lower())
         self.assertEqual(view['semantic_acceptance'], 'NOT_CLAIMED')
+        number=self.read(part='numbering')['data']
+        self.assertEqual(number['source_segments'][0]['text'],view['source'][0]['text'])
+        self.assertEqual(number['source_segments'][0]['source_number_ref'],{'kind':'ITEM_SOURCE','segment_index':0})
+        self.assertTrue(number['heading_sources'][0]['text'].startswith('1 '))
+        self.assertEqual(number['heading_sources'][0]['source_number_ref'],{'kind':'ITEM_HEADING','heading_ref':0})
+        self.assertEqual(view['numbering_review']['read_sources']['arguments']['part'],'numbering')
 
     def test_table_retains_full_cells_shared_headers_and_exact_embedded_relation(self):
         view = self.read(self.table_item.source_display_id)

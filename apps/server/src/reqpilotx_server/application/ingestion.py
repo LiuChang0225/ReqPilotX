@@ -11,6 +11,9 @@ from typing import Any
 from urllib.parse import quote
 
 from reqpilotx_server import db
+from reqpilotx_server.adapters.persistence.entry_commands import (
+    EntryCommandConflict, EntryCommandGone, validate_command_id,
+)
 from reqpilotx_server.application.errors import ApplicationError
 from reqpilotx_server.application.extraction import (
     DocumentIngestionRejected,
@@ -22,6 +25,8 @@ from reqpilotx_server.application.runtime import RUNTIME_STATE
 from reqpilotx_server.application.transport import (
     FileArtifact,
     UploadInput,
+    FormValue,
+    form_value,
     upload_required,
 )
 from reqpilotx_server.infrastructure.runtime_settings import DatabaseBackend
@@ -409,48 +414,85 @@ def _object_key_for_upload(
     safe_name = _safe_upload_storage_name(file_name)
     return f"{kind}/{project_id}/{source_sha256}/{safe_name}"
 
-async def upload_sor_document(project_id: str, file: UploadInput = upload_required()) -> dict:
+def _remove_unreferenced_staged_source(target: Path) -> None:
+    # Only SQLite keeps this attempt's private staging path as its source. A
+    # lost commit acknowledgement must not unlink a successfully saved source.
+    # On uncertainty retain bytes; a later same-command replay can recover.
+    try:
+        with db.get_conn() as conn:
+            conn.execute("BEGIN IMMEDIATE")
+            referenced = conn.execute("SELECT 1 FROM sor_documents WHERE file_path = ? LIMIT 1",
+                                      (str(target),)).fetchone()
+            if referenced is None:
+                target.unlink(missing_ok=True)
+    except Exception:
+        logger.warning("Staged source cleanup deferred; persistence outcome is unconfirmed.")
+
+
+def get_document_import_command(project_id: str, command_id: str) -> dict:
+    from reqpilotx_server.application.projects import _require_project
+    from reqpilotx_server.application.runtime import _public_storage_record
+
+    _require_project(project_id)
+    try:
+        result = db.get_entry_command_result(kind="document.import", scope=project_id, command_id=command_id)
+    except EntryCommandGone as exc:
+        raise ApplicationError(status_code=410, detail=str(exc)) from exc
+    except ValueError as exc:
+        raise ApplicationError(status_code=422, detail=str(exc)) from exc
+    if result is None:
+        raise ApplicationError(status_code=404, detail="entry_command_not_found")
+    return _public_storage_record(result)
+
+
+async def upload_sor_document(project_id: str, file: UploadInput = upload_required(),
+                              command_id: str | None = form_value(None)) -> dict:
     from reqpilotx_server.application.projects import _require_project
     from reqpilotx_server.application.runtime import RUNTIME_SETTINGS, _public_storage_record
 
     _require_project(project_id)
+    if isinstance(command_id, FormValue):
+        command_id = command_id.default
+    try:
+        validate_command_id(command_id)
+    except ValueError as exc:
+        raise ApplicationError(status_code=422, detail=str(exc)) from exc
     file_name = file.filename or f"sor_{uuid.uuid4().hex}.txt"
     target = _upload_staging_dir("sor") / (
         f"{uuid.uuid4().hex}_{_safe_upload_storage_name(file_name)}"
     )
-    await _store_uploaded_document(file, target)
-
     runtime_object = RUNTIME_SETTINGS.database_backend is DatabaseBackend.POSTGRESQL
-    if runtime_object:
-        report = _inspect_uploaded_document(target)
-        parsed_file_type = report.identity.detected_format.value.upper()
-        parsed_text = ""
-    else:
-        prepared = _prepare_uploaded_document(target)
-        report = prepared.preflight
-        parsed_file_type = prepared.parsed.file_type
-        parsed_text = prepared.parsed.text
-    storage_identity = str(target)
-    object_created = False
     media_type = (
         str(file.content_type or "").strip()
         or mimetypes.guess_type(file_name)[0]
         or "application/octet-stream"
     )
-    if runtime_object:
-        storage_identity = _object_key_for_upload(
-            kind="sor-documents",
-            project_id=project_id,
-            source_sha256=report.source_sha256,
-            file_name=file_name,
-        )
-        object_created = _publish_staged_object(
-            target=target,
-            storage_key=storage_identity,
-            expected_sha256=report.source_sha256,
-            media_type=media_type,
-        )
     try:
+        await _store_uploaded_document(file, target)
+        if runtime_object:
+            report = _inspect_uploaded_document(target)
+            parsed_file_type = report.identity.detected_format.value.upper()
+            parsed_text = ""
+        else:
+            prepared = _prepare_uploaded_document(target)
+            report = prepared.preflight
+            parsed_file_type = prepared.parsed.file_type
+            parsed_text = prepared.parsed.text
+        if command_id is not None:
+            replay = db.get_entry_command_result(kind="document.import", scope=project_id,
+                command_id=command_id, request_sha256=db.sor_import_request_hash(
+                    project_id=project_id, file_name=file_name, source_sha256=report.source_sha256,
+                    source_size=report.source_size, media_type=media_type))
+            if replay is not None:
+                if not runtime_object:
+                    target.unlink(missing_ok=True)
+                return _public_storage_record(replay)
+        storage_identity = str(target)
+        if runtime_object:
+            storage_identity = _object_key_for_upload(kind="sor-documents", project_id=project_id,
+                source_sha256=report.source_sha256, file_name=file_name)
+            _publish_staged_object(target=target, storage_key=storage_identity,
+                expected_sha256=report.source_sha256, media_type=media_type)
         document = db.add_sor_document(
             project_id=project_id,
             file_name=file_name,
@@ -463,12 +505,21 @@ async def upload_sor_document(project_id: str, file: UploadInput = upload_requir
             detected_format=report.identity.detected_format.value,
             preflight_schema_version=report.schema_version,
             media_type=media_type,
+            command_id=command_id,
         )
-    except BaseException:
-        if runtime_object and object_created and RUNTIME_STATE.container is not None:
-            RUNTIME_STATE.container.object_store.delete(storage_identity)
+        if not runtime_object and document["file_path"] != str(target):
+            target.unlink(missing_ok=True)  # Concurrent replay used the winning source.
+    except (EntryCommandConflict, EntryCommandGone) as exc:
         if not runtime_object:
-            target.unlink(missing_ok=True)
+            _remove_unreferenced_staged_source(target)
+        raise ApplicationError(status_code=409 if isinstance(exc, EntryCommandConflict) else 410,
+                               detail=str(exc)) from exc
+    except BaseException:
+        # Shared object keys can already be referenced by another successful or
+        # in-flight request, including our own ambiguously acknowledged commit.
+        # No inline compensation deletes them. Orphan cleanup needs a fenced GC.
+        if not runtime_object:
+            _remove_unreferenced_staged_source(target)
         raise
     finally:
         if runtime_object:
@@ -553,7 +604,10 @@ def delete_sor_document(project_id: str, document_id: str) -> dict:
             delete_unreferenced_extraction_result_artifacts(
                 released_result_artifact_keys
             )
-        _delete_runtime_object_if_unreferenced(deleted)
+        # Source keys are shared with concurrent imports. A committed metadata
+        # check cannot fence a later importer before physical object deletion.
+        # Retain raw source bytes/metadata until a durable deletion fence exists;
+        # document bindings and private derived caches are still purged here.
         purge_preview_artifacts(document_id, recreate_snapshot_root=False)
         purge_extraction_shadow_runs(document_id)
         LlmExtractionResultCache(STORAGE_DIR).purge_document(

@@ -1,0 +1,9 @@
+# Native private profile: append only after checking the existing cluster config.
+# Keep Unix sockets for local API/worker/backup; listen on no TCP interfaces.
+listen_addresses = ''
+shared_buffers = '64MB'
+max_connections = 32
+work_mem = '2MB'
+maintenance_work_mem = '32MB'
+statement_timeout = '120s'
+idle_in_transaction_session_timeout = '60s'

@@ -1,0 +1,24 @@
+[Unit]
+Description=ReqPilotX versioned database migration gate
+After=postgresql.service
+Requires=postgresql.service
+
+[Service]
+Type=oneshot
+User=reqpilotx
+Group=reqpilotx
+WorkingDirectory=/opt/reqpilotx/current
+EnvironmentFile=/etc/reqpilotx/application.env
+Environment=REQPILOT_PROCESS_ROLE=api
+ExecStart=/opt/reqpilotx/current/venv/bin/python /opt/reqpilotx/current/deploy/entrypoint.py migrate
+UMask=0077
+NoNewPrivileges=true
+PrivateTmp=true
+ProtectSystem=strict
+ProtectHome=true
+ReadWritePaths=/var/lib/reqpilotx/application
+MemoryAccounting=yes
+CPUAccounting=yes
+MemoryMax=384M
+CPUQuota=60%
+TasksMax=96

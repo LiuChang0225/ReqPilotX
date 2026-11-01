@@ -8,6 +8,7 @@ from __future__ import annotations
 
 import json
 from pathlib import Path
+import shutil
 import subprocess
 import sys
 
@@ -49,9 +50,12 @@ def seed(workspace, source, recipe_path, python, workbench_url, goal, operator):
     note = (
         "这是现有任务的阶段输入，由评测准备程序生成，未计为本轮 Agent 成果。\n"
         f"当前 task_id: {result['task_id']}\n"
-        "原件、已保存的 Document Map 和原文条目均在本工作区。"
+        f"已提供阶段：{', '.join(result.get('provided_stages', ['MAP', 'ITEMS']))}。"
+        "原件可随时回查；预制结构不是本轮模型成果，也不是无需检查的标准答案。"
         "请按用户任务继续处理并实际保存成果。\n"
     )
+    if result.get('workbench_url'):
+        note += '已保存阶段的工作台：' + result['workbench_url'] + '\n'
     (workspace / "stage-input.md").write_text(note)
     return {
         "recipe_sha256": file_sha(operator / "stage-recipe.json"),
@@ -60,6 +64,7 @@ def seed(workspace, source, recipe_path, python, workbench_url, goal, operator):
         "note_sha256": file_sha(workspace / "stage-input.md"),
         "task_id": result["task_id"],
         "task_root": result["task_root"],
+        "provided_stages": result.get('provided_stages', ['MAP', 'ITEMS']),
     }
 
 
@@ -117,6 +122,19 @@ def seed_internal(request):
 
     state = write("prepare", mode="capture")
     task_root = Path(state["task_root"])
+    if recipe.get('preparation_kind') == 'MAP_BUNDLE':
+        result = seed_map_bundle(task_root, recipe)
+        if request.get('workbench_url'):
+            from argparse import Namespace
+            from workbench_tools import sync_workbench
+            current = service.invoke('inspect', {'task_id':task_id})
+            publication = sync_workbench(Namespace(workspace=task_root,
+                url=request['workbench_url'], source=Path(request['source']),
+                map_dir=Path(current['selected']['MAP']['output_dir']), binding_file=None, open=False))
+            if publication['status'] != 'WORKBENCH_SYNCHRONIZED':
+                raise ValueError('Prepared Map must synchronize before this autonomous stage run')
+            result.update(workbench_url=publication['url'], workbench_publication=publication)
+        return result
     captures = list(task_root.rglob("source_ir.json"))
     if len(captures) != 1:
         raise ValueError("Stage input must have one unambiguous initial capture")
@@ -221,7 +239,90 @@ def seed_internal(request):
         "baseline_sha256": baseline["artifact_sha256"],
         "map_sha256": baseline["document_map_artifact_sha256"],
         "source_bindings": by_key,
+        "provided_stages": ['READING', 'MAP', 'ITEMS', 'REVIEW'],
     }
+
+
+def seed_map_bundle(task_root, recipe):
+    """Register a pinned operator-supplied Map with existing workspace validators.
+
+    This is explicitly an eval input import, never a fabricated model/compiler
+    execution. No prior operation receipts or task context are copied.
+    """
+    from reqpilotx.application.agent_workflow import task_workspace as core
+    source = Path(recipe['map_bundle']).resolve(strict=True)
+    files = {str(p.relative_to(source)):file_sha(p) for p in source.rglob('*') if p.is_file()}
+    if files != recipe['map_bundle_files']:
+        raise ValueError('Prepared Map bundle changed')
+    current = core.workspace_status(task_root, refresh=False)
+    if current['context']['source']['sha256'] != recipe['source_sha256']:
+        raise ValueError('Prepared Map has a different original')
+    reading_path = Path(current['selected']['READING']['path'])
+    if not reading_path.is_absolute():
+        reading_path = Path(task_root) / reading_path
+    operation = core.begin_operation(task_root, 'eval-map-seed', inputs={'map_dir':source},
+        expected_revision=current['revision'], command_id='operator-map-seed-v1',
+        request={'preparation':'MAP_BUNDLE','model_produced':False,'files_sha256':digest(files)})
+    output = Path(operation['output_dir'])
+    # The first-class stage is an immutable source artifact; old execution
+    # receipts belong to their original task and must not be transplanted.
+    shutil.copytree(source, output, ignore=shutil.ignore_patterns('operation-receipt.json'))
+    # The Map may contain visual observations absent from a fresh native capture.
+    # Select its exact compiler capture as stage reading, otherwise ordinary Map
+    # repairs fail the immutable-capture extension check. This imports prepared
+    # evidence; it does not pretend that a new parser/vision run produced it.
+    seed_map_reading(output, reading_path.parent, recipe['source_sha256'])
+    saved = core.commit_operation(task_root, operation['operation_id'],
+        artifact_kinds=['SOURCE_IR','DOCUMENT_MAP','SOURCE_FINDINGS'],
+        result={'preparation':'MAP_BUNDLE','model_produced':False,'input_files_sha256':digest(files)})
+    if saved['state'] != 'COMMITTED':
+        raise ValueError('Prepared Map did not commit')
+    return {'preparation':'STAGE_FIXTURE','model_produced':False,
+        'task_id':saved['context']['work_id'],'task_root':str(task_root),
+        'map_sha256':saved['selected']['MAP']['artifact_sha256'],
+        'reading_source_ir_sha256':file_sha(output/'source_ir.json'),
+        'reading_basis':'EXACT_PREPARED_MAP_CAPTURE',
+        'provided_stages':['READING','MAP'],'items_provided':False}
+
+
+def seed_map_reading(output, native_directory, source_sha256):
+    from reqpilotx.application.agent_workflow.artifact_kind_catalog import inside
+    from reqpilotx.domain.extraction.source_ir import SourceIRSnapshot
+    receipt = read(output/'map-compilation-receipt.json')
+    source_inputs = receipt['source_inputs']
+    capture_path = inside(output, source_inputs['source_ir_path'])
+    if file_sha(capture_path) != source_inputs['source_ir_sha256']:
+        raise ValueError('Prepared Map capture hash changed')
+    capture = SourceIRSnapshot.model_validate(read(capture_path))
+    original = inside(output, source_inputs['source_path'])
+    if capture.source_sha256 != source_sha256 or file_sha(original) != source_sha256:
+        raise ValueError('Prepared reading has a different original')
+    native = read(native_directory/'manifest.json')
+    if native['source']['sha256'] != source_sha256:
+        raise ValueError('Native asset source differs from prepared Map')
+    assets = {a['sha256']:a for a in native['artifacts'].get('assets', [])}
+    imported = []
+    for asset in capture.assets:
+        stored = assets.get(asset.content_sha256)
+        if stored is None:
+            raise ValueError('Prepared Map asset is unavailable from the same original')
+        path = inside(native_directory, stored['path'])
+        if file_sha(path) != asset.content_sha256:
+            raise ValueError('Prepared Map asset bytes changed')
+        target = inside(output/'assets', asset.storage_key)
+        target.parent.mkdir(parents=True, exist_ok=True)
+        shutil.copyfile(path, target)
+        imported.append({'asset_id':asset.asset_id, 'path':str(target.relative_to(output)),
+                         'sha256':asset.content_sha256})
+    shutil.copyfile(capture_path, output/'source_ir.json')
+    save(output/'manifest.json', {
+        'schema_version':'reqpilot-eval-source-import/v1',
+        'mode':'PREPARED_MAP_CAPTURE_IMPORT', 'model_produced':False,
+        'source':{'sha256':source_sha256}, 'source_ir_id':capture.source_ir_id,
+        'semantic_status':'NOT_CLAIMED',
+        'prepared_capture_sha256':source_inputs['source_ir_sha256'],
+        'artifacts':{'source_document':source_inputs['source_path'],
+                     'source_ir':'source_ir.json','assets':imported}})
 
 
 def relation_checks(baseline, annotations, oracle):
@@ -281,6 +382,8 @@ def grade_stage(run_dir, oracle_path, out):
     root, run = load_run(run_dir)
     if run.get("preparation") != "STAGE_FIXTURE":
         raise ValueError("Stage grader requires a declared stage fixture")
+    if 'ITEMS' not in (run.get('stage_fixture') or {}).get('provided_stages', ['ITEMS']):
+        raise ValueError('Map-only preparation uses grade plus source-bound reviews; grade-stage is for existing-item relation fixtures')
     oracle = read(oracle_path)
     if oracle["source_sha256"] != run["source_sha256"]:
         raise ValueError("Oracle source differs from run")

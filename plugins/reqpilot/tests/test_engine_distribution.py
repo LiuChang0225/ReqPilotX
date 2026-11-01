@@ -108,6 +108,7 @@ class EngineDistributionTests(unittest.TestCase):
         self.assertGreater(len(paths), 1)
         self.assertEqual(len(paths), len(set(paths)))
         self.assertIn("reqpilotx/tools/fast_source_capture.py", paths)
+        self.assertIn("reqpilotx/application/openkb_originals.py", paths)
         self.assertFalse(any("/persistence/" in f"/{path}/" or "/infrastructure/" in f"/{path}/" for path in paths))
         self.assertFalse(any(path.startswith("reqpilotx_server/") for path in paths))
         self.assertEqual(set(NAMESPACE_INITIALIZERS), {member.runtime_relative for member in selection.members if member.namespace_initializer})

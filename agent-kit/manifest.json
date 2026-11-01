@@ -1,7 +1,7 @@
 {
   "schema_version": "reqpilotx-portable-agent-kit/v1",
   "kit_id": "reqpilotx-document-extraction",
-  "kit_version": "0.15.2",
+  "kit_version": "0.16.0",
   "policy_id": "reqpilotx-extraction-policy",
   "policy_version": "1.0.0",
   "policy_path": "policy/extraction-policy.v1.json",

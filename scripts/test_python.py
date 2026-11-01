@@ -26,6 +26,7 @@ def main() -> int:
     env = {
         key: value for key, value in os.environ.items()
         if not key.startswith(("REQPILOT_", "REQPILOTX_", "OPENAI_", "AZURE_", "DASHSCOPE_", "ALIYUN_", "ALIBABA_CLOUD_"))
+        and key.upper() not in {"HTTP_PROXY", "HTTPS_PROXY", "ALL_PROXY", "NO_PROXY"}
     }
     with tempfile.TemporaryDirectory(prefix="reqpilotx-offline-tests-") as temporary:
         env.update({

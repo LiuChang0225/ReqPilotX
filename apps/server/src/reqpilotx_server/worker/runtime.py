@@ -314,7 +314,9 @@ class WorkerRuntime:
         )
         keepalive.start()
         try:
-            result = handler(job, context)
+            from reqpilotx_server.saas.authorization import durable_job_scope
+            with durable_job_scope(job):
+                result = handler(job, context)
         except Exception as exc:
             if isinstance(exc, NonRetryableJobError):
                 error_code = exc.error_code

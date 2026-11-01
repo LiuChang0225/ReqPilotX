@@ -14,11 +14,13 @@ if str(_project_dir) not in sys.path:
     sys.path.insert(0, str(_project_dir))
 
 from scripts.release_preflight import validate_qdrant_artifact
+from build_desktop import validate_postgres_distribution
 
 
 _parser = argparse.ArgumentParser(add_help=False)
 _parser.add_argument("--with-qdrant", action="store_true")
 _parser.add_argument("--qdrant-manifest")
+_parser.add_argument("--postgres-root")
 _options = _parser.parse_args()
 
 _binaries = []
@@ -31,7 +33,14 @@ _runtime_hiddenimports = [
     *collect_submodules("reqpilotx.adapters.documents"),
     *collect_submodules("reqpilotx.domain"),
     *collect_submodules("reqpilotx_server.resources"),
+    *collect_submodules("reqpilotx_server.worker"),
+    "local_worker_entry",
 ]
+if not _options.postgres_root:
+    raise SystemExit("A validated --postgres-root is required for a desktop build")
+_postgres_root = validate_postgres_distribution(Path(_options.postgres_root))
+for _part in ("bin", "lib", "share"):
+    _runtime_datas.append((str(_postgres_root / _part), f"postgres/{_part}"))
 if _options.with_qdrant:
     _manifest = (
         Path(_options.qdrant_manifest).expanduser().resolve()

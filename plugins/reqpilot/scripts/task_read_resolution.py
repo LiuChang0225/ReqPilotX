@@ -5,7 +5,7 @@ import json
 from pathlib import Path
 import re
 
-from task_reading import _source
+from task_reading import _source, _next, ReadNavigationError
 
 
 def source_handle(capture_sha, ref):
@@ -48,7 +48,8 @@ def resolve_source_request(state, request):
                 raise ValueError('CAPTURE_VERSION_REQUIRED: multiple or unregistered captures; use the returned handle or capture_sha256')
             method='ONLY_REGISTERED_CAPTURE'
     if request.view=='part' and ref is None:
-        raise ValueError('INVALID_SOURCE_REF: part requires a returned ref or handle')
+        raise ReadNavigationError('INVALID_SOURCE_REF','part requires a returned ref or handle; follow the source index read',
+            _next('source_authoring',{'capture_sha256':capture}))
     page=request.page
     if request.view in {'page','image'}:
         candidates=[]

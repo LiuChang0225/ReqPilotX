@@ -31,7 +31,7 @@ class PluginSavedNumberTests(unittest.TestCase):
     def setUp(self):
         self.temp = TemporaryDirectory(); self.addCleanup(self.temp.cleanup); self.root = Path(self.temp.name)
         self.mapping,self.baseline = compiled(['1.1 Original scope definition.','1.2 Response-time definition.'])
-        self.head = {'project_id':'p','document_id':'d','source_sha256':self.baseline.source_sha256,
+        self.head = {'project_id':'p','document_id':'d','session_id':'plugin-saved','source_sha256':self.baseline.source_sha256,
             'versions':[],'feedback':[],'feedback_resolutions':{}}
         self.patch = patch.object(api,'_load',return_value=(self.root,self.head));self.patch.start();self.addCleanup(self.patch.stop)
 

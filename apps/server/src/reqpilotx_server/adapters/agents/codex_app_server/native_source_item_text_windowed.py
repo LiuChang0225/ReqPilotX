@@ -33,6 +33,7 @@ from reqpilotx_server.application.agent_workflow.runner_output_schema import (
 from reqpilotx_server.application.agent_workflow.source_requirement_baseline import (
     DocumentMapArtifactV1,
     SourceItemStructureOnlySpanV1,
+    SourceItemTableOwnedTextSpanV1,
     SourceItemTextBoundaryCandidateV1,
     SourceItemTextScopeRequestV1,
     SourceItemTextSliceCandidateV1,
@@ -153,10 +154,13 @@ class SourceItemTextBoundaryAgentCandidateV1(_StrictFrozenModel):
         default=(),
         max_length=4096,
     )
+    table_owned_spans: tuple[SourceItemTableOwnedTextSpanV1, ...] = Field(
+        default=(), max_length=4096, exclude_if=lambda value: not value
+    )
 
     @model_validator(mode="after")
     def validate_disposition(self) -> SourceItemTextBoundaryAgentCandidateV1:
-        if not self.records and not self.structure_only_spans:
+        if not self.records and not self.structure_only_spans and not self.table_owned_spans:
             raise ValueError("text boundary candidate must disposition its scope")
         return self
 
@@ -191,6 +195,9 @@ class SourceItemTextBoundaryPlanV1(_StrictFrozenModel):
         default=(),
         max_length=4096,
     )
+    table_owned_spans: tuple[SourceItemTableOwnedTextSpanV1, ...] = Field(
+        default=(), max_length=4096, exclude_if=lambda value: not value
+    )
     boundary_identity_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
     plan_sha256: str = Field(pattern=r"^[0-9a-f]{64}$")
 
@@ -199,7 +206,7 @@ class SourceItemTextBoundaryPlanV1(_StrictFrozenModel):
         keys = tuple(item.record_key for item in self.records)
         if len(keys) != len(set(keys)):
             raise ValueError("text boundary-plan record keys must be unique")
-        if not self.records and not self.structure_only_spans:
+        if not self.records and not self.structure_only_spans and not self.table_owned_spans:
             raise ValueError("text boundary plan must disposition its scope")
         expected = canonical_json_sha256(
             self.model_dump(
@@ -513,6 +520,7 @@ def compile_source_item_text_boundary_plan(
         "scope_id": request.scope_id,
         "records": tuple(records),
         "structure_only_spans": structure_only_spans,
+        "table_owned_spans": candidate.table_owned_spans,
     }
     draft = SourceItemTextBoundaryPlanV1.model_construct(
         **values,
@@ -608,6 +616,8 @@ def validate_source_item_text_boundary_plan(
             assign(span, f"record:{record.record_key}", structure_only=False)
     for index, item in enumerate(plan.structure_only_spans):
         assign(item.text_span, f"structure:{index}", structure_only=True)
+    for item in plan.table_owned_spans:
+        assign(item.text_span, f"table:{item.logical_table_scope_id}:{item.record_key}", structure_only=False)
     expected = {
         (content.content_id, offset)
         for content in request.source_content
@@ -861,6 +871,7 @@ def aggregate_source_item_text_batch(
             scope_id=request.scope_id,
             items=items,
             structure_only_spans=plan.structure_only_spans,
+            table_owned_spans=plan.table_owned_spans,
             diagnostic_codes=tuple(sorted(diagnostics_by_scope[request.scope_id])),
         )
         validate_source_item_text_slice_candidate(request, candidate)
@@ -1228,6 +1239,9 @@ def _boundary_identity_sha256(plan: SourceItemTextBoundaryPlanV1) -> str:
                 item.text_span.model_dump(mode="json")
                 for item in plan.structure_only_spans
             ],
+            **({"table_owned_spans": [
+                item.model_dump(mode="json") for item in plan.table_owned_spans
+            ]} if plan.table_owned_spans else {}),
         }
     )
 

@@ -10,6 +10,26 @@
       ],
       "type": "string"
     },
+    "SourceItemTextSpanV1": {
+      "additionalProperties": false,
+      "properties": {
+        "content_id": {
+          "type": "string"
+        },
+        "end_offset": {
+          "type": "integer"
+        },
+        "start_offset": {
+          "type": "integer"
+        }
+      },
+      "required": [
+        "content_id",
+        "start_offset",
+        "end_offset"
+      ],
+      "type": "object"
+    },
     "SourceRecordForm": {
       "enum": [
         "NUMBERED_CLAUSE",
@@ -70,6 +90,12 @@
         "label": {
           "type": "string"
         },
+        "owning_text_spans": {
+          "items": {
+            "$ref": "#/$defs/SourceItemTextSpanV1"
+          },
+          "type": "array"
+        },
         "row_groups": {
           "items": {
             "$ref": "#/$defs/_AgentRowGroupV1"
@@ -90,7 +116,8 @@
         "label",
         "source_form",
         "row_groups",
-        "shared_source_content_ids"
+        "shared_source_content_ids",
+        "owning_text_spans"
       ],
       "type": "object"
     }

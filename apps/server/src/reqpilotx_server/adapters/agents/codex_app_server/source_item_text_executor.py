@@ -136,6 +136,28 @@ class LocalCanonicalSourceItemTextExecutor:
             return str(exc)
         return None
 
+    def _load_stage_kit(self):  # type: ignore[no-untyped-def]
+        kit = load_portable_agent_kit(self._kit_root)
+        profile = kit.runner_profile("app-server-product")
+        if (
+            profile.model_id != self.model_id
+            or profile.reasoning_effort != self.reasoning_effort
+        ):
+            raise LifecycleProbeError("CANONICAL_SOURCE_ITEM_TEXT_PROFILE_DRIFTED")
+        return kit
+
+    @contextmanager
+    def _stage_runtime(self, *, task):  # type: ignore[no-untyped-def]
+        with self._runtime_state_factory(
+            codex_bin=self._codex_bin,
+            codex_home=self._codex_home,
+            repository_root=self._repository_root,
+        ) as runtime:
+            version = str(runtime.protocol.get("codex_version") or "").strip()
+            if not version:
+                raise LifecycleProbeError("CANONICAL_CODEX_VERSION_MISSING")
+            yield runtime, version
+
     def execute(
         self,
         task: SourceItemTextTaskV1,
@@ -147,13 +169,7 @@ class LocalCanonicalSourceItemTextExecutor:
         document_map, requests, source = _validate_task(task)
         execution_context = _validated_execution_context(task.execution_context)
         sink: CheckpointSink = checkpoint_sink or (lambda _value: None)
-        kit = load_portable_agent_kit(self._kit_root)
-        profile = kit.runner_profile("app-server-product")
-        if (
-            profile.model_id != self.model_id
-            or profile.reasoning_effort != self.reasoning_effort
-        ):
-            raise LifecycleProbeError("CANONICAL_SOURCE_ITEM_TEXT_PROFILE_DRIFTED")
+        kit = self._load_stage_kit()
         request_set_sha256 = source_item_text_request_set_sha256(
             requests,
             execution_context=execution_context,
@@ -192,14 +208,7 @@ class LocalCanonicalSourceItemTextExecutor:
             )
         )
         started = time.monotonic()
-        with self._runtime_state_factory(
-            codex_bin=self._codex_bin,
-            codex_home=self._codex_home,
-            repository_root=self._repository_root,
-        ) as runtime:
-            codex_version = str(runtime.protocol.get("codex_version") or "").strip()
-            if not codex_version:
-                raise LifecycleProbeError("CANONICAL_CODEX_VERSION_MISSING")
+        with self._stage_runtime(task=task) as (runtime, codex_version):
             if checkpoint is not None:
                 validate_source_item_text_resume_checkpoint_identity(
                     checkpoint,
@@ -561,7 +570,11 @@ class LocalCanonicalSourceItemTextExecutor:
                 task_directive=(
                     "Read the locked direct-text scope. Return only scope_id, "
                     "record labels/forms, exact Unicode text spans, shared source "
-                    "IDs, and structure-only title spans. Do not return A/B/F or "
+                    "IDs, structure-only title spans, and any exact table-owned "
+                    "spans reserved by table-ownership-context.json. Table-owned "
+                    "spans must repeat the supplied logical_table_scope_id and "
+                    "record_key; never turn them into separate text records. "
+                    "Do not return A/B/F or "
                     "machine record keys. On attempt 2, correct the complete scope "
                     "using validation-feedback.json."
                     + (
@@ -572,7 +585,14 @@ class LocalCanonicalSourceItemTextExecutor:
                         "it when it remains supported, and change it only with a "
                         "source-grounded reason. Still return one complete replacement "
                         "for only this affected scope."
-                        if execution_context is not None
+                        if execution_context is not None and execution_context.get("schema_version") == "source-item-scope-revision-agent-context/v2"
+                        else ""
+                    )
+                    + (
+                        " The exact table ownership in table-ownership-context.json "
+                        "is Host-reserved. Partition all remaining source text into "
+                        "independent records or true title spans."
+                        if execution_context is not None and execution_context.get("schema_version") == "source-item-text-table-ownership/v1"
                         else ""
                     )
                 ),
@@ -586,6 +606,11 @@ class LocalCanonicalSourceItemTextExecutor:
                 plan = compile_source_item_text_boundary_plan(
                     request=request,
                     candidate=candidate,
+                )
+                _validate_reserved_table_owned_spans(
+                    request=request,
+                    plan=plan,
+                    execution_context=execution_context,
                 )
                 return TextBoundaryRunResult(
                     plan=plan,
@@ -645,7 +670,7 @@ class LocalCanonicalSourceItemTextExecutor:
             efforts.append(
                 self.reasoning_effort
                 if window.risk_signals or attempt == 2
-                else "medium"
+                else ("medium" if self.reasoning_effort == "high" else self.reasoning_effort)
             )
             files = _phase_files(
                 document_map=document_map,
@@ -684,7 +709,7 @@ class LocalCanonicalSourceItemTextExecutor:
                     + (
                         " Use revision-guidance.json only to interpret the affected "
                         "records; never change their Host-frozen boundaries."
-                        if execution_context is not None
+                        if execution_context is not None and execution_context.get("schema_version") == "source-item-scope-revision-agent-context/v2"
                         else ""
                     )
                 ),
@@ -940,9 +965,10 @@ def _validated_execution_context(
     if value is None:
         return None
     normalized = dict(value)
-    if normalized.get("schema_version") != (
-        "source-item-scope-revision-agent-context/v2"
-    ):
+    if normalized.get("schema_version") not in {
+        "source-item-scope-revision-agent-context/v2",
+        "source-item-text-table-ownership/v1",
+    }:
         raise ValueError("canonical source-item text execution context is invalid")
     context_sha256 = str(normalized.get("context_sha256") or "")
     expected = canonical_json_sha256(
@@ -951,6 +977,30 @@ def _validated_execution_context(
     if context_sha256 != expected or len(_canonical_bytes(normalized)) > 512 * 1024:
         raise ValueError("canonical source-item text execution context drifted")
     return normalized
+
+
+def _validate_reserved_table_owned_spans(
+    *,
+    request: SourceItemTextScopeRequestV1,
+    plan: SourceItemTextBoundaryPlanV1,
+    execution_context: Mapping[str, object] | None,
+) -> None:
+    if execution_context is None or execution_context.get("schema_version") != "source-item-text-table-ownership/v1":
+        if plan.table_owned_spans:
+            raise ValueError("SOURCE_ITEM_TEXT_TABLE_OWNERSHIP_CONTEXT_REQUIRED")
+        return
+    if (
+        execution_context.get("scope_id") != request.scope_id
+        or execution_context.get("source_sha256") != request.source_sha256
+        or execution_context.get("document_map_artifact_sha256") != request.document_map_artifact_sha256
+    ):
+        raise ValueError("SOURCE_ITEM_TEXT_TABLE_OWNERSHIP_CONTEXT_DRIFT")
+    reserved = execution_context.get("table_owned_spans")
+    if not isinstance(reserved, list) or not reserved:
+        raise ValueError("SOURCE_ITEM_TEXT_TABLE_OWNERSHIP_CONTEXT_EMPTY")
+    actual = [item.model_dump(mode="json") for item in plan.table_owned_spans]
+    if sorted(actual, key=canonical_json_sha256) != sorted(reserved, key=canonical_json_sha256):
+        raise ValueError("SOURCE_ITEM_TEXT_TABLE_OWNERSHIP_MISMATCH")
 
 
 def _compact_scope(request: SourceItemTextScopeRequestV1) -> dict[str, object]:
@@ -999,7 +1049,12 @@ def _phase_files(
     if validation_feedback is not None:
         values.append(("validation-feedback.json", validation_feedback))
     if execution_context is not None:
-        values.append(("revision-guidance.json", execution_context))
+        filename = (
+            "table-ownership-context.json"
+            if execution_context.get("schema_version") == "source-item-text-table-ownership/v1"
+            else "revision-guidance.json"
+        )
+        values.append((filename, execution_context))
     return tuple(sorted(values, key=lambda item: item[0]))
 
 
